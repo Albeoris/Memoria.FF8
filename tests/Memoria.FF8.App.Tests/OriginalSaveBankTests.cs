@@ -9,6 +9,31 @@ public sealed partial class OriginalSaveBankTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-original-banks-" + Guid.NewGuid().ToString("N"));
 
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Native_save_rejects_dormant_or_active_additional_members_before_writing(int capacity)
+    {
+        PlayerSaveStore store = CreateStore();
+        GameState state = Defaults();
+        store.Save(101, new GameSession(state));
+        string target = store.GetPath(101);
+        byte[] previous = File.ReadAllBytes(target);
+        string[] previousFiles = Directory.GetFiles(store.OriginalDirectory!).Order().ToArray();
+        NativeCharacterVitals vitals = state.CharacterVitals!.WithBattleParty([0, 1, 2, 3], 4);
+        GameSession session = new(state with { CharacterVitals = vitals, GameplayPreferences = state.GameplayPreferences with { BattleAllyCount = capacity } });
+        Assert.Equal(new byte[] { 3 }, session.State.CharacterVitals!.AdditionalCombatParty);
+        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(session.State, allowGuardianForceProjection: true));
+        GameState before = session.State;
+
+        NotSupportedException refused = Assert.Throws<NotSupportedException>(() => store.Save(101, session, targetSource: vitals, allowGuardianForceLoss: true));
+
+        Assert.Contains("Choose a Memoria slot", refused.Message, StringComparison.Ordinal);
+        Assert.Same(before, session.State);
+        Assert.Equal(previous, File.ReadAllBytes(target));
+        Assert.Equal(previousFiles, Directory.GetFiles(store.OriginalDirectory!).Order());
+    }
+
     [Fact]
     public void Bank_boundaries_use_native_filenames_and_never_rename_existing_Memoria_slots()
     {

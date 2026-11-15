@@ -10,15 +10,27 @@ public enum ExpandedAiAdmission
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null)
+    private readonly record struct ScriptPath(int Offset, bool MayTargetParty, bool PreparedEjection);
+
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions = null, Func<ushort, bool>? admitsDonorEffect = null)
     {
         if (program.Scripts.Length != 5 || program.LevelBand is < 0 or > 2 || program.Abilities.Length != 48)
         {
+            if (rosterRestrictions is not null)
+            {
+                throw new InvalidDataException($"Formation {formation}, model {rosterModel} has an invalid AI program layout.");
+            }
             blockers?.Add("program-layout");
             return ExpandedAiAdmission.RequiresUnsupportedService;
         }
-        HashSet<(byte Command, ushort Id)> supported = actions.Where(action => SupportsAction(action, originalEnemySlots)).Select(action => (action.Command, action.ActionId)).ToHashSet();
+        HashSet<(byte Command, ushort Id)> supported = actions.Where(action => SupportsAction(action, originalEnemySlots) && AdmitsDonorEffect(action.MagicId)).Select(action => (action.Command, action.ActionId)).ToHashSet();
+        HashSet<(byte Command, ushort Id)>? ejections = rosterRestrictions is null
+            ? null : actions.Where(AppliesEject).Select(action => (action.Command, action.ActionId)).ToHashSet();
         NativeBattleAiAbility berserk = program.Abilities[16 * program.LevelBand];
+        if (PreparesEjection(berserk.Command, berserk.Id))
+        {
+            RecordPartyDeparture(1, null, null);
+        }
         ExpandedAiAdmission admission = SupportsCommand(berserk.Command, berserk.Id) ? ExpandedAiAdmission.Supported : ExpandedAiAdmission.RequiresUnsupportedService;
         if (admission != ExpandedAiAdmission.Supported)
         {
@@ -75,17 +87,18 @@ public static class NativeBattleExpandedAi
             {
                 return;
             }
-            HashSet<int> visited = [];
-            Stack<int> pending = new();
-            pending.Push(0);
-            while (pending.TryPop(out int pc))
+            HashSet<ScriptPath> visited = [];
+            Stack<ScriptPath> pending = new();
+            pending.Push(new(0, false, false));
+            while (pending.TryPop(out ScriptPath path))
             {
+                int pc = path.Offset;
                 if ((uint)pc >= script.Length)
                 {
-                    MarkUnsupportedService("branch-outside-script");
+                    MarkMalformed("branch-outside-script", callback, pc);
                     continue;
                 }
-                if (!visited.Add(pc))
+                if (!visited.Add(path))
                 {
                     continue;
                 }
@@ -108,7 +121,7 @@ public static class NativeBattleExpandedAi
                 };
                 if (pc + operands > script.Length)
                 {
-                    MarkUnsupportedService($"truncated-opcode:{opcode}");
+                    MarkMalformed($"truncated-opcode:{opcode}", callback, path.Offset);
                     continue;
                 }
                 if (operands < 0)
@@ -124,7 +137,7 @@ public static class NativeBattleExpandedAi
                 switch (opcode)
                 {
                     case 1 or 24 or 26 or 34 when originalEnemySlots && script[pc] >= program.Texts.Length:
-                        MarkUnsupportedService($"text-operand:{opcode}/{script[pc]}");
+                        MarkMalformed($"text-operand:{opcode}/{script[pc]}", callback, path.Offset);
                         break;
                     case 2:
                         int subject = script[pc];
@@ -158,26 +171,37 @@ public static class NativeBattleExpandedAi
                         }
                         else
                         {
-                            pending.Push(otherwise);
+                            pending.Push(path with { Offset = otherwise });
                         }
                         break;
                     case 8 when callback != 3 && !originalEnemySlots:
                         MarkUnsupportedService($"opcode:{opcode}");
                         break;
-                    case 30 when !actions.Any(action => action is { Command: 8, ActionId: 1, CrisisLevel: null }):
-                        MarkUnsupportedService("graphics-target-flags:8/1");
+                    case 30:
+                        if (!actions.Any(action => action is { Command: 8, ActionId: 1, CrisisLevel: null }))
+                        {
+                            MarkUnsupportedService("graphics-target-flags:8/1");
+                        }
+                        else if (!AdmitsDonorEffect(script[pc]))
+                        {
+                            MarkUnsupportedService($"graphics-effect:{script[pc]}");
+                        }
                         break;
                     case 42:
-                        if (actions.Any(action => action is { Command: 2, ActionId: > 0 } && !ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action)))
+                        if (actions.Any(action => action is { Command: 2, ActionId: > 0 } && (!ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action) || !AdmitsDonorEffect(action.MagicId))))
                         {
                             MarkUnsupportedService("drawn-magic-contract");
+                        }
+                        if (rosterRestrictions is not null && actions.Any(action => IsPotentialPartyDrawnEjection(action)))
+                        {
+                            RecordPartyDeparture(callback, path.Offset, opcode);
                         }
                         break;
                     case 27 or 31 or 43 or 44 or 49 or 50 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
                         RequireOriginalSlots($"physical-opcode:{opcode}");
                         break;
                     case 27 when script[pc] >= NativeBattleSlots.EnemyCount:
-                        MarkUnsupportedService($"physical-operand:{opcode}/{script[pc]}");
+                        MarkMalformed($"physical-operand:{opcode}/{script[pc]}", callback, path.Offset);
                         break;
                     case 29:
                         if (script[pc] != 200 && !originalEnemySlots)
@@ -186,23 +210,34 @@ public static class NativeBattleExpandedAi
                         }
                         else if (script[pc] != 200 && script[pc] >= NativeBattleSlots.EnemyCount)
                         {
-                            MarkUnsupportedService($"physical-operand:{opcode}/{script[pc]}");
+                            MarkMalformed($"physical-operand:{opcode}/{script[pc]}", callback, path.Offset);
                         }
                         break;
                     case 31 or 52 when script[pc] >= NativeBattleSlots.FormationSlotCount:
                     case 43 or 58 when !NativeBattleSlots.Contains(script[pc]):
                     case 53 when script[pc] != 209 && !NativeBattleSlots.Contains(script[pc]):
                     case 59 when script[pc] >= NativeBattleSlots.FormationSlotCount || script[pc + 1] != 0 && (script[pc + 1] < NativeBattleSlots.AllyCount || !NativeBattleSlots.Contains(script[pc + 1])):
-                        MarkUnsupportedService($"physical-operand:{opcode}");
+                        MarkMalformed($"physical-operand:{opcode}", callback, path.Offset);
+                        break;
+                    case 6:
+                        if (path.MayTargetParty && path.PreparedEjection)
+                        {
+                            RecordPartyDeparture(callback, path.Offset, opcode);
+                        }
                         break;
                     case 3 or 7:
                         byte command = opcode == 3 ? (byte)2 : (byte)8;
+                        path = path with { PreparedEjection = PreparesEjection(command, script[pc]) };
                         if (!SupportsCommand(command, script[pc]))
                         {
                             MarkUnsupportedService($"command:{command}/{script[pc]}");
                         }
                         break;
                     case 4:
+                        if (rosterRestrictions is not null)
+                        {
+                            path = path with { MayTargetParty = SelectorMayTargetParty(script[pc]) };
+                        }
                         if (script[pc] == 209 && !originalEnemySlots)
                         {
                             RequireOriginalSlots($"actor-reference-target:{script[pc]}");
@@ -216,8 +251,19 @@ public static class NativeBattleExpandedAi
                             RecordModelReference(script[pc], $"target-model:{script[pc]}");
                         }
                         break;
-                    case 38 when script[pc + 1] < 200:
-                        RecordModelReference(script[pc + 1], $"target-filter-model:{script[pc + 1]}");
+                    case 38:
+                        if (script[pc + 1] < 200)
+                        {
+                            RecordModelReference(script[pc + 1], $"target-filter-model:{script[pc + 1]}");
+                        }
+                        if (rosterRestrictions is not null)
+                        {
+                            // The packed ALL form can resolve to the party group when the filter is empty.
+                            path = path with { MayTargetParty = script[pc] != 0 || script[pc + 1] != 201 };
+                        }
+                        break;
+                    case 43 when rosterRestrictions is not null:
+                        path = path with { MayTargetParty = script[pc] < NativeBattleSlots.AllyCount };
                         break;
                     case 11 or 12:
                         for (int i = 0; i < operands; i++)
@@ -225,11 +271,15 @@ public static class NativeBattleExpandedAi
                             byte slot = script[pc + i];
                             if (opcode == 11 && slot == 253)
                             {
+                                if (rosterRestrictions is not null)
+                                {
+                                    pending.Push(path with { Offset = next });
+                                }
                                 continue;
                             }
                             if (slot >= 16)
                             {
-                                MarkUnsupportedService($"ability-slot:{slot}");
+                                MarkMalformed($"ability-slot:{slot}", callback, path.Offset);
                                 continue;
                             }
                             NativeBattleAiAbility ability = program.Abilities[16 * program.LevelBand + slot];
@@ -237,6 +287,19 @@ public static class NativeBattleExpandedAi
                             {
                                 MarkUnsupportedService($"command:{ability.Command}/{ability.Id}");
                             }
+                            if (rosterRestrictions is not null)
+                            {
+                                bool ejects = PreparesEjection(ability.Command, ability.Id);
+                                if (path.MayTargetParty && ejects)
+                                {
+                                    RecordPartyDeparture(callback, path.Offset, opcode);
+                                }
+                                pending.Push(path with { Offset = next, PreparedEjection = ejects });
+                            }
+                        }
+                        if (rosterRestrictions is not null)
+                        {
+                            continue;
                         }
                         break;
                     case 14 or 18:
@@ -272,7 +335,7 @@ public static class NativeBattleExpandedAi
                         next += unchecked((short)ReadWord(script, pc));
                         break;
                 }
-                pending.Push(next);
+                pending.Push(path with { Offset = next });
             }
         }
 
@@ -280,6 +343,22 @@ public static class NativeBattleExpandedAi
         {
             blockers?.Add(reason);
             admission = ExpandedAiAdmission.RequiresUnsupportedService;
+        }
+
+        void MarkMalformed(string reason, int callback, int offset)
+        {
+            if (rosterRestrictions is not null)
+            {
+                throw new InvalidDataException($"Formation {formation}, model {rosterModel}, AI callback {callback}, byte {offset}: {reason}.");
+            }
+            MarkUnsupportedService(reason);
+        }
+
+        bool PreparesEjection(byte command, ushort id) => id != 0 && ejections?.Contains((command, id)) == true;
+
+        void RecordPartyDeparture(int callback, int? offset, int? opcode)
+        {
+            rosterRestrictions?.Add(new(BattleEncounterRosterRestriction.ScriptedPartyMembership, rosterModel, program.LevelBand, callback, offset, opcode));
         }
 
         void RequireOriginalSlots(string reason)
@@ -295,7 +374,31 @@ public static class NativeBattleExpandedAi
         {
             return id == 0 || supported.Contains((command, id));
         }
+
+        bool AdmitsDonorEffect(ushort effect) => originalEnemySlots || admitsDonorEffect?.Invoke(effect) != false;
     }
+
+    private static bool AppliesEject(BattleNativeAction action)
+    {
+        return !action.PresentationOnly && action.CrisisLevel is null && action.HitCount > 0 &&
+            action.AttackType is not (0 or 3 or 4 or 5 or 6 or 21 or 25 or 32) && (action.Statuses1 & 0x10000) != 0;
+    }
+
+    private static bool IsPotentialPartyDrawnEjection(BattleNativeAction action)
+    {
+        if (action is not { Command: 2, ActionId: > 0 and < 64, TargetFlags: byte flags } || !AppliesEject(action))
+        {
+            return false;
+        }
+        return (flags & 0x30) switch
+        {
+            0x20 => (flags & 2) == 0,
+            0x30 => (action.ActionId & 7) != 0,
+            _ => (flags & 0x40) != 0
+        };
+    }
+
+    private static bool SelectorMayTargetParty(int selector) => selector is not (>= 16 and < 201 or 202 or 205 or 207 or 209);
 
     internal static bool SupportsAction(BattleNativeAction action, bool originalEnemySlots)
     {

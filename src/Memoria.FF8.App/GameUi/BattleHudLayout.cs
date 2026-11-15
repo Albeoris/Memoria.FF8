@@ -4,77 +4,120 @@ namespace Memoria.FF8.GameUi;
 
 internal readonly record struct BattleHudPartyRow(float Top, float Height, float VitalHeight, float StatusOffset, float StatusTextScale, float GaugeOffset);
 
-internal readonly record struct BattleHudPartyList(UiRect Panel, int Start, int VisibleCount, int TotalCount, int RowsPerColumn, float VitalHeight, float StatusHeight, float FontSize)
+internal readonly record struct BattleHudPartyContent(string Name, string CurrentHp, string MaximumHp, float StatusWidth);
+
+internal readonly record struct BattleHudPartyList(UiRect Panel, int StartRow, int VisibleRows, int Count, float ColumnWidth, float VitalLineHeight, float StatusHeight, float FontSize, float GaugeWidth, bool StackedVitals)
 {
-    public const float Left = 244;
-    private const float ColumnWidth = 336;
-    private const float ColumnGap = 18;
+    private const int RowsPerColumn = 6;
+    private const float ColumnGap = 14;
     private const float Padding = 12;
-    internal const float FooterHeight = 28;
-    public int End => Start + VisibleCount;
-    public bool Scrolls => VisibleCount < TotalCount;
-    public bool TwoColumns => RowsPerColumn < VisibleCount;
+    private const float FooterHeight = 28;
+
+    public int Rows => Math.Min(Count, RowsPerColumn);
+    public int EndRow => StartRow + VisibleRows;
+    public bool Scrolls => VisibleRows < Rows;
+    public bool TwoColumns => Count > RowsPerColumn;
+    public float VitalHeight => VitalLineHeight * (StackedVitals ? 2 : 1);
     public UiRect PreviousPage => new(Panel.X + Padding, Panel.Bottom - FooterHeight - 4, 44, FooterHeight);
     public UiRect NextPage => new(Panel.Right - Padding - 44, PreviousPage.Y, 44, FooterHeight);
 
-    public UiRect Row(int index)
+    public IEnumerable<int> VisibleIndices()
     {
-        int offset = index - Start;
-        float height = VitalHeight + StatusHeight;
-        float x = Panel.X + offset / RowsPerColumn * (ColumnWidth + ColumnGap);
-        return new(x, Panel.Y + Padding + offset % RowsPerColumn * height, TwoColumns ? ColumnWidth : Panel.Width, height);
+        for (int index = 0; index < Count; index++)
+        {
+            if (index % RowsPerColumn >= StartRow && index % RowsPerColumn < EndRow)
+            {
+                yield return index;
+            }
+        }
     }
 
-    public static BattleHudPartyList Measure(IUiCanvas canvas, BattleHudLayout layout, int count, float textScale, int previousStart, int selectedIndex)
+    public UiRect Row(int index)
     {
-        const float width = 2 * ColumnWidth + ColumnGap;
-        const float bottom = 660;
-        if (textScale <= 1.2f)
-        {
-            int rows = (count + 1) / 2;
-            float height = rows * 34 + 2 * Padding;
-            return new(new(Left, bottom - height, width, height), 0, count, count, rows, 22, 12, 18 * textScale);
-        }
+        float height = VitalHeight + StatusHeight;
+        float x = Panel.X + index / RowsPerColumn * (ColumnWidth + ColumnGap);
+        return new(x, Panel.Y + Padding + (index % RowsPerColumn - StartRow) * height, ColumnWidth, height);
+    }
 
-        const float maximumHeight = 240;
-        float fontSize = 22 * textScale;
-        float vitalHeight = Math.Max(30, canvas.MeasureText("Mg", fontSize * layout.Scale, float.PositiveInfinity).Height / layout.Scale);
+    public static BattleHudPartyList Measure(IUiCanvas canvas, BattleHudLayout layout, IReadOnlyList<BattleHudPartyContent> content, float textScale, int previousRow, int selectedIndex)
+    {
+        const float maximumHeight = 264;
+        const float bottom = 660;
+        int columns = content.Count > RowsPerColumn ? 2 : 1;
+        int rows = Math.Min(content.Count, RowsPerColumn);
+        float fontSize = 18 * textScale;
+        float lineHeight = Math.Max(22, canvas.MeasureText("Mg", fontSize * layout.Scale, float.PositiveInfinity).Height / layout.Scale + 2);
         float statusHeight = Math.Max(12, canvas.MeasureText("Mg", 11 * textScale * layout.Scale, float.PositiveInfinity).Height / layout.Scale);
-        int visible = Math.Clamp((int)((maximumHeight - 2 * Padding) / (vitalHeight + statusHeight)), 1, count);
-        if (visible < count)
+        float nameWidth = content.Max(member => Measure(member.Name));
+        float hpWidth = content.Max(member => Measure(member.CurrentHp) + Measure(member.MaximumHp)) + 4;
+        float statusWidth = content.Max(member => member.StatusWidth) + 16;
+        float gaugeWidth = columns == 2 ? 66 : 104;
+        float minimumWidth = columns == 2 ? 260 : 380;
+        float maximumWidth = columns == 2 ? 310 : 438;
+        float columnWidth = Math.Clamp(Math.Max(nameWidth + hpWidth + gaugeWidth + 50, statusWidth), minimumWidth, maximumWidth);
+        bool stacked = hpWidth + gaugeWidth + 50 + Math.Min(nameWidth, fontSize * 2) > columnWidth;
+        float rowHeight = lineHeight * (stacked ? 2 : 1) + statusHeight;
+        int visibleRows = Math.Clamp((int)((maximumHeight - 2 * Padding) / rowHeight), 1, rows);
+        if (visibleRows < rows)
         {
-            visible = Math.Max(1, (int)((maximumHeight - 2 * Padding - FooterHeight) / (vitalHeight + statusHeight)));
+            visibleRows = Math.Max(1, (int)((maximumHeight - 2 * Padding - FooterHeight) / rowHeight));
         }
-        int start = Math.Clamp(previousStart, 0, count - visible);
-        if (selectedIndex >= 0)
-        {
-            start = Math.Clamp(start, Math.Max(0, selectedIndex - visible + 1), Math.Min(selectedIndex, count - visible));
-        }
-        float panelHeight = Math.Min(maximumHeight, 2 * Padding + visible * (vitalHeight + statusHeight) + (visible < count ? FooterHeight : 0));
-        return new(new(Left, bottom - panelHeight, width, panelHeight), start, visible, count, visible, vitalHeight, statusHeight, fontSize);
+        int start = BattleHudGridWindow.Reveal(previousRow, rows, visibleRows, selectedIndex < 0 ? -1 : selectedIndex % RowsPerColumn);
+        float width = columns * columnWidth + (columns - 1) * ColumnGap;
+        float height = 2 * Padding + visibleRows * rowHeight + (visibleRows < rows ? FooterHeight : 0);
+        return new(new(layout.ViewportRight - 26 - width, bottom - height, width, height), start, visibleRows, content.Count, columnWidth, lineHeight, statusHeight, fontSize, gaugeWidth, stacked);
+
+        float Measure(string text) => canvas.MeasureText(text, fontSize * layout.Scale, float.PositiveInfinity).Width / layout.Scale;
     }
 }
 
-internal readonly record struct BattleHudTargetList(UiRect Panel, float RowHeight, float ContentOffset, int Start, int VisibleCount, int TotalCount)
+internal static class BattleHudGridWindow
 {
-    public bool Scrolls => TotalCount > 4;
-    public int End => Start + VisibleCount;
+    public static int Reveal(int previous, int count, int capacity, int selected)
+    {
+        int limit = Math.Max(0, count - capacity);
+        int start = Math.Clamp(previous, 0, limit);
+        return selected < 0 ? start : Math.Clamp(start, Math.Max(0, selected - capacity + 1), Math.Min(selected, limit));
+    }
+}
+
+internal readonly record struct BattleHudTargetList(UiRect Panel, BattleDrawLayout Grid, float ColumnWidth, float RowHeight, float ContentOffset, float StatusHeight, int StartRow, int VisibleRows)
+{
+    public bool Expanded => Grid.Count > 4;
+    public int ContentRows => Grid.ColumnRows(0);
+    public bool Scrolls => Expanded && VisibleRows < ContentRows;
+    public int EndRow => StartRow + VisibleRows;
     public UiRect Caption => new(Panel.X, Panel.Y - 12, Panel.Width, ContentOffset + 12);
     public UiRect PreviousPage => new(Panel.X + 12, Panel.Bottom - 29, 36, 24);
     public UiRect NextPage => new(Panel.Right - 48, Panel.Bottom - 29, 36, 24);
-    public UiRect Row(int index) => new(Panel.X, Panel.Y + ContentOffset + (index - Start) * RowHeight, Panel.Width, RowHeight);
+
+    public IEnumerable<int> VisibleIndices()
+    {
+        for (int column = 0; column < Grid.Columns; column++)
+        {
+            for (int row = StartRow; row < Math.Min(EndRow, Grid.ColumnRows(column)); row++)
+            {
+                yield return Grid.GetIndex(column, row);
+            }
+        }
+    }
+
+    public UiRect Cell(int index)
+    {
+        (int column, int row) = Grid.GetCell(index);
+        return new(Panel.X + column * ColumnWidth, Panel.Y + ContentOffset + (row - StartRow) * RowHeight, ColumnWidth, RowHeight);
+    }
 
     public int HitIndex(BattleHudLayout viewport, float x, float y)
     {
-        for (int index = Start; index < End; index++)
+        UiRect content = viewport.Rect(Panel.X, Panel.Y + ContentOffset, Panel.Width, VisibleRows * RowHeight);
+        if (!content.Contains(x, y))
         {
-            UiRect row = Row(index);
-            if (viewport.Rect(row.X, row.Y, row.Width, row.Height).Contains(x, y))
-            {
-                return index;
-            }
+            return -1;
         }
-        return -1;
+        int column = (int)((x - content.X) / (viewport.Scale * ColumnWidth));
+        int row = (int)((y - content.Y) / (viewport.Scale * RowHeight));
+        return row < VisibleRows ? Grid.GetIndex(column, StartRow + row) : -1;
     }
 }
 
@@ -91,6 +134,8 @@ internal readonly record struct BattleHudLayout(UiRect Bounds)
     public float Scale => Math.Min(Bounds.Width / 960, Bounds.Height / 672);
     public float Left => Bounds.X + (Bounds.Width - 960 * Scale) / 2;
     public float Top => Bounds.Y + (Bounds.Height - 672 * Scale) / 2;
+
+    public float ViewportRight => (Bounds.Right - Left) / Scale;
 
     public UiRect Rect(float x, float y, float width, float height)
     {
@@ -142,29 +187,39 @@ internal readonly record struct BattleHudLayout(UiRect Bounds)
         return (new UiRect(54, y, columnWidth * columns, height), columnWidth, rowHeight, contentOffset);
     }
 
-    public BattleHudTargetList MeasureTargetList(IUiCanvas canvas, UiTheme theme, string[] names, float textScale, float helpSpace, int previousStart, int selectedIndex)
+    public BattleHudTargetList MeasureTargetList(IUiCanvas canvas, UiTheme theme, string[] names, float textScale, float helpSpace, float maximumWidth, int previousRow, int selectedIndex)
     {
+        BattleDrawLayout grid = BattleDrawLayout.Calculate(names.Length);
         if (names.Length <= 4)
         {
-            var (panel, _, nativeRowHeight, offset) = MeasureTargets(canvas, theme, names, 1, textScale);
-            return new(panel, nativeRowHeight, offset, 0, names.Length, names.Length);
+            var (panel, width, nativeRowHeight, offset) = MeasureTargets(canvas, theme, names, 1, textScale);
+            float fitted = Math.Min(width, maximumWidth);
+            return new(panel with { Width = fitted }, grid, fitted, nativeRowHeight, offset, 0, 0, grid.Rows);
         }
 
         const float bottom = 660;
         const float top = 108;
         const float footerHeight = 34;
-        float fontSize = 24 * Scale * textScale;
+        float scale = Scale;
+        float fontSize = 24 * scale * textScale;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * textScale;
+        float nameWidth = names.Max(name => canvas.MeasureText(name, fontSize, float.PositiveInfinity).Width / scale);
+        float columnWidth = Math.Min(Math.Max(158, nameWidth + 42), maximumWidth / grid.Columns);
         float contentOffset = Math.Max(27, Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale);
-        float rowHeight = Math.Max(39, canvas.MeasureText("Mg", fontSize, float.PositiveInfinity).Height / Scale + Math.Max(12, 11 * textScale));
-        int visible = Math.Clamp((int)((bottom - top - helpSpace - contentOffset - footerHeight) / rowHeight), 1, Math.Min(7, names.Length));
-        int start = Math.Clamp(previousStart, 0, names.Length - visible);
-        if (selectedIndex >= 0)
+        float statusHeight = Math.Max(12, canvas.MeasureText("Mg", 11 * Scale * textScale, float.PositiveInfinity).Height / Scale);
+        float textWidth = (columnWidth - 42) * scale;
+        float nameHeight = Math.Max(canvas.MeasureText("Mg", fontSize, float.PositiveInfinity).Height, names.Max(name => canvas.MeasureText(name, fontSize, textWidth).Height));
+        float rowHeight = Math.Max(39, nameHeight / scale + statusHeight + 4);
+        float available = bottom - top - helpSpace - contentOffset;
+        int visibleRows = Math.Clamp((int)((available - 12) / rowHeight), 1, grid.Rows);
+        if (visibleRows < grid.ColumnRows(0))
         {
-            start = Math.Clamp(start, Math.Max(0, selectedIndex - visible + 1), Math.Min(selectedIndex, names.Length - visible));
+            visibleRows = Math.Max(1, (int)((available - footerHeight) / rowHeight));
         }
-        float height = contentOffset + visible * rowHeight + footerHeight;
-        return new(new UiRect(54, bottom - height, 442, height), rowHeight, contentOffset, start, visible, names.Length);
+        int selectedRow = selectedIndex < 0 ? -1 : grid.GetCell(selectedIndex).Row;
+        int start = BattleHudGridWindow.Reveal(previousRow, grid.ColumnRows(0), visibleRows, selectedRow);
+        float height = contentOffset + visibleRows * rowHeight + (visibleRows < grid.ColumnRows(0) ? footerHeight : 12);
+        return new(new UiRect(54, bottom - height, columnWidth * grid.Columns, height), grid, columnWidth, rowHeight, contentOffset, statusHeight, start, visibleRows);
     }
 
     public void DrawVitals(IUiCanvas canvas, string name, long hp, long maximumHp, float y, float textScale, UiColor nameColor, UiColor hpColor, int? mp = null, int maximumMp = 0, float? compactHeight = null)

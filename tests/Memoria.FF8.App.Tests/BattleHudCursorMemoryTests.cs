@@ -50,8 +50,7 @@ public sealed class BattleHudCursorMemoryTests
         Assert.False(queued.DrawCast);
         if (ability is BattleAbility.Magic or BattleAbility.Item)
         {
-            string json = System.Text.Json.JsonSerializer.Serialize(battle.Capture());
-            BattleSession restored = BattleSession.Restore(System.Text.Json.JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+            BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
             restored.Tick();
             Assert.NotNull(restored.ActiveAction);
         }

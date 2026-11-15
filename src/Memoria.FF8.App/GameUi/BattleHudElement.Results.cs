@@ -109,20 +109,26 @@ internal sealed partial class BattleHudElement
 
     private void DrawResultExperience(IUiCanvas canvas, UiTheme theme)
     {
-        if (controller.Party.Count > 3)
+        IReadOnlyList<BattleCombatant> actors = controller.Party;
+        if (actors.Count > 4)
         {
-            DrawExpandedResultExperience(canvas, theme);
+            DrawExpandedResultExperience(canvas, theme, actors);
+            return;
+        }
+        if (actors.Count == 4)
+        {
+            DrawFourMemberResultExperience(canvas, theme, actors);
             return;
         }
         for (int index = 0; index < 3; index++)
         {
             float y = 34 + index * 50;
             theme.Panel(canvas, ResultRect(30, y, 323, 50));
-            if (index >= controller.Party.Count)
+            if (index >= actors.Count)
             {
                 continue;
             }
-            BattleCombatant actor = controller.Party[index];
+            BattleCombatant actor = actors[index];
             (uint? total, int level, uint? next) = controller.DisplayedExperience(actor);
             ResultLabel(canvas, theme, actor.Name, 40, y + 7, 145, color: actor.IsAlive ? null : new UiColor(255, 96, 96));
             ResultLabel(canvas, theme, controller.SystemText("battle.results.level-label", "Lv."), 40, y + 20, 20);
@@ -147,16 +153,15 @@ internal sealed partial class BattleHudElement
         }
     }
 
-    private void DrawExpandedResultExperience(IUiCanvas canvas, UiTheme theme)
+    private void DrawFourMemberResultExperience(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> actors)
     {
-        int columns = (controller.Party.Count + 3) / 4;
-        float width = (352f - 4 * (columns - 1)) / columns;
+        const float x = 16;
+        const float width = 352;
         const float height = 37;
-        for (int index = 0; index < controller.Party.Count; index++)
+        for (int index = 0; index < actors.Count; index++)
         {
-            BattleCombatant actor = controller.Party[index];
-            float x = 16 + index / 4 * (width + 4);
-            float y = 34 + index % 4 * height;
+            BattleCombatant actor = actors[index];
+            float y = 34 + index * height;
             theme.Panel(canvas, ResultRect(x, y, width, height));
             (uint? total, int level, uint? next) = controller.DisplayedExperience(actor);
             UiColor? nameColor = actor.IsAlive ? null : new UiColor(255, 96, 96);
@@ -172,12 +177,70 @@ internal sealed partial class BattleHudElement
             }
         }
 
-        void DrawAmount(string label, string amount, float x, float y)
+        void DrawAmount(string label, string amount, float left, float top)
         {
             float fontSize = 15 * Scale * controller.TextScale;
-            float labelWidth = width / 2 - 30;
-            canvas.Text(label, fontSize, ResultRect(x, y, labelWidth, 11), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
-            canvas.AlignedText(amount, fontSize, ResultRect(x + labelWidth, y, 24, 11), theme.Foreground, UiAlignment.End);
+            const float labelWidth = width / 2 - 30;
+            canvas.Text(label, fontSize, ResultRect(left, top, labelWidth, 11), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+            canvas.AlignedText(amount, fontSize, ResultRect(left + labelWidth, top, 24, 11), theme.Foreground, UiAlignment.End);
+        }
+    }
+
+    private void DrawExpandedResultExperience(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> actors)
+    {
+        int columns = actors.Count <= 8 ? 2 : 3;
+        int rows = (actors.Count + columns - 1) / columns;
+        const float gap = 3;
+        float width = (352 - (columns - 1) * gap) / columns;
+        float height = (150 - (rows - 1) * gap) / rows;
+        string receivedLabel = controller.ResultText(29, "EXP received");
+        string totalLabel = controller.ResultText(30, "Current EXP");
+        string nextLabel = controller.ResultText(31, "Next level");
+        for (int index = 0; index < actors.Count; index++)
+        {
+            BattleCombatant actor = actors[index];
+            float x = 16 + index / rows * (width + gap);
+            float y = 34 + index % rows * (height + gap);
+            theme.Panel(canvas, ResultRect(x, y, width, height));
+            UiRect content = ResultRect(x + 4, y + 2, width - 8, height - 4);
+            (uint? total, int level, uint? next) = controller.DisplayedExperience(actor);
+            bool leveled = controller.ExperienceFinished && controller.CharacterResult(actor) is { } growth && growth.FinalLevel > growth.PreviousLevel;
+            string levelLabel = controller.FormatSystemText("battle.results.level", "Lv. {0}", level);
+            if (leveled)
+            {
+                levelLabel = "↑ " + levelLabel;
+            }
+            (string Label, string Value)[] lines =
+            [
+                (actor.Name, levelLabel),
+                (receivedLabel, controller.RemainingExperience(actor).ToString(CultureInfo.InvariantCulture)),
+                (totalLabel, total?.ToString(CultureInfo.InvariantCulture) ?? "--"),
+                (nextLabel, next?.ToString(CultureInfo.InvariantCulture) ?? "--")
+            ];
+
+            float lineHeight = content.Height / lines.Length;
+            float textGap = 4 * Scale;
+            float requestedSize = Math.Min(20 * Scale * controller.TextScale, lineHeight);
+            float fit = 1;
+            foreach ((string label, string value) in lines)
+            {
+                UiSize left = canvas.MeasureText(label, requestedSize, float.MaxValue);
+                UiSize right = canvas.MeasureText(value, requestedSize, float.MaxValue);
+                fit = Math.Min(fit, Math.Min((content.Width - textGap) / Math.Max(1, left.Width + right.Width), lineHeight / Math.Max(1, Math.Max(left.Height, right.Height))));
+            }
+            float fontSize = requestedSize * fit;
+            for (int line = 0; line < lines.Length; line++)
+            {
+                (string label, string value) = lines[line];
+                float valueWidth = canvas.MeasureText(value, fontSize, content.Width - textGap).Width;
+                float top = content.Y + line * lineHeight;
+                UiRect labelBounds = new(content.X, top, content.Width - valueWidth - textGap, lineHeight);
+                UiRect valueBounds = new(content.X + content.Width - valueWidth, top, valueWidth, lineHeight);
+                UiColor labelColor = line == 0 && !actor.IsAlive ? new UiColor(255, 96, 96) : theme.Foreground;
+                UiColor valueColor = line == 0 && leveled ? new UiColor(255, 224, 128) : theme.Foreground;
+                canvas.Text(label, fontSize, labelBounds, labelColor, UiAlignment.Center, UiTextFlow.SingleLine);
+                canvas.Text(value, fontSize, valueBounds, valueColor, UiAlignment.Center, UiTextFlow.SingleLine);
+            }
         }
     }
 }

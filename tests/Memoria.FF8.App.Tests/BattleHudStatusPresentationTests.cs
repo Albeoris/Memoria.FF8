@@ -35,15 +35,15 @@ public sealed class BattleHudStatusPresentationTests
     {
         BattleSession battle = CreateBattle(0x2062, false);
         Assert.Empty(battle.Combatants[0].StatusEffects);
-        string before = JsonSerializer.Serialize(battle.Capture());
+        BattleSnapshot before = NativeBattleStorageSnapshots.Capture(battle.Capture());
         BattleUiTests.TestCanvas canvas = Draw(new(battle, (_, _) => { }, () => { }, () => { }));
 
         foreach (string name in new[] { "Haste", "Protect", "Shell", "Float" })
         {
             Assert.Contains(canvas.TextDraws, draw => draw.Text == name && draw.Bounds.Y == 553);
         }
-        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!);
+        Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(battle.Capture()));
+        BattleSession restored = BattleSession.Restore(before);
         Assert.Equal(new BattleStatusPresentation(0, 0x2062), restored.ReadStatusPresentation("party"));
         BattleUiTests.TestCanvas restoredCanvas = Draw(new(restored, (_, _) => { }, () => { }, () => { }));
         Assert.Equal(canvas.Texts, restoredCanvas.Texts);

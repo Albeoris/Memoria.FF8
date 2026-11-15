@@ -12,10 +12,15 @@ public sealed class MixedBattleRosterTests
     public void OriginalBankAllocatesIntoAHoleAndReplacesWithoutChangingAdditions()
     {
         BattleDefinition definition = MixedDefinition(4, 2, 1, 3);
-        BattleCombatantDefinition[] combatants = definition.Combatants.Select(actor => actor.Id == "original-0"
-            ? actor with { NativeAi = Program([52, 1, 59, 1, 4, 0]) }
-            : actor).ToArray();
+        BattleCombatantDefinition[] combatants = definition.Combatants.Select(actor => actor.Id switch
+        {
+            "original-0" => actor with { NativeAi = Program([52, 1, 59, 1, 4, 0]) },
+            "original-1" => actor with { NativeAi = Program([0]) },
+            _ => actor
+        }).ToArray();
         BattleSession battle = Start(definition with { Combatants = combatants });
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference("original-0"), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
+        battle.Tick();
         Assert.Equal(3, Participant(battle, "original-0").ActorIndex);
         Assert.Equal(-1, Participant(battle, "ally-3").ActorIndex);
         Assert.Null(battle.Combatants.Single(actor => actor.Id == "ally-3").NativeActorIndex);
@@ -27,6 +32,7 @@ public sealed class MixedBattleRosterTests
         Assert.Equal(BattleRosterSlot.Enemy(1), replacement.Slot);
         Assert.Equal(4, Participant(battle, replacement.Id).ActorIndex);
         Assert.Equal(new[] { "native-allocation-1", "native-allocation-2" }, battle.Events.Where(entry => entry.Kind == "NativeSpawn").Select(entry => entry.TargetId));
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(replacement.Id), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
 
         BattleCombatant[] extras = battle.Combatants.Where(actor => actor.SceneSlot >= 8).ToArray();
         Assert.Equal(new[] { "additional-0", "additional-1", "additional-2" }, extras.Select(actor => actor.Id));
@@ -51,6 +57,7 @@ public sealed class MixedBattleRosterTests
             ? actor with { NativeAi = Program([2, 15, 0, 0, 4, 0, 3, 0, 14, 220, 1, 0]) }
             : actor).ToArray();
         BattleSession battle = Start(definition with { Combatants = combatants });
+        DetachedExpandedAiFixture.DispatchCallback(battle, "original-0", 0);
         Assert.Equal(0u, Participant(battle, "original-0").Variables[0]);
         Assert.Null(battle.Combatants.Single(actor => actor.Id == "additional-0").NativeActorIndex);
     }
@@ -62,7 +69,8 @@ public sealed class MixedBattleRosterTests
         BattleCombatantDefinition[] combatants = definition.Combatants.Select(actor => actor.Id == "additional-0"
             ? actor with { NativeAi = Program([14, 96, 1, 0]) }
             : actor).ToArray();
-        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => Start(definition with { Combatants = combatants }));
+        BattleSession battle = Start(definition with { Combatants = combatants });
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => DetachedExpandedAiFixture.DispatchCallback(battle, "additional-0", 0));
         Assert.Contains("physical actor-bank alias", exception.Message);
     }
 
@@ -103,7 +111,7 @@ public sealed class MixedBattleRosterTests
         BattleCombatantSnapshot[] forged = snapshot.Combatants.Select(actor => actor.Id == added.Id
             ? actor with { NativeParticipant = actor.NativeParticipant! with { ActorIndex = 4 } }
             : actor).ToArray();
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Combatants = forged }));
+        Assert.Throws<InvalidDataException>(() => DetachedExpandedAiFixture.Restore(snapshot with { Combatants = forged }));
     }
 
     [Fact]
@@ -205,11 +213,10 @@ public sealed class MixedBattleRosterTests
 
     private static void AssertNextCallbackAfterRestore(BattleSession battle)
     {
-        string checkpoint = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(checkpoint)!);
-        Assert.Equal(checkpoint, JsonSerializer.Serialize(restored.Capture()));
+        BattleSession restored = DetachedExpandedAiFixture.Restore(battle.Capture());
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
         battle.Tick();
         restored.Tick();
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
     }
 }

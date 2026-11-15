@@ -17,12 +17,14 @@ internal sealed partial class BattleHudElement : UiElement
     private float CommandPanelHeight { get; set; } = 132;
     private BattleHudTargetList targetList;
     private string[] drawnTargetIds = [];
+    private (UiRect Bounds, float TextScale) drawnTargetLayout;
     private int? requestedTargetListStart;
     private string? lastDrawnTargetId;
     private UiRect targetHelpBounds;
     private BattleHudPartyList partyList;
     private string[] drawnPartyIds = [];
     private string? lastDrawnPartySelection;
+    private (UiRect Bounds, float TextScale) drawnPartyLayout;
     private int? requestedPartyStart;
     private bool drewExpandedParty;
     private float Top => Layout.Top;
@@ -116,6 +118,7 @@ internal sealed partial class BattleHudElement : UiElement
         }
         BattleCombatant? selectedActor = controller.SelectedActor;
         bool canAttack = !controller.CommandMenuHidden && selectedActor is not null && session.Outcome == BattleOutcome.Active;
+        bool targetsVisible = !controller.CommandMenuHidden && session.Outcome == BattleOutcome.Active && controller.SelectingTarget;
         IReadOnlyList<BattleCombatant> party = controller.Party;
         bool compactParty = party.Count >= 4;
         if (party.Count > 4 && !controller.CommandMenuHidden)
@@ -172,6 +175,14 @@ internal sealed partial class BattleHudElement : UiElement
         {
             CommandWidth = 194;
         }
+        if (drewExpandedParty)
+        {
+            float maximumWidth = partyList.Panel.X - BattleHudLayout.CommandX - 12;
+            float fit = Math.Min(1, Math.Max(0, maximumWidth - 38) / Math.Max(1, CommandWidth - 38));
+            CommandWidth = Math.Min(CommandWidth, maximumWidth);
+            fontSize *= fit;
+            valueWidth *= fit;
+        }
         int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         float captionContentHeight = Math.Max(theme.CaptionContentHeight(captionSize), captionSize * 0.75f) / Scale;
@@ -192,8 +203,9 @@ internal sealed partial class BattleHudElement : UiElement
             theme.Pointer(canvas, Left + 38 * Scale, Top + (CommandContentY + 10) * Scale, 12 * Scale);
             Text(canvas, theme, session.CanReturnToField ? controller.SystemText("battle.hud.continue", "Continue") : controller.SystemText("battle.hud.load-retry", "Load / Retry"), 60, CommandContentY + 2, 156, 30, 21);
         }
-        else if (!controller.CommandMenuHidden && controller.SelectingTarget)
+        else if (targetsVisible)
         {
+            DrawNativeParty(canvas, theme, party, compactParty, selectedActor, canAttack);
             DrawTargets(canvas, theme);
         }
         else if (canAttack && !controller.ShowingDrawList && !controller.ShowingMagicList)
@@ -234,12 +246,9 @@ internal sealed partial class BattleHudElement : UiElement
             }
         }
 
-        if (party.Count <= 4)
+        if (!targetsVisible)
         {
-            foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(party))
-            {
-                DrawPartyMember(canvas, theme, actor, row, compactParty, selectedActor, canAttack);
-            }
+            DrawNativeParty(canvas, theme, party, compactParty, selectedActor, canAttack);
         }
         if (canAttack && controller.ShowingDrawList)
         {
@@ -255,19 +264,30 @@ internal sealed partial class BattleHudElement : UiElement
         }
     }
 
-    private void DrawPartyMember(IUiCanvas canvas, UiTheme theme, BattleCombatant actor, BattleHudPartyRow row, bool compactParty, BattleCombatant? selectedActor, bool canAttack, UiRect expandedRow = default)
+    private void DrawNativeParty(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> party, bool compactParty, BattleCombatant? selectedActor, bool canAttack)
+    {
+        if (party.Count <= 4)
+        {
+            foreach ((BattleCombatant actor, BattleHudPartyRow row) in VisiblePartyRows(party))
+            {
+                DrawPartyMember(canvas, theme, actor, row, compactParty, selectedActor, canAttack);
+            }
+        }
+    }
+
+    private void DrawPartyMember(IUiCanvas canvas, UiTheme theme, BattleCombatant actor, BattleHudPartyRow row, bool compactParty, BattleCombatant? selectedActor, bool canAttack, UiRect expandedRow = default, PartyMemberDisplay? display = null)
     {
         BattleSession session = controller.Session;
-        BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
-        BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
-        BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
-        string label = gf is not null ? controller.GuardianForceDisplayName(gf.Id) : form is not null ? controller.GuardianForceDisplayName(form.GuardianForceId) : actor.Name;
-        BattlePresentedVital presented = session.ReadDisplayedVital(actor.Id, gf?.Id);
+        display ??= ReadPartyMemberDisplay(actor);
+        BattleGuardianForceCast? cast = display.Cast;
+        BattleGuardianFormState? form = display.Form;
+        string label = display.Name;
+        BattlePresentedVital presented = display.Vital;
         int hp = presented.HitPoints;
         int maximumHp = presented.MaximumHitPoints;
         bool shownAlive = hp > 0;
         float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
-        BattleVitalAppearance appearance = session.ReadVitalAppearance(actor.Id, gf?.Id);
+        BattleVitalAppearance appearance = session.ReadVitalAppearance(actor.Id, cast?.Command.ActionId);
         UiColor nameColor = appearance.NameKnockedOut ? new(148, 148, 164) : new(238, 238, 238);
         UiColor hpColor = appearance.HitPointsKnockedOut ? new(255, 41, 24) : appearance.Critical ? new(255, 255, 123) : new(255, 255, 255);
         if (canAttack && selectedActor?.Id == actor.Id)
@@ -278,7 +298,7 @@ internal sealed partial class BattleHudElement : UiElement
             nameColor = BattleHudLayout.Modulate(nameColor, shade);
             hpColor = BattleHudLayout.Modulate(hpColor, shade);
         }
-        BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
+        BattleStatusPresentation statuses = display.Statuses;
         bool showTimer = form is { Phase: BattleGuardianFormPhase.Active };
         bool ready = cast is null && actor.IsReady;
         AtbVisualStatus gaugeStatus = (AtbVisualStatus)((statuses.Battle >> 1) & 7);
@@ -320,61 +340,77 @@ internal sealed partial class BattleHudElement : UiElement
         }
     }
 
+    private sealed record PartyMemberDisplay(BattleGuardianForceCast? Cast, BattleGuardianFormState? Form, string Name, BattlePresentedVital Vital, BattleStatusPresentation Statuses);
+
+    private PartyMemberDisplay ReadPartyMemberDisplay(BattleCombatant actor)
+    {
+        BattleSession session = controller.Session;
+        BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
+        BattleGuardianFormState? form = session.GetGuardianForm(actor.Id);
+        int? guardian = cast?.Command.ActionId ?? form?.GuardianForceId;
+        string name = guardian is int id ? controller.GuardianForceDisplayName(id) : actor.Name;
+        return new(cast, form, name, session.ReadDisplayedVital(actor.Id, cast?.Command.ActionId), session.ReadStatusPresentation(actor.Id));
+    }
+
     private void DrawExpandedParty(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> party, BattleCombatant? selectedActor, bool canAttack)
     {
         string[] ids = party.Select(actor => actor.Id).ToArray();
         bool sameParty = drawnPartyIds.SequenceEqual(ids);
         string? selectedId = selectedActor?.Id;
-        bool sameLayout = partyList.TwoColumns == (controller.TextScale <= 1.2f);
+        bool sameLayout = drawnPartyLayout == (Bounds, controller.TextScale);
         int selectedIndex = sameParty && sameLayout && lastDrawnPartySelection == selectedId ? -1 : Array.IndexOf(ids, selectedId);
-        partyList = BattleHudPartyList.Measure(canvas, Layout, ids.Length, controller.TextScale, sameParty ? requestedPartyStart ?? partyList.Start : 0, selectedIndex);
+        PartyMemberDisplay[] displays = party.Select(ReadPartyMemberDisplay).ToArray();
+        BattleHudPartyContent[] content = displays.Select(display => new BattleHudPartyContent(display.Name, display.Vital.HitPoints.ToString(CultureInfo.InvariantCulture), display.Vital.MaximumHitPoints.ToString(CultureInfo.InvariantCulture), MeasureStatusWidth(canvas, Scale, ReadStatusBadges(display.Statuses), controller.TextScale))).ToArray();
+        partyList = BattleHudPartyList.Measure(canvas, Layout, content, controller.TextScale, sameParty ? requestedPartyStart ?? partyList.StartRow : 0, selectedIndex);
         requestedPartyStart = null;
         lastDrawnPartySelection = selectedId;
         drawnPartyIds = ids;
+        drawnPartyLayout = (Bounds, controller.TextScale);
         drewExpandedParty = true;
 
         UiRect panel = ScaleRect(partyList.Panel);
         canvas.Fill(panel, new UiColor(theme.BorderDark.R, theme.BorderDark.G, theme.BorderDark.B, 178));
-        for (int index = partyList.Start; index < partyList.End; index++)
+        foreach (int index in partyList.VisibleIndices())
         {
             UiRect bounds = partyList.Row(index);
-            BattleHudPartyRow row = new(bounds.Y, bounds.Height, partyList.VitalHeight, partyList.VitalHeight, partyList.TwoColumns ? 1 : controller.TextScale, 5);
-            DrawPartyMember(canvas, theme, party[index], row, true, selectedActor, canAttack, bounds);
+            BattleHudPartyRow row = new(bounds.Y, bounds.Height, partyList.VitalHeight, partyList.VitalHeight, controller.TextScale, 5);
+            DrawPartyMember(canvas, theme, party[index], row, true, selectedActor, canAttack, bounds, displays[index]);
         }
         if (partyList.Scrolls)
         {
             UiRect previous = partyList.PreviousPage;
             UiRect next = partyList.NextPage;
-            canvas.AlignedText("▲", 16 * Scale, ScaleRect(previous), partyList.Start == 0 ? theme.Muted : theme.Foreground, UiAlignment.Center);
-            canvas.AlignedText("▼", 16 * Scale, ScaleRect(next), partyList.End == partyList.TotalCount ? theme.Muted : theme.Foreground, UiAlignment.Center);
-            string range = controller.FormatSystemText("battle.hud.party-range", "{0}–{1} / {2}", partyList.Start + 1, partyList.End, partyList.TotalCount);
+            canvas.AlignedText("▲", 16 * Scale, ScaleRect(previous), partyList.StartRow == 0 ? theme.Muted : theme.Foreground, UiAlignment.Center);
+            canvas.AlignedText("▼", 16 * Scale, ScaleRect(next), partyList.EndRow >= partyList.Rows ? theme.Muted : theme.Foreground, UiAlignment.Center);
+            string range = controller.FormatSystemText("battle.hud.party-range", "{0}–{1} / {2}", partyList.StartRow + 1, partyList.EndRow, partyList.Rows);
             canvas.AlignedText(range, 16 * Scale, Rect(previous.Right, previous.Y, next.X - previous.Right, previous.Height), theme.Foreground, UiAlignment.Center);
         }
     }
 
     private UiRect DrawExpandedVitals(IUiCanvas canvas, UiRect row, string name, int hp, int maximumHp, UiColor nameColor, UiColor hpColor)
     {
-        float height = partyList.VitalHeight;
+        float height = partyList.VitalLineHeight;
         float font = partyList.FontSize * Scale;
-        float gaugeWidth = partyList.TwoColumns ? 80 : 150;
+        float gaugeWidth = partyList.GaugeWidth;
         float gaugeX = row.Right - 8 - gaugeWidth;
         string current = hp.ToString(CultureInfo.InvariantCulture);
         string maximum = maximumHp.ToString(CultureInfo.InvariantCulture);
-        float currentTextWidth = canvas.MeasureText(current, font, float.PositiveInfinity).Width / Scale + 2;
-        float currentWidth = Math.Max(50, currentTextWidth);
-        float maximumWidth = Math.Max(50, canvas.MeasureText(maximum, font, float.PositiveInfinity).Width / Scale + 2);
-        float maximumX = gaugeX - 12 - maximumWidth;
+        float currentWidth = canvas.MeasureText(current, font, float.PositiveInfinity).Width / Scale + 2;
+        float maximumWidth = canvas.MeasureText(maximum, font, float.PositiveInfinity).Width / Scale + 2;
+        float maximumX = (partyList.StackedVitals ? row.Right - 8 : gaugeX - 10) - maximumWidth;
         float separatorX = maximumX - 14;
         float currentX = separatorX - currentWidth;
-        UiRect nameBounds = Rect(row.X + 8, row.Y, currentX - row.X - 14, height);
-        canvas.Text(FitPartyName(canvas, name, font, nameBounds.Width), font, nameBounds, nameColor, UiAlignment.Start, UiTextFlow.SingleLine);
-        canvas.Text(current, font, Rect(separatorX - currentTextWidth, row.Y, currentTextWidth, height), hpColor);
-        canvas.AlignedText("/", font, Rect(separatorX, row.Y, 14, height), new UiColor(255, 255, 255), UiAlignment.Center);
-        canvas.Text(maximum, font, Rect(maximumX, row.Y, maximumWidth, height), new UiColor(255, 255, 255));
+        float textRight = partyList.StackedVitals ? gaugeX : currentX;
+        UiRect nameBounds = Rect(row.X + 8, row.Y, Math.Max(0, textRight - row.X - 14), height);
+        canvas.Text(FitLabel(canvas, name, font, nameBounds.Width), font, nameBounds, nameColor, UiAlignment.Start, UiTextFlow.SingleLine);
+        float vitalY = partyList.StackedVitals ? row.Y + height : row.Y;
+        canvas.Text(current, font, Rect(currentX, vitalY, currentWidth, height), hpColor);
+        canvas.AlignedText("/", font, Rect(separatorX, vitalY, 14, height), new UiColor(255, 255, 255), UiAlignment.Center);
+        canvas.Text(maximum, font, Rect(maximumX, vitalY, maximumWidth, height), new UiColor(255, 255, 255));
         return Rect(gaugeX, row.Y + (height - 12) / 2, gaugeWidth, 12);
     }
 
-    private static string FitPartyName(IUiCanvas canvas, string name, float font, float width)
+    private static string FitLabel(IUiCanvas canvas, string name, float font, float width)
     {
         if (canvas.MeasureText(name, font, float.PositiveInfinity).Width <= width)
         {
@@ -426,45 +462,65 @@ internal sealed partial class BattleHudElement : UiElement
         bool group = controller.SelectingTargetGroup;
         string? selectedTargetId = controller.SelectedTarget?.Id;
         DrawTargetModelPointers(canvas, theme, targets, group, selectedTargetId);
+        string action = controller.TargetActionCaption;
         string help = controller.CanConfirmMagicTargets ? controller.MagicConfirmCaption : group ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
-        float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
-        float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText("Mg", 15 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale + 4;
+        bool expanded = targets.Count > 4;
+        float maximumWidth = expanded ? Layout.ViewportRight - 54 - 26 : 442;
+        float actionFont = 20 * Scale * controller.TextScale;
+        float helpFont = 15 * Scale * controller.TextScale;
+        float helpPanelWidth = 440;
+        if (expanded)
+        {
+            float naturalWidth = Math.Max(canvas.MeasureText(action, actionFont, float.PositiveInfinity).Width, canvas.MeasureText(help, helpFont, float.PositiveInfinity).Width) / Scale;
+            helpPanelWidth = Math.Clamp(naturalWidth + 28, 440, maximumWidth);
+        }
+        float measuredWidth = expanded ? (helpPanelWidth - 28) * Scale : float.PositiveInfinity;
+        float actionHeight = canvas.MeasureText(expanded ? action : "Mg", actionFont, measuredWidth).Height / Scale;
+        float helpHeight = string.IsNullOrEmpty(help) ? 0 : canvas.MeasureText(expanded ? help : "Mg", helpFont, measuredWidth).Height / Scale + 4;
         float helpPanelHeight = 14 + actionHeight + helpHeight;
         float helpGap = Math.Max(18, UiTheme.DefaultCaptionFontSize * controller.TextScale * 0.75f + 8);
         string[] ids = targets.Select(actor => actor.Id).ToArray();
         string[] names = targets.Select(controller.CombatantDisplayName).ToArray();
         bool sameTargets = drawnTargetIds.SequenceEqual(ids);
-        int previousStart = sameTargets ? requestedTargetListStart ?? targetList.Start : 0;
+        int previousStart = sameTargets ? requestedTargetListStart ?? targetList.StartRow : 0;
         bool revealSelection = !group || !sameTargets || requestedTargetListStart is null && lastDrawnTargetId != selectedTargetId;
-        targetList = Layout.MeasureTargetList(canvas, theme, names, controller.TextScale, helpPanelHeight + helpGap, previousStart, revealSelection ? Array.IndexOf(ids, selectedTargetId) : -1);
+        targetList = Layout.MeasureTargetList(canvas, theme, names, controller.TextScale, helpPanelHeight + helpGap, maximumWidth, previousStart, revealSelection ? Array.IndexOf(ids, selectedTargetId) : -1);
         requestedTargetListStart = null;
         lastDrawnTargetId = selectedTargetId;
         drawnTargetIds = ids;
+        drawnTargetLayout = (Bounds, controller.TextScale);
         UiRect panel = targetList.Panel;
         float captionSize = UiTheme.DefaultCaptionFontSize * Scale * controller.TextScale;
         string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? controller.SystemText("battle.hud.target-allies", "TARGET  < ALLIES >") : controller.SystemText("battle.hud.target-enemies", "TARGET  < ENEMIES >") : controller.SystemText("battle.hud.target", "TARGET");
         theme.Panel(canvas, Rect(panel.X, panel.Y, panel.Width, panel.Height), caption, captionSize);
-        for (int index = targetList.Start; index < targetList.End; index++)
+        foreach (int index in targetList.VisibleIndices())
         {
             BattleCombatant actor = targets[index];
-            UiRect row = targetList.Row(index);
-            float statusHeight = Math.Max(12, 11 * controller.TextScale);
-            float statusOffset = targetList.Scrolls ? row.Height - statusHeight : 25;
-            UiRect text = Rect(row.X + 30, row.Y, row.Width - 42, targetList.Scrolls ? statusOffset : row.Height);
+            UiRect row = targetList.Cell(index);
+            float statusOffset = targetList.Expanded ? row.Height - targetList.StatusHeight : 25;
+            UiRect text = Rect(row.X + 30, row.Y, row.Width - 42, targetList.Expanded ? statusOffset : row.Height);
             if (group || selectedTargetId == actor.Id)
             {
-                theme.Pointer(canvas, Left + (row.X - 48) * Scale, Top + (row.Y + 5) * Scale, 24 * Scale);
+                if (targetList.Expanded)
+                {
+                    Layout.DrawCommandPointer(canvas, theme, row.X, row.Y);
+                }
+                else
+                {
+                    theme.Pointer(canvas, Left + (row.X - 48) * Scale, Top + (row.Y + 5) * Scale, 24 * Scale);
+                }
             }
             canvas.PushClip(text);
             try
             {
-                canvas.Text(names[index], 24 * Scale * controller.TextScale, text, theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+                float font = 24 * Scale * controller.TextScale;
+                canvas.Text(names[index], font, text, theme.Foreground, UiAlignment.Start, targetList.Expanded ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
             }
             finally
             {
                 canvas.PopClip();
             }
-            if (targetList.Scrolls)
+            if (targetList.Expanded)
             {
                 canvas.PushClip(Rect(row.X, row.Y, row.Width, row.Height));
             }
@@ -474,7 +530,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             finally
             {
-                if (targetList.Scrolls)
+                if (targetList.Expanded)
                 {
                     canvas.PopClip();
                 }
@@ -484,16 +540,20 @@ internal sealed partial class BattleHudElement : UiElement
         {
             UiRect previous = targetList.PreviousPage;
             UiRect next = targetList.NextPage;
-            Text(canvas, theme, "▲", previous.X + 8, previous.Y, previous.Width - 8, previous.Height, 16, targetList.Start == 0);
-            Text(canvas, theme, "▼", next.X + 8, next.Y, next.Width - 8, next.Height, 16, targetList.End == targetList.TotalCount);
-            string range = controller.FormatSystemText("battle.hud.target-range", "{0}–{1} / {2}", targetList.Start + 1, targetList.End, targetList.TotalCount);
+            Text(canvas, theme, "▲", previous.X + 8, previous.Y, previous.Width - 8, previous.Height, 16, targetList.StartRow == 0);
+            Text(canvas, theme, "▼", next.X + 8, next.Y, next.Width - 8, next.Height, 16, targetList.EndRow >= targetList.ContentRows);
+            string range = controller.FormatSystemText("battle.hud.target-range", "{0}–{1} / {2}", targetList.StartRow + 1, targetList.EndRow, targetList.ContentRows);
             canvas.AlignedText(range, 16 * Scale, Rect(previous.Right, previous.Y, next.X - previous.Right, previous.Height), theme.Foreground, UiAlignment.Center);
         }
         float helpY = panel.Y - helpGap - helpPanelHeight;
-        targetHelpBounds = Rect(54, helpY, 440, helpPanelHeight);
+        if (expanded)
+        {
+            helpPanelWidth = Math.Max(helpPanelWidth, panel.Width);
+        }
+        targetHelpBounds = Rect(54, helpY, helpPanelWidth, helpPanelHeight);
         theme.Panel(canvas, targetHelpBounds);
-        Text(canvas, theme, controller.TargetActionCaption, 68, helpY + 7, 412, actionHeight, 20);
-        Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
+        Text(canvas, theme, action, 68, helpY + 7, helpPanelWidth - 28, actionHeight, 20);
+        Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, helpPanelWidth - 28, helpHeight, 15, true);
     }
 
     private void DrawTargetModelPointers(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> targets, bool group, string? selectedTargetId)
@@ -545,6 +605,11 @@ internal sealed partial class BattleHudElement : UiElement
 
     public override bool Key(UiKey key)
     {
+        if (key is UiKey.PageUp or UiKey.PageDown && controller.SelectingTarget && targetList.Scrolls && TargetListIsCurrent())
+        {
+            ScrollTargetPage(key == UiKey.PageUp ? -1 : 1);
+            return true;
+        }
         MenuInput? input = key switch
         {
             UiKey.Up => MenuInput.Up,
@@ -569,6 +634,10 @@ internal sealed partial class BattleHudElement : UiElement
 
     private void PointAtTarget(float x, float y, bool confirm)
     {
+        if (!TargetListIsCurrent())
+        {
+            return;
+        }
         int index = targetList.HitIndex(Layout, x, y);
         if (index >= 0 && index < drawnTargetIds.Length)
         {
@@ -578,35 +647,49 @@ internal sealed partial class BattleHudElement : UiElement
 
     private bool ClickTargetPage(float x, float y)
     {
-        if (!targetList.Scrolls)
+        if (!targetList.Scrolls || !TargetListIsCurrent())
         {
             return false;
         }
         if (TargetContains(targetList.PreviousPage, x, y))
         {
-            if (targetList.Start > 0)
-            {
-                MoveTargetPage(Math.Max(0, targetList.Start - targetList.VisibleCount));
-            }
+            ScrollTargetPage(-1);
             return true;
         }
         if (TargetContains(targetList.NextPage, x, y))
         {
-            if (targetList.End < targetList.TotalCount)
-            {
-                MoveTargetPage(targetList.End);
-            }
+            ScrollTargetPage(1);
             return true;
         }
         return false;
     }
 
-    private void MoveTargetPage(int index)
+    private bool TargetListIsCurrent()
     {
-        requestedTargetListStart = index;
+        return drawnTargetLayout == (Bounds, controller.TextScale) && drawnTargetIds.SequenceEqual(controller.VisibleTargets.Select(target => target.Id));
+    }
+
+    private void ScrollTargetPage(int direction)
+    {
+        int row = Math.Clamp(targetList.StartRow + direction * targetList.VisibleRows, 0, targetList.ContentRows - targetList.VisibleRows);
+        if (row == targetList.StartRow)
+        {
+            return;
+        }
+        requestedTargetListStart = row;
         if (!controller.SelectingTargetGroup)
         {
-            controller.SelectTarget(drawnTargetIds[index], false);
+            int selected = Array.IndexOf(drawnTargetIds, controller.SelectedTarget?.Id);
+            int column = targetList.Grid.GetCell(selected).Column;
+            while (column > 0 && targetList.Grid.ColumnRows(column) <= row)
+            {
+                column--;
+            }
+            int index = targetList.Grid.GetIndex(column, row);
+            if (index >= 0)
+            {
+                controller.SelectTarget(drawnTargetIds[index], false);
+            }
         }
     }
 
@@ -675,7 +758,7 @@ internal sealed partial class BattleHudElement : UiElement
             ClickMagicList(x, y);
             return;
         }
-        if (controller.CanChangeTargetSide && TargetContains(targetList.Caption, x, y))
+        if (controller.CanChangeTargetSide && TargetListIsCurrent() && TargetContains(targetList.Caption, x, y))
         {
             controller.ChangeTargetSide();
             return;
@@ -730,7 +813,7 @@ internal sealed partial class BattleHudElement : UiElement
 
     private void ClickExpandedParty(float x, float y)
     {
-        if (!drewExpandedParty || controller.SelectingTarget && targetHelpBounds.Contains(x, y))
+        if (!drewExpandedParty || drawnPartyLayout != (Bounds, controller.TextScale) || controller.SelectingTarget && targetHelpBounds.Contains(x, y))
         {
             return;
         }
@@ -738,16 +821,16 @@ internal sealed partial class BattleHudElement : UiElement
         {
             if (ScaleRect(partyList.PreviousPage).Contains(x, y))
             {
-                requestedPartyStart = Math.Max(0, partyList.Start - partyList.VisibleCount);
+                requestedPartyStart = Math.Max(0, partyList.StartRow - partyList.VisibleRows);
                 return;
             }
             if (ScaleRect(partyList.NextPage).Contains(x, y))
             {
-                requestedPartyStart = Math.Min(partyList.TotalCount - partyList.VisibleCount, partyList.Start + partyList.VisibleCount);
+                requestedPartyStart = Math.Min(partyList.Rows - partyList.VisibleRows, partyList.StartRow + partyList.VisibleRows);
                 return;
             }
         }
-        for (int index = partyList.Start; index < partyList.End; index++)
+        foreach (int index in partyList.VisibleIndices())
         {
             if (ScaleRect(partyList.Row(index)).Contains(x, y))
             {

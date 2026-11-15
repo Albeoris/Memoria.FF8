@@ -152,6 +152,8 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    [JsonIgnore]
+    public BattleEncounterRosterAdmission EncounterRosterAdmission { get; init; } = BattleEncounterRosterAdmission.Unrestricted;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsesExpandedRoster { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

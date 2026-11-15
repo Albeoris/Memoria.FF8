@@ -193,6 +193,8 @@ public static class NativeBattleActionGraphics
 
 public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer)
 {
+    [JsonIgnore]
+    public bool RequiresOriginalCasterCompanion { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleStatusMagicResources? StatusMagicResources { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -790,9 +790,13 @@ public sealed class BattleUiTests
         public List<UiRect> Pointers { get; } = [];
         public List<(UiRect Bounds, UiColor Color)> Fills { get; } = [];
         public List<UiRect> Clips { get; } = [];
+        public bool WrapMeasuredText { get; init; }
+        public int ClipDepth { get; private set; }
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
         {
-            return new UiSize(Math.Min(maximumWidth, text.Length * fontSize * 0.5f), fontSize);
+            float width = text.Length * fontSize * 0.5f;
+            float lines = WrapMeasuredText ? Math.Max(1, MathF.Ceiling(width / Math.Max(1, maximumWidth))) : 1;
+            return new UiSize(Math.Min(maximumWidth, width), lines * fontSize);
         }
         public void Fill(UiRect bounds, UiColor color)
         {
@@ -827,10 +831,13 @@ public sealed class BattleUiTests
         public void PushClip(UiRect bounds)
         {
             Clips.Add(bounds);
+            ClipDepth++;
         }
 
         public void PopClip()
         {
+            Assert.True(ClipDepth > 0, "Clipping stack underflow.");
+            ClipDepth--;
         }
     }
 }

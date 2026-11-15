@@ -130,6 +130,7 @@ public sealed class BattleDrawLayoutTests
     {
         BattleSession session = new(new BattleDefinition
         {
+            UsesExpandedRoster = count > 16,
             Combatants =
             [
                 new() { Id = "party", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Magic = 100, Abilities = [BattleAbility.Draw] },

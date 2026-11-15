@@ -19,7 +19,7 @@ public sealed class BattleResultsRenderTests
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         BattleDefinition definition = new()
         {
-            Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true }, new() { Id = "enemy-0", Name = "Enemy" }]
+            Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true, MagicRecordId = 0 }, new() { Id = "enemy-0", Name = "Enemy" }]
         };
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, new Dictionary<byte, ushort>(), new Dictionary<int, ushort> { [0] = 3 }, [new BattleStock(1, 2)], [0])
         {

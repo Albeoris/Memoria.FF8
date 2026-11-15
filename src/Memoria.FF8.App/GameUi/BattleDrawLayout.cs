@@ -49,4 +49,22 @@ internal readonly record struct BattleDrawLayout(int Count, int Columns, int Row
         }
         return (0, 0);
     }
+
+    public int MoveVertical(int index, int direction)
+    {
+        (int column, int row) = GetCell(index);
+        int rows = ColumnRows(column);
+        return rows == 0 ? -1 : GetIndex(column, (row + direction + rows) % rows);
+    }
+
+    public int MoveHorizontal(int index, int direction, bool wrap = false)
+    {
+        (int column, int row) = GetCell(index);
+        int next = column + direction;
+        if (wrap)
+        {
+            next = (next + Columns) % Columns;
+        }
+        return next < 0 || next >= Columns ? -1 : GetIndex(next, Math.Min(row, ColumnRows(next) - 1));
+    }
 }

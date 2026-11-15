@@ -27,7 +27,17 @@ public static class NativeBattleEffectCatalogReader
             ValidateCallback(entry);
             ValidateCallback(initializer);
             ImmutableArray<NativeBattleEffectInitializerResource> initializerResources = initializer == 0 ? [] : ReadInitializer(initializer);
-            result.Add(new(effect, entry, initializer) { InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3, InitializerResource = initializerResources.Length == 1 ? initializerResources[0] : null, InitializerResources = initializerResources.Length > 1 ? initializerResources : null });
+            result.Add(new(effect, entry, initializer)
+            {
+                InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3,
+                InitializerResource = initializerResources.Length == 1 ? initializerResources[0] : null,
+                InitializerResources = initializerResources.Length > 1 ? initializerResources : null,
+                RequiresOriginalCasterCompanion = (entry, initializer) is
+                    (NativeBattleEffect210Profile.Entry, NativeBattleEffect210Profile.Initializer) or
+                    (NativeBattleEffect314Profile.Entry, NativeBattleEffect314Profile.Initializer) or
+                    (NativeBattleEffect315Profile.Entry, NativeBattleEffect315Profile.Initializer) or
+                    (NativeBattleEffect326Profile.Entry, NativeBattleEffect326Profile.Initializer)
+            });
         }
         return result.MoveToImmutable();
 

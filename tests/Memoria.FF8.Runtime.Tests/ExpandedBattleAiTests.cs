@@ -1,4 +1,3 @@
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -27,7 +26,7 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(BattleSide.Allies, selection.Side);
         string[] targets = battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).ToArray();
         Assert.Equal(11, targets.Length);
-        BattleSession restored = BattleSession.Restore(before);
+        BattleSession restored = DetachedExpandedAiFixture.Restore(before);
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();
@@ -37,7 +36,7 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(10, contacts.Length);
         Assert.All(contacts, target => Assert.Contains(target, targets));
         Assert.True(contacts.Distinct().Count() > 1);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
     }
 
     [Theory]
@@ -54,14 +53,14 @@ public sealed class ExpandedBattleAiTests
         string[] targets = battle.Combatants.Where(actor => selector == 206 || actor.IsPlayer == (selector == 204)).Select(actor => actor.Id).ToArray();
         BattleTargetSelection.SideGroup selection = Assert.IsType<BattleTargetSelection.SideGroup>(battle.ActiveAction!.TargetRequest.Selection);
         Assert.Equal(selector == 204 ? BattleTargetSide.Allies : selector == 205 ? BattleTargetSide.Enemies : BattleTargetSide.Both, selection.Side);
-        BattleSession restored = BattleSession.Restore(snapshot);
+        BattleSession restored = DetachedExpandedAiFixture.Restore(snapshot);
         for (int i = 0; i < BattleSession.AttackWindupFrames + 1; i++)
         {
             battle.Tick();
             restored.Tick();
         }
         Assert.Equal(targets, battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-4").Select(entry => entry.TargetId));
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
     }
 
     [Theory]
@@ -96,7 +95,8 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([31, 0, 0]), [Physical], 236));
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([4, 220, 0]), [Physical], 0));
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(Ai([14, 96, 0, 0]), [Physical], 0));
-        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([27, 1, 0, 0]), [Physical], 0, originalEnemySlots: true));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai([27, 1, 0, 0]), [Physical], 0, originalEnemySlots: true));
+        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(Ai([27, 4, 0, 0]), [Physical], 0, originalEnemySlots: true));
     }
 
     [Fact]
@@ -109,6 +109,31 @@ public sealed class ExpandedBattleAiTests
         references.Clear();
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai(turn), [Physical], 344, explicitModelReferences: references));
         Assert.Empty(references);
+    }
+
+    [Fact]
+    public void Donor_action_capability_does_not_restrict_original_slot_AI()
+    {
+        NativeBattleAiDefinition program = Ai([4, 201, 12, 1, 0]);
+        NativeBattleEffectBinding effect = new(17, 0x1234, 0x1238) { RequiresOriginalCasterCompanion = true };
+        BattleNativeAction action = Physical with { MagicId = effect.Effect };
+
+        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(program, [action], 0, admitsDonorEffect: CanBind));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, [action], 0, originalEnemySlots: true, admitsDonorEffect: CanBind));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, [Physical], 0, admitsDonorEffect: CanBind));
+
+        NativeBattleAiDefinition drawn = Ai([42, 0]) with { Abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray() };
+        BattleNativeAction spell = action with { Command = 2, ActionId = 17, KernelSection = 1, TargetFlags = 0x48 };
+        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(drawn, [spell], 0, admitsDonorEffect: CanBind));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(drawn, [spell], 0, originalEnemySlots: true, admitsDonorEffect: CanBind));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(drawn, [spell with { MagicId = 0 }], 0, admitsDonorEffect: CanBind));
+
+        NativeBattleAiDefinition direct = Ai([30, checked((byte)effect.Effect), 0]);
+        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(direct, [Physical], 0, admitsDonorEffect: CanBind));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(direct, [Physical], 0, originalEnemySlots: true, admitsDonorEffect: CanBind));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai([30, 18, 0]), [Physical], 0, admitsDonorEffect: CanBind));
+
+        bool CanBind(ushort candidate) => candidate != effect.Effect || !effect.RequiresOriginalCasterCompanion;
     }
 
     [Theory]
@@ -137,7 +162,7 @@ public sealed class ExpandedBattleAiTests
         string[] targets = selectsTargets ? battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).ToArray() : [];
         Assert.Equal(selectsTargets ? 11 : 0, targets.Length);
         BattleSnapshot saved = battle.Capture();
-        BattleSession restored = BattleSession.Restore(saved);
+        BattleSession restored = DetachedExpandedAiFixture.Restore(saved);
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();
@@ -158,7 +183,7 @@ public sealed class ExpandedBattleAiTests
             }
         });
         Assert.Single(battle.Events, entry => entry.Kind == "ActionComplete" && entry.ActorId == "enemy-4");
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
     }
 
     [Theory]
@@ -190,7 +215,7 @@ public sealed class ExpandedBattleAiTests
         BattleSession battle = Start([40, 0, 20, 0], 11, 11);
         BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-4");
         Assert.Equal(216, enemy.Attack);
-        BattleSession restored = BattleSession.Restore(battle.Capture());
+        BattleSession restored = DetachedExpandedAiFixture.Restore(battle.Capture());
         Assert.Equal(216, Assert.Single(restored.Combatants, actor => actor.Id == "enemy-4").Attack);
     }
 
@@ -205,7 +230,7 @@ public sealed class ExpandedBattleAiTests
         Assert.False(removed.IsActive);
         Assert.True(removed.Untargetable);
         Assert.Empty(battle.EnemyDefeats);
-        BattleSession restored = BattleSession.Restore(battle.Capture());
+        BattleSession restored = DetachedExpandedAiFixture.Restore(battle.Capture());
         BattleCombatant restoredActor = Assert.Single(restored.Combatants, actor => actor.Id == removed.Id);
         Assert.Equal(removed.Slot, restoredActor.Slot);
         Assert.False(restoredActor.IsActive);
@@ -251,33 +276,38 @@ public sealed class ExpandedBattleAiTests
             NativeAi = i == 10 ? counter : null
         }).ToArray();
         BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [Physical], NativeSeed = 0 }, BattleAtbMode.Normal);
+        DetachedExpandedAiFixture.DispatchCallback(battle, "enemy-10", 0);
         battle.QueueAttack("ally-10", "enemy-10");
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
-        {
-            battle.Tick();
-        }
-        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-        Assert.Equal((byte)2, queued.NativeAiCallbackStage);
-        Assert.Equal("ally-10", Assert.Single(ExplicitActors(queued.TargetRequest)));
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.QueuedActions.Any(command => command.ExpandedAiCallback is { Stage: 2 }), "The native hit must publish its enemy callback.");
+        BattleExpandedAiCallbackRequest callback = Assert.IsType<BattleExpandedAiCallbackRequest>(Assert.Single(battle.QueuedActions).ExpandedAiCallback);
+        Assert.Equal(new BattleEnemyActorReference("enemy-10"), callback.Actor);
         BattleSnapshot snapshot = battle.Capture();
+        BattleSession restored = DetachedExpandedAiFixture.Restore(snapshot);
+        foreach (BattleSession owner in new[] { battle, restored })
+        {
+            DetachedExpandedAiFixture.AdvanceTo(owner, () => owner.ActiveAction is null, "The original hit must finish before its queued callback runs.");
+            DetachedExpandedAiFixture.DispatchCallback(owner, "enemy-10", 2);
+            BattleAttackCommand queued = Assert.Single(owner.QueuedActions);
+            Assert.Equal((byte)2, queued.NativeAiCallbackStage);
+            Assert.Equal("ally-10", Assert.Single(ExplicitActors(queued.TargetRequest)));
+        }
         NativeBattleParticipantSnapshot saved = Assert.IsType<NativeBattleParticipantSnapshot>(Assert.Single(snapshot.Combatants, actor => actor.Id == "enemy-10").NativeParticipant);
         if (retainAttacker)
         {
-            Assert.Equal("ally-10", Assert.Single(saved.ActorReferences!).Value);
-            Assert.Equal(0u, saved.Variables[0]);
+            BattleCombatant reopened = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-10");
+            Assert.Equal("ally-10", Assert.Single(reopened.AiActorReferences).Value);
+            Assert.Equal(0u, reopened.AiVariables[0]);
         }
         else
         {
             Assert.Null(saved.ActorReferences);
         }
-        BattleSession restored = BattleSession.Restore(snapshot);
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
-        {
-            battle.Tick();
-            restored.Tick();
-        }
+        DetachedExpandedAiFixture.AdvanceTo(battle, CounterFinished, "The exact enemy hit callback must complete its counter.");
+        DetachedExpandedAiFixture.AdvanceTo(restored, () => restored.Events.Any(entry => entry is { Kind: "ActionComplete", ActorId: "enemy-10" }), "The copied hit callback must complete its counter.");
         Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == "enemy-10" && entry.TargetId == "ally-10");
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
+
+        bool CounterFinished() => battle.Events.Any(entry => entry is { Kind: "ActionComplete", ActorId: "enemy-10" });
     }
 
     private static BattleSession Start(byte[] turn, int allyCount, int enemyCount, byte seed = 0, BattleNativeAction? native = null)
@@ -290,7 +320,13 @@ public sealed class ExpandedBattleAiTests
             ExpandedEnemyBaseStatistics = turn[0] == 40 ? [-20, 0, 0, 0, 1, 0] : null
         }).ToArray();
         BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [native ?? Physical], NativeSeed = seed }, BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.DispatchCallback(battle, "enemy-4", 0);
+        BattleCombatant callbackOwner = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-4");
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => callbackOwner.AiTurnCount == 1, "The ready enemy must interpret its typed turn callback.");
+        if (battle.QueuedActions.FirstOrDefault() is { ActorId: "enemy-4", NativeAiCallbackStage: 1 })
+        {
+            DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.ActiveAction is { ActorId: "enemy-4", Phase: BattleActionPhase.Windup }, "The turn's produced command must reach its windup.");
+        }
         return battle;
     }
 

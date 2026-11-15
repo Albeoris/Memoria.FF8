@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -26,17 +25,18 @@ public sealed class ExpandedNumericAiTargetTests
     public void UnownedMaskFailsWhenReplacementIsDisabledOrExhaustsTheNativeBank()
     {
         BattleSession disabled = Create([50, 0]);
-        Assert.Contains("unowned native target", Assert.Throws<NotSupportedException>(() => Targets(disabled, 1 << 7)).Message);
-        Assert.Empty(Targets(disabled, 1 << 1));
+        Assert.Contains("leaves its participant bank", Assert.Throws<NotSupportedException>(() => Targets(disabled, 1 << 7)).Message);
+        Assert.Contains("has no current participant", Assert.Throws<NotSupportedException>(() => Targets(disabled, 1 << 1)).Message);
+        Assert.Equal(new[] { "party-0" }, Targets(disabled, 1));
         BattleSession exhausted = Create([0], enemyCount: 1);
-        Assert.Contains("unowned native target", Assert.Throws<NotSupportedException>(() => Targets(exhausted, 1 << 12)).Message);
+        Assert.Contains("leaves its participant bank", Assert.Throws<NotSupportedException>(() => Targets(exhausted, 1 << 12)).Message);
     }
 
     [Fact]
     public void RandomAndGroupMaskQueriesUseLogicalRecipientsWithoutConsumingRng()
     {
         BattleSession battle = Create([0], knockedOutFourth: true);
-        string before = JsonSerializer.Serialize(battle.Capture().Random);
+        NativeBattleRandomState? before = battle.Capture().Random;
         Assert.Equal(new[] { "party-0", "party-1", "party-2" }, Targets(battle, 1 << 13));
         Assert.Equal(new[] { "party-0", "party-1", "party-2" }, Targets(battle, 1 << 15));
         Assert.Equal(new[] { "party-0", "party-1", "party-2", "party-3" }, Targets(battle, 1 << 15, Action() with { Command = 2, TargetFlags = 1 }));
@@ -44,7 +44,7 @@ public sealed class ExpandedNumericAiTargetTests
         Assert.Equal(new[] { "party-0", "party-1", "party-2" }, Targets(battle, 0, Action() with { Command = 4, TargetFlags = 2 }));
         Assert.Empty(Targets(battle, 1 << 14));
         Assert.Empty(Targets(battle, 0));
-        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture().Random));
+        DetachedExpandedAiFixture.AssertSameRandom(before, battle.Capture().Random);
     }
 
     [Theory]
@@ -56,7 +56,7 @@ public sealed class ExpandedNumericAiTargetTests
     {
         BattleSession battle = Create([14, 220, value, 4, 220, 7, 1, 6, 0]);
         BattleSnapshot snapshot = battle.Capture();
-        BattleAttackCommand queued = Assert.Single(snapshot.QueuedActions);
+        BattleAttackCommand queued = Assert.Single(snapshot.QueuedActions, command => command.NativeAiCallbackStage == 0);
         Assert.Equal("enemy-0", queued.TargetId);
         switch (value)
         {
@@ -71,17 +71,15 @@ public sealed class ExpandedNumericAiTargetTests
                 break;
         }
         BattleSession restored = Restore(snapshot);
-        Assert.Equal(JsonSerializer.Serialize(snapshot.Random), JsonSerializer.Serialize(restored.Capture().Random));
-        for (int frame = 0; frame < 40 && !battle.Events.Any(item => item.Kind == "ActionComplete"); frame++)
-        {
-            battle.Tick();
-            restored.Tick();
-        }
+        DetachedExpandedAiFixture.AssertSameRandom(snapshot.Random, restored.Capture().Random);
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.Events.Any(item => item.Kind == "ActionComplete"), "The queued numeric selection must complete its original command.");
+        DetachedExpandedAiFixture.AdvanceTo(restored, () => restored.Events.Any(item => item.Kind == "ActionComplete"), "The private copy must complete the same command.");
         string?[] targets = battle.Events.Where(item => item.Kind == "EffectContact").Select(item => item.TargetId).ToArray();
         Assert.Equal(singleTarget is null ? ["party-0", "party-1", "party-2", "party-3"] : new[] { singleTarget }, targets);
         NativeBattleRandomState expectedRandom = value == 13 ? snapshot.Random!.Draw(out _) : snapshot.Random!;
-        Assert.Equal(JsonSerializer.Serialize(expectedRandom), JsonSerializer.Serialize(battle.Capture().Random));
+        DetachedExpandedAiFixture.AssertSameRandom(expectedRandom, battle.Capture().Random);
         Assert.Equal(targets, restored.Events.Where(item => item.Kind == "EffectContact").Select(item => item.TargetId));
+        DetachedExpandedAiFixture.AssertSameContinuation(battle, restored);
     }
 
     [Fact]
@@ -101,7 +99,7 @@ public sealed class ExpandedNumericAiTargetTests
             Combatants = snapshot.Combatants.Select(actor => actor.Id == enemy.Id ? actor with { NativeParticipant = actor.NativeParticipant! with { ActorReferences = new() { [0] = "party-3" } } } : actor).ToArray()
         };
         BattleSession restored = Restore(snapshot);
-        restored.Tick();
+        DetachedExpandedAiFixture.AdvanceTo(restored, () => restored.ActiveAction is { ActorId: "enemy-0", NativeAiCallbackStage: 1 }, "The restored target reference must reach its turn command.");
         Assert.Equal(9u, Enemy(restored.Capture()).NativeParticipant!.Variables[1]);
         Assert.Equal("party-3", restored.ActiveAction?.TargetId);
         BattleTargetSelection.Explicit selected = Assert.IsType<BattleTargetSelection.Explicit>(restored.ActiveAction!.TargetRequest.Selection);
@@ -117,9 +115,9 @@ public sealed class ExpandedNumericAiTargetTests
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(numeric, [action], 0, originalEnemySlots: true));
 
         BattleSnapshot saved = Create([4, 220, 7, 1, 6, 0]).Capture();
-        BattleAttackCommand queued = Assert.Single(saved.QueuedActions);
+        BattleAttackCommand queued = Assert.Single(saved.QueuedActions, command => command.NativeAiCallbackStage == 0);
         BattleTargetRequest missing = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("retired")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
-        Assert.Throws<InvalidDataException>(() => Restore(saved with { QueuedActions = [queued with { TargetRequest = missing }] }));
+        Assert.Throws<InvalidDataException>(() => Restore(saved with { QueuedActions = saved.QueuedActions.Select(command => ReferenceEquals(command, queued) ? command with { TargetRequest = missing } : command).ToArray() }));
     }
 
     [Fact]
@@ -140,8 +138,9 @@ public sealed class ExpandedNumericAiTargetTests
         Assert.Throws<InvalidDataException>(() => Create([14, 220, 0, 4, 220, 7, 1, 6, 0], originalEnemySlots: false));
 
         BattleSnapshot saved = Create([14, 220, 255, 4, 220, 7, 1, 6, 0], originalEnemySlots: false).Capture();
-        BattleAttackCommand queued = Assert.Single(saved.QueuedActions);
-        Assert.Equal((ushort)0, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, _ => null));
+        Assert.Equal(255u, Enemy(saved).NativeParticipant!.Variables[0]);
+        BattleAttackCommand queued = Assert.Single(saved.QueuedActions, command => command.NativeAiCallbackStage == 0);
+        Assert.Equal((ushort)0, Assert.IsType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection).Selection);
         Assert.Empty(Resolve(Restore(saved), queued.TargetRequest));
     }
 
@@ -198,11 +197,13 @@ public sealed class ExpandedNumericAiTargetTests
             Speed = level.Speed, Evasion = level.Evasion, ElementDefenses = level.ElementDefenses, DrawSpells = level.DrawSpells, DrawGuardianForces = level.DrawGuardianForces,
             InitialAtb = row == 0 && turn is not null ? BattleSession.AtbMaximum : 0, NativeAi = row == 0 ? Program(init, turn) : Program([0])
         }).ToArray();
-        return new(new BattleDefinition
+        BattleSession battle = new(new BattleDefinition
         {
             UsesExpandedRoster = true, UsesOriginalEnemySlots = originalEnemySlots, MagicVitals = frozen, Combatants = [.. allies, .. enemies],
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), InitialRandom = NativeBattleRandomState.ForecastPhase(3), NativeActions = [Action()]
         }, BattleAtbMode.Normal);
+        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        return battle;
     }
 
     private static NativeBattleAiDefinition Program(byte[] init, byte[]? turn = null)
@@ -222,6 +223,6 @@ public sealed class ExpandedNumericAiTargetTests
 
     private static BattleSession Restore(BattleSnapshot snapshot)
     {
-        return BattleSession.Restore(snapshot);
+        return DetachedExpandedAiFixture.Restore(snapshot);
     }
 }

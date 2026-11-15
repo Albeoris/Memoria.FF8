@@ -107,7 +107,7 @@ public sealed class BattleRewardLearningCommitTests
             Assert.Equal(BattleOutcome.Victory, active.Outcome);
             BattleEncounterOccurrence occurrence = new("learning-commit-component", 512, setup.BattleResources.FormationSourceHash(512), SceneKind.Field, 999, 0, new string('A', 64), null);
             session.SetPendingBattleEncounter(occurrence);
-            session.SetBattle(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(active.Capture()))!);
+            session.SetBattle(NativeBattleStorageSnapshots.Capture(active.Capture()));
             result = setup.CaptureBattleOutcome(active, occurrence);
         }
         return new Fixture(session, new GameWorld(session, assets.GameDirectory), result, completing);

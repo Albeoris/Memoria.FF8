@@ -56,8 +56,17 @@ internal sealed partial class BattleHudElement
 
     private void DrawStatuses(IUiCanvas canvas, UiTheme theme, BattleStatusPresentation statuses, float x, float y, float width, float? textScale = null)
     {
-        StatusBadge[] active = StatusLabels.Where(status => ((status.Saved ? statuses.Saved : statuses.Battle) & status.Mask) != 0).Select(status => new StatusBadge(StatusName(status), status.Icon)).ToArray();
-        DrawStatusBadges(canvas, theme, Layout, textScale ?? controller.TextScale, controller.BattlePresentationSeconds, active, x, y, width);
+        DrawStatusBadges(canvas, theme, Layout, textScale ?? controller.TextScale, controller.BattlePresentationSeconds, ReadStatusBadges(statuses), x, y, width);
+    }
+
+    private StatusBadge[] ReadStatusBadges(BattleStatusPresentation statuses)
+    {
+        return StatusLabels.Where(status => ((status.Saved ? statuses.Saved : statuses.Battle) & status.Mask) != 0).Select(status => new StatusBadge(StatusName(status), status.Icon)).ToArray();
+    }
+
+    private static float MeasureStatusWidth(IUiCanvas canvas, float scale, StatusBadge[] active, float textScale)
+    {
+        return active.Sum(status => canvas.MeasureText(status.Name, 11 * textScale * scale, float.PositiveInfinity).Width / scale + (status.Icon.HasValue ? 14 : 0) + 9);
     }
 
     internal static void DrawStatusBadges(IUiCanvas canvas, UiTheme theme, BattleHudLayout layout, float textScale, double seconds, StatusBadge[] active, float x, float y, float width)
@@ -69,7 +78,7 @@ internal sealed partial class BattleHudElement
         }
         float fontSize = 11 * textScale;
         float height = Math.Max(12, fontSize);
-        float totalWidth = active.Sum(status => canvas.MeasureText(status.Name, fontSize * scale, float.PositiveInfinity).Width / scale + (status.Icon.HasValue ? 14 : 0) + 9);
+        float totalWidth = MeasureStatusWidth(canvas, scale, active, textScale);
         // Narrow target columns cycle complete labels instead of hiding an active status in clipped text.
         if (totalWidth > width)
         {

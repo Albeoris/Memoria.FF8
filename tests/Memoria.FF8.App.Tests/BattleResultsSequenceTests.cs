@@ -1,3 +1,5 @@
+using System.Globalization;
+using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -6,6 +8,90 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleResultsSequenceTests
 {
+    [Theory]
+    [InlineData(4, 1)]
+    [InlineData(8, 2)]
+    [InlineData(11, 3)]
+    public void Expanded_experience_displays_every_canonical_reward_on_one_screen(int capacity, int columns)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithExtendedRoster(true);
+        byte[] selectedRows = [0, 1, 2, 7, 3, 9, 4, 8, 5, 10, 6];
+        byte[] partyRows = selectedRows[..capacity];
+        NativeCharacterVital[] records = vitals.Records.Select((record, row) => record with { CharacterId = (byte)row, MemberFlags = 1 }).ToArray();
+        vitals = (vitals with { Records = records, CombatParty = partyRows[..3] }).WithBattleParty(partyRows, partyRows.Length);
+        BattleCombatantDefinition[] partyDefinitions = partyRows.Select(row => new BattleCombatantDefinition { Id = $"member-{100 + row}", Name = $"Member {row}", IsPlayer = true, MagicRecordId = row, ModelId = row }).ToArray();
+        BattleDefinition definition = new() { Combatants = [.. partyDefinitions, new() { Id = "opponent", Name = "Opponent" }], UsesExpandedRoster = true, MagicVitals = vitals };
+        BattleCharacterRewardPresentation[] growth = partyRows.Select(row => new BattleCharacterRewardPresentation(row, (uint)(1000 + 100 * row), (uint)(1020 + 101 * row), 5, 6, 50, (uint)(200 + row))).ToArray();
+        BattleRewardSummary rewards = Summary() with
+        {
+            CharacterExperience = partyRows.ToDictionary(row => row, row => (ushort)(20 + row)),
+            CharacterGrowth = growth
+        };
+        BattleSession session = new(definition, BattleAtbMode.Normal);
+        int previews = 0;
+        int completions = 0;
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () =>
+        {
+            previews++;
+            return rewards;
+        });
+        session.InstantVictory();
+        IReadOnlyList<BattleCombatant> party = hud.Party;
+        Assert.Equal(partyRows.Select(row => (int?)row), party.Select(actor => actor.MagicRecordId));
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        Settle(hud);
+        Assert.All(party, actor => Assert.Equal((uint)rewards.CharacterExperience[(byte)actor.MagicRecordId!.Value], hud.RemainingExperience(actor)));
+        if (capacity == 11 && Environment.GetEnvironmentVariable("MEMORIA_FF8_RESULT_UI_OUTPUT") is { Length: > 0 } output)
+        {
+            Directory.CreateDirectory(output);
+            using SkiaSharp.SKBitmap bitmap = new(960, 672);
+            using BattlePreviewCanvas preview = new(bitmap, assets.GameDirectory);
+            view.Draw(preview, new UiTheme());
+            bitmap.SavePng(Path.Combine(output, "experience-11.png"));
+        }
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.ExperienceCounting);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.ExperienceFinished);
+
+        Assert.Equal(BattleResultPage.Experience, hud.ResultPage);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        var names = canvas.TextDraws.Where(draw => draw.Text.StartsWith("Member ", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(party.Select(actor => actor.Name), names.Select(draw => draw.Text));
+        Assert.Equal(columns, names.Select(draw => draw.Bounds.X).Distinct().Count());
+        UiRect confirm = Assert.Single(canvas.TextDraws, draw => draw.Text.Contains("Confirm", StringComparison.Ordinal)).Bounds;
+        for (int index = 0; index < party.Count; index++)
+        {
+            BattleCharacterRewardPresentation row = Assert.Single(growth, value => value.Row == party[index].MagicRecordId);
+            UiRect name = names[index].Bounds;
+            UiRect total = Assert.Single(canvas.TextDraws, draw => draw.Text == row.FinalExperience.ToString(CultureInfo.InvariantCulture)).Bounds;
+            UiRect next = Assert.Single(canvas.TextDraws, draw => draw.Text == row.ExperienceToNextLevel.ToString(CultureInfo.InvariantCulture)).Bounds;
+            float bottom = names.Where(draw => draw.Bounds.X == name.X && draw.Bounds.Y > name.Y).Select(draw => draw.Bounds.Y).DefaultIfEmpty(confirm.Y).Min();
+            Assert.InRange(total.Y + total.Height, name.Y, bottom);
+            Assert.InRange(next.Y + next.Height, name.Y, bottom);
+            if (capacity > 4)
+            {
+                Assert.True(next.Y >= total.Y + total.Height - 0.01f);
+                UiRect totalLabel = Assert.Single(canvas.TextDraws, draw => draw.Text == "Current EXP" && draw.Bounds.Y == total.Y && draw.Bounds.X == name.X).Bounds;
+                UiRect nextLabel = Assert.Single(canvas.TextDraws, draw => draw.Text == "Next level" && draw.Bounds.Y == next.Y && draw.Bounds.X == name.X).Bounds;
+                Assert.True(totalLabel.X + totalLabel.Width < total.X);
+                Assert.True(nextLabel.X + nextLabel.Width < next.X);
+                Assert.Contains(canvas.TextDraws, draw => draw.Text == "↑ Lv. 6" && draw.Bounds.Y == name.Y && draw.Bounds.X > name.X + name.Width);
+            }
+        }
+        Assert.Equal(0, completions);
+        view.Pointer(confirm.X + confirm.Width / 2, confirm.Y + confirm.Height / 2, true);
+        view.Pointer(confirm.X + confirm.Width / 2, confirm.Y + confirm.Height / 2, false);
+        Assert.Equal(BattleResultPage.Items, hud.ResultPage);
+        Confirm(hud);
+        Confirm(hud);
+        Assert.Equal(1, previews);
+        Assert.Equal(1, completions);
+    }
+
     [Fact]
     public void ExplicitZeroNoticeSuppressesGuardianSummaryDespiteNonzeroAwards()
     {

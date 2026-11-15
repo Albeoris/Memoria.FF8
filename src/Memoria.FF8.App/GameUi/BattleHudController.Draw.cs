@@ -132,26 +132,13 @@ public sealed partial class BattleHudController
             return true;
         }
         BattleDrawLayout layout = BattleDrawLayout.Calculate(ActionChoices.Count);
-        (int column, int row) = layout.GetCell(ChoiceIndex);
-        int next = actionIndex;
-        if (input is MenuInput.Up or MenuInput.Down && layout.ColumnRows(column) > 0)
+        int direction = input is MenuInput.Up or MenuInput.Left ? -1 : 1;
+        bool horizontal = input is MenuInput.Left or MenuInput.Right;
+        int next = horizontal ? layout.MoveHorizontal(ChoiceIndex, direction) : layout.MoveVertical(ChoiceIndex, direction);
+        if (horizontal && next < 0)
         {
-            next = layout.GetIndex(column, (row + (input == MenuInput.Up ? -1 : 1) + layout.ColumnRows(column)) % layout.ColumnRows(column));
-        }
-        else if (input == MenuInput.Left && column == 0)
-        {
-            ChangeDrawPage(false);
+            ChangeDrawPage(input == MenuInput.Right);
             return true;
-        }
-        else if (input == MenuInput.Right && column == layout.Columns - 1)
-        {
-            ChangeDrawPage(true);
-            return true;
-        }
-        else if (input is MenuInput.Left or MenuInput.Right)
-        {
-            column += input == MenuInput.Left ? -1 : 1;
-            next = layout.GetIndex(column, Math.Min(row, layout.ColumnRows(column) - 1));
         }
         if (next >= 0 && next != actionIndex)
         {

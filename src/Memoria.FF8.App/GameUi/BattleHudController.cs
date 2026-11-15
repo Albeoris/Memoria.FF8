@@ -208,26 +208,44 @@ public sealed partial class BattleHudController
         }
     }
 
-    private bool TryChangeTargetSide(MenuInput input)
+    private void NavigateTargets(MenuInput input, int direction)
     {
-        if (input is not (MenuInput.Left or MenuInput.Right) || SelectedTarget is not { } current)
-        {
-            return false;
-        }
+        string? current = SelectedTarget?.Id;
         IReadOnlyList<BattleCombatant> targets = Targets;
-        int index = targets.ToList().FindIndex(target => target.Id == current.Id);
-        int column = index / 4;
-        int columns = (targets.Count + 3) / 4;
-        if (!SelectingTargetGroup && (input == MenuInput.Right ? column < columns - 1 : column > 0))
+        if (targets.Count == 0)
         {
-            return false;
+            return;
         }
-        if (!CanChangeTargetSide)
+        BattleDrawLayout grid = BattleDrawLayout.Calculate(targets.Count);
+        int index = targets.ToList().FindIndex(target => target.Id == current);
+        bool horizontal = input is MenuInput.Left or MenuInput.Right;
+        if (horizontal && CanChangeTargetSide && (SelectingTargetGroup || grid.MoveHorizontal(index, direction) < 0))
         {
-            return false;
+            ChangeTargetSide();
+            return;
         }
-        ChangeTargetSide();
-        return true;
+        if (SelectingTargetGroup)
+        {
+            return;
+        }
+        if (targets.Count <= 4)
+        {
+            selectedTargetId = Cycle(targets, current, direction);
+        }
+        else
+        {
+            int next = horizontal || input is MenuInput.PageLeft or MenuInput.PageRight
+                ? grid.MoveHorizontal(index, direction, wrap: true)
+                : grid.MoveVertical(index, direction);
+            if (next >= 0)
+            {
+                selectedTargetId = targets[next].Id;
+            }
+        }
+        if (current != selectedTargetId)
+        {
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
     }
 
     public bool SelectingTargetGroup
@@ -384,26 +402,7 @@ public sealed partial class BattleHudController
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
             if (SelectingTarget)
             {
-                if (TryChangeTargetSide(input) || SelectingTargetGroup)
-                {
-                    return;
-                }
-                string? before = SelectedTarget?.Id;
-                if (Targets.Count > 4 && input is MenuInput.Left or MenuInput.Right)
-                {
-                    int index = Targets.ToList().FindIndex(target => target.Id == selectedTargetId);
-                    int columns = (Targets.Count + 3) / 4;
-                    int column = (index / 4 + direction + columns) % columns;
-                    selectedTargetId = Targets[Math.Min(column * 4 + index % 4, Targets.Count - 1)].Id;
-                }
-                else
-                {
-                    selectedTargetId = Cycle(Targets, selectedTargetId, direction);
-                }
-                if (before != selectedTargetId)
-                {
-                    SoundRequested?.Invoke(MenuSound.Move);
-                }
+                NavigateTargets(input, direction);
             }
             else if (input is MenuInput.Up or MenuInput.Down)
             {

@@ -130,12 +130,12 @@ public sealed partial class BattleHudController
 
     internal ushort AwardedExperience(BattleCombatant actor)
     {
-        return byte.TryParse(actor.Id.AsSpan(actor.Id.LastIndexOf('-') + 1), out byte row) ? ResultRewards?.CharacterExperience.GetValueOrDefault(row) ?? 0 : (ushort)0;
+        return actor.MagicRecordId is int row ? ResultRewards?.CharacterExperience.GetValueOrDefault(checked((byte)row)) ?? 0 : (ushort)0;
     }
 
     internal BattleCharacterRewardPresentation? CharacterResult(BattleCombatant actor)
     {
-        return byte.TryParse(actor.Id.AsSpan(actor.Id.LastIndexOf('-') + 1), out byte row) ? ResultRewards?.CharacterGrowth.FirstOrDefault(growth => growth.Row == row) : null;
+        return actor.MagicRecordId is int row ? ResultRewards?.CharacterGrowth.FirstOrDefault(growth => growth.Row == row) : null;
     }
 
     internal uint RemainingExperience(BattleCombatant actor)

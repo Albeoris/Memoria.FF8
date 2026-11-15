@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private static IEnumerable<BattleEnemyPlacement> AuthoredEnemyPlacements(BattleEncounter encounter)
+    internal static IEnumerable<BattleEnemyPlacement> AuthoredEnemyPlacements(BattleEncounter encounter)
     {
         return encounter.Slots.Where(slot => slot.NativeModelId != 255 && (slot.Enabled || slot.NativeModelId != 0));
     }
@@ -16,19 +16,50 @@ internal sealed partial class GameWorld
         return slot.IsEnemyModel && slot.NativeModelId != 255;
     }
 
+    internal static void RequireEnemyStatisticsContract(BattleEnemyPlacement placement)
+    {
+        if (!placement.IsEnemyModel)
+        {
+            throw new NotSupportedException($"Scene slot {placement.Slot} requires the native character participant statistics contract for model {placement.NativeModelId}.");
+        }
+    }
+
     private static bool IsOrdinaryEnemyPlacement(BattleEnemyPlacement slot)
     {
         return IsEnemyPrototype(slot) && slot.Enabled && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended;
     }
 
-    private ExpandedAiAdmission[] EnemyAdmissions(int model, int formation, ISet<int> explicitEnemyModels)
+    private ExpandedAiAdmission[] EnemyAdmissions(int model, int formation, ISet<int> explicitEnemyModels, ISet<BattleEncounterRosterRestrictionReason> rosterRestrictions)
     {
         NativeBattleAiDefinition program = BattleResources.ReadEnemyAi(model, 0);
-        return Enumerable.Range(0, 3).Select(band => NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, formation, explicitEnemyModelReferences: explicitEnemyModels)).ToArray();
+        ImmutableArray<NativeBattleEffectBinding> effectCatalog = assets.ReadNativeEffectCatalog();
+        return Enumerable.Range(0, 3).Select(band => NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, formation,
+            explicitEnemyModelReferences: explicitEnemyModels, rosterModel: model, rosterRestrictions: rosterRestrictions,
+            admitsDonorEffect: CanBindIndependentEffect)).ToArray();
+
+        bool CanBindIndependentEffect(ushort effect)
+        {
+            if (effect == 0)
+            {
+                return true;
+            }
+            int index = effect - 1;
+            if (index >= effectCatalog.Length)
+            {
+                return false;
+            }
+            NativeBattleEffectBinding selected = effectCatalog[index];
+            if (selected.Entry == 0)
+            {
+                selected = effectCatalog[0];
+            }
+            return selected.Entry != 0 && !selected.RequiresOriginalCasterCompanion;
+        }
     }
 
-    private HashSet<int> ReferencedReserveSlots(BattleEncounter encounter)
+    internal static (HashSet<int> Slots, BattleEncounterRosterAdmission Admission) InspectEncounterRoster(BattleEncounter encounter, Func<int, NativeBattleAiDefinition> readEnemyAi, IReadOnlyList<BattleNativeAction> actions)
     {
+        HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
         HashSet<int> slots = [];
         HashSet<int> visitedModels = [];
         Queue<BattleEnemyPlacement> pending = new(encounter.Enemies.Where(slot => slot.Enabled && IsEnemyPrototype(slot)));
@@ -38,11 +69,12 @@ internal sealed partial class GameWorld
             {
                 continue;
             }
-            NativeBattleAiDefinition program = BattleResources.ReadEnemyAi(placement.ModelId, 0);
+            NativeBattleAiDefinition program = readEnemyAi(placement.ModelId);
             HashSet<int> referenced = [];
             for (int band = 0; band < 3; band++)
             {
-                NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, encounter.Id, originalEnemySlots: true, reserveSceneSlots: referenced);
+                NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, actions, encounter.Id, originalEnemySlots: true, reserveSceneSlots: referenced,
+                    rosterModel: placement.ModelId, rosterRestrictions: restrictions);
             }
             foreach (int slot in referenced.Where(slots.Add))
             {
@@ -52,19 +84,24 @@ internal sealed partial class GameWorld
                 }
                 BattleEnemyPlacement prototype = encounter.Slots.SingleOrDefault(candidate => candidate.Slot == slot)
                     ?? throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references missing reserve slot {slot}.");
-                if (!IsEnemyPrototype(prototype))
+                if (prototype.NativeModelId == 255)
                 {
-                    throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references reserve slot {slot} with nonenemy model {prototype.NativeModelId}.");
+                    throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references unallocated reserve slot {slot}.");
+                }
+                if (!prototype.IsEnemyModel)
+                {
+                    // The scene can name a character model, but its allocation requires character statistics rather than the enemy load service.
+                    restrictions.Add(new(BattleEncounterRosterRestriction.UnsupportedEnemyLifecycle, placement.ModelId, SceneSlot: slot));
+                    continue;
                 }
                 pending.Enqueue(prototype);
             }
         }
-        return slots;
+        return (slots, BattleEncounterRosterAdmission.ForFormation(encounter.Id, restrictions));
     }
 
-    private BattleEnemyPlacement[] OriginalExpandedEnemyPlacements(BattleEncounter encounter, BattleDefinition? restoredDefinition)
+    private static BattleEnemyPlacement[] OriginalExpandedEnemyPlacements(BattleEncounter encounter, BattleDefinition? restoredDefinition, HashSet<int> referenced)
     {
-        HashSet<int> referenced = ReferencedReserveSlots(encounter);
         BattleEnemyPlacement[] required = encounter.Slots.Where(slot => slot.Enabled || referenced.Contains(slot.Slot)).ToArray();
         if (restoredDefinition is null)
         {
@@ -92,7 +129,10 @@ internal sealed partial class GameWorld
             return false;
         }
         HashSet<int> explicitEnemyModels = [];
-        return EnemyAdmissions(enemy.ModelId, destinationFormation, explicitEnemyModels).All(admission => admission == ExpandedAiAdmission.Supported) && explicitEnemyModels.Count == 0;
+        HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
+        return EnemyAdmissions(enemy.ModelId, destinationFormation, explicitEnemyModels, restrictions).All(admission => admission == ExpandedAiAdmission.Supported) &&
+            explicitEnemyModels.Count == 0 && restrictions.Count == 0 &&
+            BattleResources.LoadEnemy(enemy.ModelId).Sequences?.CanCloneIndependently() == true;
     }
 
     private ImmutableArray<ushort>? ReadLocalEnemyFormations()

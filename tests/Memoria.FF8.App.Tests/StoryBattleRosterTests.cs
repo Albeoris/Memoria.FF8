@@ -96,6 +96,13 @@ public sealed class StoryBattleRosterTests
         Assert.Equal(models, authored.Select(actor => actor.ModelId));
         Assert.Equal(enemies.Select(actor => actor.SceneSlot), authored.Select(actor => actor.SceneSlot));
         Assert.All(authored, actor => Assert.NotNull(actor.NativeTemplate));
+        if (formation == 794)
+        {
+            Assert.All(definition.Combatants.Where(actor => actor.SceneSlot is int slot && definition.AddedEnemySources!.ContainsKey(slot)), donor =>
+                Assert.True(Assert.IsType<BattleSequenceSet>(expandedWorld.BattleResources.LoadEnemy(donor.ModelId).Sequences).CanCloneIndependently()));
+            Assert.False(Assert.IsType<BattleSequenceSet>(expandedWorld.BattleResources.LoadEnemy(106).Sequences).CanCloneIndependently());
+            Assert.False(Assert.IsType<BattleSequenceSet>(expandedWorld.BattleResources.LoadEnemy(107).Sequences).CanCloneIndependently());
+        }
         ExpandedBattleEntryAdmissionTests.ReachReady(expandedWorld, expanded);
         Assert.Equal(request.Frame, world.Events.Frame);
         Assert.Equal(request.Frame, expandedWorld.Events.Frame);
