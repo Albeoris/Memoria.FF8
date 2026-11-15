@@ -188,48 +188,52 @@ public sealed partial class BattleSession
 
     private void RunNativeAi(BattleCombatant actor, int callback, Action? interpret = null)
     {
-        if (UsesExpandedRoster)
-        {
-            RunExpandedNativeAi(actor, callback);
-            return;
-        }
-        byte eventActorIndex = checked((byte)actor.RequireNativeActorIndex());
+        byte? physicalEventActor = UsesExpandedRoster ? null : checked((byte)actor.RequireNativeActorIndex());
         if (callback == 1)
         {
             actor.AiTurnCount = unchecked((byte)(actor.AiTurnCount + 1));
         }
-        if (callback is >= 0 and <= 3 && nativeActionCommitDepth == 0 && !flushingNativeReactions)
+        if (physicalEventActor is not null && callback is >= 0 and <= 3 && nativeActionCommitDepth == 0 && !flushingNativeReactions)
         {
             BeginNativeReactionBatch();
         }
-        bool paused = (actor.NativeAi is not null || HasEncounterPolicy(actor)) && actor.IsActive && callback is >= 0 and <= 3 && (callback != 2 || (NativeSavedStatusBits(actor) & 1) == 0);
+        bool paused = physicalEventActor is not null && (actor.NativeAi is not null || HasEncounterPolicy(actor)) && actor.IsActive && callback is >= 0 and <= 3 && (callback != 2 || (NativeSavedStatusBits(actor) & 1) == 0);
         if (paused)
         {
             BeginNativeBattleActionPause();
         }
         byte? previousStage = nativeAiCallbackStage;
         NativeBattleActionProductionContext? previousContext = nativeProductionContext;
-        nativeProductionContext ??= new(0, 0, false, callback == 1 ? 0x47DE70u : 0x47DDA0u);
+        bool previousHostedProduction = producingExpandedAiCallback;
+        if (physicalEventActor is not null)
+        {
+            nativeProductionContext ??= new(0, 0, false, callback == 1 ? 0x47DE70u : 0x47DDA0u);
+        }
+        else if (callback == 4 && preparingExpandedHostedAction && producingExpandedAiInvocation is not null)
+        {
+            producingExpandedAiCallback = true;
+        }
         nativeAiCallbackStage = checked((byte)callback);
         try
         {
-            if (interpret is null)
-            {
-                InterpretNativeAi(actor, callback);
-            }
-            else
+            if (interpret is not null)
             {
                 interpret();
+            }
+            else if (physicalEventActor is not null || actor.NativeAi?.Scripts[callback].Length > 0 || callback == 1 && HasEncounterPolicy(actor))
+            {
+                InterpretNativeAi(actor, callback);
             }
         }
         finally
         {
             nativeAiCallbackStage = previousStage;
             nativeProductionContext = previousContext;
+            producingExpandedAiCallback = previousHostedProduction;
         }
         if (paused)
         {
-            QueueNativeActionClockCompletion(callback == 1 ? 0x47DE70u : 0x47DDA0u, actor.Id, eventActorIndex);
+            QueueNativeActionClockCompletion(callback == 1 ? 0x47DE70u : 0x47DDA0u, actor.Id, physicalEventActor);
         }
     }
 }

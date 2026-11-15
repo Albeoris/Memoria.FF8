@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                RunExpandedNativeAi(actor, request.Stage);
+                RunNativeAi(actor, request.Stage);
             }
         }
         finally

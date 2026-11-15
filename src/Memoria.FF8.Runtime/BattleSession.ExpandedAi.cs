@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         actor.NativeStatus0 &= 0xFFFE;
         try
         {
-            RunExpandedNativeAi(actor, 3);
+            RunNativeAi(actor, 3);
         }
         finally
         {
@@ -88,33 +88,6 @@ public sealed partial class BattleSession
         {
             // TODO(TD-009): The expanded host retains sequence 3's allocation release in the graphics FIFO.
             QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.DeathRelease));
-        }
-    }
-
-    private void RunExpandedNativeAi(BattleCombatant actor, int callback)
-    {
-        if (callback == 1)
-        {
-            actor.AiTurnCount = unchecked((byte)(actor.AiTurnCount + 1));
-        }
-        byte? previous = nativeAiCallbackStage;
-        bool previousProduction = producingExpandedAiCallback;
-        if (callback == 4 && preparingExpandedHostedAction && producingExpandedAiInvocation is not null)
-        {
-            producingExpandedAiCallback = true;
-        }
-        nativeAiCallbackStage = checked((byte)callback);
-        try
-        {
-            if (actor.NativeAi?.Scripts[callback].Length > 0)
-            {
-                InterpretNativeAi(actor, callback);
-            }
-        }
-        finally
-        {
-            producingExpandedAiCallback = previousProduction;
-            nativeAiCallbackStage = previous;
         }
     }
 

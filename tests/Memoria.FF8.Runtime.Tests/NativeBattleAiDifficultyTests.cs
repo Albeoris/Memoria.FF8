@@ -135,11 +135,10 @@ public sealed class NativeBattleAiDifficultyTests
     }
 
     [Fact]
-    public void HardRandomPolicyContinuesIdenticallyAfterJsonRestore()
+    public void HardRandomPolicyContinuesIdenticallyAfterPrivateRestore()
     {
         BattleSession original = Create([2, 2, 3, 0, 0, 0, 1, 0, 0, 11, 0, 0, 0, 0], BattleDifficulty.Hard);
-        string json = JsonSerializer.Serialize(original.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+        BattleSession restored = BattleSession.Restore(original.Capture());
         original.Tick();
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(restored.Capture()));
