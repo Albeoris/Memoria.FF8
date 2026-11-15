@@ -36,8 +36,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return new(state.Coverage, progressionOrder: (visit, target) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
-            bool unconsumedEntry = target.ConditionSignature is string signature ? coverage?.Conditions?.HasExecutedEntry(signature) != true : coverage?.Completed != true;
-            if (target.ChangesStory && unconsumedEntry)
+            if (target.ChangesStory && coverage?.Completed != true)
             {
                 return -1;
             }

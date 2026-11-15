@@ -31,6 +31,26 @@ internal static class NativeAutoPlayPolicyPlanningTests
         CheckComponentProbeScope();
         CheckEntryAvailability();
         CheckStoryFrontierPrecedesRefresh();
+        CheckCompletedStoryDoesNotStarvePartyFrontier();
+    }
+
+    private static void CheckCompletedStoryDoesNotStarvePartyFrontier()
+    {
+        Ff7AutoPlayState state = new();
+        var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent party = new("party", AutoPlayEventKind.Interaction, ConditionSignature: "party-entry");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit-entry");
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, ConditionSignature: "previous-heading");
+        planner.Observe(new("current", "resource-a"), [party, exit]);
+        planner.Observe(new("remote", "resource-b"), [story]);
+        planner.Completed("remote", "story", observedStoryChanged: true);
+        story = story with { ConditionSignature = "new-heading" };
+        planner.Observe(new("remote", "resource-b"), [story]);
+        planner.ObserveNavigation("current", "current-component", [party, exit]);
+        planner.ObserveNavigation("remote", "remote-component", [story]);
+        planner.Completed("current", "exit", "remote", observedStoryChanged: false);
+        planner.RecordNavigationRoute("current-component", "remote-component", "exit", state.Coverage.Visits[0].Events.Single(item => item.Event.Id == "exit").Routes.Single());
+        Check(planner.PlanNavigation("current-component") is { IsTravel: false, Event.Id: "party" }, "A new raw heading on a completed potential story writer displaced a genuinely uncompleted local party frontier.");
     }
 
     private static void CheckStoryFrontierPrecedesRefresh()
