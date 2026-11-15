@@ -41,7 +41,79 @@ internal static class NativeComponentProbeTests
         Check(before == JsonSerializer.Serialize(session.Capture()), "Read-only component planning changed native PCs, progress, RNG or source metadata.");
         Ff7AutoPlayState cold = state.Clone();
         Check(Ff7AutoPlayPolicy.CreatePlanner(cold).PlanNavigation(active.NavigationKey!, isCurrent: visit => visit.VisitKey != active.VisitId || visit.Key.StartsWith(topology, StringComparison.Ordinal), allowRemoteConditionRoutes: true)?.Event.Id == step!.Event.Id, "Cold restoration lost the normalized component planning decision.");
+        CheckNativeNavigationPublication(installation, envelope);
         Check(source.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Component observation changed its external standalone source.");
+    }
+
+    private static void CheckNativeNavigationPublication(Ff7Installation installation, CombinedSessionSave envelope)
+    {
+        using Ff7Session session = Ff7Session.Restore(installation, envelope.Ff7!);
+        Ff7AutoPlayActiveEvent incoming = session.AutoPlayState!.Active!;
+        int sourceMap = int.Parse(incoming.VisitId.Split(':')[1], System.Globalization.CultureInfo.InvariantCulture);
+        int arrivalMap = session.MapId;
+        long arrivalGeneration = session.FieldGeneration;
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Native entrance setup requested an unrelated choice checkpoint."));
+        Ff7AutoplayDriver driver = new(session);
+        bool retiredArrivalPhantom = false;
+        bool returned = false;
+        bool stoppedAtPhysicalBoundary = false;
+        bool selectedUnconsumed = false;
+        int unavailableObservations = 0;
+        for (int callback = 0; callback < 512; callback++)
+        {
+            Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
+            string navigationBefore = JsonSerializer.Serialize(policy.State.Coverage.NavigationVisits);
+            string physicalBefore = PhysicalReceipts(policy.State);
+            Ff7AutoplayInput input;
+            try
+            {
+                input = policy.ChooseInput(driver);
+            }
+            catch (NotSupportedException error) when (error.Message == "No reachable unconsumed native event remains in the observed frontier.")
+            {
+                Check(returned && session.MapId == sourceMap && observation.CanAcceptInput, "Native initialization was mistaken for an exhausted physical frontier.");
+                stoppedAtPhysicalBoundary = true;
+                break;
+            }
+            if (!observation.CanAcceptInput)
+            {
+                unavailableObservations++;
+                Check(navigationBefore == JsonSerializer.Serialize(policy.State.Coverage.NavigationVisits), "An input-unavailable native callback replaced valid component frontiers with transient scene facts.");
+                Check(physicalBefore == PhysicalReceipts(policy.State), "An input-unavailable native callback published transient physical availability as an unconsumed frontier.");
+            }
+            else if (session.MapId == arrivalMap && observation.Events.All(target => target.Id != policy.State.NavigationGoal?.EventId))
+            {
+                AutoPlayNavigationVisit? navigation = policy.State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == observation.NavigationKey);
+                Check(navigation is not null && navigation.Events.Select(item => item.Id).Order().SequenceEqual(observation.Events.Where(target => target.AnalysisComplete).Select(target => target.Id).Order()), "A valid native observation failed to retire obsolete arrival-component events.");
+                retiredArrivalPhantom = true;
+            }
+            if (session.FieldGeneration != arrivalGeneration)
+            {
+                Check(session.MapId == sourceMap, "Normal doorway return entered an unrelated native field.");
+                returned = true;
+            }
+            if (returned && policy.State.Active is { Accepted: false } next)
+            {
+                Check(next.EventId != incoming.EventId, "Normal policy replayed the proved optional doorway toward a transient arrival-component frontier.");
+                selectedUnconsumed = !policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == next.VisitId).Events.Single(item => item.Event.Id == next.EventId).Completed;
+                if (selectedUnconsumed)
+                {
+                    break;
+                }
+            }
+            driver.Apply(input);
+            session.AdvanceTick(advanceClock: false);
+        }
+        Check(unavailableObservations > 0 && retiredArrivalPhantom && returned && (stoppedAtPhysicalBoundary || selectedUnconsumed), "Normal native entrance and return did not bound the transient component frontier without a forced goal.");
+    }
+
+    private static string PhysicalReceipts(Ff7AutoPlayState state)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            state.NavigationGuards,
+            Events = state.Coverage.Visits.SelectMany(visit => visit.Events.Where(item => item.AvailabilityFingerprint is not null || item.Unavailable || item.UnavailableAttempts.Count > 0).Select(item => new { Visit = visit.Visit.Key, item.Event.Id, item.Unavailable, item.UnavailableVariants, item.AvailabilityFingerprint, item.UnavailableAttempts }))
+        });
     }
 
     private static void Check(bool condition, string message)

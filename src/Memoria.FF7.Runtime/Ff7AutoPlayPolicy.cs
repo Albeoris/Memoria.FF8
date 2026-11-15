@@ -99,6 +99,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return nativeInput;
         }
         Ff7AutoPlayObservation observation = ObservePlanner();
+        if (!observation.CanAcceptInput)
+        {
+            return default;
+        }
         driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         Dictionary<string, string> validatedPhysicalGuards = new(StringComparer.Ordinal);
@@ -134,10 +138,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
         }
         planner.RefreshUnavailable(observation.VisitId, physicalGuards);
-        if (!observation.CanAcceptInput)
-        {
-            return default;
-        }
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
@@ -352,8 +352,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint)).ToArray();
         planner.Observe(new(observation.VisitId, observation.ProgramIdentity), events);
-        planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, events);
-        ObserveNavigationProbes(State, observation);
+        if (observation.CanAcceptInput)
+        {
+            planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, events);
+            ObserveNavigationProbes(State, observation);
+        }
         ObserveVisitGuard(observation);
         return observation;
     }
