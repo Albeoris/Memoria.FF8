@@ -82,6 +82,11 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal NativeBattlePresentationCompletionRequested? PendingCompletion => presentation.PendingHostedCompletion;
     internal ushort? TriggerOptions => presentation.HostedTriggerOptions;
 
+    internal NativeBattleRetainedActionPackets ObserveDiagnosticActionPackets(BattleDiagnosticEffectDispatch dispatch)
+    {
+        return presentation.ObserveDiagnosticActionPackets(dispatch);
+    }
+
     internal void AppendDiagnosticPresentationBlockers(List<string> blockers)
     {
         if (HasActiveAction || PendingCompletion is not null)

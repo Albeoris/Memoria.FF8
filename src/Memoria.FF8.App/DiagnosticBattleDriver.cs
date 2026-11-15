@@ -53,10 +53,13 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         FreshEntry?.Validate();
         TerminalHold?.Validate();
+        bool independentVictoryHold = IndependentRosterEntry && TerminalHold is { Candidate: BattleOutcome.Victory } &&
+            TerminalHold.PartyActorIds.Length == 1 && TerminalHold.PartyActorIds[0] == Input.ActorId && ExpectedNativeCommand.HasValue && ExpectedNativeAction.HasValue &&
+            Repairs is { Length: 0 } && EnemyAbility is null && EnemyTrigger is null && CounterCycle is null && ShotCycle is null && DuelCycle is null;
         bool victoryHold = TerminalHold is { Candidate: BattleOutcome.Victory } && FreshEntry is not null && SlotsAdmission is { MagicAction: 53 or 56 } && Repairs is { Length: 0 } && TerminalHold.PartyActorIds.Length == 1 && TerminalHold.PartyActorIds[0] == Input.ActorId && ExpectedNativeCommand == 16 && ExpectedNativeAction == SlotsAdmission.MagicAction && ExpectedEffect == SlotsAdmission.Effect;
-        if (TerminalHold?.Candidate == BattleOutcome.Victory && !victoryHold)
+        if (TerminalHold?.Candidate == BattleOutcome.Victory && !victoryHold && !independentVictoryHold)
         {
-            throw new InvalidDataException("A victory hold requires one fresh destructive Slots invocation, its explicit caster and no repairs.");
+            throw new InvalidDataException("A victory hold requires one explicitly identified fresh player invocation, its caster and no repairs.");
         }
         if (FreshEntry is not null && (ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects is null || SupportingEffects.Length != 0 || SupportingInvocations is null || SupportingInvocations.Length != 0 || Repairs is null || Repairs.Length != 0 || TerminalHold is not null && !victoryHold || ExpectedNativeCommand == 250))
         {
@@ -70,9 +73,9 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         {
             throw new InvalidDataException("Doom expiration requires a genuine equipped Doom submission and its distinct recipient's original 246/43 expiry in one independent entry.");
         }
-        if (IndependentRosterEntry && (FreshEntry is not null || Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 }))
+        if (IndependentRosterEntry && (FreshEntry is not null || Presentation is not null || TerminalHold is not null && !independentVictoryHold || Repairs is not { Length: 0 }))
         {
-            throw new InvalidDataException("Independent roster entry cannot also use legacy fresh-entry, presentation transfer, terminal hold or between-use repairs.");
+            throw new InvalidDataException("Independent roster entry requires its own lifetime with no legacy fresh-entry, presentation transfer or between-use repairs.");
         }
         if (EnemyTrigger is not null && (ExpectedNativeAction is null || EnemyAbility is not null || LimitSelection is not null ||
             FreshEntry is not null || ShotCycle is not null || DuelCycle is not null || CounterCycle is not null || SlotsAdmission is not null ||
@@ -111,7 +114,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             }
         }
         SlotsAdmission?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
-        if (SlotsAdmission is not null && (LimitSelection is null || ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null && !victoryHold))
+        if (SlotsAdmission is not null && (LimitSelection is null || ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null && !victoryHold && !independentVictoryHold))
         {
             throw new InvalidDataException("Slots admission requires its real Limit selection and cannot use other protocols, supporting invocations, repairs or terminal holds.");
         }

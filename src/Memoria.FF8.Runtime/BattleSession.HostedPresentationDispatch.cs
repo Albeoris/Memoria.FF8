@@ -333,6 +333,7 @@ public sealed partial class BattleSession
         }
         PublishHostedModelRegistry(prepared.Registry);
         nativeActionPackets = prepared.Packets;
+        ObserveDiagnosticCommittedHostedHeaders(prepared.AppendedHeaders);
         NativeGraphics = prepared.Admitted;
         hostedControlPackets = prepared.Controls;
         pendingHostedDuelSelection = null;

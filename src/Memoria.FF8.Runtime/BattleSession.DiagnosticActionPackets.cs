@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticEffectInvocation(ushort RequestedEffect, ushort ExecutedEffect, byte ActorIndex, int HeaderIndex, byte? Parameter80, byte? Parameter81, byte? Parameter82);
@@ -11,6 +13,18 @@ public sealed partial class BattleSession
     private static int? OriginalDiagnosticHeaderIndex(BattleActionHeaderReference? header)
     {
         return header is { } reference && reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? reference.Ordinal : null;
+    }
+
+    private void ObserveDiagnosticCommittedHostedHeaders(ImmutableArray<BattleActionHeaderReference> headers)
+    {
+        if (hostedDiagnosticOwner?.DiagnosticEffectDispatched is null)
+        {
+            return;
+        }
+        foreach (BattleActionHeaderReference header in headers)
+        {
+            ObserveDiagnosticPreparedHeader(header);
+        }
     }
 
     private static byte? OriginalDiagnosticSource(NativeBattleEffectParameters? parameters)
@@ -72,14 +86,19 @@ public sealed partial class BattleSession
     public NativeBattleRetainedActionPackets ObserveDiagnosticActionPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
-        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header))
+        if (expandedPresentationProcess is { } process)
+        {
+            return process.ObserveDiagnosticActionPackets(dispatch);
+        }
+        BattleSession owner = hostedDiagnosticOwner ?? this;
+        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != owner.diagnosticDispatchSerial || owner.NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header))
         {
             throw new InvalidOperationException("Diagnostic action packets require the exact current synchronous dispatch/header generation owner.");
         }
         nativeActionPackets.Validate();
         BattleActionHeaderReference reference = new(header);
         NativeBattleActionHeaderSlot source = nativeActionPackets.ReadHeader(reference);
-        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || CreatePresentationModelOwner(actor) != source.Source || dispatch.NativeActorIndex != actor.NativeActorIndex || dispatch.NativeCommand != source.Command || dispatch.ActionId != source.Action || dispatch.RequestedEffect != source.Effect || dispatch.ExecutedEffect != source.Effect || nativeActionPackets.ModelAliases.EncodeTargetMask(NativeBattleActionGraphics.Normalize(nativeActionPackets, reference).TargetActors.Resolve(nativeActionPackets.ModelAliases)) != dispatch.NativeTargetMask)
+        if (dispatch.ActorId is null || !owner.byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || CreatePresentationModelOwner(actor) != source.Source || dispatch.NativeActorIndex != actor.NativeActorIndex || dispatch.NativeCommand != source.Command || dispatch.ActionId != source.Action || dispatch.RequestedEffect != source.Effect || dispatch.ExecutedEffect != source.Effect || nativeActionPackets.ModelAliases.EncodeTargetMask(NativeBattleActionGraphics.Normalize(nativeActionPackets, reference).TargetActors.Resolve(nativeActionPackets.ModelAliases)) != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Diagnostic action packet payload differs from its current dispatch source fields.");
         }

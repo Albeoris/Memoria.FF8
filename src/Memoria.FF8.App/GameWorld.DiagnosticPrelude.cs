@@ -28,6 +28,8 @@ internal sealed partial class GameWorld
         long restores = active.DiagnosticRestoreCount;
         long resets = active.DiagnosticResetCount;
         List<BattleEvent> events = [];
+        IReadOnlyList<BattleEvent>? hostedEvents = active.ExpandedPresentationProcess is null ? null : active.Events;
+        int nextHostedEvent = hostedEvents?.Count ?? 0;
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         long ordinaryDamage = 0;
         void ObserveEvent(BattleEvent value)
@@ -57,13 +59,23 @@ internal sealed partial class GameWorld
             BattleEvent[] spawns = events.Where(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id).TakeLast(4).ToArray();
             return new(identities, spawns);
         }
-        active.DiagnosticEventPublished += ObserveEvent;
+        if (hostedEvents is null)
+        {
+            active.DiagnosticEventPublished += ObserveEvent;
+        }
         active.DiagnosticEffectDispatched += ObserveDispatch;
         try
         {
             int attacks = 0;
             for (int callbacks = 0; callbacks <= declaration.MaximumCallbacks; callbacks++)
             {
+                if (hostedEvents is not null)
+                {
+                    while (nextHostedEvent < hostedEvents.Count)
+                    {
+                        ObserveEvent(hostedEvents[nextHostedEvent++]);
+                    }
+                }
                 if (active.Outcome != BattleOutcome.Active || active.DiagnosticRestoreCount != restores || active.DiagnosticResetCount != resets || !ReferenceEquals(active, battle))
                 {
                     throw new InvalidOperationException("Prelude lost its uninterrupted active battle or changed a restore/reset owner.");
@@ -135,7 +147,10 @@ internal sealed partial class GameWorld
         }
         finally
         {
-            active.DiagnosticEventPublished -= ObserveEvent;
+            if (hostedEvents is null)
+            {
+                active.DiagnosticEventPublished -= ObserveEvent;
+            }
             active.DiagnosticEffectDispatched -= ObserveDispatch;
         }
     }

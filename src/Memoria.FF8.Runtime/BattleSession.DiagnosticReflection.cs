@@ -115,7 +115,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
     {
-        if (DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter)
+        if (DiagnosticEffectDispatched is null && hostedDiagnosticOwner?.DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter)
         {
             if (diagnosticHeaderGenerations is not null)
             {

@@ -74,7 +74,11 @@ public sealed record DiagnosticSlotsRollReceipt([property: JsonRequired] int Ind
 public sealed record DiagnosticSlotsReselectionReceipt([property: JsonRequired] int AfterRollIndex, [property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] BattleDiagnosticLimitSelectionReceipt Selection, [property: JsonRequired] DiagnosticSlotsObservation After);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticSlotsDoReceipt([property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] string ActorId, [property: JsonRequired] string TargetId, [property: JsonRequired] byte TargetIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, [property: JsonRequired] ushort TargetMask, [property: JsonRequired] BattleNativeSlotsRoll UsedRoll);
+public sealed record DiagnosticSlotsDoReceipt([property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] string ActorId, [property: JsonRequired] string TargetId, [property: JsonRequired] byte TargetIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, [property: JsonRequired] ushort? TargetMask, [property: JsonRequired] BattleNativeSlotsRoll UsedRoll)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleTargetRequest? ExpandedTargets { get; init; }
+}
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticSlotsAdmissionReceipt([property: JsonRequired] int Execution, [property: JsonRequired] string SourceFingerprint, [property: JsonRequired] DiagnosticSlotsDeclaration Declaration, [property: JsonRequired] BattleInput Input, [property: JsonRequired] DiagnosticSlotsObservation Start, [property: JsonRequired] BattleDiagnosticLimitSelection Policy, [property: JsonRequired] BattleDiagnosticLimitSelectionReceipt Selection)
@@ -218,7 +222,12 @@ public sealed class DiagnosticSlotsAdmission
 
     public void Did(DiagnosticSlotsDoReceipt accepted)
     {
-        if (Receipt.Do is not null || !Matched || accepted.UsedRoll != Receipt.Rolls[^1].Result || accepted.ActorId != source.ActorId || string.IsNullOrWhiteSpace(accepted.TargetId) || accepted.TargetIndex > 6 || (accepted.TargetMask & (1 << accepted.TargetIndex)) == 0 || accepted.Command != 16 || accepted.Action != source.MagicAction || accepted.Effect != Receipt.Declaration.Effect || accepted.TargetMask != (source.MagicAction is 53 or 56 ? 0x80F8 : 0x8007))
+        bool hostile = source.MagicAction is 53 or 56;
+        bool targetVerified = accepted.ExpandedTargets is null
+            ? accepted.TargetMask is ushort mask && mask == (hostile ? 0x80F8 : 0x8007) && (mask & (1 << accepted.TargetIndex)) != 0
+            : hostile && accepted.TargetIndex is >= 3 and <= 6 && accepted.TargetMask is null && accepted.ExpandedTargets is
+                { Selection: BattleTargetSelection.SideGroup { Side: BattleTargetSide.Enemies }, Eligibility: BattleTargetEligibility.Living, AllowsKnockedOutAllies: false, Replacement: BattleTargetReplacement.None };
+        if (Receipt.Do is not null || !Matched || accepted.UsedRoll != Receipt.Rolls[^1].Result || accepted.ActorId != source.ActorId || string.IsNullOrWhiteSpace(accepted.TargetId) || accepted.TargetIndex > 6 || !targetVerified || accepted.Command != 16 || accepted.Action != source.MagicAction || accepted.Effect != Receipt.Declaration.Effect)
         {
             throw new InvalidDataException("Slots Do did not accept exactly its latched original result and command.");
         }

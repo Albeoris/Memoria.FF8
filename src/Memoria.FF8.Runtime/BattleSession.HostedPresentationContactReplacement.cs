@@ -136,6 +136,7 @@ public sealed partial class BattleSession
         }
         PublishHostedModelRegistry(prepared.Registry);
         nativeActionPackets = prepared.ReplacementPackets;
+        ObserveDiagnosticCommittedHostedHeaders(prepared.AppendedHeaders);
         if (prepared.ReplacementGraphics is { } graphics)
         {
             NativeGraphics = graphics;

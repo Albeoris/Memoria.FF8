@@ -209,7 +209,11 @@ public sealed partial class BattleSession
         BattleDiagnosticEffectDispatch dispatch = new(owner.diagnosticDispatchSerial, owner.NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = OriginalDiagnosticTargets(effect.Parameters), NativeActorIndex = OriginalDiagnosticSource(effect.Parameters), NativeHeaderIndex = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header) };
         if (hostedDiagnosticOwner is not null)
         {
-            observer(dispatch);
+            if (dispatch.NativeHeaderIndex is int header && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long generation))
+            {
+                dispatch = dispatch with { NativeHeaderGeneration = generation };
+            }
+            PublishDiagnosticEnteredEffect(observer, dispatch, effect);
             return;
         }
         PublishDiagnosticEnteredEffect(observer, CompleteDiagnosticReflection(dispatch), effect);
@@ -220,6 +224,10 @@ public sealed partial class BattleSession
         if (!isPlayer)
         {
             return BattleAbility.EnemyAbility;
+        }
+        if (limitCommand == 14 && nativeCommand is 237 or 238)
+        {
+            return BattleAbility.NativeCommand;
         }
         if (knownAbility is { } known && known != BattleAbility.EnemyAbility)
         {
