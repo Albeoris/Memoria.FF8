@@ -16,7 +16,7 @@ public enum Ff7AutoPlayTargetKind
     Gateway
 }
 
-public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false, string? EntryInputContract = null);
+public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false, string? EntryInputContract = null, bool ChangesField = false);
 public sealed record Ff7AutoPlayObservation(string VisitId, string ProgramIdentity, long Generation, Ff7AutoPlayTarget[] Events, bool CanAcceptInput, bool AnalysisComplete, string? SupportReason = null)
 {
     public string NavigationKey { get; init; } = VisitId;
@@ -143,7 +143,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && external.Complete, SupportReason: analysis.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract));
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && external.Complete, SupportReason: analysis.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0));
         }
     }
 }

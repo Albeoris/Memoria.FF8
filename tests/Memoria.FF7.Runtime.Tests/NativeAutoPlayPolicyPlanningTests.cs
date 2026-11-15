@@ -30,6 +30,23 @@ internal static class NativeAutoPlayPolicyPlanningTests
         Check(fairPlanner.Plan(visit.Key)?.Event.Id == "second", "Repeated changing predicates on an earlier event must not starve a less explored native frontier.");
         CheckComponentProbeScope();
         CheckEntryAvailability();
+        CheckStoryFrontierPrecedesRefresh();
+    }
+
+    private static void CheckStoryFrontierPrecedesRefresh()
+    {
+        Ff7AutoPlayState state = new();
+        var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent story = new("story", AutoPlayEventKind.Interaction, ChangesStory: true, ConditionSignature: "current-entry");
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit-entry");
+        planner.Observe(new("current", "resource-a"), [story, exit]);
+        planner.Observe(new("remote", "resource-b"), []);
+        planner.ObserveNavigation("current", "current-component", [story, exit]);
+        planner.ObserveNavigation("remote", "remote-component", []);
+        planner.Completed("current", "exit", "remote", observedStoryChanged: false);
+        planner.RecordNavigationRoute("current-component", "remote-component", "exit", state.Coverage.Visits[0].Events.Single(item => item.Event.Id == "exit").Routes.Single());
+        AutoPlayPlanStep? step = planner.PlanNavigation("current-component", needsRefresh: visit => visit.Key == "remote-component", preferredGoal: new("current-component", "story", "previous-heading-entry"));
+        Check(step is { IsTravel: false, Event.Id: "story" }, "A supported unconsumed native story frontier was displaced by remote refresh when its arrival heading changed the observed signature.");
     }
 
     private static void CheckEntryAvailability()

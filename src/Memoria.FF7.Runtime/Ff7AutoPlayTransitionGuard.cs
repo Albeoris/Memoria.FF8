@@ -5,7 +5,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed class Ff7AutoPlayTransitionGuard
 {
-    private readonly AutoPlayTransitionCycleGuard<(string Field, short Story, int Battles, int Witness)> guard = new();
+    private readonly AutoPlayTransitionCycleGuard<(string Field, string Progress)> guard = new();
     private long generation = -1;
 
     public void Reset()
@@ -20,12 +20,20 @@ public sealed class Ff7AutoPlayTransitionGuard
         {
             return;
         }
-        generation = session.FieldGeneration;
-        short story = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
-        int witness = session.Field.Name is "elevtr1" or "nmkin_1" ? session.Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 0xE1) & 1 : 0;
-        if (guard.Observe((session.Field.Name, story, session.Progress.CompletedBattles.Length, witness)))
+        if (Observe(session.Field.Name, session.FieldGeneration, session.CaptureEventProgressWitness()))
         {
-            throw new InvalidOperationException($"FFVII autoplay repeated the same two-field route three times without a native story handoff: {session.Field.Name}, story {story}.");
+            short story = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
+            throw new InvalidOperationException($"FFVII autoplay repeated the same two-field route three times without a change in recorded native progress: {session.Field.Name}, story {story}.");
         }
+    }
+
+    internal bool Observe(string field, long fieldGeneration, string progressWitness)
+    {
+        if (generation == fieldGeneration)
+        {
+            return false;
+        }
+        generation = fieldGeneration;
+        return guard.Observe((field, progressWitness));
     }
 }

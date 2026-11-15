@@ -36,6 +36,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return new(state.Coverage, progressionOrder: (visit, target) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
+            bool unconsumedEntry = target.ConditionSignature is string signature ? coverage?.Conditions?.HasExecutedEntry(signature) != true : coverage?.Completed != true;
+            if (target.ChangesStory && unconsumedEntry)
+            {
+                return -1;
+            }
             return coverage is not { Completed: true, RouteNeedsRediscovery: false } ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
         });
     }
@@ -164,6 +169,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
+        int? selectedLineOwner = selectedTarget.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? selectedTarget.Entity : null;
+        driver.AvoidLinePush(observation.Events.Where(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && target.ChangesField && target.Entity != selectedLineOwner && !(selectedTarget.Kind == Ff7AutoPlayTargetKind.Gateway && selectedTarget.DestinationField == target.DestinationField)).Select(target => target.Entity).Distinct().ToArray());
         if (DetectMovementCycle(current))
         {
             planner.Block(current.VisitId, current.EventId, "Physical navigation repeated a bounded native position cycle.", AutoPlayBlockKind.Walking);

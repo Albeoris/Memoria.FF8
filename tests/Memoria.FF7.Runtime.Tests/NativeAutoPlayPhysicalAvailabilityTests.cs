@@ -65,12 +65,64 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(contacts.All(candidate => Ff7Session.DistanceToSegment(new(50, 40, 0), new(50, 60, 0), candidate.Point, out _) is >= 0 and < 900), "LINE candidate discovery admitted a floor point outside the native three-dimensional contact radius.");
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Z1 = 300, Z2 = 300 }).Count == 0, "An out-of-height LINE was falsely exposed as a reachable contact.");
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Enabled = 0 }).Count == 0, "A disabled LINE was advertised as a native contact candidate.");
+        CheckNativeGoalPreview();
         CheckNativeOcclusionPredicate();
 
         string Fingerprint(Ff7Actor source, Ff7Actor destination, byte[] blocking)
         {
             return Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocking, source, destination);
         }
+    }
+
+    private static void CheckNativeGoalPreview()
+    {
+        PcWalkmeshTriangle[] mesh = [new(0, Vector3.Zero, new(0, 1000, 0), new(1000, 0, 0), -1, -1, -1)];
+        short[] vectors = new short[512];
+        for (int direction = 0; direction < 256; direction++)
+        {
+            vectors[direction * 2] = (short)Math.Round(Math.Sin(direction * Math.PI / 128) * 4096);
+            vectors[direction * 2 + 1] = (short)Math.Round(Math.Cos(direction * Math.PI / 128) * 4096);
+        }
+        byte[] angles = new byte[129];
+        for (int index = 0; index < angles.Length; index++)
+        {
+            angles[index] = (byte)Math.Round(Math.Asin(index / 128d) * 128 / Math.PI);
+        }
+        Ff7NativeMovement movement = new(mesh, vectors, angles);
+        Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = true, X4096 = 600 * 4096, Y4096 = 100 * 4096, MoveSpeed = 4096, CollisionRadius = 10 };
+        Vector3 goal = new(150, 600, 0);
+        int nativeSteps = 0;
+        int successfulPredicates = 0;
+        string before = JsonSerializer.Serialize(player);
+        bool Reached(Ff7Actor projected)
+        {
+            double dx = projected.X4096 / 4096d - goal.X;
+            double dy = projected.Y4096 / 4096d - goal.Y;
+            bool reached = dx * dx + dy * dy < 10000;
+            if (reached)
+            {
+                successfulPredicates++;
+            }
+            return reached;
+        }
+        Ff7AutoplayInput? direct = Ff7AutoplayDriver.PreviewGoalInput(player, goal, 0, movement, [player], [0], false, (_, _) =>
+        {
+            nativeSteps++;
+            return true;
+        }, Reached);
+        Check(direct is not null && (direct.Value.Horizontal != 0 || direct.Value.Vertical != 0) && nativeSteps > 1 && successfulPredicates == 1, $"Direct goal admission did not prove the complete native path and actual success predicate before returning its first physical input: {direct}, steps={nativeSteps}, successes={successfulPredicates}.");
+        Check(before == JsonSerializer.Serialize(player), "Read-only native goal admission changed the source actor.");
+        int refused = 0;
+        Ff7AutoplayInput? blocked = Ff7AutoplayDriver.PreviewGoalInput(player, goal, 0, movement, [player], [0], false, (_, _) =>
+        {
+            refused++;
+            return false;
+        }, Reached);
+        Check(blocked is null && refused == 1, "A forbidden native movement/contact probe was admitted as direct travel.");
+        int beforeBlockedContact = 0;
+        Ff7AutoplayInput? laterBlocked = Ff7AutoplayDriver.PreviewGoalInput(player, goal, 0, movement, [player], [0], false, (_, _) => ++beforeBlockedContact < 4, Reached);
+        Check(laterBlocked is null && beforeBlockedContact == 4, "A clear first move authorized travel although a later native contact probe was forbidden.");
+        Check(Ff7AutoplayDriver.PreviewGoalInput(player, goal, 0, movement, [player], [0], false, (_, _) => true, _ => false) is null, "Reaching coordinates without the requested native interaction predicate falsely authorized travel.");
     }
 
     private static void CheckNativeOcclusionPredicate()

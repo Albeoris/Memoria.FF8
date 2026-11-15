@@ -69,6 +69,13 @@ public sealed partial class Ff7AutoplayDriver
     private Ff7AutoplayInput ApproachTalkRange(Ff7Actor target, bool run)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Ff7Actor controlled = player with { MoveSpeed = checked((ushort)session.GetPlayerMovementSpeed(run)) };
+        Vector3 directGoal = new(target.X4096 / 4096f, target.Y4096 / 4096f, target.Z4096 / 4096f);
+        Ff7AutoplayInput? direct = PreviewGoalInput(controlled, directGoal, session.Field.Triggers.ControlDirection, session.Host.Movement!, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, session.Host.Process.LineBlocked, AllowsPlannedMove, projected => session.PreviewTalkTarget(projected)?.Entity == target.Entity, run);
+        if (direct is Ff7AutoplayInput input)
+        {
+            return input;
+        }
         HashSet<int> reachable = ReachableTriangles(player.Triangle);
         Vector3 targetPoint = new(target.X4096 >> 12, target.Y4096 >> 12, target.Z4096 >> 12);
         if (reachable.Contains(target.Triangle))
@@ -123,5 +130,47 @@ public sealed partial class Ff7AutoplayDriver
         Vector3 current = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
         var goal = candidates.OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).First();
         return Approach(goal.Point, goal.Triangle, run);
+    }
+
+    /// <summary>Admits a direct physical approach only after the native mover reaches the actual interaction predicate.</summary>
+    internal static Ff7AutoplayInput? PreviewGoalInput(Ff7Actor player, Vector3 goal, byte controlDirection, Ff7NativeMovement movement, IReadOnlyList<Ff7Actor> actors, byte[] blockedTriangles, bool lineBlocked, Func<Ff7Actor, Ff7NativeMoveResult, bool> admitsMove, Func<Ff7Actor, bool> reached, bool run = true)
+    {
+        double DistanceSquared(Ff7Actor actor)
+        {
+            double dx = goal.X - actor.X4096 / 4096d;
+            double dy = goal.Y - actor.Y4096 / 4096d;
+            return dx * dx + dy * dy;
+        }
+        double remaining = DistanceSquared(player);
+        double projectedStride = player.MoveSpeed / 256d * Math.Cos(Math.PI / 8);
+        int budget = checked((int)Math.Ceiling(Math.Sqrt(remaining) / Math.Max(1, projectedStride)) + 1);
+        Ff7Actor projected = player;
+        Ff7AutoplayInput? first = null;
+        for (int step = 0; step <= budget; step++)
+        {
+            if (reached(projected))
+            {
+                return first;
+            }
+            int dx = (int)goal.X - (projected.X4096 >> 12);
+            int dy = (int)goal.Y - (projected.Y4096 >> 12);
+            if (dx == 0 && dy == 0)
+            {
+                return null;
+            }
+            int desired = movement.Direction(dx, dy);
+            var direction = Directions.MinBy(direction => Math.Abs(((direction.Direction + controlDirection - desired + 128) & 255) - 128));
+            Ff7AutoplayInput input = new(direction.X, direction.Y, Run: run);
+            Ff7NativeMoveResult probe = movement.StepDirection(projected, unchecked((byte)(direction.Direction + controlDirection)), actors, blockedTriangles, playerLocked: false, lineBlocked: lineBlocked);
+            double next = DistanceSquared(probe.Actor);
+            if (!probe.Moved || next >= remaining || !admitsMove(projected, probe))
+            {
+                return null;
+            }
+            first ??= input;
+            projected = probe.Actor;
+            remaining = next;
+        }
+        return null;
     }
 }
