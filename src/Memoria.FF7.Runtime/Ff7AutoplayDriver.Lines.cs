@@ -134,7 +134,7 @@ public sealed partial class Ff7AutoplayDriver
 
     private bool AllowsPlannedMove(Ff7Actor from, Ff7NativeMoveResult move)
     {
-        if (plannedGateway is { } target && !session.Host.Process.MapJumpDisabled && session.Field.Triggers.Gateways.Any(gateway => gateway != target && Ff7Session.CrossesGateway(gateway, from, move.Actor)))
+        if (!session.Host.Process.MapJumpDisabled && !AllowsGatewayMove(session.Field.Triggers.Gateways, from, move.Actor, plannedGateway, approachingActor))
         {
             return false;
         }
@@ -167,5 +167,10 @@ public sealed partial class Ff7AutoplayDriver
             }
         }
         return true;
+    }
+
+    internal static bool AllowsGatewayMove(IReadOnlyList<PcFieldGateway> gateways, Ff7Actor from, Ff7Actor to, PcFieldGateway? intendedGateway, bool approachingActor)
+    {
+        return intendedGateway is null && !approachingActor || !gateways.Any(gateway => gateway != intendedGateway && Ff7Session.CrossesGateway(gateway, from, to));
     }
 }

@@ -66,12 +66,27 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Z1 = 300, Z2 = 300 }).Count == 0, "An out-of-height LINE was falsely exposed as a reachable contact.");
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Enabled = 0 }).Count == 0, "A disabled LINE was advertised as a native contact candidate.");
         CheckNativeGoalPreview();
+        CheckGatewayAdmission();
         CheckNativeOcclusionPredicate();
 
         string Fingerprint(Ff7Actor source, Ff7Actor destination, byte[] blocking)
         {
             return Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocking, source, destination);
         }
+    }
+
+    private static void CheckGatewayAdmission()
+    {
+        PcFieldGateway exit = new(new(0, -100, 0), new(0, 100, 0), 0, 0, 0, 2, 0, 0);
+        PcFieldGateway selected = exit with { A = new(100, -100, 0), B = new(100, 100, 0), DestinationField = 3 };
+        Ff7Actor source = new() { Slot = 0, Entity = 0, Model = 0, X4096 = -4096, CollisionRadius = 30 };
+        Ff7Actor to = source with { X4096 = 4096 };
+        Check(Ff7Session.CrossesGateway(exit, source, to), "The authored actor approach did not cross its native exit.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, null, true), "An actor approach admitted an unintended native gateway.");
+        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, exit, false), "Explicit travel rejected its selected native gateway.");
+        Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, selected, false), "Explicit travel admitted an unselected native gateway.");
+        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, source with { X4096 = -8192 }, null, true), "An actor approach rejected a native step remaining on the same exit side.");
+        Check(Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, null, false), "Actor-only gateway admission changed existing coupled LINE entry behavior.");
     }
 
     private static void CheckNativeGoalPreview()

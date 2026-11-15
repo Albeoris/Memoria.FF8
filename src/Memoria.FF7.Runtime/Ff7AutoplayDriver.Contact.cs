@@ -6,6 +6,11 @@ public sealed partial class Ff7AutoplayDriver
 {
     public Ff7AutoplayInput Contact(int entity, bool run = true)
     {
+        return ChooseActorInput(() => ChooseContactInput(entity, run));
+    }
+
+    private Ff7AutoplayInput ChooseContactInput(int entity, bool run)
+    {
         Ff7FieldProcess process = session.Host.Process;
         Ff7Actor target = process.Actors.Single(actor => actor.Entity == entity);
         Ff7Actor? player = process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -20,11 +25,36 @@ public sealed partial class Ff7AutoplayDriver
             var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
             Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
             Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), process.Actors, process.BlockedTriangles, playerLocked: false, lineBlocked: process.LineBlocked);
-            if (probe.PushEntities.Contains(entity))
+            if (probe.PushEntities.Contains(entity) && AllowsPlannedMove(controlled, probe))
             {
                 return input;
             }
         }
         return Approach(position, target.Triangle, run);
+    }
+
+    private Ff7AutoplayInput ChooseActorInput(Func<Ff7AutoplayInput> choose)
+    {
+        bool previous = approachingActor;
+        approachingActor = true;
+        try
+        {
+            Ff7AutoplayInput input = choose();
+            if ((input.Horizontal != 0 || input.Vertical != 0) && session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is Ff7Actor player)
+            {
+                var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
+                Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
+                Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+                if (!AllowsPlannedMove(controlled, probe))
+                {
+                    return default;
+                }
+            }
+            return input;
+        }
+        finally
+        {
+            approachingActor = previous;
+        }
     }
 }

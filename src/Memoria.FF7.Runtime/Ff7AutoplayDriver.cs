@@ -61,6 +61,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private PcFieldGateway? gatewayTarget;
     private Vector3? gatewayCrossingTarget;
     private PcFieldGateway? plannedGateway;
+    private bool approachingActor;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
     public void Apply(Ff7AutoplayInput input)
@@ -177,6 +178,11 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     }
 
     public Ff7AutoplayInput TalkTo(int entity, bool run = true)
+    {
+        return ChooseActorInput(() => ChooseTalkInput(entity, run));
+    }
+
+    private Ff7AutoplayInput ChooseTalkInput(int entity, bool run)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Actor target = session.Host.GetActor(entity);
