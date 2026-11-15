@@ -116,14 +116,7 @@ public sealed partial class BattleSession
         }
         if ((services.Flags942 & 0x40) != 0)
         {
-            NativeBattleUiWindows windows = services.Windows ?? throw new NotSupportedException("Native UI callbacks require their retained physical window bank; migrate the named snapshot explicitly.");
-            ObserveNativeMegaSpark279UiStack(windows, nativePreCoreUiStack);
-            AdvanceNativePresentedVitals4B0500();
-            services = services with { Windows = windows.AdvanceVitals4B0450().CommitDraw4B9DB0(services.Frame33 == true, services.Flags942) };
-            NativeGraphics = NativeGraphics with { UiServices = services };
-            AdvanceNativeTriggerWidget();
-            AdvanceNativeGuardianBoost();
-            ObserveNativeUiWindowStack(windows, NativeGraphics.UiServices!.Windows!);
+            AdvanceNativeUiWindowCallbacks(services);
         }
         if ((NativeGraphics.UiServices!.Flags942 & 0x400) != 0)
         {
@@ -137,6 +130,18 @@ public sealed partial class BattleSession
             services = services with { Commands = services.Commands.Enqueue(0, 80) };
             NativeGraphics = NativeGraphics with { UiServices = services.SetFlags(0, 8) };
         }
+    }
+
+    private void AdvanceNativeUiWindowCallbacks(NativeBattleUiServices services)
+    {
+        NativeBattleUiWindows windows = services.Windows ?? throw new NotSupportedException("Native UI callbacks require their retained physical window bank; migrate the named snapshot explicitly.");
+        ObserveNativeMegaSpark279UiStack(windows, nativePreCoreUiStack);
+        AdvanceNativePresentedVitals4B0500();
+        services = services with { Windows = windows.AdvanceVitals4B0450().CommitDraw4B9DB0(services.Frame33 == true, services.Flags942) };
+        NativeGraphics = NativeGraphics! with { UiServices = services };
+        AdvanceNativeTriggerWidget();
+        AdvanceNativeGuardianBoost();
+        ObserveNativeUiWindowStack(windows, NativeGraphics.UiServices!.Windows!);
     }
 
     internal static NativeBattleUiServices ApplyNativeReadyMenuSelection(NativeBattleUiServices services, bool selectMenu, bool slotsPending)
