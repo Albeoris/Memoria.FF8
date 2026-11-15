@@ -93,9 +93,15 @@ public static class NativeBattleRecoveryController
                     }
                     break;
                 case 3:
-                    state = state.Write(address, task.WriteByte(0x63, 1));
-                    state = state.Append8DC540(1, profile.TargetCallback, 88, address, Select).Hierarchy;
-                    state = Next(state, address);
+                    NativeBattleEffectHierarchyAppend target = state.Append8DC540(1, profile.TargetCallback, 88, address, Select);
+                    state = target.Hierarchy;
+                    if (target.Address != 0)
+                    {
+                        // The wait flag belongs to the admitted child. A full physical pool
+                        // retains this occurrence for a later pass while live children retire.
+                        state.Read(address).WriteByte(0x63, 1);
+                        state = Next(state, address);
+                    }
                     break;
                 case 4:
                     if (task.ReadByte(0x63) == 0)

@@ -7,6 +7,7 @@ public sealed class ExpandedNativePresentationTests
 {
     [Theory]
     [InlineData(6)]
+    [InlineData(7)]
     [InlineData(11)]
     public void Installed_presentation_uses_the_owning_device_and_full_typed_roster(ushort effect)
     {
@@ -16,7 +17,7 @@ public sealed class ExpandedNativePresentationTests
         GameWorld world = new(session, directory);
         try
         {
-            DiagnosticBattleRequest request = CreateScenario(world, effect);
+            DiagnosticBattleRequest request = effect == 7 ? MegaPhoenixScenario(world) : CreateScenario(world, effect);
             DiagnosticBattleDriverRecipe driver = request.Driver!;
             BattleSession battle = world.StartDiagnosticBattle(request);
             for (int tick = 0; tick < 1200 && !RecreateGame.DiagnosticCommandReady(battle, driver); tick++)
@@ -59,6 +60,12 @@ public sealed class ExpandedNativePresentationTests
                 string?[] recipients = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == driver.Input.ActorId).Select(entry => entry.TargetId).ToArray();
                 Assert.Equal(11, recipients.Length);
                 Assert.Equal(11, recipients.Distinct().Count());
+                if (effect == 7)
+                {
+                    Assert.Equal(Enumerable.Range(0, 11).Select(index => $"party-{index}"), recipients);
+                    Assert.True(battle.Combatants.Single(actor => actor.Id == "party-1").IsAlive);
+                    Assert.Contains(new BattleStock(8, 1), battle.Items);
+                }
             }
             world.Dispose();
         }
@@ -109,4 +116,21 @@ public sealed class ExpandedNativePresentationTests
         };
     }
 
+    private static DiagnosticBattleRequest MegaPhoenixScenario(GameWorld world)
+    {
+        (int Formation, int Slot)[] donorSlots = [(563, 0), (182, 0), (680, 1), (138, 1)];
+        ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(slot => new BattleEnemyRosterSource(slot.Formation, slot.Slot, world.BattleResources.FormationSourceHash(slot.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation caster = new(0, 0, [], [0]) { HitPoints = 486, Commands = [new(0, 23)] };
+        DiagnosticCharacterPreparation target = new(1, 1, [], []) { HitPoints = 0, KnockedOut = true };
+        BattleInput command = new(BattleInputKind.Action, ActorId: "party-0", TargetId: "party-1", Ability: BattleAbility.Item, ActionId: 8);
+        return new(657, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([new(0, true)], [caster, target], true) { CombatParty = [0, 1, 255], Items = [new(8, 2)] },
+            Target = new("enemy-1", 128, 6, 1, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 1),
+            Driver = new(command, 7) { ExpectedNativeCommand = 4, ExpectedNativeAction = 8 }
+        };
+    }
 }
