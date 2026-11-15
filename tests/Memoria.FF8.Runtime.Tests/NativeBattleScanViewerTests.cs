@@ -64,7 +64,9 @@ public sealed class NativeBattleScanViewerTests
         Assert.Equal(0u, ReadModel(frame, 4).ReadDword(0x30));
         Assert.Equal((ushort)0, Task(frame, fixture.Address).ReadWord(0x54));
         Assert.Equal((ushort)0, Task(frame, fixture.Address).ReadWord(0x58));
-        Assert.False(frame.Scan.Memory.Scan!.Presentation.Camera269A168.Known[0x2E]);
+        NativeBattleScanByteOwner camera = frame.Scan.Memory.Scan!.Presentation.Camera269A168;
+        Assert.False(camera.Known[0x26]);
+        Assert.Equal((ushort)404, camera.ReadWord(0x2E));
     }
 
     [Theory]

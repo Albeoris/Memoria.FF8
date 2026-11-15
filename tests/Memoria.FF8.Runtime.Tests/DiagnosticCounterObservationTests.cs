@@ -154,7 +154,7 @@ public sealed class DiagnosticCounterObservationTests
             BattleCombatant actor = battle.Combatants[0];
             BattleCombatant target = battle.Combatants[1];
             // The single-contact component declares the same BD9 count that its native hit plan initializes.
-            typeof(BattleCombatant).GetProperty("NativeRemainingHits", Instance)!.SetValue(target, (byte)1);
+            target.NativeRemainingHits = 1;
             BattleNativeAction native = new(253, 0, -1, -1) { MagicId = 0, AttackType = 10, Power = 20, HitCount = 1, AttackFlags = 0, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
             BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeader = new BattleActionHeaderReference(0), GunbladeTriggerTiming = 1 };
             BattleActionDefinition action = new(BattleAbility.Attack, 0, "Component contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
@@ -165,7 +165,7 @@ public sealed class DiagnosticCounterObservationTests
             NativeBattleActionScratch scratch = (NativeBattleActionScratch)typeof(BattleSession).GetField("nativeActionScratch", Instance)!.GetValue(battle)!;
             Set(battle, "nativeActionScratch", scratch with { ActorIndex = 0, Command = 253, Action = 0, DeferredEffectsE00 = false });
             Set(battle, "resolvingNativeAction", presentation);
-            Set(battle, "diagnosticCounterProducingHeader", 0);
+            Set(battle, "diagnosticCounterProducingHeader", new BattleActionHeaderReference(0));
             Set(battle, "nativeReactionOrder", (byte)0);
             Set(battle, "nativeActionCommitDepth", 1);
             packet = (NativeBattleContactPacket)Invoke(battle, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, null!, preliminary)!;

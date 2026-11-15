@@ -33,10 +33,16 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         var extraAlly = new BattlePartyActorModel(new("additional-ally"));
         BattleActorModels models = graphics.ActorModels.Add(extraAlly, new NativeBattleGraphicsModel(0));
         NativeBattleGuardianServiceState guardian = new(BattleModelTargets.From([extraAlly]), 7, 0);
-        graphics = graphics with { ActorModels = models, ActionGraphics = graphics.ActionGraphics! with { Guardian = guardian } };
+        NativeBattleOriginalEffectState originalEffect = graphics.OriginalEffect!;
+        graphics = graphics with
+        {
+            ActorModels = models,
+            ActionGraphics = graphics.ActionGraphics! with { Guardian = guardian },
+            OriginalEffect = originalEffect with { FireModelCompletion = originalEffect.FireModelCompletion!.Add(extraAlly, 1) }
+        };
 
         graphics.Validate();
-        Assert.Throws<InvalidDataException>(() => (graphics with { ActorModels = models.Remove(extraAlly) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (graphics with { ActorModels = models.Remove(extraAlly), OriginalEffect = originalEffect }).Validate());
         foreach (BattleModelTargets? invalid in new[] { BattleModelTargets.From([Target]), BattleModelTargets.From([RetiredSource]), null })
         {
             NativeBattleActionGraphicsState action = graphics.ActionGraphics! with { Guardian = guardian with { HiddenPartyActors = invalid! } };

@@ -475,6 +475,11 @@ internal abstract class NativeBattleStorageContext
         {
             return true;
         }
+        Type type = value.GetType();
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableArray<>) && type.GetProperty(nameof(ImmutableArray<int>.IsDefault))!.GetValue(value) is true)
+        {
+            return false;
+        }
         if (value is IEnumerable sequence)
         {
             foreach (object? item in sequence)
@@ -486,6 +491,6 @@ internal abstract class NativeBattleStorageContext
             }
             return false;
         }
-        return GetFields(value.GetType()).Any(field => ContainsStorage(field.GetValue(value), visited));
+        return GetFields(type).Any(field => ContainsStorage(field.GetValue(value), visited));
     }
 }

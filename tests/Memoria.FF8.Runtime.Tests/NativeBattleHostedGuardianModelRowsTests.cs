@@ -177,7 +177,7 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
         var graphics = NativeBattleHostedTestFixture.Graphics(roster, new(roster, []), Models(NativeBattleDiablos325Tests.Fixture().Models).Get);
         MethodInfo callback = typeof(BattleSession).GetMethod("AdvanceNativePandemona291Targets", BindingFlags.Instance | BindingFlags.NonPublic)!;
         TargetInvocationException invalid = Assert.Throws<TargetInvocationException>(() => callback.Invoke(owner, [frame, NativeBattleEffectNodeMemory.ArenaAddress + creature, 224, null, graphics, false]));
-        Assert.Contains("execution reference", Assert.IsType<NotSupportedException>(invalid.InnerException).Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("execution reference", Assert.IsType<InvalidDataException>(invalid.InnerException).Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static BattleModelRoster Roster() => new([Party, Enemy]);
