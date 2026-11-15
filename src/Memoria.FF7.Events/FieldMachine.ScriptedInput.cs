@@ -15,6 +15,55 @@ public sealed partial class FieldMachine
     {
     }
 
+    /// <summary>Reads the first input gate on the current variable-dependent entry path, without executing a live interaction.</summary>
+    public FieldScriptInputDemand? ReadEntryInputDemand(int entity, int script, int instructionBudget = 64)
+    {
+        if ((uint)entity >= entities.Length || script is < 0 or > 31 || instructionBudget is < 1 or > 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
+        if (!Initialized)
+        {
+            return null;
+        }
+        FieldMachine detached = Restore(program, Capture() with { CycleCursor = null }, new InspectionHost());
+        detached.inspection = new() { StopAtHost = true };
+        detached.entities[entity].Pc = program.Entry(entity, script);
+        detached.entities[entity].Priority = 1;
+        detached.entities[entity].Wait = 0;
+        HashSet<(int Pc, int Priority)> visited = [];
+        for (int step = 0; step < instructionBudget; step++)
+        {
+            Entity owner = detached.entities[entity];
+            if (!visited.Add((owner.Pc, owner.Priority)))
+            {
+                return null;
+            }
+            try
+            {
+                byte opcode = program.Read(owner.Pc);
+                if (opcode is >= 0x30 and <= 0x32)
+                {
+                    int pc = owner.Pc;
+                    ushort mask = (ushort)(program.Read(pc + 1) | program.Read(pc + 2) << 8);
+                    bool mapped = (program.Read(pc + 2) & 2) != 0;
+                    string identity = $"{program.Identity}:{entity}:{owner.Priority}:{pc:X4}";
+                    return new(identity, program.Identity, entity, owner.Priority, pc, (FieldScriptInputKind)(opcode - 0x30), mask, mapped, false);
+                }
+                if (IsInputInspectionBoundary(opcode))
+                {
+                    return null;
+                }
+                detached.Execute(entity);
+            }
+            catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
+            {
+                return null;
+            }
+        }
+        return null;
+    }
+
     /// <summary>Finds current native button waits without dispatching hosts, requesting scripts or advancing the live VM.</summary>
     public IReadOnlyList<FieldScriptInputDemand> ReadCurrentInputDemands(int instructionBudget = 64)
     {

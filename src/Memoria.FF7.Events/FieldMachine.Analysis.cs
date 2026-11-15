@@ -22,6 +22,7 @@ public sealed record FieldHostRead(FieldHostReadKind Kind, int Parameter = 0, in
 public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string Fingerprint, bool ChangesStory, FieldVariableRead[] Reads, int[] ProgramCounters, int[] DestinationFields)
 {
     public FieldHostRead[] HostReads { get; init; } = [];
+    public bool MayChangeNavigation { get; init; }
 }
 
 public sealed partial class FieldVariables
@@ -91,6 +92,7 @@ public sealed partial class FieldMachine
         Queue<(int Entity, int Pc)> pending = new();
         pending.Enqueue((entity, program.Entry(entity, script)));
         bool changesStory = false;
+        bool mayChangeNavigation = false;
         string? reason = null;
         while (pending.TryDequeue(out var location))
         {
@@ -225,6 +227,7 @@ public sealed partial class FieldMachine
                 }
                 foreach (FieldCommand command in detached.inspection.Commands)
                 {
+                    mayChangeNavigation |= command is FieldActorLadder or FieldActorJump or FieldActorPlacement or FieldActorMove;
                     FieldHostRead? read = command switch
                     {
                         FieldGilQuery => new(FieldHostReadKind.Gil),
@@ -278,6 +281,6 @@ public sealed partial class FieldMachine
             reason ??= error.Message;
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation };
     }
 }

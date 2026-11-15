@@ -16,13 +16,17 @@ public enum Ff7AutoPlayTargetKind
     Gateway
 }
 
-public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null);
-public sealed record Ff7AutoPlayObservation(string VisitId, string ProgramIdentity, long Generation, Ff7AutoPlayTarget[] Events, bool CanAcceptInput, bool AnalysisComplete, string? SupportReason = null);
+public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false);
+public sealed record Ff7AutoPlayObservation(string VisitId, string ProgramIdentity, long Generation, Ff7AutoPlayTarget[] Events, bool CanAcceptInput, bool AnalysisComplete, string? SupportReason = null)
+{
+    public string NavigationKey { get; init; } = VisitId;
+}
 
 /// <summary>Read-only discovery of currently allocated native field interaction owners.</summary>
 public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
 {
     private readonly Dictionary<(int Entity, int Script), FieldScriptAnalysis> analyses = [];
+    private readonly Dictionary<(int Entity, int Script), FieldScriptInputDemand?> entryInputs = [];
     private string? analysisAllocation;
 
     public Ff7AutoPlayTarget? FindTarget(string id) => Observe().Events.SingleOrDefault(target => target.Id == id);
@@ -42,6 +46,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         if (analysisAllocation != allocation)
         {
             analyses.Clear();
+            entryInputs.Clear();
             analysisAllocation = allocation;
         }
         foreach (Ff7Actor actor in process.Actors.Where(actor => actor.EntityBound && !actor.PlayerControlled).OrderBy(actor => actor.Entity))
@@ -89,7 +94,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             }
         }
         bool complete = events.All(target => target.AnalysisComplete);
-        return new(visit, identity, session.FieldGeneration, events.ToArray(), canAccept, complete, complete ? null : string.Join("; ", events.Where(target => !target.AnalysisComplete).Select(target => $"{target.Id}: {target.SupportReason}")));
+        return new(visit, identity, session.FieldGeneration, events.ToArray(), canAccept, complete, complete ? null : string.Join("; ", events.Where(target => !target.AnalysisComplete).Select(target => $"{target.Id}: {target.SupportReason}"))) { NavigationKey = Ff7AutoplayDriver.ReadNavigationKey(session, visit) };
 
         void AddScript(string id, int entity, int script, Ff7AutoPlayTargetKind kind, Vector3 position, int? triangle = null, Vector3? start = null, Vector3? end = null)
         {
@@ -100,6 +105,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             }
             if (!analyses.TryGetValue((entity, script), out FieldScriptAnalysis? analysis) || analysis.Fingerprint != session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads))
             {
+                entryInputs.Remove((entity, script));
                 analysis = session.Machine.AnalyzeScript(entity, script);
                 if (analysis.Complete)
                 {
@@ -109,8 +115,17 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             string fingerprint = analysis.Complete ? session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads) : analysis.Fingerprint;
             Ff7AutoPlayHostConditions external = ReadHostConditions(analysis.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
             fingerprint = CombineConditionFingerprints(fingerprint, external.Fingerprint);
+            if (!entryInputs.TryGetValue((entity, script), out FieldScriptInputDemand? entryInput))
+            {
+                entryInput = session.Machine.ReadEntryInputDemand(entity, script);
+                entryInputs[(entity, script)] = entryInput;
+            }
+            if (entryInput is not null)
+            {
+                fingerprint = CombineConditionFingerprints(fingerprint, $"entry-input:{entryInput.Identity}:{entryInput.Kind}:{entryInput.Mask}:{entryInput.Mapped}");
+            }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && external.Complete, SupportReason: analysis.Reason ?? external.Reason));
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && external.Complete, SupportReason: analysis.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation));
         }
     }
 }

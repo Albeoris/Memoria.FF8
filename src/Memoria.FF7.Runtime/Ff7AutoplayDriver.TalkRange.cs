@@ -7,6 +7,18 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoplayDriver
 {
+    internal static string ReadNavigationKey(Ff7Session session, string visitId)
+    {
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        return ReadNavigationKey(visitId, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player?.Triangle ?? -1);
+    }
+
+    internal static string ReadNavigationKey(string visitId, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, int triangle)
+    {
+        int component = triangle < 0 ? -1 : ReachableTriangles(walkmesh, blockedTriangles, triangle).Min();
+        return $"{visitId}:nav:{Convert.ToHexString(blockedTriangles)}:{component}";
+    }
+
     private HashSet<int> ReachableTriangles(int start)
     {
         return ReachableTriangles(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, start);

@@ -7,6 +7,24 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
 {
     public FieldScriptInputDemand? CurrentDemand { get; private set; }
 
+    /// <summary>Projects a source-proved entry gate; the caller owns physical contact readiness.</summary>
+    public Ff7AutoplayInput? ChooseEntryInput(int entity, int script)
+    {
+        CurrentDemand = null;
+        if (session.World is not null || session.HasPendingTick || session.Host.Process.Transition is not null || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
+        {
+            return null;
+        }
+        CurrentDemand = session.Machine.ReadEntryInputDemand(entity, script);
+        if (CurrentDemand is null || CurrentDemand.Mask == 0)
+        {
+            return null;
+        }
+        // Entry admission is scoped by the caller rather than a native wait loop.
+        // The existing edge projection supplies the same separate physical press/release ticks.
+        return SelectInput(CurrentDemand with { AwaitingInput = true }, session.Machine.Input);
+    }
+
     public Ff7AutoplayInput? ChooseInput()
     {
         CurrentDemand = null;

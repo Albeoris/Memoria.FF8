@@ -23,7 +23,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways)
     {
         int component = ReachableTriangles(walkmesh, blockedTriangles, player.Triangle).Min();
-        StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Id}:{target.Kind}");
+        StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Id}:{target.Kind}|contact-search:1");
         if (target.Kind == Ff7AutoPlayTargetKind.Gateway)
         {
             if (target.GatewayIndex is int index && (uint)index < gateways.Count)

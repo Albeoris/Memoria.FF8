@@ -5,6 +5,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
 {
     public static void Run()
     {
+        AutoPlayNavigationRefreshTests.Run();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
         AutoPlayVisit visit = new("current", "region");
@@ -16,6 +17,8 @@ internal static class NativeAutoPlayPolicyPlanningTests
         Check(planner.Plan(visit.Key)?.Event.Id == "repeatable", "A changed predicate must remain eligible after the unexecuted frontier is covered.");
         Ff7AutoPlayState restored = state.Clone();
         Check(Ff7AutoPlayPolicy.CreatePlanner(restored).Plan(visit.Key)?.Event.Id == "repeatable", "Cold planner restoration lost the changed predicate.");
+        restored.Coverage.Visits.Single().Events.Single(entry => entry.Event.Id == "unseen").RouteNeedsRediscovery = true;
+        Check(Ff7AutoPlayPolicy.CreatePlanner(restored).Plan(visit.Key)?.Event.Id == "unseen", "A consumed transport awaiting native connectivity evidence must precede a changed repeatable event.");
     }
 
     private static void Check(bool condition, string message)

@@ -18,6 +18,10 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, Triangle = 0, CollisionRadius = 30 };
         Ff7Actor target = new() { Slot = 1, Entity = 1, Model = 1, Triangle = 2, Z4096 = 300 * 4096, TalkRadius = 80 };
         string before = JsonSerializer.Serialize(new { mesh, blocked, player, target });
+        string navigation = Ff7AutoplayDriver.ReadNavigationKey("authored-visit", mesh, blocked, 0);
+        Check(navigation == Ff7AutoplayDriver.ReadNavigationKey("authored-visit", mesh, blocked, 1), "A navigation identity changed inside one connected native floor.");
+        Check(navigation != Ff7AutoplayDriver.ReadNavigationKey("authored-visit", mesh, blocked, 2), "A stacked disconnected floor shared a navigation identity.");
+        Check(navigation != Ff7AutoplayDriver.ReadNavigationKey("authored-visit", mesh, [2], 0), "Changed native blocking retained an obsolete navigation topology identity.");
         string original = Fingerprint(player, target, blocked);
         Check(original == Fingerprint(player with { Triangle = 1, X4096 = 90 * 4096, Y4096 = 90 * 4096, Direction = 128 }, target, blocked), "Ordinary movement within one native component invalidated physical absence.");
         Check(original != Fingerprint(player with { Triangle = 2 }, target, blocked), "Entering another native floor component failed to refresh physical absence.");
@@ -47,6 +51,20 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(gatewayGuard != Ff7AutoplayDriver.ReadPhysicalAvailabilityFingerprint("authored-program", mesh, blocked, player, gatewayTarget, [], [gateway with { A = new(1, 0, 300) }]), "A changed native gateway segment failed to refresh its absence.");
         Ff7AutoPlayNavigationUnavailableException pathAbsence = new(-1, "absent authored path", destination: lineTarget.Position, destinationTriangle: 2);
         Check(pathAbsence is { Entity: -1, DestinationTriangle: 2 } && pathAbsence.Destination == lineTarget.Position && pathAbsence.BlockingEntities.Count == 0, "A nonactor path absence lost its exact destination proof.");
+        PcWalkmeshTriangle[] stacked =
+        [
+            new(0, Vector3.Zero, new(1000, 0, 0), new(0, 1000, 0), -1, -1, -1),
+            new(1, new(40, 40, 20), new(70, 40, 20), new(40, 70, 20), -1, -1, -1)
+        ];
+        Ff7Line lowerLine = new(0, 17, 50, 40, 0, 50, 60, 0);
+        Ff7Actor lowerPlayer = player with { X4096 = 100 * 4096, Y4096 = 100 * 4096 };
+        Vector3 lineCenter = new(50, 50, 0);
+        Check(stacked.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, lineCenter))!.Index == 1, "The authored stacked fixture did not expose the global nearest-centroid trap.");
+        var contacts = Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine);
+        Check(contacts.Count > 0 && contacts.All(candidate => candidate.Triangle == 0), "A reachable native LINE contact was lost to an unreachable stacked layer.");
+        Check(contacts.All(candidate => Ff7Session.DistanceToSegment(new(50, 40, 0), new(50, 60, 0), candidate.Point, out _) is >= 0 and < 900), "LINE candidate discovery admitted a floor point outside the native three-dimensional contact radius.");
+        Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Z1 = 300, Z2 = 300 }).Count == 0, "An out-of-height LINE was falsely exposed as a reachable contact.");
+        Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Enabled = 0 }).Count == 0, "A disabled LINE was advertised as a native contact candidate.");
         CheckNativeOcclusionPredicate();
 
         string Fingerprint(Ff7Actor source, Ff7Actor destination, byte[] blocking)
