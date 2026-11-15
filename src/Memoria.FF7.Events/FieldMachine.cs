@@ -73,7 +73,7 @@ public sealed partial class FieldMachine
         {
             return true;
         }
-        CancelPreemptedMove(entityId);
+        CancelPreemptedMovement(entityId);
         target.Saved[target.Priority] = target.Pc;
         target.Pc = entry;
         target.Priority = priority;
@@ -364,7 +364,7 @@ public sealed partial class FieldMachine
             {
                 throw new NotSupportedException("Initialization request preempts an unvisited entity whose initial PC has not been supplied.");
             }
-            CancelPreemptedMove(targetId);
+            CancelPreemptedMovement(targetId);
             target.Saved[target.Priority] = target.Pc;
             target.Pc = program.Entry(targetId, script);
             target.Priority = priority;

@@ -1,6 +1,19 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--request-preemption-only", StringComparer.Ordinal))
+{
+    RequestCompletion();
+    BusyRequests();
+    QueuedRequest();
+    PreemptionWait();
+    SnapshotContinuation();
+    ExtendedTests.CancelMove();
+    ExtendedTests.ActorApproachOperandsAndPreemption();
+    Console.WriteLine("PASS native request admission, cancellation and suspended continuation");
+    return 0;
+}
+
 if (args.Contains("--initialization-only", StringComparer.Ordinal))
 {
     InitContinuation();

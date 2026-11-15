@@ -309,11 +309,20 @@ public sealed partial class Ff7FieldHost : IFieldHost
 
     public void Cancel(FieldHostRequest request)
     {
-        if (request.Command is not FieldActorMove)
+        switch (request.Command)
         {
-            throw new NotSupportedException("Only native movement preemption is supported by this FFVII host.");
+            case FieldActorMove:
+                Process = Process with { Motions = Process.Motions.Where(motion => motion.RequestId != request.Id).ToArray() };
+                break;
+            case FieldActorJump:
+                SetActor(request.Entity, actor => actor.Jump?.RequestId == request.Id ? actor with { Jump = null } : actor);
+                break;
+            case FieldActorLadder:
+                SetActor(request.Entity, actor => actor.Ladder?.RequestId == request.Id ? actor with { Ladder = null } : actor);
+                break;
+            default:
+                throw new NotSupportedException("Only native movement preemption is supported by this FFVII host.");
         }
-        Process = Process with { Motions = Process.Motions.Where(motion => motion.RequestId != request.Id).ToArray() };
         receipts.Remove(request.Id);
     }
 

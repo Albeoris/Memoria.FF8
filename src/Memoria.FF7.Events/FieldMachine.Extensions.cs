@@ -128,10 +128,10 @@ public sealed partial class FieldMachine
         }
     }
 
-    private void CancelPreemptedMove(int id)
+    private void CancelPreemptedMovement(int id)
     {
         var key = (id, entities[id].Priority, entities[id].Pc);
-        if (pendingRequests.TryGetValue(key, out FieldHostRequest? request) && request.Command is FieldActorMove)
+        if (pendingRequests.TryGetValue(key, out FieldHostRequest? request) && request.Command is FieldActorMove or FieldActorJump or FieldActorLadder)
         {
             if (host is null)
             {

@@ -3,6 +3,15 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--motion-preemption-only", StringComparer.Ordinal))
+{
+    NativeMotionPreemptionTests.Run();
+    NativeJumpTests.Run();
+    NativeLadderTests.Run();
+    NativeAnimationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--constant-fade-only", StringComparer.Ordinal))
 {
     NativeConstantFadeTests.Run();

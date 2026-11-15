@@ -92,6 +92,10 @@ public sealed partial class Ff7Session : IDisposable
     {
         ArgumentNullException.ThrowIfNull(save);
         save.Validate();
+        if (save.World is null && (save.Vm.PendingRequests ?? []).Any(request => request.Command is FieldActorMove or FieldActorJump or FieldActorLadder && save.Vm.Entities[request.Entity].Priority < request.Priority))
+        {
+            throw new NotSupportedException("FFVII saved scripted movement uses the obsolete preemption ownership contract; migrate this continuation before resuming.");
+        }
         if (save.ResourceProfile != installation.Layout.ToString() || save.Language != installation.Language)
         {
             throw new InvalidDataException("The FFVII save requires a different resource profile or language.");

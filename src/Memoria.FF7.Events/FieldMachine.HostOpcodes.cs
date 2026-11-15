@@ -296,7 +296,7 @@ public sealed partial class FieldMachine
                 }
                 if (!entities[id].ModelBound || !entities[movementEntity].ModelBound)
                 {
-                    CancelPreemptedMove(id);
+                    CancelPreemptedMovement(id);
                     Advance(id, 2);
                     return false;
                 }
