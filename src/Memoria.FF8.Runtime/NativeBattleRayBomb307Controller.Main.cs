@@ -6,7 +6,7 @@ public static partial class NativeBattleRayBomb307Controller
 {
     public static NativeBattleRayBomb307TaskStep AdvanceMain(NativeBattleRayBomb307Frame frame, uint address, NativeBattleRayBomb307Resources resources, NativeBattleRayBomb307Inputs inputs)
     {
-        byte caster = checked((byte)frame.State.ReadDword(0x2242574));
+        BattleModelOwner caster = frame.State.ReadModelOwner(0x2242574);
         NativeBattleActionMatrix world = inputs.ReadModel(caster).GeometryWorldMatrix ?? throw new NotSupportedException("Ray-Bomb requires its caster's current world matrix.");
         NativeBattleActionMatrix bone = inputs.ReadCurrentBoneMatrix(frame, caster, 0xF0).ReadMatrix();
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(world, bone);
@@ -151,13 +151,18 @@ public static partial class NativeBattleRayBomb307Controller
         if (age == 85)
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Ray-Bomb requires its actual contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             for (int index = 0; index < header.ReadContactCount(); index++)
             {
                 (frame, uint child) = Append(frame, 1, 0x5A25E0);
                 frame = DrawRandom(frame, out ushort direction);
                 frame = DrawRandom(frame, out ushort distance);
-                frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, inputs.Packets.ReadContact(first + index).Primary.Recipient).WriteWord(0x1A, (ushort)index).WriteWord(0x18, (ushort)((direction % 3 + 1) << 12)).WriteWord(0x20, unchecked((ushort)(-3500 - distance % 9000))));
+                BattleModelOwner actor = inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                BattleExecutionReference.ContactOffset contactOffset = new(index);
+                NativeBattleModulePoolTask targetTask = Read(frame, child).WriteWord(12, 0);
+                targetTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
+                targetTask.WriteExecutionReference(0x1A, 2, contactOffset, contactOffset.EncodeOriginalWord());
+                frame = Write(frame, child, targetTask.WriteWord(0x18, (ushort)((direction % 3 + 1) << 12)).WriteWord(0x20, unchecked((ushort)(-3500 - distance % 9000))));
             }
         }
         if (age <= 8 || age >= 127)

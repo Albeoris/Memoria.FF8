@@ -120,11 +120,12 @@ public static partial class NativeBattleMicroMissiles299Controller
                 frame = Write(frame, impact, child);
                 if (variant == 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleMicroMissiles299RingSequence((byte)inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient, 5));
+                    frame = inputs.Execute(frame, new NativeBattleMicroMissiles299RingSequence(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient, 5));
                 }
                 else if (variant == 1)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleMicroMissiles299Contact(FirstContact(frame, inputs)));
+                    BattleContactOccurrence occurrence = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("Micro Missiles contact has no occurrence reference.");
+                    frame = inputs.Execute(frame, new NativeBattleMicroMissiles299Contact(occurrence));
                 }
             }
             for (int index = 0; index < 16; index++)

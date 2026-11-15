@@ -29,6 +29,7 @@ public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort F
 {
     [JsonRequired] public NativeBattleAuxiliaryProgram? Program { get; init; }
     [JsonRequired] public uint UnknownByteMask { get; init; }
+    [JsonIgnore] public BattleModelOwner? ModelOwner { get; init; }
 }
 
 public sealed record NativeBattleAuxiliaryStep(NativeBattleAuxiliaryState State, ushort? CameraBlend)
@@ -72,10 +73,10 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             }
             else if (Slots[index].Kind is NativeBattleAuxiliaryKind.ModelSequence505C70 or NativeBattleAuxiliaryKind.ModelStatus50A000 or NativeBattleAuxiliaryKind.ModelResourceFlags50B080)
             {
-                uint mask = Slots[index].Kind switch { NativeBattleAuxiliaryKind.ModelSequence505C70 => 0x20Fu, NativeBattleAuxiliaryKind.ModelResourceFlags50B080 => 0x3Fu, _ => 0xFFu };
-                if ((Slots[index].UnknownByteMask & mask) != 0)
+                uint mask = Slots[index].Kind switch { NativeBattleAuxiliaryKind.ModelSequence505C70 => 0x200u, NativeBattleAuxiliaryKind.ModelResourceFlags50B080 => 0x30u, _ => 0xF0u };
+                if (Slots[index].ModelOwner is null || (Slots[index].UnknownByteMask & mask) != 0)
                 {
-                    throw new InvalidDataException("Native linked model callback lacks its written source pointer and operand fields.");
+                    throw new InvalidDataException("Native linked model callback lacks its live source owner or written scalar fields.");
                 }
             }
             else if (Slots[index].Kind == NativeBattleAuxiliaryKind.DeferredCompletion5086E0 && (Slots[index].UnknownByteMask & 0xF01) != 0)

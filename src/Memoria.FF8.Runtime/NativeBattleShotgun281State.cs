@@ -55,6 +55,14 @@ public sealed record NativeBattleShotgun281State([property: JsonRequired] Native
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
         return Write(address, encoded);
     }
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleShotgun281State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public NativeBattleShotgun281State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

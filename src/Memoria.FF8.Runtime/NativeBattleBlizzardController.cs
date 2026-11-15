@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleBlizzardFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleBlizzardOperation;
 public sealed record NativeBattleBlizzardDraw(NativeBattleModulePoolTask Task) : NativeBattleBlizzardOperation;
-public sealed record NativeBattleBlizzardContact(int Contact) : NativeBattleBlizzardOperation;
-public sealed record NativeBattleBlizzardSound(int Model) : NativeBattleBlizzardOperation;
+public sealed record NativeBattleBlizzardContact(BattleContactOccurrence Contact) : NativeBattleBlizzardOperation;
+public sealed record NativeBattleBlizzardSound(BattleModelOwner Model) : NativeBattleBlizzardOperation;
 public sealed record NativeBattleBlizzardCameraImpulse(short Delta) : NativeBattleBlizzardOperation;
-public sealed record NativeBattleBlizzardInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleVector> ReadBone240, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleBlizzardFrame, NativeBattleBlizzardOperation, NativeBattleBlizzardFrame> Execute);
+public sealed record NativeBattleBlizzardInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone240, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, Func<NativeBattleBlizzardFrame, NativeBattleBlizzardOperation, NativeBattleBlizzardFrame> Execute);
 
 /// <summary>61ABA0/61BF70 and the complete61AC70 physical child scheduler.</summary>
 public static class NativeBattleBlizzardController
@@ -26,7 +26,7 @@ public static class NativeBattleBlizzardController
         (children, int childSlot) = children.Append(0x61AC70);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters!.Header);
         BattleContactCursor first = header.FirstContact;
-        children = Put(children, childSlot, children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.Recipient));
+        children = Put(children, childSlot, InitializeRecipient(children.Slots[childSlot], packets, first, 0));
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress };
     }
 
@@ -63,7 +63,8 @@ public static class NativeBattleBlizzardController
                 int sequence = Word(task, 14);
                 if (phase == 0)
                 {
-                    task = Position(task, inputs.ReadBone240(Word(task, 32))).WriteWord(22, unchecked((ushort)inputs.ReadTransform(Word(task, 32)).Angle36));
+                    BattleModelOwner owner = task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner;
+                    task = Position(task, inputs.ReadBone240(owner)).WriteWord(22, unchecked((ushort)inputs.ReadTransform(owner).Angle36));
                     (NativeBattleBlizzardFaces faces, NativeCrtRandomState random) = NativeBattleBlizzardFaceMotion.Initialize61B190(frame.Memory.BlizzardFaces, sequence, Resources().PrimaryMesh, frame.Random);
                     frame = frame with { Memory = frame.Memory with { BlizzardFaces = faces }, Random = random };
                 }
@@ -118,18 +119,18 @@ public static class NativeBattleBlizzardController
                     NativeBattleModulePoolTask next = pool.Slots[child].WriteWord(12, 0).WriteWord(16, task.ReadWord(16)).WriteWord(18, task.ReadWord(22)).WriteWord(20, task.ReadWord(20)).WriteWord(28, 637).WriteWord(30, 637);
                     pool = Put(pool, child, next);
                     NativeBattleActionHeaderSlot header = Header(sequence);
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native61AC70 contact requires its physical header contact pointer.");
-                    frame = inputs.Execute(frame, new NativeBattleBlizzardContact(first));
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(header.FirstContact).Occurrence ?? throw new InvalidDataException("Native Blizzard requires its reached contact occurrence.");
+                    frame = inputs.Execute(frame, new NativeBattleBlizzardContact(contact));
                 }
                 if (phase == 28 && sequence + 1 <= Header(0).ReadRepeatModeMinusOne())
                 {
                     (pool, int child) = pool.Append(0x61AC70);
                     BattleContactCursor first = Header(sequence + 1).FirstContact;
-                    pool = Put(pool, child, pool.Slots[child].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(sequence + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.Recipient));
+                    pool = Put(pool, child, InitializeRecipient(pool.Slots[child], inputs.Packets, first, unchecked((ushort)(sequence + 1))));
                 }
                 if (phase == 1)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleBlizzardSound(Word(task, 32)));
+                    frame = inputs.Execute(frame, new NativeBattleBlizzardSound(task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner));
                 }
                 task = Add(task, 12, 1);
                 return new(Put(pool, slot, task), Word(task, 12) > 44 ? 2 : 0);
@@ -206,6 +207,14 @@ public static class NativeBattleBlizzardController
 
     internal static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     internal static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
+    private static NativeBattleModulePoolTask InitializeRecipient(NativeBattleModulePoolTask task, NativeBattleActionPacketsState packets, BattleContactCursor cursor, ushort sequence)
+    {
+        BattleModelOwner recipient = packets.ReadContact(cursor).Primary.Recipient;
+        task = task.WriteWord(12, 0).WriteWord(14, sequence);
+        task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 2));
+        return task;
+    }
+
     private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleVector anchor) => task.WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, unchecked((ushort)anchor.Y)).WriteWord(20, unchecked((ushort)anchor.Z));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source) => task.WriteWord(16, source.ReadWord(16)).WriteWord(18, source.ReadWord(18)).WriteWord(20, source.ReadWord(20)).WriteWord(22, source.ReadWord(22));

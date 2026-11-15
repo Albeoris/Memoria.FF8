@@ -87,16 +87,12 @@ public static partial class NativeBattleSandStorm176Controller
             }
             if (landing && age == 2)
             {
-                Emit(new NativeBattleSandStorm176Contact(FirstContact + S(task, 26)));
+                int offset = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset ?? throw new InvalidDataException("Sand Storm landing requires its contact offset.");
+                BattleContactOccurrence occurrence = inputs.Packets.ReadContact(FirstContact.Advance(offset)).Occurrence ?? throw new InvalidDataException("Sand Storm contact has no occurrence reference.");
+                Emit(new NativeBattleSandStorm176Contact(occurrence));
             }
             task = task.WriteWord(12, unchecked((ushort)(age + 1)));
             return age + 1 >= 4 && alive == 0 ? 2 : 0;
-        }
-
-        private ushort? Padding(uint address)
-        {
-            (byte[] bytes, bool[] known) = State.Module.ReadSnapshot(checked((int)(address - ModuleBase)), 2);
-            return known.All(value => value) ? System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(bytes) : null;
         }
 
         private int Lift(ref NativeBattleModulePoolTask task)
@@ -110,29 +106,17 @@ public static partial class NativeBattleSandStorm176Controller
                 }
                 return 0;
             }
-            int actor = S(task, 14);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Sand Storm lift requires its target's native position.");
-            uint saved = 0x2374208u + (uint)(actor * 20);
             int age = S(task, 12);
             if (age == 0)
             {
-                W(saved, model.Flags0 & 0x1020);
-                W(saved + 4, model.Rotation12 ?? throw new NotSupportedException("Native Sand Storm requires the target's X rotation."));
-                W(saved + 6, model.Rotation14 ?? throw new NotSupportedException("Native Sand Storm requires the target's Y rotation."));
-                W(saved + 8, model.Rotation16 ?? throw new NotSupportedException("Native Sand Storm requires the target's Z rotation."));
-                if (model.RotationPadding18 is ushort padding)
-                {
-                    W(saved + 10, padding);
-                }
-                else
-                {
-                    SetModule(State.Module.MarkUnknown(checked((int)(saved + 10 - ModuleBase)), 2));
-                }
-                W(saved + 12, transform.Position28.X);
-                W(saved + 14, transform.Position28.Y);
-                W(saved + 16, transform.Position28.Z);
-                W(saved + 18, transform.Vertical34);
+                short pitch = model.Rotation12 ?? throw new NotSupportedException("Native Sand Storm requires the target's X rotation.");
+                short yaw = model.Rotation14 ?? throw new NotSupportedException("Native Sand Storm requires the target's Y rotation.");
+                short roll = model.Rotation16 ?? throw new NotSupportedException("Native Sand Storm requires the target's Z rotation.");
+                NativeBattleSavedActorTransform captured = new((ushort)(model.Flags0 & 0x1020), pitch, yaw, roll, model.RotationPadding18, transform.Position28, transform.Vertical34);
+                current = current with { Effect = current.Effect with { SavedActorTransforms = current.Effect.SavedActorTransforms.SetItem(actor, captured) } };
             }
             if (age < 32)
             {
@@ -140,7 +124,8 @@ public static partial class NativeBattleSandStorm176Controller
                 short yAngle = unchecked((short)((age << 12) / 32));
                 short zAngle = model.Rotation16 ?? throw new NotSupportedException("Native Sand Storm requires its saved Z rotation.");
                 NativeBattleVector origin = TaskPosition(task, 16);
-                NativeBattleVector offset = new(unchecked((short)(origin.X - W(saved + 12))), unchecked((short)(origin.Y - W(saved + 14))), unchecked((short)(origin.Z - W(saved + 16))));
+                NativeBattleVector savedPosition = ReadSavedActor(actor).Position;
+                NativeBattleVector offset = new(unchecked((short)(origin.X - savedPosition.X)), unchecked((short)(origin.Y - savedPosition.Y)), unchecked((short)(origin.Z - savedPosition.Z)));
                 NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(NativeBattleGfMatrices.Euler56CE30(new(xAngle, yAngle, zAngle)), offset);
                 uint point = S(task, 28) != 0 ? 0x23685B0u : 0x23685A8u;
                 NativeBattleVector position = new(unchecked((short)(origin.X - rotated.X + unchecked((short)(unchecked((W(point) - origin.X) * yAngle) >> 12)))), unchecked((short)(origin.Y - rotated.Y + S(task, 32))), unchecked((short)(origin.Z - rotated.Z + unchecked((short)(unchecked((W(point + 4) - origin.Z) * yAngle) >> 12)))));
@@ -155,7 +140,8 @@ public static partial class NativeBattleSandStorm176Controller
             }
             else
             {
-                model = model with { Transform = transform with { Position28 = new(W(saved + 12), unchecked((short)(transform.Position28.Y - S(task, 32))), W(saved + 16)) } };
+                NativeBattleVector savedPosition = ReadSavedActor(actor).Position;
+                model = model with { Transform = transform with { Position28 = new(savedPosition.X, unchecked((short)(transform.Position28.Y - S(task, 32))), savedPosition.Z) } };
             }
             Emit(new NativeBattleSandStorm176Actor(actor, model));
             if (inputs.DrawOnly)
@@ -174,12 +160,24 @@ public static partial class NativeBattleSandStorm176Controller
             }
             NativeBattleGraphicsModel restored = inputs.ReadModel(actor);
             NativeBattleModelTransform retained = restored.Transform ?? throw new NotSupportedException("Native Sand Storm lost its lifted target position.");
-            restored = restored with { Flags0 = (ushort)(unchecked((ushort)W(saved)) | (restored.Flags0 & 0xEFDF)), Rotation12 = W(saved + 4), Rotation14 = W(saved + 6), Rotation16 = W(saved + 8), RotationPadding18 = Padding(saved + 10), Transform = retained with { Position28 = new(W(saved + 12), W(saved + 14), W(saved + 16)), Vertical34 = W(saved + 18) } };
+            NativeBattleSavedActorTransform saved = ReadSavedActor(actor);
+            restored = restored with { Flags0 = (ushort)(saved.Flags0 | (restored.Flags0 & 0xEFDF)), Rotation12 = saved.Pitch, Rotation14 = saved.Yaw, Rotation16 = saved.Roll, RotationPadding18 = saved.RotationPadding18, Transform = retained with { Position28 = saved.Position, Vertical34 = saved.Vertical34 } };
             Emit(new NativeBattleSandStorm176Actor(actor, restored));
             int dust = Spawn(0x5D1820);
-            Put(dust, children.Slots[dust].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(0x100 << (S(task, 26) & 31)))).WriteDword(16, D(saved + 12)).WriteDword(20, D(saved + 16)).WriteWord(26, task.ReadWord(26)));
+            BattleExecutionReference.ContactOffset contactOffset = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2);
+            int offset = contactOffset.Offset ?? throw new InvalidDataException("Sand Storm lift requires its contact offset.");
+            NativeBattleModulePoolTask dustTask = children.Slots[dust].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(0x100 << (offset & 31)))).WriteDword(16, PackWords(saved.Position.X, saved.Position.Y)).WriteDword(20, PackWords(saved.Position.Z, saved.Vertical34));
+            dustTask.WriteExecutionReference(26, 2, contactOffset, contactOffset.EncodeOriginalWord());
+            Put(dust, dustTask);
             Emit(new NativeBattleSandStorm176Sound(resources.LandingSound));
             return 2;
         }
+
+        private NativeBattleSavedActorTransform ReadSavedActor(BattleModelOwner actor)
+        {
+            return current.Effect.SavedActorTransforms.TryGetValue(actor, out NativeBattleSavedActorTransform? saved) ? saved : throw new NotSupportedException("Native Sand Storm requires its saved actor transform.");
+        }
+
+        private static uint PackWords(short low, short high) => unchecked((ushort)low | ((uint)(ushort)high << 16));
     }
 }

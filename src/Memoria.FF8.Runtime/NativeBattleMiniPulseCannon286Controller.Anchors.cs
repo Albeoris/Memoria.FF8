@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using static Memoria.FF8.Runtime.NativeBattleMiniPulseCannon286Profile;
 
 namespace Memoria.FF8.Runtime;
 
@@ -12,7 +13,7 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             throw new InvalidDataException("Mini Pulse Cannon requires its actual packed muzzle point.");
         }
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point[6..]);
-        uint model = frame.State.ReadDword(0x2507CB0);
+        BattleModelOwner model = frame.State.ReadModelOwner(CasterGlobal);
         frame = LoadMatrix(frame, inputs.ReadCurrentBoneMatrix(frame, model, bone));
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters!, frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Mini Pulse Cannon muzzle requires its current arithmetic owner."));
         NativeBattleVector vector = new(BinaryPrimitives.ReadInt16LittleEndian(point), BinaryPrimitives.ReadInt16LittleEndian(point[2..]), BinaryPrimitives.ReadInt16LittleEndian(point[4..]));

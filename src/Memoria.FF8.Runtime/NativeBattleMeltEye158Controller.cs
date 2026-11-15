@@ -10,7 +10,7 @@ public static partial class NativeBattleMeltEye158Controller
         resources.Validate();
         NativeBattleActionHeaderSlot header = Header(frame, inputs);
         BattleContactCursor firstContact = header.FirstContact;
-        int target = inputs.Packets.ReadContact(firstContact).Primary.Recipient;
+        BattleModelOwner target = inputs.Packets.ReadContact(firstContact).Primary.Recipient;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount);
         (root, int rootSlot) = root.Append(RootCallback);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
@@ -21,7 +21,7 @@ public static partial class NativeBattleMeltEye158Controller
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Melt-Eye requires its executed texture allocation.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Melt-Eye requires its executed texture initializer.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        return frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).ClearSlotHeads(), Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        return frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteModelOwner(TargetGlobal, target, inputs.Packets.ModelAliases).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).ClearSlotHeads(), Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
     public static NativeBattleMeltEye158Frame Advance(NativeBattleMeltEye158Frame frame, NativeBattleMeltEye158Resources resources, NativeBattleMeltEye158Inputs inputs)
@@ -102,7 +102,7 @@ public static partial class NativeBattleMeltEye158Controller
         if (age == 40)
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs);
-            frame = inputs.Execute(frame, new NativeBattleMeltEye158BulkContact(header.FirstContactIndex ?? throw new NotSupportedException("Melt-Eye requires its captured contacts."), header.ReadContactCount()));
+            frame = inputs.Execute(frame, new NativeBattleMeltEye158BulkContact(header.FirstContact, header.ReadContactCount()));
         }
         if (age == 1)
         {

@@ -61,6 +61,14 @@ public sealed record NativeBattleOilBlast137State([property: JsonRequired] Nativ
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleOilBlast137State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public NativeBattleOilBlast137State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

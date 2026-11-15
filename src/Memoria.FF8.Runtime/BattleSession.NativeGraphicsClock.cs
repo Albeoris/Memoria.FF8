@@ -109,8 +109,7 @@ public sealed partial class BattleSession
         }
         if (services is not null)
         {
-            BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics frames require their actual roster.");
-            services.Validate(roster, graphics);
+            services.Validate(nativeActionPackets.Roster, graphics);
         }
         graphics.Validate();
         uint flags = graphics.Flags;
@@ -145,14 +144,12 @@ public sealed partial class BattleSession
         flags = graphics.Flags;
         graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
-        ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models;
-        NativeBattleEffectsStep effects = graphics.Effects.Advance(models, index => ProjectNativeDamageText(graphics, index), graphics.PresentationRoster);
-        foreach (byte index in effects.ResetModelStatuses)
+        NativeBattleEffectsStep effects = graphics.Effects.Advance(graphics.ActorModels, owner => ProjectNativeDamageText(graphics, owner));
+        foreach (BattleModelOwner owner in effects.ResetModelStatuses)
         {
-            graphics = ApplyNativeGraphicsStatus509CD0(graphics with { ActorModels = models }, index, 16);
-            models = graphics.Models;
+            graphics = ApplyNativeGraphicsStatus509CD0(graphics, owner, 16);
         }
-        graphics = graphics with { ActorModels = models, Effects = effects.State };
+        graphics = graphics with { Effects = effects.State };
         if (services is null)
         {
             graphics = FrameGuardianFormIdleCamera(graphics);
@@ -280,7 +277,35 @@ public sealed partial class BattleSession
         return models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40));
     }
 
-    private BattleCombatant GraphicsActor(NativeBattleGraphicsState graphics, int index) => GetActor(graphics.ActorIds[index] ?? throw new InvalidDataException("Native graphical row has no bound allocation identity."));
+    private BattleCombatant GraphicsActor(NativeBattleGraphicsState graphics, BattleModelOwner owner)
+    {
+        if (!graphics.ActorModels.Contains(owner))
+        {
+            throw new InvalidDataException("The graphical actor is no longer bound.");
+        }
+        return GetActor(RequireCanonicalGraphicsActorId(owner));
+    }
+
+    private static string RequireCanonicalGraphicsActorId(BattleModelOwner owner)
+    {
+        return owner switch
+        {
+            BattlePartyActorModel party => party.Actor.ActorId,
+            BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+            _ => throw new InvalidDataException("A foreign graphics owner has no logical combatant.")
+        };
+    }
+
+
+    private static string ReadGraphicsPresentationId(BattleModelOwner owner)
+    {
+        return owner switch
+        {
+            BattleForeignPartyModel party => party.Presentation.Key,
+            BattleForeignEnemyModel enemy => enemy.Presentation.Key,
+            _ => RequireCanonicalGraphicsActorId(owner)
+        };
+    }
 
     private NativeBattleGraphicsState ConsumeNativeGraphicsContacts(NativeBattleGraphicsState graphics)
     {
@@ -299,19 +324,17 @@ public sealed partial class BattleSession
             packet.Validate();
             //506690 invokes493D80 before checking whether the primary model is loaded.
             graphics = PublishNativeReadyContact(graphics, packet.Primary);
-            if (packet.Secondary.Recipient != 255)
+            if (packet.Secondary is { } readySecondary)
             {
-                graphics = PublishNativeReadyContact(graphics, packet.Secondary);
+                graphics = PublishNativeReadyContact(graphics, readySecondary);
             }
-            NativeBattleGraphicsModel primary = graphics.ActorModels.Get(packet.Primary.Recipient);
             BattleCombatant actor = GraphicsActor(graphics, packet.Primary.Recipient);
-            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(packet.Primary, primary, definition.NativeGraphics!.Rules, NativeBattleStatusBits(actor));
+            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(packet.Primary, graphics.ActorModels, definition.NativeGraphics!.Rules, NativeBattleStatusBits(actor));
             graphics = ApplyNativeGraphicsContact(graphics, packet.Primary, plan);
-            if (plan.Loaded && packet.Secondary.Recipient != 255)
+            if (plan.Loaded && packet.Secondary is { } half)
             {
-                NativeBattleContactHalf half = packet.Secondary;
                 BattleCombatant secondaryActor = GraphicsActor(graphics, half.Recipient);
-                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.Recipient), definition.NativeGraphics.Rules, NativeBattleStatusBits(secondaryActor), secondary: true);
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels, definition.NativeGraphics.Rules, NativeBattleStatusBits(secondaryActor), secondary: true);
                 graphics = ApplyNativeGraphicsContact(graphics, half, secondary);
             }
         }
@@ -320,8 +343,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ConsumeHostedNativeGraphicsContacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
     {
-        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted graphics contacts require their presentation roster.");
-        roster.Validate();
+        BattleModelRoster roster = nativeActionPackets.Roster;
         services.Validate(roster, graphics);
         if (graphics.PendingContacts.IsDefault)
         {
@@ -337,15 +359,23 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Hosted graphics contacts cannot contain an absent packet.");
             }
-            packet.Validate(roster.ActorCount);
+            packet.Validate();
             NativeBattleModelActorFacts primary = RequireHostedContactActorFacts(graphics, services, packet.Primary.Recipient);
             if (primary.RawBattleStatuses is null)
             {
                 throw new InvalidDataException("Hosted primary contact requires the actor's current battle status.");
             }
-            if (packet.Secondary.Recipient != 255)
+            if (packet.Secondary is { } secondary)
             {
-                _ = RequireHostedContactActorFacts(graphics, services, packet.Secondary.Recipient);
+                _ = RequireHostedContactActorFacts(graphics, services, secondary.Recipient);
+            }
+            if (packet.Primary.CoverSource is { } primaryCover)
+            {
+                _ = RequireHostedContactActorFacts(graphics, services, primaryCover);
+            }
+            if (packet.Secondary?.CoverSource is { } secondaryCover)
+            {
+                _ = RequireHostedContactActorFacts(graphics, services, secondaryCover);
             }
         }
         NativeBattleGraphicsRules rules = definition.NativeGraphics!.Rules;
@@ -353,13 +383,12 @@ public sealed partial class BattleSession
         {
             NativeBattleContactHalf primary = packet.Primary;
             uint rawStatus = services.Facts[primary.Recipient]!.RawBattleStatuses!.Value;
-            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels.Get(primary.Recipient), rules, rawStatus);
+            NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels, rules, rawStatus);
             services.EmitContact(packet);
             graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
-            if (plan.Loaded && packet.Secondary.Recipient != 255)
+            if (plan.Loaded && packet.Secondary is { } half)
             {
-                NativeBattleContactHalf half = packet.Secondary;
-                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels.Get(half.Recipient), rules, half.BattleStatuses8, secondary: true);
+                NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, graphics.ActorModels, rules, half.BattleStatuses8, secondary: true);
                 graphics = ApplyNativeGraphicsContact(graphics, half, secondary, services);
             }
             presentationContacts.Add(packet);
@@ -367,14 +396,11 @@ public sealed partial class BattleSession
         return graphics with { PendingContacts = [] };
     }
 
-    private static NativeBattleModelActorFacts RequireHostedContactActorFacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, int row)
+    private static NativeBattleModelActorFacts RequireHostedContactActorFacts(NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services, BattleModelOwner owner)
     {
-        if (graphics.PresentationRoster is not { } roster || !roster.ContainsRow(row) ||
-            (uint)row >= (uint)graphics.Models.Length || graphics.ActorModels.Get(row)?.Index != row ||
-            (uint)row >= (uint)graphics.ActorIds.Length || (uint)row >= (uint)services.Facts.Length ||
-            services.Facts[row] is not { } facts || facts.ActorId != roster[row].ActorId || facts.ActorId != graphics.ActorIds[row] || facts.IsParty != roster[row].IsParty)
+        if (!graphics.ActorModels.Contains(owner) || !services.Facts.TryGetValue(owner, out NativeBattleModelActorFacts? facts))
         {
-            throw new InvalidDataException("Hosted graphics contact requires the current facts for its bound actor row.");
+            throw new InvalidDataException("Hosted graphics contact requires the current facts for its bound actor.");
         }
         return facts;
     }
@@ -400,11 +426,11 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { Flags = graphics.Flags & ~0x10000000u };
         }
-        else if (!plan.Secondary && (half.HitFlags3 & 2) != 0)
+        else if (!plan.Secondary && (half.HitFlags & 2) != 0)
         {
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 0, 255) };
         }
-        int index = half.Recipient;
+        BattleModelOwner index = half.Recipient;
         graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, plan.ImmediateStatusFlags!.Value);
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (plan.EjectionService7)
@@ -414,8 +440,8 @@ public sealed partial class BattleSession
             NativeBattleVector position = model.Transform?.Position28 ?? throw new NotSupportedException("Native ejection sound requires its current model positionWORD28.");
             NativeBattleModuleAnchor anchor = new(position.X, position.Y, position.Z, 0);
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015, graphics.PresentationRoster) };
-            PublishNativeModuleSound(0x0D, 8, anchor, graphics.ActorIds[index]);
-            PublishNativeModuleSound(0x0E, 16, anchor, graphics.ActorIds[index]);
+            PublishNativeModuleSound(0x0D, 8, anchor, RequireCanonicalGraphicsActorId(index));
+            PublishNativeModuleSound(0x0E, 16, anchor, RequireCanonicalGraphicsActorId(index));
         }
         if (plan.SelectSequence)
         {
@@ -423,7 +449,7 @@ public sealed partial class BattleSession
             model = graphics.ActorModels.Get(index);
             if (model.ModelId4 < 16)
             {
-                graphics = RefreshNativeGuardianStandingSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, checked((byte)index));
+                graphics = RefreshNativeGuardianStandingSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, index);
                 model = graphics.ActorModels.Get(index);
             }
         }
@@ -432,12 +458,12 @@ public sealed partial class BattleSession
             byte resourceId = (half.Flags2 & 0x30) switch { 0x10 => 39, 0x20 => 40, _ => 38 };
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, RequireNativeModuleResource(resourceId), 0x100000u | resourceId, graphics.PresentationRoster) };
         }
-        if (!plan.Secondary && (graphics.Flags & 0x10) == 0 && (half.HitFlags3 & 8) != 0)
+        if (!plan.Secondary && (graphics.Flags & 0x10) == 0 && (half.HitFlags & 8) != 0)
         {
             graphics = ApplyNativeSequenceCover5065B0(graphics with { ActorModels = graphics.ActorModels.Set(index, model) }, half);
             model = graphics.ActorModels.Get(index);
         }
-        NativeBattleEffectsState effects = NativeBattleContactEffects.ProduceTasks(graphics.Effects, half, plan, services is null ? null : graphics.PresentationRoster);
+        NativeBattleEffectsState effects = NativeBattleContactEffects.ProduceTasks(graphics.Effects, half, plan, graphics.ActorModels.Roster);
         return graphics with { ActorModels = graphics.ActorModels.Set(index, model), Effects = effects };
     }
 
@@ -446,7 +472,7 @@ public sealed partial class BattleSession
         return definition.NativeModuleResources.SingleOrDefault(resource => resource.Id == id) ?? throw new NotSupportedException($"Native contact effect requires its installed module resource{id}.");
     }
 
-    private NativeBattleGraphicsModel SetNativeGraphicsFlags(NativeBattleGraphicsModel model, uint flags, NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsModel SetNativeGraphicsFlags(BattleModelOwner owner, NativeBattleGraphicsModel model, uint flags, NativeBattleGraphicsState graphics)
     {
         uint previous = model.Flags8 ?? throw new InvalidDataException("Native509D10 requires its current graphics status DWORD.");
         uint added = (previous ^ flags) & flags;
@@ -479,20 +505,20 @@ public sealed partial class BattleSession
         {
             if (((added | removed) & 0x410) != 0)
             {
-                UploadNativeStatusPalette509E00(checked((byte)model.Index), flags);
+                UploadNativeStatusPalette509E00(owner, flags);
             }
             if ((removed & 2) != 0)
             {
-                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) }, model.Index, 0, 0);
+                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(owner, model) }, owner, 0, 0);
                 model = model with { Flags0 = (ushort)(model.Flags0 | 0x400) };
             }
             if ((added & 0x1000) != 0)
             {
-                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) }, model.Index, 0, 1);
+                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(owner, model) }, owner, 0, 1);
             }
             else if ((removed & 0x1000) != 0)
             {
-                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) }, model.Index, 0, 0);
+                ApplyNativeTextureMotion(graphics with { ActorModels = graphics.ActorModels.Set(owner, model) }, owner, 0, 0);
             }
         }
         return model with { Flags8 = flags, StatusTimers = timers };

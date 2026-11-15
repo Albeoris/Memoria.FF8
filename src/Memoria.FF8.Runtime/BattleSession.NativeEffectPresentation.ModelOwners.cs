@@ -13,9 +13,9 @@ public sealed partial class BattleSession
             NativeBattlePcTextureWindowCache cache = memory.PrimitiveProcess?.TextureWindowCache ?? throw new NotSupportedException("Hosted model textures require their initialized process cache.");
             // Older presentations retain a single published image. Copy its pixels and provenance without replaying its upload queue.
             NativeBattleEffectTextureState leaf = textures with { PresentationTextures = null, Count = 0, Slots = NativeBattleEffectTextureState.FromColdProcess().Slots, Animation = null };
-            foreach (BattleModelOwner actor in roster.Rows.OfType<BattleModelOwner>())
+            foreach (BattleModelOwner actor in roster.Owners)
             {
-                textures = textures.WithPresentationTexture(actor.ActorId, new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(cache)));
+                textures = textures.WithPresentationTexture(ReadGraphicsPresentationId(actor), new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(cache)));
             }
         }
         else
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffectTextureState AcceptHostedPresentationTextures(NativeBattleEffectTextureState textures)
     {
-        if (NativeGraphics?.PresentationRoster is not { } roster)
+        if (NativeModelTextureCache?.PresentationRoster is not { } roster)
         {
             return textures;
         }
@@ -51,30 +51,30 @@ public sealed partial class BattleSession
     private static void ValidateHostedPresentationTextureOwners(BattleModelRoster roster, NativeBattleEffectTextureState textures)
     {
         textures.Validate();
-        foreach (BattleModelOwner actor in roster.Rows.OfType<BattleModelOwner>())
+        foreach (BattleModelOwner actor in roster.Owners)
         {
-            textures.RequirePresentationTexture(actor.ActorId);
+            textures.RequirePresentationTexture(ReadGraphicsPresentationId(actor));
         }
     }
 
-    private NativeBattleGraphicsResource? ReadHostedPresentationModelResource(int index, string? actorId = null)
+    private NativeBattleGraphicsResource? ReadHostedPresentationModelResource(BattleModelOwner owner)
     {
-        if (index == presentationSourceIndex && presentationSourceResource is not null)
+        if (owner == presentationSourceOwner && presentationSourceResource is not null)
         {
             return presentationSourceResource;
         }
-        if (presentationNativeTargets?.TryGetValue(index, out NativeBattleEffectModelBinding? target) == true)
+        if (presentationNativeTargets?.TryGetValue(owner, out NativeBattleEffectModelBinding? target) == true)
         {
             return target.Resource;
         }
-        return presentationForeignActors?.GetValueOrDefault(index)?.NativeResource ?? (actorId is not null ? FindNativeGraphicsBinding(actorId)?.Resource : null);
+        return presentationForeignActors?.GetValueOrDefault(owner)?.NativeResource ?? (owner is BattlePartyActorModel or BattleEnemyActorModel ? FindNativeGraphicsBinding(RequireCanonicalGraphicsActorId(owner))?.Resource : null);
     }
 
-    private bool OwnsHostedEnemyPoseRow(NativeBattleGraphicsModel model)
+    private bool OwnsHostedEnemyPoseRow(BattleModelOwner owner, NativeBattleGraphicsModel model)
     {
         return model.ActiveResourceRow100 is int row && NativeModelTextureCache is { PresentationActors: { } owners } cache &&
             NativeModelCpuResources is { } cpu && (uint)row < (uint)cache.Rows.Length && (uint)row < (uint)cpu.Rows.Length &&
             cache.Rows[row] is { Kind: 3 } material && material.ModelId == model.ModelId4 &&
-            owners.TryGetValue(row, out int actor) && actor == model.Index;
+            owners.TryGetValue(row, out BattleModelOwner? actor) && actor == owner;
     }
 }

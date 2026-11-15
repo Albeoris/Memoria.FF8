@@ -282,14 +282,7 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattleDescriptorTaskKind.Barrier5085F0:
                     byte completion = 0;
-                    if (graphics.PresentationRoster is { } roster)
-                    {
-                        _ = NativeBattleGraphicsCompletion.PollHostedTask112(graphics.Effects.PublishedCount, graphics.Models, () => NativeCameraTaskMask, ref completion, roster);
-                    }
-                    else
-                    {
-                        _ = NativeBattleGraphicsCompletion.PollTask112(graphics.Effects.PublishedCount, graphics.Models.Select(model => model.CompletionInputs()).ToArray(), NativeCameraTaskMask, ref completion);
-                    }
+                    _ = NativeBattleGraphicsCompletion.PollTask112(graphics.Effects.PublishedCount, graphics.ActorModels, () => NativeCameraTaskMask, ref completion);
                     completed = completion == 255;
                     if (slot == graphics.EntryBarrierPacket)
                     {

@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleGraphicsModel Model) AdvanceNativeStatusIcons(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model)
+    private (NativeBattleGraphicsState Graphics, NativeBattleGraphicsModel Model) AdvanceNativeStatusIcons(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model)
     {
         NativeBattleStatusIconStep step = NativeBattleStatusIcons.Advance50A165(model, graphics.Flags, definition.NativeGraphics!.Rules.StatusIcons, ReadAnchor);
         foreach (NativeBattleModuleDraw draw in step.Draws)
@@ -17,7 +17,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector ReadAnchor(NativeBattleGraphicsModel current)
         {
-            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, current.Index).PoseSource ?? throw new NotSupportedException("Native5710D0 status icons require the current502170 skeleton/pose source.");
+            NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Native5710D0 status icons require the current502170 skeleton/pose source.");
             return NativeBattlePoseMatrices.ReadBone(current, source, 0xF0, 0x1000);
         }
     }

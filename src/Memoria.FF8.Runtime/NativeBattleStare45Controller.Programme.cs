@@ -11,7 +11,7 @@ public static partial class NativeBattleStare45Controller
         NativeBattleGfAnimationSource source = resources.ReadProgramme(task.ReadDword(0x74));
         NativeBattleGfAnimationWorkspace workspace = ProgrammeWorkspace(task, false).Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, workspace);
-        NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadByte(0x2C));
+        NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner);
         short yaw = model.Rotation14 ?? throw new NotSupportedException("Stare programme requires its current model yaw.");
         frame = Write(frame, address, Read(frame, address).WriteWord(0x60, 0xF00).WriteWord(0x62, unchecked((ushort)yaw)));
         frame = ReadCasterPosition45(frame, address, inputs);
@@ -30,7 +30,7 @@ public static partial class NativeBattleStare45Controller
     private static NativeBattleStare45Frame ReadCasterPosition45(NativeBattleStare45Frame frame, uint address, NativeBattleStare45Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleStare45PointStep bone = inputs.ReadBone502170(frame, task.ReadByte(0x2C), task.ReadWord(0x8A) == 0 ? 0x15 : 0x16, 0);
+        NativeBattleStare45PointStep bone = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner, task.ReadWord(0x8A) == 0 ? 0x15 : 0x16, 0);
         frame = WriteBytes(bone.Frame, address + 0x1C, bone.Point8, 6);
         NativeBattleActionMatrix rotation;
         (frame, rotation) = RotateProgramme45(frame, NativeBattleCuragaMatrices.Identity8DD770(), 'Y', Signed(Read(frame, address), 0x62));

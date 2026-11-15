@@ -4,14 +4,14 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleStatusCureItemResources(ushort Effect, NativeBattleGfAnimationSource Layout, uint Sound);
-public sealed record NativeBattleStatusCureItemExecution([property: JsonRequired] int ArenaOffset, [property: JsonRequired] uint CasterModelPointer)
+public sealed record NativeBattleStatusCureItemExecution([property: JsonRequired] int ArenaOffset)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleActionMatrix? Billboard { get; init; }
 }
 public sealed record NativeBattleStatusCureItemFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleStatusCureItemExecution Execution);
-public sealed record NativeBattleStatusCureItemStep(NativeBattleStatusCureItemFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
-public sealed record NativeBattleStatusCureItemInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<int, NativeBattleVector> ReadTargetAnchor, Func<int, short> ReadModelY, Func<NativeBattleStatusCureItemFrame, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattleStatusCureItemFrame> Draw)
+public sealed record NativeBattleStatusCureItemStep(NativeBattleStatusCureItemFrame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleStatusCureItemInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<BattleModelOwner, NativeBattleVector> ReadTargetAnchor, Func<BattleModelOwner, short> ReadModelY, Func<NativeBattleStatusCureItemFrame, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattleStatusCureItemFrame> Draw)
 {
     [JsonIgnore]
     public Func<NativeBattleStatusCureItemFrame, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePilotVisualIdentity?, NativeBattleStatusCureItemFrame>? DrawWithPilotIdentity { get; init; }
@@ -28,14 +28,14 @@ public static class NativeBattleStatusCureItemController
     public static NativeBattleStatusCureItemFrame Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleStatusCureItemResources resources, int arenaOffset)
     {
         NativeBattleStatusCureItemProfile profile = RequireResources(effect, resources);
-        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native status-cure item requires its original50AFC0 parameters.");
+        _ = effect.Parameters ?? throw new InvalidDataException("Native status-cure item requires its original50AFC0 parameters.");
         int textureOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.TextureGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native status-cure item requires its executed initializer TIM publication.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native status-cure item requires its retained texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native status-cure item requires its current571870 arena."), textureOffset);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 20, 1);
         (roots, int slot) = roots.Append(profile.RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleStatusCureItemExecution execution = new(arenaOffset, NativeBattleGraphicsModelAddress.Encode(parameters.Source));
+        NativeBattleStatusCureItemExecution execution = new(arenaOffset);
         return new(memory with { Textures = textures }, effect with { Pools = [roots], ReturnedDescriptor = profile.MainDescriptor, StatusCureItem = execution, DrawArenaOffset = null }, execution);
     }
 
@@ -56,7 +56,7 @@ public static class NativeBattleStatusCureItemController
             throw new InvalidDataException("Native status-cure item root pool differs from its physical contract.");
         }
         NativeBattleEffectTaskPool? children = frame.Effect.Pools.Length == 2 ? frame.Effect.Pools[1] : null;
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectTaskStep rootStep = roots.Advance((pool, slot) =>
         {
@@ -78,7 +78,7 @@ public static class NativeBattleStatusCureItemController
                 (children, int childSlot) = children.Append(profile.ChildCallback);
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
                 BattleContactCursor contact = header.FirstContact;
-                int target = inputs.Packets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner target = inputs.Packets.ReadContact(contact).Primary.Recipient;
                 NativeBattleVector anchor = inputs.ReadTargetAnchor(target);
                 NativeBattleModulePoolTask child = StoreAnchor(children.Slots[childSlot], anchor);
                 if (profile.Effect != 293)
@@ -128,8 +128,9 @@ public static class NativeBattleStatusCureItemController
                     child = StoreWorkspace(child, advance.Workspace);
                     if (advance.Remaining == 0)
                     {
-                        int first = inputs.Packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Native status-cure item completion lost its actual first contact pointer.");
-                        contacts.Add(first);
+                        BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header).FirstContact;
+                        BattleContactOccurrence occurrence = inputs.Packets.ReadContact(first).Occurrence ?? throw new InvalidDataException("Status-cure contact has no occurrence reference.");
+                        contacts.Add(occurrence);
                     }
                     return new(childPool.WriteSlot(childSlot, child), advance.Remaining == 0 ? 2 : 0);
                 });

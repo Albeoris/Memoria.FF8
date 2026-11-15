@@ -131,7 +131,7 @@ public static partial class NativeBattleTonberry90Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            int target = task.ReadByte(0x2D);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             if (inputs.ReadForeign?.Invoke(target) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
@@ -157,10 +157,10 @@ public static partial class NativeBattleTonberry90Controller
                     if (State().ReadWord(unchecked(Director() + 0x48)) == 1)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Tonberry target contact pointer is unknown.")) + unchecked((sbyte)task.ReadByte(0x2B)));
-                        _ = inputs.Packets.ReadContact(contact);
+                        BattleContactCursor contact = inputs.Packets.ReadHeader(header).FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence occurrence = inputs.Packets.ReadContact(contact).Occurrence ?? throw new InvalidDataException("Tonberry contact has no occurrence reference.");
                         Sync();
-                        Accept(inputs.ApplyContact(frame, contact));
+                        Accept(inputs.ApplyContact(frame, occurrence));
                         Store(address, Next(hierarchy.Read(address)));
                     }
                     break;

@@ -9,7 +9,7 @@ public static partial class NativeBattleOilBlast137Controller
     public static (NativeBattleOilBlast137Frame Frame, int Result) AdvanceMain(NativeBattleOilBlast137Frame frame, uint address, NativeBattleOilBlast137Resources resources, NativeBattleOilBlast137Inputs inputs)
     {
         int age = Word(Read(frame, address), 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
         uint morph = checked(frame.State.ReadDword(WorkingGlobal) + MorphOffset);
         if (unchecked((uint)(age - 18)) < 9)
         {
@@ -107,7 +107,8 @@ public static partial class NativeBattleOilBlast137Controller
         }
         if (age == 45)
         {
-            frame = inputs.Execute(frame, new NativeBattleOilBlast137Contact(Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Oil Blast requires its first captured contact.")));
+            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(Header(frame, inputs).FirstContact).Occurrence ?? throw new InvalidDataException("Oil Blast contact has no occurrence reference.");
+            frame = inputs.Execute(frame, new NativeBattleOilBlast137Contact(occurrence));
         }
         if (age >= 60)
         {

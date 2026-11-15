@@ -99,16 +99,16 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState SubmitNativeModelPackets502D40(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
+    private NativeBattleGraphicsState SubmitNativeModelPackets502D40(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
     {
         if (definition.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 6) != 2 || (model.Flags2!.Value & 0x84) != 0)
         {
             return graphics;
         }
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native502D40 requires its prior camera/register owner.");
-        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, model);
-        string? actorId = graphics.ActorIds[model.Index];
-        graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4121, true);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, owner);
+        string actorId = ReadGraphicsPresentationId(owner);
+        graphics = SubmitNativeShadowPackets5088A0(graphics, owner, model, projection, 4121, true);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native502D40 requires its original body skeleton/animation.");
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native502D40 requires its original body geometry DTO.");
         NativeBattleModelTextureBinding binding = model.BodyTextureSlots ?? throw new NotSupportedException("Native502D40 requires its executed body507400 relocation.");
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native502D40 requires its actual previously published camera matrix.");
         NativeBattleVector? actualCameraEye = EncounterPresentationCamera?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : null;
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(model, source, view, actualCameraEye);
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Index, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native502D40 requires its observed linked geometry presence.");
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
@@ -138,12 +138,12 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index, index)).Select(primitive => BindNativeModelMaterial(primitive, actorId, material)));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, index)).Select(primitive => BindNativeModelMaterial(primitive, actorId, material)));
             }
         }
         else if (bodyDraw)
         {
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x502D40, model.Index)).Select(primitive => BindNativeModelMaterial(primitive, actorId, material)));
+            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner)).Select(primitive => BindNativeModelMaterial(primitive, actorId, material)));
         }
         if (bodyDraw)
         {
@@ -155,7 +155,7 @@ public sealed partial class BattleSession
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedDrawGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view, actualCameraEye);
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
-                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotSceneIdentity(0x507BF0, model.Index));
+                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x507BF0, owner));
                 linkedPrimitives = linkedPrimitives.Select(primitive => BindNativeModelMaterial(primitive, actorId, material)).ToImmutableArray();
                 graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
             }
@@ -165,6 +165,15 @@ public sealed partial class BattleSession
 
     private NativeBattleCameraProjection? nativePilotSourceProjection;
     private NativeBattleCameraPose? nativePilotSourceCamera;
+
+    private NativeBattlePilotVisualIdentity? NativePilotModelIdentity(uint bank, BattleModelOwner owner, int primitive = 0)
+    {
+        if (NativeGraphics?.OriginalEffect is { } effect && !NativeBattleSmoothPresentation.Supports(effect.Binding.Effect))
+        {
+            return null;
+        }
+        return NativeBattlePilotVisualIdentity.ForModel(0, bank, owner, primitive);
+    }
 
     private NativeBattlePilotVisualIdentity? NativePilotSceneIdentity(uint bank, int slot, int primitive = 0)
     {

@@ -14,6 +14,14 @@ public sealed record NativeBattleMicroMissiles299State([property: JsonRequired] 
     public static NativeBattleMicroMissiles299State FromColdProcess() => new(NativeBattleEffectArena.Clear());
     public static NativeBattleMicroMissiles299State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, Length));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleMicroMissiles299State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public NativeBattleMicroMissiles299State WriteDword(uint address, uint value)
     {
         byte[] bytes = new byte[4];

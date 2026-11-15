@@ -103,7 +103,7 @@ public static partial class NativeBattleEffect140Controller
             for (int index = 0; index < count; index++)
             {
                 NativeBattleModulePoolTask current = Read(frame, address);
-                int actor = Actor(current.ReadDword(0x14 + index * 4));
+                BattleModelOwner actor = current.ReadExecutionReference<BattleExecutionReference.Model>(0x14 + 4 * index, 4).Owner;
                 frame = inputs.Execute(frame, new NativeBattleEffect140ModelFlags(actor, 0xF7FF, 0));
                 frame = inputs.Execute(frame, new NativeBattleEffect140ModelColor40(actor, current.ReadDword(0x3C + index * 4)));
             }
@@ -119,7 +119,7 @@ public static partial class NativeBattleEffect140Controller
         int count = Signed(task, 0xE);
         for (int index = 0; index < count; index++)
         {
-            int actor = Actor(Read(frame, address).ReadDword(0x14 + 4 * index));
+            BattleModelOwner actor = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x14 + 4 * index, 4).Owner;
             frame = inputs.Execute(frame, new NativeBattleEffect140ModelFlags(actor, ushort.MaxValue, 0x800));
             uint prior = inputs.ReadModel(frame, actor).Color40 ?? throw new NotSupportedException("Effect140 requires its current recipient color.");
             NativeBattleWeightedColorStep step = NativeBattleWeightedColor56CC00.Blend(frame.Memory, tint, prior, 0, unchecked((short)factor), prior, inputs.Colors);

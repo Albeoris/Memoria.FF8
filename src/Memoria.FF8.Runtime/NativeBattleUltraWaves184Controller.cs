@@ -25,7 +25,7 @@ public static class NativeBattleUltraWaves184Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int main) = children.Append(MainCallback);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
-        NativeBattleUltraWaves184State state = frame.State.SeedColdSources(resources).WriteDword(0x22BD108, inputs.Packets.ReadContact(first).Primary.Recipient).WriteDword(0x22BE8E0, 0x1D99A78).WriteDword(0x22BE8E4, Parameters(frame).Source).WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)tim));
+        NativeBattleUltraWaves184State state = frame.State.SeedColdSources(resources).WriteModelOwner(0x22BD108, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteDword(0x22BE8E0, 0x1D99A78).WriteModelOwner(0x22BE8E4, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)tim));
         for (int index = 0; index < 100; index++)
         {
             state = state with { Particles = state.Particles.Write(index * 24, new byte[2]) };
@@ -104,7 +104,7 @@ public static class NativeBattleUltraWaves184Controller
             return new(frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        byte caster = checked((byte)frame.State.ReadDword(0x22BE8E4));
+        BattleModelOwner caster = frame.State.ReadModelOwner(0x22BE8E4);
         if (age == 0)
         {
             frame = inputs.InitializeGrid(frame);

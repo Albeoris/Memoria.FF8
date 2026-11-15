@@ -16,7 +16,9 @@ public static partial class NativeBattleAcid170Controller
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0).WriteWord(14, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x23AF820, inputs.Packets.ReadContact(first).Primary.Recipient), 0x23B10E8, Parameters(frame).Source), 0x23B0FD0, 0x1D99A78);
+        BattleModelOwner recipient = inputs.Packets.ReadContact(first).Primary.Recipient;
+        NativeBattleAcid170State state = frame.State.WriteModelOperand(0x23AF820, recipient, inputs.Packets.ModelAliases).WriteModelOperand(0x23B10E8, Parameters(frame).Source, inputs.Packets.ModelAliases);
+        frame = Dword(frame with { State = state }, 0x23B0FD0, 0x1D99A78);
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x23AF848 + (uint)(index * 24), 0);

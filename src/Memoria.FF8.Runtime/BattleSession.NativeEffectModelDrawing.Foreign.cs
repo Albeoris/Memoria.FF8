@@ -2,12 +2,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeForeignEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift, uint? privateOrderingAddress, short? depthCue, bool drawShadow, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous)
+    private NativeBattleGraphicsState DrawNativeForeignEffectModel5099D0(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleForeignModelGeometry geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift, uint? privateOrderingAddress, short? depthCue, bool drawShadow, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (drawShadow)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, pilotScreenSpace, pilotContinuous, pilotIdentity);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, index, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, pilotScreenSpace, pilotContinuous, pilotIdentity);
         }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Host body drawing requires its retained packet memory.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Host body drawing requires its current renderer process.");
@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         }
         uint color = model.Color40 ?? throw new NotSupportedException("Host body drawing requires its retained model color.");
         process = gate.Process.PublishModelColor(color);
-        NativeBattlePilotVisualIdentity identity = pilotIdentity ?? NativePilotSceneIdentity(0x5099D0, index) ?? throw new NotSupportedException("Host body drawing requires its current visual occurrence.");
+        NativeBattlePilotVisualIdentity identity = pilotIdentity ?? NativePilotModelIdentity(0x5099D0, index) ?? throw new NotSupportedException("Host body drawing requires its current visual occurrence.");
         NativeBattleRawModelBodyDraw drawn = NativeBattleForeignModelDrawing.DrawBody(geometry, matrix, projection, color, rules.Rules.SummonColors ?? throw new NotSupportedException("Host body drawing requires its authenticated color arithmetic."), identity, bodyDepthShift, new(0, 0, 320, 216), 17, depthCue, pilotScreenSpace, pilotContinuous);
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Host body drawing requires its initialized ordering table.");
         if (privateOrderingAddress is uint table)

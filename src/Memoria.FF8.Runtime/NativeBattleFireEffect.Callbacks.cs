@@ -2,25 +2,24 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleFireInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeCrtRandomState CrtRandom, Func<int, NativeBattleModuleAnchor> ReadModelAnchor, Func<int, NativeBattleModelTransform> ReadTransform, ImmutableArray<NativeBattleModuleResource> Resources)
+public sealed record NativeBattleFireInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeCrtRandomState CrtRandom, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadModelAnchor, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, ImmutableArray<NativeBattleModuleResource> Resources)
 {
-    public Action<int>? ApplyContact { get; init; }
+    public Action<BattleContactOccurrence>? ApplyContact { get; init; }
 }
 public sealed record NativeBattleFireSound(uint DescriptorAddress, int Volume, int? Pan, NativeBattleModuleAnchor? Position);
-public sealed record NativeBattleFireStep(NativeBattleOriginalEffectState Effect, NativeCrtRandomState CrtRandomAfter, ImmutableArray<NativeBattleModuleDraw> Draws, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleFireSound> Sounds);
+public sealed record NativeBattleFireStep(NativeBattleOriginalEffectState Effect, NativeCrtRandomState CrtRandomAfter, ImmutableArray<NativeBattleModuleDraw> Draws, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleFireSound> Sounds);
 
 public static partial class NativeBattleFireEffect
 {
     public static NativeBattleFireStep Step(NativeBattleOriginalEffectState effect, NativeBattleFireInputs inputs)
     {
-        effect.Validate();
+        effect.Validate(inputs.Packets.Roster);
         inputs.Packets.Validate();
-        ValidatePacketRoster(effect, inputs.Packets);
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Fire callbacks require their50AFC0 parameters.");
-        ImmutableArray<int> completion = effect.FireModelCompletion ?? throw new NotSupportedException("Native Fire requires its retained DEE360 completion DWORDs.");
+        ImmutableDictionary<BattleModelOwner, int> completion = effect.FireModelCompletion ?? throw new NotSupportedException("Native Fire requires its retained DEE360 completion DWORDs.");
         NativeCrtRandomState random = inputs.CrtRandom;
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleFireSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleFireSound>();
         bool frozen = (inputs.GraphicsFlags & 0x201) != 0;
         NativeBattlePilotVisualIdentity? drawingIdentity = null;
@@ -48,33 +47,32 @@ public static partial class NativeBattleFireEffect
                     NativeBattleModulePoolTask next = pool.Slots[nextSlot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(sequence + 1))).WriteWord(34, 0);
                     if (!multiple)
                     {
-                        next = next.WriteWord(32, inputs.Packets.ReadContact(FirstContact(following)).Primary.Recipient);
+                        WriteSingleRecipient(next, inputs.Packets, following.FirstContact);
                     }
                     pool = Put(pool, nextSlot, next);
                 }
                 task = task.WriteWord(34, unchecked((ushort)(Word(task, 34) + 1)));
                 bool single = task.Callback == 0x62A380;
-                int model = single ? Word(task, 32) : -1;
-                if (single && ((uint)model >= (uint)completion.Length || effect.PresentationRoster is { } roster && roster.Rows[model] is null))
+                BattleModelOwner? model = single ? task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner : null;
+                if (model is { } reachedModel && !completion.ContainsKey(reachedModel))
                 {
-                    throw new InvalidDataException("Native62A380 target index lacks its bound graphics model.");
+                    throw new InvalidDataException("Native62A380 requires its bound graphics model completion state.");
                 }
-                if (single && completion[model] == 0 && phase == 0)
+                if (model is { } singleModel && phase == 0)
                 {
-                    return new(Put(pool, slot, task), 0);
-                }
-                if (single && phase == 0)
-                {
-                    completion = completion.SetItem(model, 0);
+                    if (completion[singleModel] == 0)
+                    {
+                        return new(Put(pool, slot, task), 0);
+                    }
+                    completion = completion.SetItem(singleModel, 0);
                 }
                 if (phase == 1)
                 {
                     NativeBattleActionHeaderSlot header = Header(sequence);
                     int count = single ? 4 : header.ReadContactCount();
-                    int first = single ? 0 : FirstContact(header);
                     for (int index = 0; index < count; index++)
                     {
-                        int target = single ? model : inputs.Packets.ReadContact(first + index).Primary.Recipient;
+                        BattleModelOwner target = model ?? inputs.Packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
                         NativeBattleModelTransform transform = inputs.ReadTransform(target);
                         NativeBattleModuleAnchor anchor = inputs.ReadModelAnchor(target);
                         int radius = Math.Min(1000, transform.Scale38 * 2800 >> 12);
@@ -100,23 +98,24 @@ public static partial class NativeBattleFireEffect
                 if (phase == 8)
                 {
                     NativeBattleActionHeaderSlot header = Header(sequence);
-                    int first = FirstContact(header);
                     int count = single ? 1 : header.ReadContactCount();
                     for (int index = 0; index < count; index++)
                     {
-                        contacts.Add(first + index);
-                        inputs.ApplyContact?.Invoke(first + index);
+                        NativeBattleContactPacket packet = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+                        BattleContactOccurrence contact = packet.Occurrence ?? throw new InvalidDataException("Native Fire requires its reached contact occurrence.");
+                        contacts.Add(contact);
+                        inputs.ApplyContact?.Invoke(contact);
                     }
                 }
                 if (phase == 6)
                 {
-                    sounds.Add(new(0xDEE130, 256, single ? null : 128, single ? inputs.ReadModelAnchor(model) : null));
+                    sounds.Add(new(0xDEE130, 256, single ? null : 128, model is { } soundModel ? inputs.ReadModelAnchor(soundModel) : null));
                 }
                 task = Add(task, 12, 1);
                 bool done = Word(task, 12) >= 22;
-                if (single && done)
+                if (model is { } completedModel && done)
                 {
-                    completion = completion.SetItem(model, 1);
+                    completion = completion.SetItem(completedModel, 1);
                 }
                 return new(Put(pool, slot, task), done ? 2 : 0);
             }
@@ -233,5 +232,4 @@ public static partial class NativeBattleFireEffect
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int amount) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + amount)));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModuleAnchor position) => task.WriteWord(16, unchecked((ushort)position.X)).WriteWord(18, unchecked((ushort)position.Y)).WriteWord(20, unchecked((ushort)position.Z)).WriteWord(22, unchecked((ushort)position.W));
     private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
-    private static int FirstContact(NativeBattleActionHeaderSlot header) => header.FirstContactIndex ?? throw new InvalidDataException("Native Fire requires its physical contact pointer.");
 }

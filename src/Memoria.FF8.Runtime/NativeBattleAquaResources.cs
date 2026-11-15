@@ -44,12 +44,12 @@ public sealed record NativeBattleAquaFrame(NativeBattleEffectMemory Memory, Nati
 
 public abstract record NativeBattleAquaOperation;
 public sealed record NativeBattleAquaPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleAquaOperation;
-public sealed record NativeBattleAquaContact(int Index) : NativeBattleAquaOperation;
+public sealed record NativeBattleAquaContact(BattleContactOccurrence Index) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaSound(NativeBattleModuleSound Sound) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaStage(short Depth, bool ClearColor) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaBindCaster(BattleModelOwner Actor) : NativeBattleAquaOperation;
-public sealed record NativeBattleAquaSequence(int Actor, byte Sequence) : NativeBattleAquaOperation;
-public sealed record NativeBattleAquaInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<int, short, int, NativeBattleModuleAnchor> ReadAnchor502170, Func<NativeBattleAquaFrame, NativeBattleAquaOperation, NativeBattleAquaFrame> Execute)
+public sealed record NativeBattleAquaSequence(BattleModelOwner Actor, byte Sequence) : NativeBattleAquaOperation;
+public sealed record NativeBattleAquaInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<BattleModelOwner, short, int, NativeBattleModuleAnchor> ReadAnchor502170, Func<NativeBattleAquaFrame, NativeBattleAquaOperation, NativeBattleAquaFrame> Execute)
 {
     public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
     public Func<BattleModelOwner, int>? ReadBoneCount { get; init; }

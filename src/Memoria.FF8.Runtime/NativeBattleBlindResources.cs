@@ -7,10 +7,10 @@ public sealed record NativeBattleBlindFrame(NativeBattleEffectMemory Memory, Nat
 public abstract record NativeBattleBlindOperation;
 public sealed record NativeBattleBlindPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindSound(NativeBattleModuleSound Sound) : NativeBattleBlindOperation;
-public sealed record NativeBattleBlindContact(int Index) : NativeBattleBlindOperation;
+public sealed record NativeBattleBlindContact(BattleContactOccurrence Index) : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindFade : NativeBattleBlindOperation;
 public sealed record NativeBattleBlindFlash(int Strength) : NativeBattleBlindOperation;
-public sealed record NativeBattleBlindInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBlindFrame, NativeBattleBlindOperation, NativeBattleBlindFrame> Execute)
+public sealed record NativeBattleBlindInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBlindFrame, NativeBattleBlindOperation, NativeBattleBlindFrame> Execute)
 {
     public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
@@ -64,10 +64,11 @@ public static class NativeBattleBlindController
             if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne() && pools[1].Slots.Any(task => (task.Flags & 1) == 0))
             {
                 BattleContactCursor contact = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
-                byte model = inputs.Packets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner model = inputs.Packets.ReadContact(contact).Primary.Recipient;
                 (pools[1], int slot) = pools[1].Append(0x6BE080);
                 NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x830);
-                target = target.WriteWord(14, checked((ushort)action)).WriteDword(24, NativeBattleGraphicsModelAddress.Encode(model));
+                target = target.WriteWord(14, checked((ushort)action));
+                target.WriteExecutionReference(24, 4, new BattleExecutionReference.Model(model), inputs.Packets.ModelAliases.EncodeAddress(model));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (16), 0x820);
                 target = StoreWorkspace(target, workspace.Initialize7016B0(resources.Layout, 0x820));
                 Store(1, slot, target);
@@ -84,7 +85,7 @@ public static class NativeBattleBlindController
                 NativeBattleModulePoolTask target = pool.Slots[slot];
                 int age = Word(target, 12);
                 flash = Math.Max(flash, FlashAt(age));
-                int actor = NativeBattleStatusMagicController.ModelIndex(target.ReadDword(24));
+                BattleModelOwner actor = target.ReadExecutionReference<BattleExecutionReference.Model>(24, 4).Owner;
                 if (age < 20)
                 {
                     NativeBattleVector position = inputs.ReadBone?.Invoke(actor, 0xF0, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF0, 0);
@@ -111,10 +112,11 @@ public static class NativeBattleBlindController
                 if (age == 32)
                 {
                     NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(target.ReadWord(14)));
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Blind result requires its original target list.");
+                    BattleContactCursor first = header.FirstContact;
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {
-                        current = inputs.Execute(current, new NativeBattleBlindContact(first + index));
+                        NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
+                        current = inputs.Execute(current, new NativeBattleBlindContact(packet.Occurrence ?? throw new InvalidDataException("Native Blind requires its reached contact occurrence.")));
                     }
                 }
                 bool complete = advanced.Remaining == 0;

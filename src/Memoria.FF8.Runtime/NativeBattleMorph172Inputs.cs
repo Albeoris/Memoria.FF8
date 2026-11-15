@@ -19,6 +19,6 @@ public abstract record NativeBattleMorph172Operation
 }
 public sealed record NativeBattleMorph172Sound5013A0(uint Packed, uint Flags, NativeBattleEffectArena Point8) : NativeBattleMorph172Operation;
 public sealed record NativeBattleMorph172ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleMorph172Operation;
-public sealed record NativeBattleMorph172DrawBody220(int Actor, uint TemporaryAddress) : NativeBattleMorph172Operation;
+public sealed record NativeBattleMorph172DrawBody220(BattleModelOwner Actor, uint TemporaryAddress) : NativeBattleMorph172Operation;
 public sealed record NativeBattleMorph172DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMorph172Operation;
 public sealed record NativeBattleMorph172DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMorph172Operation;

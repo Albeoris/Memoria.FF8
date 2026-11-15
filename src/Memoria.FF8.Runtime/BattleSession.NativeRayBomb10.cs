@@ -29,7 +29,7 @@ public sealed partial class BattleSession
 
         NativeBattleVector ReadCentre(BattleModelTargets targets)
         {
-            NativeBattleVector[] positions = targets.EnumerateRows().Select(actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Ray-Bomb requires actual target positions.")).Position28).ToArray();
+            NativeBattleVector[] positions = targets.Enumerate().Select(actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Ray-Bomb requires actual target positions.")).Position28).ToArray();
             return NativeBattleActionGeometryRules.TargetCenter(positions);
         }
 
@@ -39,14 +39,14 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleRayBomb10Model model:
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Actor, model.Model) };
                     return current;
                 case NativeBattleRayBomb10Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleRayBomb10Contact contact:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Ray-Bomb contact lost its process memory.") };
                 case NativeBattleRayBomb10Sound sound:

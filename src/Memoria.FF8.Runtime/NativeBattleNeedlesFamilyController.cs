@@ -11,7 +11,7 @@ public static class NativeBattleNeedlesFamilyController
         resources.Validate();
         NativeBattleNeedlesFamilyProfile profile = frame.State.Profile;
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Needles requires its captured action parameters.");
-        int contact = FirstContact(frame, inputs);
+        BattleContactCursor contact = FirstContact(frame, inputs);
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Needles requires its executed texture initializer.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(profile.RootDescriptor, profile.RootBank, 16, 1);
         (root, int rootSlot) = root.Append(profile.RootCallback);
@@ -19,7 +19,7 @@ public static class NativeBattleNeedlesFamilyController
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
         (children, int scheduler) = children.Append(profile.SchedulerCallback);
         children = children.WriteSlot(scheduler, children.Slots[scheduler].WriteWord(12, 0));
-        NativeBattleNeedlesFamilyState state = frame.State.WriteDword(profile.BaseAddress, inputs.Packets.ReadContact(contact).Primary.Recipient).WriteDword(profile.ParametersGlobal, 0x1D99A78).WriteDword(profile.CasterGlobal, parameters.Source).WriteDword(profile.InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)source));
+        NativeBattleNeedlesFamilyState state = frame.State.WriteModelOwner(profile.BaseAddress, inputs.Packets.ReadContact(contact).Primary.Recipient, inputs.Packets.ModelAliases).WriteDword(profile.ParametersGlobal, 0x1D99A78).WriteModelOwner(profile.CasterGlobal, parameters.Source, inputs.Packets.ModelAliases).WriteDword(profile.InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)source));
         for (int index = 0; index < NativeBattleNeedlesFamilyProfile.RecordCount; index++)
         {
             state = state.WriteDword(profile.NeedleBank + (uint)(index * 56), 0).WriteDword(profile.SparkBank + (uint)(index * 24), 0);
@@ -79,7 +79,7 @@ public static class NativeBattleNeedlesFamilyController
         short age = unchecked((short)task.ReadWord(12));
         if (age == 0)
         {
-            NativeBattleNeedlesFamilyPointStep anchor = inputs.ReadBone502170(frame, checked((byte)frame.State.ReadDword(profile.BaseAddress)), 0xF0, 4096);
+            NativeBattleNeedlesFamilyPointStep anchor = inputs.ReadBone502170(frame, frame.State.ReadModelOwner(profile.BaseAddress), 0xF0, 4096);
             frame = anchor.Frame;
             task = Vector(frame.Effect.Pools[1].Slots[slot], 0x10, anchor.Position);
             frame = Put(frame, 1, slot, task);
@@ -99,7 +99,8 @@ public static class NativeBattleNeedlesFamilyController
         }
         if (age == (profile.Effect == 177 ? 50 : 85))
         {
-            frame = inputs.Execute(frame, new NativeBattleNeedlesFamilyContact(FirstContact(frame, inputs)));
+            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("Needles contact has no occurrence reference.");
+            frame = inputs.Execute(frame, new NativeBattleNeedlesFamilyContact(occurrence));
         }
         if (age == birth)
         {
@@ -212,8 +213,8 @@ public static class NativeBattleNeedlesFamilyController
     private static NativeBattleNeedlesFamilyFrame Spawn(NativeBattleNeedlesFamilyFrame frame, uint temporary, NativeBattleNeedlesFamilyInputs inputs)
     {
         NativeBattleNeedlesFamilyProfile profile = frame.State.Profile;
-        byte caster = checked((byte)frame.State.ReadDword(profile.CasterGlobal));
-        byte target = checked((byte)frame.State.ReadDword(profile.BaseAddress));
+        BattleModelOwner caster = frame.State.ReadModelOwner(profile.CasterGlobal);
+        BattleModelOwner target = frame.State.ReadModelOwner(profile.BaseAddress);
         int casterBones = inputs.ReadBoneCount(caster);
         int targetBones = inputs.ReadBoneCount(target);
         if (casterBones == 0 || targetBones == 0)
@@ -301,7 +302,7 @@ public static class NativeBattleNeedlesFamilyController
         return task with { ResourceGeneration = allocated.Generation };
     }
 
-    private static int FirstContact(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyInputs inputs) => inputs.Packets.ReadHeader((frame.Effect.Parameters ?? throw new NotSupportedException("Needles requires its captured header.")).Header).FirstContactIndex ?? throw new NotSupportedException("Needles requires its actual current first contact.");
+    private static BattleContactCursor FirstContact(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyInputs inputs) => inputs.Packets.ReadHeader((frame.Effect.Parameters ?? throw new NotSupportedException("Needles requires its captured header.")).Header).FirstContact;
     private static void Require(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyResources resources)
     {
         NativeBattleNeedlesFamilyProfile profile = frame.State.Profile;

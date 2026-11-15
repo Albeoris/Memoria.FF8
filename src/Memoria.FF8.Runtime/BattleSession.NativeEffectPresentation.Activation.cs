@@ -63,7 +63,7 @@ public sealed partial class BattleSession
                 OriginalResource = resource,
                 ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = graphics.ActorModels.Set(index, current) }, index, variable),
                 WriteExternal = WriteNativeGraphicsSequenceVariable,
-                PlaySound = (current, cue) => PublishNativeSequenceSound(graphics, current, presentationNativeTargets![index].ActorId, cue),
+                PlaySound = (current, cue) => PublishNativeSequenceSound(graphics, index, current, presentationNativeTargets![index].ActorId, cue),
                 ApplyActionContacts = current => ApplyNativeActiveHeaderContacts(graphics with { ActorModels = graphics.ActorModels.Set(index, current) }).Models[index]
             });
             if (step.Cues.FirstOrDefault(cue => cue.Kind is not (NativeBattleSequenceCueKind.ActorSound or NativeBattleSequenceCueKind.SystemSound or NativeBattleSequenceCueKind.RestoreStanding)) is { } unsupported)

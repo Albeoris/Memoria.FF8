@@ -69,7 +69,7 @@ public static partial class NativeBattlePoisonGas171Controller
                 {
                     second = second with { X = unchecked((short)(second.X + second.X / 32 * taskAge)), Z = unchecked((short)(second.Z + second.Z / 10 * taskAge)) };
                 }
-                NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, checked((int)frame.State.ReadDword(0x23AF80C))).ReadMatrix();
+                NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, frame.State.ReadModelOwner(0x23AF80C)).ReadMatrix();
                 first = AddEmitter171(NativeBattleGfMatrices.RotateShort56C4F0(world, first), task);
                 second = AddEmitter171(NativeBattleGfMatrices.RotateShort56C4F0(world, second), task);
                 var normal = NativeBattleActionGeometryRules.NormalizeVector56BC50(second.X - first.X, second.Y - first.Y, second.Z - first.Z);

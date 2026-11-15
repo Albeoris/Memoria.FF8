@@ -3,11 +3,11 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleFiragaFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleFiragaOperation;
 public sealed record NativeBattleFiragaDraw(NativeBattleModulePoolTask Task) : NativeBattleFiragaOperation;
-public sealed record NativeBattleFiragaContact(int Contact) : NativeBattleFiragaOperation;
-public sealed record NativeBattleFiragaSfx(int Owner) : NativeBattleFiragaOperation;
+public sealed record NativeBattleFiragaContact(BattleContactOccurrence Contact) : NativeBattleFiragaOperation;
+public sealed record NativeBattleFiragaSfx(BattleModelOwner Owner) : NativeBattleFiragaOperation;
 public sealed record NativeBattleFiragaStage(short Value, uint ColorFlags) : NativeBattleFiragaOperation;
 public sealed record NativeBattleFiragaFlash(byte A, byte B, byte C, byte D) : NativeBattleFiragaOperation;
-public sealed record NativeBattleFiragaInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleFiraPosition> ReadPosition, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleFiragaFrame, NativeBattleFiragaOperation, NativeBattleFiragaFrame> Execute);
+public sealed record NativeBattleFiragaInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleFiraPosition> ReadPosition, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, Func<NativeBattleFiragaFrame, NativeBattleFiragaOperation, NativeBattleFiragaFrame> Execute);
 
 /// <summary>61BFE0/61CDA0's current task banks, three physical cache cells and reached61C0A0 lifecycle.</summary>
 public static class NativeBattleFiragaController
@@ -77,7 +77,7 @@ public static class NativeBattleFiragaController
                 {
                     throw new NotSupportedException("Native Firaga's current header sequence exceeds its three owned position cells.");
                 }
-                int owner = Word(task, 32);
+                BattleModelOwner owner = task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner;
                 if (phase == 0)
                 {
                     NativeBattleFiraPosition position = inputs.ReadPosition(owner);
@@ -143,8 +143,8 @@ public static class NativeBattleFiragaController
                 }
                 if (phase == 48)
                 {
-                    int first = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Firaga requires its actual header contact pointer.");
-                    frame = inputs.Execute(frame, new NativeBattleFiragaContact(first));
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(Header(sequence).FirstContact).Occurrence ?? throw new InvalidDataException("Native Firaga requires its reached contact occurrence.");
+                    frame = inputs.Execute(frame, new NativeBattleFiragaContact(contact));
                 }
                 if (phase == 44 && sequence + 1 <= last)
                 {
@@ -236,7 +236,10 @@ public static class NativeBattleFiragaController
     private static NativeBattleModulePoolTask InitializeController(NativeBattleModulePoolTask task, int sequence, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)
     {
         BattleContactCursor first = header.FirstContact;
-        return task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence)).WriteWord(32, packets.ReadContact(first).Primary.Recipient);
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
+        task = task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence));
+        task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 2));
+        return task;
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

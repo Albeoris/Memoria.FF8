@@ -42,10 +42,10 @@ public static class NativeBattleDiablos325Entry
         int sumX = 0;
         if (count != 0)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Diablos entry requires its current target-contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             for (int index = 0; index < count; index++)
             {
-                int target = packets.ReadContact(checked(first + index)).Primary.Recipient;
+                int target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                 if ((uint)target >= models.Length)
                 {
                     throw new NotSupportedException("Native Diablos target pointer leaves the seven physical actor rows.");

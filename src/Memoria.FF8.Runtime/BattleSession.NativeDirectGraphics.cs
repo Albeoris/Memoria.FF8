@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeDirectGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
         bool control = context.Callback == 0x50BDC0;
         ushort action = header.Action;
         if (phase == 0)
@@ -17,7 +17,7 @@ public sealed partial class BattleSession
                 context = graphics.ActionGraphics ?? context;
             }
             graphics = PrepareNativeOriginalEffectParameters(graphics, context);
-            memory = memory.SetDirectParameters(context.Callback, header.Command, action, header.ReadByte(6));
+            memory = memory.SetDirectParameters(context.Callback, header.Command, action, unchecked((byte)header.Effect));
             NativeEffectMemory = memory;
             NativeBattleOriginalEffectState current = graphics.OriginalEffect!;
             uint? descriptor = current.ReturnedDescriptor;

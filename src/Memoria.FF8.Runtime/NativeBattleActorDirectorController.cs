@@ -163,7 +163,7 @@ public static class NativeBattleActorDirectorController
             {
                 case 0x8AB4C0:
                     task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-                    int actor = task.ReadByte(0x2D);
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
                     NativeBattleSequenceState pose = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("The actor director target requires its actual pose.");
                     task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(pose.Pose ?? throw new NotSupportedException("The actor director target lost its pose selector."), pose.PoseFrame114 ?? throw new NotSupportedException("The actor director target lost its pose frame."), pose.PoseFlags109));
@@ -179,8 +179,9 @@ public static class NativeBattleActorDirectorController
                             if (current.State.Word(0x48) == 1)
                             {
                                 BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                                int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("The actor director contact requires its physical header.");
-                                Emit(ref state, new NativeBattleActorDirectorContact(first + unchecked((sbyte)task.ReadByte(0x2B))));
+                                BattleContactCursor first = inputs.Packets.ReadHeader(header).FirstContact;
+                                NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(unchecked((sbyte)task.ReadByte(0x2B))));
+                                Emit(ref state, new NativeBattleActorDirectorContact(packet.Occurrence ?? throw new InvalidDataException("The actor director requires its reached contact occurrence.")));
                                 state = Next(state, address);
                             }
                             break;
@@ -351,8 +352,8 @@ public static class NativeBattleActorDirectorController
 
     public static NativeBattleActorDirectorState InitializeShared(NativeBattleActorDirectorState retained, NativeBattleModulePoolTask task, NativeBattleActorDirectorInputs inputs)
     {
-        NativeBattleModelTransform actor = inputs.ReadModel(task.ReadByte(0x2C)).Transform ?? throw new NotSupportedException("The actor director requires its actual source position.");
-        NativeBattleModelTransform target = inputs.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("The actor director requires its actual target position.");
+        NativeBattleModelTransform actor = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Transform ?? throw new NotSupportedException("The actor director requires its actual source position.");
+        NativeBattleModelTransform target = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("The actor director requires its actual target position.");
         NativeBattleActorDirectorState state = retained with { Shared84 = new byte[84].ToImmutableArray() };
         state = state.WithWord(0, actor.Position28.X).WithWord(2, actor.Position28.Y).WithWord(4, actor.Position28.Z).WithWord(6, actor.Vertical34).WithWord(8, target.Position28.X).WithWord(10, target.Position28.Y).WithWord(12, target.Position28.Z).WithWord(14, target.Vertical34);
         short dx = unchecked((short)(target.Position28.X - actor.Position28.X));

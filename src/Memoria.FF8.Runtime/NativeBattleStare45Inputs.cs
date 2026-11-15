@@ -12,7 +12,7 @@ public abstract record NativeBattleStare45Operation;
 public sealed record NativeBattleStare45UpdateCaster8DC740(uint TaskAddress) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45UpdateTargetBounds8DC610_8DC870(uint TaskAddress) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleStare45Operation;
-public sealed record NativeBattleStare45Contact506690(int ContactIndex) : NativeBattleStare45Operation;
+public sealed record NativeBattleStare45Contact506690(BattleContactOccurrence Occurrence) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45StageColorDepth(int Group, short Depth) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45StageRgb(int Group, byte R, byte G, byte B) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45DrawMesh104(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleStare45Operation

@@ -10,7 +10,7 @@ public static partial class NativeBattleAdditional182Controller
             throw new NotSupportedException("Additional effect actor callback is unsupported.");
         }
         short age = Signed(task, 12);
-        int actor = Signed(task, 14);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
         int factor = unchecked(4096 - NativeBattleCameraMath.Sine((age << 10) / Signed(task, 0x18)));
         frame = inputs.Execute(frame, new NativeBattleAdditional182ActorAlpha(actor, unchecked((byte)((uint)unchecked(factor * 255) >> 12))));
         frame = inputs.Execute(frame, new NativeBattleAdditional182ActorRecolor(actor, factor));

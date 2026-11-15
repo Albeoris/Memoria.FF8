@@ -18,7 +18,7 @@ public static partial class NativeBattleSaliva138Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with
         {
-            State = frame.State.WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
+            State = frame.State.WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases),
             Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -70,8 +70,9 @@ public static partial class NativeBattleSaliva138Controller
             {
                 throw new NotSupportedException("Saliva exhausted its single main task.");
             }
-            uint target = ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient);
-            NativeBattleModulePoolTask task = Read(frame, child).WriteBytes(12, new byte[884]).WriteDword(16, target);
+            BattleModelOwner target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
+            NativeBattleModulePoolTask task = Read(frame, child).WriteBytes(12, new byte[884]);
+            task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), inputs.Packets.ModelAliases.EncodeAddress(target));
             NativeBattleSaliva138PointStep anchor = inputs.ReadBone502170(frame, target, 0xF1, 0);
             frame = anchor.Frame;
             task = Vector(task, 28, anchor.Point);

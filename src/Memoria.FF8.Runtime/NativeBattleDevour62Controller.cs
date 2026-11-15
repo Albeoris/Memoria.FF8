@@ -123,9 +123,9 @@ public static class NativeBattleDevour62Controller
             if (task.Callback == NativeBattleDevour62Profile.TargetCallback)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-                NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+                NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Devour target requires its pose.");
-                NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
+                NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Devour target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Devour target requires its pose frame."), sequence.PoseFlags109));
                 hierarchy = hierarchy.Write(address, task);
                 Target();
@@ -180,9 +180,8 @@ public static class NativeBattleDevour62Controller
                     case 2:
                         if (Word(task, 0x24) >= 83)
                         {
-                            int first = Header(task).FirstContactIndex ?? throw new NotSupportedException("Devour requires its actual contact pointer.");
-                            int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
-                            _ = inputs.Packets.ReadContact(contact);
+                            BattleContactCursor cursor = Header(task).FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2B)));
+                            BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Devour requires its reached contact occurrence.");
                             Execute(new NativeBattleDevour62Contact(contact));
                             hierarchy = Done(hierarchy, address);
                         }
@@ -329,7 +328,7 @@ public static class NativeBattleDevour62Controller
             {
                 if (FirstOutcome(task) != 8)
                 {
-                    int actor = task.ReadByte(0x2D);
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     Execute(new NativeBattleDevour62WriteActorFlags(actor, (ushort)(inputs.ReadModel(actor).Flags0 | 4)));
                 }
             }

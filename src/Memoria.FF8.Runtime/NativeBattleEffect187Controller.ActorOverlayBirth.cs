@@ -9,10 +9,10 @@ public static partial class NativeBattleEffect187Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect187 actor overlay requires its actual parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect187 actor overlay requires its actual contacts.");
+        BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            NativeBattleContactPacket contact = packets.ReadContact(first + index);
+            NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
             if ((contact.Primary.HitFlags3 & 4) != 0)
             {
                 continue;

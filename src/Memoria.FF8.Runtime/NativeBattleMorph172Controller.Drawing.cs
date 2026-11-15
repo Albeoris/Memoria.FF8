@@ -75,7 +75,7 @@ public static partial class NativeBattleMorph172Controller
             throw new NotSupportedException("Morph body callback is unsupported.");
         }
         short age = Signed(task, 12);
-        int actor = checked((int)frame.State.ReadDword(0x239D4F4));
+        BattleModelOwner actor = frame.State.ReadModelOwner(0x239D4F4);
         if (age < 56)
         {
             frame = inputs.Execute(frame, new NativeBattleMorph172ActorFlags(actor, 0, 4));

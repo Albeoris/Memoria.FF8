@@ -165,9 +165,9 @@ public static class NativeBattleDrawStock15Controller
         {
             NativeBattleModulePoolTask task = state.Read(address);
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Draw Stock target requires its current pose.");
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(sequence.Pose ?? throw new NotSupportedException("Draw Stock target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Draw Stock target requires its current pose frame."), sequence.PoseFlags109));
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -195,8 +195,9 @@ public static class NativeBattleDrawStock15Controller
                     if (Word(task, 0x24) >= 15)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Draw Stock requires its selected physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
-                        state = Execute(state, new NativeBattleDrawStock15Contact(contact));
+                        BattleContactCursor first = inputs.Packets.ReadHeader(header).FirstContact;
+                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first.Advance(unchecked((sbyte)task.ReadByte(0x2B))));
+                        state = Execute(state, new NativeBattleDrawStock15Contact(contact.Occurrence ?? throw new InvalidDataException("Draw Stock requires its reached contact occurrence.")));
                         task = state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1));
                         state = state.Write(address, task);
                         state = Next(state, address);

@@ -9,7 +9,7 @@ public static partial class NativeBattleAdditional181Controller
             return (frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        int caster = checked((int)frame.State.ReadDword(0x2307D84));
+        BattleModelOwner caster = frame.State.ReadModelOperand(0x2307D84);
         if (age == 0)
         {
             NativeBattleAdditional181PointStep bone = inputs.ReadBone502170(frame, caster, 0xF0, 2560);
@@ -53,8 +53,8 @@ public static partial class NativeBattleAdditional181Controller
         if (age == 38)
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Additional requires its captured first physical contact pointer.");
-            frame = inputs.Execute(frame, new NativeBattleAdditional181Contact506690(first));
+            BattleContactOccurrence contact = inputs.Packets.ReadContact(header.FirstContact).Occurrence ?? throw new InvalidDataException("Additional requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleAdditional181Contact506690(contact));
         }
         if (age == 1)
         {
@@ -64,7 +64,7 @@ public static partial class NativeBattleAdditional181Controller
         return (frame, Signed(Read(frame, address), 12) > 50 ? 2 : 0);
     }
 
-    private static NativeBattleAdditional181Frame SpawnEarlyParticles(NativeBattleAdditional181Frame frame, uint address, int caster, NativeBattleAdditional181Inputs inputs)
+    private static NativeBattleAdditional181Frame SpawnEarlyParticles(NativeBattleAdditional181Frame frame, uint address, BattleModelOwner caster, NativeBattleAdditional181Inputs inputs)
     {
         NativeBattleAdditional181PointStep bone = inputs.ReadBone502170(frame, caster, 0xF0, 2560);
         frame = bone.Frame;

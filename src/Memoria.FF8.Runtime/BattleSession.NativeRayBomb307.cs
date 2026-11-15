@@ -160,13 +160,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(sound.Value, sound.Flags, new(BinaryPrimitives.ReadInt16LittleEndian(coordinates), BinaryPrimitives.ReadInt16LittleEndian(coordinates.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(coordinates.AsSpan(4)), 0));
                     return Import(current);
                 case NativeBattleRayBomb307Contact contact:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
-                    if ((uint)contact.RelativeContactIndex >= header.ReadContactCount())
-                    {
-                        throw new InvalidDataException("Ray-Bomb selected a contact outside its captured action header.");
-                    }
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Ray-Bomb requires its captured physical contact pointer.");
-                    NativeBattleContactPacket selected = nativeActionPackets.ReadContact(checked(first + contact.RelativeContactIndex));
+                    NativeBattleContactPacket selected = nativeActionPackets.ReadContact(contact.Occurrence);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [selected] });
                     graphics = graphics with { PendingContacts = pending };

@@ -19,13 +19,13 @@ public static partial class NativeBattleMeltdownController
                 return false;
             }
             int age = S(task, 12);
-            int targetActor = S(task, 32);
-            int casterActor = S(task, 34);
+            BattleModelOwner targetActor = task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner;
+            BattleModelOwner casterActor = task.ReadExecutionReference<BattleExecutionReference.Model>(34, 2).Owner;
             if (age == 0)
             {
                 target = inputs.ReadAnchor?.Invoke(targetActor) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(targetActor), inputs.ReadPoseSource(targetActor));
                 caster = inputs.ReadAnchor?.Invoke(casterActor) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(casterActor), inputs.ReadPoseSource(casterActor));
-                if (target.Y > caster.Y && casterActor < 3)
+                if (target.Y > caster.Y && casterActor.Side == BattleSide.Allies)
                 {
                     target = target with { Y = caster.Y };
                 }
@@ -35,7 +35,12 @@ public static partial class NativeBattleMeltdownController
             if (age == 40)
             {
                 ushort previous = (ushort)(inputs.ReadModel(targetActor).Flags0 & 0xC);
-                Add(0x612540, (node, slot) => Set(slot, node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)action)).WriteWord(24, unchecked((ushort)targetActor)).WriteWord(26, previous)));
+                Add(0x612540, (node, slot) =>
+                {
+                    node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)action));
+                    node.WriteExecutionReference(24, 2, new BattleExecutionReference.Model(targetActor), inputs.Packets.ModelAliases.EncodeOperand(targetActor, 2));
+                    Set(slot, node.WriteWord(26, previous));
+                });
             }
             if (age == 1)
             {
@@ -56,17 +61,21 @@ public static partial class NativeBattleMeltdownController
             if (age == 80)
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(action));
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its original result target list.");
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    Emit(new NativeBattleMeltdownContact(first + index));
+                    NativeBattleContactPacket packet = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+                    Emit(new NativeBattleMeltdownContact(packet.Occurrence ?? throw new InvalidDataException("Native Meltdown requires its reached contact occurrence.")));
                 }
             }
             if (age == 85 && action + 1 <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(checked(action + 1)));
-                BattleContactCursor first = header.FirstContact;
-                Add(0x612190, (node, slot) => Set(slot, node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)(action + 1))).WriteWord(32, inputs.Packets.ReadContact(first).Primary.Recipient).WriteWord(34, header.Source)));
+                Add(0x612190, (node, slot) =>
+                {
+                    node.WriteWord(12, 0).WriteWord(14, unchecked((ushort)(action + 1)));
+                    WriteDirectorActors(node, header, inputs.Packets);
+                    Set(slot, node);
+                });
             }
             if (age == 1)
             {
@@ -79,7 +88,7 @@ public static partial class NativeBattleMeltdownController
         private bool Melt(ref NativeBattleModulePoolTask task)
         {
             int age = S(task, 12);
-            int actor = S(task, 24);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(24, 2).Owner;
             Emit(new NativeBattleMeltdownActor(actor, Anchor(Target(S(task, 14))), Anchor(0x2466630), age < 28 ? age * 81 : 0x305B - age * 364, age < 34) { PilotIdentity = drawingIdentity });
             if (inputs.DrawOnly)
             {

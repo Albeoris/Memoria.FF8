@@ -39,13 +39,13 @@ public static partial class NativeBattleMeltEye158Controller
     }
 
     public static NativeBattleMeltEye158Frame Random(NativeBattleMeltEye158Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
-    public static int Caster(NativeBattleMeltEye158Frame frame) => checked((int)frame.State.ReadDword(CasterGlobal));
+    public static BattleModelOwner Caster(NativeBattleMeltEye158Frame frame) => frame.State.ReadModelOwner(CasterGlobal);
     public static NativeBattleVector TaskVector(NativeBattleModulePoolTask task, int offset) => new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)));
     public static NativeBattleModulePoolTask PutTaskVector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
     public static NativeBattleVector ReadVector(NativeBattleMeltEye158Frame frame, uint address) => new(unchecked((short)frame.State.ReadWord(address)), unchecked((short)frame.State.ReadWord(address + 2)), unchecked((short)frame.State.ReadWord(address + 4)));
     public static NativeBattleMeltEye158Frame WriteVector(NativeBattleMeltEye158Frame frame, uint address, NativeBattleVector point) => frame with { State = frame.State.WriteWord(address, unchecked((ushort)point.X)).WriteWord(address + 2, unchecked((ushort)point.Y)).WriteWord(address + 4, unchecked((ushort)point.Z)) };
 
-    public static NativeBattleActionMatrix WorldRotation(NativeBattleMeltEye158Frame frame, int actor, NativeBattleMeltEye158Inputs inputs)
+    public static NativeBattleActionMatrix WorldRotation(NativeBattleMeltEye158Frame frame, BattleModelOwner actor, NativeBattleMeltEye158Inputs inputs)
     {
         NativeBattlePackedMatrix32 packed = inputs.ReadWorld(frame, actor);
         packed.Validate();

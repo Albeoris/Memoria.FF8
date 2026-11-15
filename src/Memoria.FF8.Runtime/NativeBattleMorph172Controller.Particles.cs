@@ -50,7 +50,7 @@ public static partial class NativeBattleMorph172Controller
         short age = Signed(task, 12);
         if (age >= 0 && age <= 42)
         {
-            int actor = checked((int)frame.State.ReadDword(0x239D4F4));
+            BattleModelOwner actor = frame.State.ReadModelOwner(0x239D4F4);
             int count = inputs.ReadBoneCount(frame, actor);
             if (count <= 0)
             {

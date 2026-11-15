@@ -17,6 +17,14 @@ public sealed record NativeBattleRayBomb307State([property: JsonRequired] Native
     public static NativeBattleRayBomb307State FromUnknown() => new(Unknown(GlobalsLength), Unknown(ParticlesLength));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Require(address, 2), 2));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleRayBomb307State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this;
+    }
+
     public NativeBattleRayBomb307State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

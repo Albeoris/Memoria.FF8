@@ -43,7 +43,11 @@ public static class NativeBattleChoco97Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters);
+        root.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(header.Source), packets.ModelAliases.EncodeOperand(header.Source, 1));
+        BattleModelOwner recipient = packets.ReadContact(contact).Primary.Recipient;
+        root.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 1));
+        root = root.WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -275,7 +279,7 @@ public static class NativeBattleChoco97Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Choco target bounds require its current sequence.");
@@ -308,10 +312,11 @@ public static class NativeBattleChoco97Controller
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
-                        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Choco contact pointer is missing.");
+                        BattleContactCursor firstContact = header.FirstContact;
                         for (int contact = 0; contact < header.ReadContactCount(); contact++)
                         {
-                            Emit(new NativeBattleChoco97Contact(checked(firstContact + contact)));
+                            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(firstContact.Advance(contact)).Occurrence ?? throw new InvalidDataException("Native Choco requires its reached contact occurrence.");
+                            Emit(new NativeBattleChoco97Contact(occurrence));
                         }
                         Store(address, Next(hierarchy.Read(address)));
                     }

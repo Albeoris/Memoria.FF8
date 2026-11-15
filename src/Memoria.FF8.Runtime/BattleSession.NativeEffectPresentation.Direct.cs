@@ -41,43 +41,42 @@ public sealed partial class BattleSession
 
     internal void ReinvokeEffectPresentationDirect(NativeBattleActionPacketsState packets, NativeBattleGraphicsModel source, NativeCrtRandomState randomState, NativeBattleEffectTextureState textures, NativeBattleEffectParameters parameters, ImmutableArray<NativeBattleForeignActor> foreignActors)
     {
-        if (presentationForeignActors is null || !EffectPresentationInvoked || presentationSourceIndex != 0 || source.Index != 0 || NativeGraphics?.PresentationRoster is not null)
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        BattleModelOwner sourceOwner = parameters.Source;
+        if (presentationForeignActors is null || !EffectPresentationInvoked || sourceOwner != presentationSourceOwner ||
+            !HasOriginalPresentationSourceSlot(graphics, sourceOwner) || !packets.ModelAliases.TryEncodeExact(sourceOwner, out byte operand) || operand != 0)
         {
-            throw new InvalidOperationException("A direct presentation phase requires its invoked retained presentation owner.");
+            throw new InvalidOperationException("A direct presentation phase requires its invoked retained presentation owner and original source alias.");
         }
         if (HasPendingEffectPresentationEvents || !ReadEffectPresentationServiceComplete())
         {
             throw new InvalidOperationException("A direct presentation phase waits for the previous native service and consumed output.");
         }
         packets.Validate();
-        if (parameters.Source != 0 || parameters.Header is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity)
-        {
-            throw new InvalidDataException("A direct presentation phase requires its bound source and physical header.");
-        }
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
         if (callback is not (0x50BDC0 or 0x50BEE0))
         {
             throw new NotSupportedException("The selected source header does not use a native retained direct service.");
         }
-        NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidDataException("The direct presentation phase lost its graphics owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its process owner.");
         NativeBattleOriginalEffectState selected = memory.RequireDirectEntry21DFEC4(graphics.OriginalEffect);
-        NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(0);
+        NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(sourceOwner);
         source = source with { ActiveResourceRow100 = loaded.ActiveResourceRow100, OriginalResourceRow104 = loaded.OriginalResourceRow104, TextureResourceIndex = loaded.TextureResourceIndex, LinkedTextureResourceIndex = loaded.LinkedTextureResourceIndex, BodyTextureSlots = loaded.BodyTextureSlots, LinkedTextureSlots = loaded.LinkedTextureSlots, TextureAllocationMask = loaded.TextureAllocationMask };
-        Dictionary<int, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
+        Dictionary<BattleModelOwner, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
         if (!foreignActors.IsDefault)
         {
-            presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
+            presentationForeignActors = foreignActors.ToDictionary(actor => actor.Owner);
         }
         nativeActionPackets = packets.ActivateHeader(parameters.Header);
+        presentationInvocationHeader = parameters.Header;
         nativeCrtRandom = randomState;
         NativeEffectMemory = memory with { Textures = textures };
-        NativeGraphics = graphics with { ActorModels = BindPresentationForeignModels(graphics.ActorModels.Set(0, source), roster: null, previous: previousForeignActors) };
+        NativeGraphics = graphics with { ActorModels = BindPresentationForeignModels(graphics.ActorModels.Set(sourceOwner, source), previousForeignActors) };
         InitializeEffectPresentationServices(parameters);
         graphics = NativeGraphics!;
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The direct presentation phase lost its normalized source service.");
-        if (context.Callback != callback || context.Actor != parameters.Source || context.TargetMask != parameters.TargetActors)
+        if (context.Callback != callback || context.Actor != parameters.Source || !context.TargetActors.Equals(parameters.TargetActors))
         {
             throw new InvalidDataException("The direct presentation parameters contradict their physical source header.");
         }
@@ -85,7 +84,7 @@ public sealed partial class BattleSession
         {
             graphics = PublishNativeOriginalEffectTitle(graphics, context);
         }
-        memory = (NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its initialized process owner.")).SetDirectParameters(callback, header.Command, header.Action, header.ReadByte(6));
+        memory = (NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its initialized process owner.")).SetDirectParameters(callback, header.Command, header.Action, unchecked((byte)header.Effect));
         NativeEffectMemory = memory;
         graphics = graphics with { OriginalEffect = selected with { Parameters = parameters with { Parameter80 = memory.Parameter80, Parameter81 = 0, Parameter82 = memory.Parameter82, Parameter83 = 0 } } };
         uint? returnedDescriptor = selected.ReturnedDescriptor;

@@ -2,16 +2,16 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, int Offset) ScheduleNativeSequenceParticle(NativeBattleGraphicsState graphics, int currentIndex, NativeBattleAuxiliaryProgram program, bool contact)
+    private (NativeBattleGraphicsState Graphics, int Offset) ScheduleNativeSequenceParticle(NativeBattleGraphicsState graphics, BattleModelOwner currentIndex, NativeBattleAuxiliaryProgram program, bool contact)
     {
-        int target = currentIndex;
+        BattleModelOwner target = currentIndex;
         bool suppressed = false;
         if (contact)
         {
             NativeBattleActionGraphicsState action = graphics.ActionGraphics ?? throw new NotSupportedException("Native B4 requires its50BF90 active contact owner.");
             NativeBattleContactHalf half = nativeActionPackets.ReadActiveContact().Primary;
             graphics = ApplyNativeSequenceCover5065B0(graphics, half);
-            suppressed = (half.HitFlags3 & 4) != 0;
+            suppressed = (half.HitFlags & 4) != 0;
             target = action.FirstTarget ?? throw new NotSupportedException("Native B4 requires its retained first target BYTE1D99A48.");
         }
         NativeBattleCameraPose camera = NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native505900 requires its actual camera eye and target WORDs.");
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState ApplyNativeNextSequenceContact(NativeBattleGraphicsState graphics)
     {
         NativeBattleContactPacket previous = nativeActionPackets.ReadActiveContact();
-        nativeActionPackets = nativeActionPackets.AdvanceContact50A690();
+        nativeActionPackets = nativeActionPackets.AdvanceContact();
         var pending = graphics.PendingContacts;
         graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [previous] });
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new NotSupportedException("Native50A690 requires its retained action globals.");
@@ -56,19 +56,19 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState ApplyNativeSequenceCover5065B0(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)
     {
-        if ((graphics.Flags & 0x10) != 0 || (half.HitFlags3 & 8) == 0)
+        if ((graphics.Flags & 0x10) != 0 || (half.HitFlags & 8) == 0)
         {
             return graphics;
         }
-        int target = half.Recipient;
-        int sourceIndex = half.HitFlags3 >> 6;
+        BattleModelOwner target = half.Recipient;
+        BattleModelOwner sourceIndex = half.CoverSource ?? throw new InvalidDataException("Native cover requires its selected source.");
         NativeBattleGraphicsModel source = graphics.ActorModels.Get(sourceIndex);
         NativeBattleGraphicsModel recipient = graphics.ActorModels.Get(target);
         NativeBattleVector position = source.Transform?.Initial20 ?? throw new NotSupportedException("Native Cover source requires its initial position WORD20/24.");
         NativeBattleModelTransform transform = recipient.Transform ?? throw new NotSupportedException("Native Cover recipient requires its current position WORD28/32.");
         recipient = recipient with { Transform = transform with { Position28 = transform.Position28 with { X = position.X, Z = position.Z } } };
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, recipient) };
-        graphics = SelectNativeHeaderSequence(graphics, checked((byte)target), 22);
+        graphics = SelectNativeHeaderSequence(graphics, target, 22);
         source = graphics.ActorModels.Get(sourceIndex);
         return graphics with { ActorModels = graphics.ActorModels.Set(sourceIndex, NativeBattleGraphicsModels.StartService(source, 9)) };
     }

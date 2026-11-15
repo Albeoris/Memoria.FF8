@@ -31,17 +31,15 @@ public sealed partial class BattleSession
         return prepared;
     }
 
-    private NativeBattleGraphicsState PrepareNativeActionGeometry(NativeBattleGraphicsState graphics, int actorIndex, BattleModelTargets sourceTargets, BattleModelTargets targetActors, ushort sourceMaskFlags = 0)
+    private NativeBattleGraphicsState PrepareNativeActionGeometry(NativeBattleGraphicsState graphics, BattleModelOwner source, BattleModelTargets sourceTargets, BattleModelTargets targetActors, bool sourceHasNonActorSelectors = false)
     {
-        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted50D300 requires an explicit presentation roster.");
-        RequireHostedActionModelBank(graphics, roster);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50D300 requires its retained camera alias memory.");
         NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
-        NativeBattleGraphicsState prepared = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, actorIndex, sourceTargets, targetActors, globals, ReadNativeGraphicsBone, sourceMaskFlags);
+        NativeBattleGraphicsState prepared = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, source, sourceTargets, targetActors, globals, ReadNativeGraphicsBone, sourceHasNonActorSelectors);
         NativeBattleCameraAliases aliases = memory.CameraAliases ?? NativeBattleCameraAliases.Unknown();
         NativeEffectMemory = memory with
         {
-            CameraAliases = aliases.Observe50D300(checked((byte)actorIndex), targetActors, roster),
+            CameraAliases = aliases.Observe50D300(source, targetActors, graphics.ActorModels, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)),
             ActionGeometryGlobals = globals.Observe50D300(prepared.ActionContext!)
         };
         return prepared;
@@ -73,9 +71,19 @@ public sealed partial class BattleSession
         {
             16 => unchecked((short)(context.UnadjustedDistance ?? throw new NotSupportedException("Native action distance requires its resolved physical target packet."))),
             17 => unchecked((short)(context.ContactDistance ?? throw new NotSupportedException("Native contact distance requires its retained50D300 global; migrate the needed older snapshot explicitly."))),
-            24 => context.Target ?? throw new NotSupportedException("Native current target requires its resolved physical graphics identity."),
+            24 => ReadNativeSequenceTargetOperand(graphics, context),
             26 => (short)((context.TargetYaw ?? throw new NotSupportedException("Native current target requires its50D300 rotation.")) & 4095),
             _ => throw new NotSupportedException($"Native model variable{variable:X2} requires its original graphics service owner.")
         };
     }
+
+    private static byte ReadNativeSequenceTargetOperand(NativeBattleGraphicsState graphics, NativeBattleActionGeometry context)
+    {
+        if (context.Target is not { } target || !graphics.NativeBindings.TryEncodeExactActor(target, graphics.ActorModels, out byte operand))
+        {
+            throw new NotSupportedException("Native target variable24 requires an original model alias.");
+        }
+        return operand;
+    }
+
 }

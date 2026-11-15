@@ -4,9 +4,9 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicPacketScope(string CommonBank, byte CommonBuffer, int CommonStart, int CommonEnd, uint PrivateStart, uint PrivateEnd);
-public sealed record NativeBattleCastingSequenceProvenance(NativeBattlePilotVisualIdentity Identity, uint ScriptAddress, uint FileAddress, int ScriptOffset, byte Actor, int Sequence, long ContextBirth);
+public sealed record NativeBattleCastingSequenceProvenance(NativeBattlePilotVisualIdentity Identity, uint ScriptAddress, uint FileAddress, int ScriptOffset, BattleModelOwner Actor, int Sequence, long ContextBirth);
 public sealed record NativeBattleCastingTaskProvenance(NativeBattlePilotVisualIdentity Identity, NativeBattlePilotVisualIdentity Parent, NativeBattleCastingSequenceProvenance Source, NativeBattleModuleKind Kind, uint? ResourceAddress = null);
-public sealed record NativeBattleCastingPresentationState(ImmutableDictionary<int, NativeBattleCastingSequenceProvenance> Sequences, ImmutableDictionary<int, NativeBattleCastingTaskProvenance> Tasks, long NextBirth = 1, long? Cinematic18Birth = null);
+public sealed record NativeBattleCastingPresentationState(ImmutableDictionary<BattleModelOwner, NativeBattleCastingSequenceProvenance> Sequences, ImmutableDictionary<int, NativeBattleCastingTaskProvenance> Tasks, long NextBirth = 1, long? Cinematic18Birth = null);
 
 public sealed partial record NativeBattleOriginalEffectState
 {
@@ -16,22 +16,22 @@ public sealed partial record NativeBattleOriginalEffectState
 
 public sealed partial record NativeBattleModuleState
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public NativeBattleCastingPresentationState? CastingPresentation { get; init; }
 
     internal NativeBattleModuleState EnterCinematic18Presentation()
     {
-        NativeBattleCastingPresentationState presentation = CastingPresentation ?? new(ImmutableDictionary<int, NativeBattleCastingSequenceProvenance>.Empty, ImmutableDictionary<int, NativeBattleCastingTaskProvenance>.Empty);
+        NativeBattleCastingPresentationState presentation = CastingPresentation ?? new(ImmutableDictionary<BattleModelOwner, NativeBattleCastingSequenceProvenance>.Empty, ImmutableDictionary<int, NativeBattleCastingTaskProvenance>.Empty);
         return this with { CastingPresentation = presentation with { Cinematic18Birth = presentation.NextBirth, NextBirth = checked(presentation.NextBirth + 1) } };
     }
 
-    internal NativeBattleModuleState BindCastingSequence(int actor, NativeBattleCastingSequenceProvenance? source)
+    internal NativeBattleModuleState BindCastingSequence(BattleModelOwner actor, NativeBattleCastingSequenceProvenance? source)
     {
         if (CastingPresentation is null && source is null)
         {
             return this;
         }
-        NativeBattleCastingPresentationState presentation = CastingPresentation ?? new(ImmutableDictionary<int, NativeBattleCastingSequenceProvenance>.Empty, ImmutableDictionary<int, NativeBattleCastingTaskProvenance>.Empty);
+        NativeBattleCastingPresentationState presentation = CastingPresentation ?? new(ImmutableDictionary<BattleModelOwner, NativeBattleCastingSequenceProvenance>.Empty, ImmutableDictionary<int, NativeBattleCastingTaskProvenance>.Empty);
         if (source is null)
         {
             return this with { CastingPresentation = presentation with { Sequences = presentation.Sequences.Remove(actor) } };
@@ -48,29 +48,29 @@ public sealed partial record NativeBattleModuleState
     internal NativeBattleModuleState RecordCastingTask(int slot, NativeBattleCastingSequenceProvenance source, NativeBattlePilotVisualIdentity parent)
     {
         NativeBattleModuleTask task = Slots[slot];
-        NativeBattleCastingPresentationState presentation = CastingPresentation ?? new(ImmutableDictionary<int, NativeBattleCastingSequenceProvenance>.Empty, ImmutableDictionary<int, NativeBattleCastingTaskProvenance>.Empty);
+        NativeBattleCastingPresentationState presentation = CastingPresentation ?? new(ImmutableDictionary<BattleModelOwner, NativeBattleCastingSequenceProvenance>.Empty, ImmutableDictionary<int, NativeBattleCastingTaskProvenance>.Empty);
         NativeBattlePilotVisualIdentity identity = new(18, DescriptorAddress, slot, presentation.NextBirth, parent.Primitive) { ResourceGeneration = unchecked(parent.Generation * 397 ^ parent.Bank ^ parent.Slot ^ parent.ResourceGeneration) };
         NativeBattleCastingTaskProvenance entry = new(identity, parent, source, task.Kind);
         return this with { CastingPresentation = presentation with { Tasks = presentation.Tasks.SetItem(slot, entry), NextBirth = checked(presentation.NextBirth + 1) }, Slots = Slots.SetItem(slot, task with { PilotIdentity = identity, PresentationOwnerEffect = 18 }) };
     }
 
-    internal NativeBattleModuleState RestoreCastingPresentation(Func<int, byte?> sequence)
+    internal NativeBattleModuleState RestoreCastingPresentation(Func<BattleModelOwner, byte?> sequence)
     {
         if (CastingPresentation is not { } presentation)
         {
             return this;
         }
-        if (presentation.Sequences.Count > 7 || presentation.Tasks.Count > TaskCapacity || presentation.NextBirth <= 0 || presentation.Cinematic18Birth is not > 0 || presentation.Cinematic18Birth >= presentation.NextBirth)
+        if (presentation.Tasks.Count > TaskCapacity || presentation.NextBirth <= 0 || presentation.Cinematic18Birth is not > 0 || presentation.Cinematic18Birth >= presentation.NextBirth)
         {
             throw new InvalidDataException("Casting presentation provenance exceeds its actual model/task owners.");
         }
-        foreach ((int actor, NativeBattleCastingSequenceProvenance source) in presentation.Sequences)
+        foreach ((BattleModelOwner actor, NativeBattleCastingSequenceProvenance source) in presentation.Sequences)
         {
             NativeBattleControl18Presentation.Validate(source);
             ValidateOrdinals(source);
             if (actor != source.Actor)
             {
-                throw new InvalidDataException("Casting sequence source disagrees with its physical model key.");
+                throw new InvalidDataException("Casting sequence source disagrees with its model owner.");
             }
             if (sequence(actor) != source.Sequence)
             {
@@ -156,7 +156,7 @@ internal static class NativeBattleControl18Presentation
 
     internal static void Validate(NativeBattleCastingSequenceProvenance source)
     {
-        if (source.Identity.Effect != 18 || source.Identity.Generation <= 0 || source.Identity.Bank < NativeBattleEffectNodeMemory.ArenaAddress || (long)source.Identity.Bank - NativeBattleEffectNodeMemory.ArenaAddress >= NativeBattleEffectArena.Length || source.Identity.Slot < 0 || source.Identity.Slot >= 128 || source.ContextBirth <= 0 || source.Actor >= 7 || source.Sequence < 0 || source.Sequence > 255 || source.ScriptOffset < 0 || source.ScriptAddress != unchecked(source.FileAddress + (uint)source.ScriptOffset))
+        if (source.Identity.Effect != 18 || source.Identity.Generation <= 0 || source.Identity.Bank < NativeBattleEffectNodeMemory.ArenaAddress || (long)source.Identity.Bank - NativeBattleEffectNodeMemory.ArenaAddress >= NativeBattleEffectArena.Length || source.Identity.Slot < 0 || source.Identity.Slot >= 128 || source.ContextBirth <= 0 || source.Actor is null || source.Sequence < 0 || source.Sequence > 255 || source.ScriptOffset < 0 || source.ScriptAddress != unchecked(source.FileAddress + (uint)source.ScriptOffset))
         {
             throw new InvalidDataException("Casting presentation requires its explicit executed cinematic sequence source.");
         }

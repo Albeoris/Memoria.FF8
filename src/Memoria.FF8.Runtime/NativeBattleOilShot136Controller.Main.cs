@@ -19,7 +19,7 @@ public static partial class NativeBattleOilShot136Controller
         {
             NativeBattleOilShot136PointStep mouth = inputs.ReadMouth(frame);
             frame = mouth.Frame;
-            short yaw = inputs.ReadModelYaw(frame.State.ReadDword(CasterGlobal));
+            short yaw = inputs.ReadModelYaw(frame.State.ReadModelOwner(CasterGlobal));
             NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler701310(new(-512, yaw, 0));
             (frame, uint child) = Append(frame, 2, MovingSpriteCallback);
             if (child != 0)
@@ -108,7 +108,8 @@ public static partial class NativeBattleOilShot136Controller
         }
         if (age == 62)
         {
-            frame = inputs.Execute(frame, new NativeBattleOilShot136Contact(0));
+            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact).Occurrence ?? throw new InvalidDataException("Oil Shot contact has no occurrence reference.");
+            frame = inputs.Execute(frame, new NativeBattleOilShot136Contact(occurrence));
         }
         if (age >= 82)
         {

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleAquaSpriteTask(NativeBattleModulePoolTask Task) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaWaveTask(NativeBattleModulePoolTask Task) : NativeBattleAquaOperation;
-public sealed record NativeBattleAquaAnchor(int Actor, short Selector, int Fraction) : NativeBattleAquaOperation;
+public sealed record NativeBattleAquaAnchor(BattleModelOwner Actor, short Selector, int Fraction) : NativeBattleAquaOperation;
 public sealed record NativeBattleAquaRotate(NativeBattleActionMatrix Matrix, char Axis, short Angle) : NativeBattleAquaOperation
 {
     public ushort? Padding18 { get; init; }

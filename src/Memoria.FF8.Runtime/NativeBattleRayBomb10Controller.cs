@@ -13,7 +13,7 @@ public static partial class NativeBattleRayBomb10Controller
         {
             throw new InvalidDataException("Native Ray-Bomb requires its original627E60 entry.");
         }
-        NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native627E60 requires its actual action parameters.");
+        _ = effect.Parameters ?? throw new NotSupportedException("Native627E60 requires its actual action parameters.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x24C91F8, 0x24C91D8, 0x10, 2);
         (root, int rootSlot) = root.Append(0x629730);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
@@ -25,12 +25,12 @@ public static partial class NativeBattleRayBomb10Controller
         {
             particles.AsSpan(index * 24, 4).Clear();
         }
-        retained = retained with { Particles = particles.ToImmutableArray(), Context = 0x1D99A78, Caster = parameters.Source, ArenaBase = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)memory.Cursor) };
+        retained = retained with { Particles = particles.ToImmutableArray(), Context = 0x1D99A78, ArenaBase = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)memory.Cursor) };
         int texture = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x24CA7F8)?.ArenaOffset ?? throw new NotSupportedException("Native627E60 requires its loaded24CA7F8 TIM pointer.");
         NativeBattleEffectTextureState textures = (memory.Textures ?? throw new NotSupportedException("Native627E60 requires its actual texture registration owner.")).Register5099A0(resources.Camera);
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native627E60 requires its loaded magic arena."), texture);
         memory = memory with { RayBomb10 = retained, Textures = textures };
-        return new(memory, effect with { Pools = [root, children], ReturnedDescriptor = 0x24C91F8 }, random);
+        return new(memory, effect with { Pools = [root, children], ReturnedDescriptor = 0x24C91F8, SavedActorTransforms = ImmutableDictionary<BattleModelOwner, NativeBattleSavedActorTransform>.Empty }, random);
     }
 
     public static NativeBattleRayBomb10Frame Advance629730(NativeBattleRayBomb10Frame frame, NativeBattleRayBomb10Resources resources, NativeBattleRayBomb10Inputs inputs)
@@ -105,7 +105,6 @@ public static partial class NativeBattleRayBomb10Controller
         public NativeBattleRayBomb10Frame Frame { get; set; } = frame;
         private NativeBattlePilotVisualIdentity visualIdentity;
         private readonly byte[] particles = (frame.Memory.RayBomb10 ?? throw new NotSupportedException("Native Ray-Bomb requires its retained particle globals.")).Particles.ToArray();
-        private readonly byte?[] saved = frame.Memory.RayBomb10!.SavedActors.ToArray();
         public NativeBattleRayBomb10State Process
         {
             get => Frame.Memory.RayBomb10 ?? throw new NotSupportedException("Native Ray-Bomb lost its process globals.");
@@ -131,7 +130,7 @@ public static partial class NativeBattleRayBomb10Controller
         }
         public NativeBattleRayBomb10Frame Flush()
         {
-            Process = Process with { Particles = particles.ToImmutableArray(), SavedActors = saved.ToImmutableArray() };
+            Process = Process with { Particles = particles.ToImmutableArray() };
             return Frame;
         }
         public int Restore(int index)

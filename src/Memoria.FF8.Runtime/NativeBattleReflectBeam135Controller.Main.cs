@@ -16,7 +16,7 @@ public static partial class NativeBattleReflectBeam135Controller
         int phase = age - 15;
         if ((uint)phase < 20)
         {
-            NativeBattleReflectBeam135PointStep bone = inputs.ReadBone(frame, Actor(frame.State.ReadDword(CasterGlobal)), 31, 4096);
+            NativeBattleReflectBeam135PointStep bone = inputs.ReadBone(frame, frame.State.ReadModelOwner(CasterGlobal), 31, 4096);
             frame = bone.Frame;
             NativeBattleVector mouth = bone.Position;
             (frame, uint temporaryAddress) = Allocate(frame, 88);
@@ -40,14 +40,14 @@ public static partial class NativeBattleReflectBeam135Controller
                     int selected = task.ReadByte(0x13);
                     if (selected < Signed(task, 14))
                     {
-                        uint modelAddress = task.ReadDword(0x14 + selected * 4);
-                        int actor = Actor(modelAddress);
+                        BattleModelOwner actor = ReadModelOwner(task, 0x14 + selected * 4);
                         if (endpointX < Transform(inputs.ReadModel(actor)).Position28.X)
                         {
                             (frame, uint targetAddress) = Append(frame, 3, TargetCallback);
                             if (targetAddress != 0)
                             {
-                                NativeBattleModulePoolTask target = Read(frame, targetAddress).WriteWord(12, 0).WriteWord(14, task.ReadByte(0x10 + selected)).WriteDword(16, modelAddress);
+                                NativeBattleModulePoolTask target = Read(frame, targetAddress).WriteWord(12, 0).WriteWord(14, task.ReadByte(0x10 + selected));
+                                WriteModelOwner(target, 16, actor, inputs.Packets.ModelAliases);
                                 frame = Write(frame, targetAddress, target);
                                 NativeBattleReflectBeam135PointStep anchor = inputs.ReadBone(frame, actor, 0xF1, 0);
                                 frame = anchor.Frame;

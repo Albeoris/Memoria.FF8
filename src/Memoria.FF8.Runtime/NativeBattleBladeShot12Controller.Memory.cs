@@ -191,12 +191,4 @@ public static partial class NativeBattleBladeShot12Controller
         return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = storage[0], ChildABankStorage = storage[1], ChildBBankStorage = storage[2] } };
     }
 
-    private static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new NotSupportedException("Blade Shot requires an actual physical model row.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
 }

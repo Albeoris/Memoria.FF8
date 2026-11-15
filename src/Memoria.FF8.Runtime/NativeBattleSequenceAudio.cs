@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The reached B5/B6/B8 routes through505AB0,5015A0 and501740.</summary>
 public static class NativeBattleSequenceAudio
 {
-    public static NativeBattleModuleSound? Resolve505AB0(NativeBattleSequenceSound sound, int modelIndex, byte? firstTarget, Func<int, byte> readModelId, Func<int, NativeBattleVector> readBone241, Func<NativeBattleVector, byte> readPan, ImmutableArray<uint>? actorSounds1120, byte? contactFlags3 = null)
+    public static NativeBattleModuleSound? Resolve505AB0(NativeBattleSequenceSound sound, BattleModelOwner modelOwner, BattleModelOwner? firstTarget, Func<BattleModelOwner, byte> readModelId, Func<BattleModelOwner, NativeBattleVector> readBone241, Func<NativeBattleVector, byte> readPan, ImmutableArray<uint>? actorSounds1120, byte? contactFlags3 = null)
     {
         ushort mask = sound.Attributes;
         if ((mask & 0xFF) != 0 || (sound.Flags & 2) == 0 && mask != 0)
@@ -20,7 +20,7 @@ public static class NativeBattleSequenceAudio
         }
         else
         {
-            int source = (sound.Flags & 1) != 0 ? firstTarget ?? throw new NotSupportedException("Native505AB0 target-relative sound requires the retained1D99AAA recipient.") : modelIndex;
+            BattleModelOwner source = (sound.Flags & 1) != 0 ? firstTarget ?? throw new NotSupportedException("Native505AB0 target-relative sound requires the retained1D99AAA recipient.") : modelOwner;
             NativeBattleVector position = readBone241(source);
             anchor = new(position.X, position.Y, position.Z, 0);
             pan = readPan(position);
@@ -29,7 +29,7 @@ public static class NativeBattleSequenceAudio
         uint effect = overridden ? 31u : sound.SoundId;
         if (sound.ActorSound && !overridden)
         {
-            byte identity = readModelId(modelIndex);
+            byte identity = readModelId(modelOwner);
             //5015A0 returns without calling46B2A0 when either original operand is outside its table.
             if (identity >= 160 || sound.SoundId >= 7)
             {

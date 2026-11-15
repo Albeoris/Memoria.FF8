@@ -180,17 +180,9 @@ public static partial class NativeBattleBoomerangSword304Controller
         for (int index = 1; index < frame.Effect.Pools.Length; index++)
         {
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
-            arena = NativeBattleEffectNodeContextMemory.Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), 0, arena, checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress)), pool.Stride * pool.Slots.Length);
+            arena = arena.CopyResourceSnapshot(NativeBattleEffectTaskMemory.CaptureBank(pool), 0, checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress)), pool.Stride * pool.Slots.Length);
         }
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[0]) } };
     }
 
-    private static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new NotSupportedException("Boomerang Sword requires an actual physical model row.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
 }

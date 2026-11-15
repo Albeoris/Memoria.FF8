@@ -64,7 +64,26 @@ public sealed partial class BattleRenderer
             covered = true;
         }
         ulong worldHash = PilotHash(pilotSubmission.WorldSignature, geometry.Identity.Bank);
-        worldHash = PilotHash(worldHash, unchecked((uint)geometry.Identity.Slot));
+        if (geometry.Identity.ModelOwner is { } modelOwner)
+        {
+            (uint domain, string identity) = modelOwner switch
+            {
+                BattlePartyActorModel owner => (1u, owner.Actor.ActorId),
+                BattleEnemyActorModel owner => (2u, owner.Actor.ActorId),
+                BattleForeignPartyModel owner => (3u, owner.Presentation.Key),
+                BattleForeignEnemyModel owner => (4u, owner.Presentation.Key),
+                _ => throw new InvalidDataException("The visual identity has an unsupported model owner.")
+            };
+            worldHash = PilotHash(worldHash, (ulong)domain);
+            foreach (char value in identity)
+            {
+                worldHash = PilotHash(worldHash, (ulong)value);
+            }
+        }
+        else
+        {
+            worldHash = PilotHash(worldHash, unchecked((uint)geometry.Identity.Slot));
+        }
         worldHash = PilotHash(worldHash, unchecked((ulong)geometry.Identity.Generation));
         worldHash = PilotHash(worldHash, unchecked((uint)geometry.Identity.Primitive));
         worldHash = PilotHash(worldHash, (uint)corner);

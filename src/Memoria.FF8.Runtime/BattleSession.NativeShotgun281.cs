@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Shotgun requires its actual process memory.");
         NativeBattleShotgun281Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Shotgun requires its actual CRT stream."), memory.Shotgun281 ?? throw new NotSupportedException("Shotgun requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Shotgun requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Shotgun requires its original arithmetic constants.");
-        NativeBattleShotgun281Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
+        NativeBattleShotgun281Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, owner) => graphics.ActorModels.Get(owner), (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleShotgun281Controller.Initialize(frame, resources, inputs) : NativeBattleShotgun281Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -23,19 +23,11 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Shotgun requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Shotgun requires its current projection.");
-        NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Shotgun requires its actual current skeleton.");
-        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Shotgun requires its actual published model world matrix.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner pointer) => NativeGraphicsPoseResource(graphics, pointer).PoseSource ?? throw new NotSupportedException("Shotgun requires its actual current skeleton.");
+        NativeBattleActionMatrix World(BattleModelOwner pointer) => graphics.ActorModels.Get(pointer).GeometryWorldMatrix ?? throw new NotSupportedException("Shotgun requires its actual published model world matrix.");
 
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Shotgun requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
 
-        short ReadParent(NativeBattleShotgun281Frame current, uint pointer, int bone)
+        short ReadParent(NativeBattleShotgun281Frame current, BattleModelOwner pointer, int bone)
         {
             NativeBattlePoseSource pose = PoseSource(pointer);
             if ((uint)bone >= pose.BoneCount)
@@ -45,7 +37,7 @@ public sealed partial class BattleSession
             return BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + bone * 48, 2));
         }
 
-        byte ReadAlias(NativeBattleShotgun281Frame current, uint pointer, int selector)
+        byte ReadAlias(NativeBattleShotgun281Frame current, BattleModelOwner pointer, int selector)
         {
             NativeBattlePoseSource pose = PoseSource(pointer);
             int offset = checked(selector - 0xEC);
@@ -56,9 +48,9 @@ public sealed partial class BattleSession
             return pose.Skeleton[offset];
         }
 
-        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleShotgun281Frame current, uint pointer, int bone)
+        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleShotgun281Frame current, BattleModelOwner pointer, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(pointer);
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
             if ((uint)bone >= matrices.Length)
             {
@@ -94,23 +86,23 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleShotgun281ComposeCaster5095B0 compose:
-                    int composedActor = Actor(compose.ModelAddress);
+                    BattleModelOwner composedActor = compose.Model;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(composedActor);
-                    _ = NativeBattleBodyBoneMatrices.Require(model, PoseSource(compose.ModelAddress));
-                    model = NativeBattleBodyBoneMatrices.Compose5095B0(model, World(compose.ModelAddress));
+                    _ = NativeBattleBodyBoneMatrices.Require(model, PoseSource(compose.Model));
+                    model = NativeBattleBodyBoneMatrices.Compose5095B0(model, World(compose.Model));
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(composedActor, model) };
                     return current;
                 case NativeBattleShotgun281RestoreCaster508C90 restore:
-                    int restoredActor = Actor(restore.ModelAddress);
+                    BattleModelOwner restoredActor = restore.Model;
                     NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Shotgun bone preparation requires its actual temporary memory."), 88);
-                    NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), PoseSource(restore.ModelAddress), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+                    NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), PoseSource(restore.Model), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
                     NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(restoredActor, prepared.Model) };
                     return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
                 case NativeBattleShotgun281Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleShotgun281Sound501330 sound:

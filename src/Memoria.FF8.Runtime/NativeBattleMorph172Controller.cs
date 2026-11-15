@@ -15,7 +15,7 @@ public static partial class NativeBattleMorph172Controller
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x239A8E0, inputs.Packets.ReadContact(first).Primary.Recipient), 0x239D4F4, Parameters(frame).Source), 0x239D4F0, 0x1D99A78);
+        frame = frame with { State = frame.State.WriteModelOwner(0x239A8E0, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteModelOwner(0x239D4F4, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(0x239D4F0, 0x1D99A78) };
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x239A908 + (uint)(index * 24), 0);

@@ -52,9 +52,8 @@ public static class NativeBattleAuraController
             if (action <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
             {
                 BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
-                byte model = inputs.Packets.ReadContact(first).Primary.Recipient;
-                uint pointer = NativeBattleGraphicsModelAddress.Encode(model);
-                if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 28))
+                BattleModelOwner model = inputs.Packets.ReadContact(first).Primary.Recipient;
+                if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == model && Word(task, 12) <= 28))
                 {
                     root = root.WriteWord(12, 0);
                 }
@@ -62,7 +61,8 @@ public static class NativeBattleAuraController
                 {
                     (pools[1], int slot) = pools[1].Append(0x6CDB60);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x354);
-                    task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, pointer);
+                    task = task.WriteWord(14, checked((ushort)action));
+                    task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(model), inputs.Packets.ModelAliases.EncodeAddress(model));
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x34C);
                     task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Layout, 0x34C));
                     Store(1, slot, task);
@@ -79,7 +79,7 @@ public static class NativeBattleAuraController
                 pools[1] = pool;
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 int age = Word(task, 12);
-                int actor = NativeBattleStatusMagicController.ModelIndex(task.ReadDword(16));
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
                 NativeBattleGraphicsModel model = inputs.ReadModel(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Aura requires target size and height WORD owners.");
                 if (age >= 0)
@@ -137,10 +137,11 @@ public static class NativeBattleAuraController
                 if (age == 29)
                 {
                     NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(task.ReadWord(14)));
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Aura result requires its actual action target list.");
+                    BattleContactCursor first = header.FirstContact;
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {
-                        current = inputs.Execute(current, new NativeBattleAuraContact(first + index));
+                        NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
+                        current = inputs.Execute(current, new NativeBattleAuraContact(packet.Occurrence ?? throw new InvalidDataException("Native Aura requires its reached contact occurrence.")));
                     }
                 }
                 bool complete = age >= 34;
@@ -182,7 +183,7 @@ public static class NativeBattleAuraController
 
         bool Available(int index) => pools[index].Slots.Any(task => (task.Flags & 1) == 0);
         void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index].WriteSlot(slot, task);
-        NativeBattleVector Bone(int actor) => inputs.ReadBone?.Invoke(actor, 0xF1, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
+        NativeBattleVector Bone(BattleModelOwner actor) => inputs.ReadBone?.Invoke(actor, 0xF1, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
         ushort Roll()
         {
             NativeCrtRandomState random = current.Random.Draw(out ushort value);

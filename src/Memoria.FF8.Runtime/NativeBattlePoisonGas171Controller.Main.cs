@@ -9,7 +9,7 @@ public static partial class NativeBattlePoisonGas171Controller
             return (frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        int caster = checked((int)frame.State.ReadDword(0x23AF80C));
+        BattleModelOwner caster = frame.State.ReadModelOwner(0x23AF80C);
         if (age == 1)
         {
             (frame, uint body) = RequireAppend(frame, 0x5DB620);
@@ -41,10 +41,10 @@ public static partial class NativeBattlePoisonGas171Controller
             int count = header.ReadContactCount();
             if (count != 0)
             {
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Poison Gas requires its captured physical contact pointer.");
+                BattleContactCursor first = header.FirstContact;
                 for (int ordinal = 0; ordinal < count; ordinal++)
                 {
-                    int actor = inputs.Packets.ReadContact(checked(first + ordinal)).Primary.Recipient;
+                    BattleModelOwner actor = inputs.Packets.ReadContact(first.Advance(ordinal)).Primary.Recipient;
                     (frame, uint child) = RequireAppend(frame, 0x5DC700);
                     frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, unchecked((ushort)(4u << (ordinal & 31)))));
                     NativeBattlePoisonGas171PointStep bone = inputs.ReadBone502170(frame, actor, 0xF1, 0);

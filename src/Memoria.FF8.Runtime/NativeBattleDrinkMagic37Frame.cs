@@ -30,7 +30,7 @@ public sealed record NativeBattleDrinkMagic37Frame(NativeBattleEffectMemory Memo
 
 public abstract record NativeBattleDrinkMagic37Operation;
 public sealed record NativeBattleDrinkMagic37Sound(NativeBattleModuleSound Sound) : NativeBattleDrinkMagic37Operation;
-public sealed record NativeBattleDrinkMagic37Contact(int Index) : NativeBattleDrinkMagic37Operation;
+public sealed record NativeBattleDrinkMagic37Contact(BattleContactOccurrence Index) : NativeBattleDrinkMagic37Operation;
 public sealed record NativeBattleDrinkMagic37GenericTask(uint Address) : NativeBattleDrinkMagic37Operation;
 public sealed record NativeBattleDrinkMagic37ParticleTask(uint Address) : NativeBattleDrinkMagic37Operation;
 public sealed record NativeBattleDrinkMagic37OrbTask(uint Address) : NativeBattleDrinkMagic37Operation;

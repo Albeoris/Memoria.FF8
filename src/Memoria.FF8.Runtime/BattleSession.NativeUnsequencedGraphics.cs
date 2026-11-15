@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         if (phase == 0)
         {
             graphics = PublishNativeOriginalEffectTitle(graphics, context);
-            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(nativeActionPackets.Headers[context.Header], 6), destination21DFEC0: true);
+            graphics = BeginNativeOriginalEffect(graphics, nativeActionPackets.ReadHeader(context.Header).Effect, destination21DFEC0: true);
             return (graphics, 1, false);
         }
         if (phase == 1)

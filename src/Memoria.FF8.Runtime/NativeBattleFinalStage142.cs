@@ -23,7 +23,7 @@ public enum NativeBattleFinalStage142CommandKind
 
 public sealed record NativeBattleFinalStage142Command(NativeBattleFinalStage142CommandKind Kind, int X = 0, int Y = 0, int Z = 0, uint PacketAddress = 0);
 public sealed record NativeBattleFinalStage142Step(NativeBattleFinalStage142State State, NativeBattleStageState Stage, short Phase, short CameraShake, ImmutableArray<NativeBattleFinalStage142Command> Commands);
-public sealed record NativeBattleFinalStage142Actor(int ActorIndex, byte Flags, byte Identity, int CurrentHp, int MaximumHp);
+public sealed record NativeBattleFinalStage142Actor(BattleEnemyModelOwner Owner, byte Flags, byte Identity, int CurrentHp, int MaximumHp);
 
 public static class NativeBattleFinalStage142
 {
@@ -36,13 +36,11 @@ public static class NativeBattleFinalStage142
 
     public static NativeBattleFinalStage142State Initialize0(NativeBattleFinalStage142State state) => state with { TargetRatio = 0x1000 };
 
-    public static NativeBattleFinalStage142State UpdateTarget3(NativeBattleFinalStage142State state, ImmutableArray<NativeBattleFinalStage142Actor> actors, BattleModelRoster? roster = null)
+    public static NativeBattleFinalStage142State UpdateTarget3(NativeBattleFinalStage142State state, ImmutableArray<NativeBattleFinalStage142Actor> actors)
     {
         state.Validate();
-        roster?.Validate();
-        foreach (int actor in roster?.EnemyRows ?? Enumerable.Range(3, 4))
+        foreach (NativeBattleFinalStage142Actor selected in actors)
         {
-            NativeBattleFinalStage142Actor selected = actors.SingleOrDefault(row => row.ActorIndex == actor) ?? throw new NotSupportedException(roster is null ? "Native final stage HP sampling requires each actual actor descriptor3 through6." : "Hosted final stage HP sampling requires each reached enemy descriptor.");
             if ((selected.Flags & 2) == 0 || selected.Identity != 0x8C)
             {
                 continue;

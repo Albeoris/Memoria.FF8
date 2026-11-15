@@ -112,9 +112,9 @@ public static partial class NativeBattleStare45Controller
                     NativeBattleModulePoolTask task = Read(frame, address);
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     NativeBattleActionHeaderSlot header = Header(frame, task, packets);
-                    int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Stare requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
-                    _ = packets.ReadContact(contact);
-                    frame = inputs.Execute(frame, new NativeBattleStare45Contact506690(contact));
+                    BattleContactCursor cursor = header.FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2B)));
+                    BattleContactOccurrence occurrence = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Stare contact has no occurrence reference.");
+                    frame = inputs.Execute(frame, new NativeBattleStare45Contact506690(occurrence));
                     frame = Next(frame, address);
                 }
                 break;
@@ -141,7 +141,7 @@ public static partial class NativeBattleStare45Controller
 
     private static NativeBattleStare45Frame InitializeEffect836A40(NativeBattleStare45Frame frame, uint address, NativeBattleStare45Inputs inputs)
     {
-        NativeBattleModelTransform transform = inputs.ReadModel(frame, Read(frame, address).ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Stare requires its current recipient packed model position.");
+        NativeBattleModelTransform transform = inputs.ReadModel(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Stare requires its current recipient packed model position.");
         NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, new byte[84]);
         view = NativeBattleEffectNodeContextMemory.Copy(PointView(transform.Position28, transform.Vertical34), 0, view, 8, 8);
         int angle = NativePrecision53.RoundInteger(Math.Atan2(transform.Position28.X, transform.Position28.Z) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
@@ -249,7 +249,7 @@ public static partial class NativeBattleStare45Controller
                     int length = checked((int)task.ReadDword(0x78));
                     NativeBattleGfAnimationWorkspace workspace = ProgrammeWorkspace(task, false).Initialize7016B0(resources.ReadProgramme(task.ReadDword(0x74)), length);
                     NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, workspace);
-                    NativeBattleStare45PointStep bone = inputs.ReadBone502170(frame, task.ReadByte(0x2D), 0xF1, 0);
+                    NativeBattleStare45PointStep bone = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 0xF1, 0);
                     frame = WriteBytes(bone.Frame, address + 0x1C, bone.Point8, 6);
                     frame = Write(frame, address, Read(frame, address).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x88, 0xFF80));
                     (frame, _) = DrawProgramme836EB0(frame, address, resources, inputs);

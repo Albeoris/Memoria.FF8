@@ -14,9 +14,9 @@ public sealed record NativeBattleThundaraGeometry(uint Helper, NativeBattleModul
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleThundaraFlash : NativeBattleThundaraOperation;
-public sealed record NativeBattleThundaraContact(int Contact) : NativeBattleThundaraOperation;
+public sealed record NativeBattleThundaraContact(BattleContactOccurrence Occurrence) : NativeBattleThundaraOperation;
 public sealed record NativeBattleThundaraSound(NativeBattleModuleAnchor Position) : NativeBattleThundaraOperation;
-public sealed record NativeBattleThundaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleThundaraFrame, NativeBattleThundaraOperation, NativeBattleThundaraFrame> Execute);
+public sealed record NativeBattleThundaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, Func<NativeBattleThundaraFrame, NativeBattleThundaraOperation, NativeBattleThundaraFrame> Execute);
 
 /// <summary>6DC2E0/6DC390's four retained banks and ordered primary, secondary and tertiary task contracts.</summary>
 public static class NativeBattleThundaraController
@@ -36,11 +36,7 @@ public static class NativeBattleThundaraController
         {
             throw new InvalidDataException("Native Thundara requires its original6DC2D0 entry and actual50AFC0 action parameters.");
         }
-        NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
-        if (effect.Parameters.Header + header.ReadRepeatModeMinusOne() >= NativeBattleActionPacketsState.HeaderCapacity)
-        {
-            throw new NotSupportedException("Native Thundara's explicit header list exceeds its physical action-header arena.");
-        }
+        _ = packets.ReadHeader(effect.Parameters.Header).ReadRepeatModeMinusOne();
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 20, 1);
         (main, int root) = main.Append(0x6DC390);
         main = Put(main, root, Clear(main.Slots[root], 8));
@@ -66,22 +62,14 @@ public static class NativeBattleThundaraController
             {
                 return new(Put(pool, slot, WriteByte(task, 15, 1)), 0);
             }
-            int? hostedActor = null;
-            uint? hostedAddress = null;
-            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 0 && ReadByte(task, 14) <= Header(0).ReadRepeatModeMinusOne())
-            {
-                hostedActor = ReadActor(ReadByte(task, 14));
-                hostedAddress = ActorAddress(hostedActor.Value, roster);
-            }
             bool alternate = ReadDword(task, 16) == 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = alternate ? 0x8000 : 0 } };
             task = WriteDword(task, 16, alternate ? 1u : 0u);
             int sequence = ReadByte(task, 14);
             if (Word(task, 12) == 0 && sequence <= Header(0).ReadRepeatModeMinusOne())
             {
-                int actor = hostedActor ?? ReadActor(sequence);
-                uint actorAddress = hostedAddress ?? ActorAddress(actor, null);
-                bool duplicate = primary.Slots.Any(current => (current.Flags & 1) != 0 && ReadDword(current, 16) == actorAddress && Word(current, 12) <= 26);
+                BattleModelOwner actor = ReadActor(sequence);
+                bool duplicate = primary.Slots.Any(current => (current.Flags & 1) != 0 && current.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == actor && Word(current, 12) <= 26);
                 if (duplicate)
                 {
                     task = task.WriteWord(12, 0);
@@ -90,7 +78,7 @@ public static class NativeBattleThundaraController
                 {
                     (primary, int child) = primary.Append(0x6DC510);
                     NativeBattleModulePoolTask next = Clear(primary.Slots[child], 96).WriteWord(14, (ushort)sequence);
-                    next = WriteDword(next, 16, actorAddress);
+                    next.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
                     next = Position(next, 20, inputs.ReadBone241(actor));
                     primary = Put(primary, child, next);
                     task = WriteByte(task, 14, unchecked((byte)(sequence + 1)));
@@ -115,7 +103,7 @@ public static class NativeBattleThundaraController
         });
         return frame with { Effect = frame.Effect with { Pools = [rootStep.Pool, primary, secondary, tertiary], ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : MainDescriptor } };
 
-        int ReadActor(int sequence)
+        BattleModelOwner ReadActor(int sequence)
         {
             BattleContactCursor contact = Header(sequence).FirstContact;
             return inputs.Packets.ReadContact(contact).Primary.Recipient;
@@ -129,7 +117,7 @@ public static class NativeBattleThundaraController
                 throw new NotSupportedException($"Native Thundara primary callback{task.Callback:X8} is unsupported.");
             }
             int phase = Word(task, 12);
-            int actor = ActorIndex(ReadDword(task, 16), inputs.Packets.PresentationRoster);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             NativeBattleModuleAnchor position = Anchor(task, 20);
             if (phase == 4)
             {
@@ -243,8 +231,8 @@ public static class NativeBattleThundaraController
             }
             if (phase == 26)
             {
-                int contact = Header(Word(task, 14)).FirstContactIndex ?? throw new NotSupportedException("Native Thundara contact requires its actual physical header pointer.");
-                Emit(new NativeBattleThundaraContact(contact));
+                NativeBattleContactPacket packet = inputs.Packets.ReadContact(Header(Word(task, 14)).FirstContact);
+                Emit(new NativeBattleThundaraContact(packet.Occurrence ?? throw new InvalidDataException("Native Thundara requires its reached contact occurrence.")));
             }
             if (phase >= 31)
             {
@@ -317,15 +305,6 @@ public static class NativeBattleThundaraController
         _ => throw new NotSupportedException("Native Thundara sprite requires an authored resource selector.")
     };
 
-    public static int ActorIndex(uint address, BattleModelRoster? roster = null)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster))
-        {
-            throw new NotSupportedException("Native Thundara requires an exact retained156-byte graphics row pointer.");
-        }
-        return row;
-    }
-
     public static int SecondarySlot(uint pointer)
     {
         long offset = (long)pointer - SecondaryBank;
@@ -334,15 +313,6 @@ public static class NativeBattleThundaraController
             throw new NotSupportedException("Native Thundara's retained pointer is outside its actual secondary task bank.");
         }
         return (int)(offset / 44);
-    }
-
-    private static uint ActorAddress(int actor, BattleModelRoster? roster)
-    {
-        if (!(roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)))
-        {
-            throw new NotSupportedException("Native Thundara's contact selects an unowned graphics row.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
     }
 
     private static NativeBattleModulePoolTask Clear(NativeBattleModulePoolTask task, int bytes)

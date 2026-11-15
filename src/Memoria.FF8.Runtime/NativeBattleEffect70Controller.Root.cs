@@ -107,8 +107,8 @@ public static partial class NativeBattleEffect70Controller
         short[] maximum = [-32767, -32767, -32767];
         for (int index = 0; index < count; index++)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect70 requires its actual current contact pointer.");
-            int actor = packets.ReadContact(checked(first + index)).Primary.Recipient;
+            BattleContactCursor first = header.FirstContact;
+            int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
             uint record = checked(main + 0x14 + (uint)index * 24);
             frame = PutDword(frame, record, PhysicalModelAddress(actor));
             frame = WriteBytes(frame, record + 4, (inputs.ReadPosition8 ?? throw new NotSupportedException("Effect70 requires actual packed model position bytes."))(frame, actor), 8);

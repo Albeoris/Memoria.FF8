@@ -10,13 +10,14 @@ public static partial class NativeBattleBladeShot12Controller
         {
             throw new InvalidDataException("Blade Shot activation requires its inactive physical bank owners.");
         }
-        uint caster = ModelAddress(Parameters(frame).Source);
-        frame = Dword(Dword(frame, 0x25460FC, 0x1D99A78), 0x2545EF0, caster);
+        BattleModelOwner caster = Parameters(frame).Source;
+        frame = Dword(frame, 0x25460FC, 0x1D99A78);
+        frame = frame with { State = frame.State.WriteModelAddress(0x2545EF0, caster, inputs.Packets.ModelAliases) };
         frame = inputs.Execute(frame, new NativeBattleBladeShot12ActorMeshMask124(caster, 0x80, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        uint target = ModelAddress(inputs.Packets.ReadContact(first).Primary.Recipient);
-        frame = Dword(frame, 0x25460F8, target);
+        BattleModelOwner target = inputs.Packets.ReadContact(first).Primary.Recipient;
+        frame = frame with { State = frame.State.WriteModelAddress(0x25460F8, target, inputs.Packets.ModelAliases) };
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Blade Shot requires its actual texture arena.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2545EF4)?.ArenaOffset ?? throw new NotSupportedException("Blade Shot requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Blade Shot requires its actual texture queue.");

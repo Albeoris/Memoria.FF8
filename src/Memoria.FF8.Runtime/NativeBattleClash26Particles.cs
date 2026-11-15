@@ -40,9 +40,9 @@ public static partial class NativeBattleClash26Controller
 
         private void Emitter(uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Models(), inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), inputs.ReadModel, inputs.ReadPoseSource);
+            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
+            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleDecodedPose pose = model.SequenceState?.DecodedPose ?? throw new NotSupportedException("Native8887F0 requires its target's actual current pose.");
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, pose);
             Write(address, task);

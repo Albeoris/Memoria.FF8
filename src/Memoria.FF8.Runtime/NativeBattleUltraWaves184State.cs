@@ -25,6 +25,14 @@ public sealed record NativeBattleUltraWaves184State([property: JsonRequired] Nat
         return this with { CapturePackets = NativeBattleEffectArena.Clear().Write(0, resources.CapturePackets.AsSpan()), ColdSourcesPending = false };
     }
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(RequireGlobal(address, 4), 4));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(RequireGlobal(address, 4), 4).Owner;
+
+    internal NativeBattleUltraWaves184State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(RequireGlobal(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this;
+    }
+
     public NativeBattleUltraWaves184State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

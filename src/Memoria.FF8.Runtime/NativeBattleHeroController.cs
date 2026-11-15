@@ -58,8 +58,8 @@ public static class NativeBattleHeroController
                 int ordinal = profile.Effect == 309 ? 0 : root.ReadByte(14);
                 if (profile.Effect == 309 || ordinal < header.ReadContactCount())
                 {
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("The Hero root requires its actual first physical contact pointer.");
-                    byte actor = checked((byte)inputs.Packets.ReadContact(checked(first + ordinal)).Primary.Recipient);
+                    BattleContactCursor first = header.FirstContact;
+                    BattleModelOwner actor = inputs.Packets.ReadContact(first.Advance(ordinal)).Primary.Recipient;
                     current = AppendChild(current, resources, inputs, actor);
                     initialized = true;
                     if (profile.Effect == 310)
@@ -148,7 +148,7 @@ public static class NativeBattleHeroController
         return frame with { Effect = effect, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [children]) };
     }
 
-    private static NativeBattleHeroFrame AppendChild(NativeBattleHeroFrame frame, NativeBattleHeroResources resources, NativeBattleHeroInputs inputs, byte actor)
+    private static NativeBattleHeroFrame AppendChild(NativeBattleHeroFrame frame, NativeBattleHeroResources resources, NativeBattleHeroInputs inputs, BattleModelOwner actor)
     {
         NativeBattleHeroProfile profile = frame.Profile;
         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
@@ -157,7 +157,7 @@ public static class NativeBattleHeroController
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)Radius(transform.Scale38)));
         if (profile.Effect == 310)
         {
-            task = task.WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor));
+            task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
         }
         frame = WithPool(frame, 1, Put(pool, slot, task));
         if (inputs.ObserveAnchor571400 is { } observe)
@@ -237,20 +237,22 @@ public static class NativeBattleHeroController
         if (age == 32)
         {
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header);
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("The Hero contact callback requires its actual physical contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             if (profile.Effect == 309)
             {
-                current = Execute(current, inputs, new NativeBattleHeroContact(first));
+                BattleContactOccurrence occurrence = inputs.Packets.ReadContact(first).Occurrence ?? throw new InvalidDataException("The Hero callback requires its reached contact occurrence.");
+                current = Execute(current, inputs, new NativeBattleHeroContact(occurrence));
             }
             else
             {
-                uint pointer = current.Effect.Pools[1].Slots[slot].ReadDword(16);
-                int actor = NativeBattleGraphicsModelAddress.Decode(pointer);
+                BattleModelOwner actor = current.Effect.Pools[1].Slots[slot].ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    if (inputs.Packets.ReadContact(first + index).Primary.Recipient == actor)
+                    NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
+                    if (packet.Primary.Recipient == actor)
                     {
-                        current = Execute(current, inputs, new NativeBattleHeroContact(first + index));
+                        BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("The Hero callback requires its reached contact occurrence.");
+                        current = Execute(current, inputs, new NativeBattleHeroContact(occurrence));
                     }
                 }
             }

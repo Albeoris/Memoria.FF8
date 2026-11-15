@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     /// <summary>50A9A0's eight physical descriptor phases, including its resourceWORD44 casting handshake.</summary>
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeCastingGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
         if (phase == 0)
         {
             (graphics, bool selected) = ChooseNativeActionCamera(graphics, context);
@@ -52,10 +52,10 @@ public sealed partial class BattleSession
             {
                 return (graphics, phase, false);
             }
-            if (context.CoverMask != 0)
+            if (!context.CoverActors.IsEmpty)
             {
-                graphics = graphics with { ActorModels = NativeBattleCastingCover.Enter(graphics.Models, context) };
-                graphics = SelectNativeHeaderSequence(graphics, NativeBattleCastingCover.Recipient(context.TargetMask), 27);
+                graphics = graphics with { ActorModels = NativeBattleCastingCover.Enter(graphics.ActorModels, context) };
+                graphics = SelectNativeHeaderSequence(graphics, NativeBattleCastingCover.Recipient(graphics.ActorModels, context.TargetActors), 27);
                 return (graphics, 5, false);
             }
             //50A9A0 advances to phase5, then falls directly into its non-cover entry call.
@@ -111,9 +111,9 @@ public sealed partial class BattleSession
             {
                 graphics = graphics with { Flags = graphics.Flags & ~0x10u };
             }
-            if (context.CoverMask != 0)
+            if (!context.CoverActors.IsEmpty)
             {
-                graphics = graphics with { ActorModels = NativeBattleCastingCover.Complete(graphics.Models, context) };
+                graphics = graphics with { ActorModels = NativeBattleCastingCover.Complete(graphics.ActorModels, context) };
             }
             return (graphics, 7, false);
         }
@@ -138,14 +138,14 @@ public sealed partial class BattleSession
         return next;
     }
 
-    private static ushort NativeCastingResourceFlags(NativeBattleGraphicsState graphics, byte actor) => graphics.ActorModels.Get(actor).ResourceFlags44 ?? throw new NotSupportedException("Native50A9A0 requires the actual casting resource WORD44.");
+    private static ushort NativeCastingResourceFlags(NativeBattleGraphicsState graphics, BattleModelOwner actor) => graphics.ActorModels.Get(actor).ResourceFlags44 ?? throw new NotSupportedException("Native50A9A0 requires the actual casting resource WORD44.");
 
-    private static NativeBattleGraphicsState SetNativeCastingResourceFlags(NativeBattleGraphicsState graphics, byte index, ushort flags)
+    private static NativeBattleGraphicsState SetNativeCastingResourceFlags(NativeBattleGraphicsState graphics, BattleModelOwner index, ushort flags)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
-        if (model.ReadLinkedModelIndex140() is not null)
+        if (model.ReadLinkedModel() is not null)
         {
-            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, index, flags, roster: graphics.PresentationRoster);
+            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelResourceFlags50B080, index, graphics.NativeBindings.CaptureAliases(graphics.ActorModels), flags);
             return allocated ? graphics with { Auxiliary = auxiliary } : throw new InvalidOperationException("Native50A9A0 cannot write its50B080 payload after auxiliary allocation fails.");
         }
         return graphics with { ActorModels = graphics.ActorModels.Set(index, model with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, index) | flags) }) };

@@ -4,7 +4,8 @@ public sealed partial class BattleSession
 {
     private BattleSession(BattleSession source)
     {
-        if (source.presentationForeignActors is null || source.NativeGraphics?.PresentationRoster is not null)
+        if (source.presentationForeignActors is null || source.NativeGraphics is not { } graphics ||
+            graphics.ActorModels.Owners.Any(owner => !graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out _)))
         {
             throw new InvalidOperationException("Only an isolated presentation owner can fork its capability probe.");
         }
@@ -64,11 +65,12 @@ public sealed partial class BattleSession
         presentationRibbonProjectionPolicy = source.presentationRibbonProjectionPolicy;
         presentationModelTransformPolicy = source.presentationModelTransformPolicy;
         presentationSourceResource = source.presentationSourceResource;
-        presentationSourceIndex = source.presentationSourceIndex;
+        presentationSourceOwner = source.presentationSourceOwner;
         presentationSourceModelId = source.presentationSourceModelId;
         presentationSourceIsParty = source.presentationSourceIsParty;
         presentationCameraMode = source.presentationCameraMode;
         presentationFirstAdvance = source.presentationFirstAdvance;
+        presentationInvocationHeader = source.presentationInvocationHeader;
         presentationHostCamera = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationHostCamera));
         presentationInitialStage = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationInitialStage));
         presentationInitialUi = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source.presentationInitialUi));

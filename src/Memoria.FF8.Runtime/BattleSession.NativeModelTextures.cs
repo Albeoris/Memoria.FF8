@@ -2,17 +2,18 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (string ActorId, NativeBattlePresentationTextureBank Bank)? SelectNativeModelTextureBank(int actorRow, NativeBattleEffectTextureState textures)
+    private (string ActorId, NativeBattlePresentationTextureBank Bank)? SelectNativeModelTextureBank(BattleModelOwner owner, NativeBattleEffectTextureState textures)
     {
-        if (NativeGraphics is not { PresentationRoster: { } roster } graphics || textures.PresentationTextures is null)
+        if (textures.PresentationTextures is null)
         {
             return null;
         }
-        if ((uint)actorRow >= graphics.ActorIds.Length || (uint)actorRow >= roster.ActorCount || roster.Rows[actorRow] is not { } actor || !StringComparer.Ordinal.Equals(actor.ActorId, graphics.ActorIds[actorRow]))
+        if (!RequireNativeGraphics().ActorModels.Contains(owner))
         {
-            throw new InvalidDataException("Model texture publication requires the actual bound presentation actor.");
+            throw new InvalidDataException("Model texture publication requires a bound model owner.");
         }
-        return (actor.ActorId, textures.RequirePresentationTexture(actor.ActorId));
+        string actorId = ReadGraphicsPresentationId(owner);
+        return (actorId, textures.RequirePresentationTexture(actorId));
     }
 
     private static NativeBattleEffectTextureState PublishNativeModelTextures(NativeBattleEffectTextureState textures, (string ActorId, NativeBattlePresentationTextureBank Bank)? material, NativeBattleEffectTextureState updated)

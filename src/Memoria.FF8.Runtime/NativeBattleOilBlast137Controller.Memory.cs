@@ -83,7 +83,6 @@ public static partial class NativeBattleOilBlast137Controller
     private static NativeBattleOilBlast137Frame Release(NativeBattleOilBlast137Frame frame, int bytes) => frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, bytes) };
     private static NativeBattleOilBlast137Frame WithPool(NativeBattleOilBlast137Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleOilBlast137Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Oil Blast requires its captured native parameters.");
-    private static uint ModelAddress(int actor) => NativeBattleGraphicsModelAddress.Encode(actor);
 
     private static NativeBattleActionMatrix Matrix(NativeBattleModulePoolTask task, int offset)
     {

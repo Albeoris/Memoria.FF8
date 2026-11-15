@@ -24,7 +24,7 @@ public static partial class NativeBattleSnipeLaser302Controller
             if (ordinal <= Header(frame, packets).ReadRepeatModeMinusOne())
             {
                 BattleContactCursor first = Header(frame, packets, ordinal).FirstContact;
-                uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
+                BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
                 for (int index = 0; index < 2; index++)
                 {
                     (frame, uint main) = Append(frame, 0x25076B8, 0x66CD40);
@@ -33,7 +33,9 @@ public static partial class NativeBattleSnipeLaser302Controller
                         continue;
                     }
                     frame = ClearDwords701200(frame, main + 12, 406);
-                    frame = Write(frame, main, Read(frame, main).WriteWord(12, unchecked((ushort)(-index * 2))).WriteWord(14, checked((ushort)index)).WriteDword(16, target));
+                    NativeBattleModulePoolTask targetTask = Read(frame, main).WriteWord(12, unchecked((ushort)(-index * 2))).WriteWord(14, checked((ushort)index));
+                    targetTask.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+                    frame = Write(frame, main, targetTask);
                     NativeBattleSnipeLaser302PointStep anchor = inputs.ReadBone502170(frame, target, 0xF1, 0);
                     frame = WriteBytes(anchor.Frame, main + 20, anchor.Point8, 6);
                     root = Read(frame, address);
@@ -90,7 +92,7 @@ public static partial class NativeBattleSnipeLaser302Controller
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, resources.SourcePoints16.AsSpan().Slice(pointOffset, 8));
         NativeBattleSnipeLaser302PointStep muzzle = ReadMuzzle66D880(frame, source, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), inputs);
         frame = muzzle.Frame;
-        NativeBattleSnipeLaser302PointStep targetAnchor = inputs.ReadAnchor571400(frame, task.ReadDword(16));
+        NativeBattleSnipeLaser302PointStep targetAnchor = inputs.ReadAnchor571400(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner);
         frame = targetAnchor.Frame;
         NativeBattleEffectArena target = targetAnchor.Point8;
         NativeBattleVector p = ReadPoint302(muzzle.Point8);
@@ -112,7 +114,7 @@ public static partial class NativeBattleSnipeLaser302Controller
             int phase = age - 15;
             int widthAngle;
             int cue;
-            NativeBattleModelTransform targetTransform = inputs.ReadModel(frame, task.ReadDword(16)).Transform ?? throw new NotSupportedException("Snipe Laser requires its current recipient fields.");
+            NativeBattleModelTransform targetTransform = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner).Transform ?? throw new NotSupportedException("Snipe Laser requires its current recipient fields.");
             int scale = targetTransform.Scale38;
             int yOffset;
             if ((uint)phase < 20)
@@ -148,7 +150,7 @@ public static partial class NativeBattleSnipeLaser302Controller
                 }
                 var beam = NativeBattleFunguarLaser277.Basis50CBA0(q.X - p.X, p.Y - q.Y, p.Z - q.Z);
                 int length = beam.Length;
-                short minimum = inputs.ReadModel(frame, task.ReadDword(16)).MinimumY146 ?? throw new NotSupportedException("Snipe Laser requires its current recipient minimum Y.");
+                short minimum = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner).MinimumY146 ?? throw new NotSupportedException("Snipe Laser requires its current recipient minimum Y.");
                 if (q.Y < minimum)
                 {
                     length = unchecked(length << 1);
@@ -205,7 +207,7 @@ public static partial class NativeBattleSnipeLaser302Controller
         {
             if ((uint)(age - 33) < 24)
             {
-                short minimum = inputs.ReadModel(frame, task.ReadDword(16)).MinimumY146 ?? throw new NotSupportedException("Snipe Laser requires its current recipient minimum Y.");
+                short minimum = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner).MinimumY146 ?? throw new NotSupportedException("Snipe Laser requires its current recipient minimum Y.");
                 NativeBattleActionMatrix world = reverse with { X = Signed(task, 20), Y = minimum / 2, Z = Signed(task, 24) };
                 frame = AdvanceWorkspace302(frame, address, 1204, 432, Caller302(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world), -128), resources, inputs);
             }
@@ -216,8 +218,8 @@ public static partial class NativeBattleSnipeLaser302Controller
             if (age == 43)
             {
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Snipe Laser requires its current first physical contact.");
-                frame = inputs.Execute(frame, new NativeBattleSnipeLaser302Contact506690(first));
+                BattleContactOccurrence occurrence = packets.ReadContact(Header(frame, packets).FirstContact).Occurrence ?? throw new InvalidDataException("Snipe Laser contact has no occurrence reference.");
+                frame = inputs.Execute(frame, new NativeBattleSnipeLaser302Contact506690(occurrence));
             }
         }
         if (age >= 50)

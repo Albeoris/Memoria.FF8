@@ -6,15 +6,15 @@ public abstract record NativeBattleMicroMissiles299Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleMicroMissiles299BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleMicroMissiles299Operation;
-public sealed record NativeBattleMicroMissiles299RingSequence(byte Actor, byte Sequence) : NativeBattleMicroMissiles299Operation;
+public sealed record NativeBattleMicroMissiles299RingSequence(BattleModelOwner Actor, byte Sequence) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299Sound(uint Value, int Pan) : NativeBattleMicroMissiles299Operation;
-public sealed record NativeBattleMicroMissiles299Contact(int Index) : NativeBattleMicroMissiles299Operation;
+public sealed record NativeBattleMicroMissiles299Contact(BattleContactOccurrence Occurrence) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299DrawSprite(uint TemporaryAddress, uint ResourceAddress, ushort Phase) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299DrawParticle(uint TaskAddress) : NativeBattleMicroMissiles299Operation;
 public sealed record NativeBattleMicroMissiles299AnchorStep(NativeBattleMicroMissiles299Frame Frame, NativeBattleModuleAnchor Anchor);
-public sealed record NativeBattleMicroMissiles299Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMicroMissiles299Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMicroMissiles299Frame, BattleModelOwner, NativeBattleMicroMissiles299AnchorStep> ReadAnchor571400, Func<NativeBattleMicroMissiles299Frame, NativeBattleMicroMissiles299Operation, NativeBattleMicroMissiles299Frame> Execute, Func<NativeBattleMicroMissiles299Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleMicroMissiles299Frame> EmitNode, NativeBattleSummonColors Colors)
+public sealed record NativeBattleMicroMissiles299Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMicroMissiles299Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMicroMissiles299Frame, BattleModelOwner, NativeBattleMicroMissiles299AnchorStep> ReadAnchor571400, Func<NativeBattleMicroMissiles299Frame, NativeBattleMicroMissiles299Operation, NativeBattleMicroMissiles299Frame> Execute, Func<NativeBattleMicroMissiles299Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleMicroMissiles299Frame> EmitNode, NativeBattleSummonColors Colors)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleMicroMissiles299Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattlePilotVisualIdentity, NativeBattleMicroMissiles299Frame>? EmitNodePresentation { get; init; }
-    public Func<int, NativeBattlePosedActor?>? ReadHostPose { get; init; }
+    public Func<BattleModelOwner, NativeBattlePosedActor?>? ReadHostPose { get; init; }
 }

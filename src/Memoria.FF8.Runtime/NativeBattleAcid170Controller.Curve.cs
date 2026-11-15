@@ -20,10 +20,10 @@ public static partial class NativeBattleAcid170Controller
         const uint curve = 0x23B0FD8;
         if (age == 0)
         {
-            int caster = checked((int)frame.State.ReadDword(0x23B10E8));
+            BattleModelOwner caster = frame.State.ReadModelOperand(0x23B10E8);
             NativeBattleAcid170PointStep start = inputs.ReadBone502170(frame, caster, 41, 1536);
             frame = start.Frame with { State = start.Frame.State.WriteView(curve, start.Point8, 6) };
-            NativeBattleAcid170PointStep target = inputs.ReadAnchor571400(frame, checked((int)frame.State.ReadDword(0x23AF820)));
+            NativeBattleAcid170PointStep target = inputs.ReadAnchor571400(frame, frame.State.ReadModelOperand(0x23AF820));
             frame = target.Frame with { State = target.Frame.State.WriteView(curve + 8, target.Point8, 8) };
             frame = DrawRandom(frame, out ushort x);
             frame = PutWord170(frame, curve + 8, Word170(frame, curve + 8) + x % 700 - 350);
@@ -91,12 +91,12 @@ public static partial class NativeBattleAcid170Controller
                 frame = Write(frame, child, born.WriteWord(28, scale).WriteWord(30, scale));
             }
             (frame, uint body) = Append170(frame, 0x5DE200);
-            NativeBattleAcid170PointStep point = inputs.ReadAnchor571400(frame, checked((int)frame.State.ReadDword(0x23AF820)));
+            NativeBattleAcid170PointStep point = inputs.ReadAnchor571400(frame, frame.State.ReadModelOperand(0x23AF820));
             frame = point.Frame;
             NativeBattleModulePoolTask bornBody = CopyTask(Read(frame, body), 16, point.Point8, 8).WriteWord(12, 0).WriteWord(14, task.ReadWord(14));
             ushort y = bornBody.ReadWord(18);
             bornBody = bornBody.WriteWord(18, bornBody.ReadWord(22)).WriteWord(22, y);
-            ushort saved = (ushort)(inputs.ReadModel(frame, checked((int)frame.State.ReadDword(0x23AF820))).Flags0 & 4);
+            ushort saved = (ushort)(inputs.ReadModel(frame, frame.State.ReadModelOperand(0x23AF820)).Flags0 & 4);
             frame = Write(frame, body, bornBody.WriteWord(26, saved));
         }
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));

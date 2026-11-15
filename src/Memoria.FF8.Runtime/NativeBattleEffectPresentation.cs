@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A host actor exposes the native services it can actually represent. Missing services reject the selected presentation.</summary>
-public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransform Transform, NativeBattleModuleAnchor Anchor, Func<byte, short, NativeBattleVector> ReadBone)
+public sealed record NativeBattleForeignActor(BattleModelOwner Owner, NativeBattleModelTransform Transform, NativeBattleModuleAnchor Anchor, Func<byte, short, NativeBattleVector> ReadBone)
 {
     public short Facing { get; init; }
     public int BoneCount { get; init; }
@@ -15,7 +15,7 @@ public sealed record NativeBattleForeignActor(int Index, NativeBattleModelTransf
     public bool CanReact { get; init; }
     public bool? AtStandingPose { get; init; }
     public uint? StatusFlags { get; init; }
-    public bool IsParty { get; init; }
+    public bool IsParty => Owner.Side == BattleSide.Allies;
 }
 
 public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
@@ -26,7 +26,6 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public NativeBattleEffectModelTransformPolicy ModelTransformPolicy { get; init; } = NativeBattleEffectModelTransformPolicy.NativeCallerScratch;
     public bool DeferInvocation { get; init; }
     public int? PartyActorCount { get; init; }
-    public bool? SourceIsParty { get; init; }
     public int? InitialMusicGain { get; init; }
     public NativeBattleSequenceProcessGlobals? SequenceGlobals { get; init; }
     public NativeBattleEffectCameraMode CameraMode { get; init; }
@@ -36,10 +35,16 @@ public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resou
     public ImmutableArray<NativeBattleEffectModelBinding> NativeTargets { get; init; } = [];
 }
 
-public sealed record NativeBattleEffectModelBinding(string ActorId, NativeBattleGraphicsModel Model, NativeBattleGraphicsResource Resource)
+public sealed record NativeBattleEffectModelBinding(BattleModelOwner Owner, NativeBattleGraphicsModel Model, NativeBattleGraphicsResource Resource)
 {
     public bool CanActivate { get; init; }
-    public bool? IsParty { get; init; }
+    public bool IsParty => Owner.Side == BattleSide.Allies;
+    public string ActorId => Owner switch
+    {
+        BattlePartyActorModel party => party.Actor.ActorId,
+        BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+        _ => throw new InvalidDataException("A native presentation binding requires a canonical battle actor.")
+    };
 }
 
 public enum NativeBattleEffectCameraMode
@@ -55,7 +60,7 @@ public enum NativeBattleForeignSequenceKind
     Standing
 }
 
-public sealed record NativeBattleForeignSequenceRequest(int ActorIndex, NativeBattleForeignSequenceKind Kind);
+public sealed record NativeBattleForeignSequenceRequest(BattleModelOwner Owner, NativeBattleForeignSequenceKind Kind);
 
 public sealed record NativeBattleEffectActivation(string ActorId, int PhysicalIndex);
 
@@ -113,8 +118,8 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public bool HidesHostStage => (IsGuardianFormCinematic || IsGuardianSummon) && Stage.Groups.All(group => (group.Flags & 2) == 0);
     public bool ReachedGuardianFormLanding => owner.ReachedHostedGuardianFormLanding();
     internal bool CanSkipGuardianFormFinisher => owner.CanSkipHostedGuardianFormFinisher;
-    public NativeBattleActionMatrix ForeignPlacement(int index) => owner.ReadEffectPresentationForeignPlacement(index);
-    public bool ReplacesHostModel(int index) => (Graphics.ActorModels.Get(index).Flags0 & 4) != 0;
+    public NativeBattleActionMatrix ForeignPlacement(BattleModelOwner model) => owner.ReadEffectPresentationForeignPlacement(model);
+    public bool ReplacesHostModel(BattleModelOwner model) => (Graphics.ActorModels.Get(model).Flags0 & 4) != 0;
     public ImmutableArray<NativeBattleArenaReplacement> ArenaReplacements => owner.presentationArena?.Replacements ?? [];
     public NativeBattleUiServices Ui => Graphics.UiServices ?? throw new InvalidDataException("Native presentation lost its UI owner.");
     public NativeBattleStageState Stage => owner.NativeStage ?? throw new InvalidDataException("Native presentation lost its arena owner.");
@@ -125,7 +130,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public void Dispose() => owner.ReleaseEffectPresentation();
 
     public void Invoke(NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures) => owner.InvokeEffectPresentation(source, random, textures);
-    public void PublishSource(NativeBattleGraphicsModel source) => owner.PublishEffectPresentationSource(source);
+    public void PublishSource(BattleModelOwner model, NativeBattleGraphicsModel source) => owner.PublishEffectPresentationSource(model, source);
     public void ReinvokeDirect(NativeBattleActionPacketsState packets, NativeBattleGraphicsModel source, NativeCrtRandomState random, NativeBattleEffectTextureState textures, NativeBattleEffectParameters parameters, ImmutableArray<NativeBattleForeignActor> foreignActors = default) => owner.ReinvokeEffectPresentationDirect(packets, source, random, textures, parameters, foreignActors);
     public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
     internal void ReplaceHostedContacts(IEnumerable<NativeBattleContactPacket> packets) => owner.ReplaceHostedEffectContacts(packets);

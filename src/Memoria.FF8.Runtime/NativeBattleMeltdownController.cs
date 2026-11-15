@@ -30,8 +30,8 @@ public static partial class NativeBattleMeltdownController
         NativeBattleEffectTaskPool tasks = NativeBattleEffectTaskPool.Initialize(0x24657E8, 0x24657F8, 0x24, 100);
         (tasks, int slot) = tasks.Append(0x612190);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        BattleContactCursor first = header.FirstContact;
-        NativeBattleModulePoolTask director = tasks.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.Recipient).WriteWord(34, header.Source);
+        NativeBattleModulePoolTask director = tasks.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
+        WriteDirectorActors(director, header, packets);
         tasks = tasks.WriteSlot(slot, director);
         return new(memory, effect with { Pools = [root, tasks], ReturnedDescriptor = RootDescriptor }, random);
     }
@@ -39,6 +39,13 @@ public static partial class NativeBattleMeltdownController
     public static NativeBattleMeltdownFrame Advance(NativeBattleMeltdownFrame frame, NativeBattleMeltdownResources resources, NativeBattleMeltdownInputs inputs)
     {
         return frame.Effect.ReturnedDescriptor == 0 ? frame : new Execution(frame, resources, inputs).Advance();
+    }
+
+    private static void WriteDirectorActors(NativeBattleModulePoolTask director, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)
+    {
+        BattleModelOwner target = packets.ReadContact(header.FirstContact).Primary.Recipient;
+        director.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeOperand(target, 2));
+        director.WriteExecutionReference(34, 2, new BattleExecutionReference.Model(header.Source), packets.ModelAliases.EncodeOperand(header.Source, 2));
     }
 
     private sealed partial class Execution

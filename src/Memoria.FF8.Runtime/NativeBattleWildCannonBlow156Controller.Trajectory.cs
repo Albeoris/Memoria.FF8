@@ -7,7 +7,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
         uint start = 0x23F03C8u + (uint)(index * 8);
         uint target = 0x23F0318u + (uint)(index * 8);
         uint points = 0x23F0298u + (uint)(index * 32);
-        int caster = checked((int)frame.State.ReadDword(0x23F03BC));
+        BattleModelOwner caster = frame.State.ReadModelOwner(0x23F03BC);
         NativeBattleWildCannonBlow156PointStep bone = inputs.ReadBone502170(frame, caster, (index & 1) == 0 ? 9 : 15, 4096);
         frame = bone.Frame with { State = bone.Frame.State.WriteView(start, bone.Point8, 6) };
         NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, caster);

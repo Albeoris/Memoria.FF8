@@ -48,13 +48,13 @@ public sealed partial class BattleSession
         return NativeBattleModelResourceView.Open(cpu, NativeFileStaging ?? throw new NotSupportedException("Native texture motion requires its current source scope."), new NativeBattleResourcePointer(source, null, extent), extent).Read(0, extent).ToImmutableArray();
     }
 
-    private void AdvanceNativeTextureMotion(NativeBattleGraphicsModel model, byte selector)
+    private void AdvanceNativeTextureMotion(BattleModelOwner owner, NativeBattleGraphicsModel model, byte selector)
     {
         ImmutableArray<byte> source = ReadNativeTextureMotion(model);
         NativeBattleTextureMotionStep step = NativeBattleTextureMotion.Advance50C950(source, model.TextureAllocationMask, selector, (model.Flags0 & 2) != 0);
         if (!step.Copies.IsEmpty && NativeEffectMemory?.Textures is { PresentationTextures: not null } textures)
         {
-            _ = SelectNativeModelTextureBank(model.Index, textures);
+            _ = SelectNativeModelTextureBank(owner, textures);
         }
         NativeBattleModelTextureCache cache = NativeModelTextureCache!;
         int index = model.TextureResourceIndex!.Value;
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
         }
         foreach (NativeBattleTextureCopy copy in step.Copies)
         {
-            EnqueueNativeTextureMotion(model, copy);
+            EnqueueNativeTextureMotion(owner, model, copy);
         }
     }
 
@@ -91,9 +91,9 @@ public sealed partial class BattleSession
         return graphics with { Auxiliary = graphics.Auxiliary.AppendTextureAnimation(index, sequence, program, graphics.PresentationRoster) };
     }
 
-    private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, int index, byte selector, int variant)
+    private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte selector, int variant)
     {
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         if ((model.Flags0 & 2) == 0)
         {
             return;
@@ -103,10 +103,10 @@ public sealed partial class BattleSession
         {
             return;
         }
-        EnqueueNativeTextureMotion(model, copy);
+        EnqueueNativeTextureMotion(owner, model, copy);
     }
 
-    private void EnqueueNativeTextureMotion(NativeBattleGraphicsModel model, NativeBattleTextureCopy copy)
+    private void EnqueueNativeTextureMotion(BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleTextureCopy copy)
     {
         if (model.BodyTextureSlots is null)
         {
@@ -114,7 +114,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50C780 requires its retained process texture owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native50C780 requires its explicit505EB0 queue and VRAM owner.");
-        var material = SelectNativeModelTextureBank(model.Index, textures);
+        var material = SelectNativeModelTextureBank(owner, textures);
         NativeBattleEffectTextureState updated = (material?.Bank.Textures ?? textures).EnqueueCopy505EB0(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
         NativeEffectMemory = memory with { Textures = PublishNativeModelTextures(textures, material, updated) };
     }

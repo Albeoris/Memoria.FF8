@@ -24,8 +24,10 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             frame = ClearDwords701200(frame, main + 12, 434);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleContactCursor first = Header(frame, packets).FirstContact;
-            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-            frame = Write(frame, main, Read(frame, main).WriteDword(16, target));
+            BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+            NativeBattleModulePoolTask task = Read(frame, main);
+            task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+            frame = Write(frame, main, task);
             int[] offsets = [28, 584, 928, 1604];
             int[] lengths = [556, 344, 676, 144];
             NativeBattleGfAnimationSource[] sources = [resources.ProgrammeA, resources.ProgrammeB, resources.ProgrammeC, resources.ProgrammeD];
@@ -44,7 +46,7 @@ public static partial class NativeBattleMiniPulseCannon286Controller
         }
         if (Read(frame, address).ReadByte(15) != 0)
         {
-            uint caster = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleMiniPulseCannon286ComposeCaster5095B0(caster));
             (frame, int mainSurvivors) = AdvancePool(frame, 2, resources, inputs);
             if (mainSurvivors == 0)
@@ -71,7 +73,7 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             int time = age - 25;
             NativeBattleMiniPulseCannon286MuzzleStep muzzle = UpdateMuzzle67A770(frame, resources, inputs);
             frame = muzzle.Frame;
-            uint caster = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
             short yaw = inputs.ReadModel(frame, caster).Rotation14 ?? throw new NotSupportedException("Mini Pulse Cannon requires its current caster yaw.");
             NativeBattleActionMatrix world = NativeBattlePandemona291Restoration.Rotation701270(yaw) with { X = muzzle.X, Y = muzzle.Y, Z = muzzle.Z };
             if (time < 8)
@@ -82,7 +84,8 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             caller = caller.Write(32, BitConverter.GetBytes((short)-32)).Write(34, BitConverter.GetBytes((ushort)0)).Write(36, BitConverter.GetBytes(ArenaAddress + ScratchOffset));
             frame = AdvanceProgramme286(frame, address, 28, 556, caller, resources, inputs);
             NativeBattleModulePoolTask task = Read(frame, address);
-            NativeBattleModelTransform target = inputs.ReadModel(frame, task.ReadDword(16)).Transform ?? throw new NotSupportedException("Mini Pulse Cannon requires its current recipient fields.");
+            BattleModelOwner recipient = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
+            NativeBattleModelTransform target = inputs.ReadModel(frame, recipient).Transform ?? throw new NotSupportedException("Mini Pulse Cannon requires its current recipient fields.");
             int x = unchecked(Signed(task, 20) - muzzle.X);
             int z = unchecked(muzzle.Z - Signed(task, 24));
             int y = time < 14 ? unchecked(muzzle.Y - target.Angle36) : time < 24 ? unchecked(unchecked((muzzle.Y - target.Angle36) * (24 - time)) / 10) : 0;
@@ -101,7 +104,8 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             NativeBattleActionMatrix world = NativeBattleFunguarLaser277.Basis50CBA0(unchecked(muzzle.X - Signed(task, 20)), 0, unchecked(Signed(task, 24) - muzzle.Z)).Matrix with { X = Signed(task, 20), Y = Signed(task, 22), Z = Signed(task, 24) };
             caller = Caller286(caller, NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world));
             frame = AdvanceProgramme286(frame, address, 928, 676, caller, resources, inputs);
-            NativeBattleModelTransform target = inputs.ReadModel(frame, task.ReadDword(16)).Transform ?? throw new NotSupportedException("Mini Pulse Cannon requires its current recipient fields.");
+            BattleModelOwner recipient = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
+            NativeBattleModelTransform target = inputs.ReadModel(frame, recipient).Transform ?? throw new NotSupportedException("Mini Pulse Cannon requires its current recipient fields.");
             world = world with { Y = target.Angle36 };
             caller = Caller286(caller, NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world)).Write(32, BitConverter.GetBytes((short)-128)).Write(34, BitConverter.GetBytes((ushort)0)).Write(36, BitConverter.GetBytes(ArenaAddress + ScratchOffset));
             frame = AdvanceProgramme286(frame, address, 1604, 144, caller, resources, inputs);
@@ -113,8 +117,8 @@ public static partial class NativeBattleMiniPulseCannon286Controller
         if (age == 53)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Mini Pulse Cannon requires its current first physical contact.");
-            frame = inputs.Execute(frame, new NativeBattleMiniPulseCannon286Contact506690(first));
+            NativeBattleContactPacket contact = packets.ReadContact(Header(frame, packets).FirstContact);
+            frame = inputs.Execute(frame, new NativeBattleMiniPulseCannon286Contact506690(contact.Occurrence ?? throw new InvalidDataException("Mini Pulse Cannon requires its reached contact occurrence.")));
         }
         NativeBattleModulePoolTask current = Read(frame, address);
         short next = unchecked((short)(current.ReadWord(12) + 1));

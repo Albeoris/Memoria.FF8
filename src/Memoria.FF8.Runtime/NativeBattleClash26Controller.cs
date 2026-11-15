@@ -11,7 +11,7 @@ public abstract record NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Packets(NativeBattleGfGeometryBatch Batch) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Sprite(NativeBattleModulePacketBatch Batch) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Sound(uint Sound) : NativeBattleClash26Operation;
-public sealed record NativeBattleClash26Contact(int Index) : NativeBattleClash26Operation;
+public sealed record NativeBattleClash26Contact(BattleContactOccurrence Index) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Sequence(byte Actor, int Sequence) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Model(NativeBattleGraphicsModel Model) : NativeBattleClash26Operation;
 public sealed record NativeBattleClash26Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleClash26Frame, NativeBattleClash26Operation, NativeBattleClash26Frame> Execute);

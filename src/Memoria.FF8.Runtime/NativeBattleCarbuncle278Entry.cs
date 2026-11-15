@@ -59,10 +59,10 @@ public static class NativeBattleCarbuncle278Entry
         int sum = 0;
         if (count != 0)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Carbuncle entry requires its current target-contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             for (int index = 0; index < count; index++)
             {
-                int target = packets.ReadContact(checked(first + index)).Primary.Recipient;
+                int target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                 NativeBattleGraphicsModel model = Model(target);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle centroid requires the selected actor's current signed position WORD20.");
                 sum = unchecked(sum + transform.Position28.Z);

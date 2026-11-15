@@ -90,7 +90,7 @@ public static partial class NativeBattleBladeShot12Controller
         short[] rotation = NativeBattleDuelSharedPackets.Rotation6D9510(Signed(task, 0x56)).ToArray();
         rotation[6] = unchecked((short)(unchecked(rotation[6] * (4096 + phase)) >> 12));
         rotation[8] = unchecked((short)(unchecked(rotation[8] * (4096 + phase)) >> 12));
-        NativeBattleGraphicsModel target = inputs.ReadModel(frame, frame.State.ReadDword(0x25460F8));
+        NativeBattleGraphicsModel target = inputs.ReadModel(frame, frame.State.ReadModelAddress(0x25460F8));
         NativeBattleActionMatrix local = new(rotation.ToImmutableArray(), unchecked(Signed(task, 0x4C) + (unchecked(rotation[2] * phase) >> 14)), (target.Transform ?? throw new NotSupportedException("Blade Shot transient mesh requires its current recipient transform.")).Angle36, unchecked(Signed(task, 0x50) + (unchecked(rotation[0] * phase) >> 14)), 4096);
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local), null));
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0x136401Cu)).Write(8, new byte[3]).Write(12, BitConverter.GetBytes(NativeBattleCameraMath.Sine(phase >> 2))).Write(0x1C, BitConverter.GetBytes(0xF0u));

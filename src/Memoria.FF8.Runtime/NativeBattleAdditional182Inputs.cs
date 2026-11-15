@@ -17,7 +17,7 @@ public abstract record NativeBattleAdditional182Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleAdditional182Sound5013A0(uint Packed, uint Flags, NativeBattleEffectArena Point8) : NativeBattleAdditional182Operation;
-public sealed record NativeBattleAdditional182ContactsAll(int HeaderIndex) : NativeBattleAdditional182Operation;
+public sealed record NativeBattleAdditional182ContactsAll(BattleActionHeaderReference HeaderIndex) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182ActorAlpha(BattleModelOwner Actor, byte Alpha) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182ActorRecolor(BattleModelOwner Actor, int Cue) : NativeBattleAdditional182Operation;

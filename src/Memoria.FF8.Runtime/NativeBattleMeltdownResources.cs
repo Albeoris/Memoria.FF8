@@ -22,15 +22,15 @@ public abstract record NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownSprite(NativeBattleModulePacketBatch Batch) : NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownSound(uint Sound) : NativeBattleMeltdownOperation;
-public sealed record NativeBattleMeltdownContact(int Index) : NativeBattleMeltdownOperation;
+public sealed record NativeBattleMeltdownContact(BattleContactOccurrence Occurrence) : NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownFade : NativeBattleMeltdownOperation;
-public sealed record NativeBattleMeltdownActor(int Actor, NativeBattleModuleAnchor Target, NativeBattleModuleAnchor Caster, int Strength, bool Draw) : NativeBattleMeltdownOperation
+public sealed record NativeBattleMeltdownActor(BattleModelOwner Actor, NativeBattleModuleAnchor Target, NativeBattleModuleAnchor Caster, int Strength, bool Draw) : NativeBattleMeltdownOperation
 {
     [JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleMeltdownFlags(int Actor, ushort Flags) : NativeBattleMeltdownOperation;
-public sealed record NativeBattleMeltdownInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, bool DrawOnly, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltdownFrame, NativeBattleMeltdownOperation, NativeBattleMeltdownFrame> Execute)
+public sealed record NativeBattleMeltdownFlags(BattleModelOwner Actor, ushort Flags) : NativeBattleMeltdownOperation;
+public sealed record NativeBattleMeltdownInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, bool DrawOnly, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltdownFrame, NativeBattleMeltdownOperation, NativeBattleMeltdownFrame> Execute)
 {
     public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
 }

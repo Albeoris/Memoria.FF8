@@ -67,6 +67,14 @@ public sealed record NativeBattleBreath129State([property: JsonRequired] NativeB
     }
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    internal BattleModelOwner ReadCaster() => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(NativeBattleBreath129Controller.CasterGlobal, 4), 4).Owner;
+
+    internal NativeBattleBreath129State WriteCaster(BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(NativeBattleBreath129Controller.CasterGlobal, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = globals };
+    }
+
     public NativeBattleBreath129State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

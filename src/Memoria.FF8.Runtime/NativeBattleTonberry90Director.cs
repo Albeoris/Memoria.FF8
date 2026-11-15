@@ -5,11 +5,11 @@ public sealed record NativeBattleTonberry90DirectorServices(NativeBattleActionPa
 
 public static class NativeBattleTonberry90Director
 {
-    public static NativeBattleTonberry90Frame Initialize762BB0(NativeBattleTonberry90Frame frame, uint childAddress, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, NativeBattleEffectActorGeometry?>? readForeign = null)
+    public static NativeBattleTonberry90Frame Initialize762BB0(NativeBattleTonberry90Frame frame, uint childAddress, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? readForeign = null)
     {
         uint director = Director(frame);
         frame = Put(frame, director, new byte[0x54]);
-        int target = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(childAddress).ReadByte(0x2D);
+        BattleModelOwner target = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(childAddress).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         NativeBattleGraphicsModel model = readModel(target);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Tonberry boot requires its current target transform.");
         NativeBattleVector point = (model.Flags0 & 2) == 0 ? transform.Position28 : NativeBattleEffectModelHelpers.ReadSemanticAnchor(readForeign?.Invoke(target), 0xF0) ?? NativeBattlePoseMatrices.ReadBone(model, readPoseSource(target), 0xF0, 0);

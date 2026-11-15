@@ -82,6 +82,51 @@ public sealed class NativeBattleTypedContactCursorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => packets.ReadContact(slot.FirstContact.Advance(300)));
     }
 
+    [Fact]
+    public void ReplacementKeepsContactExtentAndCompletionWritesOnlyItsCommandByte()
+    {
+        NativeBattleActionPacketsState packets = Create();
+        (packets, BattleActionHeaderReference header) = packets.Prepare(Preparation);
+        (packets, BattleContactOccurrence first) = packets.AppendContact(Contact);
+        (packets, _) = packets.Publish(1);
+        packets = packets.ActivateHeader(header);
+        NativeBattleContactPacket replacement = Contact with { Primary = Contact.Primary with { Amount6 = 81 }, Secondary = new(Source, 0, 0, 0, 0, 81, 0), Occurrence = first };
+        NativeBattleActionPacketsState updated = packets.ReplaceHeaderContacts(header, [replacement]);
+
+        Assert.Equal(replacement, updated.ReadContact(first));
+        Assert.Equal(first, updated.ReadContact(first).Occurrence);
+        Assert.Equal(Contact, packets.ReadContact(first));
+        Assert.Equal(packets.ReadHeader(header), updated.ReadHeader(header));
+        Assert.Equal(packets.ActiveContact, updated.ActiveContact);
+        Assert.Equal(packets.ContactCount, updated.ContactCount);
+        Assert.Equal(packets.RetainedStorage.ContactCount, updated.RetainedStorage.ContactCount);
+        Assert.Equal((ushort)81, updated.RetainedStorage.Contacts[0]!.Primary.Amount6);
+
+        NativeBattleRetainedActionHeaderSlot raw = updated.RetainedStorage.Headers[0];
+        NativeBattleActionPacketsState completed = updated.CompleteHeader(header);
+        Assert.Equal(updated.ReadHeader(header) with { Command = byte.MaxValue }, completed.ReadHeader(header));
+        Assert.Equal(raw.Payload.SetItem(1, byte.MaxValue), completed.RetainedStorage.Headers[0].Payload);
+        Assert.Equal(raw.UnknownByteMask & ~2u, completed.RetainedStorage.Headers[0].UnknownByteMask);
+        Assert.Equal(updated.RetainedStorage.Contacts, completed.RetainedStorage.Contacts);
+    }
+
+    [Fact]
+    public void ReplacementRejectsWrongOccurrenceRecipientOrSecondaryWithoutPublishingEarlierWrites()
+    {
+        NativeBattleActionPacketsState packets = Create();
+        (packets, BattleActionHeaderReference header) = packets.Prepare(Preparation);
+        (packets, BattleContactOccurrence first) = packets.AppendContact(Contact);
+        (packets, _) = packets.AppendContact(Contact);
+        (packets, _) = packets.Publish(2);
+        NativeBattleContactPacket changed = Contact with { Primary = Contact.Primary with { Amount6 = 81 } };
+        Assert.Throws<InvalidDataException>(() => packets.ReplaceHeaderContacts(header, [changed]));
+        Assert.Throws<InvalidDataException>(() => packets.ReplaceHeaderContacts(header, [changed, Contact with { Occurrence = first }]));
+        Assert.Throws<InvalidDataException>(() => packets.ReplaceHeaderContacts(header, [changed, Contact with { Primary = Contact.Primary with { Recipient = Source } }]));
+        Assert.Throws<InvalidDataException>(() => packets.ReplaceHeaderContacts(header, [changed, Contact with { Secondary = Contact.Primary }]));
+        Assert.Equal(Contact, packets.ReadContact(first));
+        Assert.Equal(Contact.Primary.Amount6, packets.RetainedStorage.Contacts[0]!.Primary.Amount6);
+    }
+
     private static NativeBattleActionPacketsState Create()
     {
         BattleModelRoster roster = new([Source, Target]);

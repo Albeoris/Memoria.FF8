@@ -59,11 +59,6 @@ public static partial class NativeBattleSaliva138Controller
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(Signed(task, offset), Signed(task, offset + 2), Signed(task, offset + 4));
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
-    private static int Actor(uint address)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Saliva model pointer leaves its seven-model bank.");
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Saliva actor leaves its seven-model bank.");
     public static NativeBattleSaliva138Frame LoadMatrix(NativeBattleSaliva138Frame frame, NativeBattlePackedMatrix32 packed)
     {
         packed.Validate();
@@ -107,14 +102,14 @@ public static partial class NativeBattleSaliva138Controller
     {
         return PackedArena(matrix).Write(32, BitConverter.GetBytes(depth)).Write(36, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
     }
-    private static int FirstContact(NativeBattleSaliva138Frame frame, NativeBattleSaliva138Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleSaliva138Frame frame, NativeBattleSaliva138Inputs inputs)
     {
-        BattleActionHeaderReference index = Parameters(frame).Header;
-        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
+        if (header.ReadContactCount() == 0)
         {
             throw new NotSupportedException("Saliva requires its actual captured contact header.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Saliva requires its actual contact pointer.");
+        return header.FirstContact;
     }
     private static void RequireBinding(NativeBattleSaliva138Frame frame)
     {

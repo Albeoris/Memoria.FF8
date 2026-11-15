@@ -4,26 +4,29 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void UploadNativeStatusPalette509E00(byte physicalIndex, uint flags)
+    private void UploadNativeStatusPalette509E00(BattleModelOwner owner, uint flags)
     {
         NativeBattleModelCpuResources resources = NativeModelCpuResources ?? throw new NotSupportedException("Native509E00 requires the saved original party palettes.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native509E00 requires its process texture and packet owners.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native509E00 requires the actual505DF0 queue.");
-        var material = SelectNativeModelTextureBank(physicalIndex, textures);
+        var material = SelectNativeModelTextureBank(owner, textures);
         byte[] original;
-        int textureSlot = physicalIndex;
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        bool hasOriginalSlot = graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte originalSlot);
+        int textureSlot;
         if (material is not null)
         {
-            if (resources.Cpu.PresentationRoster is not { } paletteRoster || !paletteRoster.Rows.SequenceEqual(NativeGraphics!.PresentationRoster!.Rows))
-            {
-                throw new InvalidDataException("Hosted status palette requires the same actor roster as its saved palettes.");
-            }
-            original = resources.ReadPartyStatusPalette(physicalIndex);
-            textureSlot = physicalIndex < NativeBattleSlots.AllyCount ? physicalIndex : 0;
+            original = resources.ReadPartyStatusPalette(owner);
+            textureSlot = hasOriginalSlot ? originalSlot : 0;
         }
         else
         {
-            original = resources.Palettes.Read(physicalIndex * 1024, 1024);
+            if (!hasOriginalSlot || owner is not BattlePartyModelOwner)
+            {
+                throw new NotSupportedException("The original status palette requires its original party texture slot.");
+            }
+            original = resources.Palettes.Read(originalSlot * 1024, 1024);
+            textureSlot = originalSlot;
         }
         NativeBattleEffectHeapAllocation source;
         if ((flags & 0x410) != 0)
@@ -39,7 +42,8 @@ public sealed partial class BattleSession
         }
         else
         {
-            source = new($"1D98B60:{physicalIndex}", NativeBattleStatusPalette.Transform509E00(original, flags));
+            string paletteIdentity = hasOriginalSlot ? originalSlot.ToString(System.Globalization.CultureInfo.InvariantCulture) : ReadGraphicsPresentationId(owner);
+            source = new($"1D98B60:{paletteIdentity}", NativeBattleStatusPalette.Transform509E00(original, flags));
         }
         NativeBattleEffectTextureState updated = (material?.Bank.Textures ?? textures).EnqueueRectangle505DF0(new(0, checked((short)(224 + 2 * textureSlot)), 256, 2), source);
         NativeEffectMemory = memory with { Textures = PublishNativeModelTextures(textures, material, updated) };

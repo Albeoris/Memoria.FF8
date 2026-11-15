@@ -11,7 +11,7 @@ public static partial class NativeBattleSandStorm155Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            NativeBattleSandStorm155AnchorStep anchor = inputs.ReadAnchor571400(frame, checked((int)frame.State.ReadDword(0x23F2950)));
+            NativeBattleSandStorm155AnchorStep anchor = inputs.ReadAnchor571400(frame, frame.State.ReadModelOwner(0x23F2950));
             frame = anchor.Frame;
             frame = Word(Word(Word(Word(frame, 0x23F2958, anchor.Anchor.X), 0x23F295A, anchor.Anchor.W), 0x23F295C, anchor.Anchor.Z), 0x23F295E, anchor.Anchor.Y);
             NativeBattleSandStorm155PointStep center = inputs.ReadTargetCenter(frame, Parameters(frame).TargetActors);

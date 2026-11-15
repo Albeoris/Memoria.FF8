@@ -16,7 +16,7 @@ public sealed record NativeBattleShivaInputs(uint GraphicsFlags, NativeBattleCam
 
 public static class NativeBattleShivaExecution
 {
-    public static NativeBattleShivaFrame Initialize5C0D50(NativeBattleShivaFrame frame, NativeBattleActionPacketsState packets, System.Collections.Immutable.ImmutableArray<NativeBattleGraphicsModel> models)
+    public static NativeBattleShivaFrame Initialize5C0D50(NativeBattleShivaFrame frame, NativeBattleActionPacketsState packets, BattleActorModels models)
     {
         NativeBattleShivaProcess process = frame.Memory.Shiva ?? throw new NotSupportedException("Native Shiva requires its retained process vectors; explicitly migrate a needed external snapshot.");
         process.Validate();

@@ -19,10 +19,10 @@ public static class NativeBattleEffectNodeContext
         WriteWord(0x1E, task.ReadByte(0x2C));
         int count = unchecked((short)ReadWord(0x1C));
         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        int firstContact = packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native87E230 requires the selected group's actual contact pointer.");
+        BattleContactCursor firstContact = packets.ReadHeader(headerIndex).FirstContact;
         for (int index = 0; index < count; index++)
         {
-            Write(4 + 4 * index, packets.ReadContact(checked(firstContact + (singleSelectedTarget ? unchecked((sbyte)task.ReadByte(0x2B)) : index))).Primary.Recipient);
+            Write(4 + 4 * index, packets.ReadContact(firstContact.Advance((singleSelectedTarget ? unchecked((sbyte)task.ReadByte(0x2B)) : index))).Primary.Recipient);
         }
         WriteWord(0x1A, task.ReadWord(0x29E));
         short mode = unchecked((short)ReadWord(0x24));

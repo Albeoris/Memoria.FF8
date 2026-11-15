@@ -27,7 +27,7 @@ public static partial class NativeBattleBreath129Controller
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (roots, int slot) = roots.Append(0x6B4CB0);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleBreath129State state = frame.State.RequireSeeds(resources).WriteDword(0x2521158, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(0x2521160, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattleBreath129State state = frame.State.RequireSeeds(resources).WriteDword(0x2521158, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(0x2521160, 0x1D99A78).WriteCaster(Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -104,22 +104,26 @@ public static partial class NativeBattleBreath129Controller
             {
                 throw new NotSupportedException("Breath targets must fit its three actual pointer fields.");
             }
-            int contact = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Breath requires its captured contacts.");
+            BattleContactCursor contact = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact;
             task = task.WriteWord(14, checked((ushort)count));
             for (int index = 0; index < count; index++)
             {
-                task = task.WriteByte(0x1C + index, checked((byte)index)).WriteDword(16 + index * 4, ModelAddress(inputs.Packets.ReadContact(contact + index).Primary.Recipient));
+                task = task.WriteByte(0x1C + index, checked((byte)index));
+                BattleModelOwner recipient = inputs.Packets.ReadContact(contact.Advance(index)).Primary.Recipient;
+                task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(recipient), inputs.Packets.ModelAliases.EncodeAddress(recipient));
             }
             for (int firstIndex = 0; firstIndex < count - 1; firstIndex++)
             {
                 for (int secondIndex = firstIndex + 1; secondIndex < count; secondIndex++)
                 {
-                    uint a = task.ReadDword(16 + firstIndex * 4);
-                    uint b = task.ReadDword(16 + secondIndex * 4);
+                    BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + firstIndex * 4, 4).Owner;
+                    BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + secondIndex * 4, 4).Owner;
                     if ((inputs.ReadModel(frame, a).Transform ?? throw new NotSupportedException("Breath requires its current first target X.")).Position28.X > (inputs.ReadModel(frame, b).Transform ?? throw new NotSupportedException("Breath requires its current second target X.")).Position28.X)
                     {
                         byte mapping = task.ReadByte(0x1C + firstIndex);
-                        task = task.WriteDword(16 + firstIndex * 4, b).WriteDword(16 + secondIndex * 4, a).WriteByte(0x1C + firstIndex, task.ReadByte(0x1C + secondIndex)).WriteByte(0x1C + secondIndex, mapping);
+                        task.WriteExecutionReference(16 + firstIndex * 4, 4, new BattleExecutionReference.Model(b), inputs.Packets.ModelAliases.EncodeAddress(b));
+                        task.WriteExecutionReference(16 + secondIndex * 4, 4, new BattleExecutionReference.Model(a), inputs.Packets.ModelAliases.EncodeAddress(a));
+                        task = task.WriteByte(0x1C + firstIndex, task.ReadByte(0x1C + secondIndex)).WriteByte(0x1C + secondIndex, mapping);
                     }
                 }
             }
@@ -134,12 +138,12 @@ public static partial class NativeBattleBreath129Controller
         if (Read(frame, address).ReadByte(15) != 0)
         {
             (frame, main) = Scan(frame, 5, resources, inputs);
-            foreach (uint actor in CurrentBodyActors(frame))
+            foreach (BattleModelOwner actor in CurrentBodyActors(frame))
             {
                 frame = inputs.Execute(frame, new NativeBattleBreath129ComposeBody5095B0(actor));
             }
             (frame, fibre) = Scan(frame, 3, resources, inputs);
-            foreach (uint actor in CurrentBodyActors(frame))
+            foreach (BattleModelOwner actor in CurrentBodyActors(frame))
             {
                 uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
                 frame = inputs.PublishBody508C90(frame, row).Frame;
@@ -155,17 +159,22 @@ public static partial class NativeBattleBreath129Controller
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)))), 0);
     }
 
-    private static IEnumerable<uint> CurrentBodyActors(NativeBattleBreath129Frame frame)
+    private static IEnumerable<BattleModelOwner> CurrentBodyActors(NativeBattleBreath129Frame frame)
     {
         for (int index = 0; index < 3; index++)
         {
-            uint actor = ReadDword(frame, Working(frame) + 0x35E4u + (uint)(index * 4));
-            if (actor != 0)
+            int offset = checked((int)(Working(frame) - NativeBattleEffectNodeMemory.ArenaAddress + 0x35E4u) + index * 4);
+            NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena.");
+            if (arena.TryReadExecutionReference<BattleExecutionReference.Model>(offset, 4, out var actor))
             {
-                yield return actor;
+                yield return actor.Owner;
+            }
+            else if (arena.ReadUInt32(offset) != 0)
+            {
+                throw new InvalidDataException("Breath selected-body entry has no live model owner.");
             }
         }
-        yield return frame.State.ReadDword(CasterGlobal);
+        yield return frame.State.ReadCaster();
     }
 
     private static (NativeBattleBreath129Frame Frame, int Survivors) Scan(NativeBattleBreath129Frame frame, int index, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)

@@ -11,7 +11,7 @@ public sealed record NativeBattleRayBomb307ActorFlags(BattleModelOwner Actor, us
 public sealed record NativeBattleRayBomb307ActorWrite8(BattleModelOwner Actor, NativeBattleEffectArena? Rotation8, NativeBattleEffectArena? Position8) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307StageFade(short Depth, uint ColorFlags) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307SpatialSound(uint DescriptorAddress, uint Value, uint Flags, NativeBattleEffectArena Position8) : NativeBattleRayBomb307Operation;
-public sealed record NativeBattleRayBomb307Contact(int RelativeContactIndex) : NativeBattleRayBomb307Operation;
+public sealed record NativeBattleRayBomb307Contact(BattleContactOccurrence Occurrence) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307RestoreTexture(uint Destination, uint CompletionAddress) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307DrawMesh88(uint TemporaryAddress, uint SourceAddress) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, ushort Flags) : NativeBattleRayBomb307Operation;

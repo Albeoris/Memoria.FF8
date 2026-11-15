@@ -192,6 +192,56 @@ public sealed class NativeBattleActionPacketsState
         return result.MoveToImmutable();
     }
 
+    public NativeBattleActionPacketsState ReplaceHeaderContacts(BattleActionHeaderReference reference, ImmutableArray<NativeBattleContactPacket> replacements)
+    {
+        NativeBattleActionHeaderSlot header = ReadHeader(reference);
+        if (replacements.IsDefault || replacements.Length != header.ReadContactCount())
+        {
+            throw new InvalidDataException("Contact replacement requires the existing header's exact contact extent.");
+        }
+        ImmutableArray<NativeBattleContactPacket> current = ReadHeaderContacts(reference);
+        if (current.IsEmpty)
+        {
+            return this;
+        }
+        var updated = contacts.ToBuilder();
+        ImmutableArray<NativeBattleRawContactPacket?>.Builder? rawContacts = null;
+        for (int relative = 0; relative < current.Length; relative++)
+        {
+            NativeBattleContactPacket replacement = replacements[relative];
+            BattleContactOccurrence occurrence = current[relative].Occurrence!.Value;
+            ValidateContact(replacement);
+            if (replacement.Primary.Recipient != current[relative].Primary.Recipient ||
+                replacement.Secondary is { } secondary && secondary.Recipient != header.Source ||
+                replacement.Occurrence is { } supplied && supplied != occurrence)
+            {
+                throw new InvalidDataException("A replacement must retain the primary recipient and occurrence, and any secondary must name the header source.");
+            }
+            updated[occurrence.Ordinal] = replacement with { Occurrence = null };
+            if (occurrence.Ordinal < NativeBattleRetainedActionPackets.ContactCapacity)
+            {
+                rawContacts ??= RetainedStorage.Contacts.ToBuilder();
+                rawContacts[occurrence.Ordinal] = NativeBattleActionPacketBoundary.WriteContact(replacement, rawContacts[occurrence.Ordinal], aliases);
+            }
+        }
+        NativeBattleRetainedActionPackets retained = rawContacts is null ? RetainedStorage : RetainedStorage with { Contacts = rawContacts.ToImmutable() };
+        return new(Roster, aliases, retained, headers, updated.ToImmutable(), ActionCount, ContactCount, ActiveHeader, ActiveContact);
+    }
+
+    internal NativeBattleActionPacketsState WriteSequence(BattleActionHeaderReference reference, byte sequence)
+    {
+        NativeBattleActionHeaderSlot header = ReadHeader(reference) with { Sequence = sequence };
+        NativeBattleRetainedActionPackets retained = NativeBattleActionPacketBoundary.WriteSequence(RetainedStorage, reference, sequence);
+        return new(Roster, aliases, retained, headers.SetItem(reference.Ordinal, header), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
+    }
+
+    public NativeBattleActionPacketsState CompleteHeader(BattleActionHeaderReference reference)
+    {
+        NativeBattleActionHeaderSlot header = ReadHeader(reference) with { Command = byte.MaxValue };
+        NativeBattleRetainedActionPackets retained = NativeBattleActionPacketBoundary.CompleteHeader(RetainedStorage, reference);
+        return new(Roster, aliases, retained, headers.SetItem(reference.Ordinal, header), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact);
+    }
+
     public NativeBattleActionPacketsState ActivateHeader(BattleActionHeaderReference reference)
     {
         NativeBattleActionHeaderSlot header = ReadHeader(reference);

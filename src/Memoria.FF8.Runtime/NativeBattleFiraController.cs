@@ -4,11 +4,11 @@ public sealed record NativeBattleFiraFrame(NativeBattleEffectMemory Memory, Nati
 public sealed record NativeBattleFiraPosition(short X, short Y, short Z, short Fourth);
 public abstract record NativeBattleFiraOperation;
 public sealed record NativeBattleFiraDraw(NativeBattleModulePoolTask Task) : NativeBattleFiraOperation;
-public sealed record NativeBattleFiraContact(int Contact) : NativeBattleFiraOperation;
-public sealed record NativeBattleFiraSound(int Owner) : NativeBattleFiraOperation;
+public sealed record NativeBattleFiraContact(BattleContactOccurrence Contact) : NativeBattleFiraOperation;
+public sealed record NativeBattleFiraSound(BattleModelOwner Owner) : NativeBattleFiraOperation;
 public sealed record NativeBattleFiraStage(short Value) : NativeBattleFiraOperation;
 public sealed record NativeBattleFiraCommonTextureLoad(int DestinationArenaOffset, uint CompletionAddress) : NativeBattleFiraOperation;
-public sealed record NativeBattleFiraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleFiraPosition> ReadPosition, Func<NativeBattleFiraFrame, NativeBattleFiraOperation, NativeBattleFiraFrame> Execute);
+public sealed record NativeBattleFiraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleFiraPosition> ReadPosition, Func<NativeBattleFiraFrame, NativeBattleFiraOperation, NativeBattleFiraFrame> Execute);
 
 /// <summary>61CE10/61DD90's retained task banks and complete reached61CEC0 child lifecycle.</summary>
 public static class NativeBattleFiraController
@@ -106,8 +106,8 @@ public static class NativeBattleFiraController
                 int last = Header(0).ReadRepeatModeMinusOne();
                 if (phase == 0)
                 {
-                    task = WorkingPosition(task, 16, inputs.ReadPosition(Word(task, 32)));
-                    task = WorkingPosition(task, 24, inputs.ReadPosition(Word(task, 34)));
+                    task = WorkingPosition(task, 16, inputs.ReadPosition(task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner));
+                    task = WorkingPosition(task, 24, inputs.ReadPosition(task.ReadExecutionReference<BattleExecutionReference.Model>(34, 2).Owner));
                 }
                 if (phase == 1)
                 {
@@ -170,8 +170,8 @@ public static class NativeBattleFiraController
                 }
                 if (phase == 14)
                 {
-                    int first = Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Fira contact requires its actual header contact pointer.");
-                    frame = inputs.Execute(frame, new NativeBattleFiraContact(first));
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(Header(sequence).FirstContact).Occurrence ?? throw new InvalidDataException("Native Fira requires its reached contact occurrence.");
+                    frame = inputs.Execute(frame, new NativeBattleFiraContact(contact));
                 }
                 if (phase == 21 && sequence + 1 <= last)
                 {
@@ -188,7 +188,7 @@ public static class NativeBattleFiraController
                 }
                 if (phase == 3)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleFiraSound(Word(task, 32)));
+                    frame = inputs.Execute(frame, new NativeBattleFiraSound(task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner));
                 }
                 task = Add(task, 12, 1);
                 if (Word(task, 12) > 26)
@@ -292,7 +292,11 @@ public static class NativeBattleFiraController
     private static NativeBattleModulePoolTask InitializeController(NativeBattleModulePoolTask task, int sequence, NativeBattleActionHeaderSlot header, NativeBattleActionPacketsState packets)
     {
         BattleContactCursor first = header.FirstContact;
-        return task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence)).WriteWord(32, packets.ReadContact(first).Primary.Recipient).WriteWord(34, header.Source);
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
+        task = task.WriteWord(12, 0).WriteWord(14, unchecked((ushort)sequence));
+        task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 2));
+        task.WriteExecutionReference(34, 2, new BattleExecutionReference.Model(header.Source), packets.ModelAliases.EncodeOperand(header.Source, 2));
+        return task;
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

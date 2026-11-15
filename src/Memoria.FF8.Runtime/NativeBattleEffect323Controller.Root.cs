@@ -53,8 +53,8 @@ public static partial class NativeBattleEffect323Controller
         for (int index = 0; index < count; index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect323 requires its actual contact pointer.");
-            uint model = ModelAddress(packets.ReadContact(first + index).Primary.Recipient);
+            BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
+            uint model = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, model));
         }
         for (int left = 0; left < count - 1; left++)

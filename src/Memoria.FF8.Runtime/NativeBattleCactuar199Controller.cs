@@ -24,7 +24,7 @@ public static class NativeBattleCactuar199Controller
         retained.Validate();
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        int actor = inputs.Packets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner actor = inputs.Packets.ReadContact(first).Primary.Recipient;
         NativeBattleGraphicsModel target = inputs.ReadModel(actor);
         NativeBattleActionMatrix targetMatrix = target.GeometryWorldMatrix ?? throw new NotSupportedException("Native Cactuar placement requires its first target's current raw matrix.");
         short yaw = target.Rotation14 ?? throw new NotSupportedException("Native Cactuar orientation requires its first target's current yaw.");
@@ -52,7 +52,8 @@ public static class NativeBattleCactuar199Controller
         (main, _) = main.Append(0x5AA3A0);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 0x24, 100);
         (children, _) = children.Append(0x5A8940);
-        memory = memory with { Arena = arena, Textures = textures, Cactuar199 = retained with { BaseMatrix = basis, BaseView = null, TerminalFlags = 0, FirstTargetActor = actor } };
+        int? retainedFirstTarget = inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte targetOperand) ? targetOperand : null;
+        memory = memory with { Arena = arena, Textures = textures, Cactuar199 = retained with { BaseMatrix = basis, BaseView = null, TerminalFlags = 0, FirstTargetActor = retainedFirstTarget } };
         return new(memory, effect with { Pools = [main, children], ReturnedDescriptor = MainDescriptor }, random);
     }
 
@@ -414,11 +415,14 @@ public static class NativeBattleCactuar199Controller
             {
                 Append(0x5A9C10);
                 NativeBattleActionHeaderSlot header = Header();
-                int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar lost its first header's contact pointer.");
+                BattleContactCursor firstContact = header.FirstContact;
                 for (int contact = 0; contact < header.ReadContactCount(); contact++)
                 {
                     int hit = Append(0x5AA2A0);
-                    Store(hit, children.Slots[hit].WriteWord(0xE, (ushort)(Rand() % 8)).WriteWord(0x18, (ushort)contact).WriteWord(0x1A, inputs.Packets.ReadContact(firstContact + contact).Primary.Recipient));
+                    NativeBattleModulePoolTask hitTask = children.Slots[hit].WriteWord(0xE, (ushort)(Rand() % 8)).WriteWord(0x18, (ushort)contact);
+                    BattleModelOwner target = inputs.Packets.ReadContact(firstContact.Advance(contact)).Primary.Recipient;
+                    hitTask.WriteExecutionReference(0x1A, 2, new BattleExecutionReference.Model(target), inputs.Packets.ModelAliases.EncodeOperand(target, 2));
+                    Store(hit, hitTask);
                 }
             }
             task = Add(task, 0xC, 1);
@@ -430,10 +434,10 @@ public static class NativeBattleCactuar199Controller
             byte[] points = Arena().Read(0x1C000, 0x4000);
             int total = 0;
             NativeBattleActionHeaderSlot header = Header();
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Cactuar target cache requires first-header contacts.");
+            BattleContactCursor first = header.FirstContact;
             for (int contact = 0; contact < header.ReadContactCount(); contact++)
             {
-                int actor = inputs.Packets.ReadContact(first + contact).Primary.Recipient;
+                BattleModelOwner actor = inputs.Packets.ReadContact(first.Advance(contact)).Primary.Recipient;
                 int bones = inputs.ReadBoneCount?.Invoke(actor) ?? inputs.ReadPoseSource(actor).BoneCount;
                 for (int bone = 0; bone < bones; bone++)
                 {
@@ -605,12 +609,13 @@ public static class NativeBattleCactuar199Controller
             {
                 if (counter + 3 >= 50)
                 {
-                    int first = Header().FirstContactIndex ?? throw new NotSupportedException("Native Cactuar hit requires its first header's contact pointer.");
-                    Emit(new NativeBattleCactuar199Contact(first + task.ReadWord(0x18)));
+                    BattleContactCursor cursor = Header().FirstContact.Advance(task.ReadWord(0x18));
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Cactuar requires its reached contact occurrence.");
+                    Emit(new NativeBattleCactuar199Contact(contact));
                 }
                 else
                 {
-                    Emit(new NativeBattleCactuar199HitReaction(task.ReadWord(0x1A), 4));
+                    Emit(new NativeBattleCactuar199HitReaction(task.ReadExecutionReference<BattleExecutionReference.Model>(0x1A, 2).Owner, 4));
                 }
             }
             task = Add(task, 0xC, 1);

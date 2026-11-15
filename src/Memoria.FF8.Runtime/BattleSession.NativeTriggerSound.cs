@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState PublishNativeTriggerSound(NativeBattleGraphicsState graphics)
     {
-        if (graphics.PendingTriggerSoundActorIndex is not byte owner)
+        if (graphics.PendingTriggerSoundActor is not { } owner)
         {
             return graphics;
         }
@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleVector position = ReadNativeGraphicsBone(graphics, owner, 241, 0);
         byte pan = (NativeCamera?.Projection ?? throw new NotSupportedException("Native501640 requires its actual5011B0 projection.")).ReadPan(position);
         NativeBattleModuleSound sound = NativeBattleTriggerAudio.Resolve501640(identity, position, pan, definition.NativeGraphics?.Rules.ActorSounds1120);
-        PublishNativeModuleSound(sound, graphics.ActorIds[owner]);
-        return graphics with { PendingTriggerSoundActorIndex = null };
+        PublishNativeModuleSound(sound, RequireCanonicalGraphicsActorId(owner));
+        return graphics with { PendingTriggerSoundActor = null };
     }
 }

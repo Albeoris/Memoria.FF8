@@ -6,7 +6,7 @@ public sealed record NativeBattleShotgun281Frame(NativeBattleEffectMemory Memory
 }
 
 public sealed record NativeBattleShotgun281PointStep(NativeBattleShotgun281Frame Frame, NativeBattleEffectArena Point8, int Result);
-public sealed record NativeBattleShotgun281Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleShotgun281Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleShotgun281Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleShotgun281Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleShotgun281Frame, uint, int> ReadBoneCount, Func<NativeBattleShotgun281Frame, uint, int, short> ReadBoneParent, Func<NativeBattleShotgun281Frame, uint, int, byte> ReadBoneAlias, Func<NativeBattleShotgun281Frame, uint, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix, Func<NativeBattleShotgun281Frame, uint, NativeBattlePackedMatrix32> ReadModelWorld, Func<NativeBattleShotgun281Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleShotgun281Frame, NativeBattleShotgun281Operation, NativeBattleShotgun281Frame> Execute)
+public sealed record NativeBattleShotgun281Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleShotgun281Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleShotgun281Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleShotgun281Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleShotgun281Frame, BattleModelOwner, int> ReadBoneCount, Func<NativeBattleShotgun281Frame, BattleModelOwner, int, short> ReadBoneParent, Func<NativeBattleShotgun281Frame, BattleModelOwner, int, byte> ReadBoneAlias, Func<NativeBattleShotgun281Frame, BattleModelOwner, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix, Func<NativeBattleShotgun281Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadModelWorld, Func<NativeBattleShotgun281Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleShotgun281Frame, NativeBattleShotgun281Operation, NativeBattleShotgun281Frame> Execute)
 {
     public bool CapturePresentation { get; init; }
 }
@@ -16,9 +16,9 @@ public abstract record NativeBattleShotgun281Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleShotgun281ComposeCaster5095B0(uint ModelAddress) : NativeBattleShotgun281Operation;
-public sealed record NativeBattleShotgun281RestoreCaster508C90(uint ModelAddress) : NativeBattleShotgun281Operation;
-public sealed record NativeBattleShotgun281Contact506690(int ContactIndex) : NativeBattleShotgun281Operation;
+public sealed record NativeBattleShotgun281ComposeCaster5095B0(BattleModelOwner Model) : NativeBattleShotgun281Operation;
+public sealed record NativeBattleShotgun281RestoreCaster508C90(BattleModelOwner Model) : NativeBattleShotgun281Operation;
+public sealed record NativeBattleShotgun281Contact506690(BattleContactOccurrence Occurrence) : NativeBattleShotgun281Operation;
 public sealed record NativeBattleShotgun281Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleShotgun281Operation;
 public sealed record NativeBattleShotgun281Flash5712C0(int Arg0, int Arg1, int Arg2, int Arg3) : NativeBattleShotgun281Operation;
 public sealed record NativeBattleShotgun281DrawMesh7043B0(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleShotgun281Operation;

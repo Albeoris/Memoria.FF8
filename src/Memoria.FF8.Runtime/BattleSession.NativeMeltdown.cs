@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             {
                 NativeEffectMemory = current.Memory;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                 graphics = graphics with { PendingContacts = pending };
                 return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Meltdown contact lost process memory.") };
             }

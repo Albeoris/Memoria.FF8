@@ -7,9 +7,9 @@ public sealed record NativeBattleBlizzaraFrame(NativeBattleEffectMemory Memory, 
 public abstract record NativeBattleBlizzaraOperation;
 public sealed record NativeBattleBlizzaraMainDraw(NativeBattleModulePoolTask Task, int Sequence, int Phase, short YScale, uint Flags) : NativeBattleBlizzaraOperation;
 public sealed record NativeBattleBlizzaraDraw(NativeBattleModulePoolTask Task) : NativeBattleBlizzaraOperation;
-public sealed record NativeBattleBlizzaraContact(int Contact) : NativeBattleBlizzaraOperation;
+public sealed record NativeBattleBlizzaraContact(BattleContactOccurrence Contact) : NativeBattleBlizzaraOperation;
 public sealed record NativeBattleBlizzaraSound(NativeBattleModuleAnchor Position) : NativeBattleBlizzaraOperation;
-public sealed record NativeBattleBlizzaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<int, NativeBattleModelTransform> ReadTransform, Func<NativeBattleBlizzaraFrame, NativeBattleBlizzaraOperation, NativeBattleBlizzaraFrame> Execute);
+public sealed record NativeBattleBlizzaraInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleVector> ReadBone241, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, Func<NativeBattleBlizzaraFrame, NativeBattleBlizzaraOperation, NativeBattleBlizzaraFrame> Execute);
 
 /// <summary>Blizzara's retained root, five ordered arena banks and task-owned child lifecycles.</summary>
 public static class NativeBattleBlizzaraController
@@ -31,10 +31,11 @@ public static class NativeBattleBlizzaraController
         }
         BattleActionHeaderReference first = effect.Parameters.Header;
         int last = packets.ReadHeader(first).ReadRepeatModeMinusOne();
-        if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
+        if (last >= 3)
         {
             throw new NotSupportedException("Native Blizzara owns exactly three header-indexed mesh pairs.");
         }
+        _ = packets.ReadHeader(first.Advance(last));
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 20, 1);
         (main, int root) = main.Append(0x6DA3A0);
         main = Put(main, root, Clear(main.Slots[root], 8));
@@ -56,11 +57,8 @@ public static class NativeBattleBlizzaraController
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
             RequireCallback(task, 0x6DA3A0);
-            uint? hostedAddress = null;
-            if (inputs.Packets.PresentationRoster is { } roster && Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadRepeatModeMinusOne())
-            {
-                hostedAddress = ActorAddress(ReadActor(task.ReadByte(14)), roster);
-            }
+            int sequence = Word(task, 12) == 1 ? task.ReadByte(14) : -1;
+            BattleModelOwner? selected = sequence >= 0 && sequence <= Header(0).ReadRepeatModeMinusOne() ? ReadActor(sequence) : null;
             bool alternate = Dword(task, 16) == 0;
             frame = frame with { Effect = frame.Effect with { DrawArenaOffset = alternate ? 0x296D4 : 0x196D4 } };
             task = WriteDword(task, 16, alternate ? 1u : 0u);
@@ -74,11 +72,9 @@ public static class NativeBattleBlizzaraController
                 frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [primary, secondary, tertiary, smoke, trail]) };
                 task = WriteByte(task, 15, 1);
             }
-            if (Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadRepeatModeMinusOne())
+            if (selected is { } actor)
             {
-                int sequence = task.ReadByte(14);
-                uint actorAddress = hostedAddress ?? ActorAddress(ReadActor(sequence), null);
-                bool duplicate = primary!.Slots.Any(current => (current.Flags & 1) != 0 && Dword(current, 16) == actorAddress && Word(current, 12) <= 60);
+                bool duplicate = primary!.Slots.Any(current => (current.Flags & 1) != 0 && current.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == actor && Word(current, 12) <= 60);
                 if (duplicate)
                 {
                     task = task.WriteWord(12, 0);
@@ -87,7 +83,7 @@ public static class NativeBattleBlizzaraController
                 {
                     (primary, int child) = primary.Append(0x6DAA30);
                     NativeBattleModulePoolTask next = Clear(primary.Slots[child], 0x53C0).WriteWord(14, (ushort)sequence).WriteWord(38, 0x7FFF);
-                    next = WriteDword(next, 16, actorAddress);
+                    WriteModel(next, 16, actor);
                     next = WriteDword(next, 20, PrimaryBank + (uint)NativeBattleBlizzaraFaces.PrimaryMeshOffset(sequence));
                     next = WriteDword(next, 24, PrimaryBank + (uint)NativeBattleBlizzaraFaces.PartnerMeshOffset(sequence));
                     NativeBattleBlizzaraFaceInitialization initialized = NativeBattleBlizzaraFaces.Initialize(frame.Memory, next, sequence, resources);
@@ -123,7 +119,7 @@ public static class NativeBattleBlizzaraController
         ImmutableArray<NativeBattleEffectTaskPool> pools = primary is null ? [rootStep.Pool] : [rootStep.Pool, primary, secondary!, tertiary!, smoke!, trail!];
         return frame with { Effect = frame.Effect with { Pools = pools, ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : MainDescriptor } };
 
-        int ReadActor(int sequence)
+        BattleModelOwner ReadActor(int sequence)
         {
             BattleContactCursor contact = Header(sequence).FirstContact;
             return inputs.Packets.ReadContact(contact).Primary.Recipient;
@@ -135,7 +131,7 @@ public static class NativeBattleBlizzaraController
             RequireCallback(task, 0x6DAA30);
             int phase = Word(task, 12);
             int sequence = task.ReadWord(14);
-            int actor = ActorIndex(Dword(task, 16), inputs.Packets.PresentationRoster);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             short ground = inputs.ReadTransform(actor).Angle36;
             if (phase == 0)
             {
@@ -197,7 +193,8 @@ public static class NativeBattleBlizzaraController
             }
             if (phase == 60)
             {
-                Emit(new NativeBattleBlizzaraContact(Header(sequence).FirstContactIndex ?? throw new NotSupportedException("Native Blizzara lost its header contact owner.")));
+                NativeBattleContactPacket contact = inputs.Packets.ReadContact(Header(sequence).FirstContact);
+                Emit(new NativeBattleBlizzaraContact(contact.Occurrence ?? throw new InvalidDataException("Native Blizzara requires its reached contact occurrence.")));
             }
             return new(Put(pool, slot, phase >= 70 ? task : Add(task, 12, 1)), phase >= 70 ? 2 : 0);
         }
@@ -217,7 +214,7 @@ public static class NativeBattleBlizzaraController
                 int angle = seed + ((a + b - 32768) >> 8);
                 seed += 2048;
                 NativeBattleModulePoolTask next = Clear(smoke.Slots[child], 24);
-                next = WriteDword(next, 16, Dword(parent, 16));
+                WriteModel(next, 16, parent.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner);
                 next = next.WriteWord(20, unchecked((ushort)(NativeBattleCameraMath.Cosine(angle) >> 3))).WriteWord(24, unchecked((ushort)(NativeBattleCameraMath.Sine(angle) >> 3))).WriteWord(26, (ushort)(4096 - (Rand() >> 4)));
                 var normalized = NativeBattleActionGeometryRules.NormalizeVector56BC50(Word(next, 20), 0, Word(next, 24));
                 next = next.WriteWord(28, unchecked((ushort)((short)normalized.X >> 6))).WriteWord(32, unchecked((ushort)((short)normalized.Z >> 6)));
@@ -311,7 +308,7 @@ public static class NativeBattleBlizzaraController
             {
                 return new(Put(pool, slot, task), 2);
             }
-            short ground = inputs.ReadTransform(ActorIndex(Dword(task, 16), inputs.Packets.PresentationRoster)).Angle36;
+            short ground = inputs.ReadTransform(task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner).Angle36;
             if (Word(task, 22) < ground - 4 * Word(task, 30))
             {
                 task = Add(task, 30, 4);
@@ -355,6 +352,11 @@ public static class NativeBattleBlizzaraController
             return value;
         }
         void Emit(NativeBattleBlizzaraOperation operation) => frame = inputs.Execute(frame, operation);
+
+        void WriteModel(NativeBattleModulePoolTask task, int offset, BattleModelOwner actor)
+        {
+            task.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+        }
     }
 
     public static int PrimarySlot(uint pointer)
@@ -367,16 +369,6 @@ public static class NativeBattleBlizzaraController
         return (int)(delta / 0x53CC);
     }
 
-    public static int ActorIndex(uint pointer, BattleModelRoster? roster = null)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row, roster))
-        {
-            throw new NotSupportedException("Native Blizzara's graphics row pointer has no actual actor owner.");
-        }
-        return row;
-    }
-
-    private static uint ActorAddress(int actor, BattleModelRoster? roster) => (roster?.ContainsRow(actor) ?? NativeBattleSlots.Contains(actor)) ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Blizzara requires an actual actor graphics row.");
     private static void RequireCallback(NativeBattleModulePoolTask task, uint callback)
     {
         if (task.Callback != callback)

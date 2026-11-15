@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private int ReadNativeGraphicsSequenceVariable(NativeBattleGraphicsState graphics, int modelIndex, byte variable)
+    private int ReadNativeGraphicsSequenceVariable(NativeBattleGraphicsState graphics, BattleModelOwner modelIndex, byte variable)
     {
         if (variable == 40)
         {
@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         }
         if (variable == 46)
         {
-            return NativeBattleActionGraphics.AnyOtherModelBusy5044B0(graphics.Models, modelIndex, graphics.PresentationRoster);
+            return NativeBattleActionGraphics.AnyOtherModelBusy5044B0(graphics.ActorModels, modelIndex);
         }
         if (variable == 51)
         {
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         }
         if (variable is 53 or 54)
         {
-            int target = (graphics.ActionContext ?? throw new NotSupportedException("Native target bone query requires its50D300 target identity.")).Target ?? throw new NotSupportedException("Native target bone query requires its physical target identity.");
+            BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native target bone query requires its50D300 target identity.")).Target ?? throw new NotSupportedException("Native target bone query requires its physical target identity.");
             NativeBattleVector bone = ReadNativeGraphicsBone(graphics, target, variable == 53 ? (byte)241 : (byte)240, 2048);
             NativeBattleModelTransform transform = graphics.ActorModels.Get(target).Transform ?? throw new NotSupportedException("Native target bone query requires its target position WORD30.");
             return bone.Y - transform.Position28.Y;

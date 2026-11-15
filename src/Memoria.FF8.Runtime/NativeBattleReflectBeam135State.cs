@@ -25,6 +25,14 @@ public sealed record NativeBattleReflectBeam135State([property: JsonRequired] Na
         Globals.Write(Require(address, bytes.Length), bytes);
         return this;
     }
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleReflectBeam135State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public NativeBattleReflectBeam135State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

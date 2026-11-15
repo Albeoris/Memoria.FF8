@@ -4,110 +4,80 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static bool IsBoundPresentationRow(BattleModelRoster roster, int row)
+    private static void ValidatePresentationBindings(NativeBattleEffectPresentationInputs inputs, BattleModelRoster roster)
     {
-        return (uint)row < (uint)roster.ActorCount && roster.Rows[row] is not null;
-    }
-
-    private static void ValidateHostedPresentationBindings(NativeBattleEffectPresentationInputs inputs, BattleModelRoster roster)
-    {
-        roster.Validate();
-        int source = inputs.Source.Index;
-        if (!IsBoundPresentationRow(roster, source) || inputs.Parameters.Source != source || (inputs.SourceIsParty is bool side && roster[source].IsParty != side))
+        if (!roster.Contains(inputs.Parameters.Source) || inputs.NativeTargets.IsDefault || inputs.ForeignActors.IsDefault)
         {
-            throw new InvalidDataException("The hosted effect source disagrees with its presentation roster row.");
+            throw new InvalidDataException("The effect presentation requires a bound source and explicit model bindings.");
         }
-        if (inputs.NativeTargets.IsDefault || inputs.ForeignActors.IsDefault)
-        {
-            throw new InvalidDataException("The hosted effect requires explicit model bindings.");
-        }
-
-        BattleModelTargets occupied = default(BattleModelTargets).Add(source);
+        HashSet<BattleModelOwner> occupied = [inputs.Parameters.Source];
         foreach (NativeBattleEffectModelBinding target in inputs.NativeTargets)
         {
-            if (target?.Model is not { } model || !IsBoundPresentationRow(roster, model.Index) || occupied.Contains(model.Index))
+            if (target?.Model is null || target.Resource is null || target.Owner is not (BattlePartyActorModel or BattleEnemyActorModel) ||
+                !roster.Contains(target.Owner) || !occupied.Add(target.Owner))
             {
-                throw new InvalidDataException("A hosted native effect target requires a unique bound roster row.");
+                throw new InvalidDataException("A native effect target requires a unique canonical model binding.");
             }
-            BattleModelOwner actor = roster[model.Index];
-            if (!string.Equals(target.ActorId, actor.ActorId, StringComparison.Ordinal) || (target.IsParty is bool targetSide && targetSide != actor.IsParty))
-            {
-                throw new InvalidDataException("A hosted native effect target disagrees with its presentation actor identity or side.");
-            }
-            occupied = occupied.Add(model.Index);
         }
         foreach (NativeBattleForeignActor foreign in inputs.ForeignActors)
         {
-            if (foreign is null || !IsBoundPresentationRow(roster, foreign.Index) || occupied.Contains(foreign.Index) ||
-                roster[foreign.Index].IsParty != foreign.IsParty || (foreign.NativeModel is { } native && native.Index != foreign.Index))
+            if (foreign is null || !roster.Contains(foreign.Owner) || !occupied.Add(foreign.Owner) ||
+                (foreign.NativeModel is null) != (foreign.NativeResource is null))
             {
-                throw new InvalidDataException("A hosted foreign effect actor requires a unique matching presentation row and side.");
+                throw new InvalidDataException("A foreign effect participant requires a unique model owner and consistent native resources.");
             }
-            occupied = occupied.Add(foreign.Index);
         }
-        if (occupied.Count != roster.Rows.Count(actor => actor is not null))
+        if (occupied.Count != roster.Count)
         {
-            throw new InvalidDataException("A hosted effect lacks a model binding for a presentation actor.");
+            throw new InvalidDataException("The effect presentation lacks a model binding for a supplied owner.");
         }
     }
 
     private void BindHostedCinematicActors()
     {
-        if (NativeGraphics is not { PresentationRoster: { } roster } graphics || NativeEffectMemory?.ScriptedEffects is not { } core)
+        if (NativeGraphics is not { } graphics || NativeEffectMemory?.ScriptedEffects is not { } core)
         {
             return;
         }
-        NativeBattleCinematicActorContext context;
-        if (core.PresentationActors is { } retained)
-        {
-            if (!retained.Roster.Rows.SequenceEqual(roster.Rows))
-            {
-                throw new InvalidDataException("The retained cinematic actor context belongs to a different presentation roster.");
-            }
-            context = retained.RefreshCache(graphics.Models);
-        }
-        else
-        {
-            context = SeedHostedCinematicActors(core.ReadHeader(), NativeBattleCinematicActorContext.FromGraphics(roster, graphics.Models));
-        }
-        NativeEffectMemory = NativeEffectMemory! with { ScriptedEffects = core with { PresentationActors = context } };
+        NativeBattleCinematicActorContext context = core.PresentationActors is { } retained
+            ? retained.RefreshCache(graphics.ActorModels)
+            : SeedHostedCinematicActors(core.ReadHeader(), NativeBattleCinematicActorContext.FromGraphics(graphics.ActorModels), graphics);
+        NativeEffectMemory = NativeEffectMemory with { ScriptedEffects = core with { PresentationActors = context } };
     }
 
-    private static NativeBattleCinematicActorContext SeedHostedCinematicActors(NativeBattleWaterHeader header, NativeBattleCinematicActorContext context)
+    private static NativeBattleCinematicActorContext SeedHostedCinematicActors(NativeBattleWaterHeader header, NativeBattleCinematicActorContext context, NativeBattleGraphicsState graphics)
     {
-        BattleModelRoster roster = context.Roster;
-        ImmutableArray<byte?>.Builder ordinals = context.ActorOrdinals.ToBuilder();
-        for (int row = 0; row < roster.ActorCount; row++)
+        ImmutableDictionary<BattleModelOwner, int?>.Builder ordinals = context.ActorOrdinals.ToBuilder();
+        Dictionary<byte, BattleModelOwner> originalOwners = [];
+        foreach (BattleModelOwner owner in graphics.ActorModels.Owners)
         {
-            if (roster.Rows[row] is null)
+            if (graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte slot))
             {
-                continue;
-            }
-            if (row >= NativeBattleGraphicsModelAddress.NativeRowCount)
-            {
-                // Extension rows have no retained original ordinal bytes.
-                ordinals[row] = 0;
-            }
-            else if (header.Known[0xCC + row] && header.Bytes[0xCC + row] < roster.ActorCount)
-            {
-                ordinals[row] = header.Bytes[0xCC + row];
+                originalOwners.Add(slot, owner);
+                if (header.Known[0xCC + slot] && header.Bytes[0xCC + slot] < graphics.ActorModels.Roster.Count)
+                {
+                    ordinals[owner] = header.Bytes[0xCC + slot];
+                }
             }
         }
-        context = context with { ActorOrdinals = ordinals.MoveToImmutable() };
+        context = context with { ActorOrdinals = ordinals.ToImmutable() };
 
         if (!header.Known[0x17A] || header.Bytes[0x17A] > 6)
         {
             return context;
         }
         int savedCount = header.Bytes[0x17A];
+        ImmutableArray<BattleModelOwner>.Builder saved = ImmutableArray.CreateBuilder<BattleModelOwner>(savedCount);
         for (int index = 0; index < savedCount; index++)
         {
-            byte actor = header.Bytes[0x174 + index];
-            if (!header.Known[0x174 + index] || actor >= NativeBattleGraphicsModelAddress.NativeRowCount || !IsBoundPresentationRow(roster, actor))
+            byte slot = header.Bytes[0x174 + index];
+            if (!header.Known[0x174 + index] || slot >= NativeBattleModelBoundary.CellCount ||
+                !originalOwners.TryGetValue(slot, out BattleModelOwner? owner))
             {
                 return context;
             }
+            saved.Add(owner);
         }
-        return context.WithSavedActors(header.Bytes.Slice(0x174, savedCount));
+        return context.WithSavedActors(saved.MoveToImmutable());
     }
 }

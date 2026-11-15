@@ -148,7 +148,7 @@ public sealed partial class BattleSession
         NativeGraphics = prepared.Admitted;
         if (prepared.Action is { } action)
         {
-            presentationSourceIndex = action.SourceIndex;
+            presentationSourceOwner = action.SourceIndex;
             presentationSourceResource = action.Source;
             presentationSourceModelId = action.ModelId;
             presentationSourceIsParty = action.IsParty;

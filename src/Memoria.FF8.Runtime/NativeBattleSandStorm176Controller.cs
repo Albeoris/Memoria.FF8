@@ -39,7 +39,7 @@ public static partial class NativeBattleSandStorm176Controller
         textures = textures.Register5099A0(resources.Camera);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2374554)?.ArenaOffset ?? throw new NotSupportedException("Native Sand Storm requires its initializer file allocation.");
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Sand Storm requires its file arena."), source);
-        return new(memory with { SandStorm176 = state with { Module = module.Freeze() }, Textures = textures }, effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = source }, random);
+        return new(memory with { SandStorm176 = state with { Module = module.Freeze() }, Textures = textures }, effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = source, SavedActorTransforms = ImmutableDictionary<BattleModelOwner, NativeBattleSavedActorTransform>.Empty }, random);
     }
 
     public static NativeBattleSandStorm176Frame Advance(NativeBattleSandStorm176Frame frame, NativeBattleSandStorm176Resources resources, NativeBattleSandStorm176Inputs inputs) => frame.Effect.ReturnedDescriptor == 0 ? frame : new Execution(frame, resources, inputs).Advance();
@@ -95,10 +95,10 @@ public static partial class NativeBattleSandStorm176Controller
         }
 
         private NativeBattleSandStorm176State State => current.Memory.SandStorm176 ?? throw new NotSupportedException("Native Sand Storm lost its executable owner.");
-        private int Caster => current.Effect.Parameters!.Source;
+        private BattleModelOwner Caster => current.Effect.Parameters!.Source;
         private NativeBattleActionHeaderSlot Header => inputs.Packets.ReadHeader(current.Effect.Parameters!.Header);
-        private int FirstContact => Header.FirstContactIndex ?? throw new NotSupportedException("Native Sand Storm requires its actual contact list.");
-        private NativeBattleVector Bone(int index, byte bone, short fraction) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(index), inputs.ReadPoseSource(index), bone, fraction);
+        private BattleContactCursor FirstContact => Header.FirstContact;
+        private NativeBattleVector Bone(BattleModelOwner owner, byte bone, short fraction) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(owner), inputs.ReadPoseSource(owner), bone, fraction);
         private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private short W(uint address) => BinaryPrimitives.ReadInt16LittleEndian(State.Module.Read(checked((int)(address - ModuleBase)), 2));
         private uint D(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(State.Module.Read(checked((int)(address - ModuleBase)), 4));
@@ -135,7 +135,7 @@ public static partial class NativeBattleSandStorm176Controller
             int age = S(task, 12);
             if (age == 0)
             {
-                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(current.Effect.Parameters!.TargetActors.EnumerateRows().Select(actor => inputs.ReadModel(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Sand Storm target centre requires its position WORDs.")).ToArray());
+                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(current.Effect.Parameters!.TargetActors.Enumerate().Select(actor => inputs.ReadModel(actor).Transform?.Position28 ?? throw new NotSupportedException("Native Sand Storm target centre requires its position WORDs.")).ToArray());
                 W(0x2374298, center.X);
                 W(0x237429A, center.Y);
                 W(0x237429C, center.Z);
@@ -174,14 +174,20 @@ public static partial class NativeBattleSandStorm176Controller
             {
                 for (int index = 0; index < Header.ReadContactCount(); index++)
                 {
-                    int actor = inputs.Packets.ReadContact(FirstContact + index).Primary.Recipient;
+                    BattleModelOwner actor = inputs.Packets.ReadContact(FirstContact.Advance(index)).Primary.Recipient;
                     int lift = Spawn(0x5D14B0);
                     int spin = (Roll() % 2 + 1) << 12;
                     int speed = -45 - Roll() % 65;
                     NativeBattleVector origin = Bone(actor, 0xF1, 0);
                     int distanceA = Distance(Position(0x23685A8), origin);
                     int distanceB = Distance(Position(0x23685B0), origin);
-                    Put(lift, WritePosition(children.Slots[lift].WriteWord(12, 0).WriteWord(14, (ushort)actor).WriteWord(24, (ushort)spin).WriteWord(26, (ushort)index).WriteWord(28, distanceA < distanceB ? (ushort)1 : (ushort)0).WriteWord(30, (ushort)(Roll() % 6)).WriteWord(32, 0).WriteWord(34, unchecked((ushort)speed)), 16, origin));
+                    NativeBattleModulePoolTask liftTask = children.Slots[lift].WriteWord(12, 0);
+                    liftTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
+                    liftTask = liftTask.WriteWord(24, (ushort)spin);
+                    BattleExecutionReference.ContactOffset contactOffset = new(index);
+                    liftTask.WriteExecutionReference(26, 2, contactOffset, contactOffset.EncodeOriginalWord());
+                    liftTask = liftTask.WriteWord(28, distanceA < distanceB ? (ushort)1 : (ushort)0).WriteWord(30, (ushort)(Roll() % 6)).WriteWord(32, 0).WriteWord(34, unchecked((ushort)speed));
+                    Put(lift, WritePosition(liftTask, 16, origin));
                 }
             }
             task = task.WriteWord(12, unchecked((ushort)(age + 1)));

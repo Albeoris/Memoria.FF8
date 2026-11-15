@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleBreath129Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Breath requires its actual CRT stream."), memory.Breath129 ?? throw new NotSupportedException("Breath requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Breath requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Breath requires its interpolation constants.");
         NativeBattleBreath129Inputs? inputs = null;
-        inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, address) => graphics.ActorModels.Get(Actor(address)), (_, address) => (graphics.ActorModels.Get(Actor(address)).Transform ?? throw new NotSupportedException("Breath requires its actor heading.")).Angle36, Bone, Anchor, ReadBody, PublishBody, AdvanceAct, Execute) { CapturePresentation = true, ReadResourceRowCapacity = NativeModelResourceRowCapacity };
+        inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, owner) => graphics.ActorModels.Get(owner), (_, owner) => (graphics.ActorModels.Get(owner).Transform ?? throw new NotSupportedException("Breath requires its actor heading.")).Angle36, Bone, Anchor, ReadBody, PublishBody, AdvanceAct, Execute) { CapturePresentation = true, ReadResourceRowCapacity = NativeModelResourceRowCapacity };
         frame = initialize ? NativeBattleBreath129Controller.Initialize(frame, resources, inputs) : NativeBattleBreath129Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -37,13 +37,12 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Breath129 ?? throw new InvalidDataException("Breath external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Breath external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Breath external service lost its CRT stream.") };
         }
 
-        NativeBattleBreath129PointStep Bone(NativeBattleBreath129Frame current, uint address, int selector, short distance)
+        NativeBattleBreath129PointStep Bone(NativeBattleBreath129Frame current, BattleModelOwner actor, int selector, short distance)
         {
-            int actor = Actor(address);
             return BoneActor(current, actor, selector, distance);
         }
 
-        NativeBattleBreath129PointStep BoneActor(NativeBattleBreath129Frame current, int actor, int selector, int distance)
+        NativeBattleBreath129PointStep BoneActor(NativeBattleBreath129Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Breath requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -53,9 +52,8 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleBreath129PointStep Anchor(NativeBattleBreath129Frame current, uint address)
+        NativeBattleBreath129PointStep Anchor(NativeBattleBreath129Frame current, BattleModelOwner actor)
         {
-            int actor = Actor(address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) != 0)
             {
@@ -92,14 +90,12 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleBreath129ContactIndex contact:
                     Publish(current);
-                    BattleActionHeaderReference headerIndex = (current.Effect.Parameters ?? throw new NotSupportedException("Breath requires its captured parameters.")).Header;
-                    int first = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Breath requires its captured contacts.");
                     var pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleBreath129ComposeBody5095B0 compose:
-                    int actor = Actor(compose.ActorAddress);
+                    BattleModelOwner actor = compose.Actor;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Breath requires its current world matrix."))) };
                     return current;
@@ -164,15 +160,6 @@ public sealed partial class BattleSession
                 (byte[] w, bool[] known) = vertex.ReadSnapshot(6, 2);
                 return (new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
             }
-        }
-
-        static int Actor(uint address)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex))
-            {
-                throw new InvalidDataException("Breath actor pointer leaves its model bank.");
-            }
-            return actorIndex;
         }
 
         NativeBattleBreath129BodyStep ReadBody(NativeBattleBreath129Frame current, uint row)

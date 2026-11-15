@@ -12,7 +12,7 @@ public sealed record NativeBattleFatedCircle162Flash : NativeBattleFatedCircle16
 public sealed record NativeBattleFatedCircle162Contacts : NativeBattleFatedCircle162Operation;
 public sealed record NativeBattleFatedCircle162Geometry(NativeBattleGfGeometryBatch Batch) : NativeBattleFatedCircle162Operation;
 public sealed record NativeBattleFatedCircle162Sprite(NativeBattleModulePacketBatch Batch) : NativeBattleFatedCircle162Operation;
-public sealed record NativeBattleFatedCircle162Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int> Pending508500, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelTargets, NativeBattleModuleAnchor> ReadTarget5020A0, Func<byte, NativeBattleModuleAnchor> ReadBone240, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<byte, short> ReadScale26, Func<NativeBattleFatedCircle162Frame, NativeBattleFatedCircle162Operation, NativeBattleFatedCircle162Frame> Execute, Func<NativeBattleFatedCircle162Frame, NativeBattleModuleAnchor, NativeBattleFatedCircle162Frame> Capture5FC5E0)
+public sealed record NativeBattleFatedCircle162Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int> Pending508500, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelTargets, NativeBattleModuleAnchor> ReadTarget5020A0, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadBone240, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, short> ReadScale26, Func<NativeBattleFatedCircle162Frame, NativeBattleFatedCircle162Operation, NativeBattleFatedCircle162Frame> Execute, Func<NativeBattleFatedCircle162Frame, NativeBattleModuleAnchor, NativeBattleFatedCircle162Frame> Capture5FC5E0)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
@@ -141,11 +141,11 @@ public static partial class NativeBattleFatedCircle162Controller
                 Append(0x5FC850, origin with { Z = unchecked((short)(origin.Z + 2700)) });
                 break;
             case 116:
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.Header];
-                int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native5F91D0 requires its physical contact array.");
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
+                BattleContactCursor firstContact = header.FirstContact;
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    byte recipient = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
+                    BattleModelOwner recipient = inputs.Packets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
                     int impact = Append(0x5FCB00, inputs.ReadAnchor571400(recipient));
                     Set(impact, 28, (2200 * inputs.ReadScale26(recipient)) >> 12);
                 }

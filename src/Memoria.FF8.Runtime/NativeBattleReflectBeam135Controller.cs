@@ -17,7 +17,7 @@ public static partial class NativeBattleReflectBeam135Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with
         {
-            State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
+            State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases),
             Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -70,7 +70,7 @@ public static partial class NativeBattleReflectBeam135Controller
                 throw new NotSupportedException("Reflect Beam exhausted its single main task.");
             }
             NativeBattleModulePoolTask task = Read(frame, childAddress).WriteBytes(12, new byte[724]);
-            int firstContact = FirstContact(frame, inputs);
+            BattleContactCursor firstContact = FirstContact(frame, inputs);
             int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 3)
             {
@@ -82,8 +82,9 @@ public static partial class NativeBattleReflectBeam135Controller
             short meanZ = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
-                task = task.WriteDword(0x14 + index * 4, ModelAddress(actor)).WriteByte(0x10 + index, (byte)index);
+                BattleModelOwner actor = inputs.Packets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
+                WriteModelOwner(task, 0x14 + index * 4, actor, inputs.Packets.ModelAliases);
+                task = task.WriteByte(0x10 + index, (byte)index);
                 NativeBattleReflectBeam135AnchorStep anchor = inputs.ReadAnchor(frame, actor);
                 frame = anchor.Frame;
                 meanX = unchecked((short)(meanX + anchor.Anchor.X));
@@ -95,12 +96,14 @@ public static partial class NativeBattleReflectBeam135Controller
             {
                 for (int next = index + 1; next < count; next++)
                 {
-                    uint left = task.ReadDword(0x14 + index * 4);
-                    uint right = task.ReadDword(0x14 + next * 4);
-                    if (Transform(inputs.ReadModel(Actor(left))).Position28.X < Transform(inputs.ReadModel(Actor(right))).Position28.X)
+                    BattleModelOwner left = ReadModelOwner(task, 0x14 + index * 4);
+                    BattleModelOwner right = ReadModelOwner(task, 0x14 + next * 4);
+                    if (Transform(inputs.ReadModel(left)).Position28.X < Transform(inputs.ReadModel(right)).Position28.X)
                     {
                         byte old = task.ReadByte(0x10 + index);
-                        task = task.WriteDword(0x14 + index * 4, right).WriteDword(0x14 + next * 4, left).WriteByte(0x10 + index, task.ReadByte(0x10 + next)).WriteByte(0x10 + next, old);
+                        WriteModelOwner(task, 0x14 + index * 4, right, inputs.Packets.ModelAliases);
+                        WriteModelOwner(task, 0x14 + next * 4, left, inputs.Packets.ModelAliases);
+                        task = task.WriteByte(0x10 + index, task.ReadByte(0x10 + next)).WriteByte(0x10 + next, old);
                     }
                 }
             }
@@ -112,7 +115,7 @@ public static partial class NativeBattleReflectBeam135Controller
         {
             for (int index = 1; index < 5; index++)
             {
-                byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
+                BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
                 if (index == 2)
                 {
                     frame = inputs.Execute(frame, new NativeBattleReflectBeam135ComposeCaster(caster));

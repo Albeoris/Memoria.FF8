@@ -6,14 +6,14 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState ApplyNativeActiveHeaderContacts(NativeBattleGraphicsState graphics)
     {
-        int index = nativeActionPackets.ActiveHeaderIndex ?? throw new InvalidDataException("Native50A670 requires its actual active header pointer.");
+        BattleActionHeaderReference index = nativeActionPackets.ActiveHeader ?? throw new InvalidDataException("Native50A670 requires its actual active header pointer.");
         return ApplyNativeHeaderContacts(graphics, index);
     }
 
-    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, int headerIndex)
+    private NativeBattleGraphicsState ApplyNativeHeaderContacts(NativeBattleGraphicsState graphics, BattleActionHeaderReference header)
     {
         //506BA0 reads this physical header range. The temporary projection is consumed here, never persisted as another contact owner.
-        var contacts = nativeActionPackets.ReadHeaderContacts506BA0(headerIndex);
+        var contacts = nativeActionPackets.ReadHeaderContacts(header);
         NativeBattleGraphicsState applied = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = contacts });
         return applied with { PendingContacts = graphics.PendingContacts };
     }
@@ -25,89 +25,52 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState PrepareNativeHeaderGeometry(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
-        if (graphics.PresentationRoster is { } roster)
-        {
-            RequireHostedActionModelBank(graphics, roster);
-            BattleModelTargets targets = context.TargetActors;
-            BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
-            NativeBattleActionGeometry.ValidatePresentationRows(roster, context.Actor, targets, cover);
-            int source = context.Actor;
-            byte command = header.Command;
-            if (command == 0xF0)
-            {
-                int? selected = null;
-                foreach (int row in roster.PartyRows)
-                {
-                    if ((graphics.ActorModels.Get(row).Flags0 & 2) != 0)
-                    {
-                        selected = row;
-                        if (graphics.ActorModels.Get(row).ModelId4 == 4)
-                        {
-                            break;
-                        }
-                    }
-                }
-                source = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
-            }
-            BattleModelTargets selection = cover.IsEmpty ? targets : cover;
-            BattleModelTargets effective = selection;
-            if (selection.IsEmpty && command is 1 or 12 or 28)
-            {
-                int fallback = context.FirstTarget is byte firstTarget ? firstTarget : source;
-                if (!roster.ContainsRow(fallback))
-                {
-                    throw new InvalidDataException("Hosted action geometry fallback requires a bound target row.");
-                }
-                effective = effective.Add(fallback);
-            }
-            return PrepareNativeActionGeometry(graphics, source, selection, effective);
-        }
-        int actorIndex = context.Actor;
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
+        BattleModelOwner source = context.Actor;
         if (header.Command == 0xF0)
         {
-            int? selected = null;
-            for (int index = 0; index < 3; index++)
+            BattleModelOwner? selected = null;
+            foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
             {
-                if ((graphics.ActorModels.Get(index).Flags0 & 2) != 0)
+                if ((entry.State.Flags0 & 2) != 0)
                 {
-                    selected = index;
-                    if (graphics.ActorModels.Get(index).ModelId4 == 4)
+                    selected = entry.Owner;
+                    if (entry.State.ModelId4 == 4)
                     {
                         break;
                     }
                 }
             }
-            actorIndex = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
+            source = selected ?? throw new NotSupportedException("Native50AFC0 command240 has no loaded party geometry source.");
         }
-        if (presentationForeignActors is not null)
+        BattleModelTargets selection = context.CoverActors.IsEmpty ? context.TargetActors : context.CoverActors;
+        BattleModelTargets effective = selection;
+        if (selection.IsEmpty && header.Command is 1 or 12 or 28)
         {
-            return PrepareEffectPresentationGeometry(graphics, checked((byte)actorIndex), context.CoverMask != 0 ? context.CoverMask : context.TargetMask);
+            effective = effective.Add(context.FirstTarget ?? source);
         }
-        BattleCombatant actor = GraphicsActor(graphics, actorIndex);
-        string target = context.FirstTarget is byte first ? GraphicsActor(graphics, first).Id : actor.Id;
-        BattleAttackCommand geometry = new(actor.Id, target) { NativeTargetMask = context.CoverMask != 0 ? context.CoverMask : context.TargetMask, NativeQueuedCommand = header.Command };
-        return PrepareNativeActionGeometry(graphics, actor, geometry);
+        return PrepareNativeActionGeometry(graphics, source, selection, effective);
     }
 
     private NativeBattleGraphicsState CompleteNativeHeaderGraphics(NativeBattleGraphicsState graphics)
     {
         NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native50AED0 requires its camera owner.")).CompleteAction();
-        for (int index = 0; index < graphics.Models.Length; index++)
+        BattleActorModels models = graphics.ActorModels;
+        foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = (ushort)(model.Flags0 & 0x87FF) }) };
+            NativeBattleGraphicsModel model = entry.State;
+            models = models.Set(entry.Owner, model with { Flags0 = (ushort)(model.Flags0 & 0x87FF) });
         }
-        return graphics;
+        return graphics with { ActorModels = models, NativeBindings = graphics.NativeBindings.CompleteUnboundActionCells50AED0() };
     }
 
-    private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, byte index, int requestedSequence, NativeBattleCastingSequenceProvenance? presentationSource = null)
+    private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, BattleModelOwner index, int requestedSequence, NativeBattleCastingSequenceProvenance? presentationSource = null)
     {
         graphics = ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
         return graphics with { ModuleEffects = graphics.ModuleEffects.BindCastingSequence(index, presentationSource) };
     }
 
-    private NativeBattleGraphicsState SelectNativeReadyHeaderSequence505CE0(NativeBattleGraphicsState graphics, byte index, int requestedSequence)
+    private NativeBattleGraphicsState SelectNativeReadyHeaderSequence505CE0(NativeBattleGraphicsState graphics, BattleModelOwner index, int requestedSequence)
     {
         if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
         {
@@ -138,7 +101,7 @@ public sealed partial class BattleSession
             graphics = PrepareNativeHeaderGeometry(graphics, context);
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
             actor = actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50BB00 actor lacks its loaded DWORD8.")) & ~0x800000u };
-            byte sequence = nativeActionPackets.Headers[context.Header].ReadByte(2);
+            byte sequence = nativeActionPackets.ReadHeader(context.Header).Sequence;
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor) };
             graphics = sequence != 0 ? SelectNativeHeaderSequence(graphics, context.Actor, sequence) : ApplyNativeActiveHeaderContacts(graphics);
             graphics = StartNativeHeaderCamera(graphics, context);

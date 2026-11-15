@@ -116,7 +116,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleCactuar199HitReaction reaction:
-                    graphics = SelectNativeHeaderSequence(graphics, checked((byte)reaction.Actor), reaction.Mode);
+                    graphics = SelectNativeHeaderSequence(graphics, reaction.Actor, reaction.Mode);
                     return current;
                 case NativeBattleCactuar199CommonTextureLoad load:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)load.DestinationArenaOffset), load.CompletionAddress, (address, value) => current = current with { Effect = NativeBattleCactuar199Controller.WriteCompletionByte(current.Effect, address, value) });

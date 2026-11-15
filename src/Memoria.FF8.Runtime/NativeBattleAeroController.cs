@@ -12,8 +12,8 @@ public sealed record NativeBattleAeroNode(NativeBattleGfAnimationSource Source, 
 }
 public sealed record NativeBattleAeroParticle(NativeBattleModulePoolTask Task) : NativeBattleAeroOperation;
 public sealed record NativeBattleAeroSound(NativeBattleModuleAnchor Position) : NativeBattleAeroOperation;
-public sealed record NativeBattleAeroContact(int Contact) : NativeBattleAeroOperation;
-public sealed record NativeBattleAeroInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleModelTransform> ReadTransform, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadPosition, Func<NativeBattleAeroFrame, NativeBattleAeroOperation, NativeBattleAeroFrame> Execute);
+public sealed record NativeBattleAeroContact(BattleContactOccurrence Contact) : NativeBattleAeroOperation;
+public sealed record NativeBattleAeroInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModelTransform> ReadTransform, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadPosition, Func<NativeBattleAeroFrame, NativeBattleAeroOperation, NativeBattleAeroFrame> Execute);
 
 /// <summary>Aero's two retained animation workspaces and physical particles with parent-owned timing.</summary>
 public static class NativeBattleAeroController
@@ -39,10 +39,11 @@ public static class NativeBattleAeroController
         }
         BattleActionHeaderReference first = effect.Parameters.Header;
         int last = packets.ReadHeader(first).ReadRepeatModeMinusOne();
-        if (last >= 3 || first + last >= NativeBattleActionPacketsState.HeaderCapacity)
+        if (last >= 3)
         {
             throw new NotSupportedException("Native Aero owns exactly three primary task slots.");
         }
+        _ = packets.ReadHeader(first.Advance(last));
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 20, 1);
         (main, int slot) = main.Append(0x6C0D20);
         main = Put(main, slot, Clear(main.Slots[slot], 8));
@@ -77,10 +78,10 @@ public static class NativeBattleAeroController
                 if (sequence <= Header(0).ReadRepeatModeMinusOne())
                 {
                     BattleContactCursor contact = Header(sequence).FirstContact;
-                    int actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
+                    BattleModelOwner actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
                     (primary, int child) = primary!.Append(0x6C0EC0);
                     NativeBattleModulePoolTask next = Clear(primary.Slots[child], 0x680).WriteWord(14, (ushort)sequence);
-                    next = WriteDword(next, 16, ActorAddress(actor));
+                    next.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
                     next = Position(next, 20, inputs.ReadPosition(actor));
                     NativeBattleGfAnimationWorkspace first = ReadWorkspace(next, true).Initialize7016B0(resources.SourceA, FirstWorkspaceLength);
                     NativeBattleGfAnimationWorkspace second = ReadWorkspace(next, false).Initialize7016B0(resources.SourceB, SecondWorkspaceLength);
@@ -115,7 +116,7 @@ public static class NativeBattleAeroController
             NativeBattleModulePoolTask task = pool.Slots[slot];
             Require(task, 0x6C0EC0);
             int phase = Word(task, 12);
-            int actor = ActorIndex(Dword(task, 16));
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             if (phase == 8)
             {
                 Emit(new NativeBattleAeroSound(Anchor(task, 20)));
@@ -162,7 +163,8 @@ public static class NativeBattleAeroController
             task = Add(task, 12, 1);
             if (remaining == 0)
             {
-                Emit(new NativeBattleAeroContact(Header(task.ReadWord(14)).FirstContactIndex ?? throw new NotSupportedException("Native Aero lost its sequence contact owner.")));
+                NativeBattleContactPacket contact = inputs.Packets.ReadContact(Header(task.ReadWord(14)).FirstContact);
+                Emit(new NativeBattleAeroContact(contact.Occurrence ?? throw new InvalidDataException("Native Aero requires its reached contact occurrence.")));
                 task = task.WriteWord(14, 0xFFFF);
                 return new(Put(pool, slot, task), 2);
             }
@@ -235,7 +237,6 @@ public static class NativeBattleAeroController
 
     public static NativeBattleGfAnimationWorkspace ReadWorkspace(NativeBattleModulePoolTask task, bool first) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + ((first ? FirstWorkspaceOffset : SecondWorkspaceOffset) - 12), first ? FirstWorkspaceLength : SecondWorkspaceLength);
     public static int PrimarySlot(uint pointer) => Index(pointer, PrimaryBank, 0x68C, 3);
-    public static int ActorIndex(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Native Aero pointer has no exact physical task or actor owner.");
     private static int Index(uint pointer, uint bank, uint stride, uint count)
     {
         uint delta = unchecked(pointer - bank);
@@ -245,7 +246,6 @@ public static class NativeBattleAeroController
         }
         return (int)(delta / stride);
     }
-    private static uint ActorAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Native Aero requires an actual actor graphics row.");
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, bool first, NativeBattleGfAnimationWorkspace workspace)
     {
         int expected = first ? FirstWorkspaceLength : SecondWorkspaceLength;

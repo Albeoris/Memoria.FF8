@@ -14,7 +14,7 @@ public static partial class NativeBattleMicroMissiles299Controller
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Micro Missiles requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Micro Missiles requires its working arena."), tim);
         NativeBattleEffectParameters parameters = Parameters(frame);
-        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source)) };
+        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, parameters.Source, inputs.Packets.ModelAliases) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int index) = root.Append(RootCallback);
         root = root.WriteSlot(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0));
@@ -61,7 +61,7 @@ public static partial class NativeBattleMicroMissiles299Controller
             NativeBattleEffectTaskPool impacts = NativeBattleEffectTaskPool.Initialize(ImpactDescriptor, working + 0xD80, 0x144, 6);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, 0x24, 96);
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], missiles, impacts, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [missiles, impacts, particles]) };
-            byte caster = (byte)Actor(frame.State.ReadDword(CasterGlobal));
+            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleMicroMissiles299BindCaster(caster, working + BindingOffset, 0x1047120));
             frame = inputs.Execute(frame, new NativeBattleMicroMissiles299RingSequence(caster, 2));
         }
@@ -110,8 +110,8 @@ public static partial class NativeBattleMicroMissiles299Controller
 
     private static NativeBattleMicroMissiles299Frame SpawnMissile(NativeBattleMicroMissiles299Frame frame, int index, NativeBattleMicroMissiles299Resources resources, NativeBattleMicroMissiles299Inputs inputs)
     {
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
-        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
+        BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
+        BattleModelOwner target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
         NativeBattleMicroMissiles299AnchorStep anchor = inputs.ReadAnchor571400(frame, caster);
         frame = anchor.Frame;
         NativeBattleGraphicsModel casterModel = inputs.ReadModel(caster);
@@ -172,14 +172,14 @@ public static partial class NativeBattleMicroMissiles299Controller
 
     private static NativeBattleMicroMissiles299Frame DrawRandom(NativeBattleMicroMissiles299Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
     private static NativeBattleEffectParameters Parameters(NativeBattleMicroMissiles299Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Micro Missiles requires its captured action parameters.");
-    private static int FirstContact(NativeBattleMicroMissiles299Frame frame, NativeBattleMicroMissiles299Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleMicroMissiles299Frame frame, NativeBattleMicroMissiles299Inputs inputs)
     {
-        BattleActionHeaderReference index = Parameters(frame).Header;
-        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
+        if (header.ReadContactCount() == 0)
         {
             throw new InvalidDataException("Micro Missiles requires its first captured target contact.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Micro Missiles requires its actual captured contact pointer.");
+        return header.FirstContact;
     }
     private static void RequireBinding(NativeBattleMicroMissiles299Frame frame)
     {
@@ -188,15 +188,6 @@ public static partial class NativeBattleMicroMissiles299Controller
             throw new InvalidDataException("Micro Missiles requires its original selected entry.");
         }
     }
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Micro Missiles actor pointer leaves the native seven-model bank.");
-        }
-        return row;
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Micro Missiles actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleMicroMissiles299Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleMicroMissiles299Frame WithPool(NativeBattleMicroMissiles299Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleMicroMissiles299Frame Put(NativeBattleMicroMissiles299Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));

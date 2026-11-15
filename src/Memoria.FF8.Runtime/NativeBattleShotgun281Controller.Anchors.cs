@@ -12,7 +12,7 @@ public static partial class NativeBattleShotgun281Controller
             throw new InvalidDataException("Shotgun muzzle requires its actual packed point and bone selector.");
         }
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point[6..]);
-        uint model = frame.State.ReadDword(0x2507F30);
+        BattleModelOwner model = frame.State.ReadModelOwner(NativeBattleShotgun281Profile.CasterGlobal);
         NativeBattlePackedMatrix32 matrix = inputs.ReadCurrentBoneMatrix(frame, model, bone);
         frame = LoadMatrix(frame, matrix);
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters!, frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Shotgun muzzle requires its current arithmetic owner."));

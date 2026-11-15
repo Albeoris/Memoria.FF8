@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             nativeCrtRandom = current.Random;
         }
 
-        NativeBattlePetrifyStare127PointStep Bone(NativeBattlePetrifyStare127Frame current, int actor)
+        NativeBattlePetrifyStare127PointStep Bone(NativeBattlePetrifyStare127Frame current, BattleModelOwner actor)
         {
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Petrify Stare requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), pose, 0xF0, 0);
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                 case NativeBattlePetrifyStare127Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Petrify Stare contact lost its process memory."), Staging = NativeFileStaging };
                 default:

@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleBreath129Body
 {
-    public static NativeBattleBreath129Frame Capture6B73F0(NativeBattleBreath129Frame frame, uint actorAddress, uint output, int pairs, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
+    public static NativeBattleBreath129Frame Capture6B73F0(NativeBattleBreath129Frame frame, BattleModelOwner actor, uint output, int pairs, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
     {
         if (pairs < 0)
         {
@@ -14,7 +14,7 @@ public static class NativeBattleBreath129Body
         }
         (frame, uint temporary) = Allocate(frame, 52);
         uint cursor = frame.State.ReadDword(0x252117C);
-        uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actorAddress), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
+        uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, actor), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 52).Write(0, BitConverter.GetBytes(cursor)).Write(4, BitConverter.GetBytes(row)), 52);
         NativeBattleBreath129BodyStep source = inputs.PublishBody508C90(frame, row);
         if (source.Source.BodyRowAddress != row)

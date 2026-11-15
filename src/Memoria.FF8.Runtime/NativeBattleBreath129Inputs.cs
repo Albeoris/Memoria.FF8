@@ -32,7 +32,7 @@ public sealed record NativeBattleBreath129BodySource(uint BodyRowAddress, Func<i
     }
 }
 public sealed record NativeBattleBreath129BodyStep(NativeBattleBreath129Frame Frame, NativeBattleBreath129BodySource Source);
-public sealed record NativeBattleBreath129Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleBreath129Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleBreath129Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleBreath129Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleBreath129Frame, uint, short> ReadHeading, Func<NativeBattleBreath129Frame, uint, int, short, NativeBattleBreath129PointStep> ReadBone502170, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129PointStep> ReadAnchor571400, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129BodyStep> ReadBody, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129BodyStep> PublishBody508C90, Func<NativeBattleBreath129Frame, uint, NativeBattleGfAnimationSource, NativeBattleBreath129ActContext, NativeBattleBreath129ActStep> AdvanceAct, Func<NativeBattleBreath129Frame, NativeBattleBreath129Operation, NativeBattleBreath129Frame> Execute)
+public sealed record NativeBattleBreath129Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleBreath129Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleBreath129Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleBreath129Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleBreath129Frame, BattleModelOwner, short> ReadHeading, Func<NativeBattleBreath129Frame, BattleModelOwner, int, short, NativeBattleBreath129PointStep> ReadBone502170, Func<NativeBattleBreath129Frame, BattleModelOwner, NativeBattleBreath129PointStep> ReadAnchor571400, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129BodyStep> ReadBody, Func<NativeBattleBreath129Frame, uint, NativeBattleBreath129BodyStep> PublishBody508C90, Func<NativeBattleBreath129Frame, uint, NativeBattleGfAnimationSource, NativeBattleBreath129ActContext, NativeBattleBreath129ActStep> AdvanceAct, Func<NativeBattleBreath129Frame, NativeBattleBreath129Operation, NativeBattleBreath129Frame> Execute)
 {
     public bool CapturePresentation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
@@ -42,8 +42,8 @@ public sealed record NativeBattleBreath129Inputs(NativeBattleActionPacketsState 
 
 public abstract record NativeBattleBreath129Operation;
 public sealed record NativeBattleBreath129Sound(uint Packed, uint Flags, byte Pan) : NativeBattleBreath129Operation;
-public sealed record NativeBattleBreath129ContactIndex(int Index) : NativeBattleBreath129Operation;
-public sealed record NativeBattleBreath129ComposeBody5095B0(uint ActorAddress) : NativeBattleBreath129Operation;
+public sealed record NativeBattleBreath129ContactIndex(BattleContactOccurrence Index) : NativeBattleBreath129Operation;
+public sealed record NativeBattleBreath129ComposeBody5095B0(BattleModelOwner Actor) : NativeBattleBreath129Operation;
 public sealed record NativeBattleBreath129Stage5713E0(int Accumulator, int Mode) : NativeBattleBreath129Operation;
 public sealed record NativeBattleBreath129DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleBreath129Operation
 {

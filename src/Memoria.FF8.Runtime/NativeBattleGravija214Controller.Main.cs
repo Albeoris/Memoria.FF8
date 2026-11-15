@@ -38,8 +38,8 @@ public static partial class NativeBattleGravija214Controller
                 for (int index = 0; index < count; index++)
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                    int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Gravija requires its current contact pointer.");
-                    uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.Recipient);
+                    BattleContactCursor first = Header(frame, packets).FirstContact;
+                    uint model = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
                     frame = Write(frame, main, Read(frame, main).WriteDword(0x14 + index * 4, model));
                     NativeBattleGravija214PointStep anchor = inputs.ReadAnchor571400(frame, model);
                     frame = anchor.Frame;

@@ -31,8 +31,8 @@ public static partial class NativeBattleEvilEye282Controller
             for (int index = 0; index < count; index++)
             {
                 packets = inputs.ReadPackets(frame);
-                int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Evil-Eye requires its current physical contact pointer.");
-                uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.Recipient);
+                BattleContactCursor first = Header(frame, packets).FirstContact;
+                uint model = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
                 frame = Write(frame, main, Read(frame, main).WriteDword(16 + index * 4, model));
             }
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 28, 1352);

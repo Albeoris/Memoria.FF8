@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -9,6 +10,15 @@ namespace Memoria.FF8.Runtime;
 public readonly record struct NativeBattlePilotVisualIdentity(ushort Effect, uint Bank, int Slot, long Generation, int Primitive)
 {
     public long ResourceGeneration { get; init; }
+
+    [JsonIgnore]
+    public BattleModelOwner? ModelOwner { get; init; }
+
+    public static NativeBattlePilotVisualIdentity ForModel(ushort effect, uint bank, BattleModelOwner owner, int primitive = 0)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        return new(effect, bank, 0, 0, primitive) { ModelOwner = owner };
+    }
 }
 
 /// <summary>The authored rectangle stays discrete while its particle transform moves continuously.</summary>

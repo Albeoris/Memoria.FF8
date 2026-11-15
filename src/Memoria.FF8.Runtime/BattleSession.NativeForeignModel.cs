@@ -2,54 +2,54 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private bool NativeGraphicsUsesForeignPose(NativeBattleGraphicsState graphics, int index)
+    private bool NativeGraphicsUsesForeignPose(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        return presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null && graphics.ActorModels.Get(index).ActiveStagedResourceRow100 is null && graphics.ActorModels.Get(index).ResourceMagicId is null && graphics.ActorModels.Get(index).ResourceRenzokukenTargetBank is null;
+        return presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null && graphics.ActorModels.Get(owner).ActiveStagedResourceRow100 is null && graphics.ActorModels.Get(owner).ResourceMagicId is null && graphics.ActorModels.Get(owner).ResourceRenzokukenTargetBank is null;
     }
 
-    private NativeBattleEffectActorGeometry? ReadNativeGraphicsForeignTarget(NativeBattleGraphicsState graphics, int index)
+    private NativeBattleEffectActorGeometry? ReadNativeGraphicsForeignTarget(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        return NativeGraphicsUsesForeignPose(graphics, index) ? ReadNativeForeignTarget(graphics, index) : null;
+        return NativeGraphicsUsesForeignPose(graphics, owner) ? ReadNativeForeignTarget(graphics, owner) : null;
     }
 
-    private NativeBattleForeignModelGeometry? ReadNativeGraphicsForeignModel(NativeBattleGraphicsState graphics, int index)
+    private NativeBattleForeignModelGeometry? ReadNativeGraphicsForeignModel(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        return NativeGraphicsUsesForeignPose(graphics, index) ? ReadNativeForeignModel(graphics, index) : null;
+        return NativeGraphicsUsesForeignPose(graphics, owner) ? ReadNativeForeignModel(graphics, owner) : null;
     }
 
-    private bool NativeGraphicsActorAtStandingPose(NativeBattleGraphicsState graphics, int index)
+    private bool NativeGraphicsActorAtStandingPose(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
+        if (presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is null)
         {
             return foreign.AtStandingPose ?? throw new NotSupportedException("The host actor has no current standing animation observation.");
         }
-        return ((graphics.ActorModels.Get(index).ResourceFlags44 ?? throw new NotSupportedException("Native actor standing observation requires its current resource flags.")) & 0x40) != 0;
+        return ((graphics.ActorModels.Get(owner).ResourceFlags44 ?? throw new NotSupportedException("Native actor standing observation requires its current resource flags.")) & 0x40) != 0;
     }
 
-    private bool NativeGraphicsModelIs(NativeBattleGraphicsState graphics, int index, byte modelId)
+    private bool NativeGraphicsModelIs(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte modelId)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeModel is null)
+        if (presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) == true && foreign.NativeModel is null)
         {
             return false;
         }
-        return (graphics.ActorModels.Get(index).ModelId4 ?? throw new NotSupportedException("Native model identity comparison requires the current native resource identity.")) == modelId;
+        return (graphics.ActorModels.Get(owner).ModelId4 ?? throw new NotSupportedException("Native model identity comparison requires the current native resource identity.")) == modelId;
     }
 
-    private NativeBattlePosedActor? ReadNativeForeignPose(NativeBattleGraphicsState graphics, int index)
+    private NativeBattlePosedActor? ReadNativeForeignPose(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        if (!NativeGraphicsUsesForeignPose(graphics, index) || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) != true)
+        if (!NativeGraphicsUsesForeignPose(graphics, owner) || presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) != true)
         {
             return null;
         }
         NativeBattlePosedActor pose = foreign!.Pose ?? throw new NotSupportedException("The host actor cannot supply its actual posed bone segments.");
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         return pose with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, model), pose.World) };
     }
 
-    private (NativeBattleEffectMemory Memory, NativeBattleVector Point) ObserveNativeGraphicsBoneAnchor(NativeBattleEffectMemory memory, NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
+    private (NativeBattleEffectMemory Memory, NativeBattleVector Point) ObserveNativeGraphicsBoneAnchor(NativeBattleEffectMemory memory, NativeBattleGraphicsState graphics, BattleModelOwner owner, byte selector, short fraction)
     {
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
-        if (NativeGraphicsUsesForeignPose(graphics, index) && presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+        if (NativeGraphicsUsesForeignPose(graphics, owner) && presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) == true)
         {
             if ((model.Flags0 & 2) == 0)
             {
@@ -63,47 +63,47 @@ public sealed partial class BattleSession
             step = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(step, 0, local, null));
             return (memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors }, new(unchecked((short)step.Colors.Mac[0]!.Value), unchecked((short)step.Colors.Mac[1]!.Value), unchecked((short)step.Colors.Mac[2]!.Value)));
         }
-        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native bone transforms require the selected actor rig.");
+        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Native bone transforms require the selected actor rig.");
         NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source, selector, fraction);
         NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(memory, producer);
         NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
         return (observed, point);
     }
 
-    private NativeBattleEffectActorGeometry? ReadNativeForeignTarget(int index)
+    private NativeBattleEffectActorGeometry? ReadNativeForeignTarget(BattleModelOwner owner)
     {
-        return ReadNativeForeignTarget(NativeGraphics!, index);
+        return ReadNativeForeignTarget(NativeGraphics!, owner);
     }
 
-    private NativeBattleEffectActorGeometry? ReadNativeForeignTarget(NativeBattleGraphicsState graphics, int index)
+    private NativeBattleEffectActorGeometry? ReadNativeForeignTarget(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) != true)
+        if (presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) != true)
         {
             return null;
         }
         NativeBattleEffectActorGeometry anchors = foreign!.Geometry?.Anchors ?? throw new NotSupportedException("The host actor cannot supply posed skeleton bounds.");
-        NativeBattleActionMatrix delta = NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(index));
+        NativeBattleActionMatrix delta = NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(owner));
         return anchors with { Anchor240 = NativeBattleGfMatrices.Transform460840(delta, anchors.Anchor240), Anchor241 = NativeBattleGfMatrices.Transform460840(delta, anchors.Anchor241) };
     }
 
-    private NativeBattleForeignModelGeometry? ReadNativeForeignModel(int index)
+    private NativeBattleForeignModelGeometry? ReadNativeForeignModel(BattleModelOwner owner)
     {
-        return ReadNativeForeignModel(NativeGraphics!, index);
+        return ReadNativeForeignModel(NativeGraphics!, owner);
     }
 
-    private NativeBattleForeignModelGeometry? ReadNativeForeignModel(NativeBattleGraphicsState graphics, int index)
+    private NativeBattleForeignModelGeometry? ReadNativeForeignModel(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) != true)
+        if (presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) != true)
         {
             return null;
         }
         NativeBattleForeignModelGeometry geometry = foreign!.Geometry ?? throw new NotSupportedException("The host actor cannot supply posed triangles and their original materials.");
-        return geometry with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(index)), geometry.World) };
+        return geometry with { World = NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(owner)), geometry.World) };
     }
 
-    internal NativeBattleActionMatrix ReadEffectPresentationForeignPlacement(int index)
+    internal NativeBattleActionMatrix ReadEffectPresentationForeignPlacement(BattleModelOwner owner)
     {
-        NativeBattleForeignActor actor = presentationForeignActors?[index] ?? throw new InvalidOperationException("The selected actor is not owned by the host.");
-        return NativeBattleForeignPlacement.Delta(actor, NativeGraphics!.ActorModels.Get(index));
+        NativeBattleForeignActor actor = presentationForeignActors?[owner] ?? throw new InvalidOperationException("The selected actor is not owned by the host.");
+        return NativeBattleForeignPlacement.Delta(actor, NativeGraphics!.ActorModels.Get(owner));
     }
 }

@@ -16,8 +16,7 @@ public static partial class NativeBattleSandStorm155Controller
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor contact = header.FirstContact;
-        frame = Dword(frame, 0x23F0800, inputs.Packets.ReadContact(contact).Primary.Recipient);
-        frame = Dword(frame, 0x23F2950, Parameters(frame).Source);
+        frame = frame with { State = frame.State.WriteModelOwner(0x23F0800, inputs.Packets.ReadContact(contact).Primary.Recipient, inputs.Packets.ModelAliases).WriteModelOwner(0x23F2950, Parameters(frame).Source, inputs.Packets.ModelAliases) };
         frame = Dword(frame, 0x23F2940, 0x1D99A78);
         foreach (uint bank in new uint[] { 0x23F0828, 0x23F1188 })
         {

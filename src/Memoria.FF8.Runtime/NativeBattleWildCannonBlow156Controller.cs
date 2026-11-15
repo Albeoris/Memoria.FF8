@@ -16,7 +16,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x23ECE40, inputs.Packets.ReadContact(first).Primary.Recipient), 0x23F03BC, Parameters(frame).Source), 0x23F03B8, 0x1D99A78);
+        frame = frame with { State = frame.State.WriteModelOwner(0x23ECE40, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteModelOwner(0x23F03BC, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(0x23F03B8, 0x1D99A78) };
         foreach ((uint bank, int count) in new (uint, int)[] { (0x23ECE78, 150), (0x23EDC88, 150), (0x23EEA98, 100) })
         {
             for (int index = 0; index < count; index++)

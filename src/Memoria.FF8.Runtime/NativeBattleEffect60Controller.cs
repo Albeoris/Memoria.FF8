@@ -154,7 +154,7 @@ public static class NativeBattleEffect60Controller
         {
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect60 target requires its pose.");
             NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Effect60 target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Effect60 target requires its current pose frame."), sequence.PoseFlags109));

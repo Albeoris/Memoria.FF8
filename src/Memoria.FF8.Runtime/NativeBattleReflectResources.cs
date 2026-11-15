@@ -18,10 +18,10 @@ public sealed partial record NativeBattleEffectMemory
     }
 }
 public sealed record NativeBattleReflectFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
-public sealed record NativeBattleReflectStep(NativeBattleReflectFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
-public sealed record NativeBattleReflectInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleReflectFrame, NativeBattleGfGeometryBatch, NativeBattleReflectFrame> Emit)
+public sealed record NativeBattleReflectStep(NativeBattleReflectFrame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleReflectInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleReflectFrame, NativeBattleGfGeometryBatch, NativeBattleReflectFrame> Emit)
 {
-    public Func<NativeBattleReflectFrame, int, NativeBattleReflectFrame>? ApplyContact { get; init; }
+    public Func<NativeBattleReflectFrame, BattleContactOccurrence, NativeBattleReflectFrame>? ApplyContact { get; init; }
     public Func<BattleModelOwner, byte, NativeBattleVector>? ReadBone { get; init; }
     public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
 }

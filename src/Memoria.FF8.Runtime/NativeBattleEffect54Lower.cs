@@ -29,10 +29,10 @@ public static partial class NativeBattleEffect54Lower
         Store16(ref frame, context + 0x1E, task.ReadByte(0x2C));
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference headerIndex = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        int first = packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Effect54 requires its actual contact pointer.");
+        BattleContactCursor first = packets.ReadHeader(headerIndex).FirstContact;
         for (int index = 0; index < count; index++)
         {
-            Store32(ref frame, context + 4 + (uint)(index * 4), packets.ReadContact(first + index).Primary.Recipient);
+            Store32(ref frame, context + 4 + (uint)(index * 4), packets.ReadContact(first.Advance(index)).Primary.Recipient);
         }
         Store16(ref frame, context + 0x1A, task.ReadWord(0x29E));
         if (Read16(frame, context + 0x24) != 0)

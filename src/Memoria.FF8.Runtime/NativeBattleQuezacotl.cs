@@ -39,7 +39,7 @@ public static class NativeBattleQuezacotl
         return (memory, effect with { ResourcePointers = [new(0x25216D8, start)] });
     }
 
-    public static NativeBattleQuezacotlEntry Enter6C3640(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleActionPacketsState packets, Func<int, short> readModelZ20)
+    public static NativeBattleQuezacotlEntry Enter6C3640(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleActionPacketsState packets, Func<BattleModelOwner, short> readModelZ20)
     {
         NativeBattleQuezacotlResources resources = RequireResources(effect);
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native6C3640 requires its original50AFC0 action parameters.");
@@ -65,7 +65,7 @@ public static class NativeBattleQuezacotl
         (main, _) = main.Append(0x6C3760);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int count = header.ReadContactCount();
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C3640 requires the actual physical target contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         if (count == 0)
         {
             throw new InvalidDataException("Native6C3640 divides the target-position sum by its original nonzero target count.");
@@ -73,7 +73,7 @@ public static class NativeBattleQuezacotl
         int sum = 0;
         for (int index = 0; index < count; index++)
         {
-            sum = unchecked(sum + readModelZ20(packets.ReadContact(first + index).Primary.Recipient));
+            sum = unchecked(sum + readModelZ20(packets.ReadContact(first.Advance(index)).Primary.Recipient));
         }
         int average = sum / count;
         NativeBattleQuezacotlState state = new(seed, average, unchecked(average + 3690));

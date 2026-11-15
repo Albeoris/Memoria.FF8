@@ -9,7 +9,7 @@ public static partial class NativeBattleSnipeLaser302Controller
     {
         byte[] point = sourcePoint8.Read(0, 8);
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(6));
-        uint model = frame.State.ReadDword(0x2507660);
+        BattleModelOwner model = frame.State.ReadModelOwner(NativeBattleSnipeLaser302Profile.CasterGlobal);
         NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, model).ReadMatrix();
         NativeBattleActionMatrix current = inputs.ReadCurrentBoneMatrix(frame, model, bone).ReadMatrix();
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(world, current);

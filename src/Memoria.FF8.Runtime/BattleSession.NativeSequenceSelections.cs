@@ -2,26 +2,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState RebindNativeSequenceGeometry92(NativeBattleGraphicsState graphics, int currentIndex, byte selector)
+    private NativeBattleGraphicsState RebindNativeSequenceGeometry92(NativeBattleGraphicsState graphics, BattleModelOwner current, byte selector)
     {
-        if (graphics.PresentationRoster is { } roster)
+        (BattleModelOwner source, BattleModelTargets targets, bool sourceHasNonActorSelectors) = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, current, selector, graphics.ActionContext, graphics.NativeBindings);
+        if (targets.IsEmpty)
         {
-            (byte source, BattleModelTargets targets) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext, roster);
-            if (targets.IsEmpty)
-            {
-                throw new InvalidDataException("Hosted Native92 requires a bound target selection.");
-            }
-            const ushort nativeActorBits = (1 << NativeBattleSlots.Count) - 1;
-            ushort sourceMaskFlags = selector < NativeBattleSlots.Count ? (ushort)0 : (ushort)(graphics.ActionContext!.SourceTargetMask & ~nativeActorBits);
-            return PrepareNativeActionGeometry(graphics, source, targets, targets, sourceMaskFlags);
+            throw new InvalidDataException("Native92 requires a bound target selection.");
         }
-        (byte actorIndex, ushort mask) = NativeBattleSequenceSelections.GeometryArguments92(currentIndex, selector, graphics.ActionContext);
-        if ((mask & 127) == 0)
-        {
-            throw new InvalidDataException("Native92 target mask has no physical recipient; original5020A0 would dereference its null bounds pointer.");
-        }
-        BattleCombatant actor = GraphicsActor(graphics, actorIndex);
-        return PrepareNativeActionGeometry(graphics, actor, new(actor.Id, actor.Id) { NativeTargetMask = mask });
+        return PrepareNativeActionGeometry(graphics, source, targets, targets, sourceHasNonActorSelectors);
     }
 
     private NativeBattleGraphicsState ApplyNativeCurrentSequenceContact(NativeBattleGraphicsState graphics)
@@ -31,13 +19,13 @@ public sealed partial class BattleSession
         return ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] }) with { PendingContacts = pending };
     }
 
-    private NativeBattleGraphicsState SelectNativeSequenceModels(NativeBattleGraphicsState graphics, int currentIndex, byte opcode, byte selector, byte sequence)
+    private NativeBattleGraphicsState SelectNativeSequenceModels(NativeBattleGraphicsState graphics, BattleModelOwner current, byte opcode, byte selector, byte sequence)
     {
         if (opcode == 0x93)
         {
-            foreach (int index in NativeBattleSequenceSelections.SelectModels93(graphics.Models, currentIndex, selector, graphics.PresentationRoster))
+            foreach (BattleModelOwner owner in NativeBattleSequenceSelections.SelectModels93(graphics.ActorModels, current, selector, graphics.NativeBindings).Enumerate())
             {
-                graphics = SelectNativeHeaderSequence(graphics, checked((byte)index), sequence);
+                graphics = SelectNativeHeaderSequence(graphics, owner, sequence);
             }
             return graphics;
         }
@@ -48,16 +36,16 @@ public sealed partial class BattleSession
             {
                 return graphics;
             }
-            if ((contact.HitFlags3 & 8) != 0)
+            if ((contact.HitFlags & 8) != 0)
             {
                 return ApplyNativeSequenceCover5065B0(graphics, contact);
             }
         }
-        int target = (graphics.ActionContext ?? throw new NotSupportedException("Native target sequence requires its50D300 current target owner.")).TargetIndex ?? throw new NotSupportedException("Native target sequence requires its retained physical target identity.");
-        if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.ActorModels.Get(target), graphics.PresentationRoster))
+        BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native target sequence requires its50D300 current target owner.")).Target ?? throw new NotSupportedException("Native target sequence requires its retained physical target identity.");
+        if (opcode == 0xBF && !NativeBattleSequenceSelections.CanSelectTargetBF(graphics.ActorModels, target))
         {
             return graphics;
         }
-        return SelectNativeHeaderSequence(graphics, checked((byte)target), sequence);
+        return SelectNativeHeaderSequence(graphics, target, sequence);
     }
 }

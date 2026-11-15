@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         }
         return graphics with { OriginalEffect = step.Frame.Effect with { Cure = step.Frame.State } };
 
-        void ApplyContact(int index)
+        void ApplyContact(BattleContactOccurrence index)
         {
             var pending = graphics.PendingContacts;
             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });

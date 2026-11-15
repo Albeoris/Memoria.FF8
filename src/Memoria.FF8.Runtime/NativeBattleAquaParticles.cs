@@ -18,15 +18,17 @@ public static partial class NativeBattleAquaParticles
         NativeBattleModulePoolTask task = hierarchy.Read(parent);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("The Aqua emitter requires its captured action context.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("The Aqua emitter requires its captured contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         int count = header.ReadContactCount();
         foreach (uint callback in new uint[] { 0x80C1B0, 0x80C5A0 })
         {
             for (int index = 0; index < count; index++)
             {
                 NativeBattleEffectHierarchyAppend child = Add(frame, hierarchy, 3, callback, 340, parent, inputs);
-                byte recipient = inputs.Packets.ReadContact(first + index).Primary.Recipient;
-                hierarchy = child.Hierarchy.Write(child.Address, child.Hierarchy.Read(child.Address).WriteByte(0x2D, recipient));
+                BattleModelOwner recipient = inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                NativeBattleModulePoolTask taskWithRecipient = child.Hierarchy.Read(child.Address);
+                taskWithRecipient.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(recipient), inputs.Packets.ModelAliases.EncodeOperand(recipient, 1));
+                hierarchy = child.Hierarchy.Write(child.Address, taskWithRecipient);
             }
         }
         return new(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, hierarchy, 0);
@@ -81,7 +83,7 @@ public static partial class NativeBattleAquaParticles
 
         void InitializeYaw()
         {
-            short yaw = inputs.ReadModel(task.ReadByte(0x2C)).Rotation14 ?? throw new NotSupportedException("The Aqua emitter requires its actual caster yaw.");
+            short yaw = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Rotation14 ?? throw new NotSupportedException("The Aqua emitter requires its actual caster yaw.");
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             Publish(new NativeBattleAquaRotate(identity, 'Y', yaw) { Padding18 = ReadPadding(task, 0x58) });
             task = NativeBattleReflectController.WriteMatrix(task, 0x58, NativeBattleCuragaMatrices.RotateY8DD8A0(identity, yaw));
@@ -131,19 +133,19 @@ public static partial class NativeBattleAquaParticles
                             NativeCrtRandomState random = current.Random;
                             byte sequence = (byte)(Draw(ref random) % 3 + 4);
                             current = current with { Random = random };
-                            Publish(new NativeBattleAquaSequence(task.ReadByte(0x2D), sequence));
+                            Publish(new NativeBattleAquaSequence(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, sequence));
                         }
                         task = Next(task);
                     }
                     break;
                 case 1:
-                    if (((task.ReadByte(0x2D) + task.ReadByte(0x24)) & 1) != 0)
+                    BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+                    if (((TargetVisualPhase(inputs.Packets.ModelAliases, target) + task.ReadByte(0x24)) & 1) != 0)
                     {
                         hierarchy = hierarchy.Write(address, task);
                         NativeBattleEffectHierarchyAppend child = Add(current, hierarchy, 3, spray ? 0x80C7B0u : 0x80C430u, 340, address, inputs);
                         hierarchy = child.Hierarchy;
                         task = hierarchy.Read(address);
-                        int target = task.ReadByte(0x2D);
                         int bones = inputs.ReadBoneCount?.Invoke(target) ?? inputs.ReadPoseSource(target).BoneCount;
                         NativeCrtRandomState random = current.Random;
                         NativeBattleModulePoolTask born = InitializeTargetBirth(task, hierarchy.Read(child.Address), spray, bones, (selector, fraction) =>
@@ -236,7 +238,7 @@ public static partial class NativeBattleAquaParticles
             {
                 case 0:
                     int distance = current.State.Dword(0x3C);
-                    short yaw = inputs.ReadModel(task.ReadByte(0x2C)).Rotation14 ?? throw new NotSupportedException("The Aqua wave requires its actual caster yaw.");
+                    short yaw = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Rotation14 ?? throw new NotSupportedException("The Aqua wave requires its actual caster yaw.");
                     task = task.WriteDword(0x30, unchecked((uint)distance)).WriteDword(0x34, unchecked((uint)distance)).WriteDword(0x38, unchecked((uint)distance)).WriteDword(0x4C, current.Profile.MeshAddress).WriteWord(0x46, unchecked((ushort)yaw)).WriteWord(0x50, 0x1000);
                     task = Next(CasterAnchor(task, current.Profile, inputs, Publish));
                     break;
@@ -287,9 +289,36 @@ public static partial class NativeBattleAquaParticles
         return result;
     }
 
+    internal static int TargetVisualPhase(NativeBattleModelAliases aliases, BattleModelOwner target)
+    {
+        if (!aliases.Roster.Contains(target))
+        {
+            throw new InvalidDataException("The Aqua target is absent from the current roster.");
+        }
+        if (aliases.TryEncodeExact(target, out byte originalOperand))
+        {
+            return originalOperand & 1;
+        }
+
+        // Additional actors alternate the visual cadence in roster order.
+        int phase = 0;
+        foreach (BattleModelOwner owner in aliases.Roster.Owners)
+        {
+            if (owner == target)
+            {
+                return phase;
+            }
+            if (!aliases.TryEncodeExact(owner, out _))
+            {
+                phase ^= 1;
+            }
+        }
+        throw new InvalidDataException("The Aqua target is absent from the current roster.");
+    }
+
     private static NativeBattleModulePoolTask CasterAnchor(NativeBattleModulePoolTask task, NativeBattleAquaProfile profile, NativeBattleAquaInputs inputs, Action<NativeBattleAquaOperation> publish)
     {
-        int actor = task.ReadByte(0x2C);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
         publish(new NativeBattleAquaAnchor(actor, profile.AnchorSelector, profile.AnchorFraction));
         NativeBattleModuleAnchor anchor = inputs.ReadAnchor502170(actor, profile.AnchorSelector, profile.AnchorFraction);
         short yaw = inputs.ReadModel(actor).Rotation14 ?? throw new NotSupportedException("The Aqua anchor requires its actual caster yaw.");

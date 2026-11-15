@@ -37,7 +37,7 @@ public static class NativeBattleStatusMagicController
         bool alternate = root.ReadDword(16) != 0;
         current = current with { Effect = current.Effect with { DrawArenaOffset = alternate ? resources.FirstArena : resources.SecondArena } };
         root = root.WriteDword(16, alternate ? 0u : 1u);
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         if (resources.Effect == 120)
         {
@@ -69,8 +69,9 @@ public static class NativeBattleStatusMagicController
                     (targets, int slot) = targets.Append(resources.TargetCallback);
                     NativeBattleModulePoolTask target = targets.Slots[slot].ClearPayload(resources.TargetStride - 12);
                     BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
-                    byte model = inputs.Packets.ReadContact(first).Primary.Recipient;
-                    target = target.WriteWord(14, checked((ushort)action)).WriteDword(resources.Effect == 120 ? 32 : 16, NativeBattleGraphicsModelAddress.Encode(model));
+                    BattleModelOwner model = inputs.Packets.ReadContact(first).Primary.Recipient;
+                    target.WriteWord(14, checked((ushort)action));
+                    target.WriteExecutionReference(resources.Effect == 120 ? 32 : 16, 4, new BattleExecutionReference.Model(model), inputs.Packets.ModelAliases.EncodeAddress(model));
                     if (resources.Effect == 120)
                     {
                         target = InitializeWorkspace(target, 36, 0x140, resources.Layouts[0]);
@@ -97,7 +98,7 @@ public static class NativeBattleStatusMagicController
             {
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 short counter = unchecked((short)task.ReadWord(12));
-                int model = ModelIndex(task.ReadDword(resources.Effect == 120 ? 32 : 16));
+                BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(resources.Effect == 120 ? 32 : 16, 4).Owner;
                 if (resources.Effect == 122)
                 {
                     if (counter >= 0)
@@ -174,11 +175,11 @@ public static class NativeBattleStatusMagicController
         }
         return new(current with { Effect = current.Effect with { Pools = targets is null ? [rootPool] : [rootPool, targets], ReturnedDescriptor = complete ? 0u : resources.RootDescriptor } }, contacts.ToImmutable(), sounds.ToImmutable());
 
-        NativeBattleVector Bone(int index) => inputs.ReadBone?.Invoke(index, 0xF0, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(index), inputs.ReadPoseSource(index), 0xF0, 0);
+        NativeBattleVector Bone(BattleModelOwner owner) => inputs.ReadBone?.Invoke(owner, 0xF0, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(owner), inputs.ReadPoseSource(owner), 0xF0, 0);
 
-        NativeBattleVector DefaultPosition(int index)
+        NativeBattleVector DefaultPosition(BattleModelOwner owner)
         {
-            NativeBattleModuleAnchor anchor = inputs.ReadAnchor?.Invoke(index) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(index), inputs.ReadPoseSource(index));
+            NativeBattleModuleAnchor anchor = inputs.ReadAnchor?.Invoke(owner) ?? NativeBattlePoseMatrices.ReadAnchor(inputs.ReadModel(owner), inputs.ReadPoseSource(owner));
             return new(anchor.X, anchor.Y, anchor.Z);
         }
 
@@ -198,26 +199,17 @@ public static class NativeBattleStatusMagicController
         {
             BattleActionHeaderReference action = parameters.Header.Advance(task.ReadWord(14));
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(action);
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native status result requires its action target list.");
             for (int index = 0; index < header.ReadContactCount(); index++)
             {
-                int contact = checked(first + index);
-                contacts.Add(contact);
+                NativeBattleContactPacket contact = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+                BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Native status magic requires its reached contact occurrence.");
+                contacts.Add(occurrence);
                 if (inputs.ApplyContact is { } apply)
                 {
-                    current = apply(current, contact);
+                    current = apply(current, occurrence);
                 }
             }
         }
-    }
-
-    public static int ModelIndex(uint pointer)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
-        {
-            throw new InvalidDataException("Native status target lost its physical model pointer.");
-        }
-        return row;
     }
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source)

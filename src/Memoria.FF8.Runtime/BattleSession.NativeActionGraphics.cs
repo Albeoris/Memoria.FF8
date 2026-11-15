@@ -2,25 +2,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState BeginNativeActionGraphics(NativeBattleGraphicsState graphics, uint address)
+    private NativeBattleGraphicsState BeginNativeActionGraphics(NativeBattleGraphicsState graphics, BattleActionHeaderReference reference)
     {
-        uint offset = unchecked(address - 0x1D280C4u);
-        if (offset % 20 != 0 || offset / 20 >= NativeBattleActionPacketsState.HeaderCapacity)
-        {
-            throw new InvalidDataException("Native104 requires its actual physical20-byte action header pointer.");
-        }
-        int index = (int)(offset / 20);
-        NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(nativeActionPackets, index, graphics.ActionGraphics);
-        NativeBattleActionServiceSelection selection = NativeBattleActionGraphics.SelectService(nativeActionPackets.Headers[index]);
-        if (MatchesDiagnosticVisualEntry(nativeActionPackets.Headers[index]) && selection.Callback is not (0x50A9A0 or 0x50B2A0))
+        NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(nativeActionPackets, reference, graphics.ActionGraphics);
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(reference);
+        NativeBattleActionServiceSelection selection = NativeBattleActionGraphics.SelectService(header);
+        if (MatchesDiagnosticVisualEntry(header) && selection.Callback is not (0x50A9A0 or 0x50B2A0))
         {
             throw new NotSupportedException("Visual presentation gating requires the native casting or GF service entry boundary.");
         }
-        nativeActionPackets = nativeActionPackets.ActivateHeader(index);
+        nativeActionPackets = nativeActionPackets.ActivateHeader(reference);
         if (selection.Sequence is byte sequence)
         {
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[index];
-            nativeActionPackets = nativeActionPackets with { Headers = nativeActionPackets.Headers.SetItem(index, header with { Payload = header.Payload.SetItem(2, sequence), UnknownByteMask = header.UnknownByteMask & ~4u }) };
+            nativeActionPackets = nativeActionPackets.WriteSequence(reference, sequence);
         }
         return graphics with { ActionGraphics = context, Flags = graphics.Flags | selection.SetGraphicsFlags };
     }

@@ -10,7 +10,7 @@ public sealed partial class BattleSession
             {
                 return graphics;
             }
-            graphics = LoadHostedPresentationModel(graphics, presentationSourceIndex, resource);
+            graphics = LoadHostedPresentationModel(graphics, presentationSourceOwner, resource);
             DrainHostedPresentationModelResources();
             return graphics;
         }
@@ -21,27 +21,27 @@ public sealed partial class BattleSession
         NativeModelCpuResources ??= NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 0 };
         NativeModelTextureCache ??= NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess());
         NativeEffectIoResult = 0;
-        NativeBattleGraphicsModel source = graphics.ActorModels.Get(presentationSourceIndex);
+        NativeBattleGraphicsModel source = graphics.ActorModels.Get(presentationSourceOwner);
         byte model = source.ModelId4 ?? throw new NotSupportedException("Native presentation resource loading requires its source model identity.");
         if (model >= 16)
         {
             throw new NotSupportedException("Native presentation source loading requires an original party body and linked resource catalog.");
         }
         NativeBattleGraphicsModel loading = source with { Flags0 = (ushort)(source.Flags0 & ~2), FileSelector128 = source.FileSelector128 ?? resource.LinkedFileSelector128, FileSelector129 = source.FileSelector129 ?? resource.BodyFileSelector129, ActiveResourceRow100 = null, OriginalResourceRow104 = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, TextureResourceIndex = null, LinkedTextureResourceIndex = null, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, ActiveAnimationDirectory = null, ActiveAnimationBank = null };
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceIndex, loading) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceOwner, loading) };
         Load(model);
         Load(checked((ushort)(0x1000 + model)));
-        loading = graphics.ActorModels.Get(presentationSourceIndex);
+        loading = graphics.ActorModels.Get(presentationSourceOwner);
         loading = loading with { Flags0 = source.Flags0, OriginalResourceRow104 = loading.ActiveResourceRow100 };
         if (preserveSelectedProgram && source.ResourceMagicId is not null)
         {
             loading = loading with { ResourceMagicId = source.ResourceMagicId, ResourceRenzokukenTargetBank = source.ResourceRenzokukenTargetBank, ActiveAnimationDirectory = source.ActiveAnimationDirectory, ActiveAnimationBank = source.ActiveAnimationBank };
         }
-        return graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceIndex, loading) };
+        return graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceOwner, loading) };
 
         void Load(ushort request)
         {
-            QueueNativeModelResource507080(graphics, request, checked((byte)presentationSourceIndex));
+            QueueNativeModelResource507080(graphics, request, checked((byte)presentationSourceOwner));
             while (NativeModelLoader!.Task is not null)
             {
                 PumpNativeFileIo482590();

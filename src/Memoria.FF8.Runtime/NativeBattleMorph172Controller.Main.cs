@@ -11,7 +11,7 @@ public static partial class NativeBattleMorph172Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            int caster = checked((int)frame.State.ReadDword(0x239D4F4));
+            BattleModelOwner caster = frame.State.ReadModelOwner(0x239D4F4);
             NativeBattleMorph172PointStep anchor = inputs.ReadAnchor571400(frame, caster);
             frame = anchor.Frame;
             frame = Write(frame, address, CopyTask(Read(frame, address), 16, anchor.Point8, 8));
@@ -35,7 +35,7 @@ public static partial class NativeBattleMorph172Controller
         }
         if (age == 1)
         {
-            int caster = checked((int)frame.State.ReadDword(0x239D4F4));
+            BattleModelOwner caster = frame.State.ReadModelOwner(0x239D4F4);
             NativeBattleMorph172PointStep anchor = inputs.ReadAnchor571400(frame, caster);
             frame = inputs.Execute(anchor.Frame, new NativeBattleMorph172Sound5013A0(resources.Sound, 0, anchor.Point8));
         }

@@ -13,7 +13,7 @@ public static partial class NativeBattleSaliva138Controller
         {
             NativeBattleSaliva138PointStep mouth = inputs.ReadMouth(frame);
             frame = mouth.Frame;
-            short angle = unchecked((short)-inputs.ReadModelYaw(frame.State.ReadDword(CasterGlobal)));
+            short angle = unchecked((short)-inputs.ReadModelYaw(frame.State.ReadModelOwner(CasterGlobal)));
             NativeBattleActionMatrix local = Yaw701270(angle);
             if (phase < 7)
             {
@@ -99,7 +99,8 @@ public static partial class NativeBattleSaliva138Controller
         }
         if (age == 40)
         {
-            frame = inputs.Execute(frame, new NativeBattleSaliva138Contact(0));
+            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact).Occurrence ?? throw new InvalidDataException("Saliva contact has no occurrence reference.");
+            frame = inputs.Execute(frame, new NativeBattleSaliva138Contact(occurrence));
         }
         if (age >= 55)
         {

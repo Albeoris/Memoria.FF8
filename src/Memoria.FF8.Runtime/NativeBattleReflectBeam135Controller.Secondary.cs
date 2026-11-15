@@ -17,7 +17,7 @@ public static partial class NativeBattleReflectBeam135Controller
             {
                 throw new InvalidDataException("Reflect Beam secondary requires its actual original bone selector.");
             }
-            int caster = Actor(frame.State.ReadDword(CasterGlobal));
+            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
             NativeBattleActionMatrix bone = inputs.ReadCurrentPublishedBone32(frame, caster, resources.BoneSelectors[(int)(selectorOffset / 2)]).ReadMatrix();
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(bone, null));
             (frame, NativeBattleVector anchor) = SecondaryTransform(frame, new(0, 0, -4096));

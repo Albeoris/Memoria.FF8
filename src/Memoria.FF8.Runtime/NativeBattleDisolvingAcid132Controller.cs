@@ -77,8 +77,8 @@ public static partial class NativeBattleDisolvingAcid132Controller
             NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
             if (contact <= header.ReadRepeatModeMinusOne())
             {
-                int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Disolving Acid requires its captured contact pointer.");
-                uint target = ModelAddress(inputs.Packets.ReadContact(firstContact + contact).Primary.Recipient);
+                BattleContactCursor firstContact = header.FirstContact;
+                uint target = ModelAddress(inputs.Packets.ReadContact(firstContact.Advance(contact)).Primary.Recipient);
                 if (frame.Effect.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == target))
                 {
                     frame = Write(frame, address, Read(frame, address).WriteWord(12, 0));

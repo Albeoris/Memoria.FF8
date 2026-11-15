@@ -11,7 +11,7 @@ public abstract record NativeBattleHeroOperation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleHeroSound(uint Sound, int Channel, int Pan) : NativeBattleHeroOperation;
-public sealed record NativeBattleHeroContact(int Index) : NativeBattleHeroOperation;
+public sealed record NativeBattleHeroContact(BattleContactOccurrence Index) : NativeBattleHeroOperation;
 public sealed record NativeBattleHeroAct(NativeBattleGfAnimationSource Source, NativeBattleGfAnimationNode Node, NativeBattleHeroDrawContext Context) : NativeBattleHeroOperation;
 public sealed record NativeBattleHeroFanBegin(int TemporaryBytes) : NativeBattleHeroOperation;
 public sealed record NativeBattleHeroFan(NativeBattleVector Angles, NativeBattleModuleAnchor Anchor, int Radius, int Fade, int Depth, uint MeshAddress, int Index) : NativeBattleHeroOperation;
@@ -62,7 +62,7 @@ public sealed record NativeBattleHeroStackInput(NativeBattleExecutionStack? Exec
 
 public sealed record NativeBattleHeroInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, NativeBattleHeroStackInput Stack, Func<NativeBattleHeroFrame, NativeBattleHeroOperation, NativeBattleHeroFrame> Execute)
 {
-    public Func<NativeBattleHeroFrame, byte, NativeBattleHeroFrame>? ObserveAnchor571400 { get; init; }
+    public Func<NativeBattleHeroFrame, BattleModelOwner, NativeBattleHeroFrame>? ObserveAnchor571400 { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }
 }

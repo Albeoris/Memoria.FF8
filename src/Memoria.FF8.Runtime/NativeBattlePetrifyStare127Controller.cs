@@ -16,7 +16,7 @@ public static class NativeBattlePetrifyStare127Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattlePetrifyStare127State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattlePetrifyStare127State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -64,9 +64,10 @@ public static class NativeBattlePetrifyStare127Controller
             NativeBattleEffectTaskPool targetPool = frame.Effect.Pools[1];
             if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadRepeatModeMinusOne() && targetPool.Slots.Any(task => (task.Flags & 1) == 0))
             {
-                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.Recipient;
+                BattleModelOwner actor = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(ordinal)).Primary.Recipient;
                 (targetPool, int targetSlot) = targetPool.Append(TargetCallback);
-                NativeBattleModulePoolTask target = targetPool.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(14, checked((ushort)ordinal)).WriteDword(0x20, ModelAddress(actor));
+                NativeBattleModulePoolTask target = targetPool.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(14, checked((ushort)ordinal));
+                target.WriteExecutionReference(0x20, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
                 NativeBattleGfAnimationWorkspace firstAct = NativeBattleGfAnimationWorkspace.Borrow(target, 0x24, 0x1C8).Initialize7016B0(resources.FirstAct, 0x1C8);
                 NativeBattleGfAnimationWorkspace secondAct = NativeBattleGfAnimationWorkspace.Borrow(target, 0x1EC, 0x2D0).Initialize7016B0(resources.SecondAct, 0x2D0);
                 target = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleEffectTaskMemory.PublishAnimationWorkspace(target, 0x24, firstAct), 0x1EC, secondAct);
@@ -109,7 +110,7 @@ public static class NativeBattlePetrifyStare127Controller
             throw new NotSupportedException("Petrify Stare reached an unsupported target callback.");
         }
         int age = unchecked((short)target.ReadWord(12));
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
         if (age < 10)
         {
             NativeBattlePetrifyStare127PointStep point = inputs.ReadBoneF0(frame, caster);
@@ -131,7 +132,7 @@ public static class NativeBattlePetrifyStare127Controller
         if ((uint)(age - 14) < 100)
         {
             target = Read(frame, address);
-            int actor = Actor(target.ReadDword(0x20));
+            BattleModelOwner actor = target.ReadExecutionReference<BattleExecutionReference.Model>(0x20, 4).Owner;
             if (age == 14)
             {
                 NativeBattlePetrifyStare127AnchorStep anchor = inputs.ReadAnchor(frame, actor);
@@ -150,7 +151,8 @@ public static class NativeBattlePetrifyStare127Controller
         }
         if (age == 42)
         {
-            frame = inputs.Execute(frame, new NativeBattlePetrifyStare127Contact(FirstContact(frame, inputs) + unchecked((short)Read(frame, address).ReadWord(14))));
+            NativeBattleContactPacket contact = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(unchecked((short)Read(frame, address).ReadWord(14))));
+            frame = inputs.Execute(frame, new NativeBattlePetrifyStare127Contact(contact.Occurrence ?? throw new InvalidDataException("Petrify Stare requires its reached contact occurrence.")));
         }
         if (age > 48)
         {
@@ -194,11 +196,9 @@ public static class NativeBattlePetrifyStare127Controller
     }
 
     private static NativeBattleEffectParameters Parameters(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Petrify Stare requires its captured native parameters.");
-    private static int FirstContact(NativeBattlePetrifyStare127Frame frame, NativeBattlePetrifyStare127Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Petrify Stare requires its captured physical contact pointer.");
+    private static BattleContactCursor FirstContact(NativeBattlePetrifyStare127Frame frame, NativeBattlePetrifyStare127Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact;
     private static NativeBattleEffectArena Arena(NativeBattlePetrifyStare127Frame frame) => frame.Memory.Arena ?? throw new NotSupportedException("Petrify Stare requires its current working arena.");
     private static uint Working(NativeBattlePetrifyStare127Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Petrify Stare selected an absent physical actor.");
-    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Petrify Stare requires an actual physical actor pointer.");
     private static NativeBattlePetrifyStare127Frame WithPool(NativeBattlePetrifyStare127Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattlePetrifyStare127Frame Put(NativeBattlePetrifyStare127Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task));
 }

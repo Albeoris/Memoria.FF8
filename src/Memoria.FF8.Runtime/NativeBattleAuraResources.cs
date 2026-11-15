@@ -8,9 +8,9 @@ public abstract record NativeBattleAuraOperation;
 public sealed record NativeBattleAuraPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleAuraOperation;
 public sealed record NativeBattleAuraSprite(NativeBattleModuleDraw Draw) : NativeBattleAuraOperation;
 public sealed record NativeBattleAuraSound(NativeBattleModuleSound Sound) : NativeBattleAuraOperation;
-public sealed record NativeBattleAuraContact(int Index) : NativeBattleAuraOperation;
+public sealed record NativeBattleAuraContact(BattleContactOccurrence Index) : NativeBattleAuraOperation;
 public sealed record NativeBattleAuraFade : NativeBattleAuraOperation;
-public sealed record NativeBattleAuraInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAuraFrame, NativeBattleAuraOperation, NativeBattleAuraFrame> Execute)
+public sealed record NativeBattleAuraInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleAuraFrame, NativeBattleAuraOperation, NativeBattleAuraFrame> Execute)
 {
     public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }

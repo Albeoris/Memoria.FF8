@@ -33,6 +33,30 @@ internal abstract record BattleExecutionReference
     internal sealed record Header(BattleActionHeaderReference Reference) : BattleExecutionReference;
     internal sealed record Cursor(BattleContactCursor Reference) : BattleExecutionReference;
     internal sealed record Occurrence(BattleContactOccurrence Reference) : BattleExecutionReference;
+
+    internal sealed record ContactOffset : BattleExecutionReference
+    {
+        internal ContactOffset(int? offset)
+        {
+            if (offset is < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            }
+            Offset = offset;
+        }
+
+        internal int? Offset { get; }
+
+        internal ImmutableArray<byte>? EncodeOriginalWord()
+        {
+            if (Offset is > short.MaxValue)
+            {
+                return null;
+            }
+            ushort value = Offset is { } offset ? (ushort)offset : ushort.MaxValue;
+            return [(byte)(value & 0xFF), (byte)(value >> 8)];
+        }
+    }
 }
 
 internal sealed record BattleExecutionReferenceEntry

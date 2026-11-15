@@ -14,6 +14,6 @@ public abstract record NativeBattleChainGun190Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleChainGun190Sound501330(uint Packed, uint Flags, int Pan) : NativeBattleChainGun190Operation;
-public sealed record NativeBattleChainGun190Contacts506BA0(int HeaderIndex) : NativeBattleChainGun190Operation;
+public sealed record NativeBattleChainGun190Contacts506BA0(BattleActionHeaderReference HeaderIndex) : NativeBattleChainGun190Operation;
 public sealed record NativeBattleChainGun190DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleChainGun190Operation;
 public sealed record NativeBattleChainGun190DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleChainGun190Operation;

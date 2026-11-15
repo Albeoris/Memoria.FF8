@@ -26,26 +26,31 @@ public static partial class NativeBattleBoomerangSword304Controller
                 for (int index = 0; index < count; index++)
                 {
                     packets = inputs.ReadPackets(frame);
-                    int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Boomerang Sword requires its current physical contacts.");
-                    frame = Write(frame, main, Read(frame, main).WriteDword(32 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.Recipient)));
+                    BattleContactCursor first = Header(frame, packets).FirstContact;
+                    BattleModelOwner target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                    NativeBattleModulePoolTask task = Read(frame, main);
+                    task.WriteExecutionReference(32 + index * 4, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+                    frame = Write(frame, main, task);
                 }
                 for (int left = 0; left < count - 1; left++)
                 {
                     for (int right = left + 1; right < count; right++)
                     {
                         NativeBattleModulePoolTask task = Read(frame, main);
-                        uint a = task.ReadDword(32 + left * 4);
-                        uint b = task.ReadDword(32 + right * 4);
+                        BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(32 + left * 4, 4).Owner;
+                        BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(32 + right * 4, 4).Owner;
                         if (ModelTransform304(inputs.ReadModel(frame, a)).Position28.X < ModelTransform304(inputs.ReadModel(frame, b)).Position28.X)
                         {
-                            frame = Write(frame, main, task.WriteDword(32 + left * 4, b).WriteDword(32 + right * 4, a));
+                            task.WriteExecutionReference(32 + left * 4, 4, new BattleExecutionReference.Model(b), packets.ModelAliases.EncodeAddress(b));
+                            task.WriteExecutionReference(32 + right * 4, 4, new BattleExecutionReference.Model(a), packets.ModelAliases.EncodeAddress(a));
+                            frame = Write(frame, main, task);
                         }
                     }
                 }
                 frame = Write(frame, main, Read(frame, main).WriteWord(18, unchecked((ushort)-1000)).WriteWord(20, 1000).WriteWord(22, 0).WriteWord(24, 0));
                 for (int index = 0; index < count; index++)
                 {
-                    uint target = Read(frame, main).ReadDword(32 + index * 4);
+                    BattleModelOwner target = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(32 + index * 4, 4).Owner;
                     NativeBattleBoomerangSword304PointStep anchor = inputs.ReadAnchor571400(frame, target);
                     frame = WriteBytes(anchor.Frame, main + 44 + (uint)(index * 8), anchor.Point8, 8);
                     NativeBattleVector point = Point304(anchor.Point8);
@@ -89,7 +94,7 @@ public static partial class NativeBattleBoomerangSword304Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         if (age == 4)
         {
             NativeBattleBoomerangSword304PointStep bone = inputs.ReadBone502170(frame, caster, 23, 0);
@@ -168,14 +173,16 @@ public static partial class NativeBattleBoomerangSword304Controller
             int targetIndex = Signed(task, 16);
             if (age >= 25 && age < 40 && targetIndex < Signed(task, 14))
             {
-                uint target = task.ReadDword(32 + targetIndex * 4);
+                BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(32 + targetIndex * 4, 4).Owner;
                 if (point.X < ModelTransform304(inputs.ReadModel(frame, target)).Position28.X)
                 {
                     (frame, uint programme) = Append(frame, 0x2507590, 0x66A3F0);
                     frame = ApplyModelContacts66A2C0(frame, target, inputs);
                     if (programme != 0)
                     {
-                        frame = Write(frame, programme, Read(frame, programme).WriteDword(12, target));
+                        NativeBattleModulePoolTask programmeTask = Read(frame, programme);
+                        programmeTask.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(target), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(target));
+                        frame = Write(frame, programme, programmeTask);
                         NativeBattleBoomerangSword304PointStep anchor = inputs.ReadAnchor571400(frame, target);
                         frame = WriteBytes(anchor.Frame, programme + 16, anchor.Point8, 8);
                         NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, programme + 24, 460);
@@ -265,20 +272,21 @@ public static partial class NativeBattleBoomerangSword304Controller
         return PointView(new(unchecked((short)(unchecked(delta.X * length) / divisor + point.X)), unchecked((short)(unchecked(delta.Y * length) / divisor + point.Y)), unchecked((short)(unchecked(delta.Z * length) / divisor + point.Z))));
     }
 
-    public static NativeBattleBoomerangSword304Frame ApplyModelContacts66A2C0(NativeBattleBoomerangSword304Frame frame, uint modelAddress, NativeBattleBoomerangSword304Inputs inputs)
+    public static NativeBattleBoomerangSword304Frame ApplyModelContacts66A2C0(NativeBattleBoomerangSword304Frame frame, BattleModelOwner actor, NativeBattleBoomerangSword304Inputs inputs)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor))
+        if (!inputs.ReadPackets(frame).Roster.Contains(actor))
         {
-            throw new InvalidDataException("Boomerang Sword contact matcher requires a physical graphics model.");
+            throw new InvalidDataException("Boomerang Sword contact matcher requires a current model owner.");
         }
         for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadContactCount(); index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Boomerang Sword requires its current physical contact base.");
-            int physical = checked(first + index);
-            if (packets.ReadContact(physical).Primary.Recipient == actor)
+            BattleContactCursor cursor = Header(frame, packets).FirstContact.Advance(index);
+            NativeBattleContactPacket contact = packets.ReadContact(cursor);
+            if (contact.Primary.Recipient == actor)
             {
-                frame = inputs.Execute(frame, new NativeBattleBoomerangSword304Contact506690(physical));
+                BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Boomerang Sword requires its reached contact occurrence.");
+                frame = inputs.Execute(frame, new NativeBattleBoomerangSword304Contact506690(occurrence));
             }
         }
         return frame;

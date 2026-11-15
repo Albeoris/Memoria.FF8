@@ -4,33 +4,14 @@ public static partial class NativeBattleRayBomb10Controller
 {
     private sealed partial class Execution
     {
-        private void SaveWord(int actor, int offset, ushort? value)
-        {
-            saved[actor * 20 + offset] = value.HasValue ? unchecked((byte)value.Value) : null;
-            saved[actor * 20 + offset + 1] = value.HasValue ? unchecked((byte)(value.Value >> 8)) : null;
-        }
-
-        private ushort? SavedOptionalWord(int actor, int offset)
-        {
-            byte? low = saved[actor * 20 + offset];
-            byte? high = saved[actor * 20 + offset + 1];
-            if (low.HasValue != high.HasValue)
-            {
-                throw new NotSupportedException("Native629200 requires both physical bytes of the retained actor WORD.");
-            }
-            return low.HasValue ? (ushort)(low.Value | high!.Value << 8) : null;
-        }
-
-        private short SavedWord(int actor, int offset) => unchecked((short)(SavedOptionalWord(actor, offset) ?? throw new NotSupportedException("Native629200 requires its saved actor WORD producer.")));
-
         private int Bounce(int index)
         {
             NativeBattleModulePoolTask task = Read(index);
             int counter = Word(task, 12);
-            int actor = Word(task, 14);
-            if (actor is < 0 or > 2)
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
+            if (actor is not BattlePartyModelOwner)
             {
-                throw new NotSupportedException("Native629200 requires one of its three physical party actors.");
+                throw new InvalidDataException("Native629200 requires a party model owner.");
             }
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native629200 requires its actor transform.");
@@ -38,15 +19,12 @@ public static partial class NativeBattleRayBomb10Controller
             {
                 task = Point(task, inputs.ReadDefaultAnchor(actor));
                 Put(index, task);
-                SaveWord(actor, 0, (ushort)(model.Flags0 & 0x1020));
-                SaveWord(actor, 4, unchecked((ushort)(model.Rotation12 ?? throw new NotSupportedException("Native629200 requires actor pitch."))));
-                SaveWord(actor, 6, unchecked((ushort)(model.Rotation14 ?? throw new NotSupportedException("Native629200 requires actor yaw."))));
-                SaveWord(actor, 8, unchecked((ushort)(model.Rotation16 ?? throw new NotSupportedException("Native629200 requires actor roll."))));
-                SaveWord(actor, 10, model.RotationPadding18);
-                SaveWord(actor, 12, unchecked((ushort)transform.Position28.X));
-                SaveWord(actor, 14, unchecked((ushort)transform.Position28.Y));
-                SaveWord(actor, 16, unchecked((ushort)transform.Position28.Z));
-                SaveWord(actor, 18, unchecked((ushort)transform.Vertical34));
+                short pitch = model.Rotation12 ?? throw new NotSupportedException("Native629200 requires actor pitch.");
+                short yaw = model.Rotation14 ?? throw new NotSupportedException("Native629200 requires actor yaw.");
+                short roll = model.Rotation16 ?? throw new NotSupportedException("Native629200 requires actor roll.");
+                NativeBattleVector position = new(unchecked((short)transform.Position28.X), unchecked((short)transform.Position28.Y), unchecked((short)transform.Position28.Z));
+                NativeBattleSavedActorTransform saved = new((ushort)(model.Flags0 & 0x1020), pitch, yaw, roll, model.RotationPadding18, position, unchecked((short)transform.Vertical34));
+                Frame = Frame with { Effect = Frame.Effect with { SavedActorTransforms = Frame.Effect.SavedActorTransforms.SetItem(actor, saved) } };
             }
             if (counter <= 24)
             {
@@ -54,17 +32,18 @@ public static partial class NativeBattleRayBomb10Controller
                 short pitch = unchecked((short)(unchecked(Word(task, 24) * counter) / 24));
                 short yaw = unchecked((short)(unchecked(counter << 13) / 24));
                 short roll = model.Rotation16 ?? throw new NotSupportedException("Native629200 requires actor roll.");
-                NativeBattleVector delta = new(unchecked((short)(Word(task, 16) - SavedWord(actor, 12))), unchecked((short)(Word(task, 18) - SavedWord(actor, 14))), unchecked((short)(Word(task, 20) - SavedWord(actor, 16))));
+                NativeBattleVector savedPosition = ReadSavedActor(actor).Position;
+                NativeBattleVector delta = new(unchecked((short)(Word(task, 16) - savedPosition.X)), unchecked((short)(Word(task, 18) - savedPosition.Y)), unchecked((short)(Word(task, 20) - savedPosition.Z)));
                 NativeBattleVector rotated = NativeBattlePoseMatrices.RotateVector(new(pitch, yaw, roll), delta);
                 NativeBattleVector position = new(unchecked((short)(Word(task, 16) - rotated.X)), unchecked((short)(Word(task, 18) - rotated.Y + lift)), unchecked((short)(Word(task, 20) - rotated.Z)));
                 model = model with { Flags0 = (ushort)(model.Flags0 | 0x1020), Rotation12 = pitch, Rotation14 = yaw, Transform = transform with { Position28 = position } };
-                Execute(new NativeBattleRayBomb10Model(model));
+                Execute(new NativeBattleRayBomb10Model(actor, model));
             }
             else if (counter <= 32)
             {
                 int height = unchecked(NativeBattleCameraMath.Sine(unchecked((counter - 24) << 11) / 8) * (Word(task, 32) >> 3)) >> 12;
                 model = model with { Flags0 = (ushort)(model.Flags0 | 0x1020), Transform = transform with { Position28 = transform.Position28 with { Y = unchecked((short)height) } } };
-                Execute(new NativeBattleRayBomb10Model(model));
+                Execute(new NativeBattleRayBomb10Model(actor, model));
             }
             if (DrawOnly)
             {
@@ -73,9 +52,9 @@ public static partial class NativeBattleRayBomb10Controller
             if (counter == 24)
             {
                 BounceDust(task, 16, 0x400, 0xA00, 90, 120, true);
-                if (Word(task, 26) >= 0)
+                if (task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset.HasValue)
                 {
-                    Execute(new NativeBattleRayBomb10Sequence(checked((byte)actor), 6));
+                    Execute(new NativeBattleRayBomb10Sequence(actor, 6));
                 }
             }
             if (counter == 31)
@@ -88,21 +67,28 @@ public static partial class NativeBattleRayBomb10Controller
             {
                 return 0;
             }
-            int target = Word(task, 26);
+            int? target = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset;
             model = inputs.ReadModel(actor);
-            if (target >= 0 && (model.Sequence ?? throw new NotSupportedException("Native629200 requires its actor sequence BYTE0.")) == 6)
+            if (target.HasValue && (model.Sequence ?? throw new NotSupportedException("Native629200 requires its actor sequence BYTE0.")) == 6)
             {
                 return 0;
             }
             transform = model.Transform ?? throw new NotSupportedException("Native629200 lost its actor transform.");
-            model = model with { Flags0 = (ushort)((model.Flags0 & 0xEFDF) | unchecked((ushort)SavedWord(actor, 0))), Rotation12 = SavedWord(actor, 4), Rotation14 = SavedWord(actor, 6), Rotation16 = SavedWord(actor, 8), RotationPadding18 = SavedOptionalWord(actor, 10), Transform = transform with { Position28 = new(SavedWord(actor, 12), SavedWord(actor, 14), SavedWord(actor, 16)), Vertical34 = SavedWord(actor, 18) } };
-            Execute(new NativeBattleRayBomb10Model(model));
-            if (target >= 0)
+            NativeBattleSavedActorTransform savedActor = ReadSavedActor(actor);
+            model = model with { Flags0 = (ushort)((model.Flags0 & 0xEFDF) | savedActor.Flags0), Rotation12 = savedActor.Pitch, Rotation14 = savedActor.Yaw, Rotation16 = savedActor.Roll, RotationPadding18 = savedActor.RotationPadding18, Transform = transform with { Position28 = savedActor.Position, Vertical34 = savedActor.Vertical34 } };
+            Execute(new NativeBattleRayBomb10Model(actor, model));
+            if (target is { } offset)
             {
-                int first = inputs.Packets.Headers[0].FirstContactIndex ?? throw new NotSupportedException("Native629200 requires its first header contact pointer.");
-                Execute(new NativeBattleRayBomb10Contact(checked(first + target)));
+                BattleContactCursor cursor = inputs.Packets.ReadHeader(new BattleActionHeaderReference(0)).FirstContact.Advance(offset);
+                BattleContactOccurrence occurrence = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Ray-Bomb contact has no occurrence reference.");
+                Execute(new NativeBattleRayBomb10Contact(occurrence));
             }
             return 2;
+        }
+
+        private NativeBattleSavedActorTransform ReadSavedActor(BattleModelOwner actor)
+        {
+            return Frame.Effect.SavedActorTransforms.TryGetValue(actor, out NativeBattleSavedActorTransform? saved) ? saved : throw new NotSupportedException("Native629200 requires its saved actor transform.");
         }
 
         private void BounceDust(NativeBattleModulePoolTask task, int count, int scaleModulus, int scaleAdd, int speedModulus, int speedAdd, bool maskScale)

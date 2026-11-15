@@ -1,13 +1,15 @@
-using System.Numerics;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>50D300's retained actor BYTE and last selected target BYTE, consumed independently by50D790.</summary>
+/// <summary>50D300's retained original BYTEs and the live aliases consumed independently by50D790.</summary>
 public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Actor1D99B95, [property: JsonRequired] byte? Target1D99AAA)
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BattleModelRoster? PresentationRoster { get; init; }
+    [JsonIgnore]
+    public BattleModelOwner? Source { get; init; }
+
+    [JsonIgnore]
+    public BattleModelOwner? Target { get; init; }
 
     public static NativeBattleCameraAliases FromColdProcess() => new(0, 0);
 
@@ -15,50 +17,45 @@ public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Ac
 
     public void Validate()
     {
-        PresentationRoster?.Validate();
-        int capacity = PresentationRoster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount;
-        if (Actor1D99B95 >= capacity || Target1D99AAA >= capacity)
+        if (Actor1D99B95 >= NativeBattleModelBoundary.CellCount || Target1D99AAA >= NativeBattleModelBoundary.CellCount)
         {
-            throw new InvalidDataException("Native camera aliases require their actual physical model BYTEs.");
+            throw new InvalidDataException("Native camera alias BYTEs must name original model cells.");
         }
     }
 
-    public NativeBattleCameraAliases Observe50D300(byte actor, ushort targetMask)
+    internal NativeBattleCameraAliases Observe50D300(BattleModelOwner source, BattleModelTargets targets, BattleActorModels models, NativeBattleModelAliases aliases)
     {
-        if (actor >= 7 || (targetMask & ~127) != 0)
+        if (!models.Contains(source) || targets.Enumerate().Any(owner => !models.Contains(owner)))
         {
-            throw new InvalidDataException("Native50D300 requires a physical actor and seven-bit target mask.");
+            throw new InvalidDataException("The camera observation requires currently bound model owners.");
         }
-        return this with { Actor1D99B95 = actor, Target1D99AAA = targetMask == 0 ? Target1D99AAA : checked((byte)BitOperations.Log2(targetMask)) };
-    }
-
-    public NativeBattleCameraAliases Observe50D300(byte actor, BattleModelTargets targets, BattleModelRoster roster)
-    {
-        roster.Validate();
-        NativeBattleActionGeometry.ValidatePresentationRows(roster, actor, default, targets);
-        NativeBattleCameraAliases observed = this with
+        BattleModelOwner? lastTarget = models.Owners.LastOrDefault(targets.Contains);
+        return this with
         {
-            PresentationRoster = roster,
-            Actor1D99B95 = actor,
-            Target1D99AAA = targets.IsEmpty ? Target1D99AAA : checked((byte)targets.HighestRow)
+            Source = source,
+            Actor1D99B95 = aliases.TryEncodeExact(source, out byte actorAlias) ? actorAlias : null,
+            Target = lastTarget ?? Target,
+            Target1D99AAA = lastTarget is null ? Target1D99AAA : aliases.TryEncodeExact(lastTarget, out byte targetAlias) ? targetAlias : null
         };
-        observed.Validate();
-        return observed;
     }
 
-    public byte Resolve50D790(byte reference)
+    internal BattleModelOwner Resolve50D790(byte reference, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
         Validate();
-        byte row = (reference >> 4) switch
+        (BattleModelOwner? owner, byte? alias) = (reference >> 4) switch
         {
-            9 => Actor1D99B95 ?? throw new NotSupportedException("Native50D790 requires its retained actor BYTE; migrate the needed older snapshot explicitly."),
-            10 => Target1D99AAA ?? throw new NotSupportedException("Native50D790 requires its retained target BYTE; migrate the needed older snapshot explicitly."),
+            9 => (Source, Actor1D99B95),
+            10 => (Target, Target1D99AAA),
             _ => throw new ArgumentOutOfRangeException(nameof(reference))
         };
-        if (PresentationRoster is { } roster)
+        if (owner is not null)
         {
-            _ = roster[row];
+            if (!models.Contains(owner))
+            {
+                throw new InvalidDataException("The retained camera observation names a retired model.");
+            }
+            return owner;
         }
-        return row;
+        return boundary.DecodeLiteral(alias ?? throw new NotSupportedException("Native50D790 requires its retained actor or target BYTE."), models);
     }
 }

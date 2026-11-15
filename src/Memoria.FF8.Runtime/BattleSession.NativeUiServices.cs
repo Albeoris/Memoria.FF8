@@ -203,31 +203,22 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RegisterNativeTriggerWidget(NativeBattleGraphicsState graphics, BattleCombatant actor, NativeBattleSequenceCue cue)
+    private void RegisterNativeTriggerWidget(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleSequenceCue cue)
     {
-        NativeBattleGraphicsState prepared = PrepareNativeTriggerWidget(graphics, actor.EncodeNativeSlot(), cue);
+        NativeBattleGraphicsState prepared = PrepareNativeTriggerWidget(graphics, owner, cue);
         nativeGuardianBoost = null;
         NativeGraphics = prepared;
         MirrorNativeRenzokukenWidget(prepared.TriggerWidget!);
     }
 
-    private NativeBattleGraphicsState PrepareNativeTriggerWidget(NativeBattleGraphicsState graphics, int row, NativeBattleSequenceCue cue)
+    private NativeBattleGraphicsState PrepareNativeTriggerWidget(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleSequenceCue cue)
     {
         BattleNativeRenzokukenBlock block = cue.TriggerWindow ?? throw new InvalidDataException("Native AB cue lacks its parsed original timing block.");
         NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native AB requires its initialized4A94D0 UI service owner.");
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native AB requires its actual saved options WORD1CFE978.");
-        BattleModelRoster? roster = graphics.PresentationRoster;
-        if (roster is not null)
-        {
-            RequireHostedActionModelBank(graphics, roster);
-            if (!roster.ContainsRow(row))
-            {
-                throw new InvalidDataException("Hosted AB requires its bound graphics model row.");
-            }
-        }
-        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)row), block, options, ui, roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.ActorModels.Get(row).ResourceMagicId };
+        NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(owner, block, options, ui, graphics.ActorModels.Roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.ActorModels.Get(owner).ResourceMagicId };
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
-        return graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActorIndex = null };
+        return graphics with { UiServices = ui, TriggerWidget = widget, PendingTriggerSoundActor = null };
     }
 
     private void AdvanceNativeTriggerWidget()
@@ -241,7 +232,7 @@ public sealed partial class BattleSession
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native widget6 requires its saved automatic trigger option.");
         //Host Automatic supplies one actual manual press edge; the original automatic option retains its separate4A7080 draw.
         bool assistance = nativeRenzokukenProcesses.Count == 0 && GunbladeMode == BattleGunbladeMode.Automatic && (options & 1) == 0 && widget.Input.TriggerTiming == 0 && widget.Input.Phase is 4 or 6 && widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex] == 20;
-        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33 ?? throw new InvalidDataException("Native widget6 was invoked before its4A8E30 BYTE33 producer."), (options & 1) != 0, nativeBattleUiRandom, assistedPress: assistance, roster: graphics.PresentationRoster);
+        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(widget, ui.Frame33 ?? throw new InvalidDataException("Native widget6 was invoked before its4A8E30 BYTE33 producer."), (options & 1) != 0, nativeBattleUiRandom, graphics.ActorModels.Roster, assistedPress: assistance);
         nativeBattleUiRandom = step.Random;
         NativeBattleTriggerReceipt? pending = graphics.PendingTrigger;
         if (step.Contact is { } contact)
@@ -253,7 +244,7 @@ public sealed partial class BattleSession
         {
             ui = ui.SetFlags(0, 0x1800) with { Menu957 = widget.PreviousMenu957, Menu955 = widget.PreviousMenu955 };
         }
-        NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending, PendingTriggerSoundActorIndex = step.PlayTriggerSound ? widget.Actor : graphics.PendingTriggerSoundActorIndex };
+        NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending, PendingTriggerSoundActor = step.PlayTriggerSound ? widget.Actor : graphics.PendingTriggerSoundActor };
         if (!hostedBattlePresentation)
         {
             MirrorNativeRenzokukenWidget(step.Widget);
@@ -288,11 +279,11 @@ public sealed partial class BattleSession
     {
         if (graphics.TriggerWidget is { } widget)
         {
-            if (widget.SourceSequence is not byte sequence || widget.SourceAbOffset is not int offset || widget.ClosingPhase == 13 || graphics.ActorIds[widget.Actor] is not string actorId)
+            if (widget.SourceSequence is not byte sequence || widget.SourceAbOffset is not int offset || widget.ClosingPhase == 13 || !graphics.ActorModels.Contains(widget.Actor))
             {
                 throw new InvalidDataException("Saved native widget lacks its actual registered AB resource binding.");
             }
-            NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actorId) ?? throw new InvalidDataException("Saved native widget lost its original graphics resource.");
+            NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(RequireCanonicalGraphicsActorId(widget.Actor)) ?? throw new InvalidDataException("Saved native widget lost its original graphics resource.");
             NativeBattleGraphicsResource resource = widget.SourceMagicId is ushort magic ? definition.NativeRenzokukenResources.Single(entry => entry.MagicId == magic).BindGraphicsResource(binding.Resource.PoseSource ?? throw new InvalidDataException("Saved native widget lost its original skeleton."), binding.Resource.LinkedPoseSource) : binding.Resource;
             int start = resource.SequenceStart(sequence);
             BattleNativeRenzokukenBlock original = NativeBattleRenzokukenRules.ReadBlock(resource.SequenceSection.AsSpan().Slice(start, resource.SequenceEnd(sequence) - start), offset, resource.AnimationFrames);
@@ -301,6 +292,6 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Saved native widget differs from its reached original AB timing bytes.");
             }
         }
-        graphics.PendingTrigger?.Validate(graphics.PresentationRoster);
+        graphics.PendingTrigger?.Validate(graphics.ActorModels.Roster);
     }
 }

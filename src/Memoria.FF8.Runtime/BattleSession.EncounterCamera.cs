@@ -28,16 +28,10 @@ public sealed partial class BattleSession
             return pose;
         }
         BattleModelTargets actors = parameters.TargetActors.Add(parameters.Source);
-        actors.ValidateCapacity(graphics.Models.Length);
-        if (graphics.PresentationRoster is { } roster)
-        {
-            RequireHostedActionModelBank(graphics, roster);
-            NativeBattleActionGeometry.ValidatePresentationRows(roster, parameters.Source, default, actors);
-        }
         List<NativeBattleVector> points = [];
-        foreach (int index in actors.EnumerateRows())
+        foreach (BattleModelOwner owner in actors.Enumerate())
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;

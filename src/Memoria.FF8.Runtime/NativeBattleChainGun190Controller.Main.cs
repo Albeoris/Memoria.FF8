@@ -4,7 +4,7 @@ public static partial class NativeBattleChainGun190Controller
 {
     public static (NativeBattleChainGun190Frame Frame, int Result) AdvanceMain(NativeBattleChainGun190Frame frame, uint address, NativeBattleChainGun190Resources resources, NativeBattleChainGun190Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(0x2283F2C));
+        BattleModelOwner caster = frame.State.ReadModelOperand(0x2283F2C);
         NativeBattleChainGun190PointStep bone = inputs.ReadBone502170(frame, caster, 11, 6144);
         frame = bone.Frame with { State = bone.Frame.State.WriteView(0x2283F38, bone.Point8, 6) };
         if ((inputs.GraphicsFlags & 0x201) != 0)

@@ -17,6 +17,6 @@ public sealed record NativeBattleEffect207RegisterCamera5099A0(uint SourceAddres
 public sealed record NativeBattleEffect207Clear45BEE0(int X, int Y, int Width, int Height, byte Red, byte Green, byte Blue) : NativeBattleEffect207Operation;
 public sealed record NativeBattleEffect207SetOrigin45B5E0(int X, int Y) : NativeBattleEffect207Operation;
 public sealed record NativeBattleEffect207Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect207Operation;
-public sealed record NativeBattleEffect207AllContacts506BA0(int FirstContactIndex, int Count) : NativeBattleEffect207Operation;
+public sealed record NativeBattleEffect207AllContacts506BA0(BattleContactCursor First, int Count) : NativeBattleEffect207Operation;
 public sealed record NativeBattleEffect207AppendCommonTextureLoad508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect207Operation;
 public sealed record NativeBattleEffect207DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect207Operation;

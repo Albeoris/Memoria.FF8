@@ -7,11 +7,11 @@ public sealed record NativeBattleSaliva138Frame(NativeBattleEffectMemory Memory,
 
 public sealed record NativeBattleSaliva138PointStep(NativeBattleSaliva138Frame Frame, NativeBattleVector Point);
 public sealed record NativeBattleSaliva138ActStep(NativeBattleSaliva138Frame Frame, int Remaining);
-public sealed record NativeBattleSaliva138Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, Func<NativeBattleSaliva138Frame, uint, byte, short, NativeBattleSaliva138PointStep> ReadBone502170, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138PointStep> ReadMouth, Func<uint, short> ReadModelYaw, Func<NativeBattleSaliva138Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleSaliva138Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleSaliva138Frame, uint, NativeBattleGfAnimationSource, int, int, NativeBattleEffectArena, NativeBattleSaliva138ActStep> AdvanceAct, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138Operation, NativeBattleSaliva138Frame> Execute);
+public sealed record NativeBattleSaliva138Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, Func<NativeBattleSaliva138Frame, BattleModelOwner, byte, short, NativeBattleSaliva138PointStep> ReadBone502170, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138PointStep> ReadMouth, Func<BattleModelOwner, short> ReadModelYaw, Func<NativeBattleSaliva138Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleSaliva138Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleSaliva138Frame, uint, NativeBattleGfAnimationSource, int, int, NativeBattleEffectArena, NativeBattleSaliva138ActStep> AdvanceAct, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138Operation, NativeBattleSaliva138Frame> Execute);
 
 public abstract record NativeBattleSaliva138Operation;
 public sealed record NativeBattleSaliva138Sound(uint Value, uint Flags, byte Pan) : NativeBattleSaliva138Operation;
-public sealed record NativeBattleSaliva138Contact(int Index) : NativeBattleSaliva138Operation;
+public sealed record NativeBattleSaliva138Contact(BattleContactOccurrence Occurrence) : NativeBattleSaliva138Operation;
 public sealed record NativeBattleSaliva138DrawCustom92(uint TemporaryAddress) : NativeBattleSaliva138Operation
 {
     [System.Text.Json.Serialization.JsonIgnore]

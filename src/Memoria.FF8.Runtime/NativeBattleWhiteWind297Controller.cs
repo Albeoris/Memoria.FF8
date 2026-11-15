@@ -12,9 +12,9 @@ public static class NativeBattleWhiteWind297Controller
         resources.Validate();
         inputs.Packets.Validate();
         NativeBattleEffectParameters parameters = Parameters(frame);
-        if (parameters.Source >= 7)
+        if (!inputs.Packets.Roster.Contains(parameters.Source))
         {
-            throw new InvalidDataException("Blue Magic White Wind caster leaves the original seven-model bank.");
+            throw new InvalidDataException("Blue Magic White Wind requires a bound caster model.");
         }
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Blue Magic White Wind requires its executed TIM initializer pointer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Blue Magic White Wind requires its texture queue.");
@@ -22,7 +22,7 @@ public static class NativeBattleWhiteWind297Controller
         frame = frame with
         {
             Memory = frame.Memory with { Textures = textures },
-            State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source))
+            State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, parameters.Source, inputs.Packets.ModelAliases)
         };
         frame = inputs.Execute(frame, new NativeBattleWhiteWind297BindCaster(parameters.Source, ArenaAddress + BindingOffset, 0x1056888));
         frame = inputs.Execute(frame, new NativeBattleWhiteWind297RingSequence(parameters.Source, 1));
@@ -114,7 +114,7 @@ public static class NativeBattleWhiteWind297Controller
     private static (NativeBattleWhiteWind297Frame Frame, int Result) AdvanceScene(NativeBattleWhiteWind297Frame frame, int pool, int slot, NativeBattleWhiteWind297Resources resources, NativeBattleWhiteWind297Inputs inputs)
     {
         int age = unchecked((short)Task(frame, pool, slot).ReadWord(12));
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
         if ((uint)age < 22)
         {
             if (age == 0)
@@ -138,7 +138,7 @@ public static class NativeBattleWhiteWind297Controller
                 short z = 0;
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = inputs.Packets.ReadContact(FirstContact(header) + index).Primary.Recipient;
+                    BattleModelOwner actor = inputs.Packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
                     z = unchecked((short)(z + (inputs.ReadModel(actor).Transform ?? throw new NotSupportedException("White Wind requires current target position.")).Position28.Z));
                 }
                 NativeBattleModulePoolTask task = Task(frame, pool, slot).WriteWord(0x1A0, 0).WriteWord(0x1A2, unchecked((ushort)Height(inputs, caster))).WriteWord(0x1A4, unchecked((ushort)(z / count)));
@@ -161,8 +161,10 @@ public static class NativeBattleWhiteWind297Controller
             NativeBattleEffectTaskPool targets = frame.Effect.Pools[2];
             (targets, int child) = targets.Append(TargetCallback);
             frame = WithPool(frame, 2, targets);
-            int actor = inputs.Packets.ReadContact(FirstContact(captured) + target / 4).Primary.Recipient;
-            frame = Put(frame, 2, child, Task(frame, 2, child).WriteDword(12, ModelAddress(actor)));
+            BattleModelOwner actor = inputs.Packets.ReadContact(captured.FirstContact.Advance(target / 4)).Primary.Recipient;
+            NativeBattleModulePoolTask targetTask = Task(frame, 2, child);
+            targetTask.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+            frame = Put(frame, 2, child, targetTask);
             frame = Anchor(frame, 2, child, 16, actor, inputs);
             frame = InitializeAct(frame, 2, child, 0x18, 0x278, resources.Target);
         }
@@ -174,7 +176,7 @@ public static class NativeBattleWhiteWind297Controller
     private static (NativeBattleWhiteWind297Frame Frame, int Result) AdvanceTarget(NativeBattleWhiteWind297Frame frame, int pool, int slot, NativeBattleWhiteWind297Resources resources, NativeBattleWhiteWind297Inputs inputs)
     {
         NativeBattleModulePoolTask task = Task(frame, pool, slot);
-        int actor = Actor(task.ReadDword(12));
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
         (frame, int remaining) = Play(frame, pool, slot, 0x18, 0x278, resources.Target, BillboardContext(frame, Point(task, 16), inputs), inputs);
         if (remaining != 10)
         {
@@ -183,16 +185,17 @@ public static class NativeBattleWhiteWind297Controller
         NativeBattleActionHeaderSlot header = Header(frame, inputs);
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            int selected = checked(FirstContact(header) + index);
-            if (inputs.Packets.ReadContact(selected).Primary.Recipient == actor)
+            NativeBattleContactPacket packet = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+            if (packet.Primary.Recipient == actor)
             {
-                frame = inputs.Execute(frame, new NativeBattleWhiteWind297Contact(selected));
+                BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("White Wind contact has no occurrence reference.");
+                frame = inputs.Execute(frame, new NativeBattleWhiteWind297Contact(occurrence));
             }
         }
         return (frame, 2);
     }
 
-    private static NativeBattleWhiteWind297Frame Anchor(NativeBattleWhiteWind297Frame frame, int pool, int slot, int offset, int actor, NativeBattleWhiteWind297Inputs inputs)
+    private static NativeBattleWhiteWind297Frame Anchor(NativeBattleWhiteWind297Frame frame, int pool, int slot, int offset, BattleModelOwner actor, NativeBattleWhiteWind297Inputs inputs)
     {
         NativeBattleWhiteWind297AnchorStep result = inputs.ReadAnchor571400(frame, actor);
         NativeBattleModuleAnchor anchor = result.Anchor;
@@ -231,7 +234,7 @@ public static class NativeBattleWhiteWind297Controller
         NativeBattleEffectArena context = WriteMatrix(NativeBattleEffectArena.Clear().MarkUnknown(0, 40), matrix);
         return Dword(Dword(context, 0x20, unchecked((uint)-128)), 0x24, checked(Working(frame) + MorphOffset));
     }
-    private static short Height(NativeBattleWhiteWind297Inputs inputs, int actor)
+    private static short Height(NativeBattleWhiteWind297Inputs inputs, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
         short minimum = inputs.ReadMinimumY?.Invoke(actor) ?? model.MinimumY146 ?? throw new NotSupportedException("White Wind requires the actual actor minimum posed height.");
@@ -262,23 +265,6 @@ public static class NativeBattleWhiteWind297Controller
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
         return inputs.Packets.ReadHeader(index);
-    }
-    private static int FirstContact(NativeBattleActionHeaderSlot header) => header.FirstContactIndex ?? throw new NotSupportedException("Blue Magic White Wind requires its original captured contact pointer.");
-    private static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new InvalidDataException("Blue Magic White Wind actor leaves its seven-model bank.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Blue Magic White Wind actor pointer leaves its native model bank.");
-        }
-        return row;
     }
     private static uint Working(NativeBattleWhiteWind297Frame frame)
     {

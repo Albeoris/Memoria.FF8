@@ -44,10 +44,10 @@ public static partial class NativeBattleEffect167Controller
             int count = header.ReadContactCount();
             if (count != 0)
             {
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect167 requires its actual contact pointer.");
+                BattleContactCursor first = header.FirstContact;
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = packets.ReadContact(first + index).Primary.Recipient;
+                    int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                     (frame, uint child) = Append(frame, ChildDescriptor, 0x5E3C20);
                     if (child == 0)
                     {

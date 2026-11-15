@@ -135,7 +135,7 @@ public static partial class NativeBattleAcid170Controller
         }
         RequireCurveIndex(task);
         short age = Signed(task, 12);
-        int actor = checked((int)frame.State.ReadDword(0x23AF820));
+        BattleModelOwner actor = frame.State.ReadModelOperand(0x23AF820);
         if (age < 34)
         {
             short startX = Word170(frame, 0x23B0FD8);

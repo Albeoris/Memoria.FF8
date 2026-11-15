@@ -64,6 +64,24 @@ public sealed partial class NativeBattleModelBoundary
         return captured.MoveToImmutable();
     }
 
+    internal NativeBattleModelBoundary CompleteUnboundActionCells50AED0()
+    {
+        ImmutableArray<Cell> updated = cells;
+        for (int offset = 0; offset < cells.Length; offset++)
+        {
+            Cell cell = cells[offset];
+            if (cell.Owner is null && cell.Retained is { } retained)
+            {
+                ushort flags = (ushort)(retained.Flags0 & 0x87FF);
+                if (flags != retained.Flags0)
+                {
+                    updated = updated.SetItem(offset, cell with { Retained = retained with { Flags0 = flags } });
+                }
+            }
+        }
+        return updated == cells ? this : new(updated);
+    }
+
     internal NativeBattleModelAliases CaptureAliases(BattleActorModels models)
     {
         ArgumentNullException.ThrowIfNull(models);

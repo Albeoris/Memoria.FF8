@@ -16,10 +16,10 @@ public abstract record NativeBattleAdditional181Operation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleAdditional181Contact506690(int ContactIndex) : NativeBattleAdditional181Operation;
+public sealed record NativeBattleAdditional181Contact506690(BattleContactOccurrence ContactIndex) : NativeBattleAdditional181Operation;
 public sealed record NativeBattleAdditional181Sound501330(uint Packed, uint Flags, int Pan) : NativeBattleAdditional181Operation;
 public sealed record NativeBattleAdditional181Flash5712C0(int Arg0, int Arg1, int Arg2, int Arg3) : NativeBattleAdditional181Operation;
 public sealed record NativeBattleAdditional181ActorFlags(BattleModelOwner Actor, ushort ClearMask, ushort SetMask) : NativeBattleAdditional181Operation;
-public sealed record NativeBattleAdditional181DrawBody128(int Actor, uint TemporaryAddress) : NativeBattleAdditional181Operation;
+public sealed record NativeBattleAdditional181DrawBody128(BattleModelOwner Actor, uint TemporaryAddress) : NativeBattleAdditional181Operation;
 public sealed record NativeBattleAdditional181DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleAdditional181Operation;
 public sealed record NativeBattleAdditional181DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleAdditional181Operation;

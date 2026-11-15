@@ -14,10 +14,12 @@ public static partial class NativeBattleAdditional182Controller
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23056E8, 0x23056F8, 36, 100);
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        bool set = (inputs.Packets.ReadContact(first).Primary.HitFlags3 & 4) != 0;
+        bool set = (inputs.Packets.ReadContact(first).Primary.HitFlags & 4) != 0;
         (children, int director) = children.Append(set ? 0x5CA0E0u : 0x5CA970u);
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
-        frame = Dword(Dword(Dword(frame, 0x2304220, inputs.Packets.ReadContact(first).Primary.Recipient), 0x230650C, Parameters(frame).Source), 0x2306508, 0x1D99A78);
+        BattleModelOwner recipient = inputs.Packets.ReadContact(first).Primary.Recipient;
+        NativeBattleAdditional182State state = frame.State.WriteModelOperand(0x2304220, recipient, inputs.Packets.ModelAliases).WriteModelOperand(0x230650C, Parameters(frame).Source, inputs.Packets.ModelAliases);
+        frame = Dword(frame with { State = state }, 0x2306508, 0x1D99A78);
         foreach ((uint bank, int count) in new (uint, int)[] { (0x2304248, 120), (0x2304D88, 100) })
         {
             for (int index = 0; index < count; index++)

@@ -20,7 +20,7 @@ public sealed record NativeBattleEffect209ModelFlags(BattleModelOwner Actor, ush
 public sealed record NativeBattleEffect209QueueVariant50E3A0(uint BufferAddress) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209RebuildVariant50E3C0(uint BufferAddress) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209Stage5713E0(int Intensity, uint Color) : NativeBattleEffect209Operation;
-public sealed record NativeBattleEffect209Contact506690(int Index) : NativeBattleEffect209Operation;
+public sealed record NativeBattleEffect209Contact506690(BattleContactOccurrence Index) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209Vibration4A29A0(uint SourceAddress, int Mode, int Magnitude, uint OutputAddress) : NativeBattleEffect209Operation;
 public sealed record NativeBattleEffect209StopVibration4A2940(int Handle) : NativeBattleEffect209Operation;

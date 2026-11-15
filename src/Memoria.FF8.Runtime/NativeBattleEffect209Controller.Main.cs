@@ -106,8 +106,10 @@ public static partial class NativeBattleEffect209Controller
         if (age == 124)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect209 requires its current header.");
-            NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).ReadHeader(parameters.Header);
-            frame = inputs.Execute(frame, new NativeBattleEffect209Contact506690(header.FirstContactIndex ?? throw new NotSupportedException("Effect209 requires its current first contact.")));
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
+            BattleContactOccurrence contact = packets.ReadContact(header.FirstContact).Occurrence ?? throw new InvalidDataException("Effect209 requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleEffect209Contact506690(contact));
         }
         if (age == 1)
         {

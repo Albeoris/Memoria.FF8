@@ -13,7 +13,7 @@ public static partial class NativeBattleBreath129Controller
         {
             frame = frame with { State = frame.State.WriteDword(StageGlobal, unchecked((uint)envelope)) };
         }
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadCaster();
         if (age < 20 && (age & 1) == 0)
         {
             uint row = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, caster), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
@@ -55,9 +55,9 @@ public static partial class NativeBattleBreath129Controller
             task = Read(frame, address);
             int firstIndex = Signed(task, 0x20);
             int nextIndex = Signed(task, 0x22);
-            NativeBattleBreath129PointStep first = inputs.ReadBone502170(frame, task.ReadDword(16 + firstIndex * 4), 0xF1, 0);
+            NativeBattleBreath129PointStep first = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16 + firstIndex * 4, 4).Owner, 0xF1, 0);
             frame = first.Frame;
-            NativeBattleBreath129PointStep second = inputs.ReadBone502170(frame, Read(frame, address).ReadDword(16 + nextIndex * 4), 0xF1, 0);
+            NativeBattleBreath129PointStep second = inputs.ReadBone502170(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(16 + nextIndex * 4, 4).Owner, 0xF1, 0);
             frame = second.Frame;
             NativeBattleVector a = Point(first.Point8);
             NativeBattleVector b = Point(second.Point8);
@@ -142,9 +142,10 @@ public static partial class NativeBattleBreath129Controller
         }
         NativeBattleModulePoolTask main = Read(frame, mainAddress);
         int index = Signed(main, 0x20);
-        uint actor = main.ReadDword(16 + index * 4);
-        int actorIndex = NativeBattleGraphicsModelAddress.Decode(actor);
-        frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteByte(14, main.ReadByte(0x1C + index)).WriteByte(15, checked((byte)actorIndex)));
+        BattleModelOwner actor = main.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
+        NativeBattleModulePoolTask targetTask = Read(frame, address).WriteWord(12, 0).WriteByte(14, main.ReadByte(0x1C + index));
+        targetTask.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
+        frame = Write(frame, address, targetTask);
         NativeBattleBreath129PointStep point = inputs.ReadBone502170(frame, actor, 0xF1, 0);
         frame = WriteBytes(point.Frame, address + 16, point.Point8, 6);
         NativeBattleVector position = Point(point.Point8);
@@ -157,7 +158,10 @@ public static partial class NativeBattleBreath129Controller
         {
             throw new InvalidDataException("Breath selected-body list leaves its three actual pointer entries.");
         }
-        frame = StoreDword(frame, Working(frame) + 0x35E4 + count * 4, actor);
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena.");
+        int offset = checked((int)(Working(frame) - NativeBattleEffectNodeMemory.ArenaAddress + 0x35E4 + count * 4));
+        arena = arena.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+        frame = frame with { Memory = frame.Memory with { Arena = arena } };
         frame = StoreDword(frame, Working(frame) + 0x35E0, count + 1);
         return ResetWorkspace(frame, address, 24, 0x110, resources.Act(0x1225468));
     }

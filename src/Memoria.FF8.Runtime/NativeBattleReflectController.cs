@@ -48,15 +48,14 @@ public static class NativeBattleReflectController
         current = current with { Memory = current.Memory with { Reflect106 = state } };
         root = root.WriteDword(16, root.ReadDword(16) != 0 ? 0u : 1u);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Reflect lost its original action context.");
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         int action = root.ReadByte(14);
         if (root.ReadWord(12) == 0 && action <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
         {
             BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
-            byte actor = inputs.Packets.ReadContact(first).Primary.Recipient;
-            uint pointer = NativeBattleGraphicsModelAddress.Encode(actor);
-            bool busy = pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(16) == pointer && Word(task, 12) <= 35);
+            BattleModelOwner actor = inputs.Packets.ReadContact(first).Primary.Recipient;
+            bool busy = pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == actor && Word(task, 12) <= 35);
             if (!busy)
             {
                 (pools[1], int slot) = pools[1].Append(0x6D3160);
@@ -65,7 +64,9 @@ public static class NativeBattleReflectController
                 NativeBattleVector anchor1 = Bone(actor, 0xF1);
                 NativeBattleActionMatrix model = new([0, 0, 0, 0, 0, 0, 0, 0, 0], (anchor0.X + anchor1.X) >> 1, (anchor0.Y + anchor1.Y) >> 1, (anchor0.Z + anchor1.Z) >> 1, 4096);
                 NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x50);
-                task = WriteMatrix(task.WriteWord(14, checked((ushort)action)).WriteDword(16, pointer), 20, model);
+                task.WriteWord(14, checked((ushort)action));
+                task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                task = WriteMatrix(task, 20, model);
                 Store(1, slot, task);
                 root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 int angle = Roll();
@@ -94,7 +95,7 @@ public static class NativeBattleReflectController
                 int result = 0;
                 if (poolIndex == 1)
                 {
-                    int actor = NativeBattleStatusMagicController.ModelIndex(task.ReadDword(16));
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
                     NativeBattleGraphicsModel actorModel = inputs.ReadModel(actor);
                     int size = Math.Min((actorModel.Transform ?? throw new NotSupportedException("Native Reflect requires the target's sizeWORD26.")).Scale38 << 2, 4096);
                     short yaw = actorModel.Rotation14 ?? throw new NotSupportedException("Native Reflect requires the target's facingWORD0E.");
@@ -145,13 +146,14 @@ public static class NativeBattleReflectController
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(task.ReadWord(14));
                         NativeBattleActionHeaderSlot packet = inputs.Packets.ReadHeader(header);
-                        int first = packet.FirstContactIndex ?? throw new NotSupportedException("Native Reflect contact requires its actual action target list.");
                         for (int index = 0; index < packet.ReadContactCount(); index++)
                         {
-                            contacts.Add(first + index);
+                            NativeBattleContactPacket contact = inputs.Packets.ReadContact(packet.FirstContact.Advance(index));
+                            BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Native Reflect requires its reached contact occurrence.");
+                            contacts.Add(occurrence);
                             if (inputs.ApplyContact is { } apply)
                             {
-                                current = apply(current, first + index);
+                                current = apply(current, occurrence);
                             }
                         }
                     }
@@ -222,7 +224,7 @@ public static class NativeBattleReflectController
             current = current with { Memory = current.Memory.DrawSharedEffectRandom7059E0(out ushort value) };
             return value;
         }
-        NativeBattleVector Bone(int actor, byte bone) => inputs.ReadBone?.Invoke(actor, bone) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), bone, 0);
+        NativeBattleVector Bone(BattleModelOwner actor, byte bone) => inputs.ReadBone?.Invoke(actor, bone) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), bone, 0);
         NativeBattleModulePoolTask Parent(uint pointer)
         {
             if (pointer < pools[1].BankAddress || (pointer - pools[1].BankAddress) % pools[1].Stride != 0 || (pointer - pools[1].BankAddress) / pools[1].Stride >= pools[1].Slots.Length)

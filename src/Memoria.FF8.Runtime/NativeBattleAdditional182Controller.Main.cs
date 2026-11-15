@@ -16,7 +16,7 @@ public static partial class NativeBattleAdditional182Controller
             _ => throw new NotSupportedException("Additional requires its actual director callback.")
         };
         int age = Signed(main, 12);
-        int actor = checked((int)frame.State.ReadDword(0x2304220));
+        BattleModelOwner actor = frame.State.ReadModelOperand(0x2304220);
         if (age == 0)
         {
             ushort saved = (ushort)(inputs.ReadModel(frame, actor).Flags0 & 8);
@@ -58,7 +58,9 @@ public static partial class NativeBattleAdditional182Controller
         if (!set && age == 20)
         {
             (frame, uint child) = RequireAppend(frame, 0x5CB390);
-            frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, checked((ushort)actor)).WriteWord(24, 6).WriteWord(26, (ushort)(inputs.ReadModel(frame, actor).Flags0 & 0x800)));
+            NativeBattleModulePoolTask fade = Read(frame, child).WriteWord(12, 0);
+            fade.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
+            frame = Write(frame, child, fade.WriteWord(24, 6).WriteWord(26, (ushort)(inputs.ReadModel(frame, actor).Flags0 & 0x800)));
         }
         if (age == (set ? 35 : 64))
         {

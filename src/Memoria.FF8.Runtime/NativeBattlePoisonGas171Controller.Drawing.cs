@@ -12,7 +12,7 @@ public static partial class NativeBattlePoisonGas171Controller
             throw new NotSupportedException("Poison Gas body callback is unsupported.");
         }
         short age = Signed(task, 12);
-        int actor = checked((int)frame.State.ReadDword(0x23AF80C));
+        BattleModelOwner actor = frame.State.ReadModelOwner(0x23AF80C);
         if (age < 24)
         {
             int intensity = age < 4 ? age << 5 : age >= 16 ? (24 - age) << 4 : 128;

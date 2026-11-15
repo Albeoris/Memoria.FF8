@@ -67,26 +67,23 @@ public sealed partial class BattleSession
             NativeBattleVector result = NativeBattlePoseMatrices.TransformCameraPoint(matrix, new(local.X, local.Y, local.Z), (graphicsFlags & 0x20) != 0);
             return new(result.X, result.Y, result.Z);
         }
-        int model = reference >> 4;
-        if (model is 9 or 10)
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        byte selector = (byte)(reference >> 4);
+        BattleModelOwner owner;
+        if (selector is 9 or 10)
         {
-            NativeBattleCameraAliases aliases = NativeEffectMemory?.CameraAliases ?? throw new NotSupportedException("Native50D790 requires its retained camera alias BYTEs; migrate the needed older snapshot explicitly.");
-            model = aliases.Resolve50D790(reference);
-            BattleModelRoster? roster = NativeGraphics?.PresentationRoster;
-            if (aliases.PresentationRoster is { } owner && (roster is null || !owner.Rows.SequenceEqual(roster.Rows)))
-            {
-                throw new InvalidDataException("The retained camera aliases belong to a different presentation roster.");
-            }
-            if (roster is not null)
-            {
-                _ = roster[model];
-            }
+            NativeBattleCameraAliases aliases = NativeEffectMemory?.CameraAliases ?? throw new NotSupportedException("Native50D790 requires its retained camera aliases.");
+            owner = aliases.Resolve50D790(reference, graphics.ActorModels, graphics.NativeBindings);
         }
-        else if (model >= NativeBattleGraphicsModelAddress.NativeRowCount)
+        else if (selector < NativeBattleModelBoundary.CellCount)
+        {
+            owner = graphics.NativeBindings.DecodeLiteral(selector, graphics.ActorModels);
+        }
+        else
         {
             throw new NotSupportedException($"Native camera reference{reference:X2} requires its active command or auxiliary matrix owner.");
         }
-        return TransformNativeGraphicsCameraPoint(model, (byte)(reference & 15), local, (graphicsFlags & 0x20) != 0);
+        return TransformNativeGraphicsCameraPoint(owner, (byte)(reference & 15), local, (graphicsFlags & 0x20) != 0);
     }
 
     private void ScheduleNativeCameraBlend(byte duration)

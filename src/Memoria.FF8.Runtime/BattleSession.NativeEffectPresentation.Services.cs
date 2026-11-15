@@ -4,14 +4,15 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private ImmutableArray<int> ReadRequiredPresentationPartyActors()
+    private ImmutableArray<BattleModelOwner> ReadRequiredPresentationPartyActors()
     {
-        if (NativeGraphics?.PresentationRoster is { } roster)
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        ImmutableArray<BattleModelOwner> party = [.. graphics.ActorModels.Party.Entries.Select(entry => entry.Owner)];
+        if (presentationPartyActorCount is { } expected && party.Length != expected)
         {
-            return NativeBattlePresentationPartyRows.Resolve(roster, presentationPartyActorCount);
+            throw new InvalidDataException("Presentation party actors disagree with the host's party count.");
         }
-        return NativeBattlePresentationPartyRows.Resolve(presentationSourceIndex, presentationSourceModelId, presentationSourceIsParty, hostedGuardianFormMode,
-            presentationNativeTargets?.Values, presentationForeignActors?.Values, presentationPartyActorCount);
+        return party;
     }
 
     private NativeBattleStageState ReadNativeStageVisibilityOwner()
@@ -23,18 +24,27 @@ public sealed partial class BattleSession
         return NativeStage ?? throw new NotSupportedException("The native stage visibility operation requires its current stage owner.");
     }
 
-    internal void PublishEffectPresentationSource(NativeBattleGraphicsModel source)
+    internal void PublishEffectPresentationSource(BattleModelOwner owner, NativeBattleGraphicsModel source)
     {
-        if (presentationForeignActors is null || presentationSourceIndex != 0 || source.Index != 0 || NativeGraphics?.PresentationRoster is not null)
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        if (presentationForeignActors is null || owner != presentationSourceOwner || !HasOriginalPresentationSourceSlot(graphics, owner))
         {
-            throw new InvalidDataException("The presentation source publication requires physical source slot zero and its presentation owner.");
+            throw new InvalidDataException("The presentation source publication requires its retained original source slot zero.");
         }
-        NativeGraphics = NativeGraphics! with { ActorModels = NativeGraphics!.ActorModels.Set(0, source) };
+        NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, source) };
+    }
+
+    private static bool HasOriginalPresentationSourceSlot(NativeBattleGraphicsState graphics, BattleModelOwner owner)
+    {
+        return graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte operand) && operand == 0 &&
+            graphics.ActorModels.Owners.All(candidate => graphics.NativeBindings.TryEncodeExactActor(candidate, graphics.ActorModels, out _));
     }
 
     internal int ReadEffectPresentationSourceVariable(NativeBattleGraphicsModel source, byte variable)
     {
-        return ReadNativeGraphicsSequenceVariable(NativeGraphics! with { ActorModels = NativeGraphics!.ActorModels.Set(presentationSourceIndex, source) }, presentationSourceIndex, variable);
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        BattleModelOwner owner = RequirePresentationSourceOwner();
+        return ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = graphics.ActorModels.Set(owner, source) }, owner, variable);
     }
 
     internal void WriteEffectPresentationSourceVariable(byte variable, int value) => WriteNativeGraphicsSequenceVariable(variable, value);
@@ -42,8 +52,8 @@ public sealed partial class BattleSession
     internal NativeBattleGraphicsModel WriteEffectPresentationSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value)
     {
         NativeBattleGraphicsState graphics = NativeGraphics!;
-        int target = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native presentation target writes require their current50D300 target identity.");
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceIndex, source) };
+        BattleModelOwner target = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native presentation target writes require their current50D300 target identity.");
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequirePresentationSourceOwner(), source) };
         NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(graphics.ActorModels.Get(target), variable, value)) };
         return ReadEffectPresentationSource();
     }
@@ -54,19 +64,7 @@ public sealed partial class BattleSession
     {
         NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(nativeActionPackets, parameters.Header, NativeGraphics?.ActionGraphics) with { UseActionCamera = false };
         NativeBattleGraphicsState graphics = NativeGraphics! with { ActionGraphics = action };
-        if (graphics.PresentationRoster is { } roster)
-        {
-            NativeBattleEffectMemory geometryMemory = NativeEffectMemory!;
-            NativeBattleActionGeometryGlobals globals = geometryMemory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
-            BattleModelTargets targets = parameters.TargetActors;
-            graphics = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, parameters.Source, targets, targets, globals, ReadNativeGraphicsBone);
-            NativeEffectMemory = geometryMemory with { CameraAliases = (geometryMemory.CameraAliases ?? NativeBattleCameraAliases.Unknown()).Observe50D300(parameters.Source, targets, roster), ActionGeometryGlobals = globals.Observe50D300(graphics.ActionContext!) };
-            NativeGraphics = graphics;
-        }
-        else
-        {
-            NativeGraphics = PrepareEffectPresentationGeometry(graphics, parameters.Source, parameters.TargetActors);
-        }
+        NativeGraphics = PrepareNativeActionGeometry(graphics, parameters.Source, parameters.TargetActors, parameters.TargetActors);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native presentation lost its initialized process owner.");
         if (memory.PrimitiveProcess is { Software: { } software } process)
         {
@@ -76,12 +74,4 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleGraphicsState PrepareEffectPresentationGeometry(NativeBattleGraphicsState graphics, byte actor, ushort targets)
-    {
-        NativeBattleEffectMemory memory = NativeEffectMemory!;
-        NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals ?? NativeBattleActionGeometryGlobals.Unknown();
-        graphics = NativeBattleActionGeometryRules.PrepareGeometry50D300(graphics, actor, targets, targets, globals, ReadNativeGraphicsBone);
-        NativeEffectMemory = memory with { CameraAliases = (memory.CameraAliases ?? NativeBattleCameraAliases.Unknown()).Observe50D300(actor, targets), ActionGeometryGlobals = globals.Observe50D300(graphics.ActionContext!) };
-        return graphics;
-    }
 }

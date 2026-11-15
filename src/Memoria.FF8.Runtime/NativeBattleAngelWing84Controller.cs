@@ -199,7 +199,7 @@ public static class NativeBattleAngelWing84Controller
         }
         NativeBattleAngelWing84Inputs controller = inputs.Controller;
         task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource);
-        NativeBattleGraphicsModel model = controller.ReadModel(task.ReadByte(45));
+        NativeBattleGraphicsModel model = controller.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner);
         NativeBattlePoseSource source = controller.ReadPoseSource(task.ReadByte(45));
         NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's actual selected pose.");
         NativeBattleDecodedPose pose = source.Sample(sequence.Pose ?? throw new NotSupportedException("Native8DC870 requires its pose index."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native8DC870 requires its decoded frame."), sequence.PoseFlags109);

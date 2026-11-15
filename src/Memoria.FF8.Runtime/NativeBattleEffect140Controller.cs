@@ -26,17 +26,17 @@ public static partial class NativeBattleEffect140Controller
         {
             throw new DivideByZeroException("Effect140's original recipient mean requires a nonzero native contact count.");
         }
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect140 requires its actual recipient pointer.");
+        BattleContactCursor first = header.FirstContact;
         int total = 0;
         for (int index = 0; index < count; index++)
         {
-            int actor = packets.ReadContact(first + index).Primary.Recipient;
+            BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
             total = unchecked(total + Position(frame, actor, inputs).Z);
         }
         NativeCrtRandomState random = frame.Random.Draw(out ushort randomValue);
         int texture = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2517AA8)?.ArenaOffset ?? throw new NotSupportedException("Effect140 requires its executed texture initializer.");
         uint commonSize = NativeBattleEffectArena.Length;
-        frame = frame with { Random = random, State = frame.State.WriteDword(0x2517B1C, (uint)randomValue).WriteDword(0x2517AA8, CommonAddress + (uint)texture).WriteDword(0x2517B28, CommonAddress).WriteDword(0x2517AA4, checked(CommonAddress + commonSize - 0x20000)).WriteDword(0x2517AA0, checked(CommonAddress + commonSize - 0x10000)).WriteDword(0x2517AB0, 0x1D99A78).WriteDword(0x2517AB4, ModelAddress(parameters.Source)).WriteDword(0x2517B10, unchecked((uint)(total / count))).WriteDword(0x2517B18, unchecked((uint)(total / count + 3690))) };
+        frame = frame with { Random = random, State = frame.State.WriteDword(0x2517B1C, (uint)randomValue).WriteDword(0x2517AA8, CommonAddress + (uint)texture).WriteDword(0x2517B28, CommonAddress).WriteDword(0x2517AA4, checked(CommonAddress + commonSize - 0x20000)).WriteDword(0x2517AA0, checked(CommonAddress + commonSize - 0x10000)).WriteDword(0x2517AB0, 0x1D99A78).WriteModelAddress(0x2517AB4, parameters.Source, packets.ModelAliases).WriteDword(0x2517B10, unchecked((uint)(total / count))).WriteDword(0x2517B18, unchecked((uint)(total / count + 3690))) };
         frame = inputs.Execute(frame, new NativeBattleEffect140UploadTim505E30(CommonAddress + (uint)texture));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2517AE8, 0x2517AF8, 20, 1);
         root = NativeBattleEffectTaskMemory.WriteBankSpan(root, 12, CopyBytes(frame.State.RootBankStorage!, 12, NativeBattleEffectArena.Clear(), 0, 8), 8);
@@ -110,9 +110,7 @@ public static partial class NativeBattleEffect140Controller
         return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect140 requires a physical model.");
-    public static int Actor(uint model) => NativeBattleGraphicsModelAddress.TryDecode(model, out int row) ? row : throw new InvalidDataException("Effect140 model pointer leaves the physical rows.");
-    private static NativeBattleVector Position(NativeBattleEffect140Frame frame, int actor, NativeBattleEffect140Inputs inputs)
+    private static NativeBattleVector Position(NativeBattleEffect140Frame frame, BattleModelOwner actor, NativeBattleEffect140Inputs inputs)
     {
         byte[] bytes = inputs.ReadModelPosition8(frame, actor).Read(0, 6);
         return new(BitConverter.ToInt16(bytes, 0), BitConverter.ToInt16(bytes, 2), BitConverter.ToInt16(bytes, 4));

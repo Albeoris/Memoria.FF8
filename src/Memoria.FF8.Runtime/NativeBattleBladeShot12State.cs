@@ -94,6 +94,19 @@ public sealed record NativeBattleBladeShot12State([property: JsonRequired] Nativ
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
         return Write(address, encoded);
     }
+    internal BattleModelOwner ReadModelAddress(uint address)
+    {
+        RequireRanges(address, 4, GlobalRanges);
+        return Globals.ReadExecutionReference<BattleExecutionReference.Model>(checked((int)(address - BaseAddress)), 4).Owner;
+    }
+
+    internal NativeBattleBladeShot12State WriteModelAddress(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        RequireRanges(address, 4, GlobalRanges);
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(checked((int)(address - BaseAddress)), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = globals };
+    }
+
     public NativeBattleBladeShot12State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

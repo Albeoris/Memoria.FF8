@@ -29,14 +29,14 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { UiImmediate = ui, UiImmediateFrame = frame };
     }
 
-    private void AdvanceNativeStatusCountdowns(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleModelActorFacts? actorFacts = null)
+    private void AdvanceNativeStatusCountdowns(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleModelActorFacts? actorFacts = null)
     {
         NativeBattlePcUiBinding binding = definition.NativeGraphics?.PcUiIcons ?? throw new NotSupportedException("Native50A410 requires its selected original icon resource and device profile.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50A410 requires its retained graphics arithmetic and UI owners.");
         NativeBattlePcUiImmediateState ui = memory.UiImmediate ?? throw new NotSupportedException("Native50A410 requires its retained PC UI state; an old missing owner requires explicit migration.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native5034E0 requires its prior camera owner.");
         uint statuses = model.Flags8 ?? throw new NotSupportedException("Native50A410 requires its actual status DWORD8.");
-        NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, model.Index, 0xF0, 0x1000);
+        NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, owner, 0xF0, 0x1000);
         NativeBattleStatusCountdownProjectionResult projected = NativeBattleStatusCountdownProjection.Project50A410(memory, NativeFileStaging ?? throw new NotSupportedException("Native50A410 requires its physical temporary buffer."), camera, anchor, statuses);
         NativeFileStaging = projected.Staging;
         memory = projected.Memory;
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         ushort depth = projected.QuarterDepth;
         if ((flags & 0x60000) == 0)
         {
-            (short doom, short petrify) = ReadModelCountdownTimers(model.Index, actorFacts);
+            (short doom, short petrify) = ReadModelCountdownTimers(graphics, owner, actorFacts);
             foreach (NativeBattleCountdownText text in NativeBattleStatusCountdowns.Layout50A410(statuses, unchecked((short)screen), unchecked((short)(screen >> 16)), depth, flags, doom, petrify))
             {
                 ui = ui.DrawString4A93D0(text.Glyphs, text.PackedPosition, text.Color, binding.IconCount, binding.Encode, binding.Opaque, binding.Semi, binding.Rules);
@@ -54,13 +54,13 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { UiImmediate = ui };
     }
 
-    private (short Doom, short Petrify) ReadModelCountdownTimers(int row, NativeBattleModelActorFacts? actorFacts)
+    private (short Doom, short Petrify) ReadModelCountdownTimers(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelActorFacts? actorFacts)
     {
         if (actorFacts is not null)
         {
             return (actorFacts.DoomTimer, actorFacts.PetrifyTimer);
         }
-        BattleCombatant actor = combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == row) ?? throw new NotSupportedException("Native50A410 requires the participant mapped to its physical graphics row.");
+        BattleCombatant actor = GraphicsActor(graphics, owner);
         return (actor.NativeStatusTimers[12], actor.NativeStatusTimers[10]);
     }
 }

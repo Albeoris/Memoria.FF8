@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDrinkMagic37OrbDraw(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrinkMagic37OrbBounds(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;
-public sealed record NativeBattleDrinkMagic37OrbInputs(NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, Func<byte, short, NativeBattleVector> ReadAnchor12, Func<byte, short> ReadYaw, Func<byte, NativeBattleVector> ReadPosition1C);
+public sealed record NativeBattleDrinkMagic37OrbInputs(NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, Func<BattleModelOwner, short, NativeBattleVector> ReadAnchor12, Func<BattleModelOwner, short> ReadYaw, Func<BattleModelOwner, NativeBattleVector> ReadPosition1C);
 public sealed record NativeBattleDrinkMagic37OrbStep(NativeBattleEffectHierarchy Hierarchy, ImmutableArray<NativeBattleDrawStock15ParticleOperation> Operations, int Result);
 
 public static class NativeBattleDrinkMagic37OrbController
@@ -31,7 +31,7 @@ public static class NativeBattleDrinkMagic37OrbController
             case 1:
                 if (Word(task, 0x24) >= 15)
                 {
-                    task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) & ~4)).WriteDword(0x4C, NativeBattleDrinkMagic37Profile.OrbAddress).WriteDword(0x30, 0x1400).WriteDword(0x34, 0x1400).WriteDword(0x38, unchecked((uint)MaximumDistance(task, inputs))).WriteWord(0x46, unchecked((ushort)inputs.ReadYaw(task.ReadByte(0x2C)))).WriteWord(0x44, 0xF00);
+                    task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) & ~4)).WriteDword(0x4C, NativeBattleDrinkMagic37Profile.OrbAddress).WriteDword(0x30, 0x1400).WriteDword(0x34, 0x1400).WriteDword(0x38, unchecked((uint)MaximumDistance(task, inputs))).WriteWord(0x46, unchecked((ushort)inputs.ReadYaw(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner))).WriteWord(0x44, 0xF00);
                     Position();
                     task = task.WriteWord(0x50, 4096);
                     Next();
@@ -86,7 +86,7 @@ public static class NativeBattleDrinkMagic37OrbController
 
         void Position()
         {
-            byte actor = task.ReadByte(0x2C);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
             NativeBattleVector anchor = inputs.ReadAnchor12(actor, 0x400);
             operations.Add(new NativeBattleDrinkMagic37Anchor(actor, 0x400, anchor));
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
@@ -104,12 +104,12 @@ public static class NativeBattleDrinkMagic37OrbController
     {
         BattleActionHeaderReference headerIndex = inputs.Parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Drink Magic orb distance requires its actual selected contact pointer.");
-        NativeBattleVector caster = inputs.ReadPosition1C(task.ReadByte(0x2C));
+        BattleContactCursor first = header.FirstContact;
+        NativeBattleVector caster = inputs.ReadPosition1C(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner);
         int maximum = 0;
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            NativeBattleVector target = inputs.ReadPosition1C(inputs.Packets.ReadContact(first + index).Primary.Recipient);
+            NativeBattleVector target = inputs.ReadPosition1C(inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient);
             int x = unchecked((short)target.X) - unchecked((short)caster.X);
             int z = unchecked((short)target.Z) - unchecked((short)caster.Z);
             maximum = Math.Max(maximum, NativeBattleRayBomb10Geometry.Sqrt56BEC0(unchecked(x * x + z * z)));

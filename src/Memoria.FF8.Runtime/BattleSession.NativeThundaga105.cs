@@ -20,9 +20,9 @@ public sealed partial class BattleSession
 
         NativeBattleCameraProjection Projection() => NativeCamera?.Projection ?? throw new NotSupportedException("Native Thundaga requires its published projection.");
         NativeBattleActionMatrix View() => Projection().View ?? throw new NotSupportedException("Native Thundaga requires its published camera view.");
-        NativeBattleModelTransform Transform(int actor) => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
+        NativeBattleModelTransform Transform(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");
 
-        NativeBattleThundaga105TaskStep DrawPrimary(NativeBattleThundaga105Frame current, NativeBattleModulePoolTask task, int actor, ImmutableArray<byte> anchor)
+        NativeBattleThundaga105TaskStep DrawPrimary(NativeBattleThundaga105Frame current, NativeBattleModulePoolTask task, BattleModelOwner actor, ImmutableArray<byte> anchor)
         {
             NativeBattleThundaga105ProgramDraw drawn = NativeBattleThundaga105ProgramDrawing.Advance6D43B0(current.Memory, task, resources.ProgramSource, resources.NodeSelector.Data, anchor, View(), billboard ?? throw new NotSupportedException("Native Thundaga requires its current root billboard matrix."), Projection(), colors);
             current = Append(current with { Memory = drawn.Memory }, drawn.Packets);
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleThundaga105Contact contact:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Contact)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleThundaga105LoadCommon load:
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private ImmutableArray<byte> ReadNativeThundaga105Anchor(NativeBattleGraphicsState graphics, int actor)
+    private ImmutableArray<byte> ReadNativeThundaga105Anchor(NativeBattleGraphicsState graphics, BattleModelOwner actor)
     {
         NativeBattleVector xyz = ReadNativeGraphicsBone(graphics, actor, 241, 0);
         NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Thundaga requires its current actor transform.");

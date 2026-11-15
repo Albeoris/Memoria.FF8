@@ -18,14 +18,14 @@ public sealed record NativeBattleStatusMagicResources(ushort Effect, NativeBattl
 }
 
 public sealed record NativeBattleStatusMagicFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
-public sealed record NativeBattleStatusMagicStep(NativeBattleStatusMagicFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleStatusMagicStep(NativeBattleStatusMagicFrame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public abstract record NativeBattleStatusMagicOperation;
 public sealed record NativeBattleStatusMagicPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleStatusMagicOperation;
 public sealed record NativeBattleStatusMagicFade : NativeBattleStatusMagicOperation;
 public sealed record NativeBattleStatusMagicClearFlash : NativeBattleStatusMagicOperation;
-public sealed record NativeBattleStatusMagicInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Action<int, ushort> WriteFlags, Func<NativeBattleStatusMagicFrame, NativeBattleStatusMagicOperation, NativeBattleStatusMagicFrame> Execute)
+public sealed record NativeBattleStatusMagicInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Action<BattleModelOwner, ushort> WriteFlags, Func<NativeBattleStatusMagicFrame, NativeBattleStatusMagicOperation, NativeBattleStatusMagicFrame> Execute)
 {
-    public Func<NativeBattleStatusMagicFrame, int, NativeBattleStatusMagicFrame>? ApplyContact { get; init; }
+    public Func<NativeBattleStatusMagicFrame, BattleContactOccurrence, NativeBattleStatusMagicFrame>? ApplyContact { get; init; }
     public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadAnchor { get; init; }
 }

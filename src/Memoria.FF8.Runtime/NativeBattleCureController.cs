@@ -17,11 +17,11 @@ public sealed record NativeBattleCureState([property: JsonRequired] int SourceAr
 public sealed record NativeBattleCureFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCureState State);
 public sealed record NativeBattleCureControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Action<int>? ApplyContact { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Action<BattleContactOccurrence>? ApplyContact { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleCureLeafStep(NativeBattleCureFrame Frame, int Result);
-public sealed record NativeBattleCureControllerStep(NativeBattleCureFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleCureControllerStep(NativeBattleCureFrame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
 /// <summary>8D6A00/8D6B30/8D6CC0, including the original child-pool scheduling and506690 contact point.</summary>
 public static class NativeBattleCureController
@@ -85,7 +85,7 @@ public static class NativeBattleCureController
             throw new InvalidDataException("Native Cure family resources belong to another module.");
         }
         inputs.Camera.Validate();
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
@@ -187,7 +187,7 @@ public static class NativeBattleCureController
             {
                 throw new NotSupportedException($"Native Cure child callback{task.Callback:X} is not8D6CC0.");
             }
-            int target = task.ReadByte(0x2D);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             if (inputs.ReadForeignTarget?.Invoke(target) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
@@ -213,8 +213,8 @@ public static class NativeBattleCureController
                 case 2:
                     if (unchecked((short)task.ReadWord(0x24)) >= 15)
                     {
-                        int contact = ContactIndex(parameters, inputs.Packets, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
-                        _ = inputs.Packets.ReadContact(contact);
+                        BattleContactCursor cursor = ContactIndex(parameters, inputs.Packets, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Cure requires its reached contact occurrence.");
                         inputs.ApplyContact?.Invoke(contact);
                         contacts.Add(contact);
                         state = state.Write(address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));

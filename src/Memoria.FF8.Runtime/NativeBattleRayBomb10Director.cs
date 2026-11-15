@@ -14,13 +14,13 @@ public static partial class NativeBattleRayBomb10Controller
                 return 0;
             }
             int counter = Word(Read(index), 12);
-            int caster = checked((int)Process.Caster);
+            BattleModelOwner caster = (Frame.Effect.Parameters ?? throw new NotSupportedException("Native627F10 requires its actual action parameters.")).Source;
             NativeBattleActionMatrix matrix = inputs.ReadMatrix(caster);
             if (counter == 0)
             {
                 NativeBattleVector anchor = inputs.ReadBone(caster, 240, 0x680);
                 NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(matrix, new(0, 0x320, -930));
-                NativeBattleVector centre = inputs.ReadCentre(Frame.Effect.Parameters?.TargetActors ?? throw new NotSupportedException("Native627F10 requires its actual target mask."));
+                NativeBattleVector centre = inputs.ReadCentre(Frame.Effect.Parameters?.TargetActors ?? throw new NotSupportedException("Native627F10 requires its actual target selection."));
                 Process = Process with { Muzzle = new(unchecked((short)(anchor.X + offset.X)), unchecked((short)(anchor.Y + offset.Y)), unchecked((short)(anchor.Z + offset.Z)), Process.Muzzle.W), Centre = new(centre.X, centre.Y, centre.Z, Process.Centre.W) };
             }
             if (counter == 1)
@@ -143,10 +143,10 @@ public static partial class NativeBattleRayBomb10Controller
             }
             if (counter == 82)
             {
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[0];
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Native627F10 requires its first header contact pointer.");
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(new BattleActionHeaderReference(0));
+                BattleContactCursor first = header.FirstContact;
                 int count = header.ReadContactCount();
-                for (int actor = 0; actor < 3; actor++)
+                foreach (BattlePartyModelOwner actor in inputs.Packets.Roster.Party)
                 {
                     if ((inputs.ReadModel(actor).Flags0 & 2) == 0)
                     {
@@ -154,20 +154,21 @@ public static partial class NativeBattleRayBomb10Controller
                     }
                     int child = Append(0x629200);
                     NativeBattleModulePoolTask task = W(Read(child), 12, 0);
-                    task = W(task, 14, actor);
+                    task.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
                     task = W(task, 24, (Rand() % 3 + 1) << 12);
                     int amplitude = -2500 - Rand() % 1000;
-                    int target = -1;
+                    int? target = null;
                     for (int contact = 0; contact < count; contact++)
                     {
-                        if (inputs.Packets.ReadContact(first + contact).Primary.Recipient == actor)
+                        if (inputs.Packets.ReadContact(first.Advance(contact)).Primary.Recipient == actor)
                         {
                             target = contact;
                             break;
                         }
                     }
-                    task = W(task, 26, target);
-                    Put(child, W(task, 32, target < 0 ? amplitude >> 1 : amplitude));
+                    BattleExecutionReference.ContactOffset offset = new(target);
+                    task.WriteExecutionReference(26, 2, offset, offset.EncodeOriginalWord());
+                    Put(child, W(task, 32, target.HasValue ? amplitude : amplitude >> 1));
                 }
             }
             if (counter <= 8)

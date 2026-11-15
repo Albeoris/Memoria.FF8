@@ -17,11 +17,11 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        byte actor = graphics.ActionGraphics?.ActorSelector56 ?? throw new NotSupportedException("Native5064F0 requires its retained action actor selector BYTE56.");
-        bool resourceCamera = actor >= 3;
-        if (!resourceCamera)
+        BattleModelOwner? owner = (graphics.ActionGraphics ?? throw new NotSupportedException("Native5064F0 requires its retained action owner.")).CameraActor;
+        bool resourceCamera = true;
+        if (owner is BattlePartyModelOwner party)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(party);
             resourceCamera = (model.Flags0 & 2) == 0 || ((model.Flags8 ?? throw new NotSupportedException("Native5064F0 requires its selected actor DWORD8.")) & 0x1A) != 0 || NextNativeGlobalRandom() >= 0x2000;
         }
         if (resourceCamera)
@@ -36,8 +36,9 @@ public sealed partial class BattleSession
             NativeCamera = camera with { ControlResource = registers, ControlStagingSource = block, ControlCursor = 0 };
             return graphics;
         }
-        BattleCombatant selected = GraphicsActor(graphics, actor);
-        graphics = PrepareNativeActionGeometry(graphics, selected, new(selected.Id, selected.Id) { NativeTargetMask = (ushort)(1 << actor) });
+        BattleModelOwner actor = owner ?? throw new InvalidDataException("A model victory camera requires its selected actor.");
+        BattleModelTargets selected = BattleModelTargets.From([actor]);
+        graphics = PrepareNativeActionGeometry(graphics, actor, selected, selected);
         byte selector = (byte)((NextNativeGlobalRandom() & 1) + 22);
         NativeBattleGraphicsResource source = NativeActionResource(graphics, actor);
         NativeCamera = camera.Start(source.ActionCameraBank ?? throw new NotSupportedException("Native5064F0 requires the original actor's action camera bank."), selector);

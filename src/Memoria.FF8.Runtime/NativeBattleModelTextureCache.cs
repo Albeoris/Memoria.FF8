@@ -12,11 +12,11 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
 {
     private const ushort NativeEnemyBlockedSlots = 63;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public BattleModelRoster? PresentationRoster { get; init; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableDictionary<int, int>? PresentationActors { get; init; }
+    [JsonIgnore]
+    public ImmutableDictionary<int, BattleModelOwner>? PresentationActors { get; init; }
 
     public ImmutableDictionary<byte, ImmutableArray<byte>> EnemyTextureMotion { get; init; } = ImmutableDictionary<byte, ImmutableArray<byte>>.Empty;
     public static NativeBattleModelTextureCache FromColdProcess() => new(Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => new NativeBattleModelTextureCacheRow(0, 0, 0, null)).ToImmutableArray(), 0);
@@ -29,15 +29,15 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return this with { Rows = Rows.Select(row => row with { Kind = 0 }).ToImmutableArray(), BlockedSlots = NativeEnemyBlockedSlots, PresentationActors = PresentationActors?.Clear() };
     }
 
-    public NativeBattleModelTextureCache WithPresentationRoster(BattleModelRoster roster, ImmutableDictionary<int, int>? rowOwners = null)
+    public NativeBattleModelTextureCache WithPresentationRoster(BattleModelRoster roster, ImmutableDictionary<int, BattleModelOwner>? rowOwners = null)
     {
         Validate();
         int required = NativeBattleModelResourceRowAddress.CapacityForRoster(roster);
-        if (PresentationRoster is { } current && !current.Rows.SequenceEqual(roster.Rows))
+        if (PresentationRoster is { } current && !current.Owners.SequenceEqual(roster.Owners))
         {
             throw new InvalidDataException("Texture cache already owns a different presentation roster.");
         }
-        if (PresentationActors is { } existing && rowOwners is not null && (existing.Count != rowOwners.Count || existing.Any(pair => !rowOwners.TryGetValue(pair.Key, out int actor) || actor != pair.Value)))
+        if (PresentationActors is { } existing && rowOwners is not null && (existing.Count != rowOwners.Count || existing.Any(pair => !rowOwners.TryGetValue(pair.Key, out BattleModelOwner? actor) || actor != pair.Value)))
         {
             throw new InvalidDataException("Texture cache already owns different presentation aliases.");
         }
@@ -50,7 +50,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         {
             Rows = rows,
             PresentationRoster = roster,
-            PresentationActors = PresentationActors ?? rowOwners ?? ImmutableDictionary<int, int>.Empty
+            PresentationActors = PresentationActors ?? rowOwners ?? ImmutableDictionary<int, BattleModelOwner>.Empty
         };
         result.Validate();
         return result;
@@ -58,7 +58,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
 
     public void Validate()
     {
-        if (EnemyTextureMotion is null || EnemyTextureMotion.Values.Any(table => table.IsDefault) || Rows.IsDefault || Rows.Length < NativeBattleModelResourceRowAddress.NativeRowCount || Rows.Length > NativeBattleModelResourceRowAddress.MaximumRowCount || Rows.Any(row => row is null || row.Kind > 3 || row.Kind != 0 && (row.ModelId is null || row.Binding is null) || row.Kind is 1 or 3 && row.TextureMask is null || row.Binding is { } binding && (binding.PaletteRows.IsDefault || binding.PaletteRows.Length != 16 || binding.PaletteRows.Any(value => value is >= 15))))
+        if (EnemyTextureMotion is null || EnemyTextureMotion.Values.Any(table => table.IsDefault) || Rows.IsDefault || Rows.Length < NativeBattleModelResourceRowAddress.NativeRowCount || Rows.Length > NativeBattleModelResourceRowAddress.MaximumEncodedRowCount || Rows.Any(row => row is null || row.Kind > 3 || row.Kind != 0 && (row.ModelId is null || row.Binding is null) || row.Kind is 1 or 3 && row.TextureMask is null || row.Binding is { } binding && (binding.PaletteRows.IsDefault || binding.PaletteRows.Length != 16 || binding.PaletteRows.Any(value => value is >= 15))))
         {
             throw new InvalidDataException("Texture cache requires valid resource rows and known material bindings for allocated rows.");
         }
@@ -71,12 +71,11 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
             }
             return;
         }
-        roster.Validate();
         if (PresentationActors is not { } owners || owners.Count != Rows.Count(row => row.Kind != 0))
         {
             throw new InvalidDataException("Hosted texture aliases require an actor owner for each occupied row.");
         }
-        foreach ((int row, int actor) in owners)
+        foreach ((int row, BattleModelOwner actor) in owners)
         {
             if ((uint)row >= Rows.Length || Rows[row].Kind == 0)
             {
@@ -86,40 +85,40 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         }
     }
 
-    public NativeBattleModelTextureCacheLoad LoadPlayer(byte modelId, int physicalIndex, NativeBattleEffectHeapAllocation pack)
+    public NativeBattleModelTextureCacheLoad LoadPlayer(byte modelId, int textureSlot, NativeBattleEffectHeapAllocation pack, BattlePartyModelOwner? owner = null)
     {
-        int textureSlot = PlayerTextureSlot(physicalIndex);
+        ValidatePlayerTextureSlot(textureSlot, owner);
         ushort mask = (ushort)(3 << (2 * textureSlot));
         NativeBattleModelTextureLoad upload = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
-        int index = ExistingOrFree(1, modelId, physicalIndex);
+        int index = ExistingOrFree(1, modelId, owner);
         NativeBattleModelTextureCacheRow row = Rows[index] with { Kind = 1, ModelId = modelId, TextureMask = mask, Binding = upload.Binding };
-        return new(PublishRow(index, row, physicalIndex), index, upload.Binding, upload);
+        return new(PublishRow(index, row, owner), index, upload.Binding, upload);
     }
 
-    public NativeBattleModelTextureCacheLoad LoadLinkedWeapon(byte modelId, int physicalIndex, NativeBattleEffectHeapAllocation pack)
+    public NativeBattleModelTextureCacheLoad LoadLinkedWeapon(byte modelId, int textureSlot, NativeBattleEffectHeapAllocation pack, BattlePartyModelOwner? owner = null)
     {
-        int textureSlot = PlayerTextureSlot(physicalIndex);
+        ValidatePlayerTextureSlot(textureSlot, owner);
         ushort mask = (ushort)(1 << (textureSlot + 12));
         NativeBattleModelTextureLoad upload = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
-        int index = ExistingOrFree(2, modelId, physicalIndex);
+        int index = ExistingOrFree(2, modelId, owner);
         //507BF0/507E20 do not publish WORD2; only the relocated material binding is newly known here.
         NativeBattleModelTextureCacheRow row = Rows[index] with { Kind = 2, ModelId = modelId, Binding = upload.Binding };
-        return new(PublishRow(index, row, physicalIndex), index, upload.Binding, upload);
+        return new(PublishRow(index, row, owner), index, upload.Binding, upload);
     }
 
-    public NativeBattleModelTextureCacheLoad LoadEnemy(byte modelId, NativeBattleEffectHeapAllocation pack, int? actorRow = null)
+    public NativeBattleModelTextureCacheLoad LoadEnemy(byte modelId, NativeBattleEffectHeapAllocation pack, BattleModelOwner? owner = null)
     {
         Validate();
         if (PresentationRoster is { } roster)
         {
-            int actor = actorRow ?? throw new InvalidDataException("Hosted enemy texture allocation requires its actor row.");
+            BattleModelOwner actor = owner ?? throw new InvalidDataException("Hosted enemy texture allocation requires its actor row.");
             RequirePresentationActor(roster, actor, requireParty: false);
             int hostedIndex = ExistingOrFree(3, modelId, actor);
             NativeBattleModelTextureLoad hosted = NativeBattleModelTextures.Prepare507400(pack, NativeEnemyBlockedSlots);
             NativeBattleModelTextureCacheRow hostedRow = Rows[hostedIndex] with { Kind = 3, ModelId = modelId, TextureMask = hosted.AllocatedSlots, Binding = hosted.Binding };
             return new(PublishRow(hostedIndex, hostedRow, actor), hostedIndex, hosted.Binding, hosted);
         }
-        if (actorRow is not null)
+        if (owner is not null)
         {
             throw new InvalidDataException("Native enemy texture allocation has no hosted actor owner.");
         }
@@ -156,30 +155,30 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return this with { Rows = rows, PresentationActors = PresentationActors?.Remove(resourceIndex), BlockedSlots = shared || PresentationRoster is not null ? BlockedSlots : (ushort)(BlockedSlots & ~mask), EnemyTextureMotion = shared ? EnemyTextureMotion : EnemyTextureMotion.Remove(row.ModelId!.Value) };
     }
 
-    internal int SelectHostedLoadAlias(NativeBattleModelLoadTask task)
+    internal int SelectHostedLoadAlias(NativeBattleModelLoadTask task, BattleModelOwner owner)
     {
         Validate();
         BattleModelRoster roster = PresentationRoster ?? throw new InvalidDataException("Hosted texture loading requires its presentation roster.");
         bool party = task.Callback is 0x5077B0 or 0x5079B0 or 0x507BF0;
-        RequirePresentationActor(roster, task.PhysicalIndex, requireParty: party);
+        RequirePresentationActor(roster, owner, requireParty: party);
         return task.Callback switch
         {
-            0x5077B0 or 0x5079B0 => ExistingOrFree(1, task.ModelId, task.PhysicalIndex),
-            0x507BF0 => ExistingOrFree(2, task.ModelId, task.PhysicalIndex),
-            0x507120 => ExistingOrFree(3, task.ModelId, task.PhysicalIndex),
+            0x5077B0 or 0x5079B0 => ExistingOrFree(1, task.ModelId, owner),
+            0x507BF0 => ExistingOrFree(2, task.ModelId, owner),
+            0x507120 => ExistingOrFree(3, task.ModelId, owner),
             0x507F80 => FirstFree(),
             _ => throw new InvalidDataException("Hosted texture alias selection requires an allocating model callback.")
         };
     }
 
-    private int ExistingOrFree(byte kind, byte modelId, int actorRow)
+    private int ExistingOrFree(byte kind, byte modelId, BattleModelOwner? owner)
     {
         Validate();
         int free = -1;
         for (int index = 0; index < Rows.Length; index++)
         {
             NativeBattleModelTextureCacheRow row = Rows[index];
-            if (row.Kind == kind && row.ModelId == modelId && (PresentationActors is null || PresentationActors[index] == actorRow))
+            if (row.Kind == kind && row.ModelId == modelId && (PresentationActors is null || PresentationActors[index] == owner))
             {
                 return index;
             }
@@ -203,28 +202,30 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         throw new NotSupportedException("Native5073D0 has no free physical resource row; a null native allocation is unsupported.");
     }
 
-    private NativeBattleModelTextureCache PublishRow(int index, NativeBattleModelTextureCacheRow row, int actorRow)
+    private NativeBattleModelTextureCache PublishRow(int index, NativeBattleModelTextureCacheRow row, BattleModelOwner? owner)
     {
-        return this with { Rows = Rows.SetItem(index, row), PresentationActors = PresentationActors?.SetItem(index, actorRow) };
+        return this with { Rows = Rows.SetItem(index, row), PresentationActors = PresentationActors?.SetItem(index, owner ?? throw new InvalidDataException("An owned texture alias requires its model owner.")) };
     }
 
-    private int PlayerTextureSlot(int index)
+    private void ValidatePlayerTextureSlot(int slot, BattlePartyModelOwner? owner)
     {
+        if ((uint)slot >= 3)
+        {
+            throw new InvalidDataException("Player texture allocation requires its original texture slot0..2.");
+        }
         if (PresentationRoster is { } roster)
         {
-            RequirePresentationActor(roster, index, requireParty: true);
-            return index < 3 ? index : 0;
+            RequirePresentationActor(roster, owner ?? throw new InvalidDataException("A hosted player texture requires its model owner."), requireParty: true);
         }
-        if ((uint)index >= 3)
+        else if (owner is not null)
         {
-            throw new InvalidDataException("Native player texture allocation requires its physical party index0..2.");
+            throw new InvalidDataException("The original texture cache has no hosted per-model aliases.");
         }
-        return index;
     }
 
-    private static void RequirePresentationActor(BattleModelRoster roster, int index, bool requireParty)
+    private static void RequirePresentationActor(BattleModelRoster roster, BattleModelOwner owner, bool requireParty)
     {
-        if ((uint)index >= roster.ActorCount || roster.Rows[index] is not { } actor || requireParty && !actor.IsParty)
+        if (!roster.Contains(owner) || requireParty && owner is not BattlePartyModelOwner)
         {
             throw new InvalidDataException("A hosted texture alias requires a bound actor on its actual side.");
         }

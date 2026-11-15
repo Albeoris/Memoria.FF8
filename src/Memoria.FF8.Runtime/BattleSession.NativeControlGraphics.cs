@@ -4,15 +4,13 @@ public sealed partial class BattleSession
 {
     private static bool NativeHeaderTargetsBusy(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        if (graphics.PresentationRoster is { } roster)
+        if (context.TargetActors.Enumerate().Concat(context.CoverActors.Enumerate()).Any(owner => !graphics.ActorModels.Contains(owner)))
         {
-            BattleModelTargets cover = BattleModelTargets.FromNative(context.CoverMask);
-            NativeBattleActionGeometry.ValidatePresentationRows(roster, context.Actor, context.TargetActors, cover);
-            BattleModelTargets selected = new(context.TargetActors.Bits | cover.Bits);
-            return selected.EnumerateRows().Any(row => NativeBattleActionGraphics.IsModelBusy(graphics.ActorModels.Get(row), 0x140));
+            throw new InvalidDataException("Native target readiness requires current model owners.");
         }
-        ushort mask = (ushort)(context.TargetMask | context.CoverMask);
-        return graphics.Models.Any(model => (mask & 1 << model.Index) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x140));
+        return graphics.ActorModels.Entries.Any(entry =>
+            (context.TargetActors.Contains(entry.Owner) || context.CoverActors.Contains(entry.Owner)) &&
+            NativeBattleActionGraphics.IsModelBusy(entry.State, 0x140));
     }
 
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeControlGraphics(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte phase)
@@ -48,7 +46,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
             actor = actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50BD00 requires its actor DWORD8.")) & ~0x800000u };
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor) };
-            byte sequence = nativeActionPackets.Headers[context.Header].ReadByte(2);
+            byte sequence = nativeActionPackets.ReadHeader(context.Header).Sequence;
             graphics = SelectNativeHeaderSequence(graphics, context.Actor, sequence);
             if (sequence != 10)
             {

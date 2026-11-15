@@ -150,10 +150,11 @@ public static class NativeBattleAquaController
                             if (current.State.Word(0x48) == 1)
                             {
                                 NativeBattleActionHeaderSlot selected = Header(task);
-                                int first = selected.FirstContactIndex ?? throw new NotSupportedException("The Aqua target requires its captured contact pointer.");
+                                BattleContactCursor first = selected.FirstContact;
                                 for (int index = 0; index < selected.ReadContactCount(); index++)
                                 {
-                                    Emit(ref state, new NativeBattleAquaContact(first + index));
+                                    BattleContactOccurrence contact = inputs.Packets.ReadContact(first.Advance(index)).Occurrence ?? throw new InvalidDataException("The Aqua target requires its reached contact occurrence.");
+                                    Emit(ref state, new NativeBattleAquaContact(contact));
                                 }
                                 state = Next(state, address);
                             }
@@ -195,7 +196,7 @@ public static class NativeBattleAquaController
                             state = Add(state, 3, 0x808ED0, 340, address).Hierarchy;
                             if (profile.Effect == 72)
                             {
-                                Emit(ref state, new NativeBattleAquaBindCaster(task.ReadByte(0x2C)));
+                                Emit(ref state, new NativeBattleAquaBindCaster(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner));
                             }
                             state = state.Write(address, state.Read(address).WriteWord(0x44, profile.Effect == 55 ? (ushort)1 : (ushort)4));
                             state = Next(state, address);
@@ -316,10 +317,10 @@ public static class NativeBattleAquaController
     public static NativeBattleAquaState InitializeShared(NativeBattleAquaState retained, NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, NativeBattleAquaInputs inputs)
     {
         NativeBattleAquaState state = retained with { Shared84 = new byte[84].ToImmutableArray() };
-        NativeBattleVector[] enemies = Enumerable.Range(3, 4).Select(inputs.ReadModel).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Transform?.Position28 ?? throw new NotSupportedException("The Aqua enemy center requires its actual physical position.")).ToArray();
+        NativeBattleVector[] enemies = inputs.Packets.Roster.Enemies.Select(owner => inputs.ReadModel(owner)).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Transform?.Position28 ?? throw new NotSupportedException("The Aqua enemy center requires its actual physical position.")).ToArray();
         short centerX = enemies.Length == 0 ? (short)0 : unchecked((short)((enemies.Min(point => point.X) + enemies.Max(point => point.X)) / 2));
         short centerZ = enemies.Length == 0 ? (short)0 : unchecked((short)((enemies.Min(point => point.Z) + enemies.Max(point => point.Z)) / 2));
-        NativeBattleModelTransform caster = inputs.ReadModel(task.ReadByte(0x2C)).Transform ?? throw new NotSupportedException("The Aqua caster requires its actual physical position.");
+        NativeBattleModelTransform caster = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Transform ?? throw new NotSupportedException("The Aqua caster requires its actual physical position.");
         NativeBattleVector position = caster.Position28;
         state = state.WithWord(0, position.X).WithWord(2, position.Y).WithWord(4, position.Z).WithWord(6, caster.Vertical34).WithWord(8, centerX).WithWord(10, 0).WithWord(12, centerZ);
         short dx = unchecked((short)(centerX - position.X));
@@ -327,11 +328,11 @@ public static class NativeBattleAquaController
         int angle = NativePrecision53.RoundInteger(Math.Atan2(dx, dz) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
         state = state.WithWord(0x4A, (angle - 0x800) & 0xFFF);
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("The Aqua distance requires its captured contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         int distance = 0;
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            NativeBattleVector target = inputs.ReadModel(inputs.Packets.ReadContact(first + index).Primary.Recipient).Transform?.Position28 ?? throw new NotSupportedException("The Aqua distance requires each captured target position.");
+            NativeBattleVector target = inputs.ReadModel(inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient).Transform?.Position28 ?? throw new NotSupportedException("The Aqua distance requires each captured target position.");
             int x = target.X - position.X;
             int z = target.Z - position.Z;
             distance = Math.Max(distance, NativeBattleRayBomb10Geometry.Sqrt56BEC0(unchecked(x * x + z * z)));

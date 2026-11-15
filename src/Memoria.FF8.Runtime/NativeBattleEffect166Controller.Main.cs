@@ -180,10 +180,10 @@ public static partial class NativeBattleEffect166Controller
         {
             return -1;
         }
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect166 requires its current contact rows.");
+        BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < count; index++)
         {
-            if (packets.ReadContact(first + index).Primary.Recipient == actor)
+            if (packets.ReadContact(first.Advance(index)).Primary.Recipient == actor)
             {
                 return index;
             }

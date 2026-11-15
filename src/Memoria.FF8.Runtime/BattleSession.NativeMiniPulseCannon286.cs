@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         effect = effect with { PresentationPackets = [] };
         NativeBattleMiniPulseCannon286Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual CRT stream."), memory.MiniPulseCannon286 ?? throw new NotSupportedException("Mini Pulse Cannon requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Mini Pulse Cannon requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Mini Pulse Cannon requires its original arithmetic constants.");
-        NativeBattleMiniPulseCannon286Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), Anchor571400, _ => nativeActionPackets, Execute);
+        NativeBattleMiniPulseCannon286Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, owner) => graphics.ActorModels.Get(owner), ReadBoneMatrix, (_, owner) => NativeBattlePackedMatrix32.FromMatrix(World(owner), null), Anchor571400, _ => nativeActionPackets, Execute);
         frame = initialize ? NativeBattleMiniPulseCannon286Controller.Initialize(frame, resources, inputs) : NativeBattleMiniPulseCannon286Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -24,22 +24,13 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Mini Pulse Cannon requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Mini Pulse Cannon requires its current projection.");
-        NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual current skeleton.");
-        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual published model world matrix.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner owner) => NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual current skeleton.");
+        NativeBattleActionMatrix World(BattleModelOwner owner) => graphics.ActorModels.Get(owner).GeometryWorldMatrix ?? throw new NotSupportedException("Mini Pulse Cannon requires its actual published model world matrix.");
 
-        int Actor(uint pointer)
+        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleMiniPulseCannon286Frame current, BattleModelOwner owner, int bone)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Mini Pulse Cannon requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
-
-        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleMiniPulseCannon286Frame current, uint pointer, int bone)
-        {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(owner));
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Mini Pulse Cannon bone selector leaves its current CPU publication.");
@@ -47,30 +38,30 @@ public sealed partial class BattleSession
             return NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
         }
 
-        NativeBattleMiniPulseCannon286PointStep Bone(NativeBattleMiniPulseCannon286Frame current, uint pointer, int selector)
+        NativeBattleMiniPulseCannon286PointStep Bone(NativeBattleMiniPulseCannon286Frame current, BattleModelOwner owner, int selector)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Mini Pulse Cannon bone query requires its actual transform.")).Position28));
             }
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, PoseSource(pointer), checked((byte)selector), 0);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, PoseSource(owner), checked((byte)selector), 0);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Mini Pulse Cannon bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value));
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleMiniPulseCannon286PointStep Anchor571400(NativeBattleMiniPulseCannon286Frame current, uint pointer)
+        NativeBattleMiniPulseCannon286PointStep Anchor571400(NativeBattleMiniPulseCannon286Frame current, BattleModelOwner owner)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Mini Pulse Cannon anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point(transform.Position28).Write(6, BitConverter.GetBytes(transform.Angle36)));
             }
-            NativeBattleMiniPulseCannon286PointStep first = Bone(current, pointer, 0xF0);
-            NativeBattleMiniPulseCannon286PointStep second = Bone(first.Frame, pointer, 0xF1);
+            NativeBattleMiniPulseCannon286PointStep first = Bone(current, owner, 0xF0);
+            NativeBattleMiniPulseCannon286PointStep second = Bone(first.Frame, owner, 0xF1);
             short Average(int offset) => unchecked((short)((BinaryPrimitives.ReadInt16LittleEndian(first.Point8.Read(offset, 2)) + BinaryPrimitives.ReadInt16LittleEndian(second.Point8.Read(offset, 2))) / 2));
             return new(second.Frame, Point(new(Average(0), Average(2), Average(4))).Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
@@ -107,23 +98,23 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleMiniPulseCannon286ComposeCaster5095B0 compose:
-                    int composedActor = Actor(compose.ModelAddress);
+                    BattleModelOwner composedActor = compose.Model;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(composedActor);
-                    _ = NativeBattleBodyBoneMatrices.Require(model, PoseSource(compose.ModelAddress));
-                    model = NativeBattleBodyBoneMatrices.Compose5095B0(model, World(compose.ModelAddress));
+                    _ = NativeBattleBodyBoneMatrices.Require(model, PoseSource(composedActor));
+                    model = NativeBattleBodyBoneMatrices.Compose5095B0(model, World(composedActor));
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(composedActor, model) };
                     return current;
                 case NativeBattleMiniPulseCannon286RestoreCaster508C90 restore:
-                    int restoredActor = Actor(restore.ModelAddress);
+                    BattleModelOwner restoredActor = restore.Model;
                     NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Mini Pulse Cannon bone preparation requires its actual temporary memory."), 88);
-                    NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), PoseSource(restore.ModelAddress), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
+                    NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(restoredActor), PoseSource(restoredActor), NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
                     NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(restoredActor, prepared.Model) };
                     return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88) };
                 case NativeBattleMiniPulseCannon286Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleMiniPulseCannon286Sound501330 sound:
@@ -131,7 +122,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Packed, sound.Flags, null) { Pan = sound.Pan });
                     return Import(current);
                 case NativeBattleMiniPulseCannon286ActorFlags flags:
-                    int actor = Actor(flags.ModelAddress);
+                    BattleModelOwner actor = flags.Model;
                     NativeBattleGraphicsModel flagged = graphics.ActorModels.Get(actor);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, flagged with { Flags0 = unchecked((ushort)((flagged.Flags0 & ~flags.ClearMask) | flags.SetMask)) }) };
                     return current;

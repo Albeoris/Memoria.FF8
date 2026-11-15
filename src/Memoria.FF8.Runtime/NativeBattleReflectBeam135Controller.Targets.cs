@@ -70,14 +70,16 @@ public static partial class NativeBattleReflectBeam135Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         if (Signed(task, 12) == 25)
         {
-            int actor = Actor(task.ReadDword(16));
-            int first = FirstContact(frame, inputs);
+            BattleModelOwner actor = ReadModelOwner(task, 16);
+            BattleContactCursor first = FirstContact(frame, inputs);
             int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             for (int index = 0; index < count; index++)
             {
-                if (inputs.Packets.ReadContact(first + index).Primary.Recipient == actor)
+                NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
+                if (packet.Primary.Recipient == actor)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleReflectBeam135Contact(index));
+                    BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("Reflect Beam contact has no occurrence reference.");
+                    frame = inputs.Execute(frame, new NativeBattleReflectBeam135Contact(occurrence));
                 }
             }
         }

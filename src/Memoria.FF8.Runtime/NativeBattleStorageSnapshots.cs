@@ -307,7 +307,7 @@ internal abstract class NativeBattleStorageContext
             NativeBattleOriginalEffectState effect = (NativeBattleOriginalEffectState)result;
             if (this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
             {
-                effect = effect with { Parameters = null, EntryFirstRecipient = null, FireModelCompletion = null };
+                effect = effect with { Parameters = null, EntryFirstRecipient = null, FireModelCompletion = null, SavedActorTransforms = effect.SavedActorTransforms.Clear() };
                 result = effect;
             }
             effect.RetainedAuthority = null;
@@ -322,6 +322,16 @@ internal abstract class NativeBattleStorageContext
         {
             NativeBattleScriptedEffectMemory scripted = (NativeBattleScriptedEffectMemory)(result ?? source);
             return scripted.PresentationActors is null ? scripted : scripted with { PresentationActors = null };
+        }
+        if (source is NativeBattleCameraAliases && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            NativeBattleCameraAliases aliases = (NativeBattleCameraAliases)(result ?? source);
+            return aliases.Source is null && aliases.Target is null ? aliases : aliases with { Source = null, Target = null };
+        }
+        if (source is NativeBattleAuxiliaryTask && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            NativeBattleAuxiliaryTask task = (NativeBattleAuxiliaryTask)(result ?? source);
+            return task.ModelOwner is null ? task : task with { ModelOwner = null };
         }
         return result ?? source;
     }

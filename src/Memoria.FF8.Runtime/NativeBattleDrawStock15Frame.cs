@@ -32,7 +32,7 @@ public sealed record NativeBattleDrawStock15Frame(NativeBattleEffectMemory Memor
 
 public abstract record NativeBattleDrawStock15Operation;
 public sealed record NativeBattleDrawStock15Sound(NativeBattleModuleSound Sound) : NativeBattleDrawStock15Operation;
-public sealed record NativeBattleDrawStock15Contact(int Index) : NativeBattleDrawStock15Operation;
+public sealed record NativeBattleDrawStock15Contact(BattleContactOccurrence Index) : NativeBattleDrawStock15Operation;
 public sealed record NativeBattleDrawStock15GenericTask(uint Address) : NativeBattleDrawStock15Operation;
 public sealed record NativeBattleDrawStock15Particle(NativeBattleDrawStock15ParticleOperation Operation) : NativeBattleDrawStock15Operation;
 public sealed record NativeBattleDrawStock15Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadBone241, Func<NativeBattleDrawStock15Frame, NativeBattleDrawStock15Operation, NativeBattleDrawStock15Frame> Execute)

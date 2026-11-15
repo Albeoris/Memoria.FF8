@@ -55,7 +55,7 @@ public sealed partial record NativeBattleEffectMemory
 public sealed record NativeBattleChoco97Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleChoco97Operation;
 public sealed record NativeBattleChoco97Sound(uint Descriptor, uint Flags, byte Pan) : NativeBattleChoco97Operation;
-public sealed record NativeBattleChoco97Contact(int Contact) : NativeBattleChoco97Operation;
+public sealed record NativeBattleChoco97Contact(BattleContactOccurrence Contact) : NativeBattleChoco97Operation;
 public sealed record NativeBattleChoco97CommonTextureLoad(int DestinationArenaOffset, uint CompletionAddress) : NativeBattleChoco97Operation;
 public sealed record NativeBattleChoco97CameraPublish(NativeBattleMoogleCameraStep Step) : NativeBattleChoco97Operation;
 public sealed record NativeBattleChoco97StageDepth(short? Depth, bool ClearRgb) : NativeBattleChoco97Operation;

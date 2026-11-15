@@ -10,12 +10,12 @@ public abstract record NativeBattleDoubleOperation;
 public sealed record NativeBattleDoubleFlash : NativeBattleDoubleOperation;
 public sealed record NativeBattleDoublePackets(NativeBattleGfGeometryBatch Batch, ushort Flags20 = 0) : NativeBattleDoubleOperation;
 public sealed record NativeBattleDoubleSprite(NativeBattleModuleDraw Draw) : NativeBattleDoubleOperation;
-public sealed record NativeBattleDoubleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDoubleFrame, NativeBattleDoubleOperation, NativeBattleDoubleFrame> Execute)
+public sealed record NativeBattleDoubleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleDoubleFrame, NativeBattleDoubleOperation, NativeBattleDoubleFrame> Execute)
 {
-    public Func<NativeBattleDoubleFrame, int, NativeBattleDoubleFrame>? ApplyContact { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<NativeBattleDoubleFrame, BattleContactOccurrence, NativeBattleDoubleFrame>? ApplyContact { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
-public sealed record NativeBattleDoubleStep(NativeBattleDoubleFrame Frame, NativeCrtRandomState Random, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleDoubleStep(NativeBattleDoubleFrame Frame, NativeCrtRandomState Random, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleDoubleParticleStep(NativeBattleDoubleFrame Frame, NativeCrtRandomState Random, int Result);
 
 public static partial class NativeBattleDoubleController
@@ -34,7 +34,7 @@ public static partial class NativeBattleDoubleController
         }
         NativeBattleDoubleFrame current = frame;
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Double lost its50AFC0 parameters.");
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEnhancementRootInputs sharedInputs = new(inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, (childFrame, childAddress, childRandom) =>
@@ -85,8 +85,8 @@ public static partial class NativeBattleDoubleController
                     break;
                 case 2:
                     BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8D6940 requires its physical header contact pointer.");
-                    _ = inputs.Packets.ReadContact(contact);
+                    BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact;
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Double requires its reached contact occurrence.");
                     current = current with { Effect = current.Effect with { Pools = state.Write(address, task).Pools } };
                     current = inputs.ApplyContact?.Invoke(current, contact) ?? current;
                     state = new(current.Effect.Pools);

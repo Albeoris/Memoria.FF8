@@ -32,6 +32,6 @@ public sealed record NativeBattleWindBlast29Frame(NativeBattleEffectMemory Memor
 
 public sealed record NativeBattleWindBlast29LeafStep(NativeBattleWindBlast29Frame Frame, int Result);
 public abstract record NativeBattleWindBlast29Operation;
-public sealed record NativeBattleWindBlast29Contact(int Index) : NativeBattleWindBlast29Operation;
+public sealed record NativeBattleWindBlast29Contact(BattleContactOccurrence Occurrence) : NativeBattleWindBlast29Operation;
 public sealed record NativeBattleWindBlast29Sound(NativeBattleModuleSound Sound) : NativeBattleWindBlast29Operation;
-public sealed record NativeBattleWindBlast29Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleWindBlast29Frame, NativeBattleWindBlast29Operation, NativeBattleWindBlast29Frame> Execute, Func<NativeBattleWindBlast29Frame, uint, NativeBattleWindBlast29LeafStep> AdvanceGeneric);
+public sealed record NativeBattleWindBlast29Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleWindBlast29Frame, NativeBattleWindBlast29Operation, NativeBattleWindBlast29Frame> Execute, Func<NativeBattleWindBlast29Frame, uint, NativeBattleWindBlast29LeafStep> AdvanceGeneric);

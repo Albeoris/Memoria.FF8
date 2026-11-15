@@ -38,13 +38,13 @@ public static partial class NativeBattleChainGun190Controller
         {
             frame = DrawRandom(frame, out ushort x);
             frame = DrawRandom(frame, out ushort z);
-            NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, checked((int)frame.State.ReadDword(0x2281B18))).ReadMatrix();
+            NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, frame.State.ReadModelOperand(0x2281B18)).ReadMatrix();
             (int dx, int dy, int dz) = NativeBattleGfMatrices.RotateLong56C600(world, (x & 4095) - 2048, 0, -(z & 2047));
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(dx, dy, dz);
             frame = DrawRandom(frame, out ushort radiusDraw);
             int radius = radiusDraw % 210 + 60;
             (frame, first) = RequireAppend(frame, 0x5BC080);
-            frame = Write(frame, first, Read(frame, first).WriteWord(12, 0).WriteWord(0x10, unchecked((ushort)(Signed(task, 0x10) + (unchecked(radius * direction.X) >> 12)))).WriteWord(0x12, task.ReadWord(0x12)).WriteWord(0x14, unchecked((ushort)(Signed(task, 0x14) + (unchecked(radius * direction.Z) >> 12)))).WriteWord(0x18, unchecked((ushort)(inputs.ReadModel(frame, checked((int)frame.State.ReadDword(0x2283F2C))).Rotation14!.Value + 2048))));
+            frame = Write(frame, first, Read(frame, first).WriteWord(12, 0).WriteWord(0x10, unchecked((ushort)(Signed(task, 0x10) + (unchecked(radius * direction.X) >> 12)))).WriteWord(0x12, task.ReadWord(0x12)).WriteWord(0x14, unchecked((ushort)(Signed(task, 0x14) + (unchecked(radius * direction.Z) >> 12)))).WriteWord(0x18, unchecked((ushort)(inputs.ReadModel(frame, frame.State.ReadModelOperand(0x2283F2C)).Rotation14!.Value + 2048))));
             frame = DrawRandom(frame, out ushort angle);
             frame = DrawRandom(frame, out ushort sizeDraw);
             short size = (short)(sizeDraw % 864 + 1088);

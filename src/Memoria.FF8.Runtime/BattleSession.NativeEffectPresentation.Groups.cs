@@ -4,12 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private ImmutableArray<int> ReadPresentationSideActors(bool party)
+    private ImmutableArray<BattleModelOwner> ReadPresentationSideActors(bool party)
     {
-        if (presentationForeignActors is null)
-        {
-            return Enumerable.Range(party ? 0 : 3, party ? 3 : 4).ToImmutableArray();
-        }
-        return party ? ReadRequiredPresentationPartyActors() : presentationForeignActors.Values.Where(actor => !actor.IsParty).Select(actor => actor.Index).Order().ToImmutableArray();
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        return party ? ReadRequiredPresentationPartyActors() : [.. graphics.ActorModels.Enemies.Entries.Select(entry => entry.Owner)];
     }
 }

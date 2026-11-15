@@ -59,14 +59,14 @@ public sealed record NativeBattleChoco100SecondarySettings([property: JsonRequir
     }
 }
 
-public sealed record NativeBattleChoco100SecondaryFrame(NativeBattleModulePoolTask Task, NativeBattleGraphicsModel Actor, NativeBattleChoco100SecondarySettings? Settings);
+public sealed record NativeBattleChoco100SecondaryFrame(NativeBattleModulePoolTask Task, BattleModelOwner Owner, NativeBattleGraphicsModel Actor, NativeBattleChoco100SecondarySettings? Settings);
 public sealed record NativeBattleChoco100SecondaryStep(NativeBattleChoco100SecondaryFrame Frame, bool ReadyToComplete);
 
 public static class NativeBattleChoco100Secondary
 {
-    public static NativeBattleChoco100SecondaryStep Advance716C20(NativeBattleChoco100SecondaryFrame frame, uint workAddress, Func<NativeBattleChoco100SecondaryFrame, NativeBattleChoco100SecondaryFrame> draw)
+    public static NativeBattleChoco100SecondaryStep Advance716C20(NativeBattleChoco100SecondaryFrame frame, uint workAddress, NativeBattleModelAliases aliases, Func<NativeBattleChoco100SecondaryFrame, NativeBattleChoco100SecondaryFrame> draw)
     {
-        if (frame.Task.Callback != 0x716C20 || frame.Task.PayloadLength != 0xD0 - 12 || frame.Actor.Index != frame.Task.ReadByte(0x2D) || frame.Actor.Index is < 0 or > 6)
+        if (frame.Task.Callback != 0x716C20 || frame.Task.PayloadLength != 0xD0 - 12 || frame.Owner != frame.Task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner || !aliases.Roster.Contains(frame.Owner))
         {
             throw new InvalidDataException("Native Choco actor secondary requires its complete selected actor and task.");
         }
@@ -83,7 +83,9 @@ public static class NativeBattleChoco100Secondary
                     {
                         Store(frame.Task.WriteWord(offset, 0));
                     }
-                    Store(frame.Task.WriteDword(0xAC, workAddress).WriteDword(0xB0, 0x2565890).WriteDword(0xB4, NativeBattleGraphicsModelAddress.Encode(frame.Actor.Index)).WriteDword(0xB8, 0x1D8E054).WriteDword(0xBC, 0x1D8E054));
+                    NativeBattleModulePoolTask modelTask = frame.Task.WriteDword(0xAC, workAddress).WriteDword(0xB0, 0x2565890);
+                    modelTask.WriteExecutionReference(0xB4, 4, new BattleExecutionReference.Model(frame.Owner), aliases.EncodeAddress(frame.Owner));
+                    Store(modelTask.WriteDword(0xB8, 0x1D8E054).WriteDword(0xBC, 0x1D8E054));
                     frame = frame with { Settings = (frame.Settings ?? NativeBattleChoco100SecondarySettings.Unknown()).Initialize717450(workAddress), Actor = frame.Actor with { Flags0 = (ushort)(frame.Actor.Flags0 | 4), Rotation12 = 0xC00 } };
                     NativeBattleEffectLocalBounds bounds = frame.Actor.GeometryBounds52 ?? throw new NotSupportedException("Native Choco actor secondary requires its retained bounds.");
                     short height = unchecked((short)(bounds.Maximum.Y - bounds.Minimum.Y));

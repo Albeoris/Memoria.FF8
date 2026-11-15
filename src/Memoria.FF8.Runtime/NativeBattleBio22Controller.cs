@@ -11,10 +11,10 @@ public sealed record NativeBattleBio22Packets(NativeBattleGfGeometryBatch Batch)
 public sealed record NativeBattleBio22Sprite(NativeBattleModulePacketBatch Batch) : NativeBattleBio22Operation;
 public sealed record NativeBattleBio22Stage(NativeBattleStageState Stage) : NativeBattleBio22Operation;
 public sealed record NativeBattleBio22Sound(uint Sound) : NativeBattleBio22Operation;
-public sealed record NativeBattleBio22Contact(int Index) : NativeBattleBio22Operation;
-public sealed record NativeBattleBio22Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, short Zsf3, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBio22Frame, NativeBattleStageState> ReadStage, Func<NativeBattleBio22Frame, int, ImmutableArray<int>> ReadOverlayProxyDepth, Func<NativeBattleBio22Frame, NativeBattleBio22Operation, NativeBattleBio22Frame> Execute, Func<NativeBattleBio22Frame, uint, NativeCrtRandomState, NativeBattleBio22ChildStep> AdvanceFinalActor)
+public sealed record NativeBattleBio22Contact(BattleContactOccurrence Index) : NativeBattleBio22Operation;
+public sealed record NativeBattleBio22Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, short Zsf3, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleBio22Frame, NativeBattleStageState> ReadStage, Func<NativeBattleBio22Frame, int, ImmutableArray<int>> ReadOverlayProxyDepth, Func<NativeBattleBio22Frame, NativeBattleBio22Operation, NativeBattleBio22Frame> Execute, Func<NativeBattleBio22Frame, uint, NativeCrtRandomState, NativeBattleBio22ChildStep> AdvanceFinalActor)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 
 public static partial class NativeBattleBio22Controller
@@ -165,7 +165,8 @@ public static partial class NativeBattleBio22Controller
             {
                 Write(address, task);
                 BattleActionHeaderReference header = (Frame.Effect.Parameters ?? throw new InvalidDataException("Native Bio contact requires its action parameters.")).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Bio contact requires its actual header pointer.");
+                BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact;
+                BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Bio requires its reached contact occurrence.");
                 Execute(new NativeBattleBio22Contact(contact));
                 return Read(address);
             }
@@ -178,7 +179,7 @@ public static partial class NativeBattleBio22Controller
             }
         }
 
-        private short PositionY(NativeBattleModulePoolTask task) => (inputs.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Native Bio requires the target's current physical position.")).Position28.Y;
+        private short PositionY(NativeBattleModulePoolTask task) => (inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Native Bio requires the target's current physical position.")).Position28.Y;
         private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     }
 }

@@ -21,7 +21,7 @@ public static partial class NativeBattleAdditional181Controller
             NativeBattleScriptedDpcsResult color = NativeBattleScriptedDpcs.Transform45F270(frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Additional body requires its current GTE color registers."), 0, factor, far, inputs.Colors);
             frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = color.Registers, PrimitiveProcess = process with { ModelRendererRegisters = far } } };
             frame = PublishContext(frame, temporary, Context(frame, temporary, 128).Write(0x5C, BitConverter.GetBytes(color.PackedRgb)), 128);
-            int actor = checked((int)frame.State.ReadDword(0x2307D84));
+            BattleModelOwner actor = frame.State.ReadModelOperand(0x2307D84);
             frame = inputs.Execute(frame, new NativeBattleAdditional181ActorFlags(actor, 0, 0x804));
             frame = inputs.Execute(frame, new NativeBattleAdditional181DrawBody128(actor, temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(181, task) : null });
             frame = Release(frame, 128);

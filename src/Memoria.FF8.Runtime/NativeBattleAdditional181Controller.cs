@@ -16,7 +16,9 @@ public static partial class NativeBattleAdditional181Controller
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0).WriteWord(14, 5));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x23065D8, inputs.Packets.ReadContact(first).Primary.Recipient), 0x2307D84, Parameters(frame).Source), 0x2307D80, 0x1D99A78);
+        BattleModelOwner recipient = inputs.Packets.ReadContact(first).Primary.Recipient;
+        NativeBattleAdditional181State state = frame.State.WriteModelOperand(0x23065D8, recipient, inputs.Packets.ModelAliases).WriteModelOperand(0x2307D84, Parameters(frame).Source, inputs.Packets.ModelAliases);
+        frame = Dword(frame with { State = state }, 0x2307D80, 0x1D99A78);
         for (int index = 0; index < 100; index++)
         {
             frame = Dword(frame, 0x2306600u + (uint)(index * 24), 0);

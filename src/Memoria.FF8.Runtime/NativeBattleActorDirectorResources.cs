@@ -37,7 +37,7 @@ public sealed record NativeBattleActorDirectorFrame(NativeBattleEffectMemory Mem
 }
 
 public abstract record NativeBattleActorDirectorOperation;
-public sealed record NativeBattleActorDirectorContact(int Index) : NativeBattleActorDirectorOperation;
+public sealed record NativeBattleActorDirectorContact(BattleContactOccurrence Index) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorSound(NativeBattleModuleSound Sound) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorStage(short Depth, bool ClearRgb) : NativeBattleActorDirectorOperation;
 public sealed record NativeBattleActorDirectorGenericTask(uint Address) : NativeBattleActorDirectorOperation;

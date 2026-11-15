@@ -29,8 +29,8 @@ public static partial class NativeBattleJunk44Controller
             {
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                 NativeBattleActionHeaderSlot header = Header(frame, packets);
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Junk requires its current physical contact pointer.");
-                uint modelAddress = ModelAddress(packets.ReadContact(checked(first + index)).Primary.Recipient);
+                BattleContactCursor first = header.FirstContact;
+                uint modelAddress = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
                 NativeBattleModelTransform transform = inputs.ReadModel(frame, modelAddress).Transform ?? throw new NotSupportedException("Junk requires its current recipient packed position.");
                 frame = Write(frame, main, Read(frame, main).WriteDword(0x14 + index * 16, modelAddress));
                 frame = WriteBytes(frame, main + 0x18u + (uint)(index * 16), PointView(transform.Position28, transform.Vertical34), 8);

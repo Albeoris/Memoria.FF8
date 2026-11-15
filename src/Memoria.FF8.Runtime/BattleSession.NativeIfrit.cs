@@ -783,28 +783,28 @@ public sealed partial class BattleSession
                     }
                     return NativeBattleCinematicSequence42.Execute(current, program, new((actor, sequence) =>
                     {
-                        byte physical = PhysicalActor42(actor);
+                        BattleModelOwner owner = ResolveActor42(actor);
                         NativeBattleCastingSequenceProvenance? source = null;
                         if (profile.Effect == 18)
                         {
                             uint script = CoreDword(current, 0x2797450);
                             uint file = program.Address;
-                            source = new(NativeBattleCinematicVisualIdentity.Identity(18, current, bank, index), script, file, checked((int)(script - file)), physical, sequence, graphics.ModuleEffects.CastingPresentation!.Cinematic18Birth!.Value);
+                            source = new(NativeBattleCinematicVisualIdentity.Identity(18, current, bank, index), script, file, checked((int)(script - file)), owner, sequence, graphics.ModuleEffects.CastingPresentation!.Cinematic18Birth!.Value);
                         }
-                        graphics = SelectNativeHeaderSequence(graphics, physical, sequence, source);
+                        graphics = SelectNativeHeaderSequence(graphics, owner, sequence, source);
                     }, actor =>
                     {
-                        NativeBattleSequenceState state = graphics.ActorModels.Get(PhysicalActor42(actor)).SequenceState ?? throw new NotSupportedException("Native sequence branch requires its current pose state.");
+                        NativeBattleSequenceState state = graphics.ActorModels.Get(ResolveActor42(actor)).SequenceState ?? throw new NotSupportedException("Native sequence branch requires its current pose state.");
                         return (state.PoseFrame114 ?? throw new NotSupportedException("Native sequence branch requires its pose frame.")) == (state.PoseLimit115 ?? throw new NotSupportedException("Native sequence branch requires its pose limit."));
                     }));
-                    byte PhysicalActor42(byte actor)
+                    BattleModelOwner ResolveActor42(byte actor)
                     {
                         uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(current, actor);
-                        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
+                        if (!NativeBattleGraphicsModelAddress.TryDecodeOriginalCell(pointer, out NativeBattleModelSlot slot))
                         {
                             throw new NotSupportedException("Native sequence command requires its actual physical model pointer.");
                         }
-                        return checked((byte)actorIndex);
+                        return graphics.NativeBindings.DecodeLiteral(slot.Offset, graphics.ActorModels);
                     }
                 case 0x96:
                     if (selectedHandler is not (0xB16F60 or 0xAF2760))

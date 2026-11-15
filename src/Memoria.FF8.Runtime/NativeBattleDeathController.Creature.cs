@@ -61,9 +61,9 @@ public static partial class NativeBattleDeathController
                     {
                         Word(0x2742440, 1);
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
-                        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Death requires its actual immunity result row.");
-                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first + unchecked((sbyte)task.ReadByte(0x2B)));
-                        if ((contact.Primary.HitFlags3 & 4) == 0)
+                        BattleContactCursor first = header.FirstContact;
+                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first.Advance(unchecked((sbyte)task.ReadByte(0x2B))));
+                        if ((contact.Primary.HitFlags & 4) == 0)
                         {
                             SpawnActors(address, 0x18069C4, 0);
                             Append(6, 0x8BD840, 0x118, address);

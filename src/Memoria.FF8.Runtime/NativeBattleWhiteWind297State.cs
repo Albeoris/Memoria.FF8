@@ -11,13 +11,13 @@ public sealed record NativeBattleWhiteWind297Frame(NativeBattleEffectMemory Memo
 public sealed record NativeBattleWhiteWind297AnchorStep(NativeBattleWhiteWind297Frame Frame, NativeBattleModuleAnchor Anchor);
 public abstract record NativeBattleWhiteWind297Operation;
 public sealed record NativeBattleWhiteWind297BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleWhiteWind297Operation;
-public sealed record NativeBattleWhiteWind297RingSequence(byte Actor, byte Sequence) : NativeBattleWhiteWind297Operation;
+public sealed record NativeBattleWhiteWind297RingSequence(BattleModelOwner Actor, byte Sequence) : NativeBattleWhiteWind297Operation;
 public sealed record NativeBattleWhiteWind297Sound(uint Value, int Pan) : NativeBattleWhiteWind297Operation;
-public sealed record NativeBattleWhiteWind297Contact(int Index) : NativeBattleWhiteWind297Operation;
+public sealed record NativeBattleWhiteWind297Contact(BattleContactOccurrence Occurrence) : NativeBattleWhiteWind297Operation;
 public sealed record NativeBattleWhiteWind297Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleWhiteWind297Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleWhiteWind297Frame, BattleModelOwner, NativeBattleWhiteWind297AnchorStep> ReadAnchor571400, Func<NativeBattleWhiteWind297Frame, NativeBattleWhiteWind297Operation, NativeBattleWhiteWind297Frame> Execute, Func<NativeBattleWhiteWind297Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleWhiteWind297Frame> EmitNode)
 {
     [System.Text.Json.Serialization.JsonIgnore]
-    public Func<int, short>? ReadMinimumY { get; init; }
+    public Func<BattleModelOwner, short>? ReadMinimumY { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<NativeBattleWhiteWind297Frame, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattlePilotVisualIdentity, NativeBattleWhiteWind297Frame>? EmitNodePresentation { get; init; }
 }
@@ -44,6 +44,14 @@ public sealed record NativeBattleWhiteWind297State([property: JsonRequired] Nati
     }
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleWhiteWind297State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public NativeBattleWhiteWind297State WriteDword(uint address, uint value)
     {
         byte[] bytes = new byte[4];

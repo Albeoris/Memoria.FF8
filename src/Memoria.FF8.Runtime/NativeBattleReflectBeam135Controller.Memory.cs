@@ -59,11 +59,11 @@ public static partial class NativeBattleReflectBeam135Controller
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(Signed(task, offset), Signed(task, offset + 2), Signed(task, offset + 4));
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
-    private static int Actor(uint address)
+    private static BattleModelOwner ReadModelOwner(NativeBattleModulePoolTask task, int offset) => task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
+    private static void WriteModelOwner(NativeBattleModulePoolTask task, int offset, BattleModelOwner owner, NativeBattleModelAliases aliases)
     {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Reflect Beam model pointer leaves its seven-model bank.");
+        task.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
     }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Reflect Beam actor leaves its seven-model bank.");
     public static NativeBattleReflectBeam135Frame LoadMatrix(NativeBattleReflectBeam135Frame frame, NativeBattlePackedMatrix32 packed)
     {
         packed.Validate();
@@ -109,14 +109,14 @@ public static partial class NativeBattleReflectBeam135Controller
         return result.Write(8, BitConverter.GetBytes(depth)).Write(12, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
     }
     private static NativeBattleModelTransform Transform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Reflect Beam requires its actual model transform.");
-    private static int FirstContact(NativeBattleReflectBeam135Frame frame, NativeBattleReflectBeam135Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleReflectBeam135Frame frame, NativeBattleReflectBeam135Inputs inputs)
     {
-        BattleActionHeaderReference index = Parameters(frame).Header;
-        if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
+        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
+        if (header.ReadContactCount() == 0)
         {
             throw new NotSupportedException("Reflect Beam requires its actual captured contact header.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Reflect Beam requires its actual contact pointer.");
+        return header.FirstContact;
     }
     private static void RequireBinding(NativeBattleReflectBeam135Frame frame)
     {

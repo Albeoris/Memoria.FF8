@@ -44,6 +44,14 @@ public sealed record NativeBattleChainGun190State([property: JsonRequired] Nativ
     public byte[] Read(uint address, int length) => IsPacket(address, length) ? Packets.Read(checked((int)(address - PacketBase)), length) : Globals.Read(Require(address, length), length);
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
+    internal BattleModelOwner ReadModelOperand(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleChainGun190State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this with { Globals = globals };
+    }
+
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public byte[] ReadPacket(uint address, int length)
     {

@@ -140,9 +140,10 @@ public static class NativeBattleWindBlast29Controller
         {
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+            NativeBattleGraphicsModel model = inputs.ReadModel(target);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Wind Blast target requires its pose.");
-            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource pose = inputs.ReadPoseSource(target);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Wind Blast target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Wind Blast target requires its current pose frame."), sequence.PoseFlags109));
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -164,20 +165,11 @@ public static class NativeBattleWindBlast29Controller
                     if (Word(task, 0x24) >= 41)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
-                        int count = header.ReadContactCount();
-                        if (count != 0)
+                        foreach (NativeBattleContactPacket packet in inputs.Packets.ReadHeaderContacts(headerIndex))
                         {
-                            int first = header.FirstContactIndex ?? throw new NotSupportedException("Wind Blast requires its header's actual contact pointer.");
-                            if (first < 0 || first > NativeBattleActionPacketsState.ContactCapacity - count)
-                            {
-                                throw new InvalidDataException("Wind Blast contact fan-out exceeds its physical header arena.");
-                            }
-                            for (int index = 0; index < count; index++)
-                            {
-                                current = inputs.Execute(With(current, hierarchy), new NativeBattleWindBlast29Contact(checked(first + index)));
-                                hierarchy = new(current.Effect.Pools);
-                            }
+                            BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("Wind Blast requires its reached contact occurrence.");
+                            current = inputs.Execute(With(current, hierarchy), new NativeBattleWindBlast29Contact(occurrence));
+                            hierarchy = new(current.Effect.Pools);
                         }
                         task = hierarchy.Read(address);
                         hierarchy = Next(hierarchy.Write(address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1))), address);

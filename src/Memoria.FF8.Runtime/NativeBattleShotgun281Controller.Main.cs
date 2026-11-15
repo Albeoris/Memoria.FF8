@@ -22,12 +22,14 @@ public static partial class NativeBattleShotgun281Controller
             frame = ClearDwords701200(frame, main + 12, 133);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleContactCursor first = Header(frame, packets).FirstContact;
-            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-            frame = Write(frame, main, Read(frame, main).WriteDword(16, target));
+            BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+            NativeBattleModulePoolTask targetTask = Read(frame, main);
+            targetTask.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+            frame = Write(frame, main, targetTask);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, 524);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 524);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, workspace);
-            NativeBattleModelTransform casterPosition = inputs.ReadModel(frame, frame.State.ReadDword(0x2507F30)).Transform ?? throw new NotSupportedException("Shotgun requires its current caster position.");
+            NativeBattleModelTransform casterPosition = inputs.ReadModel(frame, frame.State.ReadModelOwner(CasterGlobal)).Transform ?? throw new NotSupportedException("Shotgun requires its current caster position.");
             NativeBattleModelTransform targetPosition = inputs.ReadModel(frame, target).Transform ?? throw new NotSupportedException("Shotgun requires its current recipient position.");
             int x = targetPosition.Position28.X - casterPosition.Position28.X;
             int z = casterPosition.Position28.Z - targetPosition.Position28.Z;
@@ -36,7 +38,7 @@ public static partial class NativeBattleShotgun281Controller
         }
         if (Read(frame, address).ReadByte(15) != 0)
         {
-            uint caster = frame.State.ReadDword(0x2507F30);
+            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleShotgun281ComposeCaster5095B0(caster));
             (frame, int mainSurvivors) = AdvancePool(frame, 3, resources, inputs);
             frame = inputs.Execute(frame, new NativeBattleShotgun281RestoreCaster508C90(caster));
@@ -73,7 +75,7 @@ public static partial class NativeBattleShotgun281Controller
             (frame, uint impact) = Append(frame, 0x2507F48, 0x67E6B0);
             if (impact != 0)
             {
-                uint target = Read(frame, address).ReadDword(16);
+                BattleModelOwner target = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
                 NativeBattleEffectArena retained = TaskView(Read(frame, impact), 12, 8);
                 while (true)
                 {
@@ -105,8 +107,8 @@ public static partial class NativeBattleShotgun281Controller
         if (next >= 14)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Shotgun requires its current first physical contact.");
-            frame = inputs.Execute(frame, new NativeBattleShotgun281Contact506690(first));
+            BattleContactOccurrence occurrence = packets.ReadContact(Header(frame, packets).FirstContact).Occurrence ?? throw new InvalidDataException("Shotgun contact has no occurrence reference.");
+            frame = inputs.Execute(frame, new NativeBattleShotgun281Contact506690(occurrence));
             return (frame, 2);
         }
         return (frame, 0);

@@ -28,17 +28,17 @@ public static partial class NativeBattleBladeShot12Controller
         {
             frame = DrawReturn(frame, address, age, resources, inputs);
         }
-        uint caster = frame.State.ReadDword(0x2545EF0);
+        BattleModelOwner caster = frame.State.ReadModelAddress(0x2545EF0);
         frame = inputs.Execute(frame, new NativeBattleBladeShot12ActorMeshMask124(caster, age < 62 ? 0x80u : 0u, age >= 62 ? 0x80u : 0u));
         if ((uint)(age - 32) < 4)
         {
             if (age == 32)
             {
-                NativeBattleBladeShot12PointStep point = inputs.ReadBone502170(frame, frame.State.ReadDword(0x25460F8), 0xF1, 0);
+                NativeBattleBladeShot12PointStep point = inputs.ReadBone502170(frame, frame.State.ReadModelAddress(0x25460F8), 0xF1, 0);
                 frame = WriteBytes(point.Frame, address + 0x4C, point.Point8, 6);
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-                int first = header.FirstContactIndex ?? throw new NotSupportedException("Blade Shot requires its captured first physical contact pointer.");
-                frame = inputs.Execute(frame, new NativeBattleBladeShot12Contact506690(first));
+                BattleContactOccurrence contact = inputs.Packets.ReadContact(header.FirstContact).Occurrence ?? throw new InvalidDataException("Blade Shot requires its reached contact occurrence.");
+                frame = inputs.Execute(frame, new NativeBattleBladeShot12Contact506690(contact));
             }
             frame = DrawFlash(frame, address, 0x1362C80, age - 32, TaskView(Read(frame, address), 0x4C, 8), inputs);
         }
@@ -121,7 +121,7 @@ public static partial class NativeBattleBladeShot12Controller
             short driftZ = unchecked((short)(Signed(task, 0x48) + (Signed(task, 0x20) - Signed(task, 0x28)) / 30));
             frame = Write(frame, address, task.WriteWord(0x44, unchecked((ushort)(driftX >> 1))).WriteWord(0x48, unchecked((ushort)(driftZ >> 1))).WriteWord(0x5C, unchecked((ushort)-Signed(task, 0x5C))).WriteWord(0x5E, unchecked((ushort)-Signed(task, 0x5E))));
         }
-        NativeBattleBladeShot12PointStep point = inputs.ReadBone502170(frame, frame.State.ReadDword(0x2545EF0), 7, 0);
+        NativeBattleBladeShot12PointStep point = inputs.ReadBone502170(frame, frame.State.ReadModelAddress(0x2545EF0), 7, 0);
         frame = WriteBytes(point.Frame, address + 0x24, point.Point8, 6);
         task = Read(frame, address);
         frame = Write(frame, address, task.WriteWord(0x26, unchecked((ushort)(Signed(task, 0x26) - 600))));
@@ -210,7 +210,7 @@ public static partial class NativeBattleBladeShot12Controller
             int angle = ((draw - 16384) >> 6) + ((side & 1) != 0 ? 1024 : -1024) + Signed(root, 0x56);
             task = task.WriteWord(0x14, unchecked((ushort)(Signed(root, 0x4C) + (NativeBattleCameraMath.Sine(angle) >> 3)))).WriteWord(0x18, unchecked((ushort)(Signed(root, 0x50) + (NativeBattleCameraMath.Cosine(angle) >> 3))));
             frame = DrawRandom(frame, out draw);
-            NativeBattleModelTransform transform = inputs.ReadModel(frame, frame.State.ReadDword(0x25460F8)).Transform ?? throw new NotSupportedException("Blade Shot regular particles require the current recipient WORD36.");
+            NativeBattleModelTransform transform = inputs.ReadModel(frame, frame.State.ReadModelAddress(0x25460F8)).Transform ?? throw new NotSupportedException("Blade Shot regular particles require the current recipient WORD36.");
             task = task.WriteWord(0x16, unchecked((ushort)(transform.Angle36 - (draw >> 8))));
             frame = DrawRandom(frame, out draw);
             angle = ((draw - 16384) >> 6) + ((side & 1) != 0 ? 400 : -400) + Signed(root, 0x56);

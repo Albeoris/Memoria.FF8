@@ -14,7 +14,9 @@ public static partial class NativeBattleChainGun190Controller
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x2281B18, inputs.Packets.ReadContact(first).Primary.Recipient), 0x2283F2C, Parameters(frame).Source), 0x2283F28, 0x1D99A78);
+        BattleModelOwner recipient = inputs.Packets.ReadContact(first).Primary.Recipient;
+        NativeBattleChainGun190State state = frame.State.WriteModelOperand(0x2281B18, recipient, inputs.Packets.ModelAliases).WriteModelOperand(0x2283F2C, Parameters(frame).Source, inputs.Packets.ModelAliases);
+        frame = Dword(frame with { State = state }, 0x2283F28, 0x1D99A78);
         foreach (uint bank in new uint[] { 0x22824A0, 0x2281B40 })
         {
             for (int index = 0; index < 100; index++)

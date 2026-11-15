@@ -4,24 +4,23 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model)
+    private NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
-        return SelectNativeModelMaterial(graphics, model, NativeEffectMemory?.Textures);
+        return SelectNativeModelMaterial(graphics, owner, NativeEffectMemory?.Textures);
     }
 
-    private NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleEffectTextureState? textures)
+    private NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleEffectTextureState? textures)
     {
-        // Ordinary pose overrides retain the original body and weapon geometry.
-        if (graphics.PresentationRoster is not { } roster || textures?.PresentationTextures is null || NativeGraphicsUsesForeignPose(graphics, model.Index))
+        if (textures?.PresentationTextures is null || NativeGraphicsUsesForeignPose(graphics, owner))
         {
             return null;
         }
-        return RequireNativeModelMaterial(graphics, model, roster, textures);
+        return RequireNativeModelMaterial(graphics, owner, textures);
     }
 
-    private static NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleResourcePointer geometry, NativeBattleEffectTextureState? textures)
+    private static NativeBattleModelTextureOwner? SelectNativeModelMaterial(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleResourcePointer geometry, NativeBattleEffectTextureState? textures)
     {
-        if (graphics.PresentationRoster is not { } roster || textures?.PresentationTextures is null)
+        if (textures?.PresentationTextures is null)
         {
             return null;
         }
@@ -29,16 +28,16 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Hosted model geometry selected by a numeric pointer requires an explicit texture owner.");
         }
-        return RequireNativeModelMaterial(graphics, model, roster, textures);
+        return RequireNativeModelMaterial(graphics, owner, textures);
     }
 
-    private static NativeBattleModelTextureOwner RequireNativeModelMaterial(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, BattleModelRoster roster, NativeBattleEffectTextureState textures)
+    private static NativeBattleModelTextureOwner RequireNativeModelMaterial(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleEffectTextureState textures)
     {
-        string actorId = roster[model.Index].ActorId;
-        if (!StringComparer.Ordinal.Equals(actorId, graphics.ActorIds[model.Index]))
+        if (!graphics.ActorModels.Contains(owner))
         {
-            throw new InvalidDataException("Native model packets require the selected row's bound material actor.");
+            throw new InvalidDataException("Native model packets require a bound material actor.");
         }
+        string actorId = ReadGraphicsPresentationId(owner);
         textures.RequirePresentationTexture(actorId);
         return new(actorId);
     }

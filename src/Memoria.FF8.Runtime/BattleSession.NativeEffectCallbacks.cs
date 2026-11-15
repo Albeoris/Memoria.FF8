@@ -1122,7 +1122,7 @@ public sealed partial class BattleSession
         }
         return graphics with { OriginalEffect = step.Effect, ModuleDraws = graphics.ModuleDraws.AddRange(step.Draws) };
 
-        void ApplyContact(int index)
+        void ApplyContact(BattleContactOccurrence index)
         {
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });

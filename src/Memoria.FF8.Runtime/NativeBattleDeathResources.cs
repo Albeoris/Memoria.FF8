@@ -33,7 +33,7 @@ public sealed record NativeBattleDeathPublishPose(NativeBattleEffectOwnedModelSt
 public sealed record NativeBattleDeathObserveAnchor(NativeBattleBoneAnchorProducer Producer) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathSound(uint Descriptor) : NativeBattleDeathOperation;
-public sealed record NativeBattleDeathContact(int Index) : NativeBattleDeathOperation;
+public sealed record NativeBattleDeathContact(BattleContactOccurrence Index) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathBindCaster(BattleModelOwner Actor, uint SavedRow, uint Directory) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathRingSequence(byte Actor, ushort Sequence) : NativeBattleDeathOperation;
 public sealed record NativeBattleDeathStage(short Fade, bool ClearRgb) : NativeBattleDeathOperation;

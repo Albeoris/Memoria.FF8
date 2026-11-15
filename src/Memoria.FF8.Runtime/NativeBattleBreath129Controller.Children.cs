@@ -7,7 +7,7 @@ public static partial class NativeBattleBreath129Controller
     public static (NativeBattleBreath129Frame Frame, int Result) AdvanceTarget(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        uint actor = ModelAddress(task.ReadByte(15));
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(15, 1).Owner;
         NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(Signed(task, 22)) with { X = Signed(task, 16), Y = Signed(task, 18), Z = Signed(task, 20) };
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         NativeBattleBreath129ActStep act = inputs.AdvanceAct(frame, address + 24, resources.Act(0x1225468), new(NativeBattlePackedMatrix32.FromMatrix(composed, null), 0, Working(frame) + 0x35F0));
@@ -34,7 +34,9 @@ public static partial class NativeBattleBreath129Controller
         }
         if (age == 16)
         {
-            frame = inputs.Execute(frame, new NativeBattleBreath129ContactIndex(Read(frame, address).ReadByte(14)));
+            BattleContactCursor cursor = inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact.Advance(Read(frame, address).ReadByte(14));
+            BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Breath requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleBreath129ContactIndex(contact));
         }
         if (age >= 12 && (age & 3) == 0)
         {

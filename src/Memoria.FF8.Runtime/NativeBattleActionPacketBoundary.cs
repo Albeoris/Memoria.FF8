@@ -86,6 +86,16 @@ internal static class NativeBattleActionPacketBoundary
         return WriteHeaderScalar(retained, reference, 17, repeatModeMinusOne);
     }
 
+    internal static NativeBattleRetainedActionPackets WriteSequence(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, byte sequence)
+    {
+        return WriteHeaderScalar(retained, reference, 2, sequence);
+    }
+
+    internal static NativeBattleRetainedActionPackets CompleteHeader(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference)
+    {
+        return WriteHeaderScalar(retained, reference, 1, byte.MaxValue);
+    }
+
     private static NativeBattleRetainedActionPackets WriteHeaderScalar(NativeBattleRetainedActionPackets retained, BattleActionHeaderReference reference, int offset, byte? value)
     {
         if (reference.Ordinal >= NativeBattleRetainedActionPackets.HeaderCapacity)

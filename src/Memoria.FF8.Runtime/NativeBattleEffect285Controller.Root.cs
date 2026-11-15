@@ -70,12 +70,12 @@ public static partial class NativeBattleEffect285Controller
         {
             throw new NotSupportedException("Effect285 requires a nonempty native contact group for its signed centroid division.");
         }
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect285 requires its actual contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         short sum = 0;
         frame = frame with { State = frame.State.WriteWord(CentroidGlobal, 0) };
         for (int index = 0; index < count; index++)
         {
-            NativeBattleContactPacket contact = packets.ReadContact(first + index);
+            NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
             short z = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(contact.Primary.Recipient)).Read(32, 2));
             sum = unchecked((short)(sum + z));
             frame = frame with { State = frame.State.WriteWord(CentroidGlobal, unchecked((ushort)sum)) };

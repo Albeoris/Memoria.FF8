@@ -77,8 +77,8 @@ public static partial class NativeBattleEffect287Controller
         for (int index = 0; index < count; index++)
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int first = CurrentHeader(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Effect287 requires its actual contact pointer.");
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, ModelAddress(packets.ReadContact(first + index).Primary.Recipient)));
+            BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
+            frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient)));
         }
         return frame;
     }

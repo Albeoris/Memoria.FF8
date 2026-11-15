@@ -17,7 +17,7 @@ public static class NativeBattleSandStorm155Mesh
             short x = unchecked((short)(anchorX + (unchecked((Word(frame, 0x23F2938) - anchorX) * fraction) >> 12)));
             short z = unchecked((short)(anchorZ + (unchecked((Word(frame, 0x23F293C) - anchorZ) * fraction) >> 12)));
             short lateral = unchecked((short)(unchecked(NativeBattleCameraMath.Sine(Signed(task, 0x20)) * Signed(task, 0x1C)) >> 12));
-            NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(inputs.ReadModelWorld(frame, checked((int)frame.State.ReadDword(0x23F2950))), new(lateral, 0, 0));
+            NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(inputs.ReadModelWorld(frame, frame.State.ReadModelOwner(0x23F2950)), new(lateral, 0, 0));
             frame = PutWord(frame, 0x23F2948, unchecked((short)(x + offset.X)));
             frame = PutWord(frame, 0x23F294C, unchecked((short)(z + offset.Z)));
         }

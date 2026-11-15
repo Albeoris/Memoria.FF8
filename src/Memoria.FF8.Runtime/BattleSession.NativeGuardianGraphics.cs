@@ -214,7 +214,7 @@ public sealed partial class BattleSession
         return ApplyNativeGraphicsStatus509CD0(graphics, caster, flags);
     }
 
-    private NativeBattleGraphicsState RefreshNativeGuardianStandingSequence(NativeBattleGraphicsState graphics, byte caster)
+    private NativeBattleGraphicsState RefreshNativeGuardianStandingSequence(NativeBattleGraphicsState graphics, BattleModelOwner caster)
     {
         (NativeBattleGraphicsModel model, byte? immediate) = NativeBattleGraphicsModels.PlanPlayerStanding509C80(graphics.ActorModels.Get(caster));
         return immediate is byte standing ? SelectNativeHeaderSequence(graphics, caster, standing) : graphics with { ActorModels = graphics.ActorModels.Set(caster, model) };

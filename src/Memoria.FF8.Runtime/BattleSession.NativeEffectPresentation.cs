@@ -4,21 +4,23 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private Dictionary<int, NativeBattleForeignActor>? presentationForeignActors;
+    private Dictionary<BattleModelOwner, NativeBattleForeignActor>? presentationForeignActors;
     internal NativeBattleArenaHost? presentationArena;
     private NativeBattleEffectSceneContext? presentationSceneContext;
     private NativeBattleRibbonProjectionPolicy presentationRibbonProjectionPolicy;
     private NativeBattleEffectModelTransformPolicy presentationModelTransformPolicy;
     private NativeBattleGraphicsResource? presentationSourceResource;
-    private int presentationSourceIndex;
+    private BattleModelOwner? presentationSourceOwner;
+    private BattleModelOwner RequirePresentationSourceOwner() => presentationSourceOwner ?? throw new InvalidDataException("The presentation lost its source model owner.");
     private byte? presentationSourceModelId;
     private bool? presentationSourceIsParty;
-    private Dictionary<int, NativeBattleEffectModelBinding>? presentationNativeTargets;
+    private Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>? presentationNativeTargets;
     private bool presentationFirstAdvance = true;
+    private BattleActionHeaderReference? presentationInvocationHeader;
     private NativeBattleCameraState? presentationHostCamera;
     private NativeBattleStageState? presentationInitialStage;
     private NativeBattleUiServices? presentationInitialUi;
-    private ImmutableArray<NativeBattleGraphicsModel> presentationInitialModels = [];
+    private BattleActorModels? presentationInitialModels;
     private int? presentationPartyActorCount;
     private int? presentationInitialMusicGain;
     private NativeBattleEffectCameraMode presentationCameraMode;
@@ -61,23 +63,18 @@ public sealed partial class BattleSession
         nativeCrtRandom = inputs.Random;
         nativeGlobalRandom = definition.NativeGlobalRandom;
         presentationSourceResource = inputs.SourceResource;
-        presentationSourceIndex = inputs.Source.Index;
+        BattleModelOwner sourceOwner = inputs.Parameters.Source;
+        presentationSourceOwner = sourceOwner;
         presentationSourceModelId = inputs.Source.ModelId4;
-        presentationSourceIsParty = inputs.SourceIsParty;
-        BattleModelRoster? roster = inputs.Packets.PresentationRoster;
-        if (roster is not null)
-        {
-            ValidateHostedPresentationBindings(inputs, roster);
-        }
-        presentationForeignActors = inputs.ForeignActors.ToDictionary(actor => actor.Index);
-        presentationNativeTargets = inputs.NativeTargets.ToDictionary(target => target.Model.Index);
-        if (roster is null && (!NativeBattleSlots.Contains(presentationSourceIndex) || inputs.Parameters.Source != presentationSourceIndex ||
-            presentationForeignActors.ContainsKey(presentationSourceIndex) ||
-            presentationNativeTargets.Keys.Any(index => index == presentationSourceIndex || !NativeBattleSlots.Contains(index) || presentationForeignActors.ContainsKey(index))))
-        {
-            throw new InvalidDataException("An effect model row requires one original actor binding outside its source row.");
-        }
+        presentationSourceIsParty = sourceOwner.Side == BattleSide.Allies;
+        BattleModelRoster roster = inputs.Packets.Roster;
+        ValidatePresentationBindings(inputs, roster);
+        presentationForeignActors = inputs.ForeignActors.ToDictionary(actor => actor.Owner);
+        presentationNativeTargets = inputs.NativeTargets.ToDictionary(target => target.Owner);
+        NativeBattleModelAliases aliases = inputs.Packets.ModelAliases;
+        bool hasExtendedOwners = roster.Owners.Any(owner => !aliases.TryEncodeExact(owner, out _));
         nativeActionPackets = inputs.Packets.ActivateHeader(inputs.Parameters.Header);
+        presentationInvocationHeader = inputs.Parameters.Header;
         NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
         NativeCamera = BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), inputs.Projection);
@@ -86,7 +83,7 @@ public sealed partial class BattleSession
             NativeCamera = NativeCamera.WriteEffectGlobals(inputs.HostCameraPose ?? throw new InvalidDataException("The cinematic presentation requires its initial host camera pose.")) with { BlendProgress = 0 };
         }
         presentationHostCamera = NativeCamera;
-        NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(roster is null ? NativeBattleFileStaging.FromColdProcess() : NativeBattleFileStaging.FromColdProcess(HostedPresentationExecutableHash));
+        NativeFileStaging = NativeBattleTemporaryMemory.Reset5082F0(hasExtendedOwners ? NativeBattleFileStaging.FromColdProcess(HostedPresentationExecutableHash) : NativeBattleFileStaging.FromColdProcess());
         NativeFileIo = NativeBattleFileIoState.FromColdProcess();
         NativeGlobalSoundProcess = definition.NativeGlobalSoundProcess ?? NativeGlobalSoundProcess.FromBufferlessColdProcess();
         presentationInitialMusicGain = inputs.InitialMusicGain;
@@ -107,21 +104,34 @@ public sealed partial class BattleSession
             NativeStage = NativeStage with { Groups = NativeStage.Groups.Select(group => group with { Flags = 2 }).ToImmutableArray() };
         }
         presentationInitialStage = NativeStage;
-        ImmutableArray<NativeBattleModelRetainedFields>? retainedRows = definition.NativeRetainedMemory?.ModelTransformRows;
-        NativeBattleGraphicsModel[] bank = roster is null ? NativeBattleGraphicsModels.ClearBank(retainedTransformRows: retainedRows) : NativeBattleGraphicsModels.ClearPresentationBank(roster, retainedRows);
-        ImmutableArray<NativeBattleGraphicsModel> models = bank.ToImmutableArray().SetItem(presentationSourceIndex, inputs.Source);
-        foreach (NativeBattleEffectModelBinding target in presentationNativeTargets.Values)
+        NativeBattleModelBoundary boundary = NativeBattleModelBoundary.FromRetainedMemory(definition.NativeRetainedMemory);
+        BattleActorModels models = new([]);
+        foreach (BattleModelOwner owner in roster.Owners)
         {
-            models = models.SetItem(target.Model.Index, target.Model);
+            NativeBattleGraphicsModel? supplied = owner == sourceOwner
+                ? inputs.Source
+                : presentationNativeTargets.TryGetValue(owner, out NativeBattleEffectModelBinding? target)
+                    ? target.Model
+                    : presentationForeignActors[owner].NativeModel;
+            if (aliases.TryEncodeExact(owner, out byte originalSlot))
+            {
+                (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(originalSlot), owner, models);
+                if (supplied is not null)
+                {
+                    models = models.Set(owner, supplied);
+                }
+            }
+            else
+            {
+                models = models.Add(owner, supplied ?? NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
+            }
         }
-        models = BindPresentationForeignModels(models, roster);
+        models = BindPresentationForeignModels(models);
         presentationInitialUi = NativeBattleUiServices.Initialize();
-        ImmutableArray<string?> actorIds = roster is null
-            ? Enumerable.Range(0, models.Length).Select(index => index == presentationSourceIndex ? "source" : presentationNativeTargets.TryGetValue(index, out NativeBattleEffectModelBinding? target) ? target.ActorId : presentationForeignActors.ContainsKey(index) ? $"host-{index}" : null).ToImmutableArray()
-            : roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray();
-        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, actorIds, 0, 0) { UiServices = presentationInitialUi, PresentationRoster = roster });
+        BattleContactTaskStorageContract contactStorage = hasExtendedOwners ? BattleContactTaskStorageContract.ExpandableArena : BattleContactTaskStorageContract.OriginalArena;
+        NativeGraphics = InitializeNativePrimitiveFrame500400(new(models, boundary, 0, 0, NativeBattleEffectsState.Clear(contactStorage)) { UiServices = presentationInitialUi });
         byte sourceModel = inputs.Source.ModelId4 ?? throw new NotSupportedException("Native effect presentation requires its source model identity.");
-        if (roster is not null)
+        if (hasExtendedOwners)
         {
             NativeGraphics = InitializeHostedPresentationModelResources(NativeGraphics, sourceModel >= 16 && presentationNativeTargets.Values.Any(binding => binding.CanActivate));
         }
@@ -138,12 +148,12 @@ public sealed partial class BattleSession
             NativeEffectMemory = NativeEffectMemory with { SequenceSine = sequenceGlobals.Sine, SequenceCosine = sequenceGlobals.Cosine };
         }
         InitializeEffectPresentationServices(inputs.Parameters);
-        if (roster is not null)
+        if (hasExtendedOwners)
         {
             NativeGraphics!.Validate();
             BindHostedCinematicActors();
         }
-        presentationInitialModels = NativeGraphics!.Models;
+        presentationInitialModels = NativeGraphics!.ActorModels;
         InitializeNativePrimitiveDepth47CE10();
         if (presentationCameraMode == NativeBattleEffectCameraMode.HostPoseWithEffectTranslation && inputs.Effect == NativeBattleSonic139Profile.Effect)
         {
@@ -154,7 +164,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsDefinition graphics = definition.NativeGraphics ?? throw new NotSupportedException("Hosted Sonic Wave requires its original primitive resources.");
             NativeSoftwarePrimitiveTable softwareTable = graphics.SoftwarePrimitiveTable ?? throw new NotSupportedException("Hosted Sonic Wave requires its original software dispatch table.");
             bool hardware = graphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Hosted Sonic Wave requires its selected hardware execution capability.");
-            NativeBattleSoftwarePrimitiveExecution execution = new(software, roster is null ? inputs.Textures : NativeEffectMemory.Textures!, softwareTable, hardware, cache);
+            NativeBattleSoftwarePrimitiveExecution execution = new(software, hasExtendedOwners ? NativeEffectMemory.Textures! : inputs.Textures, softwareTable, hardware, cache);
             execution.ApplyEnvironment45B660(buffer ^ 1);
             NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = process with { Software = execution.State, TextureWindowCache = execution.Cache }, Textures = execution.Textures };
         }
@@ -188,23 +198,11 @@ public sealed partial class BattleSession
 
     internal void ReplaceHostedEffectContacts(IEnumerable<NativeBattleContactPacket> packets)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[0];
-        NativeBattleContactPacket[] replacements = packets.ToArray();
-        if (presentationForeignActors is null || replacements.Length != header.ReadContactCount() || header.FirstContactIndex is not int first)
+        if (presentationForeignActors is null || presentationInvocationHeader is not { } header)
         {
-            throw new InvalidDataException("Hosted recomputation must retain the invocation's original physical contact extent.");
+            throw new InvalidDataException("Hosted recomputation requires the presentation's invocation header.");
         }
-        var contacts = nativeActionPackets.Contacts;
-        for (int index = 0; index < replacements.Length; index++)
-        {
-            int slot = first + index;
-            if (nativeActionPackets.ReadContact(slot).Primary.Recipient != replacements[index].Primary.Recipient)
-            {
-                throw new InvalidDataException("Hosted recomputation changed the invocation's physical recipient.");
-            }
-            contacts = contacts.SetItem(slot, replacements[index]);
-        }
-        nativeActionPackets = nativeActionPackets with { Contacts = contacts };
+        nativeActionPackets = nativeActionPackets.ReplaceHeaderContacts(header, packets.ToImmutableArray());
     }
 
     private NativeBattleEffectSceneContext ReadRequiredEffectSceneContext()
@@ -222,11 +220,13 @@ public sealed partial class BattleSession
         }
         if (NativeGraphics is { } graphics)
         {
-            ImmutableArray<NativeBattleGraphicsModel> models = graphics.Models.Select((model, index) =>
+            BattleActorModels models = graphics.ActorModels;
+            foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
             {
-                NativeBattleGraphicsModel original = presentationInitialModels[index];
-                return model with { Flags0 = (ushort)((model.Flags0 & ~0x804) | (original.Flags0 & 0x804)), Color40 = original.Color40, Color44 = original.Color44, Alpha7 = original.Alpha7 };
-            }).ToImmutableArray();
+                NativeBattleGraphicsModel original = presentationInitialModels!.Get(entry.Owner);
+                NativeBattleGraphicsModel model = entry.State;
+                models = models.Set(entry.Owner, model with { Flags0 = (ushort)((model.Flags0 & ~0x804) | (original.Flags0 & 0x804)), Color40 = original.Color40, Color44 = original.Color44, Alpha7 = original.Alpha7 });
+            }
             NativeGraphics = graphics with { UiServices = presentationInitialUi, ActorModels = models };
         }
     }
@@ -250,10 +250,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("The native presentation descriptor was already invoked.");
         }
-        NativeBattleGraphicsModel loaded = NativeGraphics!.ActorModels.Get(presentationSourceIndex);
+        NativeBattleGraphicsModel loaded = NativeGraphics!.ActorModels.Get(RequirePresentationSourceOwner());
         source = source with { ActiveResourceRow100 = loaded.ActiveResourceRow100, OriginalResourceRow104 = loaded.OriginalResourceRow104, TextureResourceIndex = loaded.TextureResourceIndex, LinkedTextureResourceIndex = loaded.LinkedTextureResourceIndex, BodyTextureSlots = loaded.BodyTextureSlots, LinkedTextureSlots = loaded.LinkedTextureSlots, TextureAllocationMask = loaded.TextureAllocationMask };
-        NativeGraphics = NativeGraphics with { ActorModels = NativeGraphics.ActorModels.Set(presentationSourceIndex, source) };
-        if (NativeGraphics.PresentationRoster is not null)
+        NativeGraphics = NativeGraphics with { ActorModels = NativeGraphics.ActorModels.Set(RequirePresentationSourceOwner(), source) };
+        if (NativeModelTextureCache?.PresentationActors is not null)
         {
             NativeGraphics.Validate();
         }
@@ -302,8 +302,8 @@ public sealed partial class BattleSession
     internal NativeGlobalRandomState? ReadEffectPresentationGlobalRandom() => nativeGlobalRandom;
     internal int? ReadEffectPresentationMusicGain() => presentationInitialMusicGain is null ? null : (NativeGlobalSoundProcess?.MusicPlayback ?? throw new InvalidDataException("Native presentation lost its music gain owner.")).ReadGain(0);
     internal NativeCrtRandomState ReadEffectPresentationRandom() => nativeCrtRandom ?? throw new InvalidDataException("Native presentation lost its random owner.");
-    internal NativeBattleGraphicsModel ReadEffectPresentationSource() => NativeGraphics!.ActorModels.Get(presentationSourceIndex);
-    internal NativeBattleGraphicsResource ReadEffectPresentationSourceResource() => NativeGraphicsPoseResource(NativeGraphics!, presentationSourceIndex);
+    internal NativeBattleGraphicsModel ReadEffectPresentationSource() => NativeGraphics!.ActorModels.Get(RequirePresentationSourceOwner());
+    internal NativeBattleGraphicsResource ReadEffectPresentationSourceResource() => NativeGraphicsPoseResource(NativeGraphics!, RequirePresentationSourceOwner());
     internal NativeBattleCameraPose? ReadHostedCinematicCamera() => presentationCameraMode == NativeBattleEffectCameraMode.NativeCinematic ? NativeCamera?.PublishedPresentationPose : null;
     internal bool IsHostedGuardianFormCinematic => hostedGuardianFormMode is GuardianFormInvocationMode.EntryOnly or GuardianFormInvocationMode.FinisherWithoutEntry;
     internal bool IsHostedGuardianSummon { get; }
@@ -318,15 +318,15 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("This session is not a presentation component.");
         }
-        Dictionary<int, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
-        presentationForeignActors = foreignActors.ToDictionary(actor => actor.Index);
+        Dictionary<BattleModelOwner, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
+        presentationForeignActors = foreignActors.ToDictionary(actor => actor.Owner);
         nativeCrtRandom = randomState;
         presentationHostCamera = BindEffectPresentationHostProjection(presentationHostCamera!, projection);
         if (presentationCameraMode != NativeBattleEffectCameraMode.NativeCinematic)
         {
             NativeCamera = NativeCamera! with { Projection = projection, ViewTranslationScratch = new(0, 0, 0) };
         }
-        NativeBattleGraphicsState graphics = NativeGraphics! with { ActorModels = BindPresentationForeignModels(NativeGraphics!.ActorModels.Set(presentationSourceIndex, source), NativeGraphics.PresentationRoster, previousForeignActors), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleGraphicsState graphics = NativeGraphics! with { ActorModels = BindPresentationForeignModels(NativeGraphics!.ActorModels.Set(RequirePresentationSourceOwner(), source), previousForeignActors), ModuleDraws = presentationFirstAdvance ? NativeGraphics.ModuleDraws : [], PrimitiveFrame = presentationFirstAdvance ? NativeGraphics.PrimitiveFrame : NativeBattlePrimitiveFrame.Clear() };
         NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = presentationFirstAdvance ? NativeEffectMemory.PrimitiveProcess : NativeEffectMemory.PrimitiveProcess!.Reset500900(graphics.Flags), Textures = AcceptHostedPresentationTextures(textures) };
         presentationFirstAdvance = false;
         NativeGraphics = graphics;
@@ -337,12 +337,12 @@ public sealed partial class BattleSession
             graphics = AdvanceNativeDescriptors(graphics);
             NativeGraphics = graphics;
         }
-        NativeBattleGraphicsModel currentSource = graphics.ActorModels.Get(presentationSourceIndex);
+        NativeBattleGraphicsModel currentSource = graphics.ActorModels.Get(RequirePresentationSourceOwner());
         if ((currentSource.Flags0 & 6) == 2 && ((currentSource.Flags2 ?? throw new InvalidDataException("Native presentation lost its source model WORD2.")) & 0x84) == 0)
         {
-            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, presentationSourceIndex).PoseSource ?? throw new NotSupportedException("Native5086F0 requires its current source skeleton.");
+            NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, RequirePresentationSourceOwner()).PoseSource ?? throw new NotSupportedException("Native5086F0 requires its current source skeleton.");
             currentSource = NativeBattlePoseMatrices.PublishShadowBounds5086F0(currentSource, pose);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceIndex, currentSource) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequirePresentationSourceOwner(), currentSource) };
             NativeGraphics = graphics;
         }
         graphics = AdvanceNativeAuxiliary(graphics);
@@ -358,8 +358,7 @@ public sealed partial class BattleSession
             presentationSelectedModuleComplete = complete;
             if (complete)
             {
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
-                nativeActionPackets = nativeActionPackets with { Headers = nativeActionPackets.Headers.SetItem(context.Header, header with { Payload = header.Payload.SetItem(1, 255), UnknownByteMask = header.UnknownByteMask & ~2u }) };
+                nativeActionPackets = nativeActionPackets.CompleteHeader(context.Header);
             }
         }
         if (EffectPresentationInvoked && (presentationSelectedModulePhase is null || presentationSelectedModulePhase >= 3 && !presentationSelectedModuleComplete))
@@ -405,25 +404,24 @@ public sealed partial class BattleSession
         };
     }
 
-    private ImmutableArray<NativeBattleGraphicsModel> BindPresentationForeignModels(ImmutableArray<NativeBattleGraphicsModel> models, BattleModelRoster? roster, Dictionary<int, NativeBattleForeignActor>? previous = null)
+    private BattleActorModels BindPresentationForeignModels(BattleActorModels models, Dictionary<BattleModelOwner, NativeBattleForeignActor>? previous = null)
     {
         foreach (NativeBattleForeignActor actor in presentationForeignActors!.Values)
         {
-            bool hasBoundRow = roster is null ? NativeBattleSlots.Contains(actor.Index) : IsBoundPresentationRow(roster, actor.Index) && roster[actor.Index].IsParty == actor.IsParty;
-            if (actor.Index == presentationSourceIndex || !hasBoundRow)
+            if (actor.Owner == presentationSourceOwner || !models.Contains(actor.Owner))
             {
-                throw new InvalidDataException("Foreign presentation actors require a unique physical model slot outside the source row.");
+                throw new InvalidDataException("Foreign presentation requires a bound model owner outside its source.");
             }
             if ((actor.NativeModel is null) != (actor.NativeResource is null))
             {
                 throw new InvalidDataException("A native foreign participant requires both its actual model state and resource owner.");
             }
-            NativeBattleGraphicsModel model = previous is null && actor.NativeModel is { } native ? native with { Index = actor.Index, ActiveResourceRow100 = null, OriginalResourceRow104 = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, TextureResourceIndex = null, LinkedTextureResourceIndex = null } : models[actor.Index];
+            NativeBattleGraphicsModel model = previous is null && actor.NativeModel is { } native ? native with { ActiveResourceRow100 = null, OriginalResourceRow104 = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, TextureResourceIndex = null, LinkedTextureResourceIndex = null } : models.Get(actor.Owner);
             NativeBattleModelTransform transform = actor.Transform;
             short rotationX = 0;
             short rotationY = actor.Facing;
             short rotationZ = 0;
-            if (previous?.TryGetValue(actor.Index, out NativeBattleForeignActor? old) == true && model.Transform is { } current)
+            if (previous?.TryGetValue(actor.Owner, out NativeBattleForeignActor? old) == true && model.Transform is { } current)
             {
                 NativeBattleVector position = new(unchecked((short)(transform.Position28.X + current.Position28.X - old.Transform.Position28.X)), unchecked((short)(transform.Position28.Y + current.Position28.Y - old.Transform.Position28.Y)), unchecked((short)(transform.Position28.Z + current.Position28.Z - old.Transform.Position28.Z)));
                 transform = transform with { Position28 = position, Vertical34 = unchecked((short)(transform.Vertical34 + current.Vertical34 - old.Transform.Vertical34)), Scale148 = current.Scale148, Scale154 = current.Scale154 };
@@ -432,8 +430,8 @@ public sealed partial class BattleSession
                 rotationZ = model.Rotation16 ?? 0;
             }
             uint normal = definition.NativeGraphics?.Rules.SummonColors?.Normal ?? throw new NotSupportedException("Foreign model presentation requires its selected normal color.");
-            NativeBattleGraphicsModel bound = model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Flags8 = actor.NativeModel?.Flags8 ?? actor.StatusFlags, Transform = transform, Rotation12 = rotationX, Rotation14 = rotationY, Rotation16 = rotationZ, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModelIndex140 = null };
-            models = models.SetItem(actor.Index, bound with { GeometryWorldMatrix = actor.Geometry is { } geometry ? NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(actor, bound), geometry.World) : null });
+            NativeBattleGraphicsModel bound = model with { Flags0 = (ushort)(model.Flags0 | 2), Flags2 = model.Flags2 ?? 0, Flags8 = actor.NativeModel?.Flags8 ?? actor.StatusFlags, Transform = transform, Rotation12 = rotationX, Rotation14 = rotationY, Rotation16 = rotationZ, GeometryBounds52 = actor.Geometry?.Anchors.LocalBounds, Color40 = model.Color40 ?? 0x808080, Color44 = model.Color44 ?? (normal & 0xFFFFFFu) | 0x32000000u, HasLinkedModelRing140 = false, LinkedModel = null };
+            models = models.Set(actor.Owner, bound with { GeometryWorldMatrix = actor.Geometry is { } geometry ? NativeBattleGfMatrices.Compose56C2F0(NativeBattleForeignPlacement.Delta(actor, bound), geometry.World) : null });
         }
         return models;
     }

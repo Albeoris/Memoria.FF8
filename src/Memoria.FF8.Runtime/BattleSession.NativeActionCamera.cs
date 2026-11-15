@@ -2,18 +2,18 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsResource NativeActionResource(NativeBattleGraphicsState graphics, int index)
+    private NativeBattleGraphicsResource NativeActionResource(NativeBattleGraphicsState graphics, BattleModelOwner index)
     {
-        if (presentationSourceResource is not null && index == presentationSourceIndex || presentationNativeTargets?.ContainsKey(index) == true || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is not null)
+        if (presentationSourceResource is not null && index == presentationSourceOwner || presentationNativeTargets?.ContainsKey(index) == true || presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true && foreign.NativeResource is not null)
         {
             return NativeGraphicsPoseResource(graphics, index);
         }
-        return graphics.ActorModels.Get(index).ActiveStagedResourceRow100 is not null || graphics.ActorModels.Get(index).ModelId4 >= 16 && graphics.ActorModels.Get(index).ActiveResourceRow100 is not null ? NativeGraphicsPoseResource(graphics, index) : FindNativeGraphicsBinding(graphics.ActorIds[index] ?? throw new InvalidDataException("Native action model has no physical actor binding."))?.Resource ?? throw new NotSupportedException("Native action camera requires its original model resource.");
+        return graphics.ActorModels.Get(index).ActiveStagedResourceRow100 is not null || graphics.ActorModels.Get(index).ModelId4 >= 16 && graphics.ActorModels.Get(index).ActiveResourceRow100 is not null ? NativeGraphicsPoseResource(graphics, index) : FindNativeGraphicsBinding(RequireCanonicalGraphicsActorId(index))?.Resource ?? throw new NotSupportedException("Native action camera requires its original model resource.");
     }
 
     private (NativeBattleGraphicsState Graphics, bool Selected) ChooseNativeActionCamera(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
         byte command = header.Command;
         if (command is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 0xEF or 0xF4 or 0xFE)
         {
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             return (graphics, rules.EnemyThreshold[frequency] + NextNativeGlobalRandom() % 193 >= 256);
         }
         byte stage = graphics.StageResourceIndex98990 ?? throw new NotSupportedException("Native5060E0 requires its506CF0-produced stage resource index.");
-        if (definition.EncounterId is 1003 or 63 && (context.TargetMask & ~7) != 0 || stage == 11 || stage is >= 0x98 and <= 0x9C)
+        if (definition.EncounterId is 1003 or 63 && context.TargetActors.Enumerate().Any(target => target is BattleEnemyModelOwner) || stage == 11 || stage is >= 0x98 and <= 0x9C)
         {
             return (graphics, false);
         }
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
             return graphics;
         }
         camera = camera with { Mask = (ushort)(camera.Mask | 0x8000) };
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
         byte command = header.Command;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
         NativeBattleGraphicsResource resource = NativeActionResource(graphics, context.Actor);
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
                 else
                 {
                     selector = checked((byte)(((NextNativeGlobalRandom() & 3) + (actor.CameraSequence130 ?? throw new NotSupportedException("Native506190 requires its model BYTE130 camera index.")) + 2) % 6));
-                    int targetIndex = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native506190 requires its50D300 target.");
+                    BattleModelOwner targetIndex = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native506190 requires its50D300 target.");
                     NativeBattleGraphicsModel target = graphics.ActorModels.Get(targetIndex);
                     if (NativeBattleCameraGraphics.ReadVariable(graphics, 26) > 1 || (target.ModelId4 ?? throw new InvalidDataException("Native506190 target lacks its model ID.")) < 16 && ((target.Flags8 ?? throw new InvalidDataException("Native506190 target lacks its status DWORD8.")) & 0x41021) != 0)
                     {

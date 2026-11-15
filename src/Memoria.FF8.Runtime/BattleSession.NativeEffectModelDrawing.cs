@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeEffectModelContext92(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleVector pivot, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private NativeBattleGraphicsState DrawNativeEffectModelContext92(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleActionMatrix matrix, NativeBattleVector pivot, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
         {
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, uint? privateOrderingAddress = null, short? depthCue = null, uint? contextMaskAddress = null, bool prepareModel = true, bool drawShadow = true, bool drawLinked = true, uint? maskOverride = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, bool linkedOnly = false)
+    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, uint? privateOrderingAddress = null, short? depthCue = null, uint? contextMaskAddress = null, bool prepareModel = true, bool drawShadow = true, bool drawLinked = true, uint? maskOverride = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, bool linkedOnly = false)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
@@ -59,17 +59,17 @@ public sealed partial class BattleSession
         NativeBattleResourcePointer? linkedGeometry = null;
         NativeBattleModelTextureOwner? bodyMaterial = null;
         NativeBattleModelTextureOwner? linkedMaterial = null;
-        if (graphics.PresentationRoster is not null && textures?.PresentationTextures is not null)
+        if (textures?.PresentationTextures is not null)
         {
             if (!linkedOnly)
             {
                 bodyGeometry = GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100);
-                bodyMaterial = SelectNativeModelMaterial(graphics, model, bodyGeometry, textures);
+                bodyMaterial = SelectNativeModelMaterial(graphics, index, bodyGeometry, textures);
             }
             if (linkedOnly || drawLinked && (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null))
             {
                 linkedGeometry = GeometryPointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow);
-                linkedMaterial = SelectNativeModelMaterial(graphics, model, linkedGeometry, textures);
+                linkedMaterial = SelectNativeModelMaterial(graphics, index, linkedGeometry, textures);
             }
         }
         if (linkedOnly)
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
         }
         if (drawShadow)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, callerPilotIdentity: pilotIdentity is { Effect: 212 or 215 or 216 or 274 } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 397 + 0x100), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, index, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress, callerPilotIdentity: pilotIdentity is { Effect: 212 or 215 or 216 or 274 } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 397 + 0x100), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
         }
         if (prepareModel)
         {

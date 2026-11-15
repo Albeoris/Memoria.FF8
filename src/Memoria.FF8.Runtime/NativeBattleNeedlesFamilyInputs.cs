@@ -9,7 +9,7 @@ public abstract record NativeBattleNeedlesFamilyOperation;
 public sealed record NativeBattleNeedlesFamilyRegisterCamera(NativeBattleEffectHeapAllocation Camera) : NativeBattleNeedlesFamilyOperation;
 public sealed record NativeBattleNeedlesFamilyEnqueueTim(int ArenaOffset) : NativeBattleNeedlesFamilyOperation;
 public sealed record NativeBattleNeedlesFamilySound(uint Packed) : NativeBattleNeedlesFamilyOperation;
-public sealed record NativeBattleNeedlesFamilyContact(int Index) : NativeBattleNeedlesFamilyOperation;
+public sealed record NativeBattleNeedlesFamilyContact(BattleContactOccurrence Occurrence) : NativeBattleNeedlesFamilyOperation;
 public sealed record NativeBattleNeedlesFamilyDrawNeedle(uint Temporary220, int Index) : NativeBattleNeedlesFamilyOperation
 {
     [System.Text.Json.Serialization.JsonIgnore]
