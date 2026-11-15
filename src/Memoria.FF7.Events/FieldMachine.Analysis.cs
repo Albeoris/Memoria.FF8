@@ -50,6 +50,7 @@ public sealed partial class FieldMachine
     {
         public List<FieldCommand> Commands { get; } = [];
         public bool StopAtHost { get; init; }
+        public Func<FieldActorQuery, FieldHostReply>? ActorReply { get; init; }
     }
 
     private InstructionInspection? inspection;

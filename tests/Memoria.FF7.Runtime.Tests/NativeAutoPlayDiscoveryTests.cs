@@ -33,6 +33,10 @@ internal static class NativeAutoPlayDiscoveryTests
             {
                 Check(!session.Host.Process.MapJumpDisabled && target.GatewayIndex is int index && session.Field.Triggers.Gateways[index].DestinationField == target.DestinationField, "A gateway ignored native admission or lost its directory index.");
             }
+            else if (target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial)
+            {
+                NativeAutoPlaySpatialTests.CheckTarget(session, target);
+            }
             else
             {
                 int entry = session.Field.Scripts.Entities[target.Entity].ScriptOffsets[target.Script];

@@ -14,10 +14,14 @@ public enum Ff7AutoPlayTargetKind
     LineEnter,
     LineLeave,
     Gateway,
-    WorldMesh
+    WorldMesh,
+    AutonomousSpatial
 }
 
-public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false, string? EntryInputContract = null, bool ChangesField = false);
+public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false, string? EntryInputContract = null, bool ChangesField = false)
+{
+    public int[]? SpatialDestinations { get; init; }
+}
 public sealed record Ff7AutoPlayObservation(string VisitId, string ProgramIdentity, long Generation, Ff7AutoPlayTarget[] Events, bool CanAcceptInput, bool AnalysisComplete, string? SupportReason = null)
 {
     public string NavigationKey { get; init; } = VisitId;
@@ -97,9 +101,10 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 }
                 Vector3 start = gateway.A;
                 Vector3 end = gateway.B;
-                events.Add(new($"gateway:{index}", -1, -1, Ff7AutoPlayTargetKind.Gateway, $"{identity}:gateway:{index}:{gateway.DestinationField}:{gateway.DestinationTriangle}", false, (start + end) / 2, GatewayIndex: index, DestinationField: gateway.DestinationField, SegmentStart: start, SegmentEnd: end));
+                events.Add(new($"gateway:{index}", -1, -1, Ff7AutoPlayTargetKind.Gateway, $"{identity}:gateway:{index}:{gateway.DestinationField}:{gateway.DestinationTriangle}:native-transfer:1", false, (start + end) / 2, GatewayIndex: index, DestinationField: gateway.DestinationField, SegmentStart: start, SegmentEnd: end));
             }
         }
+        AddSpatialTargets(events, persistentReads, globalHostReads);
         bool complete = events.All(target => target.AnalysisComplete);
         return new(visit, identity, session.FieldGeneration, events.ToArray(), canAccept, complete, complete ? null : string.Join("; ", events.Where(target => !target.AnalysisComplete).Select(target => $"{target.Id}: {target.SupportReason}")))
         {

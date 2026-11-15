@@ -22,6 +22,14 @@ public sealed partial class FieldMachine
     {
         if (inspection is not null)
         {
+            if (inspection.ActorReply is not null && command is FieldActorQuery query)
+            {
+                FieldHostReply answer = inspection.ActorReply(query);
+                result?.Invoke(answer.Value);
+                replyResult?.Invoke(answer);
+                Advance(id, length);
+                return false;
+            }
             if (inspection.StopAtHost)
             {
                 throw new InputInspectionBoundaryException();

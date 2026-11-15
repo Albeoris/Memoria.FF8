@@ -139,7 +139,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
-            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind != Ff7AutoPlayTargetKind.WorldMesh || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
+            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind != Ff7AutoPlayTargetKind.WorldMesh || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
                 CompleteActive(observation, active, changedField);
@@ -177,7 +177,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             planner.BeginEvent(observation.VisitId, target.Id);
             State.NavigationGoal = next.Goal;
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
-            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability);
+            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations);
             State.Status = $"{session.Field.Name}: {target.Id}";
             Publish();
         }
@@ -218,6 +218,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                     Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(selectedTarget.Entity),
                     Ff7AutoPlayTargetKind.ActorContact => driver.Contact(selectedTarget.Entity),
                     Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(selectedTarget.GatewayIndex!.Value),
+                    Ff7AutoPlayTargetKind.AutonomousSpatial => driver.Approach(selectedTarget.Position, selectedTarget.Triangle),
                     _ => ChooseLineInput(driver, selectedTarget)
                 };
                 return PrepareEntryInput(selectedTarget, input);
@@ -251,6 +252,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return input;
     }
 
+    internal static bool IsSpatialTransitionCompletion(Ff7AutoPlayActiveEvent active, int actualMap)
+    {
+        return active.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && (active.DestinationField == actualMap || active.SpatialDestinations?.Contains(actualMap) == true);
+    }
+
+    internal static bool SourceStoryChanged(Ff7AutoPlayTargetKind kind, int before, int after)
+    {
+        // Native gateway dispatch only copies its transition descriptor; destination scripts own their progress.
+        return kind != Ff7AutoPlayTargetKind.Gateway && before != after;
+    }
+
     internal static bool IsLineEntryReady(Ff7AutoPlayTargetKind kind, Ff7Line line, bool talk)
     {
         return kind switch
@@ -272,7 +284,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             string? exit = changedField ? null : observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint;
             bool changedComponent = active.NavigationKey is string source && source != observation.NavigationKey;
             int completionStory = active.Kind == Ff7AutoPlayTargetKind.WorldMesh && State.WorldDispatch is { DepartureStory: int departureStory } ? departureStory : Story();
-            bool progressChanged = active.BeforeStory != completionStory;
+            bool progressChanged = SourceStoryChanged(active.Kind, active.BeforeStory, completionStory);
             if (active.Kind == Ff7AutoPlayTargetKind.WorldMesh && State.WorldDispatch?.DepartureStory is not null && State.WorldVisits.TryGetValue(active.VisitId, out Ff7AutoPlayWorldVisitState? worldVisit))
             {
                 worldVisit.SourceProgressEntries.Add(active.EventId + ":" + active.ConditionFingerprint);

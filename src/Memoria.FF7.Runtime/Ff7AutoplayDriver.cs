@@ -44,6 +44,10 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 facts.Append("|gateway:absent");
             }
         }
+        else if (target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial)
+        {
+            facts.Append($"|spatial:{target.Triangle}:{BitConverter.SingleToInt32Bits(target.Position.X)}:{BitConverter.SingleToInt32Bits(target.Position.Y)}:{BitConverter.SingleToInt32Bits(target.Position.Z)}");
+        }
         else
         {
             foreach (Ff7Line line in lines.Where(line => line.Entity == target.Entity).OrderBy(line => line.Slot))

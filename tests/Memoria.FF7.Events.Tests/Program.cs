@@ -25,6 +25,12 @@ if (args.Contains("--scripted-input-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--spatial-input-only", StringComparer.Ordinal))
+{
+    NativeSpatialInputTests.Run();
+    return 0;
+}
+
 if (args.Contains("--saturated-word-add-only", StringComparer.Ordinal))
 {
     SaturatedByteAddTests.RunWordAdd();
@@ -234,6 +240,7 @@ var tests = new (string Name, Action Run)[]
     ("native read-only script dependency analysis", NativeScriptAnalysisTests.Run),
     ("native read-only world script analysis", WorldScriptAnalysisTests.Run),
     ("native read-only scripted input demands", NativeScriptedInputTests.Run),
+    ("native read-only autonomous spatial demands", NativeSpatialInputTests.Run),
     ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
     ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),

@@ -5,10 +5,12 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7AutoPlayVisitGuard(FieldVariableRead[] Reads, FieldHostRead[] HostReads, string Fingerprint);
+public sealed record Ff7AutoPlayVisitGuard(FieldVariableRead[] Reads, FieldHostRead[] HostReads, string Fingerprint, int DiscoveryRevision = 0);
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    internal const int CurrentDiscoveryRevision = 1;
+
     private void ObserveVisitGuard(Ff7AutoPlayObservation observation)
     {
         State.VisitGuards[observation.VisitId] = CaptureVisitGuard(observation.PersistentReads, observation.GlobalHostReads, session.Machine.Variables, session.Progress, session.Host.Process);
@@ -34,6 +36,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return true;
         }
+        if (guard.DiscoveryRevision < CurrentDiscoveryRevision)
+        {
+            return true;
+        }
         Ff7AutoPlayVisitGuard current = CaptureVisitGuard(guard.Reads, guard.HostReads, variables, progress, process);
         return current.Fingerprint != guard.Fingerprint;
     }
@@ -52,6 +58,6 @@ public sealed partial class Ff7AutoPlayPolicy
             Reads = persistent.Select(read => new { Read = read, Value = read.Word ? variables.ReadWord(read.Bank, read.Operand) : variables.ReadByte(read.Bank, checked((byte)read.Operand)) }).ToArray(),
             Host = external.Fingerprint
         });
-        return new(persistent, global, Convert.ToHexString(SHA256.HashData(facts)));
+        return new(persistent, global, Convert.ToHexString(SHA256.HashData(facts)), CurrentDiscoveryRevision);
     }
 }

@@ -33,6 +33,12 @@ if (args.Contains("--autoplay-discovery-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-spatial-only", StringComparer.Ordinal))
+{
+    NativeAutoPlaySpatialTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-choice-only", StringComparer.Ordinal))
 {
     AutoPlayChoiceWorkflowTests.Run();
@@ -565,6 +571,7 @@ var tests = new (string Name, Action Run)[]
     ("native equipment removal and cold continuation", NativeEquipmentRemovalTests.Run),
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native generic autoplay discovery", NativeAutoPlayDiscoveryTests.Run),
+    ("native autonomous spatial frontiers", NativeAutoPlaySpatialTests.Run),
     ("native autoplay choice workflow", AutoPlayChoiceWorkflowTests.Run),
     ("native autoplay scripted input", NativeAutoPlayScriptedInputTests.Run),
     ("native autoplay host read dependencies", NativeAutoPlayHostReadTests.Run),

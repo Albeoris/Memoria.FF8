@@ -50,8 +50,42 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
         {
             return null;
         }
-        CurrentDemand = SelectDemand(session.Machine.ReadCurrentInputDemands());
+        Ff7AutoPlayActiveEvent? active = session.AutoPlayState?.Active;
+        bool locked = session.Host.Process.PlayerLocked;
+        if (!locked && (active is not { Accepted: true, Returned: false } || active.Generation != session.FieldGeneration))
+        {
+            return null;
+        }
+        FieldVmSnapshot vm = session.Machine.Capture();
+        CurrentDemand = SelectDemand(session.Machine.ReadCurrentInputDemands().Where(demand => locked || IsInteractionInputOwner(demand, vm, active, session.FieldGeneration)));
         return CurrentDemand is null ? null : SelectInput(CurrentDemand, session.Machine.Input);
+    }
+
+    internal static bool IsInteractionInputOwner(FieldScriptInputDemand demand, FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation)
+    {
+        if (active is not { Accepted: true, Returned: false } || active.Generation != generation || (uint)active.Entity >= vm.Entities.Length)
+        {
+            return false;
+        }
+        HashSet<int> owners = [active.Entity];
+        bool added;
+        do
+        {
+            added = false;
+            for (int entity = 0; entity < vm.Entities.Length; entity++)
+            {
+                FieldEntitySnapshot target = vm.Entities[entity];
+                for (int priority = 0; priority < target.SyncOwners.Length; priority++)
+                {
+                    if (target.Priority == priority && target.SyncStates[priority] == FieldSyncState.Waiting && owners.Contains(target.SyncOwners[priority]))
+                    {
+                        added |= owners.Add(entity);
+                    }
+                }
+            }
+        }
+        while (added);
+        return owners.Contains(demand.Entity) && (demand.Entity != active.Entity || demand.Priority < 7);
     }
 
     internal static FieldScriptInputDemand? SelectDemand(IEnumerable<FieldScriptInputDemand> demands)
