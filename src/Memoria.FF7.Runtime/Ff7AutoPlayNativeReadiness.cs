@@ -47,7 +47,7 @@ internal sealed class Ff7AutoPlayNativeReadiness
                 {
                     continue;
                 }
-                if (target.SyncStates[priority] == FieldSyncState.Waiting && target.Priority != priority)
+                if (target.SyncStates[priority] == FieldSyncState.Waiting && target.Priority != priority && !(target.Priority < priority && HasFinitePreemptor(vm, process, targetId)))
                 {
                     continue;
                 }
@@ -89,5 +89,24 @@ internal sealed class Ff7AutoPlayNativeReadiness
             repeatedObservations++;
         }
         return repeatedObservations < RepeatedObservationLimit && totalObservations < ObservationLimit;
+    }
+
+    private static bool HasFinitePreemptor(FieldVmSnapshot vm, Ff7FieldProcess process, int entity)
+    {
+        FieldEntitySnapshot active = vm.Entities[entity];
+        FieldHostRequest? request = (vm.PendingRequests ?? []).FirstOrDefault(request => request.Entity == entity && request.Priority == active.Priority && request.ProgramCounter == active.ProgramCounter);
+        Ff7Actor? actor = process.Actors.LastOrDefault(actor => actor.EntityBound && actor.Entity == entity) ?? process.Actors.LastOrDefault(actor => actor.Entity == entity);
+        if (request is null || actor is null)
+        {
+            return false;
+        }
+        return request.Command switch
+        {
+            FieldActorMove move => process.Motions.Any(motion => motion.RequestId == request.Id && motion.Entity == entity) || move.TargetEntity is null && actor.X4096 == move.X << 12 && actor.Y4096 == move.Y << 12,
+            FieldActorJump => actor.Jump?.RequestId == request.Id,
+            FieldActorLadder => actor.Ladder?.RequestId == request.Id,
+            FieldAnimation { Blocking: true } => (!actor.PlayerControlled || process.PlayerLocked || process.Join is not null) && (actor.AnimationSpeed > 0 || actor.LastAnimationFrame >= 0 && actor.AnimationFrame16 >= actor.LastAnimationFrame << 4),
+            _ => false
+        };
     }
 }
