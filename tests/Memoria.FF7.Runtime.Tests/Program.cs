@@ -39,6 +39,12 @@ if (args.Contains("--autoplay-discovery-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-component-probes-only", StringComparer.Ordinal))
+{
+    NativeComponentProbeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--entry-dependencies-only", StringComparer.Ordinal))
 {
     NativeEntryDependencyTests.Run();

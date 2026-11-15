@@ -49,6 +49,8 @@ public sealed class AutoPlayEventCoverage<TDeferral> where TDeferral : class, IA
     public List<AutoPlayEventRoute> Routes { get; set; } = [];
     public List<AutoPlayRetiredRoute> RetiredRoutes { get; set; } = [];
     public bool RouteNeedsRediscovery { get; set; }
+    /// <summary>An explicit route invalidation overrides optional component observations until native completion.</summary>
+    public bool GlobalRouteRediscovery { get; set; }
     public List<AutoPlayUnavailableAttempt> UnavailableAttempts { get; set; } = [];
     public bool Unavailable { get; set; }
     public HashSet<string> UnavailableVariants { get; set; } = new(StringComparer.Ordinal);
@@ -225,6 +227,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         item.Completed = true;
         item.RouteNeedsRediscovery = false;
+        item.GlobalRouteRediscovery = false;
         item.BlockedReason = null;
         item.BlockKind = null;
         item.WalkingSearchRevision = null;
@@ -296,7 +299,14 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         AutoPlayEventRoute recorded = item.Routes.Single(candidate => SameTravelRoute(candidate, route));
         item.RetiredRoutes.Add(new(recorded with { Selections = recorded.Selections!.ToArray() }, actualChoiceKey, first, last, executedPrefix.ToArray()));
         item.Routes.Remove(recorded);
+        MarkRouteNeedsRediscovery(visitKey, eventId);
+    }
+
+    public void MarkRouteNeedsRediscovery(string visitKey, string eventId)
+    {
+        AutoPlayEventCoverage<TDeferral> item = FindEvent(visitKey, eventId);
         item.RouteNeedsRediscovery = true;
+        item.GlobalRouteRediscovery = true;
     }
 
     private static bool SameTravelRoute(AutoPlayEventRoute left, AutoPlayEventRoute right)

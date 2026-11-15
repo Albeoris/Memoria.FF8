@@ -17,10 +17,11 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static void ObserveNavigationProbes(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
+        AutoPlayNavigationVisit navigation = state.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesStory))
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(entry => entry.Event.Id == target.Id);
-            coverage.RouteNeedsRediscovery = coverage.Completed && !state.NavigationProbes.Contains(NavigationProbeKey(observation.NavigationKey, target));
+            navigation.RouteRediscovery[target.Id] = coverage.Completed && !state.NavigationProbes.Contains(NavigationProbeKey(observation.NavigationKey, target));
         }
     }
 

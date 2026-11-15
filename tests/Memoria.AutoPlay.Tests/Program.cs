@@ -55,6 +55,7 @@ finally
 }
 AutoPlayTourTests.Run();
 AutoPlayPlannerTests.Run();
+AutoPlayComponentRediscoveryTests.Run();
 Console.WriteLine("PASS shared autoplay scheduling, atomic saves and optional-area tour contracts");
 
 static void Check(bool condition, string message)

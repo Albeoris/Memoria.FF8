@@ -1,6 +1,10 @@
 namespace Memoria.AutoPlay;
 
-public sealed record AutoPlayNavigationVisit(string Key, string VisitKey, IReadOnlyList<AutoPlayEvent> Events);
+public sealed record AutoPlayNavigationVisit(string Key, string VisitKey, IReadOnlyList<AutoPlayEvent> Events)
+{
+    /// <summary>Optional observational receipts scoped to this exact navigation component.</summary>
+    public Dictionary<string, bool> RouteRediscovery { get; init; } = new(StringComparer.Ordinal);
+}
 public sealed record AutoPlayNavigationEventSource(string NavigationKey, string EventId, string? ConditionSignature, string TargetId);
 public sealed record AutoPlayNavigationRoute(string SourceKey, string DestinationKey, string EventId, AutoPlayEventRoute Route);
 public sealed record AutoPlayRetiredNavigationRoute(AutoPlayNavigationRoute Route, string ActualDestinationKey);
@@ -21,7 +25,10 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         {
             throw new InvalidOperationException("A navigation identity cannot change its aggregate visit.");
         }
-        AutoPlayNavigationVisit observation = new(navigationKey, visitKey, events.OrderBy(item => item.Id, StringComparer.Ordinal).Select(item => item with { Variants = item.Variants?.ToArray() }).ToArray());
+        AutoPlayNavigationVisit observation = new(navigationKey, visitKey, events.OrderBy(item => item.Id, StringComparer.Ordinal).Select(item => item with { Variants = item.Variants?.ToArray() }).ToArray())
+        {
+            RouteRediscovery = previous?.RouteRediscovery.Where(entry => events.Any(item => item.Id == entry.Key && previous.Events.Any(known => known.Id == item.Id && known.ConditionSignature == item.ConditionSignature && (known.Variants ?? []).SequenceEqual(item.Variants ?? [], StringComparer.Ordinal)))).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal) ?? new(StringComparer.Ordinal)
+        };
         if (previous is null)
         {
             State.NavigationVisits.Add(observation);
@@ -58,6 +65,10 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         if (!State.NavigationRoutes.Any(known => known.SourceKey == sourceKey && known.DestinationKey == destinationKey && known.EventId == eventId && SameTravelRoute(known.Route, route)))
         {
             State.NavigationRoutes.Add(new(sourceKey, destinationKey, eventId, route with { Selections = route.Selections?.ToArray() }));
+        }
+        if (observedSource)
+        {
+            source.RouteRediscovery[eventId] = false;
         }
     }
 
@@ -232,7 +243,8 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                     CompletedAvailabilityFingerprints = shared.CompletedAvailabilityFingerprints,
                     PolicyDeferred = shared.PolicyDeferred,
                     PolicyDeferredVariants = shared.PolicyDeferredVariants,
-                    RouteNeedsRediscovery = !hint && shared.RouteNeedsRediscovery,
+                    RouteNeedsRediscovery = !hint && (shared.GlobalRouteRediscovery || shared.RouteNeedsRediscovery && shared.RetiredRoutes.Count > 0 || (observation.RouteRediscovery.TryGetValue(observed.Id, out bool rediscover) ? rediscover : shared.RouteNeedsRediscovery)),
+                    GlobalRouteRediscovery = shared.GlobalRouteRediscovery,
                     AllowHistoricalTravelConditions = historicalTravel
                 };
                 if (shared.Completed && shared.Routes.Count != 0)

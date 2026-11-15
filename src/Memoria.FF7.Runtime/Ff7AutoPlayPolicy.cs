@@ -352,8 +352,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint)).ToArray();
         planner.Observe(new(observation.VisitId, observation.ProgramIdentity), events);
-        ObserveNavigationProbes(State, observation);
         planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, events);
+        ObserveNavigationProbes(State, observation);
         ObserveVisitGuard(observation);
         return observation;
     }
