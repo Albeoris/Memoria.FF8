@@ -19,6 +19,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         this.session = session;
         State = session.AutoPlayState?.Clone() ?? new();
         State.Validate();
+        RestoreUnscopedMovementFailures(State);
         planner = CreatePlanner(State);
         discovery = new(session);
         choices = new(session, planner, State, writeChoiceCheckpoint);
@@ -91,6 +92,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == eventId);
             physicalGuards[entry.Key] = target is null ? $"{observation.ProgramIdentity}:absent:{eventId}" : driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities);
+            physicalGuards[entry.Key] = ReadMovementFailureFingerprint(physicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors);
             var coverage = target is null ? null : State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
             bool currentFailure = coverage?.UnavailableAttempts.Any(attempt => attempt.GuardKey == entry.Key && attempt.GuardFingerprint == physicalGuards[entry.Key]) == true;
             if (currentFailure)
@@ -101,6 +103,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             if (target is not null && guard.SourceTriangle is int triangle && (uint)triangle < session.Field.Walkmesh.Count)
             {
                 validatedPhysicalGuards[entry.Key] = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
+                validatedPhysicalGuards[entry.Key] = ReadMovementFailureFingerprint(validatedPhysicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors);
                 if (guard.NavigationKey == observation.NavigationKey)
                 {
                     if (currentFailure)
@@ -172,7 +175,13 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         driver.AvoidLinePush(observation.Events.Where(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && target.ChangesField && target.Entity != selectedLineOwner && !(selectedTarget.Kind == Ff7AutoPlayTargetKind.Gateway && selectedTarget.DestinationField == target.DestinationField)).Select(target => target.Entity).Distinct().ToArray());
         if (DetectMovementCycle(current))
         {
-            planner.Block(current.VisitId, current.EventId, "Physical navigation repeated a bounded native position cycle.", AutoPlayBlockKind.Walking);
+            Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+            int margin = checked(player.CollisionRadius * 4096);
+            Ff7AutoPlayMovementFailure failure = new(recentPositions.Min(position => position.X) - margin, recentPositions.Max(position => position.X) + margin, recentPositions.Min(position => position.Y) - margin, recentPositions.Max(position => position.Y) + margin);
+            string key = observation.NavigationKey + ":" + current.EventId + ":movement-cycle";
+            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, [], selectedTarget.Id, observation.NavigationKey, player.Triangle, failure);
+            string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget), failure, session.Host.Process.Actors);
+            planner.MarkUnavailable(current.VisitId, current.EventId, new(current.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
             State.Status = "Replanning after a native navigation cycle";
             Publish();
@@ -344,9 +353,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private bool DetectMovementCycle(Ff7AutoPlayActiveEvent active)
     {
-        if (movementEvent != active.EventId)
+        string identity = $"{active.NavigationKey}:{active.EventId}:{active.Generation}";
+        if (movementEvent != identity)
         {
-            movementEvent = active.EventId;
+            movementEvent = identity;
             recentPositions.Clear();
         }
         Ff7Actor? actor = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);

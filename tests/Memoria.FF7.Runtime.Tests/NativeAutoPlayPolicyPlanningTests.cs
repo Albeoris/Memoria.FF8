@@ -32,6 +32,34 @@ internal static class NativeAutoPlayPolicyPlanningTests
         CheckEntryAvailability();
         CheckStoryFrontierPrecedesRefresh();
         CheckCompletedStoryDoesNotStarvePartyFrontier();
+        CheckMovementFailureScope();
+    }
+
+    private static void CheckMovementFailureScope()
+    {
+        Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, PlayerControlled = true, X4096 = 100, Y4096 = 100 };
+        Ff7Actor obstacle = new() { Slot = 1, Entity = 1, Model = 1, CollisionEnabled = true, X4096 = 500 };
+        Ff7AutoPlayMovementFailure bounds = new(0, 200, 0, 200);
+        string blocked = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player, obstacle]);
+        Check(blocked == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player with { X4096 = 110, Direction = 128 }, obstacle]), "Small movement or facing changes inside a failed search region must not replay its cycle.");
+        string departed = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player with { X4096 = 201 }, obstacle]);
+        Check(blocked != departed, "A meaningful departure must refresh the local cycle deferral.");
+        Check(blocked != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player, obstacle with { X4096 = 501 }]), "Changed native occupancy must refresh the local cycle deferral.");
+        Ff7AutoPlayState state = new();
+        var planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        planner.Observe(new("visit", "resource"), [new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry")]);
+        planner.BeginEvent("visit", "exit");
+        planner.MarkUnavailable("visit", "exit", new("entry", "visit", "cycle", blocked, "exit"));
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["cycle"] = blocked });
+        Check(planner.Plan("visit") is null, "The unchanged failed region must remain deferred.");
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["cycle"] = departed });
+        Check(planner.Plan("visit")?.Event.Id == "exit", "A local search failure must not consume execution after departure.");
+        Ff7AutoPlayState older = new();
+        var olderPlanner = Ff7AutoPlayPolicy.CreatePlanner(older);
+        olderPlanner.Observe(new("visit", "resource"), [new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry")]);
+        olderPlanner.Block("visit", "exit", "Physical navigation repeated a bounded native position cycle.", AutoPlayBlockKind.Walking);
+        Ff7AutoPlayPolicy.RestoreUnscopedMovementFailures(older);
+        Check(olderPlanner.Plan("visit")?.Event.Id == "exit", "Legacy optional search caches without a position witness must permit genuine reobservation.");
     }
 
     private static void CheckCompletedStoryDoesNotStarvePartyFrontier()
