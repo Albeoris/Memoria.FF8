@@ -10,6 +10,56 @@ public sealed class PartySelectionViewTests
     private static NativePartyMenuState Menu => new(0, string.Empty, string.Empty, 0, 0, 0, 0, 0, NativePartyMenuPhase.Active, 2, [0, 1, 5], 0xFF, 0x05, 1, false, NativeFieldMenuKind.PartySelection, 2, 0, null, null, null, [2, 255, 3, 4, 255, 6, 7, 255], 2);
 
     [Theory]
+    [InlineData(3, 1)]
+    [InlineData(5, 2)]
+    [InlineData(7, 1)]
+    public void GuestPanesNavigateOnlyEnabledCompanionsAndConfirmWithDisabledHoles(int enabled, int firstSlot)
+    {
+        NativePartyMenuState menu = Menu with { Kind = NativeFieldMenuKind.GuestSelection, NativeEntrySelection = checked((byte)enabled), LockedMask = 1, TemporaryCombatParty = [0, 255, 255], TemporaryReserveParty = [1, 2, 3, 5, 255, 255, 255, 255], SelectedPartySlot = null };
+        Assert.True(NativePartyMenuProjection.HasPanes(menu));
+        IReadOnlyList<PlayerAction> inputs = NativePartyMenuProjection.Inputs(menu);
+        Assert.Equal(new PlayerAction(PlayerActionKind.SelectPartySlot, firstSlot), inputs[0]);
+        Assert.DoesNotContain(inputs, input => input.Kind == PlayerActionKind.Confirm || input.Value == 0);
+
+        menu = menu with { SelectedPartySlot = firstSlot };
+        inputs = NativePartyMenuProjection.Inputs(menu);
+        int reserve = PartySelectionView.Navigate(menu, 0, 1, 0);
+        Assert.Equal(PlayerActionKind.SelectPartyMember, inputs[reserve].Kind);
+        Assert.NotEqual(255, inputs[reserve].Value);
+        Assert.Equal(0, PartySelectionView.Navigate(menu, reserve, -1, 0));
+        Assert.DoesNotContain(inputs, input => input.Kind == PlayerActionKind.Confirm);
+
+        byte[] party = [0, (byte)((enabled & 2) != 0 ? 1 : 255), (byte)((enabled & 4) != 0 ? 5 : 255)];
+        menu = menu with { TemporaryCombatParty = party, SelectedPartySlot = null };
+        inputs = NativePartyMenuProjection.Inputs(menu);
+        int lastSlot = inputs.Count - 2;
+        int confirm = PartySelectionView.Navigate(menu, lastSlot, 0, 1);
+        Assert.Equal(PlayerActionKind.Confirm, inputs[confirm].Kind);
+        Assert.Equal(lastSlot, PartySelectionView.Navigate(menu, confirm, 0, -1));
+    }
+
+    [Fact]
+    public void GuestMenuDrawsPortraitsAndFocusWithoutDemandingDisabledThirdMember()
+    {
+        NativePartyMenuState menu = Menu with { Kind = NativeFieldMenuKind.GuestSelection, NativeEntrySelection = 3, LockedMask = 1, TemporaryCombatParty = [0, 255, 255], TemporaryReserveParty = [1, 2, 3, 5, 255, 255, 255, 255], SelectedPartySlot = null };
+        MenuData data = new();
+        foreach (int row in new[] { 0, 1, 2, 3, 5 })
+        {
+            data.Characters.Add(new MenuCharacter { Id = $"character-{row}", NativeId = row, Name = $"Member {row}" });
+        }
+        UiView view = PartySelectionView.Build(menu, data, 0);
+        view.Resize(960, 672);
+        Canvas canvas = new(960, 672);
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(new[] { 0, 1, 2, 3, 5 }, canvas.Images.Select(image => image.Source.Id));
+        Assert.Single(canvas.Pointers);
+        Assert.Contains("Select a party member.", canvas.Texts);
+        Assert.DoesNotContain("Choose three members, then confirm.", canvas.Texts);
+        Assert.True(NativePartyMenuProjection.HasPanes(menu with { Phase = NativePartyMenuPhase.Closing }));
+        Assert.Empty(NativePartyMenuProjection.Inputs(menu with { Phase = NativePartyMenuPhase.Closing }));
+    }
+
+    [Theory]
     [InlineData(640, 448, 1f)]
     [InlineData(960, 672, 1.5f)]
     [InlineData(1920, 1080, 3f)]

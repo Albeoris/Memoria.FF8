@@ -123,8 +123,8 @@ internal static class MenuPreview
             if (statePath is not null)
             {
                 GameState state = PlayerStateLoader.Load(statePath, gameDirectory);
-                menu = state.EventState?.GetProperty("PartyMenu").Deserialize<NativePartyMenuState>() ?? throw new ArgumentException("Party selection preview requires an active party menu.");
-                if (menu is not { Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty.Length: 3, TemporaryReserveParty.Length: 8 })
+                menu = state.EventState?.GetProperty("PartyMenu").Deserialize<NativePartyMenuState>(new JsonSerializerOptions { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } }) ?? throw new ArgumentException("Party selection preview requires an active party menu.");
+                if (!NativePartyMenuProjection.HasPanes(menu))
                 {
                     throw new ArgumentException("Party selection preview requires initialized combat and reserve panes.");
                 }

@@ -141,7 +141,8 @@ public static class PartySelectionView
             int selectedRow = focused is { Kind: PlayerActionKind.SelectPartyMember } reserve ? reserve.Value : focused is { Kind: PlayerActionKind.SelectPartySlot } combat ? menu.TemporaryCombatParty![combat.Value] : 255;
             Status(canvas, theme, Character(selectedRow), new UiRect(558, 450, 360, 126));
             theme.Panel(canvas, new UiRect(18, 600, 924, 54));
-            Text(canvas, pending ? FormatSystemText("inspector.ui.partyselectionview.drawself.clear.selection", "{0}: clear selection", cancelHint) : SystemText("inspector.ui.partyselectionview.drawself.choose.three.members.then.confirm", "Choose three members, then confirm."), 19, new UiRect(250, 612, 670, 32), theme.Muted);
+            string selectionHint = menu.Kind == NativeFieldMenuKind.GuestSelection ? SystemText("inspector.ui.partyselectionview.drawself.select.a.party.member", "Select a party member.") : SystemText("inspector.ui.partyselectionview.drawself.choose.three.members.then.confirm", "Choose three members, then confirm.");
+            Text(canvas, pending ? FormatSystemText("inspector.ui.partyselectionview.drawself.clear.selection", "{0}: clear selection", cancelHint) : selectionHint, 19, new UiRect(250, 612, 670, 32), theme.Muted);
             bool canConfirm = !pending && inputs.Any(input => input.Kind == PlayerActionKind.Confirm);
             Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.confirm", "Confirm"), 24, new UiRect(62, 610, 142, 36), canConfirm ? theme.Foreground : theme.Muted);
             if (focused is { Kind: PlayerActionKind.Confirm })

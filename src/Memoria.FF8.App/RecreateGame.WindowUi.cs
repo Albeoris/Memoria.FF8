@@ -57,10 +57,10 @@ internal sealed partial class RecreateGame
     {
         NativePartyMenuState menu = events!.PartyMenu!;
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
-        if (menu is { Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty.Length: 3, TemporaryReserveParty.Length: 8 })
+        if (GameUi.NativePartyMenuProjection.HasPanes(menu))
         {
-            IReadOnlySet<int> visible = menu.TemporaryCombatParty.Concat(menu.TemporaryReserveParty).Where(row => row != 255).Select(row => (int)row).ToHashSet();
-            string key = string.Join("|", WindowTextScale, uiPreferences.UiFontFamily, menu.Phase, menu.SelectedPartySlot, menu.LockedMask, partyMenuCandidate, string.Join(",", menu.TemporaryCombatParty), string.Join(",", menu.TemporaryReserveParty), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice, string.Join(";", visible.Select(row => session.State.CharacterVitals?.Records.ElementAtOrDefault(row)).Where(character => character is not null).Select(character => $"{character!.CharacterId}:{character.Experience}:{character.HitPoints}:{GameUi.LiveMenuData.CharacterName(session.State, character.CharacterId, events.Scene.Names, liveMenuCatalog)}")));
+            IReadOnlySet<int> visible = menu.TemporaryCombatParty!.Concat(menu.TemporaryReserveParty!).Where(row => row != 255).Select(row => (int)row).ToHashSet();
+            string key = string.Join("|", WindowTextScale, uiPreferences.UiFontFamily, menu.Kind, menu.NativeEntrySelection, menu.Phase, menu.SelectedPartySlot, menu.LockedMask, partyMenuCandidate, string.Join(",", menu.TemporaryCombatParty!), string.Join(",", menu.TemporaryReserveParty!), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice, string.Join(";", visible.Select(row => session.State.CharacterVitals?.Records.ElementAtOrDefault(row)).Where(character => character is not null).Select(character => $"{character!.CharacterId}:{character.Experience}:{character.HitPoints}:{GameUi.LiveMenuData.CharacterName(session.State, character.CharacterId, events.Scene.Names, liveMenuCatalog)}")));
             if (nativePartyWindowUi is null || nativePartyWindowKey != key)
             {
                 GameUi.MenuData data = GameUi.LiveMenuData.Build(session.State, events.Scene.Names, liveMenuCatalog, visible);

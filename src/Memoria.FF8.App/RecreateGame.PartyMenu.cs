@@ -20,7 +20,7 @@ internal sealed partial class RecreateGame
                 fieldSeconds = 0;
                 return;
             }
-            if (events.PartyMenu.Kind == NativeFieldMenuKind.PartySelection)
+            if (NativePartyMenuProjection.HasPanes(events.PartyMenu))
             {
                 if (input.Cancel && events.PartyMenu.SelectedPartySlot is not null)
                 {
@@ -46,7 +46,19 @@ internal sealed partial class RecreateGame
                     fieldAudio?.PlayUiSound(result.Accepted ? MenuSound.Confirm : MenuSound.Error);
                     if (result.Accepted)
                     {
-                        partyMenuCandidate = events.PartyMenu?.SelectedPartySlot ?? 0;
+                        partyMenuCandidate = 0;
+                        if (events.PartyMenu is { SelectedPartySlot: int selected } menu)
+                        {
+                            IReadOnlyList<PlayerAction> nextChoices = NativePartyMenuProjection.Inputs(menu);
+                            for (int index = 0; index < nextChoices.Count; index++)
+                            {
+                                if (nextChoices[index] == new PlayerAction(PlayerActionKind.SelectPartySlot, selected))
+                                {
+                                    partyMenuCandidate = index;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     fieldSeconds = 0;
                     return;

@@ -2,12 +2,52 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeGuestSelectionMenuTests
 {
+    [Fact]
+    public void FieldGuestMenuCanContinueThroughProjectedNavigationWithDisabledSlot()
+    {
+        string directory = TestResources.GameDirectory;
+        string source = TestResources.FixturePath("App.Tests.GuestMenuContinuation");
+        GameSession session = new(PlayerStateLoader.Load(source, directory));
+        using GameWorld world = new(session, directory);
+        world.EnsureField();
+        NativePartyMenuState menu = Assert.IsType<NativePartyMenuState>(world.Events.PartyMenu);
+        Assert.Equal(NativeFieldMenuKind.GuestSelection, menu.Kind);
+        Assert.Equal(3, menu.NativeEntrySelection);
+        Assert.Equal(NativePartyMenuPhase.Active, menu.Phase);
+        Assert.False(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+        Assert.True(NativePartyMenuProjection.HasPanes(menu));
+        Assert.True(world.Apply(NativePartyMenuProjection.Inputs(menu)[0]).Accepted);
+        menu = world.Events.PartyMenu!;
+        Assert.Equal(1, menu.SelectedPartySlot);
+        int reserve = PartySelectionView.Navigate(menu, 0, 1, 0);
+        PlayerAction choose = NativePartyMenuProjection.Inputs(menu)[reserve];
+        Assert.Equal(PlayerActionKind.SelectPartyMember, choose.Kind);
+        Assert.NotEqual(255, choose.Value);
+        Assert.True(world.Apply(choose).Accepted);
+        menu = world.Events.PartyMenu!;
+        Assert.Equal(new byte[] { 0, (byte)choose.Value, 255 }, menu.TemporaryCombatParty);
+        Assert.Null(menu.SelectedPartySlot);
+        RestoreAndCompare(world, session, directory);
+        int confirm = PartySelectionView.Navigate(menu, 0, 0, 1);
+        Assert.Equal(PlayerActionKind.Confirm, NativePartyMenuProjection.Inputs(menu)[confirm].Kind);
+        Assert.True(world.Apply(NativePartyMenuProjection.Inputs(menu)[confirm]).Accepted);
+        for (int callback = 0; session.State.FieldId == 180 && callback < 100; callback++)
+        {
+            world.Apply(new PlayerAction(PlayerActionKind.Wait));
+        }
+        Assert.Null(world.Events.LastFault);
+        Assert.Null(world.Events.PartyMenu);
+        Assert.Equal(946, session.State.FieldId);
+        Assert.Equal(1200, session.State.WorldEntryMemory!.StoryWord);
+    }
+
     [Theory]
     [InlineData(3)]
     [InlineData(7)]
