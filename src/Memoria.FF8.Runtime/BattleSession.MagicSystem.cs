@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ValidateBattleMagicSnapshot()
+    private void ValidateBattleMagicSnapshot(BattleActionPresentation? settledHostedRecovery, string? hostedReservation)
     {
         if (magicVitals is null)
         {
@@ -146,9 +146,15 @@ public sealed partial class BattleSession
             return header is null && !free && ability != BattleAbility.Draw && GetActor(actorId).MagicRecordId is not null && (ability == BattleAbility.Magic || native?.Command == 2);
         }
         List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeader, command.GuardianFormAction))).ToList();
+        if (hostedReservation is not null && magicVitals.MagicSystem.Reservations.Any(reservation => reservation.ActionId == hostedReservation))
+        {
+            throw new InvalidDataException("A hosted completion cannot carry an unsettled magic reservation.");
+        }
         if (ActiveAction is { } active)
         {
-            commands.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId, NeedsReservation(active.ActorId, active.Ability, active.NativeAction, active.FreeNativeMagic, active.NativeHeader, active.GuardianFormAction)));
+            bool required = NeedsReservation(active.ActorId, active.Ability, active.NativeAction, active.FreeNativeMagic, active.NativeHeader, active.GuardianFormAction);
+            bool settled = hostedReservation is not null && ReferenceEquals(active, settledHostedRecovery) && active is { Phase: BattleActionPhase.Recovery, MagicReservationId: null };
+            commands.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId, required && !settled));
         }
         if (nativeTimedAction is { } timed)
         {

@@ -29,12 +29,17 @@ public sealed partial class BattleSession
             throw new InvalidDataException("A completion-only event cannot own outstanding contacts.");
         }
 
-        BattleSnapshot before = Capture();
+        BattleSnapshot before = CaptureState();
+        if (!ReferenceEquals(before.ActiveAction, hostedEvent.ActivePresentation))
+        {
+            throw new InvalidDataException("Hosted completion captured a different logical action from its validated live event.");
+        }
         BattleCombatant liveActor = GetActor(receipt.ActorId);
         bool retainCommittedMirror = !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
-        BattleSnapshot seed = retainCommittedMirror ? before with { ActiveAction = null } : before;
+        BattleSnapshot seed = NativeBattleStorageSnapshots.Capture(retainCommittedMirror ? before with { ActiveAction = null } : before);
+        HostedEventCompletionCandidateProof proof = new(seed, hostedEvent, receipt);
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(seed, customHandlers);
+        BattleSession candidate = RestoreSnapshot(seed, customHandlers, proof);
         candidate.preparingExpandedHostedAction = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         BattleCombatant actor = candidate.GetActor(receipt.ActorId);
@@ -79,7 +84,7 @@ public sealed partial class BattleSession
         }
 
         BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = Restore(seed, customHandlers);
+        BattleSession preflight = RestoreSnapshot(seed, customHandlers, proof);
         preflight.expandedPartyPresentation = expandedPartyPresentation;
         preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
         preflight.ValidatePreparedExpandedPresentation(candidate);

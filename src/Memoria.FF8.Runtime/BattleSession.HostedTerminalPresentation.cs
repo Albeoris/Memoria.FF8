@@ -6,6 +6,10 @@ internal sealed record NativeBattleTerminalFinished(HostedBattleTerminal Termina
 
 public sealed partial class BattleSession
 {
+    private abstract record HostedCandidateProof;
+    private sealed record HostedTerminalCandidateProof(HostedBattleTerminal Terminal) : HostedCandidateProof;
+    private sealed record HostedEventCompletionCandidateProof(BattleSnapshot Snapshot, ExpandedHostedEvent Event, NativeBattlePresentationCompletionRequested Receipt) : HostedCandidateProof;
+
     private HostedBattleTerminal? expandedHostedTerminal;
     private bool expandedTerminalEntered;
     private bool deferExpandedHostedTerminal;

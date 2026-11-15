@@ -545,9 +545,15 @@ public sealed partial class BattleSession
         return RestoreSnapshot(snapshot, additionalHandlers, null);
     }
 
-    private static BattleSession RestoreSnapshot(BattleSnapshot snapshot, IEnumerable<IBattleStatusEffectHandler>? additionalHandlers, HostedBattleTerminal? preparedTerminal)
+    private static BattleSession RestoreSnapshot(BattleSnapshot snapshot, IEnumerable<IBattleStatusEffectHandler>? additionalHandlers, HostedCandidateProof? hostedProof)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        var completion = hostedProof as HostedEventCompletionCandidateProof;
+        if (completion is not null && (!ReferenceEquals(snapshot, completion.Snapshot) || !snapshot.Definition.UsesExpandedRoster || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
+            completion.Event.CompletionToken != completion.Receipt.Token || completion.Event.Callback != completion.Receipt.Callback || completion.Event.Command.ActorId != completion.Receipt.ActorId))
+        {
+            throw new InvalidDataException("A hosted completion candidate requires its exact pending logical event and retired callback.");
+        }
         try
         {
             BattleDefinition snapshotDefinition = snapshot.Definition;
@@ -563,8 +569,10 @@ public sealed partial class BattleSession
             session.originalParticipantSlotsInitialized = snapshot.OriginalParticipantSlotsInitialized;
             session.RestoreNativeEntry(snapshot);
             session.RestoreNativeCamera(snapshot);
-            session.RestoreValidated(snapshot, preparedTerminal);
-            session.ValidateBattleMagicSnapshot();
+            session.expandedHostedEvent = completion?.Event;
+            session.RestoreValidated(snapshot, (hostedProof as HostedTerminalCandidateProof)?.Terminal);
+            session.ValidateBattleMagicSnapshot(completion is null ? null : snapshot.ActiveAction, completion?.Event.Command.MagicReservationId);
+            session.expandedHostedEvent = null;
             session.RefreshPreparedPresentation();
             return session;
         }
@@ -1941,7 +1949,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("The prepared terminal result differs from its logical candidate.");
         }
         process.ValidateTerminal(preparation);
-        PublishValidatedCandidate(candidate, preparation.Terminal);
+        PublishValidatedCandidate(candidate, new HostedTerminalCandidateProof(preparation.Terminal));
         PublishExpandedHostedTerminal(process, preparation);
     }
 
@@ -1950,10 +1958,10 @@ public sealed partial class BattleSession
         PublishValidatedCandidate(candidate, null);
     }
 
-    private void PublishValidatedCandidate(BattleSession candidate, HostedBattleTerminal? terminal)
+    private void PublishValidatedCandidate(BattleSession candidate, HostedCandidateProof? hostedProof)
     {
         BattleSnapshot candidateSnapshot = candidate.Capture();
-        candidate = RestoreSnapshot(candidateSnapshot, null, terminal);
+        candidate = RestoreSnapshot(candidateSnapshot, null, hostedProof);
         DiagnosticResetCount++;
         ResetDiagnosticCounterOwners();
         CopyCandidateState(candidate, candidateSnapshot);
