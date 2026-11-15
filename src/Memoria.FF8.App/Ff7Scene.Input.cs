@@ -132,7 +132,7 @@ internal sealed partial class Ff7Scene
             {
                 continue;
             }
-            Action<Rectangle>? specialOverlay = Session.World is null && window.SpecialType == 2 ? overlayClip => DrawNumberSpecialWindow(batch, window, bounds, overlayClip) : null;
+            Action<Ff7SpecialWindowView>? specialOverlay = Session.World is null && window.SpecialType == 2 ? view => DrawNumberSpecialWindow(batch, window, view) : null;
             if (!UseNativeDialogue)
             {
                 DrawCommonDialogue(batch, dialogue, window, bounds, specialOverlay);
@@ -148,7 +148,8 @@ internal sealed partial class Ff7Scene
             {
                 DrawWindow(batch, animated, Math.Max(1, bounds.Width / 320));
             }
-            specialOverlay?.Invoke(clip);
+            Vector2 logicalScale = new(bounds.Width / 320f, bounds.Height / 240f);
+            specialOverlay?.Invoke(new(new Vector2(bounds.X, bounds.Y) + new Vector2(window.X, window.Y) * logicalScale, logicalScale, clip));
             if (dialogue.TextVisible)
             {
                 dialogueCanvas!.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));

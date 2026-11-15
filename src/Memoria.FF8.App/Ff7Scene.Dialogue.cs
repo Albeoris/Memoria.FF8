@@ -98,7 +98,7 @@ internal sealed partial class Ff7Scene
         setDialoguePreferences(current with { TextFontMode = native ? GameTextFontMode.Native : GameTextFontMode.System, TextLayoutMode = native ? GameTextLayoutMode.OriginalCompatible : GameTextLayoutMode.Adaptive });
     }
 
-    private void DrawCommonDialogue(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds, Action<Rectangle>? overlay = null)
+    private void DrawCommonDialogue(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds, Action<Ff7SpecialWindowView>? overlay = null)
     {
         UiPreferences preferences = dialoguePreferences?.Invoke() ?? throw new InvalidOperationException("FFVII dialogue requires the shared host presentation context.");
         IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
@@ -124,7 +124,12 @@ internal sealed partial class Ff7Scene
         }
         DialogueVisualPage visual = presentation.Pages[presentation.Pager.PageIndex];
         float scale = bounds.Width / 320f;
-        PixelBounds panel = DialoguePresentation.Bounds(state, nativeWindow, new PixelBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height), visual.Width * scale, visual.Height * scale);
+        Vector2 contentSize = new(visual.Width, visual.Height);
+        if (overlay is not null)
+        {
+            contentSize = Ff7NumberWindowPresentation.IncludeContent(window, contentSize, preferences.TextScale);
+        }
+        PixelBounds panel = DialoguePresentation.Bounds(state, nativeWindow, new PixelBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height), contentSize.X * scale, contentSize.Y * scale);
         UiRect animated = Ff7DialoguePresentationPolicy.AnimatedPanel(panel, dialogue, window);
         Rectangle clip = Ff7DialoguePresentationPolicy.Clip(animated, bounds);
         if (clip.Width == 0 || clip.Height == 0)
@@ -138,7 +143,7 @@ internal sealed partial class Ff7Scene
                 : new UiTheme { FontFamily = preferences.UiFontFamily });
             theme.Panel(dialogueCanvas!, animated);
         }
-        overlay?.Invoke(clip);
+        overlay?.Invoke(new(new(panel.X, panel.Y), new(scale), clip));
         if (!dialogue.TextVisible)
         {
             return;

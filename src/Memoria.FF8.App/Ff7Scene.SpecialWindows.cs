@@ -41,26 +41,28 @@ internal sealed partial class Ff7Scene
         return true;
     }
 
-    private void DrawNumberSpecialWindow(SpriteBatch batch, Ff7Window window, Rectangle bounds, Rectangle clip)
+    private void DrawNumberSpecialWindow(SpriteBatch batch, Ff7Window window, Ff7SpecialWindowView view)
     {
-        IReadOnlyList<Ff7SpecialNumberGlyph> glyphs = Ff7NumberWindowPresentation.Create(window);
-        if (glyphs.Count == 0)
+        IReadOnlyList<Ff7SpecialNumberSprite> sprites = Ff7NumberWindowPresentation.Place(window, view, PresentationPreferences.TextScale);
+        if (sprites.Count == 0)
         {
             return;
         }
         Texture2D atlas = NumberWindowAtlas();
-        float scale = bounds.Width / 320f;
-        Vector2 glyphScale = new(scale / 2 * PresentationPreferences.TextScale / 100f);
-        foreach (Ff7SpecialNumberGlyph glyph in glyphs)
+        Rectangle coverage = Rectangle.Empty;
+        foreach (Ff7SpecialNumberSprite sprite in sprites)
         {
-            Vector2 position = new(bounds.X + glyph.X * scale, bounds.Y + glyph.Y * scale);
-            Rectangle source = new((glyph.SourceX + 256) % 256, glyph.SourceY, 32, 42);
-            SpriteRegionDrawing.DrawClipped(batch, atlas, position, source, Color.White, clip, glyphScale);
+            batch.Draw(atlas, sprite.Position, sprite.Source, Color.White, 0, Vector2.Zero, sprite.Scale, SpriteEffects.None, 0);
+            int left = (int)MathF.Floor(sprite.Position.X);
+            int top = (int)MathF.Floor(sprite.Position.Y);
+            int right = (int)MathF.Ceiling(sprite.Position.X + sprite.Source.Width * sprite.Scale.X);
+            int bottom = (int)MathF.Ceiling(sprite.Position.Y + sprite.Source.Height * sprite.Scale.Y);
+            Rectangle region = new(left, top, right - left, bottom - top);
+            coverage = coverage.IsEmpty ? region : Rectangle.Union(coverage, region);
         }
         if (Session!.Host.Process.FadeState is { QuadBlend: Ff7FadeQuadBlend.Alpha, QuadColorArgb: uint quad } && (quad >> 24) != 0)
         {
-            Vector2 origin = new(bounds.X + glyphs[0].X * scale, bounds.Y + glyphs[0].Y * scale);
-            Rectangle faded = Rectangle.Intersect(clip, new Rectangle((int)origin.X, (int)origin.Y, (int)MathF.Ceiling(glyphs.Count * 16 * scale), (int)MathF.Ceiling(21 * scale)));
+            Rectangle faded = Rectangle.Intersect(view.Clip, coverage);
             if (faded.Width > 0 && faded.Height > 0)
             {
                 batch.Draw(pixel, faded, new Color(0, 0, 0, (int)(quad >> 24)));
@@ -97,6 +99,8 @@ internal static class Ff7CountdownText
 
 
 internal sealed record Ff7SpecialNumberGlyph(int X, int Y, int SourceX, int SourceY);
+internal readonly record struct Ff7SpecialWindowView(Vector2 Origin, Vector2 LogicalScale, Rectangle Clip);
+internal sealed record Ff7SpecialNumberSprite(Rectangle Source, Vector2 Position, Vector2 Scale);
 
 internal static class Ff7NumberWindowPresentation
 {
@@ -116,6 +120,39 @@ internal static class Ff7NumberWindowPresentation
             remaining %= divisors[index];
         }
         return glyphs.AsReadOnly();
+    }
+
+    internal static Vector2 IncludeContent(Ff7Window window, Vector2 textSize, int textScale)
+    {
+        int count = Math.Clamp((int)unchecked((sbyte)window.NativeNumberDigits), 0, 8);
+        if (count == 0)
+        {
+            return textSize;
+        }
+        float fontScale = textScale / 100f;
+        Vector2 extent = new(window.SpecialX + (count - 1) * 16 + 16 * fontScale, window.SpecialY + 21 * fontScale);
+        return Vector2.Max(textSize, extent - new Vector2(DialoguePresentation.Padding * 2));
+    }
+
+    internal static IReadOnlyList<Ff7SpecialNumberSprite> Place(Ff7Window window, Ff7SpecialWindowView view, int textScale)
+    {
+        Vector2 scale = view.LogicalScale * (textScale / 200f);
+        if (!float.IsFinite(scale.X) || !float.IsFinite(scale.Y) || scale.X <= 0 || scale.Y <= 0)
+        {
+            throw new InvalidDataException("Numeric window placement requires a positive finite presentation scale.");
+        }
+        List<Ff7SpecialNumberSprite> sprites = [];
+        foreach (Ff7SpecialNumberGlyph glyph in Create(window))
+        {
+            Vector2 offset = new(glyph.X - window.X, glyph.Y - window.Y);
+            Vector2 position = view.Origin + offset * view.LogicalScale;
+            Rectangle source = new((glyph.SourceX + 256) % 256, glyph.SourceY, 32, 42);
+            if (SpriteRegionDrawing.TryClip(source, position, scale, view.Clip, out Rectangle croppedSource, out Vector2 croppedPosition))
+            {
+                sprites.Add(new(croppedSource, croppedPosition, scale));
+            }
+        }
+        return sprites.AsReadOnly();
     }
 
     internal static Color[] AtlasColors(PcTexture texture)
