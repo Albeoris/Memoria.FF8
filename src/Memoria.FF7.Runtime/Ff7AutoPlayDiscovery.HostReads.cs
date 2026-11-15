@@ -29,7 +29,7 @@ public sealed partial class Ff7AutoPlayDiscovery
                     FieldHostReadKind.PreviousMap => (process.PreviousMap ?? throw new NotSupportedException("The native previous-map source fact is absent.")).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     FieldHostReadKind.BattleResult => process.BattleResult.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     FieldHostReadKind.MateriaCapacity => (progress.Materia.Length == 200).ToString(),
-                    FieldHostReadKind.MovieFrame => (process.Movie ?? throw new NotSupportedException("A native movie-frame dependency requires its movie state.")).Frame.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    FieldHostReadKind.MovieFrame => process.Movie?.Frame.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unprepared",
                     FieldHostReadKind.MusicPlaying => (readMusicPlaying ?? throw new NotSupportedException("A native music-playing dependency requires its native timeline."))().ToString(),
                     _ => throw new NotSupportedException($"Native host dependency {read.Kind} has no read-only condition projection.")
                 };
