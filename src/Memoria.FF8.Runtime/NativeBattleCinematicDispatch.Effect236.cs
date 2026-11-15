@@ -63,7 +63,7 @@ public static partial class NativeBattleCinematicDispatch
         [("vm_table", 0xC)] = (0xA3A730, 0xB2C480),
         [("bone_table", 0x0)] = (0xA34DA0, 0xB262E0),
         [("bone_table", 0x1)] = (0xA34DA0, 0xB262E0),
-        [("bone_table", 0x4)] = (0xA34F60, 0xB264A0),
+        [("bone_table", 0x4)] = (0xA34F60, 0xA671C0),
         [("draw_table", 0x2)] = (0xA357E0, 0xB27050),
         [("draw_table", 0x5)] = (0xA37CC0, 0xB298D0),
         [("draw_table", 0x6)] = (0xA38310, 0xB29F20),

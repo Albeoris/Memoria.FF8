@@ -363,6 +363,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.Contains(0x2556FC8u, capturedOwnedBanks);
                 Assert.Contains(0x2556FD8u, capturedOwnedBanks);
             }
+            if (effect == 236)
+            {
+                Assert.Contains("draw-5-positioned", boundaries);
+                Assert.Contains("draw-5-positioned", restoredBoundaries);
+            }
             Assert.Equal(expectedContactTransitions, contactTransitions);
             if (!livePartyFollowup)
             {
@@ -423,7 +428,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 return;
             }
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, null);
-            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "update-8" or "casting18-live" or "casting18-tail" or "casting18-released" or "gilgamesh-flash-live" or "gilgamesh-flash-released" or "gilgamesh-contact"))
+            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "draw-5-positioned" or "update-8" or "casting18-live" or "casting18-tail" or "casting18-released" or "gilgamesh-flash-live" or "gilgamesh-flash-released" or "gilgamesh-contact"))
             {
                 return;
             }

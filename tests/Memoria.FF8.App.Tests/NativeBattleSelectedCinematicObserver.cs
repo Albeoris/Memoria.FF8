@@ -33,6 +33,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         int terminal = Array.IndexOf(order, (byte)255);
         Assert.InRange(terminal, 0, 127);
         List<object> slots = [];
+        HashSet<string> radialPositions = [];
         List<string> transitions = [];
         for (int position = 0; position < terminal; position++)
         {
@@ -86,6 +87,14 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
             }
             if (kind == 5)
             {
+                if (selectedEffect == 236 && raw[0x18] == 4 && BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xA0)) != 0)
+                {
+                    radialPositions.Add(Convert.ToHexString(raw.AsSpan(0x94, 6)));
+                    if (radialPositions.Count > 1)
+                    {
+                        transitions.Add("draw-5-positioned");
+                    }
+                }
                 transitions.Add("draw-5");
                 if (raw[0x1E] == 2)
                 {

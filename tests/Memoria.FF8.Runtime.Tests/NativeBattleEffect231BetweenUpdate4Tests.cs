@@ -25,7 +25,7 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
             return selector == 4000 ? Address(0x2100) : Address(0x2200);
         });
         Assert.Equal(new short[] { 4000, -1 }, selectors);
-        AssertPosition(result, 138, 145, 46);
+        AssertPosition(result, 26, 145, 158);
         Assert.Equal(256u, result.ReadTemporaryDword(0xFC));
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Core)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Core)));
         Assert.Equal(frame.Random, result.Random);
@@ -43,7 +43,7 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
         frame = Position(frame, 2, 0, secondY, 256);
         frame = Fixed(frame, 0x64, fraction);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBetweenUpdate4.Update(frame, Resolve);
-        AssertPosition(result, fraction, -1, 0);
+        AssertPosition(result, 0, -1, fraction);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
         frame = Position(frame, 2, 0, 0, 20000);
         frame = Fixed(frame, 0x64, 32767);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBetweenUpdate4.Update(frame, Resolve);
-        AssertPosition(result, 8035, 0, -20000);
+        AssertPosition(result, 0, 0, -11965);
         Assert.Equal(40000u, result.ReadTemporaryDword(0xFC));
     }
 
@@ -87,7 +87,7 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
         NativeBattleWaterExecutionFrame next = NativeBattleCinematicBetweenUpdate4.Update(frame, Resolve);
         NativeBattleWaterExecutionFrame restoredNext = NativeBattleCinematicBetweenUpdate4.Update(restored, Resolve);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredNext)));
-        AssertPosition(next, 266, -108, 30);
+        AssertPosition(next, 10, -108, 286);
         Assert.Equal(512u, next.ReadTemporaryDword(0xFC));
     }
 

@@ -61,7 +61,7 @@ public sealed class NativeBattleCinematicEffect236DispatchTests
     [InlineData("vm_table", 0xC, 0xA3A730u, 0xB2C480u)]
     [InlineData("bone_table", 0x0, 0xA34DA0u, 0xB262E0u)]
     [InlineData("bone_table", 0x1, 0xA34DA0u, 0xB262E0u)]
-    [InlineData("bone_table", 0x4, 0xA34F60u, 0xB264A0u)]
+    [InlineData("bone_table", 0x4, 0xA34F60u, 0xA671C0u)]
     [InlineData("draw_table", 0x2, 0xA357E0u, 0xB27050u)]
     [InlineData("draw_table", 0x5, 0xA37CC0u, 0xB298D0u)]
     [InlineData("draw_table", 0x6, 0xA38310u, 0xB29F20u)]

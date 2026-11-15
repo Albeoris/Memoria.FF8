@@ -29,12 +29,12 @@ public static class NativeBattleCinematicBetweenUpdate4
         int y = unchecked(firstY + unchecked((secondY - firstY) * fraction) / 256 + FixedInteger(0x60));
         frame = WriteSlotWord(frame, 0x96, unchecked((ushort)y));
         int radius = unchecked((int)frame.ReadTemporaryDword(0xFC) * fraction) / 256;
-        int xOffset = unchecked(NativeBattleCameraMath.Cosine(angle) * radius) >> 12;
-        int zOffset = unchecked(NativeBattleCameraMath.Sine(angle) * radius) >> 12;
+        int xOffset = unchecked(NativeBattleCameraMath.Sine(angle) * radius) >> 12;
+        int zOffset = unchecked(NativeBattleCameraMath.Cosine(angle) * radius) >> 12;
         int offsetAngle = unchecked(angle + FixedInteger(0x54));
         int extension = FixedInteger(0x5C);
-        xOffset = unchecked(xOffset + (unchecked(NativeBattleCameraMath.Cosine(offsetAngle) * extension) >> 12));
-        zOffset = unchecked(zOffset + (unchecked(NativeBattleCameraMath.Sine(offsetAngle) * extension) >> 12));
+        xOffset = unchecked(xOffset + (unchecked(NativeBattleCameraMath.Sine(offsetAngle) * extension) >> 12));
+        zOffset = unchecked(zOffset + (unchecked(NativeBattleCameraMath.Cosine(offsetAngle) * extension) >> 12));
         frame = WriteSlotWord(frame, 0x94, unchecked((ushort)(firstX + xOffset)));
         return WriteSlotWord(frame, 0x98, unchecked((ushort)(firstZ + zOffset)));
 
