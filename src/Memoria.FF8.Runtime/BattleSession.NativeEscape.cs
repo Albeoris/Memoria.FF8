@@ -74,11 +74,11 @@ public sealed partial class BattleSession
         nativeEscape = held ? nativeEscape with { Held = true } : nativeEscape with { Held = false, HeldFrames = 0, Requested = false };
     }
 
-    public bool CanParticipateInEscape(BattleCombatant actor) => actor.IsPlayer && (UsesExpandedRoster ? actor.IsActive : actor.EncodeNativeSlot() is >= 0 and < 3) && NativeBattleEscapeRules.Eligible(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.NativeCombatantFlags);
+    public bool CanParticipateInEscape(BattleCombatant actor) => actor.IsPlayer && (UsesExpandedRoster ? actor.IsActive : actor.NativeActorIndex is >= 0 and < 3) && NativeBattleEscapeRules.Eligible(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.NativeCombatantFlags);
 
     private bool HasEscapeParticipant => allies.Any(CanParticipateInEscape);
 
-    private IEnumerable<BattleCombatant> CurrentEscapeEnemies => enemies.Where(actor => UsesExpandedRoster ? actor.IsActive : actor.EncodeNativeSlot() is >= 3 and < 7);
+    private IEnumerable<BattleCombatant> CurrentEscapeEnemies => enemies.Where(actor => UsesExpandedRoster ? actor.IsActive : actor.NativeActorIndex is >= 3 and < 7);
 
     private void AdvanceNativeEscapeFrame()
     {

@@ -186,7 +186,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native graphics initialization order names an absent resource binding.");
         }
-        if (!source.InitialLoadOrder.ToHashSet(StringComparer.Ordinal).SetEquals(combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7).Select(actor => actor.Id)))
+        if (!source.InitialLoadOrder.ToHashSet(StringComparer.Ordinal).SetEquals(combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 7).Select(actor => actor.Id)))
         {
             throw new InvalidDataException("Native graphics load order omits an allocated physical participant.");
         }

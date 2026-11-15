@@ -95,7 +95,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (next.IsPlayer || next.EncodeNativeSlot() is not (>= 3 and <= 6) || next.NativeAi is null || next.ResolvedNativeLevel is null || next.NativeAllocationPendingStatistics || (next.NativeCombatantFlags & 0xC3) != 1 || next.IsBusy || !CanNativeBattleActorAct(next))
+        if (next.IsPlayer || next.NativeActorIndex is not (>= 3 and <= 6) || next.NativeAi is null || next.ResolvedNativeLevel is null || next.NativeAllocationPendingStatistics || (next.NativeCombatantFlags & 0xC3) != 1 || next.IsBusy || !CanNativeBattleActorAct(next))
         {
             return false;
         }
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
 
     private static BattleDiagnosticCombatant ObserveDiagnosticCombatant(BattleCombatant actor)
     {
-        return new(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.EncodeNativeSlot() is >= 0 and < 7 ? actor.EncodeNativeSlot() : null, ModelId = actor.ModelId, NativeAiScriptSha256 = actor.NativeAi?.Scripts.Select(script => Convert.ToHexString(SHA256.HashData(script))).ToArray() };
+        return new(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.NativeActorIndex, ModelId = actor.ModelId, NativeAiScriptSha256 = actor.NativeAi?.Scripts.Select(script => Convert.ToHexString(SHA256.HashData(script))).ToArray() };
     }
 
     private void ObserveDiagnosticNativeHpWord(BattleCombatant actor, int scriptIndex, int pc, byte[] script, ushort operand, int before)
@@ -119,7 +119,7 @@ public sealed partial class BattleSession
         {
             long callback = NativeHostCallbacks ?? Frame;
             short amount = unchecked((short)operand);
-            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, checked((byte)actor.EncodeNativeSlot()), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback);
+            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, checked((byte)actor.RequireNativeActorIndex()), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback);
             observer(new(Frame, callback, "native_ai_hp_word", null, actor.Id, actor.Id, amount, amount, before, actor.CurrentHp, actor.IsPlayer ? "character" : "enemy") { NativeHpWord = proof });
         }
     }
@@ -136,9 +136,9 @@ public sealed partial class BattleSession
             BattleDiagnosticNativeStatusRemoval? removal = null;
             if (periodic is null && contact is null && kind == "damage" && before > amount && after == 0 && actor is not null && actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
             {
-                removal = new(0x494410, checked((byte)actor.EncodeNativeSlot()), checked((byte)target.EncodeNativeSlot()), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
+                removal = new(0x494410, checked((byte)actor.RequireNativeActorIndex()), checked((byte)target.RequireNativeActorIndex()), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
             }
-            BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.EncodeNativeSlot() && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null && periodic is null ? projection : null;
+            BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.NativeActorIndex && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null && periodic is null ? projection : null;
             observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic, NativeStatusRemoval = removal, DiagnosticRepair = repair });
         }
     }
@@ -155,7 +155,7 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleRetainedActionHeaderSlot physical = retained.Headers[originalHeader];
-        return new(0x4850A0, diagnosticDispatchSerial, submitted.TargetId, actor.Id, checked((byte)actor.EncodeNativeSlot()), recipient.Id, checked((byte)recipient.EncodeNativeSlot()), originalHeader, physical.Payload, physical.UnknownByteMask, physical.FirstContactIndex, contactIndex, NativeBattleContactPacketCodec.Encode(raw).ToImmutableArray());
+        return new(0x4850A0, diagnosticDispatchSerial, submitted.TargetId, actor.Id, checked((byte)actor.RequireNativeActorIndex()), recipient.Id, checked((byte)recipient.RequireNativeActorIndex()), originalHeader, physical.Payload, physical.UnknownByteMask, physical.FirstContactIndex, contactIndex, NativeBattleContactPacketCodec.Encode(raw).ToImmutableArray());
     }
 
     private sealed class DiagnosticBattleEventLog : List<BattleEvent>

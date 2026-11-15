@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         {
             //48D200 command5 writes the selected finisher into this same row's second12-byte packet.
             BattleAttackCommand packet = new(actor.Id, command.TargetId, targets, command.Ability, command.ActionId) { NativeQueuedCommand = 250, NativeAction = preliminary };
-            nativeCommandBanks = nativeCommandBanks.WriteProjectedCommand(location, 1, checked((byte)actor.EncodeNativeSlot()), 250, index, 0, ushort.MaxValue, ProjectNativeCommandTargets(packet)).BindCommand(location, 1, packet);
+            nativeCommandBanks = nativeCommandBanks.WriteProjectedCommand(location, 1, checked((byte)actor.RequireNativeActorIndex()), 250, index, 0, ushort.MaxValue, ProjectNativeCommandTargets(packet)).BindCommand(location, 1, packet);
         }
         uint callback = index == 3 ? 0x48F350u : 0x48F3F0u;
         if (NativeGraphics is { } graphics)

@@ -43,7 +43,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant NativeSupportActor()
     {
-        return allies.Where(actor => actor.IsActive).OrderBy(actor => UsesExpandedRoster ? actor.Slot!.Value.Position : actor.EncodeNativeSlot()).FirstOrDefault() ?? throw new NotSupportedException("Native486080 requires an allocated party actor for support invocation.");
+        return allies.Where(actor => actor.IsActive && actor.Slot.HasValue && (UsesExpandedRoster || actor.NativeActorIndex.HasValue)).OrderBy(actor => actor.Slot!.Value.Position).FirstOrDefault() ?? throw new NotSupportedException("Native486080 requires an allocated party actor for support invocation.");
     }
 
     private byte NativeSupportFlags(byte mask)
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
     {
         IEnumerable<BattleCombatant> candidates = UsesExpandedRoster
             ? enemies.Where(actor => actor.IsActive)
-            : combatants.Where(actor => actor.EncodeNativeSlot() is >= 3 and < 7).OrderBy(actor => actor.EncodeNativeSlot());
+            : combatants.Where(actor => actor.NativeActorIndex is >= 3 and < 7).OrderBy(actor => actor.NativeActorIndex);
         foreach (BattleCombatant actor in candidates)
         {
             //48C5C0 marks an unallocated physical monster slot KO;482E00 never reads its resistance.
@@ -134,7 +134,7 @@ public sealed partial class BattleSession
             return false;
         }
         //486450 first waits for pending death/revival callbacks;483270 requires an allocated KO, non-Petrify party row and a capable enemy.
-        if (!combatants.Any(actor => !actor.IsPlayer && actor.EncodeNativeSlot() is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) || !combatants.Any(actor => actor.IsPlayer && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 1))
+        if (!combatants.Any(actor => !actor.IsPlayer && actor.NativeActorIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0) || !combatants.Any(actor => actor.IsPlayer && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 1))
         {
             return false;
         }

@@ -69,7 +69,7 @@ public sealed partial class BattleSession
     {
         ushort originalWord = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native GF charge requires its original task target WORD.");
         (NativeBattleScriptTasks tasks, int slot) = nativeScriptState.Tasks.Allocate(0x48E620);
-        NativeBattleScriptTask task = tasks.Slots[slot].WriteByte(12, checked((byte)actor.EncodeNativeSlot())).WriteByte(13, 254).WriteByte(14, gfId).WriteWord(10, originalWord);
+        NativeBattleScriptTask task = tasks.Slots[slot].WriteByte(12, checked((byte)actor.RequireNativeActorIndex())).WriteByte(13, 254).WriteByte(14, gfId).WriteWord(10, originalWord);
         nativeScriptState = nativeScriptState with { Tasks = tasks with { Slots = tasks.Slots.SetItem(slot, task) } };
         return slot;
     }

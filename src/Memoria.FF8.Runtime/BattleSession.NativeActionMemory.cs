@@ -14,7 +14,7 @@ public sealed partial class BattleSession
 
     private void ValidateNativeActionMemoryProjection(BattleCombatant actor, NativeBattleParticipantSnapshot saved)
     {
-        if (UsesExpandedRoster)
+        if (UsesExpandedRoster || !HasNativeRosterSlot(actor))
         {
             actor.LastNativeAction = saved.LastAction;
             actor.LastNativeHealing = saved.LastHealing;

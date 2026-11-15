@@ -70,12 +70,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("The presentation slot belongs to a different battle side.");
         }
-        int? native = NativeBattleSlots.TryEncode(slot);
-        if (actor.NativeActorIndex is int alias && alias != native)
+        if (actor.NativeActorIndex is int alias && alias != NativeBattleSlots.TryEncode(slot))
         {
             throw new InvalidDataException("The native battle alias disagrees with the actor's presentation slot.");
         }
-        return (slot, native);
+        return (slot, actor.NativeActorIndex);
     }
 
     private static BattleModelOwner CreatePresentationModelOwner(BattleCombatant actor)

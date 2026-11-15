@@ -85,7 +85,7 @@ public sealed class StoryBattleRosterTests
         AssertOriginalStoryState(original, original, party);
         BattleCombatant[] enemies = original.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         Assert.Equal(models, enemies.Select(actor => actor.ModelId));
-        Assert.Equal(Enumerable.Range(3, models.Length), enemies.Select(actor => actor.EncodeNativeSlot()));
+        Assert.Equal(Enumerable.Range(3, models.Length), enemies.Select(actor => actor.RequireNativeActorIndex()));
         Assert.All(original.Capture().Definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive), actor => Assert.NotNull(actor.NativeAi));
         BattleSession originalRestored = RestoreAndAdvance(world, original);
         AssertOriginalStoryState(original, originalRestored, party);
@@ -394,8 +394,8 @@ public sealed class StoryBattleRosterTests
         Assert.Equal(combatParty, session.State.CharacterVitals!.CombatParty);
         BattleCombatant[] allies = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
         Assert.Equal(combatParty.Select(row => $"party-{row}"), allies.Select(actor => actor.Id));
-        Assert.Equal(new[] { 0, 1, 2 }, allies.Select(actor => actor.EncodeNativeSlot()));
-        Assert.Equal(3, Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive).EncodeNativeSlot());
+        Assert.Equal(new[] { 0, 1, 2 }, allies.Select(actor => actor.RequireNativeActorIndex()));
+        Assert.Equal(3, Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive).RequireNativeActorIndex());
         return battle;
     }
 
@@ -408,8 +408,8 @@ public sealed class StoryBattleRosterTests
         Assert.Equal(original.EncounterId, candidate.EncounterId);
         BattleCombatant[] allies = candidate.Combatants.Where(actor => actor.IsPlayer).ToArray();
         Assert.Equal(combatParty.Where(row => row != byte.MaxValue).Select(row => $"party-{row}"), allies.Select(actor => actor.Id));
-        Assert.All(allies, actor => Assert.InRange(actor.EncodeNativeSlot(), 0, 2));
-        Assert.All(candidate.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive), actor => Assert.InRange(actor.EncodeNativeSlot(), 3, 6));
+        Assert.All(allies, actor => Assert.InRange(actor.RequireNativeActorIndex(), 0, 2));
+        Assert.All(candidate.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive), actor => Assert.InRange(actor.RequireNativeActorIndex(), 3, 6));
         BattleSnapshot expected = original.Capture();
         BattleSnapshot actual = candidate.Capture();
         Assert.Equal(expected.NativeHostCallbacks, actual.NativeHostCallbacks);

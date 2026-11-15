@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         nativeActionPackets.Validate();
         BattleActionHeaderReference reference = new(header);
         NativeBattleActionHeaderSlot source = nativeActionPackets.ReadHeader(reference);
-        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || CreatePresentationModelOwner(actor) != source.Source || dispatch.NativeActorIndex != actor.EncodeNativeSlot() || dispatch.NativeCommand != source.Command || dispatch.ActionId != source.Action || dispatch.RequestedEffect != source.Effect || dispatch.ExecutedEffect != source.Effect || nativeActionPackets.ModelAliases.EncodeTargetMask(NativeBattleActionGraphics.Normalize(nativeActionPackets, reference).TargetActors.Resolve(nativeActionPackets.ModelAliases)) != dispatch.NativeTargetMask)
+        if (dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || CreatePresentationModelOwner(actor) != source.Source || dispatch.NativeActorIndex != actor.NativeActorIndex || dispatch.NativeCommand != source.Command || dispatch.ActionId != source.Action || dispatch.RequestedEffect != source.Effect || dispatch.ExecutedEffect != source.Effect || nativeActionPackets.ModelAliases.EncodeTargetMask(NativeBattleActionGraphics.Normalize(nativeActionPackets, reference).TargetActors.Resolve(nativeActionPackets.ModelAliases)) != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Diagnostic action packet payload differs from its current dispatch source fields.");
         }
@@ -97,7 +97,7 @@ public sealed partial class BattleSession
         nativeActionPackets.Validate();
         BattleActionHeaderReference reference = new(header);
         NativeBattleActionHeaderSlot source = nativeActionPackets.ReadHeader(reference);
-        if (source.Source != CreatePresentationModelOwner(actor) || dispatch.NativeActorIndex != actor.EncodeNativeSlot() || source.Command != 241 || source.Action != 65532 || source.Effect != 0 || nativeActionPackets.ModelAliases.EncodeTargetMask(NativeBattleActionGraphics.Normalize(nativeActionPackets, reference).TargetActors.Resolve(nativeActionPackets.ModelAliases)) != dispatch.NativeTargetMask)
+        if (source.Source != CreatePresentationModelOwner(actor) || dispatch.NativeActorIndex != actor.NativeActorIndex || source.Command != 241 || source.Action != 65532 || source.Effect != 0 || nativeActionPackets.ModelAliases.EncodeTargetMask(NativeBattleActionGraphics.Normalize(nativeActionPackets, reference).TargetActors.Resolve(nativeActionPackets.ModelAliases)) != dispatch.NativeTargetMask)
         {
             throw new InvalidDataException("Duel timeout control changed its actual actor, zero-magic header or native target normalization.");
         }
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
             ActualGeneration = generation,
             ActiveHeaderIndex = OriginalDiagnosticHeaderIndex(nativeActionPackets.ActiveHeader),
             ActorModel = actor?.ModelId,
-            ActorIndex = actor?.EncodeNativeSlot(),
+            ActorIndex = actor?.NativeActorIndex,
             LimitCharacter = actor?.NativeLimit?.CharacterId,
             LimitCommand = actor?.NativeLimit?.Command,
             DuelOwners = nativeDuelProcesses.Count,

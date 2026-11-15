@@ -53,7 +53,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Expanded battle AI variable {variable} requires a physical actor-bank alias.");
         }
-        int offset = checked(actor.EncodeNativeSlot() * 208 + 4 * (variable - 211));
+        int offset = checked(actor.RequireNativeActorIndex() * 208 + 4 * (variable - 211));
         if (offset < 0)
         {
             throw new NotSupportedException($"Native battle AI variable {variable} aliases memory before the retained actor bank.");

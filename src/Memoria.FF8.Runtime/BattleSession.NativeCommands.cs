@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeLimitState(string ActorId, byte CrisisLevel)
 {
@@ -269,7 +269,7 @@ public sealed partial class BattleSession
             QueueExpandedPlayerAction(actor, target, expandedAction, sequence);
             return;
         }
-        if (target.EncodeNativeSlot() is < 0 or >= 16)
+        if (target.NativeActorIndex is null)
         {
             throw new InvalidOperationException("Native player target has no allocated physical battle slot.");
         }

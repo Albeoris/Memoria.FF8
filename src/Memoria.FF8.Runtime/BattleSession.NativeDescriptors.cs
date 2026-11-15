@@ -49,7 +49,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState QueueNativePlannedModelDescriptor(NativeBattleGraphicsState graphics, ushort command, BattleCombatant actor, ushort value)
     {
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actor.Id) ?? throw new InvalidDataException("The model-load descriptor requires its original resource binding.");
-        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(checked((byte)actor.EncodeNativeSlot()));
+        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(checked((byte)actor.RequireNativeActorIndex()));
         var plan = new NativeBattleDescriptorModelSubject.PlannedLoad(CreatePresentationModelOwner(actor), slot, binding);
         StopTurnAdvance();
         uint argument = NativeParticipantAddress(slot.Offset);
@@ -81,12 +81,12 @@ public sealed partial class BattleSession
         {
             graphics = QueueNativePlannedModelDescriptor(graphics, 103, actor, (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
         }
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.EncodeNativeSlot()))
+        foreach (BattleCombatant actor in allies.Where(actor => actor.IsActive && actor.NativeActorIndex.HasValue).OrderBy(actor => actor.NativeActorIndex))
         {
             graphics = QueueNativePlannedModelDescriptor(graphics, 102, actor, checked((ushort)NativeModelId(actor)));
         }
         graphics = QueueNativeDescriptor(graphics, 13, 0);
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.IsActive).OrderBy(actor => actor.EncodeNativeSlot()))
+        foreach (BattleCombatant actor in allies.Where(actor => actor.IsActive && actor.NativeActorIndex.HasValue).OrderBy(actor => actor.NativeActorIndex))
         {
             graphics = QueueNativePlannedModelDescriptor(graphics, 103, actor, 0);
         }
@@ -561,7 +561,7 @@ public sealed partial class BattleSession
     private BattleCombatant FindNativeModelLoadOwner(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelSlot? originalSlot)
     {
         string id = RequireCanonicalGraphicsActorId(owner);
-        if (originalSlot is not { } slot || graphics.NativeBindings.DecodeLiteral(slot.Offset, graphics.ActorModels) != owner || !byId.TryGetValue(id, out BattleCombatant? actor) || actor.EncodeNativeSlot() != slot.Offset)
+        if (originalSlot is not { } slot || graphics.NativeBindings.DecodeLiteral(slot.Offset, graphics.ActorModels) != owner || !byId.TryGetValue(id, out BattleCombatant? actor) || actor.NativeActorIndex != slot.Offset)
         {
             throw new InvalidDataException("Native103 model completion lost its current physical allocation identity.");
         }

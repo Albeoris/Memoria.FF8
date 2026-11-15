@@ -116,7 +116,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.EncodeNativeSlot());
+            nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.RequireNativeActorIndex());
         }
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;

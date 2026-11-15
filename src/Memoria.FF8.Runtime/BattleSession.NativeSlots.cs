@@ -139,17 +139,17 @@ public sealed partial class BattleSession
         {
             return original;
         }
-        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (candidate.EncodeNativeSlot() < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
+        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.NativeActorIndex is >= 0 and < 7 && (candidate.NativeActorIndex is < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
         NativeBattleTargetRequestAdapter.DeferredOperands selected = preflight as NativeBattleTargetRequestAdapter.DeferredOperands ?? throw new InvalidDataException("Accepted Slots has no original target preference.");
         BattleCombatant? preferred = ReadOriginalSelectedActor(selected, activeOnly: true);
         BattleCombatant? target = candidates.OrderBy(candidate => damaging && ModifyNativeElement(candidate, action, 100, false) < 0 ? 1 : 0)
             .ThenBy(candidate => statuses ? NativeSlotsStatusPriority(candidate, action, !players) : 0)
             .ThenBy(candidate => healing ? candidate.CurrentHp : 0)
             .ThenBy(candidate => candidate == preferred ? 0 : 1)
-            .ThenBy(candidate => candidate.EncodeNativeSlot())
+            .ThenBy(candidate => candidate.NativeActorIndex)
             .FirstOrDefault();
         // A selected target must not retain the random-target modifier, which would replace it again.
-        return target is null ? original : new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())), original.Eligibility, original.AllowsKnockedOutAllies, original.Replacement);
+        return target is null ? original : new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.RequireNativeActorIndex())), original.Eligibility, original.AllowsKnockedOutAllies, original.Replacement);
     }
 
     private static int NativeSlotsStatusPriority(BattleCombatant candidate, BattleNativeAction action, bool considerImmunity)

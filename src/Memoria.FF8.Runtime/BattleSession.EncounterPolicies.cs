@@ -45,7 +45,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<EncounterPolicyActor> EncounterPolicyCandidates()
     {
-        return combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
+        return combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
     }
 
     private int NextEncounterRandomIndex(int count)
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("A summon policy attempted to repeat an already admitted encounter allocation.");
             }
-            if (Enumerable.Range(3, 4).Count(index => !combatants.Any(candidate => candidate.EncodeNativeSlot() == index && candidate.IsActive)) < decision.Spawns.Length)
+            if (Enumerable.Range(3, 4).Count(index => !combatants.Any(candidate => candidate.NativeActorIndex == index && candidate.IsActive)) < decision.Spawns.Length)
             {
                 throw new InvalidDataException("The authored summon exceeds the available simultaneous enemy capacity.");
             }
@@ -145,7 +145,7 @@ public sealed partial class BattleSession
         {
             return UsesExpandedRoster
                 ? new BattleTargetSelection.Explicit(ids.Select(id => TargetActorReference(GetActor(id))))
-                : NativeBattleTargetRequestAdapter.SelectOriginalSlots(ids.Select(id => NativeBattleSlots.Decode(GetActor(id).EncodeNativeSlot())));
+                : NativeBattleTargetRequestAdapter.SelectOriginalSlots(ids.Select(id => NativeBattleSlots.Decode(GetActor(id).RequireNativeActorIndex())));
         }
         BattleTargetRequest Request(BattleTargetSelection selection)
         {
@@ -257,7 +257,7 @@ public sealed partial class BattleSession
 
     private BattleNativeAction ValidateEncounterSummonControl(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleTargetRequest request)
     {
-        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.EncodeNativeSlot() is < 0 or >= 7 || request.Selection is not BattleTargetSelection.Explicit selection || selection.Actors.Length != 1 || selection.Actors[0] != TargetActorReference(actor))
+        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.NativeActorIndex is null || request.Selection is not BattleTargetSelection.Explicit selection || selection.Actors.Length != 1 || selection.Actors[0] != TargetActorReference(actor))
         {
             throw new InvalidDataException("Saved encounter presentation control requires its declared SummonGroup policy and exact self target.");
         }
@@ -357,10 +357,10 @@ public sealed partial class BattleSession
         foreach (string id in retiring)
         {
             BattleCombatant actor = GetActor(id);
-            if (actor.EncodeNativeSlot() is >= 0 and < 7)
+            if (actor.NativeActorIndex is >= 0 and < 7)
             {
                 RemoveNativeQueuedActorCommands(actor);
-                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.EncodeNativeSlot()), actor.Id);
+                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.RequireNativeActorIndex()), actor.Id);
             }
             nativeCommandBanks = nativeCommandBanks.RemoveAllocationCallbacks(actor.Id);
             if (actor.IsActive)

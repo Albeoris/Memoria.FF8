@@ -65,7 +65,7 @@ public sealed class EncounterPartyDefeatTerminalContinuationTests
             Queued = battle.QueuedActions.Select(action => new { action.ActorId, action.ActionId, action.NativeQueuedCommand, action.NativeAiCallbackStage, action.NativeHeader }),
             battle.NativeActionPackets.ActionCount,
             battle.NativeActionPackets.ContactCount,
-            Original = ReadOriginalModelCell(battle.NativeGraphics!, battle.Combatants.Single(actor => actor.Id == source.Definition.EncounterMod.OriginalActorId).EncodeNativeSlot()).SequenceState,
+            Original = ReadOriginalModelCell(battle.NativeGraphics!, battle.Combatants.Single(actor => actor.Id == source.Definition.EncounterMod.OriginalActorId).RequireNativeActorIndex()).SequenceState,
             Clock = battle.Capture().NativeClock,
             Scratch = battle.Capture().NativeActionScratch,
             Events = battle.Events.TakeLast(12).Select(entry => new { entry.Frame, entry.Kind, entry.ActorId, entry.Amount })

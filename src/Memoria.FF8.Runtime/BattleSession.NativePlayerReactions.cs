@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             }
         }
         RunNativePlayerDamageSupport(actor);
-        if ((flags & 0x40000) == 0 || attacker == actor.EncodeNativeSlot())
+        if ((flags & 0x40000) == 0 || attacker == actor.NativeActorIndex)
         {
             return;
         }

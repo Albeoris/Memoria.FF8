@@ -153,7 +153,7 @@ public sealed partial class BattleSession
                 return CompareNativeConditionBit(actor.LastAttackerId == expected, comparison);
             }
             left = NativeConditionLastAttackerIndex(actor);
-            right = value == 200 ? actor.EncodeNativeSlot() : NativeConditionActorIndex(value);
+            right = value == 200 ? actor.RequireNativeActorIndex() : NativeConditionActorIndex(value);
         }
         else
         {
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
         }
         int index = selector switch
         {
-            200 => actor.EncodeNativeSlot(),
+            200 => actor.RequireNativeActorIndex(),
             203 => NativeConditionLastAttackerIndex(actor),
             >= 220 and <= 227 => checked((int)ReadNativeActorVariable(actor, selector)),
             _ => NativeConditionActorIndex(selector)
@@ -225,7 +225,7 @@ public sealed partial class BattleSession
 
     private int NativeConditionActorIndex(int model)
     {
-        return combatants.Where(candidate => HasNativeRosterSlot(candidate)).OrderBy(candidate => candidate.EncodeNativeSlot()).FirstOrDefault(candidate => NativeModelId(candidate) == model)?.EncodeNativeSlot() ?? 255;
+        return combatants.Where(HasNativeRosterSlot).OrderBy(candidate => candidate.NativeActorIndex).FirstOrDefault(candidate => NativeModelId(candidate) == model)?.NativeActorIndex ?? 255;
     }
 
     private IEnumerable<BattleCombatant> NativeConditionModelActors(int model)

@@ -44,7 +44,7 @@ public sealed partial class BattleSession
     public bool CanSubmitDiagnosticEnemyAbility(string actorId, BattleDiagnosticEnemyAbility selection)
     {
         BattleCombatant actor = RequireDiagnosticEnemy(actorId, selection);
-        return Outcome == BattleOutcome.Active && NativeEntryReady && actor.IsReady && !actor.IsBusy && CanNativeBattleActorAct(actor) && (actor.NativeCombatantFlags & 0xC3) == 1;
+        return actor.NativeActorIndex.HasValue && Outcome == BattleOutcome.Active && NativeEntryReady && actor.IsReady && !actor.IsBusy && CanNativeBattleActorAct(actor) && (actor.NativeCombatantFlags & 0xC3) == 1;
     }
 
     /// <summary>Selects an existing legal row through the same preparation, targeting and packet producer as native AI.</summary>
@@ -74,7 +74,7 @@ public sealed partial class BattleSession
                 actor.Atb = 0;
                 QueueNativeCallback(actor, 1, 2);
             }
-            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.EncodeNativeSlot(), selection, expectedEffect, null);
+            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, null);
             return;
         }
         byte command = 0;
@@ -88,6 +88,6 @@ public sealed partial class BattleSession
         }
         AiTargetSelection targets = ResolveAiTargets(actor, selection.TargetSelector);
         QueuePreparedNativeAiCommand(actor, command, action, sequence, targets);
-        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.EncodeNativeSlot(), selection, expectedEffect, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets.Request, ReadOriginalTargetSlot));
+        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets.Request, ReadOriginalTargetSlot));
     }
 }

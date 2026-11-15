@@ -160,8 +160,8 @@ public sealed partial class BattleSession
     {
         actor.ResolvedNativeLevel = actor.Level;
         actor.NativeCombatantFlags = (actor.SourceDefinition.NativeCombatantFlags & ~0xE3u) | 0xC2;
-        nativeActionMemory.State = nativeActionMemory.State with { Rows = nativeActionMemory.State.Rows.SetItem(actor.EncodeNativeSlot(), ImmutableArray.CreateRange(new byte?[8] { 0, 0, 0, 0, 0, 0, 0, 0 })) };
-        nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(actor.EncodeNativeSlot(), new(0, 0));
+        nativeActionMemory.State = nativeActionMemory.State with { Rows = nativeActionMemory.State.Rows.SetItem(actor.RequireNativeActorIndex(), ImmutableArray.CreateRange(new byte?[8] { 0, 0, 0, 0, 0, 0, 0, 0 })) };
+        nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(actor.RequireNativeActorIndex(), new(0, 0));
         actor.NativePendingReaction = new(0, 0);
         actor.NativeReturnDamage = 0;
         actor.NativeRemainingHits = 0;

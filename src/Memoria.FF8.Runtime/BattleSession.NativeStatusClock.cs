@@ -92,9 +92,9 @@ public sealed partial class BattleSession
                 {
                     actor.RefreshNativeHpStatusFlags();
                     RefreshNativePresentationStatus(actor);
-                    if (NativeGraphics is { } graphics)
+                    if (NativeGraphics is { } graphics && actor.NativeActorIndex is int physicalIndex)
                     {
-                        byte index = checked((byte)actor.EncodeNativeSlot());
+                        byte index = checked((byte)physicalIndex);
                         BattleModelOwner owner = CreatePresentationModelOwner(actor);
                         (ushort saved, uint battle) = NativeContactStatusMirror(actor);
                         graphics = PublishNativeReadyStatus(graphics, new(owner, 0, 0, 0, saved, 0, battle));
@@ -147,9 +147,9 @@ public sealed partial class BattleSession
     private void ApplyDiagnosticPeriodicStatus(BattleCombatant actor, int bit, short timer, int decrement, short timerAfter, int amount, bool damage, string source, uint? battleStatuses = null)
     {
         BattleDiagnosticPeriodicStatus? previous = diagnosticPeriodicStatus;
-        if (DiagnosticResolution is not null)
+        if (DiagnosticResolution is not null && actor.NativeActorIndex is int physicalIndex)
         {
-            diagnosticPeriodicStatus = new(0x483470, actor.Id, checked((byte)actor.EncodeNativeSlot()), bit, timer, decrement, timerAfter, NativeSavedStatusBits(actor), battleStatuses ?? NativeBattleStatusBits(actor), actor.MaximumHp, amount, NativeHostCallbacks ?? Frame);
+            diagnosticPeriodicStatus = new(0x483470, actor.Id, checked((byte)physicalIndex), bit, timer, decrement, timerAfter, NativeSavedStatusBits(actor), battleStatuses ?? NativeBattleStatusBits(actor), actor.MaximumHp, amount, NativeHostCallbacks ?? Frame);
         }
         try
         {

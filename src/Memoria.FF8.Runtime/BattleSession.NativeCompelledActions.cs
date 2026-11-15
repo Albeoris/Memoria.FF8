@@ -42,7 +42,7 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsReady && RequiresNativeCompelledCommand(actor)))
         {
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.EncodeNativeSlot() is >= 3 and < 7) ?? actor;
+            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.NativeActorIndex is >= 3 and < 7) ?? actor;
             EnqueueAttack(actor, target);
         }
     }

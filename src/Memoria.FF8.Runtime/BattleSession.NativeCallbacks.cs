@@ -20,7 +20,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeCallback(BattleCombatant actor, ushort stage, byte bank = 0)
     {
-        BattleNativeCallback callback = new(checked((byte)actor.EncodeNativeSlot()), stage);
+        BattleNativeCallback callback = new(checked((byte)actor.RequireNativeActorIndex()), stage);
         callback.Validate();
         NativeBattlePendingReaction diagnosticPending = actor.NativePendingReaction;
         if (bank == 0)

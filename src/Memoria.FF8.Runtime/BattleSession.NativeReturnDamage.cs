@@ -15,7 +15,7 @@ public sealed partial class BattleSession
 
     private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant? source, int magnitude)
     {
-        if (UsesExpandedRoster || !recipient.IsPlayer || source?.EncodeNativeSlot() is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
+        if (UsesExpandedRoster || !recipient.IsPlayer || source?.NativeActorIndex is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
         {
             return;
         }
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        BattleCombatant[] party = combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 3 && candidate != actor).OrderBy(candidate => candidate.EncodeNativeSlot()).ToArray();
+        BattleCombatant[] party = combatants.Where(candidate => candidate.NativeActorIndex is >= 0 and < 3 && candidate != actor).OrderBy(candidate => candidate.NativeActorIndex).ToArray();
         if (party.Any(candidate => candidate.NativeReturnDamage is null))
         {
             throw new NotSupportedException("Native483EF0 requires each retained party Return Damage WORD, including KO rows; unknown old values cannot be replaced with zero.");

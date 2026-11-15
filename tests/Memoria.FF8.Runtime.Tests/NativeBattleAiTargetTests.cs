@@ -114,7 +114,7 @@ public sealed class NativeBattleAiTargetTests
         BattleSession battle = Create([43, 6], fullRosters: true);
         BattleSnapshot snapshot = battle.Capture();
         BattleCombatant[] actors = battle.Combatants.ToArray();
-        Assert.Equal(new[] { 0, 3, 1, 4, 2, 5, 6 }, actors.Select(actor => actor.EncodeNativeSlot()));
+        Assert.Equal(new[] { 0, 3, 1, 4, 2, 5, 6 }, actors.Select(actor => actor.RequireNativeActorIndex()));
         Assert.Equal(BattleRosterSlot.Ally(2), actors[4].Slot);
         Assert.Equal(BattleRosterSlot.Enemy(3), actors[6].Slot);
         Assert.Equal((ushort)0x40, ReadPublishedTargetMask(snapshot));

@@ -114,9 +114,9 @@ public sealed partial class BattleSession
             return actor.CurrentHp;
         }
         //493450 case9 reads WORD1CFF172, before any later493D80 contact updates that cache.
-        if (nativePartyPresentation is not null)
+        if (nativePartyPresentation is not null && actor.NativeActorIndex is >= 0 and < NativeBattleSlots.AllyCount)
         {
-            return RequireNativePartyPresentedRow(actor.EncodeNativeSlot()).HitPoints;
+            return RequireNativePartyPresentedRow(actor.RequireNativeActorIndex()).HitPoints;
         }
         if (expandedPartyPresentation is { } expanded && actor.IsPlayer)
         {
@@ -175,11 +175,11 @@ public sealed partial class BattleSession
             return;
         }
         ImmutableArray<NativeBattlePartyPresentedVital?> rows = nativePartyPresentation.Rows;
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.NativeActorIndex is >= 0 and < 3))
         {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
             //48E620 clears the GF-panel flag when it removes the charge task, after any earlier logical cancellation.
-            rows = rows.SetItem(actor.EncodeNativeSlot(), row.AdvanceHud4B0500(guardianForceCasts.ContainsKey(actor.Id)));
+            rows = rows.SetItem(actor.RequireNativeActorIndex(), row.AdvanceHud4B0500(guardianForceCasts.ContainsKey(actor.Id)));
         }
         nativePartyPresentation = nativePartyPresentation with { Rows = rows };
     }
@@ -191,9 +191,9 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattlePartyPresentedVital?[] rows = new NativeBattlePartyPresentedVital?[3];
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.EncodeNativeSlot() is >= 0 and < 3))
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.NativeActorIndex is >= 0 and < 3))
         {
-            rows[actor.EncodeNativeSlot()] = new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null) { DisplayedHitPointsQ12 = actor.CurrentHp << 12, DisplayedGuardianForceHitPointsQ12 = null };
+            rows[actor.RequireNativeActorIndex()] = new(checked((ushort)actor.CurrentHp), checked((ushort)actor.MaximumHp), null, null) { DisplayedHitPointsQ12 = actor.CurrentHp << 12, DisplayedGuardianForceHitPointsQ12 = null };
         }
         nativePartyPresentation = new(rows.ToImmutableArray());
     }
@@ -210,17 +210,17 @@ public sealed partial class BattleSession
         {
             return;
         }
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
-        nativePartyPresentation = nativePartyPresentation with { Rows = nativePartyPresentation.Rows.SetItem(actor.EncodeNativeSlot(), row with { GuardianForceHitPoints = gf.HitPoints, GuardianForceMaximumHitPoints = gf.MaximumHitPoints, DisplayedGuardianForceHitPointsQ12 = gf.HitPoints << 12 }) };
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
+        nativePartyPresentation = nativePartyPresentation with { Rows = nativePartyPresentation.Rows.SetItem(actor.RequireNativeActorIndex(), row with { GuardianForceHitPoints = gf.HitPoints, GuardianForceMaximumHitPoints = gf.MaximumHitPoints, DisplayedGuardianForceHitPointsQ12 = gf.HitPoints << 12 }) };
     }
 
     private NativeBattlePartyPresentedVital? ReadPartyPresentedRow(BattleCombatant actor)
     {
-        if (nativePartyPresentation is not null)
+        if (nativePartyPresentation is not null && actor.NativeActorIndex is >= 0 and < NativeBattleSlots.AllyCount)
         {
-            return RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
+            return RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
         }
-        return expandedPartyPresentation is { } expanded && actor.IsPlayer ? RequireExpandedPartyPresentedRow(expanded, actor.Id) : null;
+        return expandedPartyPresentation is { } expanded && actor.IsPlayer && actor.Slot is not null ? RequireExpandedPartyPresentedRow(expanded, actor.Id) : null;
     }
 
     private void PublishNativePresentedContact(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)

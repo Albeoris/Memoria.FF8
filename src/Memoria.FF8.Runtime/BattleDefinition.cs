@@ -583,12 +583,12 @@ public sealed partial class BattleCombatant
     private NativeBattleLastAction? logicalLastAction;
     internal byte? LastNativeHealing
     {
-        get => NativeActionMemoryOwner is { } owner ? owner.State.Healing(EncodeNativeSlot()) : logicalLastHealing;
+        get => NativeActionMemoryOwner is { } owner && NativeActorIndex is int index ? owner.State.Healing(index) : logicalLastHealing;
         set
         {
-            if (NativeActionMemoryOwner is { } owner)
+            if (NativeActionMemoryOwner is { } owner && NativeActorIndex is int index)
             {
-                owner.State = owner.State.WithHealing(EncodeNativeSlot(), value);
+                owner.State = owner.State.WithHealing(index, value);
             }
             else
             {
@@ -599,12 +599,12 @@ public sealed partial class BattleCombatant
     internal bool NativeAllocationPendingStatistics { get; set; }
     internal NativeBattleLastAction? LastNativeAction
     {
-        get => NativeActionMemoryOwner is { } owner ? owner.State.Action(EncodeNativeSlot()) : logicalLastAction;
+        get => NativeActionMemoryOwner is { } owner && NativeActorIndex is int index ? owner.State.Action(index) : logicalLastAction;
         set
         {
-            if (NativeActionMemoryOwner is { } owner)
+            if (NativeActionMemoryOwner is { } owner && NativeActorIndex is int index)
             {
-                owner.State = owner.State.WithAction(EncodeNativeSlot(), value);
+                owner.State = owner.State.WithAction(index, value);
             }
             else
             {
@@ -631,10 +631,9 @@ public sealed partial class BattleCombatant
         NativeActorIndex = bindNative && slot is { } candidate ? NativeBattleSlots.TryEncode(candidate) : null;
     }
 
-    internal int EncodeNativeSlot()
+    internal int RequireNativeActorIndex()
     {
-        return Slot is null ? NativeBattleSlots.Unassigned
-            : NativeActorIndex ?? throw new NotSupportedException($"Battle slot {Slot} has no native actor index.");
+        return NativeActorIndex ?? throw new NotSupportedException($"Battle actor {Id} has no original participant binding.");
     }
 
     internal int? ResolvedNativeLevel { get; set; }

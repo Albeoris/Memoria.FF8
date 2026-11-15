@@ -6,17 +6,17 @@ public sealed partial class BattleSession
     {
         //48E830 passes native hit count to48EB90, rather than the number of selected recipients.
         bool all = command.TargetRequest.Selection is BattleTargetSelection.SideGroup;
-        if (native.HitCount != 1 || actor.EncodeNativeSlot() < 3 || (command.NativeQueuedCommand ?? native.Command) != 8 || all || (native.AttackFlags & 3) != 0 || targets.Length == 0)
+        if (native.HitCount != 1 || (UsesExpandedRoster ? actor.IsPlayer : actor.NativeActorIndex is not >= NativeBattleSlots.AllyCount) || (command.NativeQueuedCommand ?? native.Command) != 8 || all || (native.AttackFlags & 3) != 0 || targets.Length == 0)
         {
             return (targets, null);
         }
         BattleCombatant original = targets[0];
-        if (original.EncodeNativeSlot() is < 0 or >= 3 || (NativeSavedStatusBits(original) & 0x100) == 0)
+        if (original.NativeActorIndex is not (>= 0 and < NativeBattleSlots.AllyCount) || (NativeSavedStatusBits(original) & 0x100) == 0)
         {
             return (targets, null);
         }
         int chosen;
-        if (original.EncodeNativeSlot() == 0)
+        if (original.NativeActorIndex == 0)
         {
             chosen = NativeCoverCandidate(1);
             if (chosen == 254)
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
                 chosen = NativeCoverCandidate(2);
             }
         }
-        else if (original.EncodeNativeSlot() == 2)
+        else if (original.NativeActorIndex == 2)
         {
             chosen = NativeCoverCandidate(1);
             if (chosen == 254)
@@ -42,13 +42,13 @@ public sealed partial class BattleSession
         {
             return (targets, null);
         }
-        BattleCombatant cover = combatants.Single(candidate => candidate.EncodeNativeSlot() == chosen && candidate.IsPlayer);
+        BattleCombatant cover = FindNativeActor(chosen);
         return ([cover], CreatePresentationModelOwner(original));
     }
 
     private int NativeCoverCandidate(int index)
     {
-        BattleCombatant? actor = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index && candidate.IsPlayer && candidate.IsActive);
+        BattleCombatant? actor = FindActiveNativeActor(index);
         if (actor is null)
         {
             return 254;

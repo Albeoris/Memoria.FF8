@@ -83,7 +83,7 @@ public sealed partial class BattleSession
         }
         if (nativePartyPresentation is not null)
         {
-            _ = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
+            _ = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
         }
         if (NativeGraphics is null)
         {
@@ -206,7 +206,7 @@ public sealed partial class BattleSession
         if (NativeGraphics is not null)
         {
             SetNativeActionEvent(actor, 1);
-            nativeActionScratch = nativeActionScratch with { Command = 254, Action = checked((ushort)(64 + GetGuardianForm(actorId)!.GuardianForceId)), ActorIndex = checked((byte)actor.EncodeNativeSlot()) };
+            nativeActionScratch = nativeActionScratch with { Command = 254, Action = checked((ushort)(64 + GetGuardianForm(actorId)!.GuardianForceId)), ActorIndex = checked((byte)actor.RequireNativeActorIndex()) };
             QueueNativeActionClockCompletion(0x47DE70);
         }
         else
@@ -417,8 +417,8 @@ public sealed partial class BattleSession
     {
         if (nativePartyPresentation is { } presentation)
         {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
-            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.EncodeNativeSlot(), row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
+            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
+            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.RequireNativeActorIndex(), row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
         }
     }
 

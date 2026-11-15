@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         BattleCombatant selected = NativePlayerSelectedTarget(actor, target, targetFlags);
         if (!UsesExpandedRoster)
         {
-            return NativeBattleTargetRequestAdapter.CreatePlayerRequest(targetFlags, selected.EncodeNativeSlot());
+            return NativeBattleTargetRequestAdapter.CreatePlayerRequest(targetFlags, selected.RequireNativeActorIndex());
         }
 
         BattleTargetSide side = selected.IsPlayer ? BattleTargetSide.Allies : BattleTargetSide.Enemies;

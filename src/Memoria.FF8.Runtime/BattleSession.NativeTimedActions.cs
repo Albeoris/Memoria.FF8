@@ -165,7 +165,7 @@ public sealed partial class BattleSession
         {
             if (native.Command == 251)
             {
-                if (target.EncodeNativeSlot() is < 0 or >= 7 || request.Selection != NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())))
+                if (target.NativeActorIndex is null || request.Selection != NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.RequireNativeActorIndex())))
                 {
                     throw new InvalidDataException("Native251 contact must retain its originally selected physical recipient.");
                 }

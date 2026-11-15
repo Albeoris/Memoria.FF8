@@ -50,19 +50,19 @@ public sealed partial class BattleSession
         foreach (NativeBattleEnemyAllocation allocation in nativeAllocations.Where(allocation => allocation.EncounterBatchId is not null && allocation.Retirement is null).ToArray())
         {
             BattleCombatant actor = GetActor(allocation.Id);
-            if (!actor.IsActive || actor.IsAlive || actor.EncodeNativeSlot() is < 3 or > 6)
+            if (!actor.IsActive || actor.IsAlive || actor.NativeActorIndex is not (>= 3 and <= 6))
             {
                 continue;
             }
             // A copy retains the source's body sequences, but not its scripted boss death callback.
             // Finish every accepted contact and effect before releasing this summoned allocation through105.
-            if (NativeGraphics is { } graphics && new EncounterAllocationRetirement(actor.EncodeNativeSlot()).HasAcceptedConsumers(actor.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask))
+            if (NativeGraphics is { } graphics && new EncounterAllocationRetirement(actor.RequireNativeActorIndex()).HasAcceptedConsumers(actor.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask))
             {
                 continue;
             }
             RemoveNativeQueuedActorCommands(actor);
             RemoveEncounterQueuedActions([actor.Id]);
-            nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.EncodeNativeSlot()), actor.Id).RemoveAllocationCallbacks(actor.Id);
+            nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.RequireNativeActorIndex()), actor.Id).RemoveAllocationCallbacks(actor.Id);
             ReleaseNativeParticipant(actor);
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        int physical = actor.EncodeNativeSlot();
+        int? physical = actor.NativeActorIndex;
         if (NativeGraphics is { } graphics)
         {
             BattleModelOwner owner = CreatePresentationModelOwner(actor);
@@ -103,11 +103,11 @@ public sealed partial class BattleSession
             }
             physical = original;
         }
-        if (physical is < 3 or > 6)
+        if (physical is not (>= NativeBattleSlots.AllyCount and < NativeBattleSlots.Count))
         {
             return;
         }
-        nativeAllocations[index] = allocation with { Retirement = new(physical, ResourcesReleased: NativeGraphics is null) };
+        nativeAllocations[index] = allocation with { Retirement = new(physical.Value, ResourcesReleased: NativeGraphics is null) };
     }
 
     private NativeBattleGraphicsState AdvanceEncounterAllocationRetirements(NativeBattleGraphicsState graphics)

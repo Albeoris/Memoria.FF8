@@ -40,7 +40,7 @@ public sealed partial class BattleSession
 
     private AiTargetSelection SelectAiActor(BattleCombatant actor)
     {
-        return UsesExpandedRoster ? SelectAiActors([actor]) : SelectAiActorOperand(actor.EncodeNativeSlot());
+        return UsesExpandedRoster ? SelectAiActors([actor]) : SelectAiActorOperand(actor.RequireNativeActorIndex());
     }
 
     private AiTargetSelection SelectDirectAiActor(int operand)
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
         BattleTargetSide side = candidates.Any(candidate => candidate.Side == BattleSide.Enemies) ? BattleTargetSide.Enemies : BattleTargetSide.Allies;
         if (!UsesExpandedRoster)
         {
-            return SelectOriginalAiTargets(NativeBattleTargetRequestAdapter.OriginalGroup(side, candidates.Select(candidate => NativeBattleSlots.Decode(candidate.EncodeNativeSlot()))));
+            return SelectOriginalAiTargets(NativeBattleTargetRequestAdapter.OriginalGroup(side, candidates.Select(candidate => NativeBattleSlots.Decode(candidate.RequireNativeActorIndex()))));
         }
 
         int? firstOriginalSlot = candidates.Select(candidate => candidate.NativeActorIndex).Min();
@@ -148,7 +148,7 @@ public sealed partial class BattleSession
             _ => NativeBattleSlots.Count
         };
         int first = side == BattleSide.Enemies ? NativeBattleSlots.AllyCount : 0;
-        HashSet<int> eligible = available.Select(candidate => candidate.EncodeNativeSlot()).ToHashSet();
+        HashSet<int> eligible = available.Select(candidate => candidate.RequireNativeActorIndex()).ToHashSet();
         while (true)
         {
             int index = first + NextRandomByte() % count;

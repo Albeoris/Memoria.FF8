@@ -77,7 +77,7 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(recipient);
         if (battle)
         {
-            if ((mask & 0x800) != 0 && (UsesExpandedRoster ? !recipient.IsPlayer : recipient.EncodeNativeSlot() >= 3) || (saved & 0x40) != 0 && (mask & 0x400) != 0 || (statuses & 0x2000000) != 0 && (mask & 0x4000) != 0)
+            if ((mask & 0x800) != 0 && (UsesExpandedRoster ? !recipient.IsPlayer : recipient.NativeActorIndex is >= 3) || (saved & 0x40) != 0 && (mask & 0x400) != 0 || (statuses & 0x2000000) != 0 && (mask & 0x4000) != 0)
             {
                 return false;
             }

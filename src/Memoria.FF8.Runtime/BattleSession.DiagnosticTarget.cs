@@ -11,6 +11,6 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         byte[] startup = actor.NativeAi?.Scripts[0] ?? throw new NotSupportedException("Diagnostic target verification requires its original initialization script.");
-        return new(actor.Id, definition.StageId, actor.ModelId, actor.SceneSlot, actor.EncodeNativeSlot(), actor.NativeCombatantFlags, actor.CurrentHp, actor.IsAlive, !actor.NativeAllocationPendingStatistics && actor.ResolvedNativeLevel is not null, Convert.ToHexString(SHA256.HashData(startup)).ToLowerInvariant(), NativeHostCallbacks ?? Frame);
+        return new(actor.Id, definition.StageId, actor.ModelId, actor.SceneSlot, actor.NativeActorIndex ?? NativeBattleSlots.Unassigned, actor.NativeCombatantFlags, actor.CurrentHp, actor.IsAlive, !actor.NativeAllocationPendingStatistics && actor.ResolvedNativeLevel is not null, Convert.ToHexString(SHA256.HashData(startup)).ToLowerInvariant(), NativeHostCallbacks ?? Frame);
     }
 }

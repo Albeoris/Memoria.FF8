@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleSmartAttackPreview(string ActorId, string TargetId, BattleAbility Ability, int ActionId, string Name, int CastCount, bool ForcePhysical, string Revision, int TargetIndex, double ExpectedDamage, double KillProbability)
+public sealed record BattleSmartAttackPreview(string ActorId, string TargetId, BattleAbility Ability, int ActionId, string Name, int CastCount, bool ForcePhysical, string Revision, int? TargetIndex, double ExpectedDamage, double KillProbability)
 {
     public string? DrawSourceId { get; init; }
     public int? DrawSourceIndex { get; init; }
@@ -116,7 +116,7 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
                 {
-                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, UsesExpandedRoster ? null : source.EncodeNativeSlot(), CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
+                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, UsesExpandedRoster ? null : source.NativeActorIndex, CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
                 }
             }
             int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
         return UsesExpandedRoster && selected.DrawSourceId is { } sourceId ? selected with { DrawSourceSlot = GetActor(sourceId).Slot } : selected;
     }
 
-    private int SmartNativeIndex(BattleCombatant actor) => UsesExpandedRoster ? NativeBattleSlots.Unassigned : actor.EncodeNativeSlot();
+    private int? SmartNativeIndex(BattleCombatant actor) => UsesExpandedRoster ? null : actor.NativeActorIndex;
 
     public static bool IsSmartSpell(BattleActionDefinition action)
     {
@@ -176,7 +176,7 @@ public sealed partial class BattleSession
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
 
-    private string SmartIndexIdentity(BattleCombatant actor) => UsesExpandedRoster ? actor.Slot?.ToString() ?? "" : actor.EncodeNativeSlot().ToString(System.Globalization.CultureInfo.InvariantCulture);
+    private string SmartIndexIdentity(BattleCombatant actor) => UsesExpandedRoster ? actor.Slot?.ToString() ?? "" : actor.NativeActorIndex?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
 
     private BattleDamageForecast ForecastMagic(BattleCombatant actor, BattleCombatant target, BattleNativeAction native, int casts, BattleCombatant? drawSource = null, int drawResist = 0)
     {

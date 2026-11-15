@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsRules rules = definition.NativeGraphics!.Rules;
             if (packet.Command == 117)
             {
-                BattleCombatant source = combatants.SingleOrDefault(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && NativeParticipantAddress(actor.EncodeNativeSlot()) == packet.Argument) ?? throw new NotSupportedException("Native50A070 requires its actual source participant pointer.");
+                BattleCombatant source = combatants.SingleOrDefault(actor => actor.NativeActorIndex is >= 0 and < 7 && NativeParticipantAddress(actor.RequireNativeActorIndex()) == packet.Argument) ?? throw new NotSupportedException("Native50A070 requires its actual source participant pointer.");
                 (ushort saved, uint battle) = NativeContactStatusMirror(source);
                 flags = (previous & 0x1800000) | rules.Project(saved, battle);
             }

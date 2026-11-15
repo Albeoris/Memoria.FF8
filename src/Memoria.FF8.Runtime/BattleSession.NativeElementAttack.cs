@@ -9,11 +9,11 @@ public sealed partial class BattleSession
 
     private byte ReadNativeElementAttack(BattleCombatant actor)
     {
-        if (actor.EncodeNativeSlot() is < 0 or >= 7)
+        if (actor.NativeActorIndex is not int slot)
         {
             throw new InvalidDataException("Native48FE20 element source lies outside its seven physical participant slots.");
         }
-        return nativeElementAttack[actor.EncodeNativeSlot()] ?? throw new NotSupportedException("Native48FE20 requires the retained participant BYTE BD5 element attack; migrate the unknown physical byte explicitly.");
+        return nativeElementAttack[slot] ?? throw new NotSupportedException("Native48FE20 requires the retained participant BYTE BD5 element attack; migrate the unknown physical byte explicitly.");
     }
 
     private void PublishNativeElementAttack(BattleCombatant actor)

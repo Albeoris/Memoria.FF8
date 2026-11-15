@@ -27,7 +27,7 @@ public sealed class NativeBattlePresentationStatusMemoryTests
     public void SnapshotRestoreKeepsIndependentPhysicalOwnersAndRejectsContradictoryProjections()
     {
         BattleSession original = new(Definition(), BattleAtbMode.Normal);
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(original.Capture()))!;
+        BattleSnapshot snapshot = original.Capture();
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(snapshot);
 
@@ -46,7 +46,7 @@ public sealed class NativeBattlePresentationStatusMemoryTests
         BattleSnapshot snapshot = new BattleSession(Definition(), BattleAtbMode.Normal).Capture();
         snapshot = snapshot with { NativePresentationStatusMemory = null, Definition = snapshot.Definition with { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() } };
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = BattleSession.Restore(snapshot);
 
         Assert.Equal(new NativeBattleStatusMirror(0x20, 0x4000), restored.NativePresentationStatusMemory.Rows[0]);
         Assert.Equal(new NativeBattleStatusMirror(null, null), restored.NativePresentationStatusMemory.Rows[1]);

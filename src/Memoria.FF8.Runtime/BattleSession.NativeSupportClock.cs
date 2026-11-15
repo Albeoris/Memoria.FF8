@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         }
         else if ((flags & 0x10) == 0)
         {
-            BattleCombatant? rinoa = combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && actor.ModelId == 4).OrderBy(actor => actor.EncodeNativeSlot()).FirstOrDefault();
+            BattleCombatant? rinoa = combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 7 && actor.ModelId == 4).OrderBy(actor => actor.NativeActorIndex).FirstOrDefault();
             if (rinoa is not null)
             {
                 RunNativePeriodicAngelo(rinoa);
@@ -43,7 +43,7 @@ public sealed partial class BattleSession
     private void RunNativePeriodicAngelo(BattleCombatant rinoa)
     {
         NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Native periodic Angelo support requires the actual saved learned flags.");
-        BattleCombatant[] party = combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 3).ToArray();
+        BattleCombatant[] party = combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 3).ToArray();
         if ((progress.AngeloFlags & 2) != 0 && party.Any(actor => actor != rinoa && actor.IsActive && (NativeSavedStatusBits(actor) & 0x101) == 0x100) && NextRandomByte() <= 8)
         {
             QueueNativePeriodicAngelo(12, FilterAiTargets(0, 200, 0, 8).Request);

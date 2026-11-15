@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed record BattleGuardianForceVital(int Id, ushort HitPoints, ushort MaximumHitPoints, bool Acquired = true)
 {
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
     {
         byte index = task.ReadByte(12);
         byte nativeId = task.ReadByte(14);
-        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == index);
+        BattleCombatant actor = FindAllocatedNativeActor(index) ?? throw new InvalidDataException("Native48E620 requires its retained character allocation.");
         BattleGuardianForceCast cast = guardianForceCasts.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native48E620 lacks its character-owned GF charge record.");
         if (nativeId != cast.Command.ActionId + 64 || task.ReadByte(13) != 254)
         {
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
             actor.NativeCombatantFlags &= ~0xCu;
             if (NativeGraphics is { } graphics)
             {
-                NativeGraphics = QueueNativeDescriptor(graphics, 114, 240, checked((byte)actor.EncodeNativeSlot()));
+                NativeGraphics = QueueNativeDescriptor(graphics, 114, 240, checked((byte)actor.RequireNativeActorIndex()));
             }
         }
         actor.IsBusy = false;
@@ -243,7 +243,7 @@ public sealed partial class BattleSession
             else
             {
                 NativeBattleScriptTasks tasks = saved.NativeScriptState.Tasks;
-                int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.EncodeNativeSlot() && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
+                int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.NativeActorIndex && tasks.Slots[index].ReadByte(13) == 254 && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
                 if (callbacks != 1)
                 {
                     throw new InvalidDataException("Saved GF charge requires its single canonical48E620 callback record.");

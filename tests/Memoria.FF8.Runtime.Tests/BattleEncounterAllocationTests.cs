@@ -34,7 +34,7 @@ public sealed class BattleEncounterAllocationTests
         Assert.Equal(new[] { 5, 6 }, battle.Capture().Combatants.Where(actor => batch.ActorIds.Contains(actor.Id)).Select(actor => actor.NativeParticipant!.ActorIndex));
         battle.BeginEncounterAllocationArrival();
         BattleSnapshot arrival = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(arrival))!);
+        BattleSession restored = BattleSession.Restore(arrival);
         Assert.Equal(BattleEncounterAllocationPhase.Arriving, restored.EncounterAllocation!.Phase);
         restored.CompleteEncounterAllocationArrival();
         restored.CompleteEncounterAllocationArrival();
@@ -104,7 +104,7 @@ public sealed class BattleEncounterAllocationTests
         Assert.Equal(expectedMaximum, support.CurrentHp);
         Assert.Equal(312, battle.Combatants.Single(actor => actor.Id == batch.ActorIds[1]).MaximumHp);
         Assert.Equal(80, battle.Combatants.Single(actor => actor.Id == "original").CurrentHp);
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
+        BattleSnapshot snapshot = battle.Capture();
         Assert.Equal(1, snapshot.NativeAllocations[0].ResolvedDefinition!.MaximumHpMultiplier);
         BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(expectedMaximum, restored.Combatants.Single(actor => actor.Id == support.Id).MaximumHp);
@@ -133,7 +133,8 @@ public sealed class BattleEncounterAllocationTests
         Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(4), header.Source);
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)7, header.Sequence);
-        Assert.Equal((byte)0, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(4));
+        Assert.Equal((ushort)1, header.Action);
+        Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(4));
         Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(0), battle.NativeActionPackets.ReadContact(header.FirstContact).Primary.Recipient);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Message");
         Assert.Null(battle.GetCombatantDefinition(batch.ActorIds[0]).Rewards);
@@ -143,8 +144,8 @@ public sealed class BattleEncounterAllocationTests
     {
         NativeBattleEnemyLevel level = new(projectedHp, 10, 10, 10, 10, 10, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);
         NativeBattleEnemyTemplate template = new(17, Enumerable.Repeat(level, 101).ToArray()) { NativeStatusAllocation = new(0, 0, Enumerable.Repeat((byte)100, 40).ToImmutableArray()) };
-        NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(8, 7, 0), 48).ToArray();
-        BattleNativeAction physical = new(8, 0, 3, 0) { MagicId = 1, AttackType = 1, Power = 1, HitCount = 1, TargetFlags = 0, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
+        NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(8, 7, 1), 48).ToArray();
+        BattleNativeAction physical = new(8, 1, 3, 0) { MagicId = 1, AttackType = 1, Power = 1, HitCount = 1, TargetFlags = 0, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
         List<BattleCombatantDefinition> actors =
         [
             new() { Id = "party", Name = "Party", IsPlayer = true },

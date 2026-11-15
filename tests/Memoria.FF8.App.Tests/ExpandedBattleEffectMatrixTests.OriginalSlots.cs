@@ -84,7 +84,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 29);
         Assert.False(battle.UsesExpandedRoster);
-        Assert.All(battle.Combatants.Where(actor => actor.Slot is not null), actor => Assert.InRange(actor.EncodeNativeSlot(), 0, 6));
+        Assert.All(battle.Combatants.Where(actor => actor.Slot is not null), actor => Assert.InRange(actor.RequireNativeActorIndex(), 0, 6));
         BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
         BattleCombatant wedge = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 73);
         BattleCombatant party = battle.Combatants.First(actor => actor.IsPlayer);

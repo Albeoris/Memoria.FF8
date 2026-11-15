@@ -16,7 +16,7 @@ public sealed class NativeBattleSlotsTargetTests
         Queue(ref battle, cards, repetitions);
         BattleTargetRequest request = Assert.Single(battle.QueuedActions).TargetRequest;
         ushort originalMask = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, target => battle.Combatants.Single(actor => actor.Id == target.ActorId).Slot) ?? throw new InvalidDataException("The original Slots fixture requires a target WORD.");
-        BattleCombatant original = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && (originalMask & (1 << actor.EncodeNativeSlot())) != 0);
+        BattleCombatant original = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && (originalMask & (1 << actor.RequireNativeActorIndex())) != 0);
         original.MutableNativeStatusResistances[3] = 200;
         Assert.DoesNotContain(new BattleEnemyActorModel(new(original.Id)), Resolve(battle, repetitions));
     }

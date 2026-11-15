@@ -125,7 +125,7 @@ public sealed partial class BattleSession
             Log("Renzokuken", actor.Id, target.Id, resource.Timeline.InputThresholds.Length, $"{actor.Name}: Renzokuken.");
             return;
         }
-        BattleTargetRequest contact = new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        BattleTargetRequest contact = new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.RequireNativeActorIndex())), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
         BattleTargetRequest finisherTargets = contact;
         if (finisher is byte selected)
         {

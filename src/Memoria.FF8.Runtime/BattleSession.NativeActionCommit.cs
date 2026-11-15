@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         nativeReactionOrder = 0;
     }
 
-    private bool HasNativePendingReactions => !UsesExpandedRoster && nativeReactionOrder is > 0 && combatants.Any(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order < nativeReactionOrder);
+    private bool HasNativePendingReactions => !UsesExpandedRoster && nativeReactionOrder is > 0 && combatants.Any(actor => actor.NativeActorIndex is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order < nativeReactionOrder);
 
     private void SetNativeReactionActionGate(bool value)
     {
@@ -124,13 +124,13 @@ public sealed partial class BattleSession
             return;
         }
         byte count = nativeReactionOrder ?? throw new NotSupportedException("Native47DDA0/47DE70 requires the retained pending-order BYTE.");
-        bool partyCapable = combatants.Any(actor => actor.EncodeNativeSlot() is >= 0 and < 3 && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 0);
-        bool enemyCapable = combatants.Any(actor => actor.EncodeNativeSlot() is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0);
+        bool partyCapable = combatants.Any(actor => actor.NativeActorIndex is >= 0 and < 3 && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 0);
+        bool enemyCapable = combatants.Any(actor => actor.NativeActorIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0);
         if (Outcome != BattleOutcome.Active || !NativeScriptAllocationPending && !(partyCapable && enemyCapable))
         {
             return;
         }
-        if (count != 0 && combatants.Any(actor => actor.EncodeNativeSlot() is >= 0 and < 7 && (actor.NativePendingReaction.Stage is null || actor.NativePendingReaction.Stage != 0 && actor.NativePendingReaction.Order is null)))
+        if (count != 0 && combatants.Any(actor => actor.NativeActorIndex is >= 0 and < 7 && (actor.NativePendingReaction.Stage is null || actor.NativePendingReaction.Stage != 0 && actor.NativePendingReaction.Order is null)))
         {
             throw new NotSupportedException("Native pending reaction scan requires the retained physical BD7/BD8 bytes; old unknown values cannot be guessed.");
         }
@@ -139,7 +139,7 @@ public sealed partial class BattleSession
         {
             for (int order = 0; order < count; order++)
             {
-                BattleCombatant? actor = combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 7).OrderBy(actor => actor.EncodeNativeSlot()).FirstOrDefault(actor => actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order == order);
+                BattleCombatant? actor = combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 7).OrderBy(actor => actor.NativeActorIndex).FirstOrDefault(actor => actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order == order);
                 if (actor is null)
                 {
                     continue;

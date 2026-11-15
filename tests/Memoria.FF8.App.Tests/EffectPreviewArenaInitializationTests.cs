@@ -46,8 +46,8 @@ public sealed class EffectPreviewArenaInitializationTests
         BattleCombatant enemy = Assert.Single(active.Combatants, actor => !actor.IsPlayer);
         Assert.Equal(0, ally.ModelId);
         Assert.Equal(1, enemy.ModelId);
-        Assert.Equal(0, ally.EncodeNativeSlot());
-        Assert.Equal(3, enemy.EncodeNativeSlot());
+        Assert.Equal(0, ally.RequireNativeActorIndex());
+        Assert.Equal(3, enemy.RequireNativeActorIndex());
         Assert.Null(enemy.NativeAi);
         Assert.Equal(ally.NativeAtb!.Maximum, ally.NativeAtb.Current);
         Assert.Equal(0, enemy.NativeAtb!.Current);

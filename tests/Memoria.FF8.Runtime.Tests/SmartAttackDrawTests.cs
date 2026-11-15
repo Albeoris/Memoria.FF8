@@ -18,7 +18,7 @@ public sealed class SmartAttackDrawTests
         Assert.Equal(BattleRosterSlot.Enemy(5), preview.TargetSlot);
         Assert.Equal(BattleRosterSlot.Enemy(6), preview.DrawSourceSlot);
         battle.QueueSmartAttack(preview);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.Equal(preview, Assert.Single(restored.QueuedActions).SmartAttack);
         if (invalidateSource)
         {
@@ -39,7 +39,7 @@ public sealed class SmartAttackDrawTests
         Assert.Equal(1, preview.CastCount);
         Assert.Equal("enemy", preview.TargetId);
         Assert.Equal("source", preview.DrawSourceId);
-        Assert.Equal(battle.Combatants.Single(actor => actor.Id == "source").EncodeNativeSlot(), preview.DrawSourceIndex);
+        Assert.Equal(battle.Combatants.Single(actor => actor.Id == "source").RequireNativeActorIndex(), preview.DrawSourceIndex);
         battle.QueueSmartAttack(preview);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleAbility.Draw, queued.Ability);
@@ -340,7 +340,7 @@ public sealed class SmartAttackDrawTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void QueuedAndActiveJsonRestoreContinueWithoutConsumingStocksOrMagicTickets(bool active)
+    public void QueuedAndActivePrivateRestoreContinueWithoutConsumingStocksOrMagicTickets(bool active)
     {
         BattleSession battle = Create([Spell(1, 80), Spell(2, 10)], [new(2, 100)], infinite: true);
         string vitalsBefore = JsonSerializer.Serialize(battle.MagicVitals);
@@ -354,7 +354,7 @@ public sealed class SmartAttackDrawTests
         {
             Assert.Single(battle.QueuedActions);
         }
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 30; frame++)
         {
             battle.Tick();

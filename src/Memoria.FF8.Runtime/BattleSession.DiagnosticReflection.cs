@@ -149,7 +149,7 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattleActionHeaderSlot original = nativeActionPackets.ReadHeader(reference);
-        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.Command, original.Action, source, reflected, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native reflection evidence requires its original target word."));
+        return new(header, generation, actor.Id, checked((byte)actor.RequireNativeActorIndex()), reflector.Id, checked((byte)reflector.RequireNativeActorIndex()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.RequireNativeActorIndex()), original.Command, original.Action, source, reflected, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native reflection evidence requires its original target word."));
     }
 
     private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)

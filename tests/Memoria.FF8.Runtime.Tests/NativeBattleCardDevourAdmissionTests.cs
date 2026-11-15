@@ -257,7 +257,7 @@ public sealed class NativeBattleCardDevourAdmissionTests
         }
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
-        Assert.Equal(3, battle.Combatants[1].EncodeNativeSlot());
+        Assert.Equal(3, battle.Combatants[1].RequireNativeActorIndex());
         Assert.Equal(saved, (ushort)(battle.Combatants[1].NativeStatus0 & 0xFCFF));
         return battle;
     }

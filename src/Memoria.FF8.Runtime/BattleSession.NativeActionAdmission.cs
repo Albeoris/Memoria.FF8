@@ -169,7 +169,7 @@ public sealed partial class BattleSession
         {
             sequence = GuardianFormResources(form.GuardianForceId).PhysicalSequence;
         }
-        if ((hostedPresentation ? actor.IsPlayer : actor.EncodeNativeSlot() < 3) && actor.GuardianFormVitals is null)
+        if ((hostedPresentation ? actor.IsPlayer : actor.NativeActorIndex is < 3) && actor.GuardianFormVitals is null)
         {
             sequence = NativeBattleActionGraphics.ResolvePlayerSequence(command, supplied, action, definition.NativeCommandSequences);
         }

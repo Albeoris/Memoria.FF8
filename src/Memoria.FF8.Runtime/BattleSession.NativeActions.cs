@@ -177,7 +177,7 @@ public sealed partial class BattleSession
             return 72;
         }
         // 48B2E0 averages the levels in the occupied physical party slots, including KO members.
-        BattleCombatant[] party = UsesExpandedRoster ? allies.Where(member => member.IsActive).ToArray() : allies.Where(member => member.EncodeNativeSlot() is >= 0 and < 3).ToArray();
+        BattleCombatant[] party = UsesExpandedRoster ? allies.Where(member => member.IsActive).ToArray() : allies.Where(member => member.NativeActorIndex is >= 0 and < 3).ToArray();
         uint cost = checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
         return TrySpendNativeMoogleGil(cost) ? null : 53;
     }
@@ -311,7 +311,7 @@ public sealed partial class BattleSession
                     MarkNativeContactFlags(0, 4);
                 }
                 int divisor = 8;
-                if (native.AttackType == 5 && native.Command is 4 or 13 && (UsesExpandedRoster ? actor.IsPlayer : actor.EncodeNativeSlot() < 3))
+                if (native.AttackType == 5 && native.Command is 4 or 13 && (UsesExpandedRoster ? actor.IsPlayer : actor.NativeActorIndex is < 3))
                 {
                     uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item revival requires the equipped character-ability flags.");
                     divisor = (passiveFlags & 2) != 0 ? 4 : 8;
@@ -427,7 +427,7 @@ public sealed partial class BattleSession
                         return;
                     }
                     damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
-                    if ((native.AttackFlags & 3) == 2 && (UsesExpandedRoster ? actor.IsPlayer : actor.EncodeNativeSlot() < 3))
+                    if ((native.AttackFlags & 3) == 2 && (UsesExpandedRoster ? actor.IsPlayer : actor.NativeActorIndex is < 3))
                     {
                         uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
                         if ((passiveFlags & 2) != 0)

@@ -137,7 +137,7 @@ public sealed partial class BattleSession
             }
             if (initializeNativeAi && actor.IsActive && HasNativeRosterSlot(actor) && !UsesExpandedRoster)
             {
-                nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.EncodeNativeSlot());
+                nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.RequireNativeActorIndex());
             }
             if (initializeNativeAi && UsesExpandedRoster)
             {
@@ -937,7 +937,7 @@ public sealed partial class BattleSession
         actor.Atb = 0;
         actor.IsBusy = true;
         BattleTargetRequest request = UsesExpandedRoster ? SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living)
-            : new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+            : new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.RequireNativeActorIndex())), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
         BattleAttackCommand command = new(actor.Id, target.Id, request) { NativeQueuedCommand = physical, NativeAction = native };
         if (actor.IsPlayer && !UsesExpandedRoster)
         {

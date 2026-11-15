@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.IsPlayer && actor.EncodeNativeSlot() == index);
+                BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.IsPlayer && actor.NativeActorIndex == index);
                 if (actor is null)
                 {
                     supported = false;

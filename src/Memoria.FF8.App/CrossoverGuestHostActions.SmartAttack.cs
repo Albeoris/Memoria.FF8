@@ -46,13 +46,13 @@ internal sealed partial class CrossoverGuestHostActions
 
     public bool SubmitSmartAttack(BattleSmartAttackPreview preview)
     {
-        if (preview.ActorId != ActorSlot.ToString() || preview != PreviewSmartAttack(preview.TargetIndex, preview.ForcePhysical))
+        if (preview.TargetIndex is not int targetIndex || preview.ActorId != ActorSlot.ToString() || preview != PreviewSmartAttack(targetIndex, preview.ForcePhysical))
         {
             return false;
         }
         return preview.Ability == BattleAbility.Magic
-            ? host.SubmitGuestMagic(ActorSlot, preview.TargetIndex, checked((ushort)preview.ActionId))
-            : host.SubmitGuestAttack(ActorSlot, preview.TargetIndex);
+            ? host.SubmitGuestMagic(ActorSlot, targetIndex, checked((ushort)preview.ActionId))
+            : host.SubmitGuestAttack(ActorSlot, targetIndex);
     }
 
     private BattleDamageForecast ReadSmartForecast(int target, ushort ability, Ff7BattleGuestPhysicalHit hit, Ff7BattleGuestContactContext context)

@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         if (NativeGraphics is null && nativeTimedAction is null && ActiveAction?.NativeHeader is null && nativeActionScratch.ComponentCompletion is uint callback)
         {
             BattleAttackCommand[] queuedPresentations = eventActorId is not null && eventActorIndex is byte actorIndex ? CaptureNativeComponentEventPresentations(eventActorId, actorIndex) : [];
-            if (eventActorId is not null && GetActor(eventActorId).NativeActorIndex == eventActorIndex)
+            if (eventActorId is not null && eventActorIndex.HasValue && GetActor(eventActorId).NativeActorIndex == eventActorIndex)
             {
                 //Live component actors keep their declared presentation boundary; retired allocations finish at their observed event tail.
                 queuedPresentations = [];
