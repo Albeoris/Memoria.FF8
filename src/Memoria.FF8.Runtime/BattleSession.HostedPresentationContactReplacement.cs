@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         internal NativeBattleRenzokukenWidgetStepped? Renzokuken { get; } = renzokuken;
     }
 
-    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null, ImmutableArray<HostedModelLoadAdmission> allocations = default, PreparedHostedGuardianFormChange? guardianForm = null)
+    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null, ImmutableArray<HostedModelLoadAdmission> allocations = default, PreparedHostedGuardianFormChange? guardianForm = null, ImmutableArray<NativeBattleContactPacket> routed = default)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation || token != invocation.Token)
@@ -75,6 +75,24 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Contact replacement requires the active caster's exact pending trigger and single physical contact.");
             }
             replacementGraphics = graphics with { PendingTrigger = null };
+        }
+        if (!routed.IsDefaultOrEmpty)
+        {
+            if (acknowledgeTrigger is null || replacementGraphics is null || header.Command is not (1 or 12 or 28) ||
+                replacements is not [var selected] || selected.Primary is not { Sequence: 0, PresentedAmount: 0 })
+            {
+                throw new InvalidDataException("Routed graphics contacts require the ordinary Gunblade's resolved zero-damage source contact.");
+            }
+            foreach (NativeBattleContactPacket packet in routed)
+            {
+                packet.Validate();
+                if (packet.Occurrence is not null || packet.Secondary is not null || !roster.Contains(packet.Primary.Recipient) ||
+                    packet.Primary.Recipient == selected.Primary.Recipient || packet.Primary.PresentedAmount <= 0)
+                {
+                    throw new InvalidDataException("A routed graphics contact requires its own allocated damage recipient.");
+                }
+            }
+            replacementGraphics = replacementGraphics with { PendingContacts = replacementGraphics.PendingContacts.AddRange(routed) };
         }
         if (acknowledgeGuardian is not null)
         {

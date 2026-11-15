@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         ImmutableArray<ExpandedHostedOperation> suffix = candidate.expandedOperationCursor.Operations.RemoveAt(0);
         ImmutableArray<HostedDispatchHeader> headers = suffix.OfType<ExpandedHostedInvocation>().Select(write => new HostedDispatchHeader(write.Header, write.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
-        PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian, allocations, form);
+        PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian, allocations, form, resolved.RoutedGraphicsContacts);
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
         ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, replacement.ReplacementPackets.Roster);
 

@@ -21,6 +21,7 @@ public sealed partial class BattleSession
         internal bool PendingGuardian { get; init; }
         internal BattleActionHeaderReference? HeaderReference { get; init; }
         internal BattleContactCursor FirstContact { get; init; }
+        internal ImmutableArray<NativeBattleContactPacket> RoutedGraphicsContacts { get; init; } = [];
         internal int ContactCount => Contacts.Length + FollowingCasts.Sum(cast => cast.Contacts.Length);
         internal IEnumerable<ExpandedBattleContact> AllContacts => Contacts.Concat(FollowingCasts.SelectMany(cast => cast.Contacts));
     }
@@ -38,6 +39,7 @@ public sealed partial class BattleSession
         internal BattleModelRoster Roster { get; } = roster;
         internal NativeBattleEffectContactBridge<string>? Bridge { get; set; } = bridge;
         internal HashSet<int> Occurrences { get; } = [];
+        internal int PresentedRoutedContacts { get; set; }
         internal BattlePendingEnemyDraw? EnemyDraw = invocation.EnemyDraw;
     }
 
@@ -229,6 +231,15 @@ public sealed partial class BattleSession
                     if (actionToken is null || actionToken != expandedHostedActionToken || expandedInvocationProgress is not { } progress)
                     {
                         throw new InvalidDataException("Hosted contact arrived without its active logical action.");
+                    }
+                    if (CurrentExpandedHostedInvocation is { } active && progress.PresentedRoutedContacts < active.RoutedGraphicsContacts.Length &&
+                        ReferenceEquals(active.RoutedGraphicsContacts[progress.PresentedRoutedContacts], contact.Packet))
+                    {
+                        progress.PresentedRoutedContacts++;
+                        NativeBattleContactHalf routed = contact.Packet.Primary;
+                        PublishExpandedImpact(progress.Command, RequireCanonicalGraphicsActorId(routed.Recipient), routed, "EffectContact", deferredImpact: true);
+                        PublishExpandedReadyContact(progress.Roster, routed, progress.Command.ActorId);
+                        break;
                     }
                     if (progress.Bridge is not { } contactBridge)
                     {

@@ -389,20 +389,11 @@ internal sealed partial class GameWorld
 
     private static void ValidateExpandedEncounterPolicy(EncounterCompiledDefinition mod, ImmutableArray<NativeBattleEffectBinding> effects)
     {
-        List<string> unsupported = [];
         if (mod.NormalActionPolicies.Count != 0 &&
             (mod.NativeEvents is not null || mod.EventGates.Count != 0 || mod.Templates.Count != 0 ||
                 mod.Policies.Values.SelectMany(policy => policy.Rules).Any(rule => !BattleSession.SupportsHostedEncounterSpellRule(rule.Action, effects))))
         {
-            unsupported.Add("encounter AI and its native event callbacks");
-        }
-        if (mod.DamageRoutes.Count != 0)
-        {
-            unsupported.Add("routed damage through deferred native contacts");
-        }
-        if (unsupported.Count != 0)
-        {
-            throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires {string.Join(", ", unsupported)}, which are unavailable for an expanded roster.");
+            throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires encounter AI and its native event callbacks, which are unavailable for an expanded roster.");
         }
     }
 

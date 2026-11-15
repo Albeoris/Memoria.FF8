@@ -18,6 +18,7 @@ public sealed partial class BattleSession
     }
 
     private EncounterHitTransaction? encounterHitTransaction;
+    private ImmutableArray<NativeBattleContactPacket>.Builder? deferredRoutedGraphicsContacts;
     private bool committingEncounterHp;
 
     private bool HasEncounterDamageRoutes => definition.EncounterMod is { DamageRoutes.Count: > 0 };
@@ -132,6 +133,11 @@ public sealed partial class BattleSession
         {
             return false;
         }
+        if (OwnsExpandedHostedInvocation && deferredRoutedGraphicsContacts is null &&
+            receipts.Any(receipt => receipt.RecipientId != receipt.OriginalTargetId && receipt.AssignedDamage > 0))
+        {
+            throw new NotSupportedException("This deferred native action requires a routed graphics contact owner.");
+        }
         List<NativeBattleContactPacket> extra = [];
         EncounterHitTransaction immediate = new(CaptureEncounterDamageActors(), ResolveEncounterDamageRoutes());
         encounterHitTransaction = immediate;
@@ -148,7 +154,11 @@ public sealed partial class BattleSession
         {
             encounterHitTransaction = null;
         }
-        if (NativeGraphics is not null)
+        if (deferredRoutedGraphicsContacts is { } hosted)
+        {
+            hosted.AddRange(extra);
+        }
+        else if (NativeGraphics is not null)
         {
             foreach (NativeBattleContactPacket packet in extra)
             {

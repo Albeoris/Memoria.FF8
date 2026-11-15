@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -90,12 +92,12 @@ public sealed partial class BattleSession
         PublishExpandedHostedRecompute(process, roster, token, invocation, candidate =>
         {
             candidate.pendingEnemyDraw ??= invocation.EnemyDraw;
-            NativeBattleContactPacket packet = candidate.ResolveExpandedGunbladeContact(invocation, previous, receipt);
-            return invocation with { Contacts = [new(previous.RecipientId, packet)], EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false };
+            (NativeBattleContactPacket packet, ImmutableArray<NativeBattleContactPacket> routed) = candidate.ResolveExpandedGunbladeContact(invocation, previous, receipt);
+            return invocation with { Contacts = [new(previous.RecipientId, packet)], RoutedGraphicsContacts = routed, EnemyDraw = candidate.TakePendingHostedEnemyDraw(), PendingGunblade = false };
         }, trigger: receipt);
     }
 
-    private NativeBattleContactPacket ResolveExpandedGunbladeContact(ExpandedHostedInvocation invocation, ExpandedBattleContact previous, NativeBattleTriggerReceipt receipt)
+    private (NativeBattleContactPacket Packet, ImmutableArray<NativeBattleContactPacket> Routed) ResolveExpandedGunbladeContact(ExpandedHostedInvocation invocation, ExpandedBattleContact previous, NativeBattleTriggerReceipt receipt)
     {
         BattleCombatant actor = GetActor(invocation.Command.ActorId);
         BattleCombatant recipient = GetActor(previous.RecipientId);
@@ -104,15 +106,18 @@ public sealed partial class BattleSession
         BattleActionDefinition action = new(contact.Ability, contact.ActionId, native.Name ?? "Gunblade", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         resolvingNativeAction = contact;
         deferringExpandedImpacts = true;
+        deferredRoutedGraphicsContacts = HasEncounterDamageRoutes ? ImmutableArray.CreateBuilder<NativeBattleContactPacket>() : null;
         nativeActionCommitDepth++;
         try
         {
-            return ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native);
+            NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native);
+            return (packet, deferredRoutedGraphicsContacts?.ToImmutable() ?? []);
         }
         finally
         {
             nativeActionCommitDepth--;
             deferringExpandedImpacts = false;
+            deferredRoutedGraphicsContacts = null;
             resolvingNativeAction = null;
         }
     }

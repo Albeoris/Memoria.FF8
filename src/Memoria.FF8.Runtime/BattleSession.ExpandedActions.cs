@@ -479,6 +479,10 @@ public sealed partial class BattleSession
             int delivered = expandedInvocationProgress?.Occurrences.Count ?? 0;
             throw new InvalidDataException($"Expanded effect {header.Effect} for native command {header.Command}/{header.Action} completed with {delivered} of {invocation.ContactCount} prepared contacts.");
         }
+        if (!invocation.RoutedGraphicsContacts.IsEmpty && expandedInvocationProgress?.PresentedRoutedContacts != invocation.RoutedGraphicsContacts.Length)
+        {
+            throw new InvalidDataException("The native Gunblade completed before publishing its routed graphics contacts.");
+        }
     }
 
     private (BattleActionPresentation? Command, ImmutableArray<ExpandedBattleContact> Contacts, NativeBattleActionHeaderPreparation? HostedHeader) ResolveExpandedReflection(BattleCombatant actor, BattleActionPresentation source, BattleActionDefinition action, BattleCombatant? reflector, BattleNativeAction? reflected)
