@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect9Controller;
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
@@ -13,7 +12,7 @@ public sealed class NativeBattleEffect9ParticleLifecycleTests
     {
         Fixture fixture = new();
         NativeBattleEffect9Frame frame = Write(fixture.Frame, fixture.Birth, Read(fixture.Frame, fixture.Birth).WriteWord(0x24, 1));
-        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect9Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        frame = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleEffect9Step birth = NativeBattleEffect9Particles.Advance(frame, fixture.Birth, fixture.Inputs([9, 2, 255]));
         Assert.Equal(0, birth.Result);
         Assert.Equal((ushort)2, Read(birth.Frame, fixture.Birth).ReadWord(0x24));

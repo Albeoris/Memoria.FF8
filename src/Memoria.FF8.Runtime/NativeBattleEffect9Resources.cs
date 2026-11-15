@@ -5,9 +5,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect9Resources(NativeBattleEffectInitializerAsset MainTim, NativeBattleEffectHeapAllocation Camera, NativeBattleGfAnimationSource Primary, NativeBattleGfAnimationSource Secondary, NativeBattleModuleResource Particle, uint Sound, ImmutableArray<byte> BirthSchedule, NativeBattleFullscreenOverlayProgram Overlay)
 {
+    public const int CameraSourceLength = 0x244;
+
     public void Validate()
     {
-        if (!string.Equals(MainTim.Name, "mag008.tim", StringComparison.OrdinalIgnoreCase) || MainTim.Data.IsDefault || MainTim.Data.Length != 168480 || Camera.Data.IsDefault || Camera.Data.Length != 134 || BinaryPrimitives.ReadUInt16LittleEndian(Camera.Data.AsSpan()) != 2 || BinaryPrimitives.ReadUInt16LittleEndian(Camera.Data.AsSpan().Slice(2)) != 8 || BinaryPrimitives.ReadUInt16LittleEndian(Camera.Data.AsSpan().Slice(4)) != 12)
+        if (!string.Equals(MainTim.Name, "mag008.tim", StringComparison.OrdinalIgnoreCase) || MainTim.Data.IsDefault || MainTim.Data.Length != 168480 || Camera.Data.IsDefault || Camera.Data.Length != CameraSourceLength || BinaryPrimitives.ReadUInt16LittleEndian(Camera.Data.AsSpan()) != 2 || BinaryPrimitives.ReadUInt16LittleEndian(Camera.Data.AsSpan().Slice(2)) != 8 || BinaryPrimitives.ReadUInt16LittleEndian(Camera.Data.AsSpan().Slice(4)) != 12)
         {
             throw new InvalidDataException("Effect9 requires its original TIM and bounded camera registration source.");
         }
