@@ -22,6 +22,7 @@ internal sealed record NativeBattleModelParticipantSuspended(BattleModelOwner Ow
     internal NativeBattleActionHeaderSlot? ActiveHeader { get; init; }
 }
 internal sealed record NativeBattleModelTextPublished(BattleModelOwner Owner, string ActorId, string Text, int Value, BattleTextIdentity? TextIdentity) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleModelTurnAdvanceStopRequested(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 internal sealed record NativeBattleModelTriggerRegistered(BattleModelOwner Owner, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 
 internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)

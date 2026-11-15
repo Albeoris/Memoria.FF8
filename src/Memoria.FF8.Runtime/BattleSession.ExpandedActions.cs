@@ -197,7 +197,7 @@ public sealed partial class BattleSession
             CompleteActionPresentation(command, "Expanded action cancelled.");
             return;
         }
-        if (graphicAction is not null && recipients.Length == 0)
+        if (!hosted && graphicAction is not null && recipients.Length == 0)
         {
             CompleteActionPresentation(command, "Native graphical effect completed.");
             return;
@@ -304,6 +304,7 @@ public sealed partial class BattleSession
         bool hostedSilence = hosted && NativeMagicInvocationSilenced(actor, command, originalNative);
         bool failedSpecial = hosted && (miniMogFailure.HasValue || NativeSpecialInvocationFailed(command, originalNative));
         NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(command, originalNative, miniMogFailure.HasValue) : null;
+        bool hostedGraphicContext = hostedHeader is not null && ReadExpandedHostedContactDisposition(command, hostedHeader) == ExpandedHostedContactDisposition.ContextOnly;
         BattleActionPresentation resolved = command with { NativeAction = miniMog && !failedSpecial ? native with { ActionId = (ushort)native.KernelIndex } : native };
         BattleActionPresentation formulaCommand = resolved;
         BattleActionDefinition formulaAction = action;
@@ -383,7 +384,7 @@ public sealed partial class BattleSession
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
             }
             BattleCombatant? reflector;
-            deferringExpandedImpacts = presentsNativeEffect && !IsExpandedOriginalGraphicPresentation(actor, command, native);
+            deferringExpandedImpacts = presentsNativeEffect && !hostedGraphicContext && !IsExpandedOriginalGraphicPresentation(actor, command, native);
             (contacts, reflector) = ResolveExpandedHitPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade);
             deferringExpandedImpacts = false;
             if (command.NativeDraw is { Failed: true } || failedSpecial || hostedSilence)
@@ -429,14 +430,14 @@ public sealed partial class BattleSession
             resolvingNativeAction = null;
         }
         BattlePendingEnemyDraw? hostedDraw = null;
-        if (hosted)
+        if (hosted && !hostedGraphicContext)
         {
             if (!contacts.IsEmpty || !reflectedContacts.IsEmpty)
             {
                 hostedDraw = TakePendingHostedEnemyDraw();
             }
         }
-        else if (presentsNativeEffect && !contacts.IsEmpty && !IsExpandedOriginalGraphicPresentation(actor, command, native))
+        else if (!hosted && presentsNativeEffect && !contacts.IsEmpty && !IsExpandedOriginalGraphicPresentation(actor, command, native))
         {
             // A reaction to this action can queue another Draw before its graphics emit contact.
             expandedEffectEnemyDraw = pendingEnemyDraw;
@@ -456,6 +457,10 @@ public sealed partial class BattleSession
         }
         if (hostedHeader is not null)
         {
+            if (hostedGraphicContext)
+            {
+                PublishExpandedImpacts(resolved, contacts);
+            }
             StageExpandedHostedInvocationCore(resolved, hostedHeader, contacts, contacts.IsEmpty ? null : hostedDraw, pendingGunblade: hostedGunblade);
             if (reflectedCommand is not null)
             {
@@ -637,7 +642,7 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedEffectContactCompletion()
     {
-        if (expandedPresentedOccurrences.Count != expandedExpectedContacts)
+        if (expandedHostedInvocations is not [{ ContactDisposition: ExpandedHostedContactDisposition.ContextOnly }, ..] && expandedPresentedOccurrences.Count != expandedExpectedContacts)
         {
             throw new InvalidDataException("The expanded effect completed before publishing all prepared contacts.");
         }

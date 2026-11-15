@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         if (duration != 0)
         {
             BattleEvent published = message with { Frame = Frame, Amount = duration, NativeMessageMode = (byte)packet.Value };
-            if (hostedTerminal is not null)
+            if (hostedTerminal is not null || hostedBattlePresentation && message is { ActorId: not null, NativeTextIdentity: not null })
             {
                 (hostedFrameServices ?? throw new InvalidOperationException("Hosted native text requires the active frame receipt owner.")).EmitDescriptorText(published);
             }

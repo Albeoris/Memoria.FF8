@@ -30,6 +30,7 @@ public sealed partial class BattleSession
         NativeBattleControl110Resources resources = effect.Binding.Control110Resources ?? throw new NotSupportedException("Native control110 requires its original resources.");
         int buffer = effect.Control110?.BufferOffset ?? throw new NotSupportedException("Native control110 requires its executed initializer.");
         NativeBattleEffectTaskPool[] pools = effect.Pools.ToArray();
+        bool expanded = graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena;
         NativeBattleModulePoolTask root = pools[0].Slots[0];
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
@@ -41,11 +42,27 @@ public sealed partial class BattleSession
         {
             if (root.ReadByte(15) == 0)
             {
+                NativeBattleEffectMemory memory = NativeEffectMemory!;
+                uint targetBank = Address(0);
+                ushort targetCapacity = 2;
+                if (expanded)
+                {
+                    int count = nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadContactCount();
+                    if (count < 1)
+                    {
+                        throw new InvalidDataException("Native control110 requires a selected target.");
+                    }
+                    targetCapacity = checked((ushort)Math.Max(2, count));
+                    if (targetCapacity > 2)
+                    {
+                        (memory, targetBank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, nativeActionPackets.Roster, 44, targetCapacity);
+                    }
+                }
                 root = root.WriteByte(15, 1);
-                ImmutableArray<byte> source = NativeEffectMemory!.Control110!.Vertices ?? throw new NotSupportedException("Native control110 lost its retained EXE stream vertices.");
+                ImmutableArray<byte> source = memory.Control110!.Vertices ?? throw new NotSupportedException("Native control110 lost its retained EXE stream vertices.");
                 ImmutableArray<byte> normalized = NativeBattleControl110Motion.Normalize(source);
-                NativeEffectMemory = NativeEffectMemory with { Arena = NativeEffectMemory.Arena!.Write(buffer + 0x14FC, normalized.AsSpan()) };
-                pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25219F0, Address(0), 44, 2), NativeBattleEffectTaskPool.Initialize(0x2521A00, Address(0x58), 48, 16), NativeBattleEffectTaskPool.Initialize(0x2521A10, Address(0x358), 20, 16), NativeBattleEffectTaskPool.Initialize(0x2521A20, Address(0x498), 32, 128), NativeBattleEffectTaskPool.Initialize(0x2521A30, Address(0x1498), 100, 1)];
+                NativeEffectMemory = memory with { Arena = memory.Arena!.Write(buffer + 0x14FC, normalized.AsSpan()) };
+                pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25219F0, targetBank, 44, targetCapacity), NativeBattleEffectTaskPool.Initialize(0x2521A00, Address(0x58), 48, 16), NativeBattleEffectTaskPool.Initialize(0x2521A10, Address(0x358), 20, 16), NativeBattleEffectTaskPool.Initialize(0x2521A20, Address(0x498), 32, 128), NativeBattleEffectTaskPool.Initialize(0x2521A30, Address(0x1498), 100, 1)];
             }
             if (Allocate(5, 0x6CEA30, out int slot))
             {
@@ -53,11 +70,20 @@ public sealed partial class BattleSession
                 BattleActionHeaderReference headerIndex = effect.Parameters!.Header;
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(headerIndex);
                 int count = header.ReadContactCount();
-                if (count is < 1 or > 3)
+                if (expanded)
+                {
+                    director = director.WriteContactCount(14, count);
+                    NativeBattleControl110SweepStorage.Write(director, new(0, 0), count);
+                    director = count < 4 ? director.WriteWord(34, (ushort)((count << 12) / 60)) : director.MarkPayloadUnknown(32, 4);
+                }
+                else if (count is < 1 or > 3)
                 {
                     throw new InvalidDataException("Native control110 target pointers leave their three physical slots.");
                 }
-                director = director.WriteWord(14, (ushort)count).WriteWord(30, 1).WriteWord(34, unchecked((ushort)((count << 12) / 60)));
+                else
+                {
+                    director = director.WriteWord(14, (ushort)count).WriteWord(30, 1).WriteWord(34, unchecked((ushort)((count << 12) / 60)));
+                }
                 director = director.WriteOrderedContactRecipients(16, 3, nativeActionPackets, header);
                 Put(5, slot, director);
                 BeginTarget(slot, 0);
@@ -102,6 +128,13 @@ public sealed partial class BattleSession
         if (completed)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
+            NativeBattleEffectTaskPool targetPool = pools[1];
+            if (expanded && targetPool.BankAddress != Address(0))
+            {
+                NativeBattleEffectMemory memory = NativeEffectMemory!;
+                NativeEffectMemory = memory with { Arena = NativeBattleControl110SweepStorage.MirrorRetiredTargetPrefix(memory.Arena!, buffer, targetPool) };
+                pools = pools.Where(pool => pool.DescriptorAddress != targetPool.DescriptorAddress).ToArray();
+            }
         }
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = completed ? 0u : 0x2521A40u } };
@@ -122,7 +155,7 @@ public sealed partial class BattleSession
                 ImmutableArray<byte> current = NativeEffectMemory.Control110!.Vertices!.Value;
                 current = NativeBattleStorm11Motion.Wobble(normalized, current, WindWord(task, 36), WindWord(task, 38));
                 NativeEffectMemory = NativeEffectMemory with { Control110 = NativeEffectMemory.Control110 with { Vertices = current } };
-                if (frame >= 15)
+                if (!expanded && frame >= 15)
                 {
                     task = task.WriteWord(32, unchecked((ushort)(WindWord(task, 32) + WindWord(task, 34))));
                     if (WindWord(task, 32) >= 4096)
@@ -139,20 +172,7 @@ public sealed partial class BattleSession
                         task = task.WriteWord(28, unchecked((ushort)next)).WriteWord(30, unchecked((ushort)Math.Min(next + 1, WindWord(task, 14) - 1)));
                     }
                 }
-                NativeBattleVector aim;
-                BattleModelOwner nextActor = DirectorTarget(task, WindWord(task, 30));
-                NativeBattleVector to = Position(nextActor);
-                if (WindWord(task, 28) == 1)
-                {
-                    NativeBattleVector saved = WindVector(task, 60);
-                    aim = new(unchecked((short)((saved.X + to.X) >> 1)), unchecked((short)((saved.Y + to.Y) >> 1)), unchecked((short)((saved.Z + to.Z) >> 1)));
-                }
-                else
-                {
-                    NativeBattleVector from = Position(DirectorTarget(task, WindWord(task, 28)));
-                    int fraction = WindWord(task, 32);
-                    aim = new(unchecked((short)(from.X + ((to.X - from.X) * fraction >> 12))), unchecked((short)(from.Y + ((to.Y - from.Y) * fraction >> 12))), unchecked((short)(from.Z + ((to.Z - from.Z) * fraction >> 12))));
-                }
+                NativeBattleVector aim = expanded ? ExpandedAim(ref task, slot, frame) : OriginalAim(task);
                 task = task.WriteWord(52, unchecked((ushort)aim.X));
                 int dy = aim.Y - WindWord(task, 54);
                 int dz = aim.Z - WindWord(task, 56);
@@ -199,7 +219,7 @@ public sealed partial class BattleSession
             }
             if ((uint)frame < 37 && (frame & 3) == 0 && Allocate(3, 0x6CF280, out int ringSlot))
             {
-                Put(3, ringSlot, Clear(3, ringSlot).WriteDword(16, Address(0x1498 + slot * 100)));
+                Put(3, ringSlot, Clear(3, ringSlot).WriteDword(16, DirectorAddress(slot)));
             }
             task = task.WriteWord(36, unchecked((ushort)(WindWord(task, 36) - 100))).WriteWord(38, unchecked((ushort)(WindWord(task, 38) + 100)));
             if (frame >= 70)
@@ -208,6 +228,67 @@ public sealed partial class BattleSession
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));
             return 0;
+        }
+
+        NativeBattleVector ExpandedAim(ref NativeBattleModulePoolTask task, int slot, int frame)
+        {
+            int count = task.ReadContactCount(14);
+            BattleExecutionReference.Control110Sweep sweep = task.ReadExecutionReference<BattleExecutionReference.Control110Sweep>(28, 4);
+            if (count >= 4)
+            {
+                if (frame is >= 15 and <= 68)
+                {
+                    sweep = sweep.Advance(count, next => BeginTarget(slot, next));
+                    NativeBattleControl110SweepStorage.Write(task, sweep, count);
+                }
+            }
+            else if (frame >= 15)
+            {
+                int phase = sweep.Phase + (count << 12) / 60;
+                if (phase >= 4096)
+                {
+                    phase -= 4096;
+                    int next = sweep.Next(count);
+                    if (sweep.Current != next)
+                    {
+                        task = WindStore(task, 60, Position(DirectorTarget(task, next)));
+                        Put(5, slot, task);
+                        BeginTarget(slot, next);
+                    }
+                    sweep = new(next, phase);
+                }
+                else
+                {
+                    sweep = sweep with { Phase = phase };
+                }
+                NativeBattleControl110SweepStorage.Write(task, sweep, count);
+            }
+            NativeBattleVector to = Position(DirectorTarget(task, sweep.Next(count)));
+            return count < 4 && sweep.Current == 1
+                ? Midpoint(WindVector(task, 60), to)
+                : Interpolate(Position(DirectorTarget(task, sweep.Current)), to, sweep.Fraction(count));
+        }
+
+        NativeBattleVector OriginalAim(NativeBattleModulePoolTask task)
+        {
+            BattleModelOwner nextActor = DirectorTarget(task, WindWord(task, 30));
+            NativeBattleVector to = Position(nextActor);
+            if (WindWord(task, 28) == 1)
+            {
+                return Midpoint(WindVector(task, 60), to);
+            }
+            NativeBattleVector from = Position(DirectorTarget(task, WindWord(task, 28)));
+            return Interpolate(from, to, WindWord(task, 32));
+        }
+
+        static NativeBattleVector Midpoint(NativeBattleVector from, NativeBattleVector to)
+        {
+            return new(unchecked((short)((from.X + to.X) >> 1)), unchecked((short)((from.Y + to.Y) >> 1)), unchecked((short)((from.Z + to.Z) >> 1)));
+        }
+
+        static NativeBattleVector Interpolate(NativeBattleVector from, NativeBattleVector to, int fraction)
+        {
+            return new(unchecked((short)(from.X + ((to.X - from.X) * fraction >> 12))), unchecked((short)(from.Y + ((to.Y - from.Y) * fraction >> 12))), unchecked((short)(from.Z + ((to.Z - from.Z) * fraction >> 12))));
         }
 
         int Target(ref NativeBattleModulePoolTask task)
@@ -229,9 +310,17 @@ public sealed partial class BattleSession
                 }
                 if (nativeActionPackets.ModelAliases.TryEncodeExact(actor, out byte originalSlot) && originalSlot is 3 or 4)
                 {
-                    BattleCombatant combatant = GraphicsActor(graphics, actor);
-                    NativeBattleAiDefinition program = combatant.NativeAi ?? throw new NotSupportedException("Native control110 actor message requires its installed enemy message bank.");
-                    QueueNativeText(combatant, program, originalSlot == 3 ? 10 : 1, 0);
+                    int text = originalSlot == 3 ? 10 : 1;
+                    if (hostedBattlePresentation)
+                    {
+                        graphics = QueueHostedControl110Text(graphics, actor, text);
+                    }
+                    else
+                    {
+                        BattleCombatant combatant = GraphicsActor(graphics, actor);
+                        NativeBattleAiDefinition program = combatant.NativeAi ?? throw new NotSupportedException("Native control110 actor message requires its installed enemy message bank.");
+                        QueueNativeText(combatant, program, text, 0);
+                    }
                 }
             }
             model = graphics.ActorModels.Get(actor);
@@ -330,11 +419,15 @@ public sealed partial class BattleSession
         {
             if (!Allocate(1, 0x6CE610, out int slot))
             {
+                if (expanded)
+                {
+                    throw new InvalidDataException("Native control110 exhausted its reserved target bank.");
+                }
                 return;
             }
             NativeBattleModulePoolTask director = pools[5].Slots[directorSlot];
             BattleModelOwner actor = DirectorTarget(director, ordinal);
-            NativeBattleModulePoolTask task = Clear(1, slot).WriteDword(16, Address(0x1498 + directorSlot * 100)).WriteWord(32, unchecked((ushort)ordinal)).WriteWord(22, unchecked((ushort)Count110(actor))).WriteWord(40, 8);
+            NativeBattleModulePoolTask task = Clear(1, slot).WriteDword(16, DirectorAddress(directorSlot)).WriteWord(32, unchecked((ushort)ordinal)).WriteWord(22, unchecked((ushort)Count110(actor))).WriteWord(40, 8);
             task.WriteExecutionReference(28, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
             if (ordinal is 0 or 1)
             {
@@ -344,13 +437,14 @@ public sealed partial class BattleSession
         }
         NativeBattleVector Position(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Transform!.Position28;
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + (uint)offset);
+        uint DirectorAddress(int slot) => checked(pools[5].BankAddress + (uint)(slot * pools[5].Stride));
         BattleModelOwner DirectorTarget(NativeBattleModulePoolTask task, int ordinal)
         {
             return task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients[ordinal].Owner;
         }
         int DirectorSlot(uint address)
         {
-            uint delta = unchecked(address - Address(0x1498));
+            uint delta = unchecked(address - pools[5].BankAddress);
             return delta == 0 ? 0 : throw new InvalidDataException("Native control110 child lost its singleton director address.");
         }
         ushort Random()
@@ -424,6 +518,27 @@ public sealed partial class BattleSession
             }
             return (body, linked, graphics.ActorModels.Get(actor).SequenceState!.MeshMask124, resource.PoseSource!, resource.LinkedPoseSource);
         }
+    }
+
+    private NativeBattleGraphicsState QueueHostedControl110Text(NativeBattleGraphicsState graphics, BattleModelOwner owner, int text)
+    {
+        NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted control110 requires its current actor facts.");
+        if (owner is not BattleEnemyActorModel enemy || !services.Facts.TryGetValue(owner, out NativeBattleModelActorFacts? facts) || facts is null ||
+            facts.IsParty || !StringComparer.Ordinal.Equals(facts.ActorId, enemy.Actor.ActorId))
+        {
+            throw new InvalidDataException("Hosted control110 text requires the original enemy model's current actor facts.");
+        }
+
+        BattleCombatantDefinition? actor = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && StringComparer.Ordinal.Equals(candidate.Id, facts.ActorId));
+        if (actor is null || actor.ModelId != facts.OriginalModelId || actor.NativeAi is not { } program || (uint)text >= program.Texts.Length)
+        {
+            throw new InvalidDataException("Hosted control110 text requires its actor's installed message bank.");
+        }
+
+        BattleEvent message = new(Frame, "NativeText", facts.ActorId, null, 30, program.Texts[text]) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Enemy(facts.OriginalModelId, text) };
+        NativeBattleGraphicsState queued = QueueNativeDescriptorMessage(graphics, message, 0);
+        services.Emit(new NativeBattleModelTurnAdvanceStopRequested(owner, facts.ActorId));
+        return queued;
     }
 
     private static NativeBattleVector ReadVector110(ImmutableArray<byte> bytes, int offset) => new(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset + 4)));

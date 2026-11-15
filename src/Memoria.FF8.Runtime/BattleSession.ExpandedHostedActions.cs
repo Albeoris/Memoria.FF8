@@ -4,7 +4,13 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw)
+    private enum ExpandedHostedContactDisposition
+    {
+        RequiredImpacts,
+        ContextOnly
+    }
+
+    private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw, ExpandedHostedContactDisposition ContactDisposition)
     {
         internal bool PendingGunblade { get; init; }
         internal BattleActionHeaderReference? HeaderReference { get; init; }
@@ -23,7 +29,7 @@ public sealed partial class BattleSession
     {
         // TODO(TD-009): Finish nonordinary invocation ownership before enabling the attached host in App.
         if (command.Ability is BattleAbility.GuardianForce or BattleAbility.LimitBreak || command.GuardianFormAction is not null ||
-            command.GuardianFormInvocation is not null || command.IndependentGuardian is not null || command.NativeLimitCallback is not null || command.NativeGraphic is not null)
+            command.GuardianFormInvocation is not null || command.IndependentGuardian is not null || command.NativeLimitCallback is not null)
         {
             throw new NotSupportedException("Hosted presentation has no admission for this nonordinary invocation.");
         }
@@ -40,20 +46,33 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted invocation staging requires the logical preparation candidate.");
         }
-        // TODO(TD-009): Ordinary zero-target and graphics-only invocations have separate admission contracts.
-        if (contacts.IsDefault || contacts.IsEmpty && header is not { Command: 0, Sequence: 10, Action: 9, Effect: 0 })
+        ExpandedHostedContactDisposition disposition = ReadExpandedHostedContactDisposition(command, header);
+        if (contacts.IsDefault || contacts.IsEmpty && disposition != ExpandedHostedContactDisposition.ContextOnly && header is not { Command: 0, Sequence: 10, Action: 9, Effect: 0 })
         {
-            throw new NotSupportedException("Hosted presentation requires an explicit contact list or its original failed control header.");
+            throw new NotSupportedException("Hosted presentation requires an explicit contact list, its original failed control header, or a native graphics header.");
         }
-        if (contacts.IsEmpty && enemyDraw is not null)
+        if ((contacts.IsEmpty || disposition == ExpandedHostedContactDisposition.ContextOnly) && enemyDraw is not null)
         {
-            throw new InvalidDataException("A hosted control invocation cannot consume pending Draw without a contact.");
+            throw new InvalidDataException("A hosted event cannot defer pending Draw without an expected impact.");
         }
         if (pendingGunblade && (contacts.Length != 1 || header.Command is not (1 or 12 or 28)))
         {
             throw new InvalidDataException("Hosted ordinary Gunblade requires one preliminary contact and its original command.");
         }
-        expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, contacts, enemyDraw) { PendingGunblade = pendingGunblade });
+        expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, contacts, enemyDraw, disposition) { PendingGunblade = pendingGunblade });
+    }
+
+    private static ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
+    {
+        if (command.NativeGraphic is { } graphic && header is { Command: 252, Action: 1 } && header.Effect == graphic.MagicId)
+        {
+            return ExpandedHostedContactDisposition.ContextOnly;
+        }
+        if (command.NativeGraphic is not null || header.Command == 252)
+        {
+            throw new InvalidDataException("Hosted graphics contact context requires its exact native command252 header.");
+        }
+        return ExpandedHostedContactDisposition.RequiredImpacts;
     }
 
     private BattlePendingEnemyDraw? TakePendingHostedEnemyDraw()
@@ -112,7 +131,7 @@ public sealed partial class BattleSession
         expandedModelRoster = roster;
         expandedEffectCommand = invocation.Command;
         expandedEffectEnemyDraw = invocation.EnemyDraw;
-        expandedExpectedContacts = invocation.Contacts.Length;
+        expandedExpectedContacts = invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts ? invocation.Contacts.Length : 0;
         expandedPresentedOccurrences.Clear();
     }
 
@@ -177,6 +196,19 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Hosted Gunblade published its placeholder before trigger recomputation.");
                     }
+                    if (expandedHostedInvocations[0].ContactDisposition == ExpandedHostedContactDisposition.ContextOnly)
+                    {
+                        if (contact.Packet.Occurrence is null)
+                        {
+                            throw new InvalidDataException("Hosted graphics context requires its exact contact occurrence.");
+                        }
+                        (int ordinal, _) = expandedContactBridge.ResolveOccurrence(contact.Packet);
+                        if (!expandedPresentedOccurrences.Add(ordinal))
+                        {
+                            throw new InvalidDataException("Hosted graphics repeated a contact context occurrence.");
+                        }
+                        break;
+                    }
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
                     BattleModelRoster roster = expandedModelRoster!;
                     PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
@@ -193,6 +225,13 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattleModelTextPublished text:
                     events.Add(new BattleEvent(Frame, "NativeText", text.ActorId, null, text.Value, text.Text) { NativeMessageMode = 3, NativeTextIdentity = text.TextIdentity });
+                    break;
+                case NativeBattleModelTurnAdvanceStopRequested stop:
+                    if (RequirePresentationModelOwner(RequireExpandedLifecycleRoster(), GetActor(stop.ActorId)) != stop.Owner)
+                    {
+                        throw new InvalidDataException("Hosted turn-advance stop does not identify its canonical model owner.");
+                    }
+                    StopTurnAdvance();
                     break;
                 case NativeBattlePresentationDescriptorText descriptorText:
                     events.Add(descriptorText.Message with { Frame = Frame });

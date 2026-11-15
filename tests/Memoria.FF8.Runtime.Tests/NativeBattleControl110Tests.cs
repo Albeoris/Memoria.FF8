@@ -48,4 +48,74 @@ public sealed class NativeBattleControl110Tests
         Assert.Equal((ushort)20, task.ReadWord(42));
         Assert.Equal(unchecked((ushort)-30), task.ReadWord(44));
     }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(14)]
+    [InlineData(33)]
+    [InlineData(110)]
+    public void Expanded_sweep_births_cover_every_ordinal_in_order_before_the_original_director_ends(int count)
+    {
+        BattleExecutionReference.Control110Sweep sweep = new(0, 0);
+        List<(int Frame, int Ordinal)> births = [(0, 0)];
+        for (int frame = 15; frame <= 68; frame++)
+        {
+            sweep = sweep.Advance(count, ordinal => births.Add((frame, ordinal)));
+            Assert.InRange(sweep.Fraction(count), 0, 4095);
+        }
+        Assert.Equal(Enumerable.Range(0, count), births.Select(birth => birth.Ordinal));
+        Assert.All(births.Skip(1), birth => Assert.Equal(14 + (54 * birth.Ordinal + count - 1) / count, birth.Frame));
+        Assert.Equal(count - 1, sweep.Current);
+        Assert.Equal(count - 1, sweep.Next(count));
+        Assert.Equal(0, sweep.Fraction(count));
+        if (count > 54)
+        {
+            Assert.True(births.Count(birth => birth.Frame == 15) > 1);
+        }
+    }
+
+    [Theory]
+    [InlineData(1, 0, 0, 0)]
+    [InlineData(2, 0, 1, 4095)]
+    [InlineData(3, 1, 2, 4095)]
+    public void Expanded_small_sweep_projects_the_actual_original_cursor_pair(int count, int current, ushort next, ushort phase)
+    {
+        NativeBattleEffectTaskPool director = NativeBattleEffectTaskPool.Initialize(4, 8, 100, 1);
+        NativeBattleModulePoolTask task = director.Slots[0].WriteContactCount(14, count);
+        BattleExecutionReference.Control110Sweep sweep = new(current, phase);
+        NativeBattleControl110SweepStorage.Write(task, sweep, count);
+        Assert.Equal((ushort)count, task.ReadWord(14));
+        Assert.Equal((ushort)current, task.ReadWord(28));
+        Assert.Equal(next, task.ReadWord(30));
+        Assert.Equal(phase, task.ReadWord(32));
+        Assert.Equal(sweep, task.ReadExecutionReference<BattleExecutionReference.Control110Sweep>(28, 4));
+    }
+
+    [Fact]
+    public void Expanded_retirement_copies_only_the_original_target_prefix_and_its_knownness()
+    {
+        const int stride = 44;
+        const int offset = 256;
+        const int prefix = stride * 2;
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x25219F0, 0x80000000, stride, 4);
+        for (int index = 0; index < 3; index++)
+        {
+            (pool, int slot) = pool.Append(0x6CE610);
+            pool.Slots[slot].WriteDword(16, (uint)(0x2521A30 + index)).WriteWord(32, (ushort)index);
+        }
+        pool.Slots[1].MarkPayloadUnknown(28, 4);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(offset - 1, [0xA8]).Write(offset + prefix, [0x5D]);
+        Assert.Throws<InvalidDataException>(() => NativeBattleControl110SweepStorage.MirrorRetiredTargetPrefix(arena, offset, pool));
+        pool = pool.Advance((current, _) => new(current, 2)).Pool;
+        NativeBattleTaskBankOwner owner = pool.RequireOwner();
+        NativeBattleEffectArena source = NativeBattleEffectArena.BorrowWorking(owner.Storage, owner.StorageOffset, prefix);
+        NativeBattleEffectArena mirrored = NativeBattleControl110SweepStorage.MirrorRetiredTargetPrefix(arena, offset, pool);
+        var expected = source.ReadSnapshot(0, prefix);
+        var actual = mirrored.ReadSnapshot(offset, prefix);
+        Assert.Equal(expected.Data, actual.Data);
+        Assert.Equal(expected.Known, actual.Known);
+        Assert.False(actual.Known[stride + 28]);
+        Assert.Equal(new byte[] { 0xA8 }, mirrored.Read(offset - 1, 1));
+        Assert.Equal(new byte[] { 0x5D }, mirrored.Read(offset + prefix, 1));
+    }
 }

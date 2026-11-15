@@ -179,6 +179,59 @@ public sealed class ExpandedActionPreparationTests
         Assert.Equal(3, candidate.GetAvailableMagicCasts("caster", 1));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Hosted_graphics_require_no_impact_receipt_and_validate_optional_context_occurrences(bool hasContext)
+    {
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        BattleSession owner = Create();
+        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
+        BattleModelOwner source = owner.ReadPresentationModelOwner("enemy");
+        BattleModelOwner target = owner.ReadPresentationModelOwner("caster");
+        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleTargetRequest.None, BattleAbility.EnemyAbility, 1)
+        {
+            NativeGraphic = new(110),
+            NativeAiCallbackStage = 2,
+            NativeQueuedCommand = 252
+        };
+        NativeBattleActionHeaderPreparation header = new(source, 252, 0, -1, 1, 110, null);
+        NativeBattleContactPacket contact = new(new(target, 0, 0, 1, 0, 0, 0), null);
+        ImmutableArray<ExpandedBattleContact> contacts = hasContext ? [new("caster", contact)] : [];
+        typeof(BattleSession).GetField("preparingExpandedHostedAction", privateInstance)!.SetValue(owner, true);
+        MethodInfo stage = typeof(BattleSession).GetMethod("StageExpandedHostedInvocation", privateInstance)!;
+        NativeBattleActionHeaderPreparation wrongHeader = header with { Command = 2 };
+        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => stage.Invoke(owner, [command, wrongHeader, contacts, null])).InnerException);
+        if (!hasContext)
+        {
+            Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => stage.Invoke(owner, [command with { NativeGraphic = null }, wrongHeader, contacts, null])).InnerException);
+        }
+        stage.Invoke(owner, [command, header, contacts, null]);
+        object invocation = ReadHostedInvocation(owner);
+        object? bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster]);
+        typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
+        typeof(BattleSession).GetField("expandedHostedActionToken", privateInstance)!.SetValue(owner, 1L);
+        MethodInfo validate = typeof(BattleSession).GetMethod("ValidateExpandedEffectContactCompletion", privateInstance)!;
+        MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
+        validate.Invoke(owner, []);
+
+        NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
+        services.EmitContact(contact);
+        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => acknowledge.Invoke(owner, [services, 1L])).InnerException);
+        if (hasContext)
+        {
+            services = owner.CaptureModelLifecycleServices(roster);
+            services.EmitContact(contact with { Occurrence = new(1) });
+            Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => acknowledge.Invoke(owner, [services, 1L])).InnerException);
+            services = owner.CaptureModelLifecycleServices(roster);
+            services.EmitContact(contact with { Occurrence = new(0) });
+            acknowledge.Invoke(owner, [services, 1L]);
+            validate.Invoke(owner, []);
+            Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => acknowledge.Invoke(owner, [services, 1L])).InnerException);
+        }
+        Assert.DoesNotContain(owner.Events, item => item.Kind is "EffectContact" or "Damage" or "Healing");
+    }
+
     [Fact]
     public void Ordered_hosted_contact_debits_its_own_enemy_draw_once_and_keeps_newer_pending_draw()
     {

@@ -90,7 +90,7 @@ public sealed class ExpandedBattleEntryAdmissionTests
         Assert.Same(process, battle.ExpandedPresentationProcess);
     }
 
-    private static void SelectFourAllies(GameWorld world, GameSession session)
+    internal static void SelectFourAllies(GameWorld world, GameSession session)
     {
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords();
         vitals = vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray() };
