@@ -681,7 +681,7 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            if (HasNativeUiServiceClock)
+            if (HasNativeUiServiceClock || HasAttachedOriginalGaugeRegistration && enemy.NativeAi is not null)
             {
                 //Raw4842B0 owns full-gauge registration;4847B0 below publishes its deferred callback without resetting the gauge.
                 continue;
@@ -703,7 +703,7 @@ public sealed partial class BattleSession
             BattleCombatant target = combatants.First(actor => actor.IsPlayer && actor.IsAlive);
             EnqueueAttack(enemy, target);
         }
-        if (HasNativeUiServiceClock)
+        if (HasNativeUiServiceClock || HasAttachedOriginalGaugeRegistration)
         {
             //Ordinary4847F0 inputs are already folded into their physical banks; consume200 before event dispatch.
             PublishNativeRegisteredCallbacks4847B0();

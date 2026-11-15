@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private readonly record struct AiTargetSelection(BattleTargetRequest Request, BattlePreviousTarget? PreviousTarget);
+    private bool SamplesOriginalAiSlots => !UsesExpandedRoster ||
+        UsesOriginalEnemySlots && definition.AddedEnemySources is not { Count: > 0 } && allies.All(HasNativeRosterSlot);
 
     private AiTargetSelection EmptyAiTargets => UsesExpandedRoster
         ? new(BattleTargetRequest.None, null)
@@ -64,7 +66,7 @@ public sealed partial class BattleSession
 
     private AiTargetSelection SelectOriginalAiTargets(NativeBattleTargetRequestAdapter.OriginalWordProjection source, bool allowsKnockedOutAllies = false)
     {
-        BattleTargetRequest request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(source, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies, samplesOriginalSlots: !UsesExpandedRoster);
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(source, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies, samplesOriginalSlots: SamplesOriginalAiSlots);
         if (UsesExpandedRoster)
         {
             request = request with { OriginalProjection = null };
@@ -80,18 +82,18 @@ public sealed partial class BattleSession
     private AiTargetSelection FilterAiTargets(byte allTargets, byte group, byte comparison, byte criterion)
     {
         // 486E70 computes extrema before applying allocation/death and group filtering.
-        BattleCombatant[] population = !UsesExpandedRoster || UsesOriginalEnemySlots && group >= 16 && group is not (200 or 201)
+        BattleCombatant[] population = SamplesOriginalAiSlots || UsesOriginalEnemySlots && group >= 16 && group is not (200 or 201)
             ? NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex).ToArray()
             : combatants.Where(HasAiRosterSlot).ToArray();
         var filter = NativeAiTargetFilter(population, group, comparison, criterion);
-        BattleCombatant[] candidates = population.Where(candidate => (!UsesExpandedRoster || !candidate.Untargetable) && filter.Eligible(candidate)).ToArray();
+        BattleCombatant[] candidates = population.Where(candidate => (SamplesOriginalAiSlots || !candidate.Untargetable) && filter.Eligible(candidate)).ToArray();
         if (allTargets == 0)
         {
             return PickAiTarget(candidates, filter.Side);
         }
 
         BattleTargetSide side = candidates.Any(candidate => candidate.Side == BattleSide.Enemies) ? BattleTargetSide.Enemies : BattleTargetSide.Allies;
-        if (!UsesExpandedRoster)
+        if (SamplesOriginalAiSlots)
         {
             return SelectOriginalAiTargets(NativeBattleTargetRequestAdapter.OriginalGroup(side, candidates.Select(candidate => NativeBattleSlots.Decode(candidate.RequireNativeActorIndex()))));
         }
@@ -107,7 +109,7 @@ public sealed partial class BattleSession
 
     private AiTargetSelection PickAiSide(BattleSide side, BattleCombatant? exclude = null)
     {
-        if (UsesExpandedRoster)
+        if (!SamplesOriginalAiSlots)
         {
             IEnumerable<BattleCombatant> available = Roster(side).Where(candidate => candidate != exclude && IsExpandedAiTarget(candidate));
             if (exclude is not null && IsExpandedAiTarget(exclude))
@@ -133,7 +135,7 @@ public sealed partial class BattleSession
     private AiTargetSelection PickAiTarget(IEnumerable<BattleCombatant> candidates, BattleSide? side = null)
     {
         BattleCombatant[] available = candidates.ToArray();
-        if (UsesExpandedRoster)
+        if (!SamplesOriginalAiSlots)
         {
             return available.Length == 0 ? EmptyAiTargets : SelectAiActors([available[NextRandomByte() % available.Length]]);
         }
@@ -148,13 +150,13 @@ public sealed partial class BattleSession
             _ => NativeBattleSlots.Count
         };
         int first = side == BattleSide.Enemies ? NativeBattleSlots.AllyCount : 0;
-        HashSet<int> eligible = available.Select(candidate => candidate.RequireNativeActorIndex()).ToHashSet();
+        Dictionary<int, BattleCombatant> eligible = available.ToDictionary(candidate => candidate.RequireNativeActorIndex());
         while (true)
         {
             int index = first + NextRandomByte() % count;
-            if (eligible.Contains(index))
+            if (eligible.TryGetValue(index, out BattleCombatant? selected))
             {
-                return SelectAiActorOperand(index);
+                return SelectAiActor(selected);
             }
         }
     }

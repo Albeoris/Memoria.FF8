@@ -2,9 +2,13 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private bool HasAttachedOriginalGaugeRegistration => expandedPresentationProcess is not null && nativeBattleClock is not null && SamplesOriginalAiSlots;
+
     private void PublishNativeFullGaugeRegistration(BattleCombatant actor)
     {
-        if (NativeGraphics?.UiServices is not { } ui || actor.NativeActorIndex is null || actor.NativeAtb is not { } gauge)
+        NativeBattleUiServices? ui = NativeGraphics?.UiServices;
+        bool attachedEnemy = HasAttachedOriginalGaugeRegistration && !actor.IsPlayer && actor.NativeAi is not null;
+        if ((ui is null && !attachedEnemy) || actor.NativeActorIndex is null || actor.NativeAtb is not { } gauge)
         {
             return;
         }
@@ -13,17 +17,25 @@ public sealed partial class BattleSession
         {
             return;
         }
+        if (ui is null)
+        {
+            if (registration.Kind == NativeBattleGaugeRegistrationKind.DeferredScript)
+            {
+                actor.NativeCombatantFlags = registration.ActorFlags;
+            }
+            return;
+        }
         switch (registration.Kind)
         {
             case NativeBattleGaugeRegistrationKind.None:
                 return;
             case NativeBattleGaugeRegistrationKind.Menu:
-                NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.RequireNativeActorIndex()), 0x11) } };
+                NativeGraphics = NativeGraphics! with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.RequireNativeActorIndex()), 0x11) } };
                 break;
             case NativeBattleGaugeRegistrationKind.ForcedCommand:
                 ObserveNativeUnknownStackCallback(0x483EB0, "forced full-gauge command");
                 //483EB0's non-script branch invokes485030 before486E00 and484D20.
-                NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.RequireNativeActorIndex()), 0x12) } };
+                NativeGraphics = NativeGraphics! with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.RequireNativeActorIndex()), 0x12) } };
                 BattleTargetSelection selection = ChooseOriginalRandomActionTarget(BattleSide.Enemies);
                 if (selection is not NativeBattleTargetRequestAdapter.DeferredOperands original ||
                     ReadOriginalSelectedActor(original, activeOnly: false) is not { } target)
@@ -50,8 +62,15 @@ public sealed partial class BattleSession
                 continue;
             }
             ObserveNativeUnknownStackCallback(0x484720, "registered actor callback");
-            //484720(actor,1,2): a nonzero third argument selects the ordinary physical bank2.
-            QueueNativeCallback(actor, 1, 2);
+            if (HasAttachedOriginalGaugeRegistration)
+            {
+                QueueExpandedAiCallback(actor, 1);
+            }
+            else
+            {
+                //484720(actor,1,2): a nonzero third argument selects the ordinary physical bank2.
+                QueueNativeCallback(actor, 1, 2);
+            }
             actor.NativeCombatantFlags &= ~0x200u;
         }
     }

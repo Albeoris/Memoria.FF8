@@ -186,7 +186,7 @@ internal sealed partial class GameWorld
                 addedEnemySources = SelectAdditionalEnemies(encounter, requested, nativeSeed);
             }
         }
-        bool expanded = restoredDefinition?.UsesExpandedRoster ?? (expandedParty is not null || addedEnemySources is { Count: > 0 });
+        bool expanded = restoredDefinition?.UsesExpandedRoster ?? (UseAttachedBattlePresentation || expandedParty is not null || addedEnemySources is { Count: > 0 });
         if (expanded && restoredDefinition is null)
         {
             addedEnemySources ??= ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty;

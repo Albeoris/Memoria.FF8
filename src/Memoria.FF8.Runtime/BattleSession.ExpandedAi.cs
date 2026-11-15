@@ -210,7 +210,7 @@ public sealed partial class BattleSession
             }
             if ((flags & 2) != 0 && selection is BattleTargetSelection.SideGroup or NativeBattleTargetRequestAdapter.DeferredOperands)
             {
-                selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: false);
+                selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: SamplesOriginalAiSlots);
             }
         }
 
