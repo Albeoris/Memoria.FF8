@@ -164,6 +164,31 @@ if (args.Contains("--battle-theft-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--naming-growth-only", StringComparer.Ordinal))
+{
+    NativeNamingGrowthTests.Run();
+    NativeGrowthTests.Run();
+    return 0;
+}
+
+if (args.Contains("--naming-lifecycle-only", StringComparer.Ordinal))
+{
+    NativeNamingLifecycleTests.Run();
+    return 0;
+}
+
+if (args.Contains("--battle-command-grants-only", StringComparer.Ordinal))
+{
+    NativeBattleCommandGrantTests.Run();
+    return 0;
+}
+
+if (args.Contains("--command-projection-only", StringComparer.Ordinal))
+{
+    NativeCommandProjectionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--window-defaults-only", StringComparer.Ordinal))
 {
     NativeWindowDefaultsTests.Run();
@@ -684,6 +709,10 @@ var tests = new (string Name, Action Run)[]
     ("native special window timer metadata", NativeProcessTests.RunSpecialWindow),
     ("native camera focus and tracking contracts", NativeProcessTests.RunViewOffset),
     ("native character growth contracts", NativeGrowthTests.Run),
+    ("native naming join growth", NativeNamingGrowthTests.Run),
+    ("native naming lifecycle and deferred statistics", NativeNamingLifecycleTests.Run),
+    ("native command materia grants", NativeBattleCommandGrantTests.Run),
+    ("native command passive statistics and admission", NativeCommandProjectionTests.Run),
     ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
     ("FFVII Turn Based scheduling and cold continuation", NativeBattleTests.RunTurnBased),
     ("FFVII native battle speed and cold continuation", NativeBattleSpeedTests.Run),

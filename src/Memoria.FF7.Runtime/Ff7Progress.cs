@@ -27,6 +27,7 @@ public sealed record Ff7Progress
     public required Ff7InventorySlot[] Inventory { get; init; }
     public required Ff7MateriaState[] Materia { get; init; }
     public uint Gil { get; init; }
+    public bool NativePartyStatisticsDirty { get; init; }
     public byte NativeMessageSpeed { get; init; } = 128;
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeBattleSpeed { get; init; }

@@ -49,6 +49,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
         InitializePaletteState();
         InitializeFadeState();
         InitializeMovieCameraConsumption();
+        if (Process.Menu is { Mode: 6, NamingPhase: null } legacyNaming)
+        {
+            Process = Process with { Menu = legacyNaming with { NamingPhase = legacyNaming.Completed ? Ff7NamingPhase.Completed : Ff7NamingPhase.Editing } };
+        }
         Process.Validate();
         foreach (Ff7HostReceipt receipt in Process.Receipts)
         {
@@ -78,6 +82,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Func<ushort, int>? CompleteBattle { get; set; }
     public Action<FieldAudioCommand>? AudioRequested { get; set; }
     public Func<FieldCommand, FieldHostReply>? ExternalCommand { get; set; }
+    public Action<Ff7Menu>? NamingStarted { get; set; }
+    public Action<Ff7Menu, string?>? NamingCompleted { get; set; }
     public Ff7NativeMovement? Movement { get; set; }
     public IReadOnlyList<byte>? NativeFieldEntryFadeAlpha { get; set; }
     public Ff7NativeCamera? CameraProjection { get; set; }

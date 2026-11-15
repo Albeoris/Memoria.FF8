@@ -158,6 +158,7 @@ public sealed partial class Ff7BattleSession
     private readonly IReadOnlyList<KernelSection> kernel;
     private readonly Ff7BattleRng random;
     private readonly Ff7BattleSystemMessages? systemMessages;
+    private readonly Ff7BattleCommandResources? commandResources;
     private readonly Ff7BattleAnimationResources? animations;
     private readonly IReadOnlyList<Ff7BattleAttack> limits;
     private readonly IReadOnlyList<byte> beatRushSymbols;
@@ -170,7 +171,7 @@ public sealed partial class Ff7BattleSession
     private const int LogicUpdatesPerPresentation = 4;
     private Ff7BattleSnapshot state;
 
-    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<byte>? enemyExtensionPartyLevels = null, byte[]? initialSaveBank1 = null, Ff7BattleSnapshot? previousFormation = null, Ff7BattleSystemMessages? systemMessages = null)
+    public Ff7BattleSession(SceneFormation formation, Ff7Progress progress, IReadOnlyList<KernelSection> kernel, IReadOnlyList<short> materiaModifiers, long requestId, ushort requestFlags = 0, Ff7BattleSnapshot? snapshot = null, Ff7BattleAnimationResources? animations = null, IReadOnlyList<Ff7BattleAttack>? limits = null, IReadOnlyList<byte>? beatRushSymbols = null, byte requestMode = 0, int? musicTrack = null, short bigShotChargeRotation = 0, short bigShotCounterRotation = 0, short searchScopeScaleCounter = 0, Ff7BattleCameraScriptResources? cameraScripts = null, byte cameraPresentationCounter = 0, short silkDirection = 1, Ff7EnemyExtensionCatalog? enemyExtensions = null, IReadOnlyList<byte>? enemyExtensionPartyLevels = null, byte[]? initialSaveBank1 = null, Ff7BattleSnapshot? previousFormation = null, Ff7BattleSystemMessages? systemMessages = null, Ff7BattleCommandResources? commandResources = null)
     {
         Formation = formation;
         SceneBattleData nativeData = SceneBattleData.Read(formation);
@@ -179,6 +180,7 @@ public sealed partial class Ff7BattleSession
         Formation = formation with { EnemyRewards = formation.EnemyRewards.Select(reward => Data.Enemies.FirstOrDefault(e => e.Placement.EnemyId == reward.EnemyId)?.Rewards ?? reward).ToArray() };
         this.kernel = kernel;
         this.systemMessages = systemMessages;
+        this.commandResources = commandResources;
         this.animations = animations;
         this.cameraScripts = cameraScripts;
         this.limits = limits ?? [];

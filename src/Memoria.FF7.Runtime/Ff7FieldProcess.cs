@@ -113,7 +113,16 @@ public sealed record Ff7Line(int Slot, int Entity, short X1, short Y1, short Z1,
 public sealed record Ff7JumpProcess(long RequestId, int TargetX, int TargetY, int TargetTriangle, int Duration, int StartX = 0, int StartY = 0, int StartZ = 0, int TargetZ = 0, int VerticalVelocity = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7LadderProcess(long RequestId, int TargetX, int TargetY, int TargetZ, int TargetTriangle, byte Mode, int StartX = 0, int StartY = 0, int StartZ = 0, int Steps = 0, int Step = 0, bool Initialized = false, bool Completed = false);
 public sealed record Ff7OffsetProcess(int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, int Mode, int Steps, int Step = 0, bool Completed = false);
-public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false, Ff7ShopState? Shop = null);
+public enum Ff7NamingPhase
+{
+    Editing,
+    Completed
+}
+
+public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false, Ff7ShopState? Shop = null)
+{
+    public Ff7NamingPhase? NamingPhase { get; init; }
+}
 public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false, Ff7MovieCameraConsumption? CameraConsumption = null);
 public sealed record Ff7MovieCameraConsumption(int Frame, long WordsBeforeRead, long WordsAfterRead);
 public sealed record Ff7HostReceipt(FieldHostRequest Request, FieldHostReply Reply);
@@ -252,6 +261,10 @@ public sealed record Ff7FieldProcess
         }
         CameraShakeX?.Validate();
         Menu?.Shop?.Validate();
+        if (Menu is { NamingPhase: { } naming } named && (!Enum.IsDefined(naming) || named.Mode != 6 || named.Completed != (naming == Ff7NamingPhase.Completed)))
+        {
+            throw new InvalidDataException("The naming phase and its native menu owner disagree.");
+        }
         if (Menu is { Shop: { } shop } menu && (menu.Mode != 8 || shop.RequestId != menu.RequestId || shop.ShopId != menu.Parameter || menu.Completed != (shop.Phase == Ff7ShopPhase.Completed) || !menu.Completed && (GlobalCommand != Ff7GlobalCommand.Menu || GlobalRequestId != menu.RequestId) || GlobalCommand == Ff7GlobalCommand.Menu && GlobalRequestId != menu.RequestId))
         {
             throw new InvalidDataException("The native shop and global menu owners disagree.");

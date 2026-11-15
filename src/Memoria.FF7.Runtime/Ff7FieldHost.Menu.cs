@@ -31,7 +31,13 @@ public sealed partial class Ff7FieldHost
         {
             throw new NotSupportedException($"FFVII party selector parameter {command.Parameter} requires its native roster contract.");
         }
-        Process = Process with { Menu = new(requestId, command.Mode, command.Parameter, Shop: command.Mode == 8 ? new(requestId, command.Parameter) : null), GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
+        Ff7Menu menu = new(requestId, command.Mode, command.Parameter, Shop: command.Mode == 8 ? new(requestId, command.Parameter) : null);
+        if (command.Mode == 6)
+        {
+            (NamingStarted ?? throw new NotSupportedException("FFVII naming requires its native character initialization owner."))(menu);
+            menu = menu with { NamingPhase = Ff7NamingPhase.Editing };
+        }
+        Process = Process with { Menu = menu, GlobalCommand = Ff7GlobalCommand.Menu, GlobalRequestId = requestId };
         return new(false);
     }
 
@@ -49,7 +55,7 @@ public sealed partial class Ff7FieldHost
         CompleteMenu(menu.RequestId);
     }
 
-    public void CompleteMenu(long requestId)
+    public void CompleteMenu(long requestId, string? nativeName = null)
     {
         Ff7Menu menu = Process.Menu ?? throw new InvalidOperationException("No FFVII menu is active.");
         if (menu.RequestId != requestId || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != requestId)
@@ -59,6 +65,19 @@ public sealed partial class Ff7FieldHost
         if (menu.Mode == 8 && menu.Shop?.Phase != Ff7ShopPhase.Completed)
         {
             throw new InvalidOperationException("The native shop must finish its closing process before the field menu can complete.");
+        }
+        if (menu.Completed)
+        {
+            return;
+        }
+        if (menu.Mode == 6)
+        {
+            (NamingCompleted ?? throw new NotSupportedException("FFVII naming requires its native character completion owner."))(menu, nativeName);
+            menu = menu with { NamingPhase = Ff7NamingPhase.Completed };
+        }
+        else if (nativeName is not null)
+        {
+            throw new InvalidOperationException("Only a naming menu can publish a native character name.");
         }
         Process = Process with { Menu = menu with { Completed = true } };
     }
@@ -103,16 +122,6 @@ public sealed partial class Ff7Session
         {
             throw new ArgumentException("FFVII names require one through nine supported font characters.", nameof(name));
         }
-        Ff7CharacterState character = Progress.Characters.Single(character => character.Id == menu.Parameter);
-        byte[] record = (byte[])character.NativeRecord.Clone();
-        record.AsSpan(16, 12).Fill(255);
-        for (int index = 0; index < name.Length; index++)
-        {
-            record[16 + index] = (byte)(name[index] - 32);
-        }
-        Ff7Progress updated = Progress with { Characters = Progress.Characters.Select(current => current.Id == character.Id ? current with { Name = name, NativeRecord = record } : current).ToArray() };
-        updated.Validate();
-        Host.CompleteMenu(requestId);
-        Progress = updated;
+        Host.CompleteMenu(requestId, name);
     }
 }

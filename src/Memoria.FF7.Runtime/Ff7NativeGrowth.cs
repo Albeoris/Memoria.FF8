@@ -73,6 +73,59 @@ public sealed class Ff7NativeGrowth
         return record;
     }
 
+    public byte[] InitializeJoin(ReadOnlySpan<byte> nativeRecord, IReadOnlyList<Ff7CharacterState> characters, ushort available, Ff7BattleRng random, byte? savedLevel = null)
+    {
+        ArgumentNullException.ThrowIfNull(characters);
+        ArgumentNullException.ThrowIfNull(random);
+        if (nativeRecord.Length != 132 || nativeRecord[0] >= 9 || nativeRecord[1] is < 1 or > 99 || characters.Any(character => character is null || character.Id is < 0 or > 8 || character.NativeRecord is not { Length: 132 }) || characters.Select(character => character.Id).Distinct().Count() != characters.Count)
+        {
+            throw new InvalidDataException("Native join growth requires complete character records and a valid joining persona.");
+        }
+        int persona = nativeRecord[0];
+        sbyte modifier = tables.JoinModifier(persona);
+        int targetLevel;
+        bool reset = (modifier & 1) != 0;
+        if (reset)
+        {
+            targetLevel = savedLevel ?? throw new NotSupportedException("Native join growth requires its saved level input for this modifier.");
+        }
+        else
+        {
+            Ff7CharacterState[] physicalRecords = characters.OrderBy(character => character.Id).ToArray();
+            int levels = 0;
+            int count = 0;
+            for (int logical = 0; logical < 9; logical++)
+            {
+                if (logical == persona || (available & 1 << logical) == 0)
+                {
+                    continue;
+                }
+                Ff7CharacterState? selected = physicalRecords.FirstOrDefault(character => character.NativeRecord[0] == logical);
+                if (selected is not null)
+                {
+                    levels += selected.NativeRecord[1];
+                    count++;
+                }
+            }
+            targetLevel = (count == 0 ? nativeRecord[1] : levels / count) + modifier / 2;
+        }
+        targetLevel = Math.Max(1, targetLevel);
+        if (targetLevel > 99)
+        {
+            throw new NotSupportedException("Native join growth above level99 requires its original upper-bound contract.");
+        }
+        byte[] prepared = nativeRecord.ToArray();
+        if (reset)
+        {
+            prepared[1] = 1;
+            prepared.AsSpan(2, 6).Clear();
+            prepared.AsSpan(0x2E, 2).Clear();
+            prepared.AsSpan(0x32, 2).Clear();
+            prepared.AsSpan(0x3C, 4).Clear();
+        }
+        return Apply(prepared, Threshold(persona, targetLevel - 1), random);
+    }
+
     public uint Threshold(int character, int level)
     {
         if ((uint)level > 98)

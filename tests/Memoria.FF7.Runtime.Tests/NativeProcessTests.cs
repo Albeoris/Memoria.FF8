@@ -920,11 +920,17 @@ internal static class NativeProcessTests
     private static void NamingMenuOwnership()
     {
         Ff7FieldHost host = Host();
+        host.NamingStarted = _ =>
+        {
+        };
         FieldHostRequest request = Request(1, new FieldMenuCommand(6, 0));
         Equal(false, host.Execute(request).Completed);
         Equal(Ff7GlobalCommand.Menu, host.Process.GlobalCommand);
         Equal(false, host.Execute(Request(2, new FieldMovieCommand(FieldMovieOperation.Prepare, 53))).Completed);
         var restored = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        restored.NamingCompleted = (_, _) =>
+        {
+        };
         Equal(false, restored.Execute(request).Completed);
         restored.CompleteMenu(request.Id);
         Equal(true, restored.Execute(request).Completed);

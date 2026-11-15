@@ -10,6 +10,8 @@ public enum Ff7BattleCommand : byte
     Magic = 2,
     Summon = 3,
     Item = 4,
+    Sense = 6,
+    Manipulate = 0x0B,
     EnemySkill = 0x0D,
     Limit = 0x14,
     Change = 0x12,
@@ -30,6 +32,16 @@ public sealed partial class Ff7BattleSession
 {
     private GuestCommandMenuCache? guestCommandMenuCache;
     private readonly IReadOnlyList<Ff7BattleSpell>?[] nativeBattleSpells = new IReadOnlyList<Ff7BattleSpell>?[3];
+    private readonly IReadOnlyList<Ff7NativeBattleCommandGrant>?[] nativeCommandGrants = new IReadOnlyList<Ff7NativeBattleCommandGrant>?[3];
+
+    public IReadOnlyList<Ff7NativeBattleCommandGrant> NativeCommandGrants(int slot)
+    {
+        if ((uint)slot >= nativeCommandGrants.Length || characters[slot] is not { } character)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slot));
+        }
+        return nativeCommandGrants[slot] ??= Ff7NativeBattleCommandGrants.Read(character, kernel);
+    }
 
     private IReadOnlyList<Ff7BattleSpell> NativeBattleSpells(int slot) => nativeBattleSpells[slot] ??= Ff7NativeBattleSpells.Read(characters[slot]!, kernel);
 
@@ -240,6 +252,16 @@ public sealed partial class Ff7BattleSession
             }
             return guest;
         }
+        foreach (Ff7NativeBattleCommandGrant grant in NativeCommandGrants(slot))
+        {
+            Ff7BattleCommand command = (Ff7BattleCommand)grant.Command;
+            if (commands.Any(option => option.Command == command))
+            {
+                continue;
+            }
+            string name = commandResources?.Name(grant.Command) ?? command.ToString();
+            commands.Add(new(command, 0, 0, true, false) { DisplayName = name, Category = "Command", UnsupportedReason = $"{name} is not supported yet." });
+        }
         return commands;
 
         Ff7BattleCommandOption Option(Ff7BattleCommand command, ushort argument, byte flags, int cost = 0, bool revive = false)
@@ -278,6 +300,10 @@ public sealed partial class Ff7BattleSession
             return !group && System.Numerics.BitOperations.IsPow2((uint)targets) && SubmitGuestItem(slot, System.Numerics.BitOperations.TrailingZeroCount((uint)targets), argument);
         }
         Ff7BattleCommandOption? option = Commands(slot).SingleOrDefault(candidate => candidate.Command == command && candidate.Argument == argument);
+        if (option?.UnsupportedReason is string reason)
+        {
+            throw new NotSupportedException(reason);
+        }
         if (option is null || targets == 0 || (targets & ~option.ValidTargets) != 0)
         {
             return false;

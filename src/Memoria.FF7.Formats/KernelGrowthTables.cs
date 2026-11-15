@@ -41,6 +41,15 @@ public sealed class KernelGrowthTables
         return new(data[offset], unchecked((sbyte)data[offset + 1]));
     }
 
+    public sbyte JoinModifier(int character)
+    {
+        if ((uint)character >= 9)
+        {
+            throw new ArgumentOutOfRangeException(nameof(character));
+        }
+        return unchecked((sbyte)data[character * 56 + 10]);
+    }
+
     public int RandomIncrement(int statistic, int index)
     {
         if ((uint)statistic >= 8 || (uint)index >= 12)

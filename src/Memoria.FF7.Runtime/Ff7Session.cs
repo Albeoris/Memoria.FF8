@@ -160,6 +160,7 @@ public sealed partial class Ff7Session : IDisposable
     {
         if (World is { } world)
         {
+            FlushNativePartyStatistics();
             if (world.PendingBattle is null && world.ReadyMapTransfer is int pendingMap)
             {
                 CompleteWorldMapTransfer(world, pendingMap);
@@ -211,6 +212,7 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (Host.HasUnfinishedBattle)
         {
+            FlushNativePartyStatistics();
             if (Battle is not null)
             {
                 if (advanceClock)
@@ -233,6 +235,7 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (tickContinuation is null)
         {
+            FlushNativePartyStatistics();
             if (advanceClock)
             {
                 AdvanceNominalClockCallbacks();
@@ -345,6 +348,8 @@ public sealed partial class Ff7Session : IDisposable
             ModelPartVertexCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Vertices.Count).ToArray(),
             ModelPartPolygonCounts = model => loadedModels[model].Geometry.Select(part => part.Polygon.Polygons.Count).ToArray(),
             ExternalCommand = ExecuteExternal,
+            NamingStarted = BeginNativeNaming,
+            NamingCompleted = CompleteNativeNaming,
             AdvanceDialogue = AdvanceDialogue
         };
         loadedHost.NativeModelConfiguration = slot => ReadNativeModelPresentation(map, loadedHost.Process, slot);
@@ -530,7 +535,7 @@ public sealed partial class Ff7Session : IDisposable
     {
         bool changed = !Progress.Party.SequenceEqual(progress.Party);
         worldPartyMenuPending |= World is not null && changed;
-        Progress = progress;
+        Progress = progress with { NativePartyStatisticsDirty = true };
         if (changed)
         {
             PublishFieldEntryEffect(() => PartyChanged?.Invoke(this));
