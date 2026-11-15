@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         Shadow();
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
         NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadDecodedPose(actor.SequenceState!, source);
-        Draw(DiablosActorGeometry(resource, actor), bones, false, true, bone => !pose.HasScale && Parent(source, bone) < 0 ? (short)0 : null);
+        Draw(NativeBattleActorMaterialGeometry.PrepareBody(resource, actor), bones, false, true, bone => !pose.HasScale && Parent(source, bone) < 0 ? (short)0 : null);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Raldo ball requires its actual linked-object presence.");
         if (!linked.IsEmpty && resource.LinkedGeometryUsesBodySkeleton != true)
         {

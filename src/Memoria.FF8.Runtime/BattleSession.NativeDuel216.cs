@@ -112,7 +112,7 @@ public sealed partial class BattleSession
             else
             {
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-                result = NativeBattleDuel216Bounds.Read695F60(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Different Beat bounds require their current skeleton."), DiablosActorGeometry(resource, model), (matrix, vertex) => Project(matrix, vertex.Position));
+                result = NativeBattleDuel216Bounds.Read695F60(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Different Beat bounds require their current skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, model), (matrix, vertex) => Project(matrix, vertex.Position));
             }
             WriteModel(index, result.Model);
             return new(current with { Staging = result.Staging, Memory = current.Memory with { ScriptedColorRegisters = registers } }, result.Maximum, result.Minimum);

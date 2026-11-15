@@ -50,7 +50,7 @@ public sealed partial class BattleSession
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Diablos sink requires its current actor rig.");
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
-        ImmutableArray<NativeBattleRawMesh> body = DiablosActorGeometry(resource, actor);
+        ImmutableArray<NativeBattleRawMesh> body = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor);
         DrawBody(body, NativeBattleBodyBoneMatrices.Require(actor, source), actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Diablos sink requires its current body object mask."));
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
@@ -61,7 +61,7 @@ public sealed partial class BattleSession
             NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Native Diablos sink requires its actual linked pose owner.");
             NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource);
             ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, pose), basis, 0);
-            DrawBody(DiablosRelocate(linked, actor.LinkedTextureSlots, resource.GeometryRelocated507550), matrices, uint.MaxValue);
+            DrawBody(NativeBattleActorMaterialGeometry.PrepareSeparateLinked(resource, actor), matrices, uint.MaxValue);
         }
         return (frame with { Memory = frame.Memory with { PrimitiveProcess = process } }, graphics with { PrimitiveFrame = primitive });
 
@@ -89,29 +89,4 @@ public sealed partial class BattleSession
         }
     }
 
-    private static ImmutableArray<NativeBattleRawMesh> DiablosActorGeometry(NativeBattleGraphicsResource resource, NativeBattleGraphicsModel actor)
-    {
-        ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native Diablos actor requires its original body geometry.");
-        ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Diablos actor requires its actual linked geometry presence.");
-        bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Diablos actor requires its original linked skeleton layout."));
-        if (shared)
-        {
-            if (geometry.Length < 2 || linked.Length != 1)
-            {
-                throw new InvalidDataException("Native Diablos shared weapon requires its actual directory slot.");
-            }
-            return geometry.Select((mesh, index) => DiablosRelocate([index == 1 ? linked[0] : mesh], index == 1 ? actor.LinkedTextureSlots : actor.BodyTextureSlots, false)[0]).ToImmutableArray();
-        }
-        return DiablosRelocate(geometry, actor.BodyTextureSlots, resource.GeometryRelocated507550);
-    }
-
-    private static ImmutableArray<NativeBattleRawMesh> DiablosRelocate(ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleModelTextureBinding? binding, bool relocated)
-    {
-        if (relocated)
-        {
-            return geometry;
-        }
-        NativeBattleModelTextureBinding actual = binding ?? throw new NotSupportedException("Native Diablos actor requires its executed original texture relocation.");
-        return geometry.Select(mesh => mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, actual) }).ToImmutableArray() }).ToImmutableArray();
-    }
 }

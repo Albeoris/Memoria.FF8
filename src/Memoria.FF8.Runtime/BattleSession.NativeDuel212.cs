@@ -56,7 +56,7 @@ public sealed partial class BattleSession
                 return NativeBattleForeignModelDrawing.VertexBounds(foreign, point => NativeBattleGfMatrices.Transform460840(foreign.World, point).Y);
             }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-            return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.Models[index], resource.PoseSource ?? throw new NotSupportedException("Native6DFD90 requires its original skeleton."), DiablosActorGeometry(resource, graphics.Models[index]));
+            return NativeBattleDiablos325Recipients.Bounds6DFD90(graphics.Models[index], resource.PoseSource ?? throw new NotSupportedException("Native6DFD90 requires its original skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, graphics.Models[index]));
         }
         void Publish(NativeBattleDuel212Frame current)
         {

@@ -43,7 +43,7 @@ public sealed partial class BattleSession
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, pose);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, pose);
-        Draw(DiablosActorGeometry(resource, actor), bones, false, true);
+        Draw(NativeBattleActorMaterialGeometry.PrepareBody(resource, actor), bones, false, true);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native ball renderer requires its actual linked geometry presence.");
         if (!linked.IsEmpty && resource.LinkedGeometryUsesBodySkeleton != true)
         {

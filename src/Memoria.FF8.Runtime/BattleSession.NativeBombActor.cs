@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Bomb actor drawing requires its retained world matrix.");
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
-        ImmutableArray<NativeBattleRawMesh> geometry = DiablosActorGeometry(resource, actor);
+        ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor);
         uint mask = actor.SequenceState!.MeshMask124;
         ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Bomb actor drawing requires its loaded scratch maximum.");
         uint address = checked(0x196B018u - (uint)(maximum * 8));

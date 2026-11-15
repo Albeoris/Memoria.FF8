@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Flare requires its target world matrix.");
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source).Select(matrix => NativeBattleGfMatrices.Compose56C2F0(view, matrix)).ToImmutableArray();
-        ImmutableArray<NativeBattleRawMesh> geometry = DiablosActorGeometry(resource, actor);
+        ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor);
         uint mask = actor.SequenceState!.MeshMask124;
         ushort capacity = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Flare requires its loaded vertex capacity.");
         uint workAddress = checked(0x196B018u - (uint)(capacity * 8));
@@ -42,35 +42,30 @@ public sealed partial class BattleSession
         {
             if ((mask & (1u << (mesh & 31))) != 0)
             {
-                NativeBattleModelTextureBinding texture = resource.LinkedGeometryUsesBodySkeleton == true && mesh == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
-                Draw(geometry[mesh], bones, texture, mesh);
+                Draw(geometry[mesh], bones, mesh);
             }
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
-        ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Flare requires explicit linked geometry presence.");
-        if (!linked.IsEmpty && resource.LinkedGeometryUsesBodySkeleton != true)
+        ImmutableArray<NativeBattleRawMesh> linked = NativeBattleActorMaterialGeometry.PrepareSeparateLinked(resource, actor);
+        if (!linked.IsEmpty)
         {
             NativeBattlePoseSource linkedSource = resource.LinkedPoseSource ?? throw new NotSupportedException("Native Flare requires its linked skeleton.");
             NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadLinkedDecodedPose(actor.SequenceState!, linkedSource);
             ImmutableArray<NativeBattleActionMatrix> linkedBones = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, pose), world, 0).Select(matrix => NativeBattleGfMatrices.Compose56C2F0(view, matrix)).ToImmutableArray();
             for (int linkedIndex = 0; linkedIndex < linked.Length; linkedIndex++)
             {
-                Draw(linked[linkedIndex], linkedBones, actor.LinkedTextureSlots!, geometry.Length + linkedIndex);
+                Draw(linked[linkedIndex], linkedBones, geometry.Length + linkedIndex);
             }
         }
         maximum = extent;
         return graphics;
 
-        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture, int meshIdentity)
+        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, int meshIdentity)
         {
             if (mesh.Vertices.Length > capacity)
             {
                 throw new InvalidDataException("Native Flare target exceeds its allocated vertex workspace.");
-            }
-            if (!resource.GeometryRelocated507550)
-            {
-                mesh = mesh with { Polygons = mesh.Polygons.Select(face => face with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(face, texture) }).ToImmutableArray() };
             }
             NativeBattleFlare124ActorDraw drawn = NativeBattleFlare124ActorPackets.Emit(mesh, matrices, projection, actor.Color40!.Value, centerX, centerY, radius, step, amplitude, phase, resources, zsf3, zsf4, NativePilotSceneIdentity(0x6BCAD0, actor.Index, meshIdentity));
             extent = Math.Max(extent, drawn.Radius);

@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         NativeBattleGilgameshZantetsukenActors actors = frame.Memory.Gilgamesh?.ZantetsukenActors ?? throw new NotSupportedException("Zantetsuken body requires its current actor transform record.");
         NativeBattleActionMatrix alternate = NativeBattleGfMatrices.Compose56C2F0(packedView.ReadMatrix(), actors.ReadMatrix((byte)index).ReadMatrix());
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
-        ImmutableArray<NativeBattleZantetsukenRenderObject> objects = DiablosActorGeometry(resource, actor).Select(mesh => new NativeBattleZantetsukenRenderObject(mesh, null)).ToImmutableArray();
+        ImmutableArray<NativeBattleZantetsukenRenderObject> objects = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor).Select(mesh => new NativeBattleZantetsukenRenderObject(mesh, null)).ToImmutableArray();
         NativeBattlePilotVisualIdentity? actorIdentity = NativeBattleGilgameshVisuals.ActorResource(frame.PresentationIdentity, resource, index);
         uint mask = (actor.SequenceState ?? throw new NotSupportedException("Zantetsuken body requires its actual object mask.")).MeshMask124;
         (uint scratchAddress, int scratchLength) = NativeZantetsukenScratch();

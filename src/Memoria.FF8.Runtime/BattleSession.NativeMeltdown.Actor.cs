@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix cameraWorld = NativeBattleGfMatrices.Compose56C2F0(view, world);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, world);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
-        ImmutableArray<NativeBattleRawMesh> geometry = DiablosActorGeometry(resource, actor);
+        ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor);
         uint mask = actor.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native Meltdown requires its actual body object mask.");
         uint color = actor.Color40 ?? throw new NotSupportedException("Native Meltdown requires its actual packed body color.");
         ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Meltdown requires its loaded shared vertex capacity.");
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
             if (gate.Draw)
             {
                 process = process.PublishModelColor(color);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(DiablosRelocate(linked, actor.LinkedTextureSlots, resource.GeometryRelocated507550), linkedBones, projection, color, uint.MaxValue, new byte[capacity].ToImmutableArray(), colors, 4, pilotIdentity: request.PilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = 0x20000 } : null);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(NativeBattleActorMaterialGeometry.PrepareSeparateLinked(resource, actor), linkedBones, projection, color, uint.MaxValue, new byte[capacity].ToImmutableArray(), colors, 4, pilotIdentity: request.PilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = 0x20000 } : null);
                 if (drawn.ProjectedBytesWritten != 0)
                 {
                     NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Meltdown linked projection requires its canonical shared vertex bytes.")).Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

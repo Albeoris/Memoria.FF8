@@ -86,7 +86,7 @@ public sealed partial class BattleSession
             else
             {
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-                bounds = NativeBattleDuel215Bounds.Read69D360(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Duel215 bounds require its actual selected skeleton."), DiablosActorGeometry(resource, model));
+                bounds = NativeBattleDuel215Bounds.Read69D360(current.Staging, model, resource.PoseSource ?? throw new NotSupportedException("Native Duel215 bounds require its actual selected skeleton."), NativeBattleActorMaterialGeometry.PrepareBody(resource, model));
             }
             WriteModel(index, bounds.Model);
             return new(current with { Staging = bounds.Staging }, bounds.Maximum, bounds.Minimum);
