@@ -28,7 +28,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (state.WorldVisits.TryGetValue(navigation.VisitKey, out Ff7AutoPlayWorldVisitState? world))
         {
-            return world.GlobalFingerprint is null || WorldMachine.ReadGlobalPredicateFingerprint(world.ProgramIdentity, variables.CopyPersistent(), world.GlobalReads) != world.GlobalFingerprint;
+            return !world.DiscoveryComplete || world.GlobalFingerprint is null || WorldMachine.ReadGlobalPredicateFingerprint(world.ProgramIdentity, variables.CopyPersistent(), world.GlobalReads) != world.GlobalFingerprint;
         }
         if (!state.VisitGuards.TryGetValue(navigation.VisitKey, out Ff7AutoPlayVisitGuard? guard))
         {

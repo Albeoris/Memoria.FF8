@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Memoria.AutoPlay;
 using Memoria.FF7.Events;
 
@@ -10,6 +11,8 @@ public sealed record Ff7AutoPlayWorldDispatchReceipt(string VisitId, string Even
 public sealed class Ff7AutoPlayWorldVisitState
 {
     public string ProgramIdentity { get; set; } = string.Empty;
+    public bool DiscoveryComplete { get; set; }
+    public string? DiscoveryContextFingerprint { get; set; }
     public List<Ff7AutoPlayWorldChunk> ObservedChunks { get; set; } = [];
     public WorldVariableRead[] GlobalReads { get; set; } = [];
     public string? GlobalFingerprint { get; set; }
@@ -114,6 +117,12 @@ public sealed partial class Ff7AutoPlayPolicy
         if (State.Active is null)
         {
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal);
+            if (ShouldDiscoverWorldChunk(State, observation.VisitId, next, !visited.DiscoveryComplete && worldChunkQueue.Count != 0) && ObserveNextWorldChunk(world))
+            {
+                State.Status = "Discovering the next native world collision chunk";
+                Publish();
+                return default;
+            }
             if (next is null)
             {
                 if (ObserveNextWorldChunk(world))
@@ -146,6 +155,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             throw new InvalidDataException("The active world event lacks its native dispatch source.");
         }
+        if (!worldCatalogs.ContainsKey(source))
+        {
+            ObserveWorldChunk(world, source);
+        }
         Ff7AutoPlayWorldScriptObservation goal = worldCatalogs[source].Scripts.Single(item => item.Script == selectedScript);
         Ff7AutoPlayWorldNavigationResult result = driver.ChooseWorldInput(goal);
         if (result.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported)
@@ -173,13 +186,29 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private Ff7AutoPlayObservation ObserveWorldPlanner(Ff7WorldRuntime world)
     {
-        WorldSnapshot vm = world.Machine.Capture();
+        Ff7WorldProcess native = world.Process;
+        WorldSnapshot vm = native.Vm;
         worldVisit ??= $"ff7-world:{world.Resources.World}:{vm.ProgramIdentity}";
         if (!State.WorldVisits.TryGetValue(worldVisit, out Ff7AutoPlayWorldVisitState? visited))
         {
             State.WorldVisits[worldVisit] = visited = new() { ProgramIdentity = vm.ProgramIdentity };
         }
-        Ff7WorldEntity? player = world.Process.Entities.SingleOrDefault(entity => entity.Model == world.ControlledModel);
+        string discoveryContext = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            native.WorldId,
+            native.WorldMapState,
+            native.ControlledModel,
+            vm.ProgramIdentity,
+            Models = vm.Models.Select(model => new { model.Model, model.ScriptDisabled, model.Detached }).OrderBy(model => model.Model).ToArray()
+        })));
+        if (ObserveWorldDiscoveryContext(visited, discoveryContext))
+        {
+            // These are disposable catalog/search observations; shared execution coverage is retained.
+            worldCatalogs.Clear();
+            worldChunkQueue.Clear();
+            queuedWorldChunks.Clear();
+        }
+        Ff7WorldEntity? player = native.Entities.SingleOrDefault(entity => entity.Model == world.ControlledModel);
         if (player is not null)
         {
             ObserveWorldChunk(world, new(player.X >> 13, player.Z >> 13));
@@ -240,6 +269,11 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool ObserveNextWorldChunk(Ff7WorldRuntime world)
     {
+        Ff7AutoPlayWorldVisitState visited = State.WorldVisits[worldVisit!];
+        if (visited.DiscoveryComplete)
+        {
+            return false;
+        }
         while (worldChunkQueue.TryDequeue(out Ff7AutoPlayWorldChunk? chunk))
         {
             if (!worldCatalogs.ContainsKey(chunk))
@@ -248,7 +282,29 @@ public sealed partial class Ff7AutoPlayPolicy
                 return true;
             }
         }
+        visited.DiscoveryComplete = true;
         return false;
+    }
+
+    internal static bool ObserveWorldDiscoveryContext(Ff7AutoPlayWorldVisitState visited, string fingerprint)
+    {
+        if (visited.DiscoveryContextFingerprint == fingerprint)
+        {
+            return false;
+        }
+        visited.DiscoveryContextFingerprint = fingerprint;
+        visited.DiscoveryComplete = false;
+        return true;
+    }
+
+    internal static bool ShouldDiscoverWorldChunk(Ff7AutoPlayState state, string visitKey, AutoPlayPlanStep? next, bool hasQueuedChunks)
+    {
+        if (!hasQueuedChunks || next is { IsTravel: false })
+        {
+            return false;
+        }
+        AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == visitKey);
+        return coverage is null || !coverage.Events.Any(item => item.Available && !item.Unavailable && !item.PolicyDeferred && item.BlockedReason is null && AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(item));
     }
 
     private void ObserveWorldDispatch(Ff7WorldMeshDispatchObservation dispatch)

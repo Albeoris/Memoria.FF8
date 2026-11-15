@@ -1,15 +1,87 @@
 using System.Numerics;
 using System.Text.Json;
+using Memoria.AutoPlay;
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
 internal static class AutoPlayWorldPolicyTests
 {
     public static void Run()
     {
+        IncompleteDiscoveryRemainsARefreshFrontier();
         NativeHandoffsRequireTheirOwners();
         ControlledOwnerProjectionIsGuardedAndReadOnly();
+        RestoredRemoteWorldGoalRehydratesItsCatalog();
+    }
+
+    private static void RestoredRemoteWorldGoalRehydratesItsCatalog()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_TRANSPORT_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP restored remote world goal: configure original resources and a world goal fixture.");
+            return;
+        }
+        byte[] original = File.ReadAllBytes(path);
+        using MemoryStream input = new(original, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7 ?? throw new InvalidDataException("The supplied fixture contains no FFVII state.");
+        if (source.World is null || source.AutoPlay?.Active?.Kind != Ff7AutoPlayTargetKind.WorldMesh)
+        {
+            Console.WriteLine("SKIP restored remote world goal: the selected world fixture has no active mesh goal.");
+            return;
+        }
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), source);
+        byte[] before = JsonSerializer.SerializeToUtf8Bytes(session.Capture() with { AutoPlay = null });
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("A read-only world planning query attempted to write a choice checkpoint."));
+        _ = policy.ChooseInput(new(session));
+        Check(before.SequenceEqual(JsonSerializer.SerializeToUtf8Bytes(session.Capture() with { AutoPlay = null })), "Rehydrating a remote world goal changed native state or RNG.");
+        Check(original.SequenceEqual(File.ReadAllBytes(path)), "Rehydrating a remote world goal changed the supplied source.");
+    }
+
+    private static void IncompleteDiscoveryRemainsARefreshFrontier()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        AutoPlayEvent entry = new("mesh:0:0:script:3", AutoPlayEventKind.Transition, ConditionSignature: "entry");
+        planner.Observe(new("world", "resource"), [entry]);
+        planner.ObserveNavigation("world", "world-nav", [entry]);
+        planner.Completed("world", entry.Id, entrySignature: "entry", entrySignatureAuthoritative: true);
+        FieldVariables variables = new();
+        Ff7Progress progress = new() { InitialKernelData = [1], Characters = [], Party = [255, 255, 255], Inventory = [], Materia = [] };
+        state.WorldVisits["world"] = new()
+        {
+            ProgramIdentity = "resource",
+            GlobalFingerprint = WorldMachine.ReadGlobalPredicateFingerprint("resource", variables.CopyPersistent(), []),
+            ObservedChunks = [new(0, 0)]
+        };
+        Ff7AutoPlayWorldVisitState visit = state.WorldVisits["world"];
+        AutoPlayVisit navigation = new("world-nav", "resource");
+        AutoPlayEvent gateway = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit-entry");
+        planner.Observe(new("field", "field-resource"), [gateway]);
+        planner.ObserveNavigation("field", "field-nav", [gateway]);
+        planner.Completed("field", gateway.Id, "world", observedStoryChanged: false);
+        planner.RecordNavigationRoute("field-nav", "world-nav", gateway.Id, state.Coverage.Visits.Single(item => item.Visit.Key == "field").Events.Single().Routes.Single());
+        bool NeedsRefresh(AutoPlayVisit candidate) => Ff7AutoPlayPolicy.NeedsVisitRefresh(state, candidate, variables, progress, new());
+        Check(planner.PlanNavigation("field-nav", NeedsRefresh) is { IsTravel: true, Event.Id: "exit", RefreshVisitKey: "world-nav" }, "Partial world discovery must drive the existing shared field-to-world refresh route.");
+        visit.DiscoveryComplete = true;
+        Check(planner.PlanNavigation("field-nav", NeedsRefresh) is null, "Complete world discovery with unchanged guards must not repeat the consumed source gateway.");
+        visit.DiscoveryComplete = false;
+        Check(Ff7AutoPlayPolicy.NeedsVisitRefresh(state, navigation, variables, progress, new()), "A legacy or partial native world catalog must remain a shared refresh frontier even with unchanged global guards.");
+        AutoPlayPlanStep travel = new("world", entry, true, new("field", "entry", false, []));
+        Check(Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", travel, hasQueuedChunks: true), "Pending lazy discovery must precede another completed local entry used only for remote travel.");
+        Check(!Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", travel, hasQueuedChunks: false), "An exhausted discovery queue must not invent another catalog step.");
+        planner.Observe(new("world", "resource"), [entry, new("unseen", AutoPlayEventKind.Transition, ConditionSignature: "ready")]);
+        Check(!Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", travel, hasQueuedChunks: true), "Lazy metadata discovery must not hide an actual unconsumed local native frontier.");
+        visit.DiscoveryComplete = true;
+        Check(!Ff7AutoPlayPolicy.NeedsVisitRefresh(state, navigation, variables, progress, new()), "A complete native catalog with unchanged canonical guards must not force repeated world visits.");
+        Check(Ff7AutoPlayPolicy.ObserveWorldDiscoveryContext(visit, "native-topology-one") && !visit.DiscoveryComplete, "A new native allocation/topology context must invalidate only optional discovery completeness.");
+        visit.DiscoveryComplete = true;
+        Check(!Ff7AutoPlayPolicy.ObserveWorldDiscoveryContext(visit, "native-topology-one") && visit.DiscoveryComplete, "An unchanged native topology context must retain completed discovery.");
+        Check(Ff7AutoPlayPolicy.ObserveWorldDiscoveryContext(visit, "native-topology-two") && !visit.DiscoveryComplete && visit.ObservedChunks.Count == 1 && state.Coverage.Visits.Single(item => item.Visit.Key == "world").Events.Single(item => item.Event.Id == entry.Id).Completed, "Topology reobservation must preserve native event progress and recorded source facts.");
+        Check(!state.Clone().WorldVisits["world"].DiscoveryComplete, "Cold restoration lost the pending optional discovery frontier.");
     }
 
     private static void NativeHandoffsRequireTheirOwners()
