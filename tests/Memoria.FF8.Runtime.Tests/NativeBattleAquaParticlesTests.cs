@@ -123,13 +123,16 @@ public sealed class NativeBattleAquaParticlesTests
     }
 
     [Theory]
-    [InlineData(55, 0x80B730u, false)]
-    [InlineData(55, 0x80C1B0u, false)]
-    [InlineData(55, 0x80C5A0u, false)]
-    [InlineData(72, 0x80B730u, true)]
-    [InlineData(72, 0x80C1B0u, true)]
-    [InlineData(72, 0x80C5A0u, true)]
-    public void Last_emitter_birth_retains_same_pool_links_and_child_count_until_every_descendant_releases(ushort effect, uint callback, bool existingChild)
+    [InlineData(55, 0x80B730u, false, false)]
+    [InlineData(55, 0x80C1B0u, false, false)]
+    [InlineData(55, 0x80C5A0u, false, false)]
+    [InlineData(72, 0x80B730u, true, false)]
+    [InlineData(72, 0x80C1B0u, true, false)]
+    [InlineData(72, 0x80C5A0u, true, false)]
+    [InlineData(55, 0x80B730u, false, true)]
+    [InlineData(55, 0x80C1B0u, false, true)]
+    [InlineData(55, 0x80C5A0u, false, true)]
+    public void Last_emitter_birth_waits_for_space_and_retains_same_pool_links_until_its_children_release(ushort effect, uint callback, bool existingChild, bool saturate)
     {
         NativeBattleAquaProfile profile = NativeBattleAquaProfile.ForEffect(effect);
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
@@ -137,12 +140,21 @@ public sealed class NativeBattleAquaParticlesTests
         hierarchy = root.Hierarchy.Write(root.Address, root.Hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78));
         NativeBattleEffectHierarchyAppend emitter = hierarchy.Append8DC540(3, profile.Callback(callback), 340, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
         hierarchy = emitter.Hierarchy;
-        NativeBattleModulePoolTask task = NativeBattleReflectController.WriteMatrix(hierarchy.Read(emitter.Address), 0x58, NativeBattleCuragaMatrices.Identity8DD770()).WriteByte(0x29, 1).WriteWord(0x24, callback == 0x80B730 ? (ushort)16 : callback == 0x80C1B0 ? (ushort)18 : (ushort)28);
+        ushort lastBirthAge = callback == 0x80B730 ? (ushort)16 : callback == 0x80C1B0 ? (ushort)18 : (ushort)28;
+        NativeBattleModulePoolTask task = NativeBattleReflectController.WriteMatrix(hierarchy.Read(emitter.Address), 0x58, NativeBattleCuragaMatrices.Identity8DD770()).WriteByte(0x29, 1).WriteWord(0x24, lastBirthAge);
         hierarchy = hierarchy.Write(emitter.Address, task);
         if (existingChild)
         {
             NativeBattleEffectHierarchyAppend previous = hierarchy.Append8DC540(3, profile.Callback(0x80C430), 340, emitter.Address, (_, _, _) => OriginalTaskActors(0, 3));
             hierarchy = previous.Hierarchy.Write(previous.Address, previous.Hierarchy.Read(previous.Address).WriteByte(0x29, 1));
+        }
+        if (saturate)
+        {
+            for (int index = 1; index < profile.Pools[3].Capacity; index++)
+            {
+                NativeBattleEffectHierarchyAppend previous = hierarchy.Append8DC540(3, profile.Callback(0x80C430), 340, root.Address, (_, _, _) => OriginalTaskActors(0, 3));
+                hierarchy = previous.Hierarchy.Write(previous.Address, previous.Hierarchy.Read(previous.Address).WriteByte(0x29, 2).WriteByte(0x26, 5));
+            }
         }
         NativeBattleActionPacketsState packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 8, 0, 0, 0, effect, null));
@@ -154,7 +166,22 @@ public sealed class NativeBattleAquaParticlesTests
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleAquaInputs inputs = new(packets, camera, new(camera, 256, 160, 108), 0, NativeBattleGteColorInterpolation.CodeConstants45F270, index => new(2) { Rotation14 = 0 }, _ => new(new byte[] { 1 }.ToImmutableArray(), []), (_, _, _) => new(0, 0, 0, 0), (current, _) => current);
         NativeBattleAquaResources resources = new(effect, new("camera", []), ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, [], [], 0, null);
+        if (saturate)
+        {
+            NativeBattleAquaParticleStep blocked = NativeBattleAquaParticles.Advance(frame, hierarchy, emitter.Address, resources, inputs with { Execute = (_, _) => throw new InvalidOperationException("A waiting birth must not publish operations.") });
+            Assert.Equal(After(0), blocked.Frame.Random);
+            Assert.Equal(lastBirthAge, blocked.Hierarchy.Read(emitter.Address).ReadWord(0x24));
+            frame = NativeBattleTestSnapshots.Independent(blocked.Frame);
+            hierarchy = new(frame.Effect.Pools);
+
+            Advance();
+            Assert.Equal(After(0), frame.Random);
+            Assert.Equal(lastBirthAge, hierarchy.Read(emitter.Address).ReadWord(0x24));
+            Assert.Equal((byte)1, hierarchy.Read(emitter.Address).ReadByte(0x29));
+            Assert.Equal((byte)0, hierarchy.Read(emitter.Address).ReadByte(0x28));
+        }
         Advance();
+        Assert.Equal(After(callback == 0x80B730 ? 12 : callback == 0x80C1B0 ? 10 : 32), frame.Random);
         Assert.Equal((byte)1, hierarchy.Read(root.Address).ReadByte(0x28));
         Assert.Equal((byte)1, hierarchy.Read(emitter.Address).ReadByte(0x28));
         Assert.Equal((byte)2, hierarchy.Read(emitter.Address).ReadByte(0x29));

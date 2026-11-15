@@ -41,6 +41,7 @@ public static partial class NativeBattleAquaParticles
         uint callback = frame.Profile.CanonicalCallback(task.Callback);
         int phase = unchecked((sbyte)task.ReadByte(0x29));
         int age = Word(task, 0x24);
+        bool waitingForParticleSlot = false;
         switch (callback)
         {
             case 0x809250:
@@ -63,7 +64,10 @@ public static partial class NativeBattleAquaParticles
             default:
                 throw new NotSupportedException($"The Aqua particle callback{task.Callback:X} requires its original private body.");
         }
-        task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
+        if (!waitingForParticleSlot)
+        {
+            task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
+        }
         hierarchy = hierarchy.Write(address, task);
         bool complete = (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0;
         if (complete)
@@ -98,6 +102,11 @@ public static partial class NativeBattleAquaParticles
                     task = Next(task);
                     break;
                 case 1:
+                    if (hierarchy.Pools[3].Slots.All(slot => (slot.Flags & 1) != 0))
+                    {
+                        waitingForParticleSlot = true;
+                        break;
+                    }
                     task = CasterAnchor(task, current.Profile, inputs, Publish);
                     hierarchy = hierarchy.Write(address, task);
                     NativeBattleEffectHierarchyAppend child = Add(current, hierarchy, 3, 0x80B8E0, 340, address, inputs);
@@ -143,8 +152,14 @@ public static partial class NativeBattleAquaParticles
                     if (NativeBattleEffectVisualPhase.IsOdd(inputs.Packets.ModelAliases, target) != ((task.ReadByte(0x24) & 1) != 0))
                     {
                         hierarchy = hierarchy.Write(address, task);
-                        NativeBattleEffectHierarchyAppend child = Add(current, hierarchy, 3, spray ? 0x80C7B0u : 0x80C430u, 340, address, inputs);
+                        NativeBattleEffectHierarchyAppend child = TryAdd(current, hierarchy, 3, spray ? 0x80C7B0u : 0x80C430u, 340, address, inputs);
                         hierarchy = child.Hierarchy;
+                        if (child.Address == 0)
+                        {
+                            // Hold the due birth at this exact parity and age while existing particles retire.
+                            waitingForParticleSlot = true;
+                            break;
+                        }
                         task = hierarchy.Read(address);
                         int bones = inputs.ReadBoneCount?.Invoke(target) ?? inputs.ReadPoseSource(target).BoneCount;
                         NativeCrtRandomState random = current.Random;
@@ -280,13 +295,18 @@ public static partial class NativeBattleAquaParticles
 
     private static NativeBattleEffectHierarchyAppend Add(NativeBattleAquaFrame frame, NativeBattleEffectHierarchy hierarchy, int pool, uint callback, int size, uint parent, NativeBattleAquaInputs inputs)
     {
-        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("The Aqua hierarchy requires its original captured action.");
-        NativeBattleEffectHierarchyAppend result = hierarchy.Append8DC540(pool, frame.Profile.Callback(callback), size, parent, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));
+        NativeBattleEffectHierarchyAppend result = TryAdd(frame, hierarchy, pool, callback, size, parent, inputs);
         if (result.Address == 0)
         {
             throw new InvalidOperationException("The Aqua callback exhausted an unguarded original task pool.");
         }
         return result;
+    }
+
+    private static NativeBattleEffectHierarchyAppend TryAdd(NativeBattleAquaFrame frame, NativeBattleEffectHierarchy hierarchy, int pool, uint callback, int size, uint parent, NativeBattleAquaInputs inputs)
+    {
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("The Aqua hierarchy requires its original captured action.");
+        return hierarchy.Append8DC540(pool, frame.Profile.Callback(callback), size, parent, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));
     }
 
     private static NativeBattleModulePoolTask CasterAnchor(NativeBattleModulePoolTask task, NativeBattleAquaProfile profile, NativeBattleAquaInputs inputs, Action<NativeBattleAquaOperation> publish)
