@@ -50,7 +50,11 @@ public static partial class NativeBattleBreath129Controller
     }
 
     public static (NativeBattleBreath129Frame Frame, int Result) AdvanceCurve(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
+        => AdvanceCurve(frame, address, resources, inputs, new(), 0);
+
+    private static (NativeBattleBreath129Frame Frame, int Result) AdvanceCurve(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs, NativeBattleBreath129LinkedDirection direction, uint precedingTask)
     {
+        ushort ediHigh = unchecked((ushort)(precedingTask >> 16));
         for (int iteration = 0; iteration < 4; iteration++)
         {
             NativeBattleModulePoolTask task = Read(frame, address);
@@ -66,6 +70,7 @@ public static partial class NativeBattleBreath129Controller
             {
                 frame = SpawnCurve(frame, source, Signed(Read(frame, address), 14), resources);
                 source = checked(Read(frame, address).ReadDword(20) + (uint)((-1 - index) * 2));
+                ediHigh = unchecked((ushort)(source >> 16));
                 index = StreamWord(resources, source);
                 source += 2;
                 frame = Write(frame, address, Read(frame, address).WriteDword(20, source));
@@ -85,6 +90,9 @@ public static partial class NativeBattleBreath129Controller
             }
             task = Read(frame, address);
             NativeCrtRandomState random = frame.Random.Draw(out ushort sample);
+            //560579 saves curve EDI at the stack address later used by 6B6450's direction pair.
+            direction.X = index;
+            direction.Y = unchecked((short)ediHigh);
             frame = frame with { Random = random };
             short intensity = unchecked((short)(Signed(task, 14) + (sample * Signed(task, 14) >> 15)));
             (frame, uint point) = AllocatePoint(frame, index, intensity, Signed(task, 16), Signed(task, 18));
@@ -110,7 +118,7 @@ public static partial class NativeBattleBreath129Controller
         if (Signed(current, 12) >= 2)
         {
             short phase = ReadSigned(frame, Working(frame) + 0x16BA);
-            frame = NativeBattleBreath129Geometry.DrawLinked6B6450(frame, current.ReadDword(24), phase, Signed(current, 12), resources, inputs with { PilotIdentity = inputs.CapturePresentation ? NativeBattleBreath129VisualIdentity.Task(frame, address, 0x1228F04) : null });
+            frame = NativeBattleBreath129Geometry.DrawLinked6B6450(frame, current.ReadDword(24), phase, Signed(current, 12), resources, inputs with { PilotIdentity = inputs.CapturePresentation ? NativeBattleBreath129VisualIdentity.Task(frame, address, 0x1228F04) : null }, direction);
         }
         cursor = Read(frame, address).ReadDword(24);
         while (ReadSigned(frame, cursor + 20) <= 16)

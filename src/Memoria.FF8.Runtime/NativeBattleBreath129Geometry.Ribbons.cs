@@ -6,6 +6,9 @@ namespace Memoria.FF8.Runtime;
 public static partial class NativeBattleBreath129Geometry
 {
     public static NativeBattleBreath129Frame DrawLinked6B6450(NativeBattleBreath129Frame frame, uint firstPoint, short phase, int count, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
+        => DrawLinked6B6450(frame, firstPoint, phase, count, resources, inputs, null);
+
+    internal static NativeBattleBreath129Frame DrawLinked6B6450(NativeBattleBreath129Frame frame, uint firstPoint, short phase, int count, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs, NativeBattleBreath129LinkedDirection? direction)
     {
         if (count is < 2 or > 256)
         {
@@ -57,7 +60,7 @@ public static partial class NativeBattleBreath129Geometry
         {
             throw new InvalidDataException("Breath linked count differs from its physical chain.");
         }
-        return EdgesAndPackets(frame, firstPoint, count, false, resources.DistanceTable, inputs, pilotWorld: world);
+        return EdgesAndPackets(frame, firstPoint, count, false, resources.DistanceTable, inputs, pilotWorld: world, linkedDirection: direction);
     }
 
     public static NativeBattleBreath129Frame DrawFibre6B6CC0(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs, NativeBattleBreath129FibreStack? stack = null)
@@ -79,7 +82,7 @@ public static partial class NativeBattleBreath129Geometry
         return EdgesAndPackets(frame, address, 16, true, resources.DistanceTable, inputs, stack, world);
     }
 
-    private static NativeBattleBreath129Frame EdgesAndPackets(NativeBattleBreath129Frame frame, uint first, int count, bool fibre, ImmutableArray<byte> distances, NativeBattleBreath129Inputs inputs, NativeBattleBreath129FibreStack? stack = null, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null)
+    private static NativeBattleBreath129Frame EdgesAndPackets(NativeBattleBreath129Frame frame, uint first, int count, bool fibre, ImmutableArray<byte> distances, NativeBattleBreath129Inputs inputs, NativeBattleBreath129FibreStack? stack = null, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null, NativeBattleBreath129LinkedDirection? linkedDirection = null)
     {
         if (distances.IsDefault || distances.Length != 16384)
         {
@@ -90,8 +93,8 @@ public static partial class NativeBattleBreath129Geometry
         int depth = fibre ? 4 : 8;
         int right = fibre ? 8 : 12;
         int width = fibre ? 6 : 2;
-        short? previousX = fibre && stack is not null ? unchecked((short)stack.CrtSavedEdi) : null;
-        short? previousY = fibre && stack is not null ? unchecked((short)(stack.CrtSavedEdi >> 16)) : null;
+        short? previousX = stack is not null ? unchecked((short)stack.CrtSavedEdi) : linkedDirection?.X;
+        short? previousY = stack is not null ? unchecked((short)(stack.CrtSavedEdi >> 16)) : linkedDirection?.Y;
         Dictionary<uint, uint>? centers = null;
         if (inputs.PilotIdentity.HasValue && pilotWorld is not null)
         {
@@ -144,6 +147,11 @@ public static partial class NativeBattleBreath129Geometry
             }
             at = next;
         }
+        if (linkedDirection is not null)
+        {
+            linkedDirection.X = previousX;
+            linkedDirection.Y = previousY;
+        }
         at = first;
         for (int index = 0; index < count - 1; index++)
         {
@@ -175,4 +183,10 @@ public static partial class NativeBattleBreath129Geometry
         }
         return frame;
     }
+}
+
+internal sealed class NativeBattleBreath129LinkedDirection
+{
+    internal short? X { get; set; }
+    internal short? Y { get; set; }
 }

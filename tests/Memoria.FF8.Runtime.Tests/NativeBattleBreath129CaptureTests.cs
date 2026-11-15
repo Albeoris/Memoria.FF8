@@ -63,7 +63,19 @@ public sealed class NativeBattleBreath129CaptureTests
         Assert.NotEqual(packets[0].PilotGeometry!.Identity, packets[1].PilotGeometry!.Identity);
     }
 
-    private static NativeBattleBreath129Frame RunLinked(bool capture, out List<NativeBattleBreath129AppendPacket> output)
+    [Fact]
+    public void Linked_ribbon_consumes_retained_direction_only_after_the_first_segment()
+    {
+        Assert.Throws<NotSupportedException>(() => RunLinked(false, out _, degenerate: true));
+        NativeBattleBreath129LinkedDirection direction = new() { X = 2, Y = 0x20E };
+        NativeBattleBreath129Frame frame = RunLinked(false, out var packets, degenerate: true, direction);
+        Assert.Single(packets);
+        Assert.Equal((short)-1, BitConverter.ToInt16(NativeBattleBreath129Controller.ReadBytes(frame, NativeBattleEffectNodeMemory.ArenaAddress + 0x19C8, 2).Read(0, 2)));
+        Assert.Equal((short)0, direction.X);
+        Assert.NotEqual((short)0x20E, direction.Y);
+    }
+
+    private static NativeBattleBreath129Frame RunLinked(bool capture, out List<NativeBattleBreath129AppendPacket> output, bool degenerate = false, NativeBattleBreath129LinkedDirection? direction = null)
     {
         uint arenaAddress = NativeBattleEffectNodeMemory.ArenaAddress;
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
@@ -78,7 +90,7 @@ public sealed class NativeBattleBreath129CaptureTests
         for (int index = 0; index < 3; index++)
         {
             uint source = 0x1228F0C + (uint)(index * 8);
-            state = state.WriteWord(source, (ushort)(index * 100)).WriteWord(source + 2, 0).WriteWord(source + 4, (ushort)(8000 + index * 256)).WriteWord(source + 6, 0);
+            state = state.WriteWord(source, (ushort)(degenerate && index < 2 ? 0 : index * 100)).WriteWord(source + 2, 0).WriteWord(source + 4, (ushort)(8000 + index * 256)).WriteWord(source + 6, 0);
         }
         NativeBattleBreath129Frame frame = new(memory, new(129, 128, new(129, 0x6B4C00, 0x6B4C10), null, 0), new(123), state);
         uint[] points = new uint[3];
@@ -99,7 +111,7 @@ public sealed class NativeBattleBreath129CaptureTests
         byte[] distances = Enumerable.Repeat((byte)4, 16384).ToArray();
         distances[0] = 0;
         NativeBattleBreath129Resources resources = new(new("unused", []), new(0, []), new(0, []), new(0, []), new(0, []), new(0, 0, 0, 0, []), new("unused", []), [], [], [], [], distances.ToImmutableArray(), [], new short[8192].ToImmutableArray(), 0);
-        NativeBattleBreath129Frame result = NativeBattleBreath129Geometry.DrawLinked6B6450(frame, points[0], 0, 3, resources, inputs);
+        NativeBattleBreath129Frame result = NativeBattleBreath129Geometry.DrawLinked6B6450(frame, points[0], 0, 3, resources, inputs, direction);
         output = packets;
         return result;
     }

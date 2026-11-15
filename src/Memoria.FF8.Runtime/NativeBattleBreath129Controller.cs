@@ -192,6 +192,8 @@ public static partial class NativeBattleBreath129Controller
     private static (NativeBattleBreath129Frame Frame, int Survivors) Scan(NativeBattleBreath129Frame frame, int index, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs)
     {
         NativeBattleBreath129Frame current = frame;
+        NativeBattleBreath129LinkedDirection? curveDirection = index == 4 ? new() : null;
+        uint precedingCurve = 0;
         NativeBattleEffectTaskStep step = frame.Effect.Pools[index].Advance((pool, slot) =>
         {
             current = WithPool(current, index, pool);
@@ -201,10 +203,14 @@ public static partial class NativeBattleBreath129Controller
                 0x6B5140 => AdvanceMain(current, address, resources, inputs),
                 0x6B5FC0 => AdvanceTarget(current, address, resources, inputs),
                 0x6B6130 => AdvanceSprite(current, address, resources, inputs),
-                0x6B62D0 => AdvanceCurve(current, address, resources, inputs),
+                0x6B62D0 => AdvanceCurve(current, address, resources, inputs, curveDirection ?? throw new InvalidDataException("Breath curve escaped its native task scan."), precedingCurve),
                 0x6B68C0 => AdvanceFibre(current, address, resources, inputs),
                 _ => throw new NotSupportedException("Breath reached an unsupported working callback.")
             };
+            if (curveDirection is not null && (result & 2) == 0)
+            {
+                precedingCurve = address;
+            }
             return new(current.Effect.Pools[index], result);
         });
         return (WithPool(current, index, step.Pool), step.Survivors);
