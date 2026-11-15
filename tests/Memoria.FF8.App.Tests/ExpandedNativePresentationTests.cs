@@ -1,0 +1,112 @@
+using System.Collections.Immutable;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+public sealed class ExpandedNativePresentationTests
+{
+    [Theory]
+    [InlineData(6)]
+    [InlineData(11)]
+    public void Installed_presentation_uses_the_owning_device_and_full_typed_roster(ushort effect)
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        GameWorld world = new(session, directory);
+        try
+        {
+            DiagnosticBattleRequest request = CreateScenario(world, effect);
+            DiagnosticBattleDriverRecipe driver = request.Driver!;
+            BattleSession battle = world.StartDiagnosticBattle(request);
+            for (int tick = 0; tick < 1200 && !RecreateGame.DiagnosticCommandReady(battle, driver); tick++)
+            {
+                if (battle.NativeEntryReady && battle.ObserveDiagnosticDrainBlockers().Count == 0)
+                {
+                    battle.AdvanceTurn();
+                }
+                battle.Tick();
+            }
+            Assert.True(RecreateGame.DiagnosticCommandReady(battle, driver));
+            if (driver.EnemyAbility is { } enemy)
+            {
+                battle.SubmitDiagnosticEnemyAbility(driver.Input.ActorId!, enemy, driver.ExpectedEffect);
+            }
+            else
+            {
+                world.ApplyBattleInput(driver.Input);
+            }
+            BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition(), true);
+            bool rendered = false;
+            for (int tick = 0; tick < 1400 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.GuardianForceCasts.Count != 0 || battle.ObserveDiagnosticDrainBlockers().Count != 0); tick++)
+            {
+                battle.Tick();
+                if (effect == 6 && !rendered && battle.ExpandedPresentationProcess?.Graphics.OriginalEffect?.RequestedEffect == effect &&
+                    battle.PreparedPresentation is { } prepared && prepared.Primitives.LastCommands.Any(command => command.DrawMode.TexturePage is ushort page && (page & 0x180) == 0x100))
+                {
+                    Assert.Equal(NativeBattlePcDirectTextureFormat.Rgb555, prepared.PrimitiveCapabilities?.DirectTextureFormat);
+                    Assert.NotEmpty(scene.Render(battle, 320, 240));
+                    rendered = true;
+                }
+            }
+            Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
+            if (effect == 6)
+            {
+                Assert.True(rendered);
+            }
+            else
+            {
+                string?[] recipients = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == driver.Input.ActorId).Select(entry => entry.TargetId).ToArray();
+                Assert.Equal(11, recipients.Length);
+                Assert.Equal(11, recipients.Distinct().Count());
+            }
+            world.Dispose();
+        }
+        catch
+        {
+            try
+            {
+                world.Dispose();
+            }
+            catch (InvalidOperationException)
+            {
+                // The failed action may still own its published presentation.
+            }
+            throw;
+        }
+    }
+
+    private static DiagnosticBattleRequest CreateScenario(GameWorld world, ushort effect)
+    {
+        bool guardian = effect == 6;
+        int formation = guardian ? 585 : 284;
+        int stage = guardian ? 102 : 49;
+        int enemyModel = guardian ? 16 : 131;
+        (int Formation, int Slot)[] donorSlots = guardian
+            ? [(274, 0), (361, 2), (613, 2), (464, 1)]
+            : [(323, 0), (459, 1), (356, 0), (142, 3), (39, 0)];
+        ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(slot => new BattleEnemyRosterSource(slot.Formation, slot.Slot, world.BattleResources.FormationSourceHash(slot.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation character = guardian
+            ? new(0, 0, [], [7, 0]) { HitPoints = 486, Commands = [new(0, 21)] }
+            : new(0, 0, [], [0]) { HitPoints = 486, Level = 7, MagicCommand = new(0, 20) };
+        DiagnosticGuardianForcePreparation[] forces = guardian ? [new(7, true), new(0, true)] : [new(0, true)];
+        BattleInput command = guardian
+            ? new(BattleInputKind.Action, ActorId: "party-0", TargetId: "enemy-0", Ability: BattleAbility.GuardianForce, ActionId: 7)
+            : new(BattleInputKind.Action, ActorId: "enemy-0", TargetId: "party-0", Ability: BattleAbility.EnemyAbility, ActionId: 9);
+        return new(formation, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new(forces.ToImmutableArray(), [character], true),
+            Target = new("enemy-0", stage, enemyModel, 0, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 0),
+            Driver = new(command, effect)
+            {
+                ExpectedNativeCommand = guardian ? (byte)254 : (byte)8,
+                ExpectedNativeAction = guardian ? 71 : 9,
+                EnemyAbility = guardian ? null : new(131, 0, 0, 2, 8, 9, 14, 204)
+            }
+        };
+    }
+
+}

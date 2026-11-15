@@ -48,6 +48,7 @@ public sealed class ExpandedBattleGuardianTests
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
         Assert.True(process.EntryReady);
+        Assert.Equal(NativeBattlePcDirectTextureFormat.Rgb555, battle.PreparedPresentation?.PrimitiveCapabilities?.DirectTextureFormat);
 
         BattleSession child = ReadField<BattleSession>(process, "presentation");
         BattleActionDefinition action = Assert.Single(battle.ReadDefinition().ActionDefinitions, candidate => candidate.Ability == BattleAbility.GuardianForce && candidate.Id == GuardianId);
