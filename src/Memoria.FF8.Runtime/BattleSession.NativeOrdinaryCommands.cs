@@ -66,7 +66,7 @@ public sealed partial class BattleSession
         return Math.Clamp(action.Power * currentLevel / 8, 1, 100);
     }
 
-    private bool CanRebindExpandedEnemyLevel(BattleCombatant recipient, int level)
+    private bool CanRebindExpandedEnemyLevel(BattleCombatant recipient, int level, IReadOnlyList<uint>? savedLocals = null)
     {
         if (recipient.IsPlayer || recipient.Level is < 1 or > 100 || recipient.ExpandedEnemyLevels is not { } profile)
         {
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
             return true;
         }
         return recipient.NativeAi is { } ai && definition.EncounterId is int formation &&
-            NativeBattleExpandedAi.Evaluate(ai with { LevelBand = destinationBand }, definition.NativeActions, formation) == ExpandedAiAdmission.Supported;
+            NativeBattleExpandedAi.EvaluateRebound(ai with { LevelBand = destinationBand }, definition.NativeActions, formation, savedLocals ?? recipient.AiVariables, recipient.AiActorReferences) == ExpandedAiAdmission.Supported;
     }
 
     private void RefreshExpandedLevelDrawSlots(BattleCombatant enemy)

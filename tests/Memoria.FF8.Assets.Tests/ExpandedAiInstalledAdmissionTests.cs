@@ -14,19 +14,25 @@ public sealed class ExpandedAiInstalledAdmissionTests
     [InlineData(371, 95, ExpandedAiAdmission.Supported)]
     [InlineData(448, 95, ExpandedAiAdmission.Supported)]
     [InlineData(478, 95, ExpandedAiAdmission.Supported)]
-    [InlineData(0, 71, ExpandedAiAdmission.RequiresUnsupportedService)]
+    [InlineData(0, 71, ExpandedAiAdmission.RequiresOriginalSlots)]
     public void InstalledScriptsUseFormationConditionsAndPreserveAllocationBoundaries(int formation, int model, ExpandedAiAdmission expected)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         Assert.Contains(assets.LoadEncounter(formation).Enemies, enemy => enemy.ModelId == model);
         NativeBattleAiDefinition program = assets.ReadEnemyAi(model, 8);
-        Assert.Equal(expected, NativeBattleExpandedAi.Evaluate(program, assets.NativeActions, formation));
+        List<string> blockers = [];
+        Assert.Equal(expected, NativeBattleExpandedAi.Evaluate(program, assets.NativeActions, formation, blockers));
+        if (model == 71)
+        {
+            Assert.Contains("physical-variable:14/96", blockers);
+            Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, assets.NativeActions, formation, originalEnemySlots: true));
+        }
     }
 
     [Theory]
     [InlineData(194, 102, 8, 119, 14, 298)]
     [InlineData(247, 57, 32, 132, 12, 0)]
-    public void OriginalZeroDamageCommandsPublishTheirAuthoredSelfContactAcrossJsonRestore(int formation, int model, int level, ushort action, byte sequence, ushort effect)
+    public void OriginalZeroDamageCommandsPublishTheirAuthoredSelfContactAcrossPrivateRestore(int formation, int model, int level, ushort action, byte sequence, ushort effect)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleEnemyPlacement placement = Assert.Single(assets.LoadEncounter(formation).Enemies);
@@ -62,7 +68,7 @@ public sealed class ExpandedAiInstalledAdmissionTests
             UsesExpandedRoster = true, EncounterId = formation, Combatants = [.. party, enemy, .. remainingEnemies],
             NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(3)
         }, BattleAtbMode.TurnBased);
-        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(enemy.Id), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
         if (deathCallback)
         {
             battle.QueueAttack("ally-10", enemy.Id);
@@ -102,7 +108,7 @@ public sealed class ExpandedAiInstalledAdmissionTests
             Assert.Equal(1u, charged.NativeParticipant.Variables[0]);
             Assert.Equal(0x800000u, charged.NativeStatus!.Battle & 0x800000u);
         }
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before));
         for (int frame = 0; frame < 100 && !battle.Events.Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == enemy.Id); frame++)
         {
             battle.Tick();

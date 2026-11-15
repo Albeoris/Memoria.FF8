@@ -55,7 +55,7 @@ public sealed partial class BattleSession
     private AiTargetSelection SelectAiActorOperand(int operand)
     {
         (NativeBattleTargetRequestAdapter.OriginalWordProjection projection, bool allowsKo) = NativeBattleTargetRequestAdapter.DecodeAiActorOperand(operand);
-        if (UsesExpandedRoster && !UsesOriginalEnemySlots && !projection.Group && !projection.Random && !projection.Operands.IsEmpty)
+        if (UsesExpandedRoster && !UsesOriginalEnemySlots && projection.RequiresOriginalSlots)
         {
             throw new InvalidDataException("Expanded AI cannot use original target operands without original enemy slots.");
         }

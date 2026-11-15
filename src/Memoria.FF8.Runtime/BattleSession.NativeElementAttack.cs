@@ -18,10 +18,10 @@ public sealed partial class BattleSession
 
     private void PublishNativeElementAttack(BattleCombatant actor)
     {
-        if (!UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 3 && actor.NativePlayerStatRules is not null)
+        if (!UsesExpandedRoster && actor.NativePlayerStatRules is not null && actor.NativeActorIndex is int slot && slot < NativeBattleSlots.AllyCount)
         {
             //48B310 writes BD5 from the current junction projection; enemy48BBD0 leaves that byte retained.
-            nativeElementAttack = nativeElementAttack.SetItem(actor.EncodeNativeSlot(), checked((byte)actor.ElementAttack));
+            nativeElementAttack = nativeElementAttack.SetItem(slot, checked((byte)actor.ElementAttack));
         }
     }
 

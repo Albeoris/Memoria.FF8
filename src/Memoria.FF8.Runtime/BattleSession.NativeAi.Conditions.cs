@@ -23,7 +23,7 @@ public sealed partial class BattleSession
             if (UsesExpandedRoster && owner.AiActorReferences.ContainsKey(subject - 220))
             {
                 // A native reference occupies slot 0..6. Constants above that range are distinct markers.
-                if (value < NativeBattleSlots.Count || comparison is not (0 or 3))
+                if (!NativeBattleAiCondition.CanCompareActorReference(comparison, value))
                 {
                     throw new NotSupportedException("Expanded battle AI cannot compare an actor reference as a native slot index.");
                 }
@@ -42,7 +42,7 @@ public sealed partial class BattleSession
                     right = NativeConditionHpThreshold(hpActor, value);
                     break;
                 case 1:
-                    return NativeConditionGroup(selector).Any(candidate => candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0 && CompareNativeCondition(unchecked((uint)candidate.CurrentHp), comparison, NativeConditionHpThreshold(candidate, value)));
+                    return NativeConditionGroup(selector).Any(candidate => candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeBattleAiCondition.CompareNumbers(unchecked((uint)candidate.CurrentHp), comparison, NativeConditionHpThreshold(candidate, value)));
                 case 2:
                     if (selector == 0)
                     {
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
                     return true;
             }
         }
-        return CompareNativeCondition(left, comparison, right);
+        return NativeBattleAiCondition.CompareNumbers(left, comparison, right);
     }
 
     private bool NativeConditionTimerIsZero()
@@ -183,7 +183,7 @@ public sealed partial class BattleSession
                 };
             }
         }
-        return CompareNativeCondition(left, comparison, right);
+        return NativeBattleAiCondition.CompareNumbers(left, comparison, right);
     }
 
     private BattleCombatant FindNativeConditionActor(BattleCombatant actor, int selector)
@@ -208,7 +208,7 @@ public sealed partial class BattleSession
             >= 220 and <= 227 => checked((int)ReadNativeActorVariable(actor, selector)),
             _ => NativeConditionActorIndex(selector)
         };
-        return combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException($"Native battle AI condition actor index {index} has no retained allocation.");
+        return combatants.FirstOrDefault(candidate => candidate.NativeActorIndex == index) ?? throw new NotSupportedException($"Native battle AI condition actor index {index} has no retained allocation.");
     }
 
     private BattleCombatant FindExpandedNumericConditionActor(uint index)
@@ -247,20 +247,6 @@ public sealed partial class BattleSession
     private static long NativeConditionHpThreshold(BattleCombatant actor, int value)
     {
         return value is >= 1 and <= 9 ? value * (actor.MaximumHp / 10) : value == 10 ? actor.MaximumHp >> 2 : value;
-    }
-
-    private static bool CompareNativeCondition(long left, int comparison, long right)
-    {
-        return comparison switch
-        {
-            0 => left == right,
-            1 => left < right,
-            2 => left > right,
-            3 => left != right,
-            4 => left <= right,
-            5 => left >= right,
-            _ => false
-        };
     }
 
     private static bool CompareNativeConditionBit(bool present, int comparison)

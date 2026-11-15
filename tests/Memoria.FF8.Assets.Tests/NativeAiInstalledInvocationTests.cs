@@ -8,7 +8,7 @@ public sealed class NativeAiInstalledInvocationTests
     [Theory]
     [InlineData(BattleDifficulty.Normal)]
     [InlineData(BattleDifficulty.Hard)]
-    public void OriginalCavernEncounterTablesInitializeAndRunEachParticipantAfterJsonRestore(BattleDifficulty difficulty)
+    public void OriginalCavernEncounterTablesInitializeAndRunEachParticipantAfterPrivateRestore(BattleDifficulty difficulty)
     {
         using GameAssets fields = new(TestResources.GameDirectory);
         using BattleAssets assets = new(TestResources.GameDirectory);
@@ -47,7 +47,7 @@ public sealed class NativeAiInstalledInvocationTests
                 combatants[index] = combatants[index] with { Atb = BattleSession.AtbMaximum };
                 BattleSnapshot ready = initial with { Combatants = combatants };
                 BattleSession original = BattleSession.Restore(ready);
-                BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(ready))!);
+                BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready));
                 original.Tick();
                 restored.Tick();
                 Assert.Equal((byte)1, original.Capture().Combatants[index].NativeParticipant!.TurnCount);
@@ -65,7 +65,7 @@ public sealed class NativeAiInstalledInvocationTests
     [InlineData(88, BattleDifficulty.Hard)]
     [InlineData(91, BattleDifficulty.Hard)]
     [InlineData(92, BattleDifficulty.Hard)]
-    public void InstalledRandomTurnProgramsRespectDifficultyAndContinueAfterJsonRestore(int encounter, BattleDifficulty difficulty)
+    public void InstalledRandomTurnProgramsRespectDifficultyAndContinueAfterPrivateRestore(int encounter, BattleDifficulty difficulty)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         foreach (BattleEnemyPlacement placement in assets.LoadEncounter(encounter).Enemies.Where(enemy => enemy.ModelId == 43))
@@ -83,8 +83,7 @@ public sealed class NativeAiInstalledInvocationTests
                 BattleSession original = new(definition, BattleAtbMode.Normal);
                 original.Tick();
                 original.SetDifficulty(difficulty);
-                string json = JsonSerializer.Serialize(original.Capture());
-                BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+                BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(original.Capture()));
                 original.Tick();
                 restored.Tick();
                 if (difficulty == BattleDifficulty.Hard)
@@ -171,8 +170,9 @@ public sealed class NativeAiInstalledInvocationTests
         Assert.Equal(id, queued.NativeAction!.ActionId);
         Assert.Equal(assets.NativeActions.Single(action => action.Command == 8 && action.ActionId == id) with { Command = 236 }, queued.NativeAction);
         Assert.Equal(id, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Action);
-        string json = JsonSerializer.Serialize(battle.Capture());
-        Assert.Equal(json, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!).Capture()));
+        BattleSnapshot snapshot = battle.Capture();
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot));
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
     }
 
     private static BattleSession AdmitInitial(BattleDefinition definition)

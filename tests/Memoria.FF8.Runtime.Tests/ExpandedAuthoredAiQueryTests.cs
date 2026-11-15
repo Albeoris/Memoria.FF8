@@ -29,12 +29,12 @@ public sealed class ExpandedAuthoredAiQueryTests
     {
         BattleSession battle = Start([0], turn: [.. Probe(8, 0, 255, 220), 0]);
         Actor(battle, "ally-3").IsActive = false;
-        battle.Tick();
+        ExecuteTurn(battle);
         Assert.Equal(0u, Actor(battle, "caller").AiVariables[0]);
 
         BattleSession original = Start([0], turn: [.. Probe(8, 0, 255, 220), 0]);
         Actor(original, "ally-0").IsActive = false;
-        original.Tick();
+        ExecuteTurn(original);
         Assert.Equal(1u, Actor(original, "caller").AiVariables[0]);
     }
 
@@ -53,7 +53,7 @@ public sealed class ExpandedAuthoredAiQueryTests
                 ? actor with { NativeParticipant = actor.NativeParticipant! with { LastAttackerId = attackerId } }
                 : actor).ToArray()
         });
-        restored.Tick();
+        ExecuteTurn(restored);
         Assert.Equal(matches ? 1u : 0u, Actor(restored, "caller").AiVariables[0]);
     }
 
@@ -217,7 +217,7 @@ public sealed class ExpandedAuthoredAiQueryTests
         messages[11] = " ";
         messages[19] = "Draw";
         messages[118] = "!";
-        return new(new BattleDefinition
+        BattleSession battle = new(new BattleDefinition
         {
             UsesExpandedRoster = true, UsesOriginalEnemySlots = originalSlots, Combatants = [.. allies, .. enemies],
             AddedEnemySources = originalSlots ? ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty.Add(8, new(2, 0, new string('A', 64))) : null,
@@ -225,6 +225,8 @@ public sealed class ExpandedAuthoredAiQueryTests
             NativeActions = [action ?? Action(), Action() with { Command = 2, Name = "Fire" }],
             NativeGlobalMessages = messages, NativeMessageSpeed = 0
         }, BattleAtbMode.Normal);
+        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        return battle;
     }
 
     private static BattleNativeAction Action()
@@ -246,6 +248,12 @@ public sealed class ExpandedAuthoredAiQueryTests
     }
 
     private static BattleSession Restore(BattleSnapshot saved) => BattleSession.Restore(saved);
+
+    private static void ExecuteTurn(BattleSession battle)
+    {
+        BattleCombatant caller = Actor(battle, "caller");
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => caller.AiTurnCount == 1, "The ready enemy must execute its first turn.");
+    }
 
     private static void AdvanceOneAction(BattleSession battle, BattleSession restored)
     {

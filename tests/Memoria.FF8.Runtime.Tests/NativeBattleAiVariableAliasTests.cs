@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -58,7 +57,7 @@ public sealed class NativeBattleAiVariableAliasTests
         Assert.Equal(0u, snapshot.Combatants[3].NativeParticipant!.Variables[0]);
         Assert.All(snapshot.Combatants[3].NativeStatus!.Resistances!, value => Assert.Equal(72, value));
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = DetachedExpandedAiFixture.Restore(snapshot);
         Assert.Equal(expected, restored.Capture().Combatants[0].NativeStatus!.Resistances![20..24]);
         Assert.Equal(43u, restored.Capture().Combatants[0].NativeParticipant!.Variables[0]);
         Assert.Equal(0u, restored.Capture().Combatants[3].NativeParticipant!.Variables[0]);
@@ -97,7 +96,7 @@ public sealed class NativeBattleAiVariableAliasTests
     {
         NativeBattleEnemyLevel level = new(100, 10, 10, 10, 10, 10, new int[8], [], [], 0);
         NativeBattleEnemyTemplate template = new(5, Enumerable.Repeat(level, 101).ToArray());
-        return new(new BattleDefinition
+        BattleSession battle = new(new BattleDefinition
         {
             UsesExpandedRoster = true,
             UsesOriginalEnemySlots = true,
@@ -111,6 +110,8 @@ public sealed class NativeBattleAiVariableAliasTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 71, SceneSlot = 0, Level = 5, NativeTemplate = template, NativeAi = Program(init) }
             ]
         }, BattleAtbMode.Normal);
+        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        return battle;
     }
 
     private static NativeBattleAiDefinition Program(byte[] init)

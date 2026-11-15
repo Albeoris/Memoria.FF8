@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -60,13 +58,13 @@ public sealed partial class BattleSession
         actor.Suspended = false;
         actor.AiDeathHandled = false;
         Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");
-        if (UsesExpandedRoster)
-        {
-            QueueExpandedAiCallback(actor, 0);
-        }
-        else
+        if (!UsesExpandedRoster)
         {
             QueueNativeParticipantInitialization(actor);
+        }
+        else if (actor.NativeAi is not null)
+        {
+            QueueExpandedAiCallback(actor, 0);
         }
     }
 
@@ -118,7 +116,12 @@ public sealed partial class BattleSession
             for (int dispatched = 0; dispatched < 4096; dispatched++)
             {
                 operation = pc;
-                int opcode = ReadAiByte(code, ref pc);
+                if (!NativeBattleAiInstruction.TryDecode(code, pc, out NativeBattleAiInstruction instruction, out string? decodeError))
+                {
+                    throw new InvalidDataException($"Malformed native battle AI instruction ({decodeError}).");
+                }
+                pc = instruction.NextOffset;
+                int opcode = instruction.Opcode;
                 switch (opcode)
                 {
                     case 0:
@@ -126,18 +129,14 @@ public sealed partial class BattleSession
                     case 1:
                     case 24:
                     case 26:
-                        int text = ReadAiByte(code, ref pc);
+                        int text = instruction[0];
                         QueueNativeText(actor, program, text, opcode);
                         break;
                     case 2:
-                        int subject = ReadAiByte(code, ref pc);
-                        int selector = ReadAiByte(code, ref pc);
-                        int comparison = ReadAiByte(code, ref pc);
-                        int value = ReadAiWord(code, ref pc);
-                        int skip = ReadAiWord(code, ref pc);
-                        bool passed = EvaluateNativeAiCondition(actor, subject, selector, comparison, value);
-                        int falsePc = checked(pc + skip);
-                        if (callback == 1 && Difficulty >= BattleDifficulty.Hard && subject == 2)
+                        NativeBattleAiCondition condition = instruction.Condition;
+                        bool passed = EvaluateNativeAiCondition(actor, condition.Subject, condition.Selector, condition.Comparison, condition.Value);
+                        int falsePc = instruction.BranchOffset;
+                        if (callback == 1 && Difficulty >= BattleDifficulty.Hard && condition.Subject == 2)
                         {
                             // Only side-effect-free random exits are omitted; state guards and reaction callbacks retain their authored control flow.
                             bool trueReturns = NativeAiPathOnlyReturns(code, pc);
@@ -151,21 +150,21 @@ public sealed partial class BattleSession
                         break;
                     case 3:
                         preparedCommand = 2;
-                        preparedId = (byte)ReadAiByte(code, ref pc);
+                        preparedId = instruction[0];
                         break;
                     case 4:
-                        byte selectorTarget = (byte)ReadAiByte(code, ref pc);
+                        byte selectorTarget = instruction[0];
                         selected = ResolveAiTargets(actor, selectorTarget);
                         break;
                     case 5:
-                        sequenceOverride = (byte)ReadAiByte(code, ref pc);
+                        sequenceOverride = instruction[0];
                         break;
                     case 6:
                         QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
                         break;
                     case 7:
                         preparedCommand = 8;
-                        preparedId = (byte)ReadAiByte(code, ref pc);
+                        preparedId = instruction[0];
                         break;
                     case 8:
                         if (producingExpandedAiCallback)
@@ -185,14 +184,14 @@ public sealed partial class BattleSession
                         }
                         break;
                     case 9:
-                        int damagePresentation = ReadAiByte(code, ref pc);
+                        int damagePresentation = instruction[0];
                         SetNativeContactSequence((byte)damagePresentation);
                         Log("NativeDamagePresentation", actor.Id, null, damagePresentation, $"Native damage presentation {damagePresentation}.");
                         break;
                     case 11:
-                        int first = ReadAiByte(code, ref pc);
-                        int second = ReadAiByte(code, ref pc);
-                        int third = ReadAiByte(code, ref pc);
+                        int first = instruction[0];
+                        int second = instruction[1];
+                        int third = instruction[2];
                         int chosen = (NextRandomByte() % 3) switch { 0 => first, 1 => second, _ => third };
                         if (chosen != 253)
                         {
@@ -201,7 +200,7 @@ public sealed partial class BattleSession
                         }
                         break;
                     case 12:
-                        PrepareNativeAiAbility(actor, ReadAiByte(code, ref pc), ref preparedCommand, ref preparedId, ref sequenceOverride);
+                        PrepareNativeAiAbility(actor, instruction[0], ref preparedCommand, ref preparedId, ref sequenceOverride);
                         QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
                         break;
                     case 14:
@@ -210,8 +209,8 @@ public sealed partial class BattleSession
                     case 19:
                     case 17:
                     case 21:
-                        int variable = ReadAiByte(code, ref pc);
-                        uint operand = (uint)ReadAiByte(code, ref pc);
+                        int variable = instruction[0];
+                        uint operand = instruction[1];
                         if (opcode is 14 or 18)
                         {
                             if (operand == 203)
@@ -248,21 +247,20 @@ public sealed partial class BattleSession
                         actor.AiDeathHandled = false;
                         break;
                     case 23:
-                        bool sceneResultFlag = ReadAiByte(code, ref pc) == 1;
+                        bool sceneResultFlag = instruction[0] == 1;
                         nativeScriptState = nativeScriptState with { ResultFlags = (byte)((nativeScriptState.ResultFlags & ~1) | (sceneResultFlag ? 1 : 0)), EscapeDisabled = sceneResultFlag };
                         break;
                     case 13:
                     case 25:
                         // Native487DF0 deliberately consumes one operand and performs no operation.
-                        _ = ReadAiByte(code, ref pc);
                         break;
                     case 27:
-                        int entranceIndex = ReadAiByte(code, ref pc) + NativeBattleSlots.AllyCount;
-                        byte entranceSequence = checked((byte)ReadAiByte(code, ref pc));
+                        int entranceIndex = instruction[0] + NativeBattleSlots.AllyCount;
+                        byte entranceSequence = instruction[1];
                         QueueNativeEnemyEntrance(actor, FindNativeActor(entranceIndex), entranceSequence);
                         break;
                     case 29:
-                        int removal = ReadAiByte(code, ref pc);
+                        int removal = instruction[0];
                         if (producingExpandedAiCallback)
                         {
                             StageExpandedHostedModelControl(105, removal == 200 ? actor : FindNativeActor(removal + NativeBattleSlots.AllyCount));
@@ -293,7 +291,7 @@ public sealed partial class BattleSession
                         actor.IsBusy = actor.ExpandedAiRemovalPending;
                         break;
                     case 30:
-                        byte effect = checked((byte)ReadAiByte(code, ref pc));
+                        byte effect = instruction[0];
                         if (UsesExpandedRoster)
                         {
                             QueueExpandedGraphicCommand(actor, effect, sequenceOverride, selected);
@@ -304,55 +302,54 @@ public sealed partial class BattleSession
                         }
                         break;
                     case 28:
-                        QueueNativeWait(30 * ReadAiByte(code, ref pc));
+                        QueueNativeWait(30 * instruction[0]);
                         break;
                     case 32:
-                        QueueNativeWait(15 * ReadAiByte(code, ref pc));
+                        QueueNativeWait(15 * instruction[0]);
                         break;
                     case 31:
                     case 52:
-                        int reserve = ReadAiByte(code, ref pc);
+                        int reserve = instruction[0];
                         QueueAiEnemyAllocation(actor, reserve, 0, opcode == 31);
                         break;
                     case 59:
-                        int replacementScene = ReadAiByte(code, ref pc);
-                        int replacementIndex = ReadAiByte(code, ref pc);
+                        int replacementScene = instruction[0];
+                        int replacementIndex = instruction[1];
                         QueueAiEnemyAllocation(actor, replacementScene, replacementIndex, true);
                         break;
                     case 35:
-                        short displacement = unchecked((short)ReadAiWord(code, ref pc));
-                        pc = checked(pc + displacement);
+                        pc = instruction.BranchOffset;
                         break;
                     case 34:
-                        int delayedText = ReadAiByte(code, ref pc);
-                        int textDelay = ReadAiByte(code, ref pc);
+                        int delayedText = instruction[0];
+                        int textDelay = instruction[1];
                         QueueNativeText(actor, program, delayedText, opcode, textDelay);
                         break;
                     case 40:
-                        int statistic = ReadAiByte(code, ref pc);
-                        int multiplier = ReadAiByte(code, ref pc);
+                        int statistic = instruction[0];
+                        int multiplier = instruction[1];
                         SetNativeAiStatMultiplier(actor, statistic, multiplier);
                         break;
                     case 36:
                         actor.Atb = AtbMaximum;
                         break;
                     case 37:
-                        int nameIndex = ReadAiByte(code, ref pc);
+                        int nameIndex = instruction[0];
                         actor.SetNativeDisplayName(nameIndex == 255 ? null : nameIndex);
                         break;
                     case 39:
-                        int status = ReadAiByte(code, ref pc);
-                        SetNativeAiStatus(actor, status, ReadAiByte(code, ref pc));
+                        int status = instruction[0];
+                        SetNativeAiStatus(actor, status, instruction[1]);
                         break;
                     case 38:
-                        byte allTargets = (byte)ReadAiByte(code, ref pc);
-                        byte group = (byte)ReadAiByte(code, ref pc);
-                        byte targetComparison = (byte)ReadAiByte(code, ref pc);
-                        byte criterion = (byte)ReadAiByte(code, ref pc);
+                        byte allTargets = instruction[0];
+                        byte group = instruction[1];
+                        byte targetComparison = instruction[2];
+                        byte criterion = instruction[3];
                         selected = FilterAiTargets(allTargets, group, targetComparison, criterion);
                         break;
                     case 43:
-                        int physicalTarget = ReadAiByte(code, ref pc);
+                        int physicalTarget = instruction[0];
                         selected = SelectDirectAiActor(physicalTarget);
                         break;
                     case 41:
@@ -373,8 +370,8 @@ public sealed partial class BattleSession
                         actor.IsBusy = false;
                         break;
                     case 45:
-                        int elementIndex = ReadAiByte(code, ref pc);
-                        actor.SetNativeElementDefense(elementIndex, ReadAiWord(code, ref pc));
+                        int elementIndex = instruction[0];
+                        actor.SetNativeElementDefense(elementIndex, instruction.ReadWord(1));
                         break;
                     case 47:
                         actor.Untargetable = false;
@@ -383,7 +380,7 @@ public sealed partial class BattleSession
                         actor.Untargetable = true;
                         break;
                     case 49:
-                        AcquireNativeGuardianForce((byte)ReadAiByte(code, ref pc));
+                        AcquireNativeGuardianForce(instruction[0]);
                         break;
                     case 50:
                         nativeScriptState = nativeScriptState with { DisableAutomaticTargetReplacement = true };
@@ -403,7 +400,7 @@ public sealed partial class BattleSession
                         }
                         break;
                     case 55:
-                        AwardNativeCard((byte)ReadAiByte(code, ref pc));
+                        AwardNativeCard(instruction[0]);
                         break;
                     case 54:
                         CompleteNativeSavedBattleFlags();
@@ -412,7 +409,7 @@ public sealed partial class BattleSession
                         UnlockNativeTutorial(127);
                         break;
                     case 53:
-                        int activationIndex = ReadAiByte(code, ref pc);
+                        int activationIndex = instruction[0];
                         BattlePreviousTarget? activation = activationIndex == 209 ? nativeLastAllocatedTarget : new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(activationIndex);
                         if (producingExpandedAiCallback)
                         {
@@ -428,20 +425,20 @@ public sealed partial class BattleSession
                         }
                         break;
                     case 58:
-                        FindNativeActor(ReadAiByte(code, ref pc)).Untargetable = false;
+                        FindNativeActor(instruction[0]).Untargetable = false;
                         break;
                     case 57:
                         //4863F0 consumes the request as internalkind3 and saved/resultBYTE1, without victory rewards.
                         nativeScriptState = nativeScriptState with { ScriptedExitRequested = true };
                         break;
                     case 60:
-                        ushort hpOperand = checked((ushort)ReadAiWord(code, ref pc));
+                        ushort hpOperand = instruction.ReadWord(0);
                         int hpBefore = actor.CurrentHp;
                         actor.AddNativeHitPointWord(unchecked((short)hpOperand));
                         ObserveDiagnosticNativeHpWord(actor, callback, operation, code, hpOperand, hpBefore);
                         break;
                     case 56:
-                        int item = ReadAiByte(code, ref pc);
+                        int item = instruction[0];
                         if (nativeRewardItems.Count >= 24)
                         {
                             throw new NotSupportedException("Native AI item reward exceeds the twenty-four-pair reward bank and would overwrite adjacent native globals.");
@@ -462,10 +459,6 @@ public sealed partial class BattleSession
                         }
                         break;
                     default:
-                        if (opcode is >= 0 and <= 61 and not (10 or 16 or 20 or 33))
-                        {
-                            throw new NotSupportedException($"Native battle AI model {actor.ModelId} callback {callback} byte {operation}: opcode {opcode} requires its original service owner.");
-                        }
                         //487DF0's default consumes only the opcode, without operands or an effect.
                         break;
                 }
@@ -560,18 +553,17 @@ public sealed partial class BattleSession
     private static bool NativeAiPathOnlyReturns(byte[] code, int pc)
     {
         HashSet<int> visited = [];
-        while ((uint)pc < code.Length && visited.Add(pc))
+        while (visited.Add(pc) && NativeBattleAiInstruction.TryDecode(code, pc, out NativeBattleAiInstruction instruction, out _))
         {
-            if (code[pc] == 0)
+            if (instruction.Opcode == 0)
             {
                 return true;
             }
-            if (code[pc] != 35 || pc > code.Length - 3)
+            if (instruction.Opcode != 35)
             {
                 return false;
             }
-            short displacement = BinaryPrimitives.ReadInt16LittleEndian(code.AsSpan(pc + 1, 2));
-            pc = checked(pc + 3 + displacement);
+            pc = instruction.BranchOffset;
         }
         return false;
     }
@@ -608,24 +600,6 @@ public sealed partial class BattleSession
 
     private IReadOnlyList<BattleCombatant> Roster(BattleSide side) => side == BattleSide.Allies ? allies : enemies;
     private static int NativeModelId(BattleCombatant actor) => actor.NativeAllocationPendingStatistics ? 255 : actor.IsPlayer ? actor.IsActive ? actor.ModelId : 255 : actor.ModelId + 16;
-    private static int ReadAiByte(byte[] code, ref int pc)
-    {
-        if ((uint)pc >= code.Length)
-        {
-            throw new InvalidDataException("Native battle AI operand exceeds its original callback.");
-        }
-        return code[pc++];
-    }
-    private static int ReadAiWord(byte[] code, ref int pc)
-    {
-        if (pc < 0 || pc > code.Length - 2)
-        {
-            throw new InvalidDataException("Native battle AI WORD operand exceeds its original callback.");
-        }
-        int value = BinaryPrimitives.ReadUInt16LittleEndian(code.AsSpan(pc, 2));
-        pc += 2;
-        return value;
-    }
 
     private bool IsAddedEnemy(BattleCombatant actor) => IsAddedEnemy(actor.SourceDefinition);
 
@@ -633,7 +607,7 @@ public sealed partial class BattleSession
 
     private bool RetainsNativeActorIndex(BattleCombatant actor) => !UsesExpandedRoster || UsesOriginalEnemySlots && !actor.IsPlayer && !IsAddedEnemy(actor);
 
-    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, RetainsNativeActorIndex(actor) ? actor.EncodeNativeSlot() : NativeBattleSlots.Unassigned, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, ExpandedAiRemovalPending = actor.ExpandedAiRemovalPending, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
+    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, RetainsNativeActorIndex(actor) ? actor.NativeActorIndex ?? NativeBattleSlots.Unassigned : NativeBattleSlots.Unassigned, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, ExpandedAiRemovalPending = actor.ExpandedAiRemovalPending, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -695,7 +669,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                if (UsesExpandedRoster && actor.NativeTemplate is null && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level)))
+                if (UsesExpandedRoster && actor.NativeTemplate is null && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level, saved.Variables)))
                 {
                     throw new InvalidDataException("Saved expanded enemy level is outside its installed level or AI contract.");
                 }

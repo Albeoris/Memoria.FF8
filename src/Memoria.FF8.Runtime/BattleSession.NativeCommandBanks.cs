@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         }
         NativeBattleCommandLocation? location = nativeCommandBanks.FirstEligible(index =>
         {
-            BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == index);
+            BattleCombatant actor = combatants.Single(candidate => candidate.NativeActorIndex == index);
             return (NativeSavedStatusBits(actor) & 4) != 0 || (NativeBattleStatusBits(actor) & 9) != 0;
         });
         if (location is null)
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         NativeBattleCommandPacket packet = bank.Packets[2 * location.Slot];
         if (packet.ReadByte(1) == 255)
         {
-            BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == packet.ReadByte(0));
+            BattleCombatant actor = combatants.Single(candidate => candidate.NativeActorIndex == packet.ReadByte(0));
             command = new(actor.Id, actor.Id, BattleTargetRequest.None, BattleAbility.EnemyAbility, 0) { NativeCallback = new(packet.ReadByte(0), packet.ReadWord(4)) };
         }
         else

@@ -1170,7 +1170,7 @@ public sealed partial class BattleSession
             ReferenceEquals(ActiveAction, completed.ActivePresentation) ? null : ActiveAction;
         foreach (BattleCombatant actor in combatants)
         {
-            bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
+            bool nativeQueued = !UsesExpandedRoster && actor.NativeActorIndex is int slot && nativeCommandBanks.CountActor(checked((byte)slot)) != 0;
             bool retainedSupport = ActiveAction is { } support && support.ActorId == actor.Id && IsNativeSupportInvocation(support.NativePlayerReaction) || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction));
             bool retainedDeathAction = UsesExpandedRoster && (HasExpandedEnemyDeathAction(actor) ||
                 ActiveAction?.ExpandedAiCallback is { Stage: 3 } callback && callback.Actor == TargetActorReference(actor) ||

@@ -31,6 +31,8 @@ internal static class NativeBattleTargetRequestAdapter
 
     internal sealed record OriginalWordProjection(DeferredOperands Operands, bool Group = false, bool Random = false)
     {
+        internal bool RequiresOriginalSlots => !Group && !Random && !Operands.IsEmpty;
+
         internal BattleTargetSelection DecodeSelection(bool samplesOriginalSlots)
         {
             if (Random)

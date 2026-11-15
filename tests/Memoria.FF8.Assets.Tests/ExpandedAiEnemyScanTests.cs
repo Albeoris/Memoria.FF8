@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class ExpandedAiEnemyScanTests
 {
     [Fact]
-    public void InstalledTriPointScanPublishesItsClassOneContactAcrossJsonRestore()
+    public void InstalledTriPointScanPublishesItsClassOneContactAcrossPrivateRestore()
     {
         const int formation = 377;
         const int model = 30;
@@ -68,7 +68,7 @@ public sealed class ExpandedAiEnemyScanTests
         }
 
         BattleSnapshot before = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before));
         int beforeEvents = battle.Events.Count;
         for (int tick = 0; tick < 1000 && !battle.Events.Skip(beforeEvents).Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == enemyId); tick++)
         {
