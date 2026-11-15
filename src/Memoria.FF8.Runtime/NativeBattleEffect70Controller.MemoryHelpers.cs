@@ -16,6 +16,10 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffectArena ReadBytes(NativeBattleEffect70Frame frame, uint address, int length)
     {
+        if (frame.State.ExtendedRecipients is { } targets && Contains(targets.Address, targets.Length, address, length))
+        {
+            return Slice(targets.Records, checked((int)(address - targets.Address)), length);
+        }
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
         {
             if (Contains(pool.BankAddress, pool.Stride * pool.Slots.Length, address, length))
@@ -48,6 +52,11 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Frame WriteBytes(NativeBattleEffect70Frame frame, uint address, NativeBattleEffectArena source, int length)
     {
+        if (frame.State.ExtendedRecipients is { } targets && Contains(targets.Address, targets.Length, address, length))
+        {
+            NativeBattleEffectArena records = NativeBattleEffectNodeContextMemory.Copy(source, 0, targets.Records, checked((int)(address - targets.Address)), length);
+            return frame with { State = frame.State with { ExtendedRecipients = targets with { Records = records } } };
+        }
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
         {
             if (!Contains(pool.BankAddress, pool.Stride * pool.Slots.Length, address, length))
@@ -139,6 +148,20 @@ public static partial class NativeBattleEffect70Controller
 
     public static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     public static NativeBattleVector Vector(NativeBattleEffectArena point) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2)));
+    private static uint RecipientRecord(NativeBattleEffect70Frame frame, uint main, int index)
+    {
+        if (index < NativeBattleEffect70RecipientBank.OriginalCapacity)
+        {
+            return checked(main + 0x14 + (uint)index * NativeBattleEffect70RecipientBank.RecordSize);
+        }
+        NativeBattleEffect70RecipientBank bank = frame.State.ExtendedRecipients ?? throw new InvalidDataException("Effect70 requires its live extended recipient records.");
+        if (index >= bank.Count)
+        {
+            throw new InvalidDataException("Effect70 recipient traversal leaves its prepared occurrence count.");
+        }
+        return checked(bank.Address + (uint)(index - NativeBattleEffect70RecipientBank.OriginalCapacity) * NativeBattleEffect70RecipientBank.RecordSize);
+    }
+
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect70Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect70 requires its actual captured parameters.");
     private static bool Contains(uint start, int extent, uint address, int length) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)extent;
     private static NativeBattleEffectArena Slice(NativeBattleEffectArena source, int offset, int length) => NativeBattleEffectNodeContextMemory.Copy(source, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);

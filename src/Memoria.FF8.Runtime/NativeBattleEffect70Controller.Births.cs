@@ -36,7 +36,7 @@ public static partial class NativeBattleEffect70Controller
         int count = Signed(Read(frame, main), 14);
         for (int index = 0; index < count; index++)
         {
-            uint record = checked(main + 0x14 + (uint)index * 24);
+            uint record = RecipientRecord(frame, main, index);
             BattleModelOwner actor = ReadRecipient(frame, record);
             int extent = ReadShort(frame, record + 22) - ReadShort(frame, record + 20);
             for (int attempt = 0; attempt < 2; attempt++)

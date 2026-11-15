@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect70Controller
         for (int index = 0; index < frame.Effect.Pools.Length; index++)
         {
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
-            NativeBattleCureFamilyPool shape = Pools[index];
+            NativeBattleCureFamilyPool shape = PoolShape(frame, index);
             pool.Validate();
             if (pool.DescriptorAddress != shape.Descriptor || pool.BankAddress != shape.Bank || pool.Stride != shape.Stride || pool.Slots.Length != shape.Capacity)
             {
@@ -57,10 +57,17 @@ public static partial class NativeBattleEffect70Controller
             {
                 throw new InvalidDataException("Effect70 returned while a native task list is still reachable.");
             }
-            NativeBattleEffectArena bank = NativeBattleEffectTaskMemory.CaptureBank(pool);
-            frame = index == 0 ? frame with { State = frame.State.AttachRootBank(bank) } : frame with { Memory = frame.Memory with { Arena = NativeBattleEffectNodeContextMemory.Copy(bank, 0, frame.Memory.Arena!, checked((int)(pool.BankAddress - 0x20DFAB8)), pool.Stride * pool.Slots.Length) } };
+            if (index == 0)
+            {
+                frame = frame with { State = frame.State.AttachRootBank(NativeBattleEffectTaskMemory.CaptureBank(pool)) };
+            }
+            else if (NativeBattleEffectTaskMemory.ArenaOffset(pool) is int offset)
+            {
+                NativeBattleEffectArena arena = NativeBattleEffectNodeContextMemory.Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), 0, frame.Memory.Arena!, offset, pool.Stride * pool.Slots.Length);
+                frame = frame with { Memory = frame.Memory with { Arena = arena } };
+            }
         }
-        return frame with { Effect = frame.Effect with { Pools = [], ReturnedDescriptor = 0 } };
+        return frame with { State = frame.State with { ExtendedRecipients = null }, Effect = frame.Effect with { Pools = [], ReturnedDescriptor = 0 } };
     }
 
     public static NativeBattleEffect70Step AdvanceTask(NativeBattleEffect70Frame frame, uint address, NativeBattleEffect70Resources resources, NativeBattleEffect70Inputs inputs) => Read(frame, address).Callback switch
@@ -79,11 +86,30 @@ public static partial class NativeBattleEffect70Controller
         {
             throw new InvalidDataException("Effect70 COMMON pool initialization changed its native descriptor order.");
         }
-        NativeBattleCureFamilyPool shape = Pools[index];
-        NativeBattleEffectArena retained = index < frame.Effect.Pools.Length ? NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[index]) : ReadBytes(frame, shape.Bank, shape.Stride * shape.Capacity);
+        NativeBattleCureFamilyPool shape = PoolShape(frame, index);
+        int bytes = shape.Stride * shape.Capacity;
+        NativeBattleEffectArena retained;
+        if (index < frame.Effect.Pools.Length)
+        {
+            retained = NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[index]);
+        }
+        else
+        {
+            retained = index == 2 && frame.State.ExtendedRecipients is not null
+                ? NativeBattleEffectArena.Clear().MarkUnknown(0, bytes)
+                : ReadBytes(frame, shape.Bank, bytes);
+        }
         NativeBattleEffectTaskPool pool = PreparePool(shape, retained);
         ImmutableArray<NativeBattleEffectTaskPool> pools = index == frame.Effect.Pools.Length ? frame.Effect.Pools.Add(pool) : frame.Effect.Pools.SetItem(index, pool);
         return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
+    }
+
+    private static NativeBattleCureFamilyPool PoolShape(NativeBattleEffect70Frame frame, int index)
+    {
+        NativeBattleCureFamilyPool shape = Pools[index];
+        return index == 2 && frame.State.ExtendedRecipients is { } targets
+            ? shape with { Bank = targets.SecondaryBank, Capacity = targets.SecondaryCapacity }
+            : shape;
     }
 
     public static (NativeBattleEffect70Frame Frame, uint Address) Append(NativeBattleEffect70Frame frame, int index, uint callback)
@@ -123,6 +149,10 @@ public static partial class NativeBattleEffect70Controller
 
     internal static BattleModelOwner ReadRecipient(NativeBattleEffect70Frame frame, uint address)
     {
+        if (frame.State.ExtendedRecipients is { } targets && Contains(targets.Address, targets.Length, address, 4))
+        {
+            return targets.Records.ReadExecutionReference<BattleExecutionReference.Model>(checked((int)(address - targets.Address)), 4).Owner;
+        }
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
         {
             if (!Contains(pool.BankAddress, pool.Stride * pool.Slots.Length, address, 4))

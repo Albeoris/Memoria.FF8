@@ -69,8 +69,14 @@ public sealed class NativeBattleEffect70ParticleTests
     public void Disabled_bone_query_retains_current_heap_translation_and_delivery_writes_reach_next_ring()
     {
         NativeBattleEffect70Frame frame = Frame();
-        uint target = ArenaAddress + 0x100;
-        NativeBattleEffectArena arena = frame.Memory.Arena!.Write(0x100, BitConverter.GetBytes(0x1D972C0u)).Write(0x114, BitConverter.GetBytes((short)-3)).Write(0x116, BitConverter.GetBytes((short)-2));
+        NativeBattleCureFamilyPool shape = Pools[1];
+        uint target = shape.Bank + 0x14;
+        NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity);
+        (main, int slot) = main.Append(MainCallback);
+        NativeBattleModulePoolTask row = main.Slots[slot].WriteWord(0x28, unchecked((ushort)-3)).WriteWord(0x2A, unchecked((ushort)-2));
+        row.WriteExecutionReference(0x14, 4, new BattleExecutionReference.Model(OriginalOwner(0)), OriginalAliases.EncodeAddress(OriginalOwner(0)));
+        frame = frame with { Effect = frame.Effect with { Pools = [main.WriteSlot(slot, row)] } };
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
         for (int index = 0; index < 2; index++)
         {
             int offset = RingOffset + index * 16;

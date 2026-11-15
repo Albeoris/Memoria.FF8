@@ -19,6 +19,7 @@ public static partial class NativeBattleEffect70Controller
             frame = NativeBattleEffect70Particles.InitializeSparks(frame);
             frame = NativeBattleEffect70Particles.InitializeRings(frame);
             frame = inputs.Execute(frame, new NativeBattleEffect70IoInitialize534110(arena + 0x678));
+            frame = PrepareRecipientBank(frame, inputs.ReadPackets(frame));
             frame = InitializeCommonPool(frame, 1);
             frame = InitializeCommonPool(frame, 2);
             (frame, uint main) = Append(frame, 1, 0x6DDD50);
@@ -117,10 +118,19 @@ public static partial class NativeBattleEffect70Controller
         {
             BattleContactCursor first = header.FirstContact;
             BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-            uint record = checked(main + 0x14 + (uint)index * 24);
-            NativeBattleModulePoolTask recipientTask = Read(frame, main);
-            recipientTask.WriteExecutionReference(0x14 + index * 24, 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor));
-            frame = Write(frame, main, recipientTask);
+            uint record = RecipientRecord(frame, main, index);
+            if (index < NativeBattleEffect70RecipientBank.OriginalCapacity)
+            {
+                NativeBattleModulePoolTask recipientTask = Read(frame, main);
+                recipientTask.WriteExecutionReference(checked((int)(record - main)), 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor));
+                frame = Write(frame, main, recipientTask);
+            }
+            else
+            {
+                NativeBattleEffect70RecipientBank bank = frame.State.ExtendedRecipients!;
+                NativeBattleEffectArena records = bank.Records.WriteExecutionReference(checked((int)(record - bank.Address)), 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor));
+                frame = frame with { State = frame.State with { ExtendedRecipients = bank with { Records = records } } };
+            }
             frame = WriteBytes(frame, record + 4, (inputs.ReadPosition8 ?? throw new NotSupportedException("Effect70 requires actual packed model position bytes."))(frame, actor), 8);
             frame = WriteBytes(frame, record + 12, frame.State.ReadView(RetainedFirstGlobal, 8), 8);
             NativeBattleEffect70PointStep step = (inputs.ReadAnchor571400 ?? throw new NotSupportedException("Effect70 requires its current target point producer."))(frame, actor);
@@ -139,6 +149,21 @@ public static partial class NativeBattleEffect70Controller
             frame = frame with { State = frame.State.WriteWord(CenterAddress + (uint)axis * 2, unchecked((ushort)((minimum[axis] + maximum[axis]) / 2))) };
         }
         return frame;
+    }
+
+    private static NativeBattleEffect70Frame PrepareRecipientBank(NativeBattleEffect70Frame frame, NativeBattleActionPacketsState packets)
+    {
+        int count = packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
+        if (count <= NativeBattleEffect70RecipientBank.OriginalCapacity)
+        {
+            return frame;
+        }
+        int length = (count - NativeBattleEffect70RecipientBank.OriginalCapacity) * NativeBattleEffect70RecipientBank.RecordSize;
+        (NativeBattleEffectMemory memory, uint address) = NativeBattlePresentationTaskStorage.ReserveByteRange(frame.Memory, frame.Effect, packets.Roster, length);
+        int secondaryCapacity = checked(count * 2);
+        (memory, uint secondary) = NativeBattlePresentationTaskStorage.Reserve(memory, frame.Effect, packets.Roster, Pools[2].Stride, secondaryCapacity);
+        NativeBattleEffect70RecipientBank bank = new(address, checked((ushort)count), secondary, checked((ushort)secondaryCapacity), NativeBattleEffectArena.Clear().MarkUnknown(0, length));
+        return frame with { Memory = memory, State = frame.State with { ExtendedRecipients = bank } };
     }
 
     public static NativeBattleEffect70Frame PutDword(NativeBattleEffect70Frame frame, uint address, uint value) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value)), 4);

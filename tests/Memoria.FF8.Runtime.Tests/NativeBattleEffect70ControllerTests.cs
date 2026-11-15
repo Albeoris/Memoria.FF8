@@ -136,7 +136,7 @@ public sealed class NativeBattleEffect70ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect70Frame frame = Active();
-        frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress, 4).WriteDword(SavedFlagsAddress + 4, 4) };
+        frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress, 4).WriteDword(SavedFlagsAddress + 4, 4) with { SavedFlags = frame.State.SavedFlags.SetItem(OriginalOwner(0), 4) } };
         _ = RestoreFlags(frame, harness.Inputs());
         NativeBattleEffect70ModelFlags operation = Assert.Single(harness.Operations.OfType<NativeBattleEffect70ModelFlags>());
         Assert.Equal(new NativeBattleEffect70ModelFlags(OriginalOwner(0), 0xFFFB, 4, true), operation);
@@ -155,7 +155,7 @@ public sealed class NativeBattleEffect70ControllerTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
-        NativeBattleEffect70State state = NativeBattleEffect70State.FromColdProcess().DetachRootBank().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(SideGlobal, 1).WriteWord(ViewAddress + 18, 0xA55A);
+        NativeBattleEffect70State state = NativeBattleEffect70State.FromColdProcess().DetachRootBank().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(SideGlobal, 1).WriteWord(ViewAddress + 18, 0xA55A) with { SavedFlags = ImmutableDictionary<BattleModelOwner, ushort>.Empty.Add(OriginalOwner(0), 0) };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, NativeCrtRandomState.FromColdProcess(), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
@@ -165,7 +165,7 @@ public sealed class NativeBattleEffect70ControllerTests
         public int LastIoIndex { get; private set; } = -1;
         public List<NativeBattleEffect70Operation> Operations { get; } = [];
 
-        public NativeBattleEffect70Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), frame => throw new NotSupportedException(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor == OriginalOwner(0) ? (ushort)2 : (ushort)1), (frame, actor) => throw new NotSupportedException(), frame => 0, (frame, source) => throw new NotSupportedException(), (frame, operation) =>
+        public NativeBattleEffect70Inputs Inputs() => new(new(0x00808080, 0x32808080, 1, 0), _ => OriginalPackets(), frame => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), frame => new(null, 100, 160, 108), (frame, actor) => new(actor == OriginalOwner(0) ? (ushort)2 : (ushort)1), (frame, actor) => throw new NotSupportedException(), frame => 0, (frame, source) => throw new NotSupportedException(), (frame, operation) =>
         {
             Operations.Add(operation);
             return frame;

@@ -10,6 +10,9 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
     [JsonIgnore]
     internal ImmutableDictionary<BattleModelOwner, ushort> SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
 
+    [JsonIgnore]
+    internal NativeBattleEffect70RecipientBank? ExtendedRecipients { get; init; }
+
     public static NativeBattleEffect70State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear());
 
     public static NativeBattleEffect70State FromUnknown()
@@ -133,4 +136,11 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
         bank.Validate();
         bank.ValidateExtent(length);
     }
+}
+
+internal sealed record NativeBattleEffect70RecipientBank(uint Address, ushort Count, uint SecondaryBank, ushort SecondaryCapacity, NativeBattleEffectArena Records)
+{
+    internal const int RecordSize = 24;
+    internal const int OriginalCapacity = 3;
+    internal int Length => (Count - OriginalCapacity) * RecordSize;
 }

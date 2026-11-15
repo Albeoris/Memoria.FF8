@@ -34,7 +34,7 @@ public static partial class NativeBattleEffect70Controller
                 int count = Signed(Read(frame, address), 14);
                 for (int index = 0; index < count; index++)
                 {
-                    uint record = checked(address + 0x14 + (uint)index * 24);
+                    uint record = RecipientRecord(frame, address, index);
                     BattleModelOwner actor = ReadRecipient(frame, record);
                     (frame, uint child) = Append(frame, 2, 0x6DFF00);
                     frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionWord(actor, 0x1E, 4096));
@@ -62,7 +62,7 @@ public static partial class NativeBattleEffect70Controller
                     int count = Signed(Read(frame, address), 14);
                     for (int index = 0; index < count; index++)
                     {
-                        uint record = checked(address + 0x14 + (uint)index * 24);
+                        uint record = RecipientRecord(frame, address, index);
                         BattleModelOwner actor = ReadRecipient(frame, record);
                         frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFF3, 0, true));
                         frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionPacked(actor, ReadBytes(frame, record + 4, 8)));
@@ -93,15 +93,19 @@ public static partial class NativeBattleEffect70Controller
             frame = inputs.Execute(frame, new NativeBattleEffect70StopVibration(unchecked((int)Read(frame, address).ReadDword(16))));
         }
         int launch = age - 1;
-        if (unchecked((uint)launch) < 24 && (launch & 7) == 0 && (launch >> 3) < Signed(Read(frame, address), 14))
+        if (unchecked((uint)launch) < 24 && (launch & 7) == 0)
         {
-            uint record = checked(address + 0x14 + (uint)(launch >> 3) * 24);
-            (frame, uint child) = Append(frame, 2, 0x6E0100);
-            BattleModelOwner actor = ReadRecipient(frame, record);
-            frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFF, 8, false));
-            frame = inputs.Execute(frame, new NativeBattleEffect70CaptureBounds6DFD90(actor, record + 20));
-            frame = PutDword(PutWord(PutWord(frame, child + 16, 0), child + 18, (short)(50 - launch)), child + 12, record);
-            frame = InitializeWorkspace(frame, child + 20, 0x100, resources.Act(0x1325A88), 0x100);
+            int count = Signed(Read(frame, address), 14);
+            for (int index = launch >> 3; index < count; index += NativeBattleEffect70RecipientBank.OriginalCapacity)
+            {
+                uint record = RecipientRecord(frame, address, index);
+                (frame, uint child) = Append(frame, 2, 0x6E0100);
+                BattleModelOwner actor = ReadRecipient(frame, record);
+                frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFF, 8, false));
+                frame = inputs.Execute(frame, new NativeBattleEffect70CaptureBounds6DFD90(actor, record + 20));
+                frame = PutDword(PutWord(PutWord(frame, child + 16, 0), child + 18, (short)(50 - launch)), child + 12, record);
+                frame = InitializeWorkspace(frame, child + 20, 0x100, resources.Act(0x1325A88), 0x100);
+            }
         }
         frame = AdvanceCamera(frame, age, inputs);
         if (age == 213)
@@ -132,7 +136,7 @@ public static partial class NativeBattleEffect70Controller
         int count = Signed(Read(frame, address), 14);
         for (int index = 0; index < count; index++)
         {
-            uint record = checked(address + 0x14 + (uint)index * 24);
+            uint record = RecipientRecord(frame, address, index);
             BattleModelOwner actor = ReadRecipient(frame, record);
             short y = unchecked((short)((ReadShort(frame, record + 20) + ReadShort(frame, record + 22)) >> 1));
             NativeBattleEffectArena point = Point(0, y, 0);
