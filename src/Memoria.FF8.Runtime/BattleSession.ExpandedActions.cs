@@ -417,7 +417,8 @@ public sealed partial class BattleSession
             }
             if (!producingExpandedAiCallback)
             {
-                ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+                // Contact preparation has consumed the special result into the staged invocation.
+                ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null, NativeSpecial = null };
             }
             return;
         }
@@ -476,7 +477,7 @@ public sealed partial class BattleSession
         {
             NativeBattleActionHeaderPreparation header = invocation.Header;
             int delivered = expandedInvocationProgress?.Occurrences.Count ?? 0;
-            throw new InvalidDataException($"Expanded effect {header.Effect} for native command {header.Command}/{header.Action} completed with {delivered} of {invocation.Contacts.Length} prepared contacts.");
+            throw new InvalidDataException($"Expanded effect {header.Effect} for native command {header.Command}/{header.Action} completed with {delivered} of {invocation.ContactCount} prepared contacts.");
         }
     }
 

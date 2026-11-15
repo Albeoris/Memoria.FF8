@@ -345,6 +345,31 @@ public sealed class ExpandedActionPreparationTests
         Assert.Single(owner.Events, item => item.Kind == "EnemyDrawStock");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Hosted_card_keeps_the_prepared_result_on_the_invocation_and_restores_its_recovery_mirror(bool failed)
+    {
+        BattleSession candidate = Create(card: true, failSpecial: failed, secondEnemy: true);
+        candidate.QueueAction("caster", "enemy", BattleAbility.NativeCommand, Card);
+        ReachCommit(candidate);
+        int inventoryBefore = candidate.Capture().NativeCards!.AvailableCount(CardReward);
+        (BattleActionPresentation command, NativeBattleActionHeaderPreparation header) = StageHostedInvocation(candidate);
+
+        BattleNativeSpecialContext result = Assert.IsType<BattleNativeSpecialContext>(command.NativeSpecial);
+        Assert.Equal(failed, result.Failed);
+        Assert.Equal(failed ? 0 : 29, header.Command);
+        Assert.Equal(BattleActionPhase.Recovery, candidate.ActiveAction!.Phase);
+        Assert.Null(candidate.ActiveAction.NativeSpecial);
+        BattleSession restored = BattleSession.Restore(candidate.Capture());
+        Assert.Null(restored.ActiveAction!.NativeSpecial);
+        Assert.Equal(candidate.Capture().NativeCards!.AvailableCount(CardReward), restored.Capture().NativeCards!.AvailableCount(CardReward));
+        if (!failed)
+        {
+            Assert.Equal(Math.Max(0, inventoryBefore) + 1, restored.Capture().NativeCards!.AvailableCount(CardReward));
+        }
+    }
+
     private static (BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header) StageHostedInvocation(BattleSession candidate)
     {
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -424,7 +449,7 @@ public sealed class ExpandedActionPreparationTests
 
     private static string Snapshot(BattleSession battle) => JsonSerializer.Serialize(battle.Capture());
 
-    private static BattleSession Create(bool card = false, bool miniMog = false, bool potionItem = false, bool gunblade = false, bool failSpecial = false, bool enemyWithMagicStock = false)
+    private static BattleSession Create(bool card = false, bool miniMog = false, bool potionItem = false, bool gunblade = false, bool failSpecial = false, bool enemyWithMagicStock = false, bool secondEnemy = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Stock(MagicSystemFixture.Create(), 1, 1, 3);
         BattleNativeAction fire = new(2, 1, 1, 1)
@@ -495,7 +520,7 @@ public sealed class ExpandedActionPreparationTests
                 new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, fire.Power, false) { NativeAction = fire },
                 new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Native, potion.Power, true) { NativeAction = potion }
             ],
-            Combatants = [caster, enemy]
+            Combatants = secondEnemy ? [caster, enemy, enemy with { Id = "other-enemy" }] : [caster, enemy]
         }, BattleAtbMode.TurnBased);
     }
 
