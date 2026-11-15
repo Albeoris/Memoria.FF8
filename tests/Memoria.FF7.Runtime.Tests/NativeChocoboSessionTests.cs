@@ -27,7 +27,7 @@ internal static class NativeChocoboSessionTests
         Check(firstController.Running && firstController.Error is null && initial.ChocoboRace is { Tick: 1024 }, $"Normal autoplay did not advance the race: {firstController.Error}");
         Ff7SessionSave middle = RoundTrip(initial.Capture());
         Check(middle.ChocoboRace is not null, "The standalone snapshot omitted its running race.");
-        using (Ff7Session legacyPresentation = Ff7Session.Restore(installation, middle with { ChocoboRace = middle.ChocoboRace! with { Camera = null, RiderAnimations = null, Scenery = null, DisplayedFadeAlpha = null } }))
+        using (Ff7Session legacyPresentation = Ff7Session.Restore(installation, middle with { ChocoboRace = middle.ChocoboRace! with { Camera = null, RiderAnimations = null, Scenery = null, DisplayedFadeAlpha = null, HudRacers = null } }))
         {
             Check(JsonSerializer.Serialize(middle.ChocoboRace!.Simulation) == JsonSerializer.Serialize(legacyPresentation.Capture().ChocoboRace!.Simulation), "Absent presentation metadata changed recorded race progress or RNG.");
             Check(JsonSerializer.Serialize(middle.Vm) == JsonSerializer.Serialize(legacyPresentation.Capture().Vm), "Presentation restoration replayed field scripts.");

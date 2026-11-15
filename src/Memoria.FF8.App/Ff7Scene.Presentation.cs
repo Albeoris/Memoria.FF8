@@ -26,8 +26,16 @@ internal sealed partial class Ff7Scene
             ResetInterpolationPresentation();
             CommitWorldPresentation(world);
         }
+        else if (session.ChocoboRace is { } race)
+        {
+            fieldHistory.Reset();
+            waterAppearanceEffects.Clear();
+            worldHistory.Reset();
+            chocoboHistory.Commit((race, race.Tick), race.Capture);
+        }
         else
         {
+            chocoboHistory.Reset();
             worldHistory.Reset();
             Ff7FieldProcess state = session.Host.Process;
             fieldHistory.Commit((session.Host, state.Tick), () => PrepareFieldPresentation(session, state));
@@ -37,6 +45,7 @@ internal sealed partial class Ff7Scene
     private void ResetInterpolationPresentation()
     {
         fieldHistory.Reset();
+        chocoboHistory.Reset();
         waterAppearanceEffects.Clear();
     }
 

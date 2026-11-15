@@ -49,7 +49,7 @@ internal sealed class Ff7ChocoboPresentation
         }).ToArray()).ToArray();
     }
 
-    public void Render(ITriangleRenderer renderer, Ff7ChocoboRuntime race, int width, int height)
+    public void Render(ITriangleRenderer renderer, Ff7ChocoboRuntime race, int width, int height, IFf7ActorAppearance? appearance = null, Ff7ChocoboHud? hud = null, Ff7ChocoboSnapshot? previous = null, float fraction = 1)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -59,6 +59,11 @@ internal sealed class Ff7ChocoboPresentation
         IReadOnlyList<Ff7ChocoboRacerState> racers = race.Racers;
         Matrix4x4 staticView = race.Camera.StaticView;
         Matrix4x4 animatedView = race.Camera.AnimatedView;
+        if (previous?.Camera is { } beforeCamera)
+        {
+            staticView = Ff7ChocoboInterpolation.View(beforeCamera.StaticView, staticView, fraction);
+            animatedView = Ff7ChocoboInterpolation.View(beforeCamera.AnimatedView, animatedView, fraction);
+        }
         SortedDictionary<int, List<Submission>> batches = new();
         renderer.Begin(width, height, new(0, 0, 0, 1), 0);
         try
@@ -106,7 +111,8 @@ internal sealed class Ff7ChocoboPresentation
                 Ff7ChocoboPresentationModel descriptor = resources.Models[pose.Model];
                 Matrix4x4 rotation = Matrix4x4.CreateRotationZ(-MathF.PI) * Matrix4x4.CreateRotationY(-pose.RotationY * MathF.Tau / 250 + (descriptor.PatchYaw ? MathF.PI : 0));
                 Vector3 position = new(pose.Position.X, pose.Position.Y, pose.Position.Z);
-                DrawModel(models[courseIndex][pose.Model], 0, pose.Frame, position, rotation, Vector3.Zero, (descriptor.Transparent ? 200 : 50) + pose.Model);
+                Ff7ChocoboSceneryPose? old = previous?.Scenery?.Poses.SingleOrDefault(before => before.Model == pose.Model && before.Position == pose.Position && before.RotationY == pose.RotationY);
+                DrawModel(models[courseIndex][pose.Model], 0, pose.Frame, position, rotation, Vector3.Zero, (descriptor.Transparent ? 200 : 50) + pose.Model, previousFrame: old?.Frame, loop: false);
             }
             for (int index = 0; index < racers.Count; index++)
             {
@@ -122,16 +128,23 @@ internal sealed class Ff7ChocoboPresentation
                     throw new NotSupportedException("FFVII Chocobo racer model slots exceed the original bird and rider table.");
                 }
                 Vector3 offset = racer.Jockey == 0 ? PlayerColors[race.PlayerColor] : racer.Model == 9 ? new(-100) : OpponentColors[racer.Jockey];
-                byte yaw = unchecked((byte)(256 - (race.Camera.DrawYaws[index] >> 4)));
-                Matrix4x4 rotation = Matrix4x4.CreateRotationZ(-MathF.PI) * Matrix4x4.CreateRotationY(-yaw * MathF.Tau / 250);
-                DrawModel(models[courseIndex][racer.Jockey], racer.Animation, racer.AnimationCounter >> 8, position, rotation, offset / 256, 50 + racer.Jockey);
+                Matrix4x4 rotation = Ff7ChocoboInterpolation.RacerRotation(race.Camera.DrawYaws[index]);
+                Ff7ChocoboRacerState? before = previous?.Simulation.Racers[index];
+                if (previous?.Camera is { DrawPositions: { } oldPositions, DrawYaws: { } oldYaws } oldCamera && oldCamera.Visible[index] && before?.Model == racer.Model)
+                {
+                    position = Ff7ChocoboInterpolation.Position(oldPositions[index], position, fraction);
+                    rotation = Ff7ChocoboInterpolation.Transform(Ff7ChocoboInterpolation.RacerRotation(oldYaws[index]), rotation, fraction);
+                }
+                int? priorFrame = before?.Animation == racer.Animation ? before.AnimationCounter >> 8 : null;
+                DrawModel(models[courseIndex][racer.Jockey], racer.Animation, racer.AnimationCounter >> 8, position, rotation, offset / 256, 50 + racer.Jockey, previousFrame: priorFrame);
                 Model rider = models[courseIndex][racer.Model];
                 int animation = race.RiderAnimations[racer.Jockey];
                 if (animation >= rider.Frames.Length)
                 {
                     throw new NotSupportedException("FFVII Chocobo rider animation requires its retained native clip binding.");
                 }
-                DrawModel(rider, animation, racer.AnimationCounter >> 8, position - Vector3.UnitY * 10, rotation, Vector3.Zero, 50 + racer.Model);
+                int? priorRiderFrame = priorFrame is not null && previous?.RiderAnimations?[racer.Jockey] == animation ? priorFrame : null;
+                DrawModel(rider, animation, racer.AnimationCounter >> 8, position - Vector3.UnitY * 10, rotation, Vector3.Zero, 50 + racer.Model, index == 0 ? resources.Models[racer.Model].StoryCharacter : -1, index, priorRiderFrame);
             }
             foreach (List<Submission> batch in batches.Values)
             {
@@ -140,6 +153,7 @@ internal sealed class Ff7ChocoboPresentation
                     renderer.Draw(submission.A, submission.B, submission.C, submission.Material);
                 }
             }
+            hud?.Render(renderer, race, width, height);
         }
         finally
         {
@@ -249,10 +263,17 @@ internal sealed class Ff7ChocoboPresentation
             }
         }
 
-        void DrawModel(Model model, int animation, int frame, Vector3 position, Matrix4x4 rotation, Vector3 colorOffset, int batch)
+        void DrawModel(Model model, int animation, int frame, Vector3 position, Matrix4x4 rotation, Vector3 colorOffset, int batch, int storyCharacter = -1, int owner = -1, int? previousFrame = null, bool loop = true)
         {
             Matrix4x4 basis = Matrix4x4.CreateScale(NativeScale) * rotation * Matrix4x4.CreateTranslation(position);
-            foreach (Ff7WorldModelTriangle triangle in model.Adapter.CreateOriginal(animation, Math.Clamp(frame, 0, model.Frames[animation] - 1), NativeScale, basis, rotation))
+            int count = model.Frames[animation];
+            float sampleFrame = Math.Clamp(frame, 0, count - 1);
+            if (previousFrame is int oldFrame)
+            {
+                sampleFrame = Ff7ChocoboInterpolation.Frame(Math.Clamp(oldFrame, 0, count - 1), (int)sampleFrame, count, fraction, loop);
+            }
+            Ff7FieldPosePhase phase = new((int)(sampleFrame * 16), 0, count - 1, loop);
+            foreach (Ff7WorldModelTriangle triangle in model.Adapter.CreateScene(owner, storyCharacter, animation, phase, NativeScale, basis, rotation, appearance))
             {
                 Vector3 a = Transform(triangle.A.Position, animatedView);
                 Vector3 b = Transform(triangle.B.Position, animatedView);

@@ -2,6 +2,7 @@ using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Assets;
 using System.Text.Json;
 using Microsoft.Xna.Framework.Graphics;
 using GameTime = Microsoft.Xna.Framework.GameTime;
@@ -31,6 +32,10 @@ public sealed class Ff7ChocoboPresentationTests
             scene.ConfigureCharacterIdentity(ff8Root);
         }
         scene.Continue(departure);
+        using GameAssets? appearanceAssets = !string.IsNullOrWhiteSpace(ff8Root) && departure.Mappings.Length > 0 ? new(ff8Root) : null;
+        IFf7ActorAppearance? mappedAppearance = Ff7AppearanceSelection.Create(departure.Mappings, installation, appearanceAssets);
+        TrackedAppearance? tracked = mappedAppearance is null ? null : new(mappedAppearance);
+        scene.SetAppearance(departure.Mappings, tracked);
         Assert.Null(scene.Error);
         using SpriteBatch batch = new(device.Device);
         using RenderTarget2D target = device.CreateTarget(320, 240);
@@ -53,6 +58,19 @@ public sealed class Ff7ChocoboPresentationTests
             var pixels = GpuTestDevice.Read(target);
             Assert.True(pixels.Select(pixel => pixel.PackedValue).Distinct().Count() > 60, $"Chocobo scene update {update} has insufficient framebuffer color variety.");
             Assert.True(pixels.Count(pixel => pixel.R > 4 || pixel.G > 4 || pixel.B > 4) > 5000, $"Chocobo scene update {update} has insufficient visible scene coverage.");
+            if (update == 320)
+            {
+                scene.InterpolatePresentation = false;
+                device.Device.SetRenderTarget(target);
+                scene.Draw(batch, new Rectangle(0, 0, 320, 240));
+                var nativePixels = GpuTestDevice.Read(target);
+                Assert.NotEqual(pixels.Select(pixel => pixel.PackedValue), nativePixels.Select(pixel => pixel.PackedValue));
+                Assert.Equal(beforeRender, JsonSerializer.Serialize(race.Capture()));
+                scene.InterpolatePresentation = true;
+                device.Device.SetRenderTarget(target);
+                scene.Draw(batch, new Rectangle(0, 0, 320, 240));
+                pixels = GpuTestDevice.Read(target);
+            }
             if (!string.IsNullOrWhiteSpace(output))
             {
                 Directory.CreateDirectory(output);
@@ -61,6 +79,31 @@ public sealed class Ff7ChocoboPresentationTests
             }
         }
         Assert.Equal(sourceBytes, File.ReadAllBytes(source!));
+        if (tracked is not null)
+        {
+            Assert.True(tracked.SceneCalls > 0);
+            Assert.True(tracked.MappedTriangles > 0);
+            Assert.Equal(0, tracked.StoryCharacter);
+        }
+    }
+
+    private sealed class TrackedAppearance(IFf7ActorAppearance selected) : IFf7ActorAppearance
+    {
+        internal int SceneCalls { get; private set; }
+        internal int MappedTriangles { get; private set; }
+        internal int StoryCharacter { get; private set; } = -1;
+
+        public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
+        {
+            bool mapped = selected.TryCreate(actor, descriptor, original, out triangles);
+            if (actor.PoseDomain == Ff7ActorPoseDomain.Scene)
+            {
+                SceneCalls++;
+                MappedTriangles += triangles.Count;
+                StoryCharacter = actor.PartyCharacter;
+            }
+            return mapped;
+        }
     }
 
     [Fact]

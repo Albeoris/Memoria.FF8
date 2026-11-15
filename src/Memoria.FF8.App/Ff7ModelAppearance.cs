@@ -25,7 +25,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
     private readonly HashSet<string> loopingClips;
     private readonly Dictionary<string, FieldModel> loadedClips = new(StringComparer.Ordinal);
     private readonly bool holdUnmappedAnimations;
-    private readonly ConditionalWeakTable<Ff7FieldModelResources, Dictionary<(int Entity, int Model, bool World, string SourceRig), Vector3[]>> compatiblePoses = new();
+    private readonly ConditionalWeakTable<Ff7FieldModelResources, Dictionary<(int Entity, int Model, Ff7ActorPoseDomain Domain, string SourceRig), Vector3[]>> compatiblePoses = new();
 
     public Ff7ModelAppearance(GameAssets assets, FieldCharacterCatalog catalog, string sourceId, string nativeHrc, Matrix4x4 targetToFf7, IReadOnlyDictionary<string, string> animationBindings, Ff7SemanticRetargeter? retargeter = null, IEnumerable<string>? loopingAnimations = null, bool holdUnmappedAnimations = false)
     {
@@ -109,8 +109,8 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         }
         FieldModel target = geometry;
         Vector3[] posed;
-        var poseOwner = (actor.EntityId, actor.ModelIndex, actor.IsWorldModel, Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy));
-        Dictionary<(int Entity, int Model, bool World, string SourceRig), Vector3[]>? actorPoses = holdUnmappedAnimations ? compatiblePoses.GetValue(original, _ => []) : null;
+        var poseOwner = (actor.EntityId, actor.ModelIndex, actor.PoseDomain, Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy));
+        Dictionary<(int Entity, int Model, Ff7ActorPoseDomain Domain, string SourceRig), Vector3[]>? actorPoses = holdUnmappedAnimations ? compatiblePoses.GetValue(original, _ => []) : null;
         try
         {
             if (clips.TryGetValue(originalName, out string? targetIdentity))

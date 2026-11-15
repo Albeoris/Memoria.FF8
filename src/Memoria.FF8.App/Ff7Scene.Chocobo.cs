@@ -8,6 +8,11 @@ internal sealed partial class Ff7Scene
 {
     private Ff7ChocoboRuntime? chocoboOwner;
     private Ff7ChocoboPresentation? chocoboPresentation;
+    private Ff7ChocoboHud? chocoboHud;
+    private readonly CommittedPresentationHistory<(Ff7ChocoboRuntime Owner, long Tick), Ff7ChocoboSnapshot> chocoboHistory = new(
+        (first, second) => ReferenceEquals(first.Owner, second.Owner) && first.Tick == second.Tick,
+        (first, second) => ReferenceEquals(first.Owner, second.Owner) && second.Tick == first.Tick + 1,
+        (first, second) => first.Phase == Ff7ChocoboPhase.Racing && second.Phase == Ff7ChocoboPhase.Racing && first.Countdown > 1 && first.Camera?.TargetRacer == second.Camera?.TargetRacer && first.Camera?.FinishOrbit == second.Camera?.FinishOrbit);
 
     private void UpdateChocobo(GameTime time)
     {
@@ -52,15 +57,9 @@ internal sealed partial class Ff7Scene
     private void RenderChocobo(Ff7ChocoboRuntime race, Rectangle bounds)
     {
         chocoboPresentation ??= new(installation);
-        chocoboPresentation.Render(triangles, race, bounds.Width, bounds.Height);
-    }
-
-    private void DrawChocoboHud(SpriteBatch batch, Rectangle bounds, Ff7ChocoboRuntime race)
-    {
-        // TODO(TD-032): Complete the original race HUD and its native fade material.
-        if (race.DisplayedFadeAlpha > 0)
-        {
-            batch.Draw(pixel, bounds, Color.Black * (Math.Min(255, race.DisplayedFadeAlpha) / 255f));
-        }
+        chocoboHud ??= new(installation);
+        float fraction = PresentationFraction(PresentationPreferences.FieldFps);
+        var (previous, _) = chocoboHistory.Sample((race, race.Tick), fraction, race.Capture, frame => frame.Tick == race.Tick);
+        chocoboPresentation.Render(triangles, race, bounds.Width, bounds.Height, appearance, chocoboHud, previous, fraction);
     }
 }

@@ -22,7 +22,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
         if (appearance is not null)
         {
             PcFieldModelDescriptor fieldDescriptor = new(descriptor.HrcName, 0, descriptor.HrcName, descriptor.ScaleWord.ToString(CultureInfo.InvariantCulture), Array.Empty<PcFieldLight>(), 0, descriptor.Animations);
-            Ff7ActorVisual actor = new(0, 0, 0, 0, 0, 0, animationIndex, checked(animationFrame * 16)) { PartyCharacter = storyCharacter, IsWorldModel = true, AnimationBlend = animationBlend };
+            Ff7ActorVisual actor = new(0, 0, 0, 0, 0, 0, animationIndex, checked(animationFrame * 16)) { PartyCharacter = storyCharacter, PoseDomain = Ff7ActorPoseDomain.World, AnimationBlend = animationBlend };
             if (appearance.TryCreate(actor, fieldDescriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> mapped))
             {
                 float fieldScale = descriptor.ScaleWord / 4096f * 30.43090057373047f;
@@ -47,9 +47,29 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
         return CreateOriginal(resources.Animations[descriptor.Animations[animationIndex]], animationFrame, scale, basis, normalBasis);
     }
 
-    private IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(PcFieldAnimation animation, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis, Ff7FieldPoseBlend? animationBlend = null)
+    public IReadOnlyList<Ff7WorldModelTriangle> CreateScene(int owner, int storyCharacter, int animationIndex, Ff7FieldPosePhase phase, float scale, Matrix4x4 basis, Matrix4x4 normalBasis, IFf7ActorAppearance? appearance)
     {
-        IReadOnlyList<Matrix4x4> pose = Ff7FieldPoseSampler.Sample(resources, animation, new(checked(animationFrame * 16)) { Blend = animationBlend }, scale).Bones;
+        if (appearance is not null && storyCharacter >= 0)
+        {
+            PcFieldModelDescriptor fieldDescriptor = new(descriptor.HrcName, 0, descriptor.HrcName, descriptor.ScaleWord.ToString(CultureInfo.InvariantCulture), [], 0, descriptor.Animations);
+            Ff7ActorVisual actor = new(owner, owner, 0, 0, 0, 0, animationIndex, phase.Frame16) { PartyCharacter = storyCharacter, PoseDomain = Ff7ActorPoseDomain.Scene, FirstAnimationFrame = phase.FirstFrame, LastAnimationFrame = phase.LastFrame, AnimationLoop = phase.Loop, AnimationBlend = phase.Blend };
+            if (appearance.TryCreate(actor, fieldDescriptor, resources, out IReadOnlyList<Ff7AppearanceTriangle> mapped))
+            {
+                if (!Matrix4x4.Invert(Ff7NativeFieldPoseMath.ModelBasis(fieldDescriptor), out Matrix4x4 inverseFieldBasis))
+                {
+                    throw new InvalidDataException("Mapped native scene geometry requires an invertible original model basis.");
+                }
+                Matrix4x4 transform = inverseFieldBasis * basis;
+                Ff7WorldVertex Convert(Ff7WorldVertex vertex) => vertex with { Position = Vector3.Transform(vertex.Position, transform), Normal = vertex.Normal is Vector3 normal ? Vector3.TransformNormal(normal, transform) : null };
+                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1, CentroidTextureSampling = true }, false)).ToArray();
+            }
+        }
+        return CreateOriginal(resources.Animations[descriptor.Animations[animationIndex]], 0, scale, basis, normalBasis, phase: phase);
+    }
+
+    private IReadOnlyList<Ff7WorldModelTriangle> CreateOriginal(PcFieldAnimation animation, int animationFrame, float scale, Matrix4x4 basis, Matrix4x4 normalBasis, Ff7FieldPoseBlend? animationBlend = null, Ff7FieldPosePhase? phase = null)
+    {
+        IReadOnlyList<Matrix4x4> pose = Ff7FieldPoseSampler.Sample(resources, animation, phase ?? new(checked(animationFrame * 16)) { Blend = animationBlend }, scale).Bones;
         Ff7ModelMaterialState materialState = new() { Blend = descriptor.Transparent ? TriangleBlend.Alpha : TriangleBlend.Replace, BlendMode = descriptor.Transparent ? 0 : 4, DepthWrite = !descriptor.Transparent };
         List<Ff7WorldModelTriangle> triangles = new();
         foreach (Ff7BoneGeometry part in resources.Geometry)

@@ -368,11 +368,7 @@ internal sealed partial class Ff7Scene : IDisposable
                     {
                         DrawHighwayHud(batch, sceneBounds, highway);
                     }
-                    else if (Session.ChocoboRace is { } race)
-                    {
-                        DrawChocoboHud(batch, sceneBounds, race);
-                    }
-                    else
+                    else if (Session.ChocoboRace is null)
                     {
                         DrawDialogues(batch, bounds);
                     }

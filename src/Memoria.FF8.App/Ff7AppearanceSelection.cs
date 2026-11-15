@@ -20,7 +20,7 @@ internal static class Ff7AppearanceSelection
 
     private sealed class Selection(CharacterAppearanceMapping[] mappings, Ff7Installation installation, GameAssets assets) : IFf7ActorAppearance
     {
-        private readonly Dictionary<(int Story, int Appearance, string Hrc, bool World), Ff7ModelAppearance> profiles = [];
+        private readonly Dictionary<(int Story, int Appearance, string Hrc, Ff7ActorPoseDomain Domain), Ff7ModelAppearance> profiles = [];
 
         public bool SupportsPartVisibility => true;
         public bool SupportsVertexColorBindings => true;
@@ -48,11 +48,11 @@ internal static class Ff7AppearanceSelection
                 return null;
             }
             string hrc = Path.GetFileName(descriptor.Hrc).ToLowerInvariant();
-            var key = (character, mapping.AppearanceCharacter, hrc, actor.IsWorldModel);
+            var key = (character, mapping.AppearanceCharacter, hrc, actor.PoseDomain);
             if (!profiles.TryGetValue(key, out Ff7ModelAppearance? profile))
             {
-                bool legacy = !actor.IsWorldModel && mapping.RigProfile is Ff7ModelAppearance.StandardFieldSquallProfileVersion or Ff7ModelAppearance.LegacyStandardFieldSquallProfileVersion;
-                profile = legacy ? Ff7ModelAppearance.CreateStandardFieldSquall(installation, assets) : Ff7ModelAppearance.CreateFieldCharacter(assets, mapping.AppearanceCharacter, descriptor, original, actor.IsWorldModel);
+                bool legacy = actor.PoseDomain == Ff7ActorPoseDomain.Field && mapping.RigProfile is Ff7ModelAppearance.StandardFieldSquallProfileVersion or Ff7ModelAppearance.LegacyStandardFieldSquallProfileVersion;
+                profile = legacy ? Ff7ModelAppearance.CreateStandardFieldSquall(installation, assets) : Ff7ModelAppearance.CreateFieldCharacter(assets, mapping.AppearanceCharacter, descriptor, original, actor.PoseDomain == Ff7ActorPoseDomain.World);
                 profiles.Add(key, profile);
             }
             return profile;

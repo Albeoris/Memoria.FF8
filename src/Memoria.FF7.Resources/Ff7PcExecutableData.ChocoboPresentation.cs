@@ -4,7 +4,10 @@ using System.Text;
 
 namespace Memoria.FF7.Resources;
 
-public sealed record Ff7ChocoboPresentationModel(string Hrc, IReadOnlyList<string> Animations, bool Transparent, bool PatchYaw);
+public sealed record Ff7ChocoboPresentationModel(string Hrc, IReadOnlyList<string> Animations, bool Transparent, bool PatchYaw)
+{
+    public int StoryCharacter { get; init; } = -1;
+}
 public sealed record Ff7ChocoboSceneryDescriptor(short X, short Y, short Z, ushort Flags, byte Model, byte RotationX, byte RotationY, byte RotationZ, short Frame, short Increment);
 public sealed record Ff7ChocoboPresentationData(IReadOnlyList<int> SpriteMap, IReadOnlyList<string> SpriteTextures, IReadOnlyList<Ff7ChocoboPresentationModel> Models, IReadOnlyList<Ff7ChocoboSceneryDescriptor> Scenery);
 
@@ -28,7 +31,7 @@ public sealed partial class Ff7PcExecutableData
             }
             string hrc = ReadName(unchecked((uint)descriptor[1]));
             string[] clips = descriptor.Skip(2).Take(descriptor[0]).Select(pointer => Path.ChangeExtension(ReadName(unchecked((uint)pointer)), ".a")).ToArray();
-            models[index] = new(hrc, Array.AsReadOnly(clips), modelMap[index * 2 + 1] == 1, shortCourse && index is 0x11 or 0x13 or 0x16 or 0x1F);
+            models[index] = new(hrc, Array.AsReadOnly(clips), modelMap[index * 2 + 1] == 1, shortCourse && index is 0x11 or 0x13 or 0x16 or 0x1F) { StoryCharacter = modelMap[index * 2] switch { 2 => 0, 37 => 8, 38 => 2, _ => -1 } };
         }
         int sceneryCount = shortCourse ? 19 : 15;
         byte[] sceneryBytes = ReadVirtual(stream, pe, shortCourse ? 0x972B68u : 0x972A78u, sceneryCount * 16);

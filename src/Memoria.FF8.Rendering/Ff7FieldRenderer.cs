@@ -5,10 +5,17 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF8.Rendering;
 
+public enum Ff7ActorPoseDomain
+{
+    Field,
+    World,
+    Scene
+}
+
 public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int Y4096, int Z4096, byte Direction, int AnimationIndex, int AnimationFrame16, bool Visible = true)
 {
     public int PartyCharacter { get; init; } = -1;
-    public bool IsWorldModel { get; init; }
+    public Ff7ActorPoseDomain PoseDomain { get; init; }
     public int PhysicalSlot { get; init; }
     public byte NativeTransparencyMode { get; init; }
     public int FirstAnimationFrame { get; init; }

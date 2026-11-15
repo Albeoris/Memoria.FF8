@@ -48,6 +48,7 @@ public sealed record Ff7ChocoboSnapshot(FieldHostRequest Request, byte[] Paramet
     public int[]? RiderAnimations { get; init; }
     public Ff7ChocoboSceneryState? Scenery { get; init; }
     public int? DisplayedFadeAlpha { get; init; }
+    public Ff7ChocoboRacerState[]? HudRacers { get; init; }
     public void Validate()
     {
         if (Request is null || Request.Command is not FieldMinigameCommand { Game: 1 } || Parameters is not { Length: 29 } || Simulation is null || Tick < 0 || Countdown < 0 || FadeAlpha is < 0 or > 256 || FadeStep is not (-16 or 0 or 16) || RecoveryCount is < 0 or > 10 || Parameters[23] > 3 || FrameCounter < 0 || FrameCounter > Countdown || Tick < Countdown || Started != (Countdown >= 60) || !Enum.IsDefined(Phase))
@@ -63,6 +64,10 @@ public sealed record Ff7ChocoboSnapshot(FieldHostRequest Request, byte[] Paramet
         if (RiderAnimations is not null && (RiderAnimations.Length != 6 || RiderAnimations.Any(animation => animation is < 0 or > 5)))
         {
             throw new InvalidDataException("The FFVII Chocobo rider animation bindings are corrupt.");
+        }
+        if (HudRacers is not null)
+        {
+            new Ff7ChocoboSimulationState(HudRacers, 0, 0, -1, false, 0, []).Validate(Parameters[7] == 0 ? 1181 : 945);
         }
         if (Phase == Ff7ChocoboPhase.Completed && Simulation.Racers.Any(racer => racer.Placement == 0))
         {

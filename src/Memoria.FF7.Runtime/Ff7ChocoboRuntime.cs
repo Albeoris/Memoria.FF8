@@ -10,6 +10,7 @@ public sealed partial class Ff7ChocoboRuntime
     private readonly Ff7ChocoboSimulation simulation;
     private readonly Ff7ChocoboNativeData native;
     private readonly int[] riderAnimations = new int[6];
+    private Ff7ChocoboRacerState[] hudRacers;
     private int fadeStep = -16;
     private bool automaticFadeRequested;
     private ushort input;
@@ -32,6 +33,7 @@ public sealed partial class Ff7ChocoboRuntime
         this.native = native;
         carry?.Validate();
         simulation = new(course, native, parameters, seed, saved?.Simulation, carry?.Simulation.Racers);
+        hudRacers = (saved?.HudRacers ?? simulation.Racers).Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray();
         RecoverySide = carry?.RecoverySide ?? false;
         RecoveryCount = carry?.RecoveryCount ?? 0;
         Camera = new(simulation, native, saved?.Camera, carry?.Camera);
@@ -105,6 +107,7 @@ public sealed partial class Ff7ChocoboRuntime
     public Ff7ChocoboCamera Camera { get; }
     public int PlayerColor => parameters[17];
     public IReadOnlyList<int> RiderAnimations => Array.AsReadOnly(riderAnimations);
+    public IReadOnlyList<Ff7ChocoboRacerState> HudRacers => Array.AsReadOnly(hudRacers);
     public IReadOnlyList<Ff7ChocoboRacerState> Racers => Array.AsReadOnly(simulation.Racers.Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray());
     public Ff7ChocoboRacerState Player => simulation.Racers[0] with { Name = simulation.Racers[0].Name.ToArray() };
     internal FieldHostRequest Request { get; }
@@ -118,7 +121,7 @@ public sealed partial class Ff7ChocoboRuntime
 
     public Ff7ChocoboSnapshot Capture()
     {
-        return new(Request, parameters.ToArray(), simulation.Capture(), Tick, Countdown, Started, FadeAlpha, fadeStep, RecoverySide, RecoveryCount, held, previousInput, input, Phase, automaticFadeRequested, FrameCounter) { Camera = Camera.Capture(), RiderAnimations = riderAnimations.ToArray(), Scenery = CaptureScenery(), DisplayedFadeAlpha = DisplayedFadeAlpha };
+        return new(Request, parameters.ToArray(), simulation.Capture(), Tick, Countdown, Started, FadeAlpha, fadeStep, RecoverySide, RecoveryCount, held, previousInput, input, Phase, automaticFadeRequested, FrameCounter) { Camera = Camera.Capture(), RiderAnimations = riderAnimations.ToArray(), Scenery = CaptureScenery(), DisplayedFadeAlpha = DisplayedFadeAlpha, HudRacers = hudRacers.Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray() };
     }
 
     internal void Advance()
@@ -206,6 +209,10 @@ public sealed partial class Ff7ChocoboRuntime
         }
         simulation.Racers[0].SoundCounter--;
         FrameCounter++;
+        if (FrameCounter % 16 == 0)
+        {
+            hudRacers = simulation.Racers.Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray();
+        }
         DisplayedFadeAlpha = FadeAlpha;
         FadeAlpha += fadeStep;
         if (FadeAlpha < 0)

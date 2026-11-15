@@ -61,8 +61,10 @@ public sealed class Ff7MappedAnimationAdmissionTests
         Assert.All(Enumerable.Range(0, moved.Count), index => Assert.Equal(held[index] + Vector3.UnitX, moved[index]));
         Assert.True(appearance.TrySampleVertices(unsupported with { EntityId = 8 }, descriptor, resources, out var otherActor));
         Assert.Equal(target.Pose(0, 0), otherActor);
-        Assert.True(appearance.TrySampleVertices(unsupported with { IsWorldModel = true }, descriptor, resources, out var world));
+        Assert.True(appearance.TrySampleVertices(unsupported with { PoseDomain = Ff7ActorPoseDomain.World }, descriptor, resources, out var world));
         Assert.Equal(target.Pose(0, 0), world);
+        Assert.True(appearance.TrySampleVertices(unsupported with { PoseDomain = Ff7ActorPoseDomain.Scene }, descriptor, resources, out var scene));
+        Assert.Equal(target.Pose(0, 0), scene);
         Assert.True(appearance.TrySampleVertices(unsupported, descriptor, resources with { HrcName = resources.HrcName }, out var nextAllocation));
         Assert.Equal(target.Pose(0, 0), nextAllocation);
         Ff7FieldModelResources otherSource = resources with { Hierarchy = AnonymousHierarchy(original.Hierarchy) };
