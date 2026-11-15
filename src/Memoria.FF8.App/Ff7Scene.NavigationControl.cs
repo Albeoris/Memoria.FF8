@@ -90,6 +90,15 @@ internal sealed partial class Ff7Scene
     {
         string[] parts = target.Split(':', StringSplitOptions.TrimEntries);
         int Parse(string value) => int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
+        if (parts.Length == 2 && parts[0] == "gateway-index")
+        {
+            int index = Parse(parts[1]);
+            if ((uint)index >= session.Field.Triggers.Gateways.Count || session.Field.Triggers.Gateways[index].DestinationField == short.MaxValue)
+            {
+                throw new ArgumentException("The gateway index must identify an active current field gateway.", nameof(target));
+            }
+            return driver => driver.GatewayAt(index);
+        }
         if (parts.Length == 2 && parts[0] == "gateway")
         {
             int destination = Parse(parts[1]);
@@ -138,6 +147,6 @@ internal sealed partial class Ff7Scene
             Vector3 point = new(values[0], values[1], values[2]);
             return driver => driver.Approach(point, triangle);
         }
-        throw new ArgumentException("Targets: gateway:<mapId>, actor:<slot>, line:<entity>, point:<x>,<y>,<z>[:<triangle>].", nameof(target));
+        throw new ArgumentException("Targets: gateway:<mapId>, gateway-index:<index>, actor:<slot>, line:<entity>, point:<x>,<y>,<z>[:<triangle>].", nameof(target));
     }
 }

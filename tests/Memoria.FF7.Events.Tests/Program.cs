@@ -1,6 +1,18 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--window-number-only", StringComparer.Ordinal))
+{
+    NativeWindowNumberOpcodeTests.Run();
+    return 0;
+}
+
+if (args.Contains("--party-camera-only", StringComparer.Ordinal))
+{
+    NativePartyCameraOpcodeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--movement-animation-only", StringComparer.Ordinal))
 {
     NativeMovementAnimationOpcodeTests.Run();
@@ -186,6 +198,8 @@ var tests = new (string Name, Action Run)[]
     ("native background scroll operands and cold continuation", NativeBackgroundScrollTests.Run),
     ("native KAWAI water request operands and cold ownership", NativeWaterEffectOpcodeTests.Run),
     ("native movement animation selector operands", NativeMovementAnimationOpcodeTests.Run),
+    ("native party camera target operands and wait ownership", NativePartyCameraOpcodeTests.Run),
+    ("native window number operands", NativeWindowNumberOpcodeTests.Run),
     ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
     ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),

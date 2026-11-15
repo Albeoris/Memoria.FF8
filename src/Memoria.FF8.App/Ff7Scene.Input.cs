@@ -132,9 +132,10 @@ internal sealed partial class Ff7Scene
             {
                 continue;
             }
+            Action<Rectangle>? specialOverlay = Session.World is null && window.SpecialType == 2 ? overlayClip => DrawNumberSpecialWindow(batch, window, bounds, overlayClip) : null;
             if (!UseNativeDialogue)
             {
-                DrawCommonDialogue(batch, dialogue, window, bounds);
+                DrawCommonDialogue(batch, dialogue, window, bounds, specialOverlay);
                 continue;
             }
             Memoria.FF8.Ui.UiRect animated = Ff7DialoguePresentationPolicy.NativePanel(dialogue, window, bounds);
@@ -147,6 +148,7 @@ internal sealed partial class Ff7Scene
             {
                 DrawWindow(batch, animated, Math.Max(1, bounds.Width / 320));
             }
+            specialOverlay?.Invoke(clip);
             if (dialogue.TextVisible)
             {
                 dialogueCanvas!.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));

@@ -97,6 +97,11 @@ public sealed partial class FieldMachine
                 return facingPending || facedParty;
             case 0x36:
                 return Host(id, new FieldWindowCommand(FieldWindowOperation.Special, B(id, 1), B(id, 3), B(id, 4), Style: B(id, 2)), 5);
+            case 0x37:
+                int windowNumberLow = R16(id, 1, 3);
+                int windowNumberHigh = R16(id, 2, 5);
+                int windowNumber = windowNumberLow | (windowNumberHigh << 16);
+                return Host(id, new FieldWindowCommand(FieldWindowOperation.Number, B(id, 2), Flags: B(id, 7), Parameter: windowNumber), 8);
             case 0x38:
                 return Host(id, new FieldTimerCommand((uint)(R8(id, 1, 3) * 3600 + R8(id, 2, 4) * 60 + R8(id, 4, 5))), 6);
             case 0x40:
@@ -189,6 +194,16 @@ public sealed partial class FieldMachine
                 FieldBank previousMapBank = Bank(id, 2);
                 byte previousMapAddress = B(id, 2);
                 return Host(id, new FieldControlCommand(FieldControlKind.PreviousMap, 0), 3, result: value => Variables.WriteWord(previousMapBank, previousMapAddress, unchecked((short)value)));
+            case 0x6F:
+                int cameraPartySlot = B(id, 4);
+                int cameraCharacter = cameraPartySlot < 3 ? ReadParty()[cameraPartySlot] : 255;
+                int partyCameraTarget = cameraCharacter != 255 ? Array.FindIndex(entities, actor => actor.PartyCharacter == cameraCharacter) : -1;
+                if (partyCameraTarget < 0 || !entities[partyCameraTarget].ModelBound)
+                {
+                    Advance(id, 6);
+                    return false;
+                }
+                return Host(id, new FieldCameraCommand(FieldCameraOperation.Entity, B(id, 5), Steps: R16(id, 2, 2), Entity: partyCameraTarget), 6);
             case 0x70:
                 return Host(id, new FieldBattleCommand(unchecked((ushort)R16(id, 2, 2))), 4, firstCallYields: true);
             case 0x71:

@@ -73,6 +73,8 @@ public sealed record Ff7Window(int Id, int X, int Y, int Width, int Height, int 
     public byte SpecialType { get; init; }
     public byte SpecialX { get; init; }
     public byte SpecialY { get; init; }
+    public int NativeNumber { get; init; }
+    public byte NativeNumberDigits { get; init; } = 6;
 }
 public sealed record Ff7Dialogue(long RequestId, int Window, int Text, int? FirstChoice, int? LastChoice, int Selected, int Page = 0, bool Completed = false, int TokenPosition = 0, int WaitTicks = 0, bool AwaitingInput = false, Ff7DialoguePresentation? Presentation = null)
 {

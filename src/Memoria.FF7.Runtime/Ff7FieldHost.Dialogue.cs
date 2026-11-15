@@ -10,6 +10,24 @@ public sealed partial class Ff7FieldHost
         return AdvanceDialogue?.Invoke(dialogue, window) ?? Ff7DialogueCursor.AdvanceTick(dialogue, FieldText.Read(field.Scripts.Texts[dialogue.Text].Span), window);
     }
 
+    private FieldHostReply PollSharedMessage(Ff7Dialogue requester, Ff7Dialogue physical)
+    {
+        if (requester.FirstChoice is not null || physical.FirstChoice is not null)
+        {
+            throw new NotSupportedException("Shared FFVII choice and message polling requires their distinct native dispatcher and physical selection ownership.");
+        }
+        Ff7Window window = Process.Windows.Single(item => item.Id == physical.Window);
+        Ff7Dialogue polled = PollDialogue(physical, window);
+        if (!polled.Completed)
+        {
+            UpdateDialogue(polled);
+            return new(false);
+        }
+        ResetDialoguePresentation(physical);
+        UpdateDialogue(requester with { Completed = true, AwaitingInput = false, Presentation = new(0, 0, 0) });
+        return new(true);
+    }
+
     private Ff7HostReceipt WindowOwner(Ff7Dialogue active)
     {
         if (!receipts.TryGetValue(active.RequestId, out Ff7HostReceipt? owner) || owner.Request.Command is not FieldDialogueCommand dialogue || dialogue.Window != active.Window || owner.Reply.Completed)

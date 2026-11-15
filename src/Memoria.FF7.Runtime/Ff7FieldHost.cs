@@ -220,7 +220,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     {
                         if (receipts.TryGetValue(owner.RequestId, out Ff7HostReceipt? previousOwner) && previousOwner.Request.Entity == request.Entity)
                         {
-                            throw new NotSupportedException("Overlapping FFVII messages from one entity require their shared native window continuation.");
+                            return PollSharedMessage(active, owner);
                         }
                         return new(false);
                     }
@@ -569,6 +569,10 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         switch (window.Operation)
         {
+            case FieldWindowOperation.Number:
+                Ff7Window numbered = current with { NativeNumber = window.Parameter, NativeNumberDigits = checked((byte)window.Flags) };
+                Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), numbered] };
+                break;
             case FieldWindowOperation.Parameter:
                 if (window.Parameter is < 0 or > 7 || (byte)window.ParameterBank > 15)
                 {
@@ -596,7 +600,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
                     _ = WindowOwner(active);
                     ResetDialoguePresentation(active);
                 }
-                Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74);
+                Ff7Window reset = new(window.Window, 8, window.Window == 1 ? 8 : 149, 304, 74) { NativeNumber = current.NativeNumber };
                 Process = Process with { Windows = [.. Process.Windows.Where(item => item.Id != window.Window), reset] };
                 break;
             case FieldWindowOperation.Style:

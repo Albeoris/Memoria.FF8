@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--shared-message-only", StringComparer.Ordinal))
+{
+    NativeSharedMessageTests.Run();
+    return 0;
+}
+
+if (args.Contains("--window-number-only", StringComparer.Ordinal))
+{
+    NativeWindowNumberTests.Run();
+    return 0;
+}
+
 if (args.Contains("--movement-animation-only", StringComparer.Ordinal))
 {
     NativeMovementAnimationTests.Run();
@@ -515,6 +527,8 @@ var tests = new (string Name, Action Run)[]
     ("native background scroll phase and resource restoration", NativeBackgroundScrollTests.Run),
     ("native water initialization cache and cold continuation", NativeWaterEffectTests.Run),
     ("native player movement animation configuration", NativeMovementAnimationTests.Run),
+    ("native window number state and reset", NativeWindowNumberTests.Run),
+    ("native shared message entity ownership", NativeSharedMessageTests.Run),
     ("native field encounter materia modifiers and cold continuation", FieldEncounterModifierTests.Run),
     ("native guest fury ownership and cold continuation", NativeGuestFuryTests.Run),
     ("native fury producer, opposition and cold continuation", NativeFuryTests.Run),

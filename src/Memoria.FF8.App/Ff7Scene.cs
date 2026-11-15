@@ -777,6 +777,7 @@ internal sealed partial class Ff7Scene : IDisposable
         highwayPortraitTexture?.Dispose();
         triangles.Dispose();
         titleArtwork.Dispose();
+        numberWindowAtlas?.Dispose();
         pixel.Dispose();
         font.Dispose();
     }

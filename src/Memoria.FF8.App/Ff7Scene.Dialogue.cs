@@ -98,7 +98,7 @@ internal sealed partial class Ff7Scene
         setDialoguePreferences(current with { TextFontMode = native ? GameTextFontMode.Native : GameTextFontMode.System, TextLayoutMode = native ? GameTextLayoutMode.OriginalCompatible : GameTextLayoutMode.Adaptive });
     }
 
-    private void DrawCommonDialogue(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds)
+    private void DrawCommonDialogue(SpriteBatch batch, Ff7Dialogue dialogue, Ff7Window window, Rectangle bounds, Action<Rectangle>? overlay = null)
     {
         UiPreferences preferences = dialoguePreferences?.Invoke() ?? throw new InvalidOperationException("FFVII dialogue requires the shared host presentation context.");
         IReadOnlyList<FieldTextToken> tokens = Tokens(dialogue);
@@ -138,6 +138,7 @@ internal sealed partial class Ff7Scene
                 : new UiTheme { FontFamily = preferences.UiFontFamily });
             theme.Panel(dialogueCanvas!, animated);
         }
+        overlay?.Invoke(clip);
         if (!dialogue.TextVisible)
         {
             return;

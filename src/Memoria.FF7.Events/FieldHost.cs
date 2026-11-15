@@ -119,7 +119,8 @@ public enum FieldWindowOperation
     Reset,
     Special,
     SizeWhenFree,
-    Parameter
+    Parameter,
+    Number
 }
 public sealed record FieldWindowCommand(FieldWindowOperation Operation, int Window, short X = 0, short Y = 0, short Width = 0, short Height = 0, int Style = 0, int Flags = 0, int Parameter = 0, FieldBank ParameterBank = FieldBank.Immediate, ushort ParameterAddress = 0) : FieldCommand;
 public sealed record FieldDialogueCommand(int Window, int Text, int? FirstChoice = null, int? LastChoice = null, int Selected = 0) : FieldCommand;

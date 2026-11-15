@@ -16,8 +16,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private Vector3? finalTarget;
     private bool finalApproach;
     private long gatewayGeneration = -1;
-    private int gatewayDestination = -1;
-    private int gatewayDestinationTriangle = -1;
+    private PcFieldGateway? gatewayTarget;
     private Vector3? gatewayCrossingTarget;
     private PcFieldGateway? plannedGateway;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
@@ -63,6 +62,15 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         return Gateway(session.Field.Triggers.Gateways.Single(gateway => gateway.DestinationField == destinationField && gateway.DestinationTriangle == destinationTriangle), run);
     }
 
+    public Ff7AutoplayInput GatewayAt(int index, bool run = true)
+    {
+        if ((uint)index >= session.Field.Triggers.Gateways.Count || session.Field.Triggers.Gateways[index].DestinationField == short.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index), "The gateway index must identify an active current field gateway.");
+        }
+        return Gateway(session.Field.Triggers.Gateways[index], run);
+    }
+
     internal Ff7AutoplayInput Gateway(PcFieldGateway gateway, bool run)
     {
         plannedGateway = gateway;
@@ -78,11 +86,10 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     private Ff7AutoplayInput ApproachGateway(PcFieldGateway gateway, bool run)
     {
-        if (gatewayGeneration != session.FieldGeneration || gatewayDestination != gateway.DestinationField || gatewayDestinationTriangle != gateway.DestinationTriangle)
+        if (gatewayGeneration != session.FieldGeneration || gatewayTarget != gateway)
         {
             gatewayGeneration = session.FieldGeneration;
-            gatewayDestination = gateway.DestinationField;
-            gatewayDestinationTriangle = gateway.DestinationTriangle;
+            gatewayTarget = gateway;
             gatewayCrossingTarget = null;
         }
         if (gatewayCrossingTarget is Vector3 crossingTarget)
