@@ -199,6 +199,12 @@ public sealed partial class BattleSession
         }
         BattleAttackCommand? callbackBound = bound ?? owner.nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect);
         byte? callbackStage = action?.NativeAiCallbackStage ?? callbackBound?.NativeAiCallbackStage;
+        if (hostedDiagnosticOwner is not null && owner.CurrentExpandedHostedInvocation is { } invocation &&
+            invocation.Command.ActorId == actorId && invocation.Header.Command == nativeCommand &&
+            invocation.Header.Action == actionId && invocation.Header.Effect == effect.RequestedEffect)
+        {
+            callbackStage = invocation.Command.NativeAiCallbackStage ?? callbackStage;
+        }
         string? scriptSha256 = callbackStage is byte stage && actorId is not null && owner.byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
         BattleDiagnosticEffectDispatch dispatch = new(owner.diagnosticDispatchSerial, owner.NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = OriginalDiagnosticTargets(effect.Parameters), NativeActorIndex = OriginalDiagnosticSource(effect.Parameters), NativeHeaderIndex = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header) };
         if (hostedDiagnosticOwner is not null)

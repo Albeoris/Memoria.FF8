@@ -345,6 +345,7 @@ public static partial class ScenarioDiscovery
         Write(output, "implementation-evidence.json", implementation);
         Write(output, "enemy-owners.json", enemies);
         Write(output, "formation-hashes.json", Enumerable.Range(0, assets.FormationCount).ToDictionary(formation => formation, assets.FormationSourceHash));
+        Write(output, "command-abilities.json", initialVitals.MenuDefinitions.CommandAbilityCommands.Select((command, index) => new { Command = command, Ability = index + 20 }).ToArray());
         Write(output, "scenarios.json", scenarios);
         Write(output, "cases-manifest.json", scenarios.Where(scenario => scenario.Disposition is not ("covered_by_case" or "excluded_with_reason")).Select(scenario => new PilotCase(scenario.CaseId, scenario.DiagnosticRecipe, scenario.Status, scenario.ExecutionBlockers, scenario.EffectId, scenario.DiagnosticRecipe is string path ? Hash(File.ReadAllBytes(path)) : null)).ToArray());
         foreach (DiscoveredBinding row in rows)

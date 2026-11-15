@@ -12,7 +12,10 @@ internal sealed record DiagnosticMagicStockPreparation([property: JsonRequired] 
 internal sealed record DiagnosticMagicCommandPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Ability);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record DiagnosticCommandPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Ability);
+internal sealed record DiagnosticCommandPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Ability)
+{
+    public bool PrepareSavedSlot { get; init; }
+}
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DiagnosticMagicJunctionPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Action);
@@ -271,7 +274,24 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidDataException("The declared command ability is absent from the installed kernel.");
                 }
-                next = next.SetJunctionAbility(character.Row, command.Slot, command.Ability, command: true);
+                if (command.PrepareSavedSlot)
+                {
+                    NativeCharacterVital record = next.Records[character.Row];
+                    uint commands = record.Junction.Commands;
+                    for (int slot = 0; slot < NativeCharacterJunction.EquippedCommandCount; slot++)
+                    {
+                        if (slot == command.Slot || (byte)(commands >> (slot * 8)) == command.Ability)
+                        {
+                            commands &= ~(255u << (slot * 8));
+                        }
+                    }
+                    commands |= (uint)command.Ability << (command.Slot * 8);
+                    next.Records[character.Row] = record with { Junction = record.Junction with { Commands = commands } };
+                }
+                else
+                {
+                    next = next.SetJunctionAbility(character.Row, command.Slot, command.Ability, command: true);
+                }
             }
             foreach (DiagnosticMagicJunctionPreparation junction in character.MagicJunctions)
             {

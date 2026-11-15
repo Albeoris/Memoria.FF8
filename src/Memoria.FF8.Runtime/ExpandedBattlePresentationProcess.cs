@@ -91,6 +91,19 @@ public sealed partial class ExpandedBattlePresentationProcess
         presentation.AppendDiagnosticGraphicsBlockers(blockers);
     }
 
+    internal object ObserveDiagnosticPresentationOwners()
+    {
+        return new
+        {
+            ActiveActionToken,
+            PendingCompletion,
+            FileActiveCount = presentation.NativeFileIo?.ActiveCount,
+            CameraMask = Camera.Mask,
+            SoundFlags = Memory.SoundPublishedFlags,
+            Owners = presentation.ObserveDiagnosticInvocationOwners()
+        };
+    }
+
     internal void RequireLogicalOwner(BattleSession owner)
     {
         if (!ReferenceEquals(logicalOwner, owner))

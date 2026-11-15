@@ -36,6 +36,11 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new InvalidDataException("Independent roster and enemy trigger diagnostics require an explicit expanded scenario roster.");
         }
+        if (Fixture?.Characters.Any(character => character.Commands.Any(command => command.PrepareSavedSlot)) == true &&
+            (Roster is null || Driver is not { IndependentRosterEntry: true, Input.Ability: BattleAbility.NativeCommand }))
+        {
+            throw new InvalidDataException("Preparing an equipped saved command slot requires one explicit independent expanded diagnostic invocation.");
+        }
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
@@ -173,6 +178,20 @@ internal sealed partial class GameWorld
         if (request.Roster is not null)
         {
             initialVitals = PrepareDiagnosticRosterVitals(initialVitals);
+        }
+        if (request.Fixture is { } fixture && request.Driver is { } expectedDriver)
+        {
+            foreach (DiagnosticCharacterPreparation character in fixture.Characters)
+            {
+                foreach (DiagnosticCommandPreparation command in character.Commands.Where(command => command.PrepareSavedSlot))
+                {
+                    if (expectedDriver.Input.ActorId != $"party-{character.Row}" ||
+                        expectedDriver.ExpectedNativeCommand != initialVitals.MenuDefinitions.CommandAbilityCommands[command.Ability - 20])
+                    {
+                        throw new InvalidDataException("Prepared equipped slot differs from the selected actor or installed native command.");
+                    }
+                }
+            }
         }
         DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(initialVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null, request.Fixture.Characters.Any(character => character.Weapon.HasValue) ? assets.ReadNativeWeaponShopDefinitions() : null);
         DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture, NativeItemOrderAliases.From(session.State));
