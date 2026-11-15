@@ -12,7 +12,7 @@ internal enum Ff7AutoPlayWorldNavigationStatus
     Unsupported
 }
 
-internal sealed record Ff7AutoPlayWorldNavigationResult(Ff7AutoPlayWorldNavigationStatus Status, Ff7AutoplayInput Input, int Expanded, string? Reason = null, Ff7AutoPlayWorldTerrainBoundary? PredictedBoundary = null, bool HasInput = false);
+internal sealed record Ff7AutoPlayWorldNavigationResult(Ff7AutoPlayWorldNavigationStatus Status, Ff7AutoplayInput Input, int Expanded, string? Reason = null, Ff7AutoPlayWorldTerrainBoundary? PredictedBoundary = null, bool HasInput = false, Ff7WorldTerrainReference[]? DeferredComponent = null);
 internal sealed record Ff7AutoPlayWorldRouteStep(string SourceKey, Ff7AutoplayInput Input, string DestinationKey, Ff7AutoPlayWorldTerrainBoundary? Boundary);
 internal sealed record Ff7AutoPlayWorldRoute(Ff7AutoPlayWorldNavigationStatus Status, Ff7AutoPlayWorldRouteStep[] Steps, int Expanded, string? Reason);
 
@@ -51,7 +51,7 @@ public sealed partial class Ff7AutoplayDriver
         Vector3? guidePoint = null;
         if (!rearming)
         {
-            string context = $"{identity}:{source.Player.Terrain & 31}";
+            string context = $"{identity}:{world.ReadAutoPlayNavigationContext()}";
             int guideIndex = worldTerrainGuide is null ? -1 : Array.FindIndex(worldTerrainGuide.Faces, face => face.Source == source.Input.GroundTriangle);
             if (!ReferenceEquals(worldTerrainGuideOwner, world) || worldTerrainGuideContext != context || guideIndex < 0)
             {
@@ -64,7 +64,8 @@ public sealed partial class Ff7AutoplayDriver
             if (guide.Faces.Length == 0)
             {
                 worldRoute.Clear();
-                return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, guide.Expanded, guide.Reason);
+                Ff7AutoPlayWorldNavigationStatus status = guide.Limited ? Ff7AutoPlayWorldNavigationStatus.SearchLimited : guide.DeferredComponent is { Length: > 0 } ? Ff7AutoPlayWorldNavigationStatus.Blocked : Ff7AutoPlayWorldNavigationStatus.Unsupported;
+                return new(status, default, guide.Expanded, guide.Reason, DeferredComponent: guide.DeferredComponent);
             }
             if (guideIndex + 1 < guide.Faces.Length)
             {

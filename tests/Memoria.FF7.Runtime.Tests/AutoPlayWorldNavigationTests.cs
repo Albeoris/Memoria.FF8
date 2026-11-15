@@ -54,6 +54,7 @@ internal static class AutoPlayWorldNavigationTests
         CheckPhysicalCycle();
         CheckTerrainGuidance();
         OriginalWorldPreview();
+        OriginalDisconnectedGuide();
     }
 
     private static void CheckPhysicalCycle()
@@ -103,6 +104,9 @@ internal static class AutoPlayWorldNavigationTests
         Check(route.Faces.Select(face => face.Source.Triangle).SequenceEqual([0, 1, 2, 3]), "Native terrain-component advice did not take the connected detour around a gap or entered a dead-end component.");
         var limited = Ff7WorldRuntime.PlanAutoPlayTerrainGuide(faces[0].Source, new HashSet<Ff7WorldTerrainReference> { faces[3].Source }, reference => faces[reference.Triangle], reference => topology[reference.Triangle].Select(index => faces[index].Source), 1);
         Check(limited.Limited && limited.Faces.Length == 0, "A bounded topology search claimed physical absence or invented an unsearched route.");
+        Check(limited.DeferredComponent is null, "An incomplete topology search invented a closed component deferral.");
+        var disconnected = Ff7WorldRuntime.PlanAutoPlayTerrainGuide(faces[0].Source, new HashSet<Ff7WorldTerrainReference> { new(0, 0, 99) }, reference => faces[reference.Triangle], reference => topology[reference.Triangle].Select(index => faces[index].Source), 16);
+        Check(!disconnected.Limited && disconnected.DeferredComponent is { Length: 5 } && disconnected.DeferredComponent.Select(reference => reference.Triangle).Order().SequenceEqual([0, 1, 2, 3, 4]), "An exhausted advisory search lost its exact closed component or included unvisited faces.");
         Ff7AutoPlayWorldFrontierFace targetFace = new(faces[3].Source, faces[3].A, faces[3].B, faces[3].C, 0, 0);
         Ff7AutoPlayWorldScriptObservation target = new("guided", 3, [targetFace], new(true, null, 0, 0, [], [], [], []), "conditions", "geometry", [], true, null);
         Ff7AutoPlayWorldMovementState source = new(0, 0, new(0, 0, 0, 0), new(), new(), 0, 0, null, 0);
@@ -116,6 +120,31 @@ internal static class AutoPlayWorldNavigationTests
         Check(step.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && step.Steps.Length == 1 && step.Steps[0].Input.Vertical == 1 && calls == 9, "Coarse advice failed to guide an away detour through native input admission or falsely completed its remote script.");
         var refused = Ff7AutoplayDriver.SearchWorldRoute(source, target, (_, _) => new(false, "native footprint rejects guide"), [], 2, waypoint: faces[1].Center);
         Check(refused.Steps.Length == 0 && refused.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported, "A coarse topology edge authorized movement without its complete native footprint preview.");
+    }
+
+    private static void OriginalDisconnectedGuide()
+    {
+        string? configuration = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_DISCONNECTED_TARGET");
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_TRANSPORT_SAVE");
+        if (string.IsNullOrWhiteSpace(configuration) || string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original disconnected guide: configure a native fixture and target chunk X,Z,script,component count.");
+            return;
+        }
+        int[] expected = configuration.Split(',').Select(value => int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        Check(expected.Length == 4, "A disconnected fixture requires target chunk X,Z,script and expected component count.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(stream).Ff7!);
+        Ff7WorldRuntime world = session.World ?? throw new InvalidDataException("The disconnected fixture requires a native world.");
+        string before = JsonSerializer.Serialize(session.Capture());
+        string context = world.ReadAutoPlayNavigationContext();
+        Ff7AutoPlayWorldScriptObservation target = world.ReadAutoPlayFrontierCatalog(expected[0], expected[1]).Scripts.Single(entry => entry.Script == expected[2]);
+        Ff7AutoPlayWorldNavigationResult result = new Ff7AutoplayDriver(session).ChooseWorldInput(target);
+        Check(result.Status == Ff7AutoPlayWorldNavigationStatus.Blocked && !result.HasInput && result.DeferredComponent is { } component && component.Length == expected[3] && component.Contains(world.Process.Input!.GroundTriangle!), "An exhausted native guide lost its bounded component-scoped deferral.");
+        Check(context == world.ReadAutoPlayNavigationContext() && before == JsonSerializer.Serialize(session.Capture()), "Reading an exhausted native component changed world execution or admission context.");
+        Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The disconnected guide changed its original standalone fixture.");
     }
 
     private static void OriginalWorldPreview()

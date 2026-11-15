@@ -25,6 +25,8 @@ public sealed partial class Ff7AutoPlayPolicy
     private readonly Dictionary<Ff7AutoPlayWorldChunk, Ff7AutoPlayWorldFrontierCatalog> worldCatalogs = [];
     private readonly Queue<Ff7AutoPlayWorldChunk> worldChunkQueue = new();
     private readonly HashSet<Ff7AutoPlayWorldChunk> queuedWorldChunks = [];
+    private sealed record WorldComponentDeferral(string Context, HashSet<Ff7WorldTerrainReference> Faces, string PhysicalFingerprint);
+    private readonly Dictionary<string, WorldComponentDeferral> worldComponentDeferrals = new(StringComparer.Ordinal);
     private string? worldVisit;
 
     private void ObserveWorldAllocation()
@@ -40,6 +42,7 @@ public sealed partial class Ff7AutoPlayPolicy
             observedWorld.NativeHostOperationObserved -= ObserveWorldHostOperation;
         }
         observedWorld = world;
+        worldComponentDeferrals.Clear();
         worldCatalogs.Clear();
         worldChunkQueue.Clear();
         queuedWorldChunks.Clear();
@@ -112,8 +115,23 @@ public sealed partial class Ff7AutoPlayPolicy
             return default;
         }
         Ff7AutoPlayWorldVisitState visited = State.WorldVisits[observation.VisitId];
-        string physical = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Ff7AutoplayDriver.WorldMovementKey(world.CaptureAutoPlayMovementState()))));
-        planner.RefreshUnavailable(observation.VisitId, visited.PhysicalGuards.ToDictionary(key => key, _ => physical, StringComparer.Ordinal));
+        Ff7AutoPlayWorldMovementState movement = world.CaptureAutoPlayMovementState();
+        string physical = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Ff7AutoplayDriver.WorldMovementKey(movement))));
+        string componentContext = visited.DiscoveryContextFingerprint + ":" + world.ReadAutoPlayNavigationContext();
+        Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
+        foreach (string key in visited.PhysicalGuards)
+        {
+            if (worldComponentDeferrals.TryGetValue(key, out WorldComponentDeferral? deferred) && deferred.Context == componentContext && movement.Input.GroundTriangle is { } ground && deferred.Faces.Contains(ground))
+            {
+                physicalGuards[key] = deferred.PhysicalFingerprint;
+            }
+            else
+            {
+                worldComponentDeferrals.Remove(key);
+                physicalGuards[key] = physical;
+            }
+        }
+        planner.RefreshUnavailable(observation.VisitId, physicalGuards);
         if (State.Active is null)
         {
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal);
@@ -169,6 +187,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             string key = observation.VisitId + ":" + selected.EventId + ":physical";
             visited.PhysicalGuards.Add(key);
+            if (result.DeferredComponent is { Length: > 0 } component)
+            {
+                worldComponentDeferrals[key] = new(componentContext, component.ToHashSet(), physical);
+            }
             planner.MarkUnavailable(observation.VisitId, selected.EventId, new(selected.ConditionFingerprint, observation.VisitId, key, physical, selected.EventId));
             State.Active = null;
             State.Status = result.Reason ?? "Replanning after the bounded native world search found no admitted route";

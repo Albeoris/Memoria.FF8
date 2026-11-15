@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
@@ -8,10 +10,33 @@ internal sealed record Ff7AutoPlayWorldGuideFace(Ff7WorldTerrainReference Source
     public Vector3 Center => (A + B + C) / 3;
 }
 
-internal sealed record Ff7AutoPlayWorldGuide(Ff7AutoPlayWorldGuideFace[] Faces, int Expanded, bool Limited, string? Reason);
+internal sealed record Ff7AutoPlayWorldGuide(Ff7AutoPlayWorldGuideFace[] Faces, int Expanded, bool Limited, string? Reason, Ff7WorldTerrainReference[]? DeferredComponent = null);
 
 public sealed partial class Ff7WorldRuntime
 {
+    internal string ReadAutoPlayNavigationContext()
+    {
+        Ff7WorldEntity? player = entities.GetValueOrDefault(controlledModel);
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            World = Resources.World,
+            WorldMapState,
+            ControlledModel = controlledModel,
+            Model = player?.Model,
+            Terrain = player is null ? -1 : player.Terrain & 31,
+            AircraftFlags = player is null ? 0 : player.Flags & 128,
+            VehicleDismount = vehicle?.DismountPhase,
+            ChocoboDismount = chocobo?.DismountPhase,
+            ChocoboTint = chocoboTint,
+            input.TerrainScript,
+            input.Bridge?.Deformation,
+            initialized,
+            movementEnabled,
+            controlLock,
+            mainState
+        })));
+    }
+
     internal Ff7AutoPlayWorldGuide ReadAutoPlayNavigationGuide(Ff7AutoPlayWorldScriptObservation target, int maximumNodes = 16384, int maximumChunks = 128)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumChunks, 1);
@@ -130,7 +155,7 @@ public sealed partial class Ff7WorldRuntime
         }
         Load(start.ChunkX, start.ChunkZ);
         Ff7AutoPlayWorldGuide result = PlanAutoPlayTerrainGuide(start, goals, reference => faces[reference], Adjacent, maximumNodes);
-        return limited && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted." } : result;
+        return limited && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted.", DeferredComponent = null } : result;
     }
 
     internal static Ff7AutoPlayWorldGuide PlanAutoPlayTerrainGuide(Ff7WorldTerrainReference start, IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7WorldTerrainReference, Ff7AutoPlayWorldGuideFace> read, Func<Ff7WorldTerrainReference, IEnumerable<Ff7WorldTerrainReference>> adjacent, int maximumNodes)
@@ -179,6 +204,7 @@ public sealed partial class Ff7WorldRuntime
                 open.Enqueue(next, cost);
             }
         }
-        return new([], expanded, open.Count > 0, open.Count > 0 ? "The bounded native terrain-advice search is incomplete." : "No shared-edge advisory route exists in the observed native terrain component.");
+        bool limited = open.Count > 0;
+        return new([], expanded, limited, limited ? "The bounded native terrain-advice search is incomplete." : "No shared-edge advisory route exists in the observed native terrain component.", limited ? null : closed.ToArray());
     }
 }
