@@ -23,6 +23,7 @@ internal sealed partial class GameWorld
         {
             return;
         }
+        RefreshMovementMod(current);
         if (ReferenceEquals(current, appliedSceneMods) && ReferenceEquals(Field, appliedSceneField))
         {
             if (renderer is null || renderer.OutputWidth != renderWidth || renderer.OutputHeight != renderHeight)
@@ -35,7 +36,6 @@ internal sealed partial class GameWorld
         fieldPresentation.Reset();
         Dictionary<BackgroundTile, (bool Visible, string Package)> backgrounds = [];
         Dictionary<int, (FieldActorPatch Patch, int ModelId, string Package)> actors = [];
-        byte? movementOffset = null;
         List<FieldModel> models = Field.Models.ToList();
         Dictionary<(int Field, int Model), int> importedModels = [];
         foreach (OwnedFieldScenePatch owned in current.Patches.Where(item => item.Patch.FieldId == Field.Id || item.Patch.FieldName.Equals(Field.Name, StringComparison.OrdinalIgnoreCase)))
@@ -44,10 +44,6 @@ internal sealed partial class GameWorld
             if (patch.FieldId != Field.Id || !patch.FieldName.Equals(Field.Name, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException($"{owned.PackageId}: fieldId and fieldName must identify the same installed field.");
-            }
-            if (movementOffset is null && patch.Movement is { } movement)
-            {
-                movementOffset = unchecked((byte)(int)MathF.Round(movement.RotationDegrees * 256 / 360));
             }
             foreach (FieldBackgroundPatch background in patch.Backgrounds)
             {
@@ -99,11 +95,29 @@ internal sealed partial class GameWorld
             modActors.Add(pair.Key, pair.Value);
         }
         presentationField = next;
-        Events.PlayerInputDirectionOffset = movementOffset ?? 0;
         renderer = nextRenderer;
         appliedSceneMods = current;
         appliedSceneField = Field;
         RevalidateDebugAnimations();
+    }
+
+    private void RefreshMovementMod(FieldSceneMods mods)
+    {
+        Events.PlayerInputDirectionOffset = 0;
+        foreach (OwnedFieldScenePatch owned in mods.Patches)
+        {
+            FieldScenePatch patch = owned.Patch;
+            if (patch.FieldId != Field!.Id || !patch.FieldName.Equals(Field.Name, StringComparison.OrdinalIgnoreCase) || patch.Movement is not { } movement)
+            {
+                continue;
+            }
+            if (movement.CameraIndex is int cameraIndex && cameraIndex != Events.Scene.CameraIndex)
+            {
+                continue;
+            }
+            Events.PlayerInputDirectionOffset = unchecked((byte)(int)MathF.Round(movement.RotationDegrees * 256 / 360));
+            return;
+        }
     }
 
     private static FieldBackgroundKey Key(BackgroundTile tile) => new(tile.Layer, tile.AnimationId, tile.AnimationState);

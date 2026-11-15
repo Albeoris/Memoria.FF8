@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "fieldId": 715,
+  "fieldName": "ggwitch2",
+  "movement": {
+    "rotationDegrees": -50.625,
+    "cameraIndex": 0
+  }
+}

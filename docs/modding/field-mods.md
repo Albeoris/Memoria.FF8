@@ -54,7 +54,9 @@ A scene file can contain `movement` on its own or alongside background and actor
 
 `rotationDegrees` is required when `movement` is present. It accepts finite numbers from -180 through 180, including fractions. The engine adds this rotation to ordinary player input after the original field's INF/AXIS angle. Positive values increase the native heading clockwise in the field's X/Y plane; negative values decrease it. Camera perspective and ground slope determine the resulting screen direction. The value is rounded to the nearest of the original 256 headings (1.40625 degrees per step; exact half steps round to the even step). Zero explicitly selects the original input projection.
 
-The first matching movement contribution in package priority order wins, including zero. Background-only or actor-only patches do not override movement. A file must contain at least one background change, actor change or movement object. Field ID and name must identify the same installed field.
+An optional `movement.cameraIndex` selects one zero-based installed field camera, for example `"movement": { "rotationDegrees": 45, "cameraIndex": 0 }`. Omit it or use null to apply the rotation to every camera. The index must be nonnegative and identify an existing camera. Camera changes refresh the active rotation before the next player movement.
+
+The first matching movement contribution for the current field and camera in package priority order wins, including zero. Background-only or actor-only patches do not override movement. A file must contain at least one background change, actor change or movement object. Field ID and name must identify the same installed field.
 
 The rotation applies to keyboard and stick player movement, including field movie callbacks. It leaves stationary facing, scripted movement, original INF/AXIS values, saved positions and world controls unchanged. Disabling the package restores original projection for the next movement without migrating a save. Reloading a saved game uses the currently enabled mod configuration. Target-based field guidance accounts for the active rotation.
 

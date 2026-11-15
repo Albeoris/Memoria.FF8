@@ -39,7 +39,40 @@ public sealed class FieldSceneModsTests
         FieldScenePatch patch = Assert.Single(result.Patches).Patch;
         Assert.Empty(patch.Backgrounds);
         Assert.Empty(patch.Actors);
-        Assert.Equal(rotationDegrees, Assert.IsType<FieldMovementPatch>(patch.Movement).RotationDegrees);
+        FieldMovementPatch movement = Assert.IsType<FieldMovementPatch>(patch.Movement);
+        Assert.Equal(rotationDegrees, movement.RotationDegrees);
+        Assert.Null(movement.CameraIndex);
+    }
+
+    [Theory]
+    [InlineData("null", null)]
+    [InlineData("0", 0)]
+    [InlineData("1", 1)]
+    [InlineData("2147483647", int.MaxValue)]
+    public void ReadsOptionalMovementCameraSelectors(string cameraIndex, int? expected)
+    {
+        string json = $"{{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"movement\":{{\"rotationDegrees\":45,\"cameraIndex\":{cameraIndex}}}}}";
+        Assert.True(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(diagnostics);
+        FieldMovementPatch movement = Assert.IsType<FieldMovementPatch>(Assert.Single(result.Patches).Patch.Movement);
+        Assert.Equal(45f, movement.RotationDegrees);
+        Assert.Equal(expected, movement.CameraIndex);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    [InlineData("2147483648")]
+    [InlineData("\"0\"")]
+    [InlineData("true")]
+    public void InvalidMovementCameraSelectorsRejectEntirePublication(string cameraIndex)
+    {
+        string json = $"{{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"movement\":{{\"rotationDegrees\":45,\"cameraIndex\":{cameraIndex}}}}}";
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/good", Valid), File("Memoria/bad", json)), out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(result.Patches);
+        ModDiagnostic error = Assert.Single(diagnostics);
+        Assert.Equal("Memoria.InvalidFieldPatch", error.Code);
+        Assert.Equal("Memoria/bad", error.PackageId);
     }
 
     [Theory]

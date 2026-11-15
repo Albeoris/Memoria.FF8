@@ -3,6 +3,7 @@
 This bundled Memoria mod adjusts movement projection in individual fields to align ordinary player input with the screen axes:
 
 - Galbadia Garden lobby (`ggkodo1`): -47.8125 degrees.
+- Galbadia Garden clock (`ggwitch2`), camera 0: -50.625 degrees.
 - Deling City parade float (`glstage1`): +168.75 degrees.
 - Timber hotel lobby (`tihtl1`): +47.8125 degrees.
 

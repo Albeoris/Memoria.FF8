@@ -110,6 +110,7 @@ public sealed class FieldMovementModTests
     [InlineData("ggkodo1", 687, -47.8125f)]
     [InlineData("glstage1", 754, 168.75f)]
     [InlineData("tihtl1", 900, 47.8125f)]
+    [InlineData("ggwitch2", 715, -50.625f)]
     public void BundledReorientationPatchTargetsOnlyTheSelectedFieldInputHeading(string fieldName, int fieldId, float rotationDegrees)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Reorientation", "fields", fieldName + ".json");
@@ -120,16 +121,38 @@ public sealed class FieldMovementModTests
         Assert.Empty(patch.Backgrounds);
         Assert.Empty(patch.Actors);
         Assert.Equal(rotationDegrees, Assert.IsType<FieldMovementPatch>(patch.Movement).RotationDegrees);
+        Assert.Equal(fieldName == "ggwitch2" ? 0 : (int?)null, patch.Movement.CameraIndex);
     }
 
-    private static ModFile Patch(string package, int fieldId, string fieldName, float rotationDegrees)
+    [Fact]
+    public void CameraChangesRefreshMovementWithTheSameCatalogAndField()
+    {
+        string source = TestResources.FixturePath("App.Tests.FieldMovementMods.1");
+        FieldSceneMods active = FieldSceneMods.Empty;
+        using GameWorld world = new(new GameSession(PlayerStateLoader.Load(source, TestResources.GameDirectory)), TestResources.GameDirectory, readSceneMods: () => active);
+        world.EnsureField();
+        active = Prepare(Patch("Memoria/camera", world.Field!.Id, world.Field.Name, 45, 0), Patch("Memoria/fallback", world.Field.Id, world.Field.Name, 90));
+        foreach ((int camera, byte expected) in new[] { (0, (byte)32), (1, (byte)64), (0, (byte)32) })
+        {
+            typeof(SceneEventState).GetProperty(nameof(SceneEventState.CameraIndex))!.SetValue(world.Events.Scene, camera);
+            JsonElement before = world.Events.Capture();
+            world.EnsureField();
+            Assert.Equal(expected, world.Events.PlayerInputDirectionOffset);
+            Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        }
+        active = FieldSceneMods.Empty;
+        world.EnsureField();
+        Assert.Equal((byte)0, world.Events.PlayerInputDirectionOffset);
+    }
+
+    private static ModFile Patch(string package, int fieldId, string fieldName, float rotationDegrees, int? cameraIndex = null)
     {
         string json = JsonSerializer.Serialize(new
         {
             schemaVersion = 1,
             fieldId,
             fieldName,
-            movement = new { rotationDegrees }
+            movement = new { rotationDegrees, cameraIndex }
         });
         return new(package, ModFormat.Memoria, $"fields/{fieldName}.json", 1, () => Encoding.UTF8.GetBytes(json));
     }

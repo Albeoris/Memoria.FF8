@@ -48,6 +48,7 @@ public sealed record FieldActorPatch
 public sealed record FieldMovementPatch
 {
     public required float RotationDegrees { get; init; }
+    public int? CameraIndex { get; init; }
 }
 
 public sealed record FieldScenePatch
@@ -120,6 +121,10 @@ public sealed class FieldSceneMods
         if (patch.Movement is { } movement && (!float.IsFinite(movement.RotationDegrees) || movement.RotationDegrees is < -180 or > 180))
         {
             throw new InvalidDataException("Movement rotationDegrees must be finite and within -180..180.");
+        }
+        if (patch.Movement?.CameraIndex is < 0)
+        {
+            throw new InvalidDataException("Movement cameraIndex must be a nonnegative integer when specified.");
         }
         HashSet<(int Layer, int Module, int State, int? Depth, FieldBackgroundRegion? Region)> backgrounds = [];
         foreach (FieldBackgroundPatch background in patch.Backgrounds)

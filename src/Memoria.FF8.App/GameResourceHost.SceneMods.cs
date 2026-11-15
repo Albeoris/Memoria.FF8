@@ -27,6 +27,10 @@ internal sealed partial class GameResourceHost
                 {
                     throw new InvalidDataException("fieldId and fieldName do not identify the same installed field.");
                 }
+                if (patch.Movement?.CameraIndex is int cameraIndex && cameraIndex >= target.Cameras.Count)
+                {
+                    throw new InvalidDataException($"Camera {cameraIndex} does not exist in {target.Name}.");
+                }
                 foreach (FieldBackgroundPatch background in patch.Backgrounds)
                 {
                     if (!target.Background.Any(tile => tile.Layer == background.Layer && tile.AnimationId == background.ModuleId && tile.AnimationState == background.State && (background.Depth is null || tile.Z == background.Depth) && (background.Region is null || background.Region.Contains(tile.X, tile.Y))))
