@@ -27,7 +27,8 @@ public static class BattleRigidPose
     public static void WriteTransforms(BattleModelData model, BattleClipFrame frame, Matrix4x4 world, Span<Matrix4x4> transforms, BattleActorPoseTransform? extra = null)
     {
         IReadOnlyList<BattleBone> bones = model.Bones;
-        if (frame.Rotations.Count != bones.Count + 1 || transforms.Length != bones.Count)
+        bool rootOnly = frame.Rotations.Count == 1;
+        if ((!rootOnly && frame.Rotations.Count != bones.Count + 1) || transforms.Length != bones.Count)
         {
             throw new InvalidDataException("FFVII battle clip has a different joint count from its skeleton.");
         }
@@ -37,7 +38,8 @@ public static class BattleRigidPose
         {
             int parent = bones[index].Parent;
             Matrix4x4 attachment = parent < 0 ? root : Matrix4x4.CreateTranslation(extra?.X ?? 0, extra?.Y ?? 0, bones[parent].Length + (extra?.Z ?? 0)) * transforms[parent];
-            transforms[index] = Rotation(frame.Rotations[index + 1], extra) * attachment;
+            BattleRotationWords local = rootOnly ? default : frame.Rotations[index + 1];
+            transforms[index] = Rotation(local, extra) * attachment;
         }
     }
 
