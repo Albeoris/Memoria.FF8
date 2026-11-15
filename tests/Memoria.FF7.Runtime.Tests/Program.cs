@@ -39,6 +39,12 @@ if (args.Contains("--autoplay-planning-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-visit-guards-only", StringComparer.Ordinal))
+{
+    AutoPlayVisitGuardTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-world-terrain-only", StringComparer.Ordinal))
 {
     AutoPlayWorldTerrainTests.Run();
@@ -503,6 +509,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay host read dependencies", NativeAutoPlayHostReadTests.Run),
     ("native autoplay physical availability guards", NativeAutoPlayPhysicalAvailabilityTests.Run),
     ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
+    ("native autoplay global visit guards", AutoPlayVisitGuardTests.Run),
     ("native autoplay successful target completion", NativeAutoPlayTests.RunCompletion),
     ("native autoplay observed church target", NativeAutoPlayTests.RunGoal),
     ("native autoplay crowd escape and pure previews", NativeAutoPlayCrowdTests.Run),

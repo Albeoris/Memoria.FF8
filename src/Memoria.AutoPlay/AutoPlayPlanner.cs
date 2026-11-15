@@ -32,6 +32,7 @@ public sealed record AutoPlayEventRoute(string DestinationVisitKey, string? Cond
 public sealed record AutoPlayRetiredRoute(AutoPlayEventRoute Route, string ActualChoiceKey, int FirstChoice, int LastChoice, IReadOnlyList<AutoPlayChoiceSelection> ExecutedPrefix);
 public sealed record AutoPlayTravelGoal(string NavigationKey, string? EventId = null, string? Conditions = null);
 public sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null, AutoPlayTravelGoal? Goal = null);
+public sealed record AutoPlayEventAvailability(bool Unavailable, HashSet<string> UnavailableVariants, string? Fingerprint);
 public sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 
 public sealed class AutoPlayEventCoverage<TDeferral> where TDeferral : class, IAutoPlayParticipantPolicyDeferral
@@ -323,32 +324,33 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     public void RefreshUnavailable(string visitKey, IReadOnlyDictionary<string, string> guardFingerprints)
     {
         AutoPlayVisitCoverage<TDeferral> visit = FindVisit(visitKey);
-        List<(AutoPlayEventCoverage<TDeferral> Event, HashSet<string> Variants, string? Fingerprint)> updates = [];
-        foreach (AutoPlayEventCoverage<TDeferral> item in visit.Events.Where(item => item.Available))
-        {
-            AutoPlayUnavailableAttempt[] attempts = item.UnavailableAttempts.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && ObservedVariants(item).Contains(attempt.TargetId ?? item.Event.Id, StringComparer.Ordinal)).ToArray();
-            if (attempts.Length == 0)
-            {
-                updates.Add((item, [], null));
-                continue;
-            }
-            foreach (string key in attempts.Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal))
-            {
-                if (!guardFingerprints.TryGetValue(key, out string? fingerprint) || string.IsNullOrWhiteSpace(fingerprint))
-                {
-                    throw new InvalidOperationException("A destination eligibility dependency is unknown; native unavailability cannot be refreshed.");
-                }
-            }
-            HashSet<string> unavailable = attempts.Where(attempt => guardFingerprints[attempt.GuardKey] == attempt.GuardFingerprint).Select(attempt => attempt.TargetId ?? item.Event.Id).Where(target => ObservedVariants(item).Contains(target, StringComparer.Ordinal)).ToHashSet(StringComparer.Ordinal);
-            string signature = item.Event.ConditionSignature + "|" + string.Join('|', attempts.Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(key => key + "=" + guardFingerprints[key]));
-            updates.Add((item, unavailable, signature));
-        }
+        var updates = visit.Events.Where(item => item.Available).Select(item => (Event: item, Availability: ReadAvailability(item, guardFingerprints))).ToArray();
         foreach (var update in updates)
         {
-            update.Event.UnavailableVariants = update.Variants;
-            update.Event.Unavailable = ObservedVariants(update.Event).All(update.Variants.Contains);
-            update.Event.AvailabilityFingerprint = update.Fingerprint;
+            update.Event.UnavailableVariants = update.Availability.UnavailableVariants;
+            update.Event.Unavailable = update.Availability.Unavailable;
+            update.Event.AvailabilityFingerprint = update.Availability.Fingerprint;
         }
+    }
+
+    /// <summary>Projects native eligibility facts without changing event coverage or consuming execution.</summary>
+    public static AutoPlayEventAvailability ReadAvailability(AutoPlayEventCoverage<TDeferral> item, IReadOnlyDictionary<string, string> guardFingerprints)
+    {
+        AutoPlayUnavailableAttempt[] attempts = item.UnavailableAttempts.Where(attempt => attempt.SourceConditionSignature == item.Event.ConditionSignature && ObservedVariants(item).Contains(attempt.TargetId ?? item.Event.Id, StringComparer.Ordinal)).ToArray();
+        if (attempts.Length == 0)
+        {
+            return new(false, new(StringComparer.Ordinal), null);
+        }
+        foreach (string key in attempts.Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal))
+        {
+            if (!guardFingerprints.TryGetValue(key, out string? fingerprint) || string.IsNullOrWhiteSpace(fingerprint))
+            {
+                throw new InvalidOperationException("A destination eligibility dependency is unknown; native unavailability cannot be refreshed.");
+            }
+        }
+        HashSet<string> unavailable = attempts.Where(attempt => guardFingerprints[attempt.GuardKey] == attempt.GuardFingerprint).Select(attempt => attempt.TargetId ?? item.Event.Id).Where(target => ObservedVariants(item).Contains(target, StringComparer.Ordinal)).ToHashSet(StringComparer.Ordinal);
+        string signature = item.Event.ConditionSignature + "|" + string.Join('|', attempts.Select(attempt => attempt.GuardKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(key => key + "=" + guardFingerprints[key]));
+        return new(ObservedVariants(item).All(unavailable.Contains), unavailable, signature);
     }
 
     private static IReadOnlyList<string> ObservedVariants(AutoPlayEventCoverage<TDeferral> item)
@@ -631,7 +633,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         return visit.Events.Where(item => item.Available && !item.Unavailable && !item.PolicyDeferred && item.BlockedReason is null).OrderBy(item => item.Event.Order).ThenBy(item => item.Event.Kind).ThenBy(item => item.Event.Id, StringComparer.Ordinal);
     }
 
-    private static bool NeedsExecution(AutoPlayEventCoverage<TDeferral> item)
+    public static bool NeedsExecution(AutoPlayEventCoverage<TDeferral> item)
     {
         bool conditionsChanged = item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.HasExecutedEntry(signature) : !item.Completed;
         return item.RouteNeedsRediscovery || conditionsChanged || item.AvailabilityFingerprint is string availability && !item.CompletedAvailabilityFingerprints.Contains(availability);

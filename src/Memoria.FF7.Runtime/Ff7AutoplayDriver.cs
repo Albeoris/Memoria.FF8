@@ -10,13 +10,17 @@ public readonly record struct Ff7AutoplayInput(int Horizontal = 0, int Vertical 
 /// <summary>Native FFVII navigation and interaction adapter. The host owns scheduling, recording and presentation.</summary>
 public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 {
-    public string ReadPhysicalAvailabilityFingerprint(Ff7AutoPlayTarget target, IReadOnlyList<int>? blockingEntities = null)
+    public string ReadPhysicalAvailabilityFingerprint(Ff7AutoPlayTarget target, IReadOnlyList<int>? blockingEntities = null, int? sourceTriangle = null)
     {
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        if (sourceTriangle is int triangle)
+        {
+            player = player with { Triangle = triangle };
+        }
         if (target.Kind is Ff7AutoPlayTargetKind.ActorTalk or Ff7AutoPlayTargetKind.ActorContact)
         {
-            return ReadPhysicalAvailabilityFingerprint(target.Entity, blockingEntities);
+            return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.GetActor(target.Entity), blockingEntities, session.Host.Process.Actors);
         }
-        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways);
     }
 

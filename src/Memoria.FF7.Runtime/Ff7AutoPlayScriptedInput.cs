@@ -7,6 +7,24 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
 {
     public FieldScriptInputDemand? CurrentDemand { get; private set; }
 
+    public bool IsEntryInputSatisfied(int entity, int script)
+    {
+        FieldScriptInputDemand? demand = session.Machine.ReadEntryInputDemand(entity, script);
+        return demand is null || IsInputSatisfied(demand, session.Machine.Input);
+    }
+
+    internal static bool IsInputSatisfied(FieldScriptInputDemand demand, FieldInputState input)
+    {
+        ushort keys = demand.Kind switch
+        {
+            FieldScriptInputKind.Held => demand.Mapped ? input.Held : input.RawHeld,
+            FieldScriptInputKind.Pressed => demand.Mapped ? input.Pressed : input.RawPressed,
+            FieldScriptInputKind.Released => demand.Mapped ? input.Released : input.RawReleased,
+            _ => throw new ArgumentOutOfRangeException(nameof(demand))
+        };
+        return (keys & demand.Mask) != 0;
+    }
+
     /// <summary>Projects a source-proved entry gate; the caller owns physical contact readiness.</summary>
     public Ff7AutoplayInput? ChooseEntryInput(int entity, int script)
     {

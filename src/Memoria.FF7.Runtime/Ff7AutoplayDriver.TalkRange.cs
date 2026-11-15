@@ -43,9 +43,13 @@ public sealed partial class Ff7AutoplayDriver
         return reachable;
     }
 
-    public string ReadPhysicalAvailabilityFingerprint(int entity, IReadOnlyList<int>? blockingEntities = null)
+    public string ReadPhysicalAvailabilityFingerprint(int entity, IReadOnlyList<int>? blockingEntities = null, int? sourceTriangle = null)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        if (sourceTriangle is int triangle)
+        {
+            player = player with { Triangle = triangle };
+        }
         Ff7Actor target = session.Host.GetActor(entity);
         return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, blockingEntities, session.Host.Process.Actors);
     }
