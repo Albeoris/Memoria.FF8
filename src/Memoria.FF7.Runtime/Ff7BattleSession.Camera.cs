@@ -77,6 +77,7 @@ public sealed partial class Ff7BattleSession
         actorModelCursor = 0;
         deferredActorSubmissions.Clear();
         actorDeferAfterSubmission.Clear();
+        fixedActorMotionAdvanced.Clear();
         state = state with { RenderStageFade = state.StageFade ?? new() };
         if (state.Camera is { } camera)
         {

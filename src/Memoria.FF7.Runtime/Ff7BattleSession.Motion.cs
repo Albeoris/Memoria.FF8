@@ -212,6 +212,7 @@ public sealed partial class Ff7BattleSession
 
     private Ff7BattleMotion BeginFixedActorMotion(int slot, Ff7BattleMotion? previous, ReadOnlySpan<byte> operands)
     {
+        fixedActorMotionAdvanced.Add(slot);
         Ff7BattlePosition position = previous?.Position ?? Ff7BattlePosition.FromVector(VisualPlacement(slot).Position);
         Ff7BattlePosition step = new(BinaryPrimitives.ReadInt16LittleEndian(operands), 0, BinaryPrimitives.ReadInt16LittleEndian(operands[2..]));
         return new Ff7BattleMotion(position, step, operands[4]) { WrapHorizontalPosition = true }.Advance();

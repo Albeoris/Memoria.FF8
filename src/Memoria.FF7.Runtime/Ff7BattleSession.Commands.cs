@@ -427,6 +427,10 @@ public sealed partial class Ff7BattleSession
         Ff7BattleAnimationResources? presentation = active.Animation >= 0 ? animations : null;
         if (presentation is not null)
         {
+            if (active.Motion is { WrapHorizontalPosition: true, Remaining: > 0 })
+            {
+                fixedActorMotionAdvanced.Add(command.ActorSlot);
+            }
             active = active with { Motion = active.Motion?.Advance() };
             Ff7BattleActorState actor = Actor(command.ActorSlot);
             string model = Ff7BattleAnimationResources.ModelPrefix(actor.Identity, command.ActorSlot >= 4);
@@ -561,6 +565,10 @@ public sealed partial class Ff7BattleSession
                 else if (instruction.Opcode == 0xD8)
                 {
                     ScheduleActorAnimationSound(instruction.Operands.Span);
+                }
+                else if (instruction.Opcode == 0xD7)
+                {
+                    ScheduleActorHitmark(command.ActorSlot, instruction.Operands.Span);
                 }
                 else if (instruction.Opcode == 0xA3)
                 {

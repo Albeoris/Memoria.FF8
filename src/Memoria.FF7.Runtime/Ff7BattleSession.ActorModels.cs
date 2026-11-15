@@ -31,6 +31,7 @@ public sealed partial class Ff7BattleSession
     private int actorModelCursor;
     private readonly HashSet<int> deferredActorSubmissions = [];
     private readonly HashSet<int> actorDeferAfterSubmission = [];
+    private readonly HashSet<int> fixedActorMotionAdvanced = [];
 
     public short ActorProjectedScreenX(int slot) => ActorModelState(slot).Render?.ProjectedScreenX ?? -1;
 
@@ -211,7 +212,7 @@ public sealed partial class Ff7BattleSession
                 }
                 continue;
             }
-            if (model.Motion is { WrapHorizontalPosition: true } motion)
+            if (model.Motion is { WrapHorizontalPosition: true } motion && fixedActorMotionAdvanced.Add(model.Slot))
             {
                 Ff7BattleMotion advanced = motion.Advance();
                 ReplaceActorModel(model with { Position = advanced.Position, Motion = advanced.Remaining == 0 ? null : advanced });
@@ -232,7 +233,7 @@ public sealed partial class Ff7BattleSession
             {
                 continue;
             }
-            if (previous.Motion is { } motion)
+            if (previous.Motion is { WrapHorizontalPosition: false } motion)
             {
                 motion = motion.Advance();
                 previous = previous with { Motion = motion.Remaining == 0 ? null : motion, Position = motion.Position };
@@ -252,6 +253,9 @@ public sealed partial class Ff7BattleSession
                         break;
                     case 0xD8:
                         ScheduleActorAnimationSound(instruction.Operands.Span);
+                        break;
+                    case 0xD7:
+                        ScheduleActorHitmark(previous.Slot, instruction.Operands.Span);
                         break;
                     case 0xC0:
                         break;
@@ -276,6 +280,11 @@ public sealed partial class Ff7BattleSession
                         {
                             DispatchLinkedActorAction(previous.Slot, instruction, copyFacing: false);
                         }
+                        break;
+                    case 0xC8:
+                        model = ActorModelState(previous.Slot);
+                        Ff7BattleMotion fixedMotion = BeginFixedActorMotion(previous.Slot, model.Motion, instruction.Operands.Span);
+                        ReplaceActorModel(model with { Position = fixedMotion.Position, Motion = fixedMotion.Remaining == 0 ? null : fixedMotion });
                         break;
                     case 0xFB:
                         model = ActorModelState(previous.Slot);
@@ -334,7 +343,7 @@ public sealed partial class Ff7BattleSession
                     case 0xFE:
                     case 0xFF:
                         model = ActorModelState(previous.Slot);
-                        ReplaceActorModel(model with { Action = Actor(model.Slot).Actor.IdleAction, Pose = null, Ready = true, IdleStarted = PresentationTick, Reaction = false, ReactionKnockedOut = false, LinkedAction = false, Motion = null });
+                        ReplaceActorModel(model with { Action = Actor(model.Slot).Actor.IdleAction, Pose = null, Ready = true, IdleStarted = PresentationTick, Reaction = false, ReactionKnockedOut = false, LinkedAction = false, Motion = model.Motion is { WrapHorizontalPosition: true, Remaining: > 0 } ? model.Motion : null });
                         break;
                     default:
                         throw new NotSupportedException($"FFVII actor reaction opcode {instruction.Opcode:X2} requires its native model-event owner.");
