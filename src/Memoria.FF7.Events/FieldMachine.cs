@@ -24,6 +24,7 @@ public sealed partial class FieldMachine
     public string ProgramIdentity => program.Identity;
     public long Tick { get; private set; }
     public bool Initialized { get; private set; }
+    public bool HasCompletedInitialCycle => Initialized && Tick > 0;
     public FieldInputState Input { get; private set; } = new();
     public FieldCycleCursor? CycleCursor { get; private set; }
     public Action<FieldScriptReturn>? ScriptReturned { get; set; }

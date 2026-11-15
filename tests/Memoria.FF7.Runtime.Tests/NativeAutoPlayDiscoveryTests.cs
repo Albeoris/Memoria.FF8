@@ -19,6 +19,10 @@ internal static class NativeAutoPlayDiscoveryTests
         string before = JsonSerializer.Serialize(session.Capture());
         Ff7AutoPlayDiscovery discovery = new(session);
         Ff7AutoPlayObservation observed = discovery.Observe();
+        if (!session.Machine.HasCompletedInitialCycle)
+        {
+            Check(session.Machine.Initialized && !observed.CanAcceptInput, "Completed initialization exposed a frontier before the first normal native callback.");
+        }
         Check(before == JsonSerializer.Serialize(session.Capture()), "Discovery changed the native VM, process, inputs, progress or RNG.");
         Check(JsonSerializer.Serialize(observed) == JsonSerializer.Serialize(discovery.Observe()), "Read-only discovery was not deterministic.");
         Check(observed.Events.Select(target => target.Id).Distinct(StringComparer.Ordinal).Count() == observed.Events.Length, "Native targets have duplicate identities.");
@@ -38,6 +42,21 @@ internal static class NativeAutoPlayDiscoveryTests
                     Check(target.SegmentStart is not null && target.SegmentEnd is not null && session.Host.Process.Lines.Any(line => line.Entity == target.Entity && line.Enabled == 1), "A LINE target lost its geometry or enabled owner.");
                 }
             }
+        }
+        if (!session.Machine.HasCompletedInitialCycle)
+        {
+            byte[] source = File.ReadAllBytes(path);
+            using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("A pending initial native cycle cannot create a choice save."));
+            Ff7AutoPlayActiveEvent? active = policy.State.Active;
+            Ff7AutoplayInput input = policy.ChooseInput(new(session));
+            Check(input.Horizontal == 0 && input.Vertical == 0 && input.Held == 0 && !input.Talk && policy.State.Active == active, "Planning ran before the first native main/control callback.");
+            session.SetInput(0, 0);
+            session.MovePlayer(0, 0, true);
+            session.AdvanceTick(advanceClock: false);
+            Check(session.Machine.HasCompletedInitialCycle, "A complete ordinary native callback did not advance the derived readiness phase.");
+            Ff7AutoPlayObservation after = discovery.Observe();
+            Check(!session.Host.Process.PlayerLocked || !after.CanAcceptInput, "A main-owned native control lock was ignored after the initial cycle.");
+            Check(source.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The detached initial-cycle readiness check changed its standalone source.");
         }
     }
 

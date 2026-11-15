@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--initialization-only", StringComparer.Ordinal))
+{
+    InitContinuation();
+    return 0;
+}
+
 if (args.Contains("--world-analysis-only", StringComparer.Ordinal))
 {
     WorldScriptAnalysisTests.Run();
@@ -338,6 +344,7 @@ static void BankWidths()
 
 static void InitContinuation()
 {
+    FieldInitializationTests.Run();
     var machine = Ready([0x80, 0x50, 0, 9, 0, 0x81, 0x60, 1, 0x34, 0xF2, 0]);
     Equal((byte)9, machine.Variables.ReadByte(FieldBank.MapByte, 0));
     Equal(21, machine.Capture().Entities[0].ProgramCounter);

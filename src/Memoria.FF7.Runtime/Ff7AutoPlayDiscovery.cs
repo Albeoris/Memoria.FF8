@@ -41,7 +41,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         string identity = session.Machine.ProgramIdentity;
         string visit = $"ff7:{session.MapId}:{identity}";
         Ff7FieldProcess process = session.Host.Process;
-        bool canAccept = session.World is null && !session.HasPendingTick && session.Machine.Initialized && process.GlobalCommand == Ff7GlobalCommand.None && !process.PlayerLocked && process.Join is null && process.Transition is null && !process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)) && process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is null && actor.Jump is null && !session.Host.HasScriptedMotion(actor));
+        bool canAccept = session.World is null && !session.HasPendingTick && session.Machine.HasCompletedInitialCycle && process.GlobalCommand == Ff7GlobalCommand.None && !process.PlayerLocked && process.Join is null && process.Transition is null && !process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)) && process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is null && actor.Jump is null && !session.Host.HasScriptedMotion(actor));
         List<Ff7AutoPlayTarget> events = [];
         HashSet<FieldVariableRead> persistentReads = [];
         HashSet<FieldHostRead> globalHostReads = [];
