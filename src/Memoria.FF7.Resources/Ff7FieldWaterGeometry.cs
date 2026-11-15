@@ -13,17 +13,45 @@ public sealed record Ff7FieldWaterGeometry(IReadOnlyList<Ff7FieldWaterPartMask> 
 
 public sealed record Ff7FieldWaterColorRegion(bool HasThreshold, double Height, bool UseY, bool All = false)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7FieldWaterProfileOneRegion? ProfileOne { get; init; }
+
     public void Validate()
     {
         if (!double.IsFinite(Height) || All && !HasThreshold)
         {
             throw new InvalidDataException("Native water color regions require a finite captured threshold or an explicit ordered-comparison result.");
         }
+        ProfileOne?.Validate();
     }
 
     public bool Contains(Vector3 position)
     {
-        return HasThreshold && (All || (UseY ? position.Y : position.Z) > Height);
+        float height = UseY ? position.Y : position.Z;
+        return HasThreshold && (ProfileOne is { } profile ? height > profile.PlaneHeight(height) : All || height > Height);
+    }
+}
+
+public sealed record Ff7FieldWaterProfileOneRegion(short Level, float FirstScalar)
+{
+    public void Validate()
+    {
+        if (!float.IsFinite(FirstScalar))
+        {
+            throw new InvalidDataException("Native water profile one requires its finite first-sample scalar.");
+        }
+    }
+
+    public double PlaneHeight(float height)
+    {
+        return PlaneHeight(Level, FirstScalar, height);
+    }
+
+    internal static double PlaneHeight(short level, float firstScalar, float height)
+    {
+        float factor = height < 52 ? 1.85f : (float)(((double)height - 52) * 0.017f + firstScalar);
+        factor = (float)(40d * factor / Math.Abs((int)level) + ((int)level + 40) * (double)0.002f);
+        return -(double)level * factor;
     }
 }
 
@@ -35,7 +63,7 @@ public static class Ff7FieldWaterGeometryMath
         {
             throw new InvalidDataException("Native water sampling requires finite model and camera coordinates.");
         }
-        if (parameters.EnvironmentProfile is not (0 or 3 or 4))
+        if (parameters.EnvironmentProfile is not (0 or 1 or 3 or 4))
         {
             throw new NotSupportedException("This native water environment requires its distinct color and splash geometry contract.");
         }
@@ -52,6 +80,7 @@ public static class Ff7FieldWaterGeometryMath
         Matrix4x4 actor = basis * Matrix4x4.CreateRotationZ(direction * MathF.Tau / 256) * Matrix4x4.CreateTranslation(position);
         List<Ff7FieldWaterPartMask> masks = [];
         double? colorPlane = null;
+        float? profileOneColorScalar = null;
         for (int partIndex = 0; partIndex < model.Geometry.Count; partIndex++)
         {
             Ff7BoneGeometry part = model.Geometry[partIndex];
@@ -70,8 +99,19 @@ public static class Ff7FieldWaterGeometryMath
                             throw new InvalidDataException("Native water colors require finite original vertices and pose transforms.");
                         }
                         float height = (parameters.Flags & 4) != 0 ? world.Y : world.Z;
-                        colorPlane ??= PlaneHeight(height, world.Y, parameters);
-                        modified[vertex] = height > colorPlane.Value;
+                        double plane;
+                        if (parameters.EnvironmentProfile == 1)
+                        {
+                            profileOneColorScalar ??= ProfileOneScalar(height);
+                            plane = Ff7FieldWaterProfileOneRegion.PlaneHeight(parameters.Level, profileOneColorScalar.Value, height);
+                            colorPlane ??= plane;
+                        }
+                        else
+                        {
+                            colorPlane ??= PlaneHeight(height, world.Y, parameters);
+                            plane = colorPlane.Value;
+                        }
+                        modified[vertex] = height > plane;
                     }
                 }
             }
@@ -80,9 +120,10 @@ public static class Ff7FieldWaterGeometryMath
         List<Ff7FieldWaterSplashCandidate> splashes = [];
         if (!emitSplashes || parameters.EnvironmentProfile == 0)
         {
-            return new(masks.AsReadOnly(), splashes.AsReadOnly()) { ColorRegion = Region(colorPlane, parameters.Flags) };
+            return new(masks.AsReadOnly(), splashes.AsReadOnly()) { ColorRegion = Region(colorPlane, parameters, profileOneColorScalar) };
         }
         double? splashPlane = null;
+        float? profileOneSplashScalar = null;
         HashSet<int> drawableBones = model.Geometry.Select(part => part.BoneIndex).ToHashSet();
         foreach (HrcBone bone in model.Hierarchy.Bones)
         {
@@ -93,8 +134,17 @@ public static class Ff7FieldWaterGeometryMath
             Matrix4x4 transform = pose.Bones[bone.Index] * actor;
             Vector3 start = Vector3.Transform(Vector3.Zero, transform);
             Vector3 end = Vector3.Transform(new Vector3(0, 0, -(bone.Length + 1 / basis.M11)), transform);
-            splashPlane ??= PlaneHeight(start.Z, start.Y, parameters);
-            double plane = splashPlane.Value;
+            double plane;
+            if (parameters.EnvironmentProfile == 1)
+            {
+                profileOneSplashScalar ??= ProfileOneScalar(start.Z);
+                plane = Ff7FieldWaterProfileOneRegion.PlaneHeight(parameters.Level, profileOneSplashScalar.Value, start.Z);
+            }
+            else
+            {
+                splashPlane ??= PlaneHeight(start.Z, start.Y, parameters);
+                plane = splashPlane.Value;
+            }
             if (!(start.Z > plane) || end.Z == start.Z)
             {
                 continue;
@@ -115,7 +165,7 @@ public static class Ff7FieldWaterGeometryMath
             short y = unchecked((short)(int)(projected.Y - 8));
             splashes.Add(new(bone.Index, x, y + 8, 1 - projected.Z, 12));
         }
-        return new(masks.AsReadOnly(), splashes.AsReadOnly()) { ColorRegion = Region(colorPlane, parameters.Flags) };
+        return new(masks.AsReadOnly(), splashes.AsReadOnly()) { ColorRegion = Region(colorPlane, parameters, profileOneColorScalar) };
 
         Vector3 Project(Vector3 world)
         {
@@ -124,14 +174,23 @@ public static class Ff7FieldWaterGeometryMath
         }
     }
 
-    private static Ff7FieldWaterColorRegion Region(double? plane, byte flags)
+    private static Ff7FieldWaterColorRegion Region(double? plane, Ff7FieldWaterParameters parameters, float? profileOneScalar)
     {
-        bool useY = (flags & 4) != 0;
+        bool useY = (parameters.Flags & 4) != 0;
+        if (parameters.EnvironmentProfile == 1 && profileOneScalar is float scalar)
+        {
+            return new(parameters.Level != 0, plane is double height && double.IsFinite(height) ? height : 0, useY) { ProfileOne = new(parameters.Level, scalar) };
+        }
         if (plane is null || double.IsNaN(plane.Value) || double.IsPositiveInfinity(plane.Value))
         {
             return new(false, 0, useY);
         }
         return double.IsNegativeInfinity(plane.Value) ? new(true, 0, useY, All: true) : new(true, plane.Value, useY);
+    }
+
+    private static float ProfileOneScalar(float height)
+    {
+        return height < 35 ? 1.43f : (float)(((double)height - 35) * 0.006f + 1.43f);
     }
 
     private static double PlaneHeight(float height, float firstY, Ff7FieldWaterParameters parameters)
