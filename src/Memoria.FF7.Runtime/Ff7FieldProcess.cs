@@ -26,6 +26,8 @@ public sealed record Ff7Actor
     public Ff7NativeColorTransitionState? NativeColorTransition { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7NativeWaterEffectState? NativeWaterEffect { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7NativeTransparencyState? NativeTransparency { get; init; }
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }
@@ -304,6 +306,7 @@ public sealed record Ff7FieldProcess
             actor.ModelEffect?.Validate();
             actor.NativeColorOffset?.Validate();
             actor.NativeWaterEffect?.Validate();
+            actor.NativeTransparency?.Validate();
             if (actor.NativeWaterEffect is { } waterEffect && waterEffect.ModelSlot != actor.Slot)
             {
                 throw new InvalidDataException("FFVII water-effect cache references another physical model slot.");

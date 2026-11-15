@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-transparency-only", StringComparer.Ordinal))
+{
+    NativeTransparencyTests.Run();
+    return 0;
+}
+
 if (args.Contains("--actor-reaction-motion-only", StringComparer.Ordinal))
 {
     NativeReactionMotionTests.Run();
@@ -652,6 +658,7 @@ var tests = new (string Name, Action Run)[]
     ("native background layer depth state and field reset", NativeBackgroundDepthTests.Run),
     ("native background scroll phase and resource restoration", NativeBackgroundScrollTests.Run),
     ("native water initialization cache and cold continuation", NativeWaterEffectTests.Run),
+    ("native transparency queue and cold continuation", NativeTransparencyTests.Run),
     ("native player movement animation configuration", NativeMovementAnimationTests.Run),
     ("native window number state and reset", NativeWindowNumberTests.Run),
     ("native shared message entity ownership", NativeSharedMessageTests.Run),

@@ -468,6 +468,8 @@ internal sealed partial class Ff7Scene : IDisposable
         Ff7ActorVisual[] actors = sampledActors.Where(actor => IsDrawableActor(actor, eligibilityCamera, cameraOffset, state.CameraFollowPlayer == false)).Select(actor => new Ff7ActorVisual(actor.Entity, actor.Model, checked(actor.X4096 + actor.OffsetX * 4096), checked(actor.Y4096 + actor.OffsetY * 4096), checked(actor.Z4096 + actor.OffsetZ * 4096), checked((byte)actor.Direction), actor.Animation, actor.AnimationFrame16, actor.Visible)
         {
             PartyCharacter = actor.PartyCharacter,
+            PhysicalSlot = actor.Slot,
+            NativeTransparencyMode = actor.NativeTransparency?.Mode ?? 0,
             AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled,
             NativeEyeLeft = actor.NativeEyeLeft,
             NativeEyeRight = actor.NativeEyeRight,

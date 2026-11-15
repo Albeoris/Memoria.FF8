@@ -9,6 +9,8 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
 {
     public int PartyCharacter { get; init; } = -1;
     public bool IsWorldModel { get; init; }
+    public int PhysicalSlot { get; init; }
+    public byte NativeTransparencyMode { get; init; }
     public int FirstAnimationFrame { get; init; }
     public int LastAnimationFrame { get; init; } = -1;
     public bool AnimationLoop { get; init; }
@@ -139,7 +141,7 @@ public sealed partial class Ff7FieldRenderer
             }
             Ff7ModelMaterialState modelState = new();
             TriangleMaterial? lastActorMaterial = null;
-            foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible))
+            foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible && actor.NativeTransparencyMode == 0).OrderBy(actor => actor.PhysicalSlot))
             {
                 DrawActor(renderer, width, height, frame, actor, modelState, ref lastActorMaterial);
             }
@@ -147,6 +149,10 @@ public sealed partial class Ff7FieldRenderer
             if (drawBackground)
             {
                 DrawBackground(renderer, width, height, frame, true);
+            }
+            foreach (Ff7ActorVisual actor in frame.Actors.Where(actor => actor.Visible && actor.NativeTransparencyMode != 0).OrderBy(actor => actor.PhysicalSlot))
+            {
+                DrawActor(renderer, width, height, frame, actor, modelState, ref lastActorMaterial);
             }
             if (frame.QuadColorArgb is uint quad && (quad >> 24) != 0)
             {
@@ -307,6 +313,10 @@ public sealed partial class Ff7FieldRenderer
                         original = appearanceColor(vertex.AppearanceVertexIndex, original);
                     }
                     Vector4 color = vertex.Normal is Vector3 normal ? lighting.Shade(normal, original, frame.FieldColorArgb) : Tint(Color(original), frame.FieldColorArgb);
+                    if (actor.NativeTransparencyMode != 0)
+                    {
+                        color.W = 192f / 255;
+                    }
                     return new(FieldPoint(new Vector2(point.X, point.Y), width, height), projection.Project(point.Z), 1 / point.Z, vertex.Uv, color);
                 }
                 TriangleVertex a = Vertex(triangle.A);
@@ -314,7 +324,7 @@ public sealed partial class Ff7FieldRenderer
                 TriangleVertex c = Vertex(triangle.C);
                 if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
                 {
-                    TriangleMaterial submittedMaterial = triangle.Material with { ClipRectangle = FieldClip(width, height) };
+                    TriangleMaterial submittedMaterial = triangle.Material with { ClipRectangle = FieldClip(width, height), Blend = actor.NativeTransparencyMode != 0 && triangle.Material.Blend != TriangleBlend.Replace ? TriangleBlend.Alpha : triangle.Material.Blend };
                     renderer.Draw(a, b, c, submittedMaterial);
                     lastActorMaterial = submittedMaterial;
                 }
@@ -363,7 +373,7 @@ public sealed partial class Ff7FieldRenderer
                         modelImages.Add(tex, texture);
                     }
                 }
-                currentState.Apply(state);
+                currentState.Apply(state, actor.NativeTransparencyMode != 0);
                 if (!modelNormalBindings.TryGetValue((model, groupIndex), out int[]? normalBindings))
                 {
                     normalBindings = Ff7FieldLighting.BindNormals(model, group);
@@ -389,7 +399,14 @@ public sealed partial class Ff7FieldRenderer
                             originalColor = sourceColor(partIndex, vertex, originalColor);
                         }
                         Vector4 color = normalIndex >= 0 && actor.ModelEffects?.SuppressNativeLighting != true ? lighting.Shade(Vector3.TransformNormal(model.Normals[normalIndex], normalTransform), originalColor, frame.FieldColorArgb) : Tint(Color(originalColor), frame.FieldColorArgb);
-                        color.W *= state.VertexAlpha / 255f;
+                        if (actor.NativeTransparencyMode != 0)
+                        {
+                            color.W = 192f / 255;
+                        }
+                        else
+                        {
+                            color.W *= state.VertexAlpha / 255f;
+                        }
                         return new(FieldPoint(new Vector2(position.X, position.Y), width, height), projection.Project(position.Z), 1 / position.Z, uv, color);
                     }
                     TriangleVertex a = Vertex(polygon.A);

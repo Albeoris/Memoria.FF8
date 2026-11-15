@@ -13,7 +13,7 @@ public sealed class Ff7ModelMaterialState
     public float AlphaReference = 1f / 255;
     public TriangleSampler Sampler = TriangleSampler.PointWrap;
 
-    public void Apply(PcRenderState state)
+    public void Apply(PcRenderState state, bool forceAlphaBlend = false)
     {
         const uint supportedStateMask = 0x2 | 0x4 | 0x8 | 0x100 | 0x200 | 0x400 | 0x800 | 0x2000 | 0x4000 | 0x8000 | 0x10000 | 0x20000;
         if ((state.Features & ~supportedStateMask) != 0)
@@ -25,7 +25,7 @@ public sealed class Ff7ModelMaterialState
         if (Updated(0x400))
         {
             BlendMode = checked((int)state.BlendMode);
-            Blend = !Enabled(0x400) ? TriangleBlend.Replace : state.BlendMode switch
+            Blend = !Enabled(0x400) ? TriangleBlend.Replace : forceAlphaBlend ? TriangleBlend.Alpha : state.BlendMode switch
             {
                 0 => TriangleBlend.HalfAdd,
                 1 => TriangleBlend.Add,
