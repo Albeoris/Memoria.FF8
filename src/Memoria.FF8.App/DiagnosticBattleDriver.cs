@@ -67,6 +67,10 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         EnemyAbility?.Validate();
         EnemyTrigger?.Validate(Input);
+        if (EnemyAbility is { MaximumTurnAttempts: > 1 } && !IndependentRosterEntry)
+        {
+            throw new InvalidDataException("A repeated native turn probe requires an independent original entry for each measured use.");
+        }
         if (DoomExpiration && (Input is not { Kind: BattleInputKind.Action, Ability: BattleAbility.NativeCommand, ActionId: (30 << 16) | 4, TargetId: not null } ||
             Input.ActorId == Input.TargetId || ExpectedEffect != 9 || ExpectedNativeAction != 43 || ExpectedNativeCommand != 246 ||
             !IndependentRosterEntry || EnemyAbility is not null || EnemyTrigger is not null || SupportingEffects is not { Length: 0 } || SupportingInvocations is not { Length: 0 }))
@@ -412,6 +416,12 @@ internal sealed class DiagnosticBattleDriver
             Fail("ENEMY_TRIGGER_CALLBACK_IDENTITY_MISMATCH");
             return;
         }
+        if (recipe.EnemyAbility?.TurnScriptSha256 is { } turnScript &&
+            (dispatch.NativeAiCallbackStage != 1 || !turnScript.Equals(dispatch.NativeAiScriptSha256, StringComparison.OrdinalIgnoreCase)))
+        {
+            Fail("ENEMY_TURN_SCRIPT_IDENTITY_MISMATCH");
+            return;
+        }
         if (Stage == DiagnosticDriverStage.AwaitDispatch)
         {
             dispatches.Add(dispatch);
@@ -473,7 +483,7 @@ internal sealed class DiagnosticBattleDriver
             {
                 Stage = recipe.Presentation is null ? DiagnosticDriverStage.AwaitDispatch : DiagnosticDriverStage.AwaitPresentation;
                 executionStarted = observation.Seconds;
-                enemyTriggerAttempts = recipe.EnemyTrigger is null ? 0 : 1;
+                enemyTriggerAttempts = recipe.EnemyTrigger is not null || recipe.EnemyAbility is { MaximumTurnAttempts: > 1 } ? 1 : 0;
                 return recipe.Presentation is null;
             }
         }
@@ -495,6 +505,16 @@ internal sealed class DiagnosticBattleDriver
             if (enemyTriggerAttempts >= trigger.MaximumAttempts)
             {
                 Fail("ENEMY_TRIGGER_ATTEMPTS_EXHAUSTED");
+                return false;
+            }
+            enemyTriggerAttempts++;
+            return true;
+        }
+        else if (Stage == DiagnosticDriverStage.AwaitDispatch && recipe.EnemyAbility is { MaximumTurnAttempts: > 1 } turn && observation.Ready && observation.Drained)
+        {
+            if (enemyTriggerAttempts >= turn.MaximumTurnAttempts)
+            {
+                Fail("ENEMY_TURN_ATTEMPTS_EXHAUSTED");
                 return false;
             }
             enemyTriggerAttempts++;

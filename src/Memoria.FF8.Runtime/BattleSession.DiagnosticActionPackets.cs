@@ -77,7 +77,12 @@ public sealed partial class BattleSession
     public BattleDiagnosticEffectInvocation ObserveDiagnosticEffectInvocation(BattleDiagnosticEffectDispatch dispatch)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
-        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || diagnosticPacketReadEffect is not { Parameters: { } parameters } effect || effect.RequestedEffect != dispatch.RequestedEffect || effect.Binding.Effect != dispatch.ExecutedEffect || OriginalDiagnosticSource(parameters) != dispatch.NativeActorIndex || OriginalDiagnosticHeaderIndex(parameters.Header) != dispatch.NativeHeaderIndex || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header))
+        if (expandedPresentationProcess is { } process)
+        {
+            return process.ObserveDiagnosticEffectInvocation(dispatch);
+        }
+        BattleSession owner = hostedDiagnosticOwner ?? this;
+        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != owner.diagnosticDispatchSerial || owner.NativeHostCallbacks != dispatch.Callback || diagnosticPacketReadEffect is not { Parameters: { } parameters } effect || effect.RequestedEffect != dispatch.RequestedEffect || effect.Binding.Effect != dispatch.ExecutedEffect || OriginalDiagnosticSource(parameters) != dispatch.NativeActorIndex || OriginalDiagnosticHeaderIndex(parameters.Header) != dispatch.NativeHeaderIndex || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header))
         {
             throw new InvalidOperationException("Diagnostic invocation parameters require the actual same-thread entered-effect dispatch and header generation.");
         }
@@ -142,7 +147,12 @@ public sealed partial class BattleSession
     public NativeBattleRetainedActionPackets ObserveDiagnosticDuelClosingPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         ArgumentNullException.ThrowIfNull(dispatch);
-        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != diagnosticDispatchSerial || NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header) || dispatch.ActorId is null || !byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.ModelId != 1 || actor.NativeLimit is not { CharacterId: 1, Command: 11 } || nativeDuelProcesses.Count != 1 || !nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? duel) || duel is not { Phase: BattleNativeDuelPhase.Finisher, Selection1D28DEF: 254, RemainingTimer: <= 0 } || dispatch.NativeCommand != 241 || dispatch.ActionId != 65532 || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || diagnosticPacketReadEffect is not { RequestedEffect: 274, Binding.Effect: 274, Parameters: { Parameter80: 8, Parameter82: 0 } parameters } || parameters.Source != CreatePresentationModelOwner(actor) || parameters.Header != new BattleActionHeaderReference(header) || NativeEffectMemory?.Entry21DFEC4?.Effect != 274)
+        if (expandedPresentationProcess is { } process)
+        {
+            return process.ObserveDiagnosticDuelClosingPackets(dispatch);
+        }
+        BattleSession owner = hostedDiagnosticOwner ?? this;
+        if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId || dispatch.Serial <= 0 || dispatch.Serial != owner.diagnosticDispatchSerial || owner.NativeHostCallbacks != dispatch.Callback || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation || nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header) || dispatch.ActorId is null || !owner.byId.TryGetValue(dispatch.ActorId, out BattleCombatant? actor) || actor.ModelId != 1 || actor.NativeLimit is not { CharacterId: 1, Command: 11 } || owner.nativeDuelProcesses.Count != 1 || !owner.nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? duel) || duel is not { Phase: BattleNativeDuelPhase.Finisher, Selection1D28DEF: 254, RemainingTimer: <= 0 } || dispatch.NativeCommand != 241 || dispatch.ActionId != 65532 || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || diagnosticPacketReadEffect is not { RequestedEffect: 274, Binding.Effect: 274, Parameters: { Parameter80: 8, Parameter82: 0 } parameters } || parameters.Source != CreatePresentationModelOwner(actor) || parameters.Header != new BattleActionHeaderReference(header) || NativeEffectMemory?.Entry21DFEC4?.Effect != 274)
         {
             throw new InvalidDataException("Duel closing packets require the actual synchronous timed-out native241/FFFC retained274 control owner. " + DescribeDiagnosticDuelClosingGuard(dispatch));
         }
@@ -158,8 +168,9 @@ public sealed partial class BattleSession
 
     private string DescribeDiagnosticDuelClosingGuard(BattleDiagnosticEffectDispatch dispatch)
     {
-        BattleCombatant? actor = dispatch.ActorId is { } id && byId.TryGetValue(id, out BattleCombatant? found) ? found : null;
-        BattleNativeDuelState? duel = actor is not null && nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? state) ? state : null;
+        BattleSession owner = hostedDiagnosticOwner ?? this;
+        BattleCombatant? actor = dispatch.ActorId is { } id && owner.byId.TryGetValue(id, out BattleCombatant? found) ? found : null;
+        BattleNativeDuelState? duel = actor is not null && owner.nativeDuelProcesses.TryGetValue(actor.Id, out BattleNativeDuelState? state) ? state : null;
         long? generation = dispatch.NativeHeaderIndex is int selected && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(selected, out long actual) ? actual : null;
         NativeBattleRetainedActionHeaderSlot? header = dispatch.NativeHeaderIndex is int index && index >= 0 && index < NativeBattleRetainedActionPackets.HeaderCapacity ? nativeActionPackets.ExportRetained().Headers[index] : null;
         byte? HeaderByte(int offset) => header is not null && !header.Payload.IsDefault && header.Payload.Length > offset && (header.UnknownByteMask & (1u << offset)) == 0 ? header.Payload[offset] : null;
@@ -169,9 +180,9 @@ public sealed partial class BattleSession
         {
             SameDispatch = ReferenceEquals(dispatch, diagnosticPacketReadDispatch),
             SameThread = diagnosticPacketReadThread == Environment.CurrentManagedThreadId,
-            CurrentSerial = diagnosticDispatchSerial,
+            CurrentSerial = owner.diagnosticDispatchSerial,
             dispatch.Serial,
-            Callback = NativeHostCallbacks,
+            Callback = owner.NativeHostCallbacks,
             DispatchCallback = dispatch.Callback,
             dispatch.NativeCommand,
             dispatch.ActionId,
@@ -185,7 +196,7 @@ public sealed partial class BattleSession
             ActorIndex = actor?.NativeActorIndex,
             LimitCharacter = actor?.NativeLimit?.CharacterId,
             LimitCommand = actor?.NativeLimit?.Command,
-            DuelOwners = nativeDuelProcesses.Count,
+            DuelOwners = owner.nativeDuelProcesses.Count,
             Duel = duel is null ? null : new { Phase = duel.Phase.ToString(), duel.Selection1D28DEF, duel.RemainingTimer, duel.InitialTimer, TargetMask = NativeBattleTargetRequestAdapter.ProjectOriginalWord(duel.TargetRequest, ReadOriginalTargetSlot) },
             PublishedEffect = effect is null ? null : new { effect.RequestedEffect, effect.Binding.Effect, Actor = effect.Parameters?.Source, Header = effect.Parameters?.Header, Selector80 = effect.Parameters?.Parameter80, Ready81 = effect.Parameters?.Parameter81, Variant82 = effect.Parameters?.Parameter82 },
             EnteredSelector80 = diagnosticPacketReadEffect?.Parameters?.Parameter80,

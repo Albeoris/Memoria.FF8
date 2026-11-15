@@ -158,7 +158,7 @@ internal sealed partial class GameWorld
             DiagnosticReceipt = DiagnosticReceipt! with
             {
                 EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original entry/declared target/command readiness callbacks before presentation; measured focal executions retain normal real-time pacing."),
-                RosterMembers = request.Roster is null ? null : ObserveDiagnosticRosterMembers(active)
+                RosterMembers = request.Roster is null ? null : ObserveDiagnosticRosterMembers(active, request.Roster.MountedReserveSceneSlot is null)
             };
         }
         finally
@@ -246,7 +246,7 @@ internal sealed partial class GameWorld
             {
                 DiagnosticReceipt = DiagnosticReceipt with
                 {
-                    RosterMembers = ObserveDiagnosticRosterMembers(battle),
+                    RosterMembers = ObserveDiagnosticRosterMembers(battle, request.Roster.MountedReserveSceneSlot is null),
                     RosterDonors = battle.ReadDefinition().AddedEnemySources
                 };
             }

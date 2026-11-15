@@ -9,6 +9,8 @@ namespace Memoria.FF8;
 internal sealed record DiagnosticBattleRoster([property: JsonRequired] ImmutableArray<BattleEnemyRosterSource> Donors, [property: JsonRequired] int OriginalSceneSlot)
 {
     public int? DonorCount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MountedReserveSceneSlot { get; init; }
 
     internal void Validate()
     {
@@ -16,7 +18,8 @@ internal sealed record DiagnosticBattleRoster([property: JsonRequired] Immutable
         if (Donors.IsDefaultOrEmpty || Donors.Length > (DonorCount.HasValue ? 256 : ExpandedBattleFormation.MaximumAddedEnemies) ||
             count < 1 || count > ExpandedBattleFormation.MaximumAddedEnemies || count > Donors.Length || Donors.Any(source => source is null) ||
             Donors.Select(source => (source.Formation, source.SceneSlot)).Distinct().Count() != Donors.Length ||
-            OriginalSceneSlot is < 0 or >= ExpandedBattleFormation.OriginalEnemyPrototypeCount)
+            OriginalSceneSlot is < 0 or >= ExpandedBattleFormation.OriginalEnemyPrototypeCount ||
+            MountedReserveSceneSlot is < 0 or >= ExpandedBattleFormation.OriginalEnemyPrototypeCount || MountedReserveSceneSlot == OriginalSceneSlot)
         {
             throw new InvalidDataException("Diagnostic roster requires distinct installed donor placements and one declared active original enemy.");
         }
@@ -25,6 +28,12 @@ internal sealed record DiagnosticBattleRoster([property: JsonRequired] Immutable
             source.Validate();
         }
     }
+}
+
+internal sealed record DiagnosticMountedReserveReceipt(long DispatchSerial, long DispatchCallback, DiagnosticBattleRosterMember[] MembersAtDispatch, BattleDiagnosticTarget ReserveAtDispatch)
+{
+    public long? ActivationCallback { get; init; }
+    public DiagnosticBattleRosterMember[]? MembersAfterActivation { get; init; }
 }
 
 internal sealed partial class GameWorld
@@ -69,11 +78,33 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("The diagnostic allocation target must have its original referenced inactive enemy prototype.");
         }
-        return [caster, .. prototypes];
+        if (roster.MountedReserveSceneSlot is not int reserveSlot)
+        {
+            return [caster, .. prototypes];
+        }
+        BattleEnemyPlacement mounted = encounter.Slots.SingleOrDefault(enemy => enemy.Slot == reserveSlot &&
+            IsEnemyPrototype(enemy) && enemy.Enabled && enemy.Hidden && enemy.InitiallySuspended && enemy.Untargetable)
+            ?? throw new InvalidDataException("The declared mounted reserve must be an enabled, hidden, suspended and untargetable original participant.");
+        return [caster, mounted, .. prototypes];
     }
 
-    private static DiagnosticBattleRosterMember[] ObserveDiagnosticRosterMembers(BattleSession active)
+    private static int? DiagnosticOriginalEnemyOrdinal(BattleEncounter encounter, DiagnosticBattleRoster? roster, BattleEnemyPlacement enemy, bool original)
     {
-        return active.Combatants.Where(actor => actor.IsActive || actor.IsPlayer).Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray();
+        if (!original || !enemy.Enabled || roster?.MountedReserveSceneSlot is null)
+        {
+            return null;
+        }
+        int ordinal = Array.FindIndex(encounter.Slots.Where(slot => slot.Enabled && IsEnemyPrototype(slot)).ToArray(), slot => slot.Slot == enemy.Slot);
+        if (ordinal < 0)
+        {
+            throw new InvalidDataException("The retained participant has no installed initial physical alias.");
+        }
+        return ordinal;
+    }
+
+    internal static DiagnosticBattleRosterMember[] ObserveDiagnosticRosterMembers(BattleSession active, bool includeMountedReserve = true)
+    {
+        return active.Combatants.Where(actor => actor.IsPlayer || actor.IsActive && (includeMountedReserve || !actor.Hidden || !actor.Suspended || !actor.Untargetable))
+            .Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray();
     }
 }

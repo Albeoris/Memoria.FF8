@@ -87,6 +87,16 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.ObserveDiagnosticActionPackets(dispatch);
     }
 
+    internal BattleDiagnosticEffectInvocation ObserveDiagnosticEffectInvocation(BattleDiagnosticEffectDispatch dispatch)
+    {
+        return presentation.ObserveDiagnosticEffectInvocation(dispatch);
+    }
+
+    internal NativeBattleRetainedActionPackets ObserveDiagnosticDuelClosingPackets(BattleDiagnosticEffectDispatch dispatch)
+    {
+        return presentation.ObserveDiagnosticDuelClosingPackets(dispatch);
+    }
+
     internal BattleDiagnosticHostedShotPackets ObserveDiagnosticHostedShotPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         return presentation.ReadDiagnosticHostedShotPackets(dispatch);

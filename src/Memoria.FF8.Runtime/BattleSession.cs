@@ -125,7 +125,15 @@ public sealed partial class BattleSession
                 }
                 else
                 {
-                    actor.BindRosterSlot(actor.IsActive ? BattleRosterSlot.Enemy(enemySlot++) : null, bindNative: !addedEnemy);
+                    if (actor.IsActive)
+                    {
+                        int compactOrdinal = enemySlot++;
+                        actor.BindRosterSlot(BattleRosterSlot.Enemy(actor.SourceDefinition.InitialOriginalEnemyOrdinal ?? compactOrdinal), bindNative: !addedEnemy);
+                    }
+                    else
+                    {
+                        actor.BindRosterSlot(null);
+                    }
                 }
             }
             if (initializeNativeAi && actor.IsActive && HasNativeRosterSlot(actor) && !UsesExpandedRoster)
@@ -1417,6 +1425,14 @@ public sealed partial class BattleSession
         int addedCount = source.AddedEnemySources?.Count ?? 0;
         int enemySlotCount = source.UsesExpandedRoster && !source.UsesOriginalEnemySlots ? enemyCount : NativeBattleSlots.FormationSlotCount + addedCount;
         int activeEnemyCount = source.Combatants.Count(actor => !actor.IsPlayer && actor.InitialActive);
+        BattleCombatantDefinition[] explicitlyPlaced = source.Combatants.Where(actor => actor.InitialOriginalEnemyOrdinal.HasValue).ToArray();
+        if (explicitlyPlaced.Length != 0 && (!source.UsesOriginalEnemySlots ||
+            explicitlyPlaced.Any(actor => actor.IsPlayer || !actor.InitialActive || IsAddedEnemy(actor) || actor.InitialOriginalEnemyOrdinal is < 0 or >= NativeBattleSlots.EnemyCount) ||
+            explicitlyPlaced.Length != source.Combatants.Count(actor => !actor.IsPlayer && actor.InitialActive && !IsAddedEnemy(actor)) ||
+            explicitlyPlaced.Select(actor => actor.InitialOriginalEnemyOrdinal).Distinct().Count() != explicitlyPlaced.Length))
+        {
+            throw new InvalidDataException("Explicit physical aliases require a distinct authored ordinal for each initially allocated original enemy.");
+        }
         if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, activeEnemyCount) || source.Combatants.Any(actor => !actor.InitialActive && (actor.IsPlayer || !source.UsesOriginalEnemySlots))))
         {
             throw new NotSupportedException("The expanded battle host requires a supported roster and host-owned actions.");

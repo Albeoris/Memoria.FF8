@@ -89,6 +89,8 @@ public sealed record BattleCombatantDefinition
     public BattleNativeCharacterGrowth? NativeGrowth { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public int? SceneSlot { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? InitialOriginalEnemyOrdinal { get; init; }
     public bool InitialActive { get; init; } = true;
     public bool InitialHidden { get; init; }
     public bool InitialUntargetable { get; init; }

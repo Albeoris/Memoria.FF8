@@ -1,14 +1,21 @@
+using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticEnemyAbility(int Model, int SceneSlot, int LevelBand, int AbilitySlot, byte Command, ushort ActionId, byte Sequence, byte TargetSelector)
+public sealed record BattleDiagnosticEnemyAbility(int Model, int SceneSlot, int LevelBand, int AbilitySlot, byte Command, ushort ActionId, byte Sequence, byte? TargetSelector)
 {
     public bool UseTurnScript { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TurnScriptSha256 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaximumTurnAttempts { get; init; }
 
     public void Validate()
     {
-        if (Model is < 0 or > 238 || SceneSlot is < 0 or > 7 || LevelBand is < 0 or > 2 || AbilitySlot < (UseTurnScript ? -1 : 0) || AbilitySlot > 15 || ActionId == 0)
+        if (Model is < 0 or > 238 || SceneSlot is < 0 or > 7 || LevelBand is < 0 or > 2 || AbilitySlot < (UseTurnScript ? -1 : 0) || AbilitySlot > 15 || ActionId == 0 ||
+            !UseTurnScript && TargetSelector is null || MaximumTurnAttempts is < 1 or > 12 || MaximumTurnAttempts > 1 && TurnScriptSha256 is null ||
+            TurnScriptSha256 is not null && (!UseTurnScript || TurnScriptSha256.Length != 64 || !TurnScriptSha256.All(Uri.IsHexDigit)))
         {
             throw new InvalidDataException("Diagnostic enemy selection requires an original model, scene slot, level band and nonempty ability row.");
         }
@@ -37,6 +44,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidOperationException("Diagnostic enemy selection differs from its original ability row.");
             }
+        }
+        else if (selection.TurnScriptSha256 is { } expected &&
+                 !expected.Equals(Convert.ToHexString(SHA256.HashData(ai.Scripts[1])), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The live original turn script differs from the diagnostic script identity.");
         }
         return actor;
     }
@@ -86,7 +98,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Diagnostic enemy row does not resolve to the requested native effect.");
         }
-        AiTargetSelection targets = ResolveAiTargets(actor, selection.TargetSelector);
+        AiTargetSelection targets = ResolveAiTargets(actor, selection.TargetSelector!.Value);
         QueuePreparedNativeAiCommand(actor, command, action, sequence, targets);
         LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets.Request, ReadOriginalTargetSlot));
     }
