@@ -438,7 +438,7 @@ public sealed partial class WorldMachine
         byte[] bank = (operand.Opcode & 3) == 0 ? persistent : local;
         int address = (operand.Opcode & ~3) == 0x114 ? operand.Value >> 3 : operand.Value;
         int width = (operand.Opcode & ~3) == 0x11C ? 2 : 1;
-        int length = bank == persistent ? 1024 : 64;
+        int length = bank.Length;
         if (address < 0 || address > length - width || width == 2 && (address & 1) != 0)
         {
             throw new InvalidDataException("FFVII world bank access is outside storage or unaligned.");

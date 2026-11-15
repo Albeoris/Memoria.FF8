@@ -7,6 +7,8 @@ internal static class WorldMachineTests
     public static void Run()
     {
         AliasesAndArithmetic();
+        FullPersistentBankAndBounds();
+        HighPersistentPredicateAnalysis();
         SchedulerAndColdRestore();
         MeshPreemption();
         AttachAndReplaceModel();
@@ -30,6 +32,85 @@ internal static class WorldMachineTests
         machine.Tick();
         Check(host.Requests.Count == 2 && host.Requests[0].Command.Arguments[0] == 255 && host.Requests[1].Command.Arguments[0] == -3, "Local banks must alias and signed short arithmetic must retain native order.");
         Check(persistent[4] == 1 && machine.CopyPersistent()[4] == 1, "World bank zero must alias the caller's persistent variable storage.");
+    }
+
+    private static void FullPersistentBankAndBounds()
+    {
+        (ushort Write, ushort Read, ushort Address, ushort Value, int Expected)[] cases =
+        [
+            (0x114, 0x114, 0x248A, 1, 1),
+            (0x114, 0x114, 10239, 1, 1),
+            (0x118, 0x118, 1169, 0x1AB, 0xAB),
+            (0x118, 0x118, 1279, 0x1FE, 0xFE),
+            (0x11C, 0x11C, 1278, 0xFFFE, -2),
+            (0x119, 0x11A, 63, 0x1AB, 0xAB),
+            (0x11A, 0x119, 63, 0x1FE, 0xFE),
+            (0x11B, 0x119, 63, 0x155, 0x55),
+            (0x117, 0x115, 511, 1, 1),
+            (0x11F, 0x11E, 62, 0xFFFE, -2)
+        ];
+        foreach (var test in cases)
+        {
+            ushort[] code = [0, test.Write, test.Address, 0x110, test.Value, 0xE0, 0x100, test.Read, test.Address, 0x303, 0x203];
+            byte[] persistent = new byte[1280];
+            Host host = new();
+            WorldMachine machine = new(new(new([new(0, 1)], code)), persistent, host);
+            machine.StartSystem(0);
+            machine.Tick();
+            Check(host.Requests is [{ Command.Operation: WorldOperation.Speed }] && host.Requests[0].Command.Arguments[0] == test.Expected, "Typed reads and truncating writes must cover the full persistent bank and preserve the three local write aliases.");
+            if ((test.Write & 3) == 0)
+            {
+                int address = test.Write == 0x114 ? test.Address >> 3 : test.Address;
+                Check(persistent[address] == (test.Write == 0x114 ? 1 << (test.Address & 7) : unchecked((byte)test.Value)), "High persistent writes must update the caller's canonical storage directly.");
+                if (test.Write == 0x11C)
+                {
+                    Check(persistent[address + 1] == test.Value >> 8, "A high persistent word store must retain both little-endian bytes.");
+                }
+            }
+            else
+            {
+                Check(persistent.All(value => value == 0), "Local aliases must not write persistent storage.");
+            }
+        }
+
+        WorldVariableRead[] invalid = [new(0x114, 10240), new(0x118, 1280), new(0x11C, 1280), new(0x11C, 1279), new(0x11C, 1277), new(0x114, -1), new(0x118, -1), new(0x11C, -2), new(0x115, 512), new(0x119, 64), new(0x11E, 64), new(0x11D, 63), new(0x119, -1)];
+        foreach (WorldVariableRead read in invalid)
+        {
+            WorldMachine machine = new(new(new([new(0, 1)], new ushort[] { 0, 0x203 })), new byte[1280], new Host());
+            Throws<InvalidDataException>(() => machine.ReadPredicateFingerprint([read]));
+
+            if (read.Operand >= 0)
+            {
+                ushort[] code = [0, read.Opcode, checked((ushort)read.Operand), 0x110, 1, 0xE0, 0x100, 0x203];
+                byte[] persistent = new byte[1280];
+                WorldMachine writer = new(new(new([new(0, 1)], code)), persistent, new Host());
+                writer.StartSystem(0);
+                Throws<InvalidDataException>(writer.Tick);
+                Check(persistent.All(value => value == 0), "An invalid write must reject before changing persistent storage.");
+            }
+            WorldSnapshot before = machine.Capture();
+            Throws<InvalidDataException>(() => machine.Restore(before with { Stack = [new(read.Opcode, read.Operand)] }));
+        }
+    }
+
+    private static void HighPersistentPredicateAnalysis()
+    {
+        ushort[] code = [0, 0x100, 0x114, 0x248A, 0x201, 12, 0x110, 15, 0x110, 1, 0x318, 0x203, 0x110, 15, 0x110, 0, 0x318, 0x203];
+        WorldProgram program = new(new([new((ushort)WorldProgram.MeshDispatchHeader(0, 0, 0), 1)], code));
+        byte[] persistent = new byte[1280];
+        Host host = new();
+        WorldMachine machine = new(program, persistent, host);
+        WorldVariableRead dependency = new(0x114, 0x248A);
+        string clear = machine.ReadPredicateFingerprint([dependency]);
+        Check(clear == WorldMachine.ReadGlobalPredicateFingerprint(program.Identity, persistent, [dependency]), "Live and detached fingerprints must agree for high persistent bits.");
+        persistent[1169] = 4;
+        string set = machine.ReadPredicateFingerprint([dependency]);
+        Check(set != clear && set == WorldMachine.ReadGlobalPredicateFingerprint(program.Identity, persistent, [dependency]), "A high persistent bit change must invalidate its predicate fingerprint.");
+        byte[] beforePersistent = machine.CopyPersistent();
+        string beforeVm = JsonSerializer.Serialize(machine.Capture());
+        WorldScriptAnalysis analysis = machine.AnalyzeMeshDispatch(0, 0, 3);
+        Check(analysis.Complete && analysis.Reads.SequenceEqual(new[] { dependency }) && analysis.Transitions.Select(transition => transition.Selector).Order().SequenceEqual(new ushort?[] { 0xF00, 0xF01 }), "Read-only analysis must retain the high bit dependency and both authored transfer branches.");
+        Check(beforePersistent.SequenceEqual(persistent) && beforeVm == JsonSerializer.Serialize(machine.Capture()) && host.Requests.Count == 0, "High persistent analysis must not mutate storage, advance the live VM or invoke its host.");
     }
 
     private static void SchedulerAndColdRestore()
