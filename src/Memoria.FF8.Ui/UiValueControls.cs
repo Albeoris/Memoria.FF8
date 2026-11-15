@@ -13,16 +13,23 @@ public sealed class UiToggle : UiElement
     public float FontSize { get; set; }
     public float ValueWidth { get; set; } = 60;
     public bool Value { get; set; }
+    public bool ReadOnly { get; set; }
+    public bool DrawBackground { get; set; }
     public Action<bool>? ValueChanged { get; set; }
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
+        if (DrawBackground)
+        {
+            theme.Panel(canvas, Bounds);
+        }
+
         if (IsFocused && Enabled)
         {
             theme.Selection(canvas, Bounds.Inset(1));
         }
 
-        UiColor color = Enabled ? theme.Foreground : theme.Muted;
+        UiColor color = Enabled && !ReadOnly ? theme.Foreground : theme.Muted;
         float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
         canvas.Text(Text, fontSize, new UiRect(Bounds.X + 22, Bounds.Y, Math.Max(0, Bounds.Width - ValueWidth - 34), Bounds.Height), color, UiAlignment.Center, UiTextFlow.SingleLine);
         canvas.Text(Value ? OnText : OffText, fontSize, new UiRect(Bounds.Right - ValueWidth - 5, Bounds.Y, ValueWidth, Bounds.Height), color, UiAlignment.Center, UiTextFlow.SingleLine);
@@ -35,7 +42,7 @@ public sealed class UiToggle : UiElement
 
     public override bool Key(UiKey key)
     {
-        if (!Enabled || key is not (UiKey.Confirm or UiKey.Left or UiKey.Right))
+        if (!Enabled || ReadOnly || key is not (UiKey.Confirm or UiKey.Left or UiKey.Right))
         {
             return false;
         }
@@ -46,7 +53,7 @@ public sealed class UiToggle : UiElement
 
     public override void Pointer(float x, float y)
     {
-        if (Enabled && Bounds.Contains(x, y))
+        if (Enabled && !ReadOnly && Bounds.Contains(x, y))
         {
             SetValue(!Value);
         }

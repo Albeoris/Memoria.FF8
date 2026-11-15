@@ -136,7 +136,7 @@ public sealed partial class ModRuntime
                     {
                         behavior = ApplyBehaviorSettingPolicy(package, behavior);
                     }
-                    result.AddRange(behavior.Select(setting => setting with { Category = component.Category }));
+                    result.AddRange(behavior.Select(setting => setting with { Category = component.Category, ParentComponent = component.Id }));
                 }
                 catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
                 {

@@ -123,6 +123,60 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
     }
 
     [Fact]
+    public void MeltdownExpansionFollowsToggleAndCardButtonPreservesDraft()
+    {
+        WriteBundled("Meltdown/mod.ini", "enabled=0");
+        WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        MenuController menu = Menu(runtime, ModRuntime.MemoriaPackageId);
+        menu.Navigate(MenuInput.Confirm);
+        menu.Navigate(MenuInput.Confirm);
+        string toggleId = Assert.Single(menu.Entries, entry => entry.Label == "Meltdown").Id;
+        menu.Navigate(MenuInput.Down);
+        Assert.Equal(toggleId, menu.SelectedEntry?.Id);
+        Assert.False(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Label == "Vitality reduction");
+
+        menu.Navigate(MenuInput.Alternate);
+        Assert.False(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
+        Assert.Equal(toggleId, menu.SelectedEntry?.Id);
+        Assert.Contains(menu.Entries, entry => entry.Label == "Spirit reduction");
+        menu.Navigate(MenuInput.Alternate);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Label == "Spirit reduction");
+
+        menu.Navigate(MenuInput.Confirm);
+        UiToggle toggle = Assert.IsType<UiToggle>(Element(menu, toggleId));
+        Assert.True(toggle.Value);
+        string vitalityId = Assert.Single(menu.Entries, entry => entry.Label == "Vitality reduction").Id;
+        UiNumericSlider vitality = Assert.IsType<UiNumericSlider>(Element(menu, vitalityId));
+        Assert.True(vitality.Bounds.X > toggle.Bounds.X);
+        menu.Navigate(MenuInput.Down);
+        menu.Navigate(MenuInput.Right);
+        menu.Navigate(MenuInput.Up);
+        menu.Navigate(MenuInput.Alternate);
+        Assert.True(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == vitalityId);
+        menu.Navigate(MenuInput.Alternate);
+        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, vitalityId)).Value);
+
+        UiView view = menu.BuildView();
+        view.Resize(1280, 768);
+        toggle = Assert.IsType<UiToggle>(view.FocusedElement);
+        view.Pointer(toggle.Bounds.X + 10, toggle.Bounds.Y + 10, pressed: true);
+        Assert.False(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == vitalityId);
+        menu.Navigate(MenuInput.Right);
+        Assert.True(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
+        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, vitalityId)).Value);
+        menu.Navigate(MenuInput.Alternate);
+        menu.Execute(new("mod-settings-save"));
+        Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Meltdown").Value);
+        Assert.Equal(51, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == BehaviorMods.VitalityReductionParameter).Value);
+    }
+
+    [Fact]
     public void MemoriaCategoriesCollapseAndScrollWhileUnlockedChangesSave()
     {
         WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
@@ -145,9 +199,19 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         menu.Navigate(MenuInput.Down);
         menu.Navigate(MenuInput.Confirm);
         string lockedSliderId = Assert.Single(menu.Entries, entry => entry.Label == "Vitality reduction").Id;
+        menu.Navigate(MenuInput.Down);
+        string meltdownId = Assert.Single(menu.Entries, entry => entry.Label == "Meltdown").Id;
+        Assert.Equal(meltdownId, menu.SelectedEntry?.Id);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.True(Assert.IsType<UiToggle>(Element(menu, meltdownId)).Value);
+        menu.Navigate(MenuInput.Alternate);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == lockedSliderId);
+        Assert.True(Assert.IsType<UiToggle>(Element(menu, meltdownId)).Value);
+        menu.Navigate(MenuInput.Alternate);
         Assert.False(Element(menu, lockedSliderId).Enabled);
         Assert.Contains("Hardcore", Assert.IsType<UiLabel>(Element(menu, "mod-setting-description-" + lockedSliderId["mod-setting-".Length..])).Text);
         Assert.True(Element(menu, "save").Enabled);
+        menu.Navigate(MenuInput.Up);
         menu.Navigate(MenuInput.Left);
         Assert.DoesNotContain(menu.Entries, entry => entry.Id == lockedSliderId);
 

@@ -41,7 +41,7 @@ public sealed partial class MenuController
                 UiElement item;
                 if (row.SettingIndex is int settingIndex)
                 {
-                    control = SettingControl(row.Entry, settingIndex);
+                    control = SettingControl(row, settingIndex);
                     item = SettingRow(row, control);
                 }
                 else
@@ -90,8 +90,9 @@ public sealed partial class MenuController
             navigationControls.Add(element);
         }
 
-        private UiElement SettingControl(MenuEntry entry, int index)
+        private UiElement SettingControl(ModSettingsRow row, int index)
         {
+            MenuEntry entry = row.Entry;
             BehaviorModSetting setting = menus.modSettingsDraft[index];
             float scale = menus.TextScale;
             if (setting.Control == "toggle")
@@ -99,14 +100,21 @@ public sealed partial class MenuController
                 return new UiToggle
                 {
                     Id = entry.Id,
-                    Text = entry.Label,
+                    Text = row.Expanded switch
+                    {
+                        true => "▾ " + entry.Label,
+                        false => "▸ " + entry.Label,
+                        null => entry.Label
+                    },
                     OnText = menus.SystemText("ui.moddetails.details.on", "On"),
                     OffText = menus.SystemText("ui.moddetails.details.off", "Off"),
                     FontSize = 18 * scale,
                     ValueWidth = 72 * scale,
                     Value = setting.Value != 0,
-                    Enabled = entry.Enabled,
-                    ValueChanged = value => menus.ChangeModSettingsDraft(index, value ? 1 : 0)
+                    Enabled = entry.Enabled || row.Expanded.HasValue,
+                    ReadOnly = !entry.Enabled,
+                    DrawBackground = row.Expanded.HasValue,
+                    ValueChanged = value => menus.ChangeModSettingsDraft(index, value ? 1 : 0, row.Expanded.HasValue)
                 };
             }
             return new UiNumericSlider
@@ -135,7 +143,7 @@ public sealed partial class MenuController
             {
                 Columns = 1,
                 Gap = 0,
-                Padding = new UiThickness(row.Indented ? 16 * scale : 0, 0, 8, 5)
+                Padding = new UiThickness(row.Depth * 16 * scale, 0, 8, 5)
             };
             grid.RowDefinitions.Add(UiGridLength.Pixel(32 * scale));
             Place(grid, control, 0);

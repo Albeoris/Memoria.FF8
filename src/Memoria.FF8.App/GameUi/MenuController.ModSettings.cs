@@ -10,6 +10,7 @@ public sealed partial class MenuController
     private BehaviorModSetting[] modSettingsDraft = [];
     private IGrouping<string, int>[] modSettingsCategories = [];
     private readonly HashSet<string> modSettingsExpanded = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, bool> modSettingsComponentExpansion = [];
     private float modSettingsScrollOffset;
     private ModSettingsEditor? modSettingsEditor;
 
@@ -68,26 +69,52 @@ public sealed partial class MenuController
             {
                 bool expanded = modSettingsExpanded.Contains(category.Key);
                 string label = SystemText("mods.settings.category." + category.Key.ToLowerInvariant(), category.Key);
-                string help = expanded ? SystemText("mods.settings.collapse", "Collapse") : SystemText("mods.settings.expand", "Expand");
+                string help = ModSettingsExpansionLabel(expanded);
                 rows.Add(new(new("mod-settings-category-" + index, label, help, Action: new("mod-settings-category", category.Key))));
                 if (!expanded)
                 {
                     continue;
                 }
             }
+            int depth = category.Key.Length > 0 ? 1 : 0;
+            var children = category.Where(index => modSettingsDraft[index].ParentComponent is not null).ToLookup(index => modSettingsDraft[index].ParentComponent, StringComparer.Ordinal);
             foreach (int settingIndex in category)
             {
                 BehaviorModSetting setting = modSettingsDraft[settingIndex];
-                string? lockReason = ModSettingLockReason(setting);
-                string description = ModSettingDescription(setting);
-                string help = lockReason is null ? description : string.IsNullOrWhiteSpace(description) ? lockReason : lockReason + "\n" + description;
-                rows.Add(new(new("mod-setting-" + settingIndex, ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), settingIndex, category.Key.Length > 0));
+                if (setting.ParentComponent is not null)
+                {
+                    continue;
+                }
+                bool? expanded = setting.Control == "toggle" && children.Contains(setting.Parameter) ? modSettingsComponentExpansion.GetValueOrDefault(settingIndex, setting.Value != 0) : null;
+                rows.Add(ModSettingRow(settingIndex, depth, expanded));
+                if (expanded == true)
+                {
+                    rows.AddRange(children[setting.Parameter].Select(childIndex => ModSettingRow(childIndex, depth + 1)));
+                }
             }
         }
         bool canSave = modSettingsDraft.Any(setting => ModSettingLockReason(setting) is null);
         rows.Add(new(new("save", SystemText("mods.settings.save", "Save"), "", Action: new("mod-settings-save"), Enabled: canSave)));
         rows.Add(new(new("cancel", SystemText("mods.settings.cancel", "Cancel"), "", Action: new("menu-back"))));
         return rows;
+    }
+
+    private ModSettingsRow ModSettingRow(int index, int depth, bool? expanded = null)
+    {
+        BehaviorModSetting setting = modSettingsDraft[index];
+        string? lockReason = ModSettingLockReason(setting);
+        string description = ModSettingDescription(setting);
+        string help = lockReason is null ? description : string.IsNullOrWhiteSpace(description) ? lockReason : lockReason + "\n" + description;
+        if (expanded is bool isExpanded)
+        {
+            help += "\n" + CurrentBindingText(ControlAction.Card) + " · " + ModSettingsExpansionLabel(isExpanded);
+        }
+        return new(new("mod-setting-" + index, ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), index, depth, expanded);
+    }
+
+    private string ModSettingsExpansionLabel(bool expanded)
+    {
+        return expanded ? SystemText("mods.settings.collapse", "Collapse") : SystemText("mods.settings.expand", "Expand");
     }
 
     private void FocusModSettingsRow(bool focused, int index)
@@ -99,13 +126,23 @@ public sealed partial class MenuController
         }
     }
 
-    private void ChangeModSettingsDraft(int index, int value)
+    private void ChangeModSettingsDraft(int index, int value, bool expandable = false)
     {
         BehaviorModSetting setting = modSettingsDraft[index];
         if (ModSettingLockReason(setting) is null)
         {
             modSettingsDraft[index] = setting with { Value = Math.Clamp(value, setting.Min, setting.Max) };
+            if (expandable)
+            {
+                SetModSettingsComponentExpanded(index, value != 0);
+            }
         }
+    }
+
+    private void SetModSettingsComponentExpanded(int index, bool expanded)
+    {
+        modSettingsComponentExpansion[index] = expanded;
+        _view = null;
     }
 
     private bool NavigateModSettings(MenuInput input)
@@ -149,6 +186,12 @@ public sealed partial class MenuController
                 break;
             case MenuInput.Confirm:
                 view.Key(UiKey.Confirm);
+                break;
+            case MenuInput.Alternate:
+                if (ModSettingsRows().ElementAtOrDefault(SelectedIndex) is { SettingIndex: int settingIndex, Expanded: bool expanded } row && view.FocusedElement?.Id == row.Entry.Id)
+                {
+                    SetModSettingsComponentExpanded(settingIndex, !expanded);
+                }
                 break;
             case MenuInput.Cancel:
                 Back();
@@ -200,6 +243,7 @@ public sealed partial class MenuController
                     modSettingsPackageId = packageId;
                     modSettingsCategories = Enumerable.Range(0, modSettingsDraft.Length).GroupBy(index => modSettingsDraft[index].Category, StringComparer.Ordinal).ToArray();
                     modSettingsExpanded.Clear();
+                    modSettingsComponentExpansion.Clear();
                     modSettingsScrollOffset = 0;
                     RegisterModSettingsScreen();
                     Push("mod-settings");
@@ -234,5 +278,5 @@ public sealed partial class MenuController
         return true;
     }
 
-    private sealed record ModSettingsRow(MenuEntry Entry, int? SettingIndex = null, bool Indented = false);
+    private sealed record ModSettingsRow(MenuEntry Entry, int? SettingIndex = null, int Depth = 0, bool? Expanded = null);
 }

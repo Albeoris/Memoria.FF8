@@ -7,6 +7,7 @@ namespace Memoria.FF8.Mods;
 public sealed record BehaviorModSetting(string Behavior, string Parameter, string Label, int Min, int Max, int DefaultValue, int Value)
 {
     public string Category { get; init; } = string.Empty;
+    public string? ParentComponent { get; init; }
     public string Description { get; init; } = string.Empty;
     public string Control { get; init; } = "slider";
     public string Unit { get; init; } = "%";
