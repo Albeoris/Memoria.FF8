@@ -11,6 +11,11 @@ public static class NativeBattleGilgameshEntry
 {
     public static NativeBattleGilgameshEntryStep Initialize58DCF0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, BattleActorModels models)
     {
+        return Initialize58DCF0(memory, effect, packets, models, BattleContactTaskStorageContract.OriginalArena);
+    }
+
+    internal static NativeBattleGilgameshEntryStep Initialize58DCF0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, BattleActorModels models, BattleContactTaskStorageContract storageContract)
+    {
         NativeBattleGilgameshProfile profile = NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect);
         effect.Validate();
         packets.Validate();
@@ -20,6 +25,11 @@ public static class NativeBattleGilgameshEntry
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Gilgamesh entry requires its current571B50 arena.");
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
+        NativeBattleGilgameshAttackStorage? storage = null;
+        if (storageContract == BattleContactTaskStorageContract.ExpandableArena && NativeBattleGilgameshAttackStorage.Supports(effect.Binding.Effect))
+        {
+            (memory, storage) = NativeBattleGilgameshAttackStorage.Reserve(memory, effect, packets, header.ReadContactCount());
+        }
         BattleContactCursor firstContact = header.FirstContact;
         BattleModelOwner actor = packets.ReadContact(firstContact).Primary.Recipient;
         NativeBattleGraphicsModel first = models.Get(actor);
@@ -37,7 +47,16 @@ public static class NativeBattleGilgameshEntry
         int timOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.TextureGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native Gilgamesh requires its executed initializer TIM publication.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Gilgamesh requires its current texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, timOffset);
-        NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();
-        return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [pools.Main, pools.Children, pools.Particles!], ReturnedDescriptor = pools.Main.DescriptorAddress }, new(world));
+        NativeBattleGuardianEffectPools pools = storage is null ? NativeBattleGuardianEffectPools.Gilgamesh() : ExpandedPools(storage);
+        return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [pools.Main, pools.Children, pools.Particles!], ReturnedDescriptor = pools.Main.DescriptorAddress, GilgameshAttackStorage = storage }, new(world));
+    }
+
+    private static NativeBattleGuardianEffectPools ExpandedPools(NativeBattleGilgameshAttackStorage storage)
+    {
+        NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x21FF4A8, 0x21FF468, 16, 2);
+        (main, _) = main.Append(0x596B70);
+        NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(NativeBattleGilgameshAttackStorage.ChildDescriptor, storage.ChildAddress, NativeBattleGilgameshAttackStorage.ChildStride, storage.ChildCapacity);
+        (children, _) = children.Append(0x592300);
+        return new(main, children, NativeBattleEffectTaskPool.Initialize(0x21FF458, 0x21FF3C8, 36, 4));
     }
 }

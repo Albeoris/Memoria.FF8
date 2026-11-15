@@ -244,7 +244,7 @@ public sealed class NativeBattleGilgameshParticlesTests
         return arena.Write(offset, bytes);
     }
 
-    private static NativeBattleGilgameshParticleResources Resources() => new(Sprite(9, 16, 0x224), Sprite(9, 16, 0x210), Sprite(6, 16, 0x1AC), Sprite(6, 1, 0x28));
+    internal static NativeBattleGilgameshParticleResources Resources() => new(Sprite(9, 16, 0x224), Sprite(9, 16, 0x210), Sprite(6, 16, 0x1AC), Sprite(6, 1, 0x28));
 
     private static NativeBattleModuleResource Sprite(byte kind, int frames, int extent)
     {

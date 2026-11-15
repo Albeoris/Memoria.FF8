@@ -12,7 +12,7 @@ public static partial class NativeBattleGilgameshSwordParticles
     public static NativeBattleGilgameshSwordParticleInitialization Initialize5947F0(NativeBattleEffectTaskPool children, NativeBattleEffectTaskPool particles, short variant, NativeBattleGilgameshSwordParticleResources resources)
     {
         resources.Validate();
-        if (children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || particles.DescriptorAddress != 0x21FF458 || particles.BankAddress != 0x21FF3C8 || particles.Stride != 36 || particles.Slots.Length != 4)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(children) || particles.DescriptorAddress != 0x21FF458 || particles.BankAddress != 0x21FF3C8 || particles.Stride != 36 || particles.Slots.Length != 4)
         {
             throw new InvalidDataException("Native5947F0 requires its actual raw child and particle task banks.");
         }

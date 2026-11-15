@@ -12,9 +12,9 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
     public void Initial_flares_observe_anchor_then_projection_before_scalar_stores()
     {
         NativeBattleGilgameshFrame original = Fixture(0);
-        List<string> operations = [];
+        List<(string Operation, BattleModelOwner? Actor)> operations = [];
         NativeBattleGilgameshMasamuneAttackStep step = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [OriginalOwner(5), OriginalOwner(3)], Execute);
-        Assert.Equal(new[] { "anchor5", "project", "anchor3", "project" }, operations);
+        Assert.Equal(new (string, BattleModelOwner?)[] { ("anchor", OriginalOwner(5)), ("project", null), ("anchor", OriginalOwner(3)), ("project", null) }, operations);
         Assert.Equal(original.Random, step.Frame.Random);
         Assert.Equal((ushort)1, Child(step.Frame, 0).ReadWord(12));
         for (int slot = 1; slot <= 2; slot++)
@@ -49,10 +49,10 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
             Assert.Equal((ushort)0xA5A5, child.ReadWord(0x18));
             if (operation is NativeBattleGilgameshMasamuneAnchor anchorOperation)
             {
-                operations.Add($"anchor{anchorOperation.Actor}");
+                operations.Add(("anchor", anchorOperation.Actor));
                 return Anchor(frame, anchorOperation);
             }
-            operations.Add("project");
+            operations.Add(("project", null));
             Assert.Equal(unchecked((ushort)-200), child.ReadWord(0x12));
             return Write(frame, address, child.WriteWord(0x10, unchecked((ushort)-360)).WriteWord(0x12, unchecked((ushort)-308)));
         }

@@ -236,13 +236,13 @@ public sealed partial class ExpandedBattleMassTargetTests
             FieldRequestPacket = null
         });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        GameWorld world = new(session, directory, expandedBattleEnemyCount: sonicLivingAllyCount is null ? null : 11);
+        GameWorld world = new(session, directory);
         try
         {
             world.EnsureField();
             world.Apply(new(PlayerActionKind.Wait, Frames: 4));
             session.SetCharacterVitals(initial.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
-            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11 });
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 });
             NativeCharacterVitals vitals = session.State.CharacterVitals!.WithExtendedRoster(true).Rest();
             NativeCharacterVital[] records = vitals.Records.Select(record => record with
             {

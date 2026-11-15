@@ -52,7 +52,7 @@ public static class NativeBattleGilgameshScheduler
 
     private static void RequireShape(NativeBattleGuardianEffectPools pools)
     {
-        if (!Matches(pools.Main, 0x21FF4A8, 0x21FF468, 16, 2) || !Matches(pools.Children, 0x21FFD58, 0x21FFD68, 36, 100) || !Matches(pools.Particles, 0x21FF458, 0x21FF3C8, 36, 4))
+        if (!Matches(pools.Main, 0x21FF4A8, 0x21FF468, 16, 2) || !NativeBattleGilgameshAttackStorage.ValidChildBank(pools.Children) || !Matches(pools.Particles, 0x21FF458, 0x21FF3C8, 36, 4))
         {
             throw new InvalidDataException("Native596B70 requires its original returned, child and particle pool owners.");
         }

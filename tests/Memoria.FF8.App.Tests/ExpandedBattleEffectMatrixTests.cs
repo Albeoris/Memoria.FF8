@@ -566,11 +566,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, bool useAreaEnemyRoster = false, int examSeconds = 600)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, int examSeconds = 600)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        GameWorld world = new(session, directory, expandedBattleAllyCount: 11, expandedBattleEnemyCount: useAreaEnemyRoster ? null : 11);
+        GameWorld world = new(session, directory);
         try
         {
             world.EnsureField();
@@ -635,10 +635,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             byte[] selectedRows = Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row).ToArray();
             vitals = (vitals with { Records = records }).WithBattleParty(selectedRows, NativeCharacterVitals.ExtendedRecordCount);
             session.SetCharacterVitals(prepareVitals?.Invoke(vitals) ?? vitals);
-            if (useAreaEnemyRoster)
-            {
-                world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 });
-            }
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 });
             string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
             if (examSeconds != 600)
             {
@@ -652,14 +649,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 Assert.True(battle.UsesExpandedRoster);
                 Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
                 int enemies = battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive);
-                if (useAreaEnemyRoster)
-                {
-                    Assert.InRange(enemies, 1, 11);
-                }
-                else
-                {
-                    Assert.Equal(11, enemies);
-                }
+                Assert.InRange(enemies, 1, ExpandedBattleFormation.MaximumEnemies);
             }
             captureSession?.Invoke(session);
             return world;

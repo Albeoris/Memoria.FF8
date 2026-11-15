@@ -18,7 +18,7 @@ public static partial class NativeBattleGilgameshCommonParticles
         int counter = Signed(task, 12);
         if (counter < 20 && counter % 8 == 1)
         {
-            if (pool.DescriptorAddress != 0x21FFD58 || pool.BankAddress != 0x21FFD68 || pool.Stride != 0x24 || pool.Slots.Length != 100)
+            if (!NativeBattleGilgameshAttackStorage.ValidChildBank(pool))
             {
                 throw new InvalidDataException("Native593C70 requires its actual raw child task bank.");
             }

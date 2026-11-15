@@ -80,7 +80,7 @@ public sealed class NativeBattleGilgameshEntryTests
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models.SetItem(3, fixture.Models[3] with { GeometryWorldMatrix = null }))));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models.SetItem(1, fixture.Models[1] with { Transform = null }))));
         NativeBattleActionPacketsState empty = NativeBattleActionPacketsState.Create(OriginalRoster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, OriginalAliases);
-        Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect, empty, fixture.Models)));
+        Assert.Equal("The live action header has not been prepared.", Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect, empty, fixture.Models))).Message);
     }
 
     [Theory]

@@ -199,11 +199,11 @@ public sealed class ExpandedBattleGuardianForceTests
             FieldRequestPacket = null
         });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, expandedBattleEnemyCount: 11);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(initial.State.CharacterVitals! with { CombatParty = [0, 1, 2] });
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, GuardianFormsEnabled = transform });
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10, GuardianFormsEnabled = transform });
         NativeCharacterVitals vitals = session.State.CharacterVitals!.WithExtendedRoster(true).Rest();
         byte command = checked((byte)(20 + vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)3)));
         NativeCharacterVital[] records = vitals.Records.Select(record => record with

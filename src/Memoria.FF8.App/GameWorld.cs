@@ -51,7 +51,7 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null, int? expandedBattleEnemyCount = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null)
     {
         this.session = session;
         string? expandedRoster = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER");
@@ -65,11 +65,6 @@ internal sealed partial class GameWorld : IDisposable
         if (!GameplayPreferences.IsBattleAllyCountSupported(defaultExpandedRandomAllyCount))
         {
             throw new ArgumentOutOfRangeException(nameof(expandedBattleAllyCount));
-        }
-        legacyExpandedEnemyCount = expandedBattleEnemyCount;
-        if (legacyExpandedEnemyCount is < 1 or > ExpandedBattleFormation.MaximumEnemies)
-        {
-            throw new ArgumentOutOfRangeException(nameof(expandedBattleEnemyCount));
         }
         defaultAdditionalEnemyCount = expandedRoster == "11x11" ? 10 : 0;
         this.legacyGameplayProjection = legacyGameplayProjection;

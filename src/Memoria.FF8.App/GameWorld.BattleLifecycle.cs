@@ -218,7 +218,7 @@ internal sealed partial class GameWorld
         source.EnsureField();
         _ = sourceSession.CompleteLiveBattle();
         source.battle = null;
-        source.ApplyBattleResult(occurrence, result, guardianForceLearning);
+        source.ApplyBattleResult(occurrence, result, guardianForceLearning, admittedDefinition: active.ReadDefinition());
         if (occurrence.ScriptedOwner is null && source.Events.PendingMenuBattle is null)
         {
             RandomEncounterSessionState encounters = sourceSession.State.RandomEncounters ?? throw new InvalidOperationException("Random outcome lost its playthrough owner.");

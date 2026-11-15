@@ -12,7 +12,7 @@ public sealed class StoryBattleRosterTests
     [Theory]
     [InlineData(350, 3, 32, 518, 796, -335, -5704, 21, 128, new int[] { 112, 113 })]
     [InlineData(369, 9, 57, 511, 794, 0, 952, 108, 128, new int[] { 105, 106, 107 })]
-    public void OriginalStoryBattleInstructionKeepsItsSceneParticipants(int fieldId, int objectId, int scriptId, int operation, int formation, int x, int y, int triangle, int direction, int[] models)
+    public void OriginalStoryBattleInstructionAdmitsSelectedExtraAllyAndKeepsAuthoredEnemies(int fieldId, int objectId, int scriptId, int operation, int formation, int x, int y, int triangle, int direction, int[] models)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
@@ -57,31 +57,38 @@ public sealed class StoryBattleRosterTests
         Assert.Equal(party, session.State.CharacterVitals!.GetBattlePartyRows(11));
 
         GameState pending = session.PrepareSnapshot() with { EventState = world.Events.Capture() };
-        byte[] extras = [2, 3, 4];
+        byte[] extras = [2];
         NativeCharacterVitals selected = pending.CharacterVitals! with { AdditionalCombatParty = extras };
         Assert.All(extras, row => Assert.True(selected.IsRosterMember(row)));
         Assert.Equal(party.Concat(extras), selected.GetBattlePartyRows(11));
         JsonObject expandedEvents = JsonNode.Parse(pending.EventState!.Value.GetRawText())!.AsObject();
         expandedEvents["CharacterVitals"]![nameof(NativeCharacterVitals.AdditionalCombatParty)] = JsonSerializer.SerializeToNode(extras);
-        GameSession expandedSession = new(pending with { CharacterVitals = selected, EventState = JsonSerializer.SerializeToElement(expandedEvents), GameplayPreferences = pending.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 } });
+        GameSession expandedSession = new(pending with { CharacterVitals = selected, EventState = JsonSerializer.SerializeToElement(expandedEvents), GameplayPreferences = pending.GameplayPreferences with { BattleAllyCount = 4 } });
         using GameWorld expandedWorld = new(expandedSession, directory, sharedAssets: assets);
         expandedWorld.EnsureField();
         Assert.Equal(3, world.ConfiguredBattleAllyCount);
-        Assert.Equal(11, expandedWorld.ConfiguredBattleAllyCount);
+        Assert.Equal(4, expandedWorld.ConfiguredBattleAllyCount);
         Assert.Equal(request, expandedWorld.Events.PendingInteractiveBattle);
         BattleInput start = new(BattleInputKind.StartEncounter, NativeSeed: 0);
         world.ApplyBattleInput(start);
         expandedWorld.ApplyBattleInput(start);
         BattleSession original = Assert.IsType<BattleSession>(world.Battle);
         BattleSession expanded = Assert.IsType<BattleSession>(expandedWorld.Battle);
-        AssertOriginalStoryState(original, expanded, party);
+        AssertOriginalStoryState(original, original, party);
         BattleCombatant[] enemies = original.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         Assert.Equal(models, enemies.Select(actor => actor.ModelId));
         Assert.Equal(Enumerable.Range(3, models.Length), enemies.Select(actor => actor.EncodeNativeSlot()));
         Assert.All(original.Capture().Definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive), actor => Assert.NotNull(actor.NativeAi));
         BattleSession originalRestored = RestoreAndAdvance(world, original);
-        BattleSession expandedRestored = RestoreAndAdvance(expandedWorld, expanded);
-        AssertOriginalStoryState(originalRestored, expandedRestored, party);
+        AssertOriginalStoryState(original, originalRestored, party);
+        BattleDefinition definition = expanded.ReadDefinition();
+        Assert.True(definition.UsesOriginalEnemySlots);
+        Assert.Equal(party.Concat(extras).Select(row => $"party-{row}"), expanded.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
+        BattleCombatantDefinition[] authored = definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive && !definition.AddedEnemySources!.ContainsKey(actor.SceneSlot!.Value)).ToArray();
+        Assert.Equal(models, authored.Select(actor => actor.ModelId));
+        Assert.Equal(enemies.Select(actor => actor.SceneSlot), authored.Select(actor => actor.SceneSlot));
+        Assert.All(authored, actor => Assert.NotNull(actor.NativeTemplate));
+        ExpandedBattleEntryAdmissionTests.ReachReady(expandedWorld, expanded);
         Assert.Equal(request.Frame, world.Events.Frame);
         Assert.Equal(request.Frame, expandedWorld.Events.Frame);
     }
@@ -307,9 +314,9 @@ public sealed class StoryBattleRosterTests
 
     private static BattleSession Restore(BattleSession battle)
     {
-        JsonElement snapshot = JsonSerializer.SerializeToElement(battle.Capture());
-        BattleSession restored = BattleSession.Restore(snapshot.Deserialize<BattleSnapshot>()!);
-        Assert.True(JsonElement.DeepEquals(snapshot, JsonSerializer.SerializeToElement(restored.Capture())));
+        BattleSnapshot snapshot = NativeBattleStorageSnapshots.Capture(battle.Capture());
+        BattleSession restored = BattleSession.Restore(snapshot);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(snapshot), JsonSerializer.SerializeToElement(restored.Capture())));
         return restored;
     }
 

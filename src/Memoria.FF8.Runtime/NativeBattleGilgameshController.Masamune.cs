@@ -92,8 +92,10 @@ public static partial class NativeBattleGilgameshController
             }
             NativeBattleTemporaryAllocation scratch = NativeBattleTemporaryMemory.Allocate5082B0(MasamuneStaging, 72);
             NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(scratch.Staging, scratch.Address, 72);
-            NativeBattleMasamuneParticlePreparation births = NativeBattleMasamuneParticles.PrepareWithPresentation(task, Arena, Frame.Random, ring, Paused, direction => temporary = MasamuneVector(temporary, 0x28, direction.X, direction.Y, direction.Z), inputs.CapturePresentation);
-            Frame = Frame with { Random = births.Random, Memory = Frame.Memory with { Arena = births.Arena }, Staging = scratch.Staging };
+            NativeBattleGilgameshAttackStorage? hosted = Frame.Effect.GilgameshAttackStorage;
+            NativeBattleGilgameshParticleRows rows = new(Arena, !ring, ring ? hosted?.ShortRows : hosted?.LongRows);
+            NativeBattleMasamuneParticlePreparation births = NativeBattleMasamuneParticles.PrepareRows(task, rows, Frame.Random, ring, Paused, direction => temporary = MasamuneVector(temporary, 0x28, direction.X, direction.Y, direction.Z), inputs.CapturePresentation);
+            Frame = Frame with { Random = births.Random, Staging = scratch.Staging };
             temporary = NativeBattleMasamuneParticles.PutWord(temporary, 0, 0);
             temporary = NativeBattleMasamuneParticles.PutWord(temporary, 2, 0);
             temporary = NativeBattleMasamuneParticles.PutWord(temporary, 4, 0);
@@ -110,28 +112,29 @@ public static partial class NativeBattleGilgameshController
             staging = NativeBattleModuleSpriteTemporary.Begin571C80(MasamuneStaging, sprite.Address, resource.Address, ring ? (ushort)8 : (ushort)9);
             Frame = Frame with { Staging = staging };
             int survivors = 0;
-            int mask = MasamuneSigned(task, 0x16);
-            for (int index = 0; index < NativeBattleMasamuneParticles.Capacity; index++)
+            BattleExecutionReference.GilgameshGroup? group = rows.ReadGroup(task);
+            ushort originalWord = group is null ? task.ReadWord(0x16) : (ushort)0;
+            for (int index = 0; index < rows.Capacity; index++)
             {
-                int record = NativeBattleMasamuneParticles.Bank(ring) + index * NativeBattleMasamuneParticles.Stride(ring);
-                if ((unchecked((int)NativeBattleStaticMeshContext88.Dword(Arena, record)) & mask) == 0)
+                int record = rows.Record(index);
+                if (!rows.Matches(record, originalWord, group))
                 {
                     continue;
                 }
-                short size = NativeBattleMasamuneParticles.Word(Arena, record + 6);
-                NativeBattleMasamuneParticleHead head = NativeBattleMasamuneSprites.PrepareParticle(Frame.Memory, Arena, record, temporary);
+                short size = NativeBattleMasamuneParticles.Word(rows.Arena, record + 6);
+                NativeBattleMasamuneParticleHead head = NativeBattleMasamuneSprites.PrepareParticle(Frame.Memory, rows.Arena, record, temporary);
                 temporary = head.Scratch72;
                 staging = NativeBattleTemporaryMemory.PublishView(MasamuneStaging, scratch.Address, temporary, 72);
                 Frame = Frame with { Memory = head.Memory, Staging = staging };
-                ushort phase = unchecked((ushort)NativeBattleMasamuneParticles.Word(Arena, record + 4));
-                short angle = ring ? (short)0 : NativeBattleMasamuneParticles.Word(Arena, record + 0x1C);
-                NativeBattleMasamuneSpriteStep drawn = NativeBattleMasamuneSprites.DrawWithPresentation(Frame.Memory, MasamuneStaging, sprite.Address, resource, phase, angle, ring, size, Projection, inputs.ReadCameraPose().Roll, NativeBattleGilgameshVisuals.Row(Frame.PresentationIdentity, Arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)NativeBattleMasamuneParticles.Bank(ring)), index, resource, resource.Address));
+                ushort phase = unchecked((ushort)NativeBattleMasamuneParticles.Word(rows.Arena, record + 4));
+                short angle = ring ? (short)0 : NativeBattleMasamuneParticles.Word(rows.Arena, record + 0x1C);
+                NativeBattleMasamuneSpriteStep drawn = NativeBattleMasamuneSprites.DrawWithPresentation(Frame.Memory, MasamuneStaging, sprite.Address, resource, phase, angle, ring, size, Projection, inputs.ReadCameraPose().Roll, NativeBattleGilgameshVisuals.Row(Frame.PresentationIdentity, rows.Arena, rows.Address, index, resource, resource.Address));
                 Frame = Frame with { Memory = drawn.Memory, Staging = drawn.Staging };
                 Emit(new NativeBattleGilgameshSprites(drawn.Batch));
                 if (!Paused)
                 {
                     bool dead = resource.ProjectedFrame571C80(phase).NextOffset < 0;
-                    Frame = Frame with { Memory = Frame.Memory with { Arena = NativeBattleMasamuneParticles.AdvanceRecord(Arena, record, ring, dead) } };
+                    NativeBattleMasamuneParticles.AdvanceRecord(rows.Arena, record, ring, dead);
                     if (!dead)
                     {
                         survivors++;

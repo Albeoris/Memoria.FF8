@@ -14,8 +14,14 @@ public static class NativeBattleGilgameshExcalipoorAttack
 
     public static NativeBattleGilgameshAttackStep Advance(NativeBattleGilgameshAttackProfile profile, NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<BattleModelOwner> contactActors, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor571400)
     {
+        return AdvanceOccurrences(profile, task, children, random, graphicsFlags, contactActors.IsDefault ? default : contactActors.Select(owner => (owner, (BattleContactOccurrence?)null)).ToImmutableArray(), readAnchor571400, null);
+    }
+
+    internal static NativeBattleGilgameshAttackStep AdvanceOccurrences(NativeBattleGilgameshAttackProfile profile, NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<(BattleModelOwner Owner, BattleContactOccurrence? Occurrence)> contacts, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor571400, NativeBattleGilgameshAttackStorage? hosted)
+    {
         profile.Validate();
-        if (task.Callback != profile.Callback || task.PayloadLength != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault)
+        if (task.Callback != profile.Callback || task.PayloadLength != 24 || !NativeBattleGilgameshAttackStorage.ValidChildBank(children) || contacts.IsDefault ||
+            (hosted is null ? children.BankAddress != NativeBattleGilgameshAttackStorage.OriginalChildAddress : children.BankAddress != hosted.ChildAddress || children.Slots.Length != hosted.ChildCapacity))
         {
             throw new InvalidDataException("Native Gilgamesh attack requires its actual raw task, child bank and physical header contacts.");
         }
@@ -32,19 +38,24 @@ public static class NativeBattleGilgameshExcalipoorAttack
         }
         if (counter == 18)
         {
-            for (int index = 0; index < contactActors.Length; index++)
+            if (hosted is not null && contacts.Any(contact => contact.Occurrence is null))
+            {
+                throw new InvalidDataException("Excalipoor requires each expanded contact occurrence.");
+            }
+            for (int index = 0; index < contacts.Length; index++)
             {
                 int first = Append(0x5915C0);
-                NativeBattleModuleAnchor anchor = readAnchor571400(contactActors[index]);
-                ushort mask = unchecked((ushort)(1u << index));
-                NativeBattleModulePoolTask positioned = Position(children.Slots[first].WriteWord(12, 0).WriteWord(14, profile.MaterialVariant), anchor).WriteWord(22, mask);
+                var contact = contacts[index];
+                BattleContactOccurrence? occurrence = hosted is null ? null : contact.Occurrence;
+                NativeBattleModuleAnchor anchor = readAnchor571400(contact.Owner);
+                NativeBattleModulePoolTask positioned = NativeBattleGilgameshParticleRows.WriteGroup(Position(children.Slots[first].WriteWord(12, 0).WriteWord(14, profile.MaterialVariant), anchor), index, NativeBattleGilgameshParticleVariant.Excalipoor, occurrence);
                 Publish(first, positioned);
 
                 int second = Append(0x591850);
-                Publish(second, CopyPosition(children.Slots[second], positioned).WriteWord(12, 0).WriteWord(14, profile.MaterialVariant).WriteWord(22, unchecked((ushort)(0x100u << index))));
+                Publish(second, NativeBattleGilgameshParticleRows.WriteGroup(CopyPosition(children.Slots[second], positioned).WriteWord(12, 0).WriteWord(14, profile.MaterialVariant), index, NativeBattleGilgameshParticleVariant.ExcalipoorSparks, occurrence));
 
                 int third = Append(0x591B80);
-                Publish(third, CopyPosition(children.Slots[third], positioned).WriteWord(12, 0).WriteWord(22, mask));
+                Publish(third, NativeBattleGilgameshParticleRows.WriteGroup(CopyPosition(children.Slots[third], positioned).WriteWord(12, 0), index, NativeBattleGilgameshParticleVariant.Excalipoor, occurrence));
 
                 int fourth = Append(0x591F50);
                 NativeBattleModulePoolTask flare = CopyPosition(children.Slots[fourth], positioned).WriteWord(12, 0).WriteWord(14, 1).WriteWord(24, 0x800);
@@ -73,5 +84,17 @@ public static class NativeBattleGilgameshExcalipoorAttack
     }
 
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModuleAnchor anchor) => task.WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, unchecked((ushort)anchor.Y)).WriteWord(20, unchecked((ushort)anchor.Z)).WriteWord(22, unchecked((ushort)anchor.W));
-    private static NativeBattleModulePoolTask CopyPosition(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source) => task.WriteDword(16, source.ReadDword(16)).WriteDword(20, source.ReadDword(20));
+    private static NativeBattleModulePoolTask CopyPosition(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source)
+    {
+        (byte[] bytes, bool[] known) = source.BorrowPayloadArena(16, 8).ReadSnapshot(0, 8);
+        task = task.WriteBytes(16, bytes);
+        for (int index = 0; index < known.Length; index++)
+        {
+            if (!known[index])
+            {
+                task = task.MarkPayloadUnknown(16 + index, 1);
+            }
+        }
+        return task;
+    }
 }

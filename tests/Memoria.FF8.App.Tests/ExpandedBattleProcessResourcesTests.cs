@@ -31,14 +31,15 @@ public sealed class ExpandedBattleProcessResourcesTests
         BattleSession logical = Assert.IsType<BattleSession>(world.Battle);
         BattleDefinition entry = logical.ReadDefinition();
         Assert.True(entry.UsesExpandedRoster);
-        Assert.False(entry.UsesOriginalEnemySlots);
+        Assert.True(entry.UsesOriginalEnemySlots);
         Assert.Null(entry.NativeGraphics);
         Assert.Equal(world.BattleResources.LoadEncounter(formation).Flags, entry.NativeEntry!.FormationFlags);
         Assert.NotNull(logical.NativeEntryAdvantage);
         Assert.Equal(4, entry.AddedEnemySources!.Count);
+        Assert.Equal(Enumerable.Range(8, 4), entry.AddedEnemySources.Keys);
         Assert.All(entry.Combatants.Where(actor => !actor.IsPlayer), actor =>
         {
-            Assert.Null(actor.NativeTemplate);
+            Assert.Equal(entry.AddedEnemySources.ContainsKey(actor.SceneSlot!.Value), actor.NativeTemplate is null);
             Assert.Equal(world.BattleResources.ReadEnemyNativeInformation246(actor.ModelId), actor.Information246);
         });
 

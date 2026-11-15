@@ -33,6 +33,7 @@ public sealed class AdditionalEnemyRosterTests
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allies, AdditionalEnemies = storedEnemies, Difficulty = difficulty });
         string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
+        GameState? sourceField = allies == 3 && storedEnemies == 1 ? session.PrepareSnapshot() : null;
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
 
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -50,31 +51,38 @@ public sealed class AdditionalEnemyRosterTests
             return;
         }
         Assert.NotNull(definition.AddedEnemySources);
+        Assert.True(definition.UsesOriginalEnemySlots);
         Assert.Equal(enemies.Length - original.Enemies.Count, definition.AddedEnemySources.Count);
+        Assert.Equal(Enumerable.Range(8, definition.AddedEnemySources.Count), definition.AddedEnemySources.Keys);
         Assert.All(definition.AddedEnemySources, entry =>
         {
             BattleEnemyRosterSource placement = entry.Value;
             Assert.Contains((ushort)placement.Formation, world.Field!.RandomEncounters!.Formations);
             Assert.Equal(world.BattleResources.FormationSourceHash(placement.Formation), placement.FormationHash);
             BattleEnemyPlacement donor = Assert.Single(world.BattleResources.LoadEncounter(placement.Formation).Enemies, candidate => candidate.Slot == placement.SceneSlot);
-            Assert.Equal(donor.ModelId, enemies[entry.Key].ModelId);
-            Assert.Equal(world.BattleResources.ReadEnemyAbilityPoints(donor.ModelId), enemies[entry.Key].AbilityPoints);
+            BattleCombatantDefinition added = Assert.Single(enemies, enemy => enemy.SceneSlot == entry.Key);
+            Assert.Equal(donor.ModelId, added.ModelId);
+            Assert.Equal(world.BattleResources.ReadEnemyAbilityPoints(donor.ModelId), added.AbilityPoints);
         });
         BattleSnapshot before = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before));
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(restored.Capture()));
         BattleDefinition rebuilt = world.CreateEncounterBattle(formation, 4, restoredDefinition: before.Definition);
         Assert.Equal(definition.AddedEnemySources, rebuilt.AddedEnemySources);
         Assert.Equal(enemies.Select(enemy => enemy.ModelId), rebuilt.Combatants.Where(actor => !actor.IsPlayer).Select(enemy => enemy.ModelId));
-        if (allies == 3 && storedEnemies == 1)
+        if (sourceField is not null)
         {
-            GameState snapshot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
-            Assert.Equal(storedEnemies, snapshot.GameplayPreferences.AdditionalEnemies);
-            AssertRestoredRoster(snapshot, directory, definition);
-            AssertRestoredRoster(snapshot with { GameplayPreferences = snapshot.GameplayPreferences with { AdditionalEnemies = 10 } }, directory, definition);
-            AssertNonlocalDonorRejected(snapshot, directory, world.BattleResources, world.Field!.RandomEncounters!.Formations);
+            Assert.Equal(storedEnemies, sourceField.GameplayPreferences.AdditionalEnemies);
+            GameState configuredField = sourceField with { GameplayPreferences = sourceField.GameplayPreferences with { AdditionalEnemies = 10 } };
+            using GameWorld fieldWorld = new(new GameSession(configuredField), directory);
+            fieldWorld.EnsureField();
+            BattleDefinition rebuiltAgainstNewPreferences = fieldWorld.CreateEncounterBattle(formation, 4, restoredDefinition: definition);
+            Assert.Equal(definition.AddedEnemySources, rebuiltAgainstNewPreferences.AddedEnemySources);
+            BattleDefinition altered = ReplaceDonorWithNonlocal(definition, world.BattleResources, world.Field!.RandomEncounters!.Formations);
+            InvalidDataException error = Assert.Throws<InvalidDataException>(() => fieldWorld.CreateEncounterBattle(formation, 4, restoredDefinition: altered));
+            Assert.Contains("outside the suspended exploration encounter table", error.Message);
         }
-        if (allies == 11)
+        if (allies == 11 || sourceField is not null)
         {
             Assert.False(battle.EscapeDisabled);
             battle.PublishNativeEscapeButtons(3);
@@ -183,16 +191,21 @@ public sealed class AdditionalEnemyRosterTests
     private static void AssertNonlocalDonorRejected(GameState snapshot, string directory, BattleAssets assets, IReadOnlyCollection<ushort> localFormations)
     {
         BattleSnapshot battle = snapshot.Battle!;
-        var selected = Assert.Single(battle.Definition.AddedEnemySources!);
+        BattleDefinition altered = ReplaceDonorWithNonlocal(battle.Definition, assets, localFormations);
+        using GameWorld restored = new(new GameSession(snapshot with { Battle = battle with { Definition = altered } }), directory, validateWorldPresentation: false);
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => restored.EnsureField());
+        Assert.Contains("outside the suspended exploration encounter table", error.Message);
+    }
+
+    private static BattleDefinition ReplaceDonorWithNonlocal(BattleDefinition definition, BattleAssets assets, IReadOnlyCollection<ushort> localFormations)
+    {
+        var selected = Assert.Single(definition.AddedEnemySources!);
         int model = assets.LoadEncounter(selected.Value.Formation).Enemies.Single(enemy => enemy.Slot == selected.Value.SceneSlot).ModelId;
         (int Formation, BattleEnemyPlacement Placement) donor = Enumerable.Range(0, assets.FormationCount)
             .Where(formation => !localFormations.Contains((ushort)formation))
             .SelectMany(formation => assets.LoadEncounter(formation).Enemies.Select(enemy => (Formation: formation, Placement: enemy)))
             .First(entry => entry.Placement.ModelId == model && entry.Placement.IsEnemyModel && !entry.Placement.Hidden && !entry.Placement.Untargetable && !entry.Placement.InitiallySuspended);
         BattleEnemyRosterSource source = new(donor.Formation, donor.Placement.Slot, assets.FormationSourceHash(donor.Formation));
-        BattleDefinition altered = battle.Definition with { AddedEnemySources = battle.Definition.AddedEnemySources!.SetItem(selected.Key, source) };
-        using GameWorld restored = new(new GameSession(snapshot with { Battle = battle with { Definition = altered } }), directory, validateWorldPresentation: false);
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => restored.EnsureField());
-        Assert.Contains("outside the suspended exploration encounter table", error.Message);
+        return definition with { AddedEnemySources = definition.AddedEnemySources!.SetItem(selected.Key, source) };
     }
 }

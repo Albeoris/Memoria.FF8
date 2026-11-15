@@ -103,7 +103,7 @@ public static class NativeBattleGilgameshCommonTasks
 
     private static NativeBattleEffectTaskPool Append(NativeBattleEffectTaskPool pool, uint callback, ushort duration, bool stage)
     {
-        if (pool.DescriptorAddress != 0x21FFD58 || pool.BankAddress != 0x21FFD68 || pool.Stride != 0x24 || pool.Slots.Length != 100)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(pool))
         {
             throw new InvalidDataException("Native Gilgamesh common initializer requires its actual raw task bank.");
         }

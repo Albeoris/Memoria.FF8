@@ -203,7 +203,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static void RunInstalledExpandedReserveGraphics(string directory, GameState field, GameAssets game, BattleAssets assets)
     {
-        using GameWorld world = StartBattle(directory, field, 164, useAreaEnemyRoster: true);
+        using GameWorld world = StartBattle(directory, field, 164);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.ReadDefinition().UsesOriginalEnemySlots);
         BattleCombatant owner = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
@@ -280,7 +280,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         foreach (var route in candidates)
         {
             ushort formation = checked((ushort)route.Formation);
-            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false, prepareHigherBand: route.Band == HigherEnemyBand, useAreaEnemyRoster: true);
+            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false, prepareHigherBand: route.Band == HigherEnemyBand);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster || !battle.ReadDefinition().UsesOriginalEnemySlots)
             {

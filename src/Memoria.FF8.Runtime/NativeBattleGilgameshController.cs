@@ -30,11 +30,11 @@ public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattl
 
 public static partial class NativeBattleGilgameshController
 {
-    public static NativeBattleGilgameshFrame Initialize58DCF0(NativeBattleGilgameshFrame frame, NativeBattleActionPacketsState packets, BattleActorModels models)
+    public static NativeBattleGilgameshFrame Initialize58DCF0(NativeBattleGilgameshFrame frame, NativeBattleActionPacketsState packets, BattleActorModels models, BattleContactTaskStorageContract storage = BattleContactTaskStorageContract.OriginalArena)
     {
         NativeBattleGilgameshProcess retained = frame.Memory.Gilgamesh ?? throw new NotSupportedException("Native Gilgamesh requires its retained process model owners; explicitly migrate a needed snapshot.");
         retained.Validate();
-        NativeBattleGilgameshEntryStep initialized = NativeBattleGilgameshEntry.Initialize58DCF0(frame.Memory, frame.Effect, packets, models);
+        NativeBattleGilgameshEntryStep initialized = NativeBattleGilgameshEntry.Initialize58DCF0(frame.Memory, frame.Effect, packets, models, storage);
         return frame with { Memory = initialized.Memory with { Gilgamesh = retained with { Entry = initialized.State, Variant = NativeBattleGilgameshProfile.ForEffect(frame.Effect.Binding.Effect).Variant } }, Effect = initialized.Effect };
     }
 
@@ -44,6 +44,7 @@ public static partial class NativeBattleGilgameshController
         {
             throw new InvalidDataException("Native Gilgamesh resources belong to another sword attack.");
         }
+        frame.Effect.GilgameshAttackStorage?.Validate(frame.Effect.Binding.Effect);
         Execution execution = new(frame, resources, inputs);
         NativeBattleGuardianPoolStep step = NativeBattleGilgameshScheduler.Advance(Pools(frame.Effect), (pools, descriptor, slot) =>
         {
@@ -58,12 +59,20 @@ public static partial class NativeBattleGilgameshController
             execution.Frame = execution.Frame with { PresentationIdentity = previousIdentity };
             return new(Pools(execution.Frame.Effect), result);
         });
-        return execution.Frame with { Effect = execution.Frame.Effect with { Pools = [step.Pools.Main, step.Pools.Children, step.Pools.Particles!], ReturnedDescriptor = step.Survivors == 0 ? 0 : step.Pools.Main.DescriptorAddress } };
+        NativeBattleOriginalEffectState effect = execution.Frame.Effect;
+        ImmutableArray<NativeBattleEffectTaskPool> retained = [step.Pools.Main, step.Pools.Children, step.Pools.Particles!];
+        if (step.Survivors == 0 && effect.GilgameshAttackStorage is not null)
+        {
+            retained = retained.RemoveAt(1);
+            effect = effect with { GilgameshAttackStorage = null };
+        }
+        return execution.Frame with { Effect = effect with { Pools = retained, ReturnedDescriptor = step.Survivors == 0 ? 0 : step.Pools.Main.DescriptorAddress } };
     }
 
     private static NativeBattleGuardianEffectPools Pools(NativeBattleOriginalEffectState effect)
     {
-        if (effect.Binding.Entry != NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect).Entry || effect.Pools.IsDefault || effect.Pools.Length != 3)
+        if (effect.Binding.Entry != NativeBattleGilgameshProfile.ForEffect(effect.Binding.Effect).Entry || effect.Pools.IsDefault || effect.Pools.Length != 3 ||
+            !NativeBattleGilgameshAttackStorage.ValidChildBank(effect, effect.Pools[1]))
         {
             throw new InvalidDataException("Native Gilgamesh requires its executed Excalipoor entry and three raw task banks.");
         }
@@ -199,8 +208,8 @@ public static partial class NativeBattleGilgameshController
                     }
                     BattleContactCursor masamuneFirst = Header.FirstContact;
                     int masamuneCount = Header.ReadContactCount();
-                    ImmutableArray<BattleModelOwner> masamuneActors = Enumerable.Range(0, masamuneCount).Select(index => inputs.Packets.ReadContact(masamuneFirst.Advance(index)).Primary.Recipient).ToImmutableArray();
-                    NativeBattleGilgameshMasamuneAttackStep masamune = NativeBattleGilgameshMasamuneAttack.Advance(Frame, address, inputs.GraphicsFlags, masamuneActors, inputs.Execute);
+                    var masamuneContacts = ReadAttackContacts(masamuneFirst, masamuneCount);
+                    NativeBattleGilgameshMasamuneAttackStep masamune = NativeBattleGilgameshMasamuneAttack.AdvanceOccurrences(Frame, address, inputs.GraphicsFlags, masamuneContacts, inputs.Execute);
                     Frame = masamune.Frame;
                     if (masamune.Contact)
                     {
@@ -221,8 +230,8 @@ public static partial class NativeBattleGilgameshController
                 case 0x5920E0:
                     BattleContactCursor first = Header.FirstContact;
                     int count = Header.ReadContactCount();
-                    ImmutableArray<BattleModelOwner> actors = Enumerable.Range(0, count).Select(index => inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient).ToImmutableArray();
-                    NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(Frame.Effect.Binding.Effect), task, Children, Frame.Random, inputs.GraphicsFlags, actors, inputs.ReadAnchor571400);
+                    var contacts = ReadAttackContacts(first, count);
+                    NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.AdvanceOccurrences(NativeBattleGilgameshAttackProfile.ForEffect(Frame.Effect.Binding.Effect), task, Children, Frame.Random, inputs.GraphicsFlags, contacts, inputs.ReadAnchor571400, Frame.Effect.GilgameshAttackStorage);
                     SetChildren(attack.Children);
                     Write(address, attack.Task);
                     Frame = Frame with { Random = attack.Random };
@@ -234,7 +243,7 @@ public static partial class NativeBattleGilgameshController
                 case 0x5915C0:
                 case 0x591850:
                 case 0x591B80:
-                    NativeBattleGilgameshParticleStep particles = NativeBattleGilgameshParticles.StepWithPresentation(task, Arena, Frame.Random, resources.Particles, Projection.View ?? throw new NotSupportedException("Native Gilgamesh particles require the camera view."), Projection, inputs.GraphicsFlags, Frame.PresentationIdentity);
+                    NativeBattleGilgameshParticleStep particles = NativeBattleGilgameshParticles.StepRows(task, Arena, Frame.Random, resources.Particles, Projection.View ?? throw new NotSupportedException("Native Gilgamesh particles require the camera view."), Projection, inputs.GraphicsFlags, Frame.PresentationIdentity, Frame.Effect.GilgameshAttackStorage);
                     return PublishParticles(address, particles);
                 case 0x5948A0:
                 case 0x594CA0:
@@ -356,6 +365,21 @@ public static partial class NativeBattleGilgameshController
                 default:
                     throw new NotSupportedException($"Native Gilgamesh callback{task.Callback:X8} requires its complete original contract.");
             }
+        }
+
+        private ImmutableArray<(BattleModelOwner Owner, BattleContactOccurrence? Occurrence)> ReadAttackContacts(BattleContactCursor first, int count)
+        {
+            if (Frame.Effect.GilgameshAttackStorage is { } allocated && allocated.OccurrenceCount != count)
+            {
+                throw new InvalidDataException("Gilgamesh attack contacts no longer match the reserved child and particle capacity.");
+            }
+            var contacts = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence? Occurrence)>(count);
+            for (int index = 0; index < count; index++)
+            {
+                NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(index));
+                contacts.Add((packet.Primary.Recipient, packet.Occurrence));
+            }
+            return contacts.MoveToImmutable();
         }
 
         private NativeBattleVector ReadSwordBone(int index, byte selector, short fraction)

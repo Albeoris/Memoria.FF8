@@ -25,7 +25,7 @@ public static class NativeBattleGilgameshOpeningFlare
 {
     public static NativeBattleEffectTaskPool Initialize5931E0(NativeBattleEffectTaskPool pool, NativeBattleActionMatrix world)
     {
-        if (pool.DescriptorAddress != 0x21FFD58 || pool.BankAddress != 0x21FFD68 || pool.Stride != 36 || pool.Slots.Length != 100)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(pool))
         {
             throw new InvalidDataException("Native5931E0 requires its actual raw child task bank.");
         }

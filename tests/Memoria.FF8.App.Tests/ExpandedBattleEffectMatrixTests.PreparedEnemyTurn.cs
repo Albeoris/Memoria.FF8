@@ -56,7 +56,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         bool iguion = effect.Effect == 49;
         bool soleEnemy = effect.Effect is 126 or 129;
         bool gim52a = effect.Effect == 313;
-        bool useAreaEnemyRoster = effect.Effect is not (166 or 213 or 219 or 257 or 258);
         // Granaldo uses its physical Raldo slot checks specifically in formation 62.
         // The high-band Vysage branch checks for both living arms.
         // Iguion checks the shared reaction counter after the party draws Carbuncle.
@@ -115,10 +114,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string? firstBlocker = null;
         foreach (byte seed in new byte[] { 0, 5, 9 })
         {
-            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), demi, nativeSeed: seed, prepareHigherBand: elnoyle || vysage || soleEnemy || gim52a, prepareParty: prepareParty, useAreaEnemyRoster: useAreaEnemyRoster);
+            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), demi, nativeSeed: seed, prepareHigherBand: elnoyle || vysage || soleEnemy || gim52a, prepareParty: prepareParty);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             IEnumerable<BattleCombatant> owners = battle.Combatants.Where(actor => !actor.IsPlayer && actor.ModelId == model);
-            BattleCombatant target = useAreaEnemyRoster ? owners.First() : owners.Last();
+            BattleCombatant target = owners.First();
             int band = Assert.IsType<NativeBattleAiDefinition>(battle.GetCombatantDefinition(target.Id).NativeAi).LevelBand;
             if ((elnoyle || soleEnemy) && band == 0)
             {

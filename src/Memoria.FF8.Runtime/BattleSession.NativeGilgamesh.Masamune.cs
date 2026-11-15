@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         uint offset = unchecked(address - pool.BankAddress);
-        if (pool.DescriptorAddress != 0x21FFD58 || pool.BankAddress != 0x21FFD68 || pool.Stride != 36 || offset >= 100 * 36 || offset % 36 != 0)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(frame.Effect, pool) || offset >= (uint)(pool.Slots.Length * pool.Stride) || offset % pool.Stride != 0)
         {
             throw new InvalidDataException("Masamune operation leaves its actual raw child bank.");
         }

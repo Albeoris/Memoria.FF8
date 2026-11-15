@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             ReadModelWord26 = actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."),
             ReadModelWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), null)
         };
-        frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.ActorModels) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
+        frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.ActorModels, graphics.Effects.StorageContract) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
         if (initialize)
         {
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.EnterGilgameshPresentation(frame.Effect) };
@@ -237,52 +237,54 @@ public sealed partial class BattleSession
 
     private static NativeBattleOriginalEffectState WriteNativeGilgameshCompletionByte(NativeBattleOriginalEffectState effect, uint address, byte value)
     {
-        uint delta = unchecked(address - 0x21FFD68);
-        if (effect.Binding.Entry is not (0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0) || delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
+        if (GilgameshCompletionPool(effect, address) is not { } pool)
         {
             throw new NotSupportedException("Native Gilgamesh texture completion requires its actual child-task BYTE owner.");
         }
-        int index = -1;
-        for (int current = 0; current < effect.Pools.Length; current++)
-        {
-            if (effect.Pools[current].DescriptorAddress == 0x21FFD58)
-            {
-                index = current;
-                break;
-            }
-        }
-        if (index < 0)
-        {
-            throw new NotSupportedException("Native Gilgamesh texture completion lost its physical raw task bank.");
-        }
-        NativeBattleEffectTaskPool pool = effect.Pools[index];
-        if (pool.BankAddress != 0x21FFD68 || pool.Stride != 0x24 || pool.Slots.Length != 100)
-        {
-            throw new InvalidDataException("Native Gilgamesh texture completion changed its physical child bank.");
-        }
-        int slot = (int)(delta / 0x24);
+        int index = effect.Pools.IndexOf(pool);
+        int slot = checked((int)((address - pool.BankAddress) / pool.Stride));
         NativeBattleModulePoolTask task = pool.Slots[slot];
         task = task.WriteWord(0x0E, (ushort)((task.ReadWord(0x0E) & 0xFF00) | value));
         return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(slot, task)) };
     }
 
+    private static NativeBattleEffectTaskPool? GilgameshCompletionPool(NativeBattleOriginalEffectState? effect, uint address)
+    {
+        if (effect is not { Binding.Entry: 0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0 } ||
+            effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleGilgameshAttackStorage.ChildDescriptor) is not { } children)
+        {
+            return null;
+        }
+        uint delta = unchecked(address - children.BankAddress);
+        if (delta >= (uint)(children.Stride * children.Slots.Length) || delta % children.Stride != 0x0E)
+        {
+            return null;
+        }
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(effect, children))
+        {
+            throw new InvalidDataException("Native Gilgamesh texture completion changed its physical child bank.");
+        }
+        return children;
+    }
+
     private bool TryWriteNativeGilgameshCompletion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
     {
         updated = graphics;
-        uint delta = unchecked(address - 0x21FFD68);
-        if (delta >= 100 * 0x24 || delta % 0x24 != 0x0E)
-        {
-            return false;
-        }
-        if (NativeEffectMemory?.DetachedReturnedTask is { Binding.Entry: 0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0 } detached)
+        if (NativeEffectMemory?.DetachedReturnedTask is { } detached && GilgameshCompletionPool(detached, address) is not null)
         {
             NativeEffectMemory = NativeEffectMemory with { DetachedReturnedTask = WriteNativeGilgameshCompletionByte(detached, address, value) };
+            return true;
         }
-        else
+        if (graphics.OriginalEffect is { } current && GilgameshCompletionPool(current, address) is not null)
         {
-            NativeBattleOriginalEffectState current = graphics.OriginalEffect is { Binding.Entry: 0x58D760 or 0x58D930 or 0x58DB10 or 0x58DCF0 } selected ? selected : throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
             updated = graphics with { OriginalEffect = WriteNativeGilgameshCompletionByte(current, address, value) };
+            return true;
         }
-        return true;
+        uint original = unchecked(address - NativeBattleGilgameshAttackStorage.OriginalChildAddress);
+        if (original < NativeBattleGilgameshAttackStorage.OriginalChildCapacity * NativeBattleGilgameshAttackStorage.ChildStride && original % NativeBattleGilgameshAttackStorage.ChildStride == 0x0E)
+        {
+            throw new NotSupportedException("Native Gilgamesh completion lost its current raw task owner.");
+        }
+        return false;
     }
 }

@@ -46,7 +46,7 @@ public sealed partial record NativeBattleModuleState
         ValidateGilgameshPresentation();
         long birth = GilgameshPresentation?.NextBirth ?? 1;
         NativeBattleEffectTaskPool children = selected.Pools[1];
-        if (children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(selected, children))
         {
             throw new InvalidDataException("Gilgamesh presentation entry requires its actual director task bank.");
         }
@@ -135,7 +135,7 @@ public sealed partial record NativeBattleModuleState
             return;
         }
         NativeBattleGilgameshPresentationContext context = presentation.Context ?? throw new InvalidDataException("Gilgamesh presentation lost its executed context.");
-        if (!OwnsGilgameshPresentation(context.Effect) || context.Birth <= 0 || context.Birth > long.MaxValue - 3 || context.RootGeneration != context.Birth + 1 || context.DirectorGeneration != context.Birth + 2 || !GilgameshSourceAddress(context.DirectorAddress) || context.RootAddress is not (0x21FF468 or 0x21FF478) || presentation.NextBirth <= context.DirectorGeneration)
+        if (!OwnsGilgameshPresentation(context.Effect) || context.Birth <= 0 || context.Birth > long.MaxValue - 3 || context.RootGeneration != context.Birth + 1 || context.DirectorGeneration != context.Birth + 2 || !GilgameshSourceAddress(context.Effect, context.DirectorAddress) || context.RootAddress is not (0x21FF468 or 0x21FF478) || presentation.NextBirth <= context.DirectorGeneration)
         {
             throw new InvalidDataException("Gilgamesh presentation context has invalid allocation ordinals or native root identity.");
         }
@@ -147,7 +147,7 @@ public sealed partial record NativeBattleModuleState
             {
                 continue;
             }
-            if (!OwnsGilgameshPresentation(receipt.Effect) || receipt.Slot != slot || receipt.ContextBirth <= 0 || receipt.ContextBirth >= receipt.Birth || receipt.Birth >= presentation.NextBirth || !births.Add(receipt.Birth) || receipt.ContextBirth > context.Birth || receipt.ContextBirth == context.Birth && (receipt.Effect != context.Effect || receipt.SourceBirth != context.DirectorGeneration || receipt.Source?.TaskAddress != context.DirectorAddress) || receipt.ContextBirth > long.MaxValue - 3 || receipt.SourceBirth != receipt.ContextBirth + 2 || receipt.SourceBirth >= receipt.Birth || receipt.ContextBirth < context.Birth && receipt.Birth >= context.Birth || receipt.Source is not { Callback: 0x592300 } source || !GilgameshSourceAddress(source.TaskAddress) || receipt.Counter != 279 || task.Kind != NativeBattleModuleKind.CriticalFlash571300 || task.Callback is not null || task.Payload.Length != 24 || BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(2)) != 0xC22 || BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(16)) != 255 || receipt.Identity.Effect != receipt.Effect || receipt.Identity.Bank != DescriptorAddress || receipt.Identity.Slot != slot || receipt.Identity.Generation != receipt.Birth || receipt.Identity.Primitive != unchecked((int)source.Callback) || receipt.Identity.ResourceGeneration != GilgameshFlashResource(receipt.ContextBirth, receipt.SourceBirth, source, receipt.Counter))
+            if (!OwnsGilgameshPresentation(receipt.Effect) || receipt.Slot != slot || receipt.ContextBirth <= 0 || receipt.ContextBirth >= receipt.Birth || receipt.Birth >= presentation.NextBirth || !births.Add(receipt.Birth) || receipt.ContextBirth > context.Birth || receipt.ContextBirth == context.Birth && (receipt.Effect != context.Effect || receipt.SourceBirth != context.DirectorGeneration || receipt.Source?.TaskAddress != context.DirectorAddress) || receipt.ContextBirth > long.MaxValue - 3 || receipt.SourceBirth != receipt.ContextBirth + 2 || receipt.SourceBirth >= receipt.Birth || receipt.ContextBirth < context.Birth && receipt.Birth >= context.Birth || receipt.Source is not { Callback: 0x592300 } source || !GilgameshSourceAddress(receipt.Effect, source.TaskAddress) || receipt.Counter != 279 || task.Kind != NativeBattleModuleKind.CriticalFlash571300 || task.Callback is not null || task.Payload.Length != 24 || BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(2)) != 0xC22 || BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(16)) != 255 || receipt.Identity.Effect != receipt.Effect || receipt.Identity.Bank != DescriptorAddress || receipt.Identity.Slot != slot || receipt.Identity.Generation != receipt.Birth || receipt.Identity.Primitive != unchecked((int)source.Callback) || receipt.Identity.ResourceGeneration != GilgameshFlashResource(receipt.ContextBirth, receipt.SourceBirth, source, receipt.Counter))
             {
                 throw new InvalidDataException("Gilgamesh flash provenance differs from its actual source, slot, birth or native flash family.");
             }
@@ -156,9 +156,10 @@ public sealed partial record NativeBattleModuleState
 
     private static long GilgameshFlashResource(long contextBirth, long sourceBirth, NativeBattleGilgameshFlashSource source, int counter) => unchecked(((contextBirth * 397 ^ sourceBirth) * 397 ^ source.TaskAddress) * 397 ^ counter);
 
-    private static bool GilgameshSourceAddress(uint address)
+    private static bool GilgameshSourceAddress(ushort effect, uint address)
     {
         uint offset = unchecked(address - 0x21FFD68);
-        return offset < 100 * 36 && offset % 36 == 0;
+        return offset < 100 * 36 && offset % 36 == 0 ||
+            NativeBattleGilgameshAttackStorage.Supports(effect) && NativeBattlePresentationTaskStorage.IsHostedBank(address, NativeBattleGilgameshAttackStorage.ChildStride, 1);
     }
 }

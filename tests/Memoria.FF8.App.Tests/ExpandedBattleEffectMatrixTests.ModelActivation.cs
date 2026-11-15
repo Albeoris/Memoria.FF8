@@ -11,7 +11,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     public void Installed_formation63_activates_its_authored_model_through_the_death_action()
     {
         string directory = TestResources.GameDirectory;
-        using GameWorld world = StartBattle(directory, PrepareField(directory), 63, useAreaEnemyRoster: true);
+        using GameWorld world = StartBattle(directory, PrepareField(directory), 63);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.ReadDefinition().UsesOriginalEnemySlots);
         BattleCombatant carrier = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 68);

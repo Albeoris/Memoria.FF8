@@ -34,7 +34,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string checkpoint = TestResources.ArtifactFile($"{Guid.NewGuid():N}.battle.json");
         File.WriteAllText(checkpoint, JsonSerializer.Serialize(state with { Battle = snapshot with { Combatants = actors } }));
         GameSession resumed = new(GameSession.Load(checkpoint));
-        using GameWorld world = new(resumed, directory, expandedBattleEnemyCount: 11);
+        using GameWorld world = new(resumed, directory);
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.All(battle.Capture().Combatants.Where(actor => recipients.Contains(actor.Id)), actor => Assert.Equal(2, actor.NativeStatus!.Timers[10]));

@@ -15,18 +15,24 @@ public static partial class NativeBattleGilgameshParticles
 
     public static NativeBattleGilgameshParticleStep StepWithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshParticleResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        return StepRows(task, arena, random, resources, view, projection, graphicsFlags, pilotIdentity, null);
+    }
+
+    internal static NativeBattleGilgameshParticleStep StepRows(NativeBattleModulePoolTask task, NativeBattleEffectArena original, NativeCrtRandomState random, NativeBattleGilgameshParticleResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags, NativeBattlePilotVisualIdentity? pilotIdentity, NativeBattleGilgameshAttackStorage? hosted)
+    {
         if (task.PayloadLength != 24 || task.Callback is not (0x5915C0 or 0x591850 or 0x591B80))
         {
             throw new InvalidDataException("Native Gilgamesh particles require their original raw0x24-byte callback task.");
         }
+        bool sparks = task.Callback == 0x591850;
+        bool streaks = task.Callback == 0x591B80;
+        NativeBattleGilgameshParticleRows rows = new(original, streaks, streaks ? hosted?.LongRows : hosted?.ShortRows);
+        NativeBattleEffectArena arena = rows.Arena;
         arena.Validate();
         resources.Validate();
         bool paused = (graphicsFlags & 0x201) != 0;
-        bool sparks = task.Callback == 0x591850;
-        bool streaks = task.Callback == 0x591B80;
-        int bank = streaks ? 0x2F800 : 0x2E000;
-        int stride = streaks ? 0x20 : 0x18;
-        int mask = unchecked((short)task.ReadWord(0x16));
+        BattleExecutionReference.GilgameshGroup? group = rows.ReadGroup(task);
+        ushort originalWord = group is null ? task.ReadWord(0x16) : (ushort)0;
         int counter = unchecked((short)task.ReadWord(0x0C));
         if (!paused && counter <= (sparks || streaks ? 2 : 1))
         {
@@ -34,10 +40,11 @@ public static partial class NativeBattleGilgameshParticles
             for (int spawn = 0; spawn < spawnCount; spawn++)
             {
                 int record = -1;
-                for (int index = 0; index < 200; index++)
+                int slot = 0;
+                for (; slot < rows.Capacity; slot++)
                 {
-                    int current = bank + index * stride;
-                    if (Dword(arena, current) == 0)
+                    int current = rows.Record(slot);
+                    if (rows.Free(current))
                     {
                         record = current;
                         break;
@@ -45,12 +52,17 @@ public static partial class NativeBattleGilgameshParticles
                 }
                 if (record < 0)
                 {
+                    if (group is not null)
+                    {
+                        throw new InvalidDataException("Gilgamesh exhausted its reserved attack particle bank.");
+                    }
                     break;
                 }
-                (arena, random) = Spawn(task.Callback, arena, record, mask, random);
+                rows.Occupy(record, originalWord, group);
+                (arena, random) = Spawn(task.Callback, arena, record, random);
                 if (pilotIdentity.HasValue)
                 {
-                    NativeBattlePilotVisualLifetimes.Allocated(arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), (record - bank) / stride);
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, rows.Address, slot);
                 }
             }
         }
@@ -59,10 +71,10 @@ public static partial class NativeBattleGilgameshParticles
         NativeBattleModuleResource resource = streaks ? resources.Streak : sparks ? resources.Sparks : task.ReadWord(0x0E) == 0 ? resources.SourceA : resources.SourceB;
         ImmutableArray<NativeBattleModulePacketBatch>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleModulePacketBatch>();
         int survivors = 0;
-        for (int index = 0; index < 200; index++)
+        for (int index = 0; index < rows.Capacity; index++)
         {
-            int record = bank + index * stride;
-            if ((unchecked((int)Dword(arena, record)) & mask) == 0)
+            int record = rows.Record(index);
+            if (!rows.Matches(record, originalWord, group))
             {
                 continue;
             }
@@ -73,7 +85,7 @@ public static partial class NativeBattleGilgameshParticles
             {
                 Resource = resource,
                 PilotProjection = pilotIdentity.HasValue ? projection : null,
-                PilotIdentity = NativeBattleGilgameshVisuals.Row(pilotIdentity, arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank), index, resource, resource.Address),
+                PilotIdentity = NativeBattleGilgameshVisuals.Row(pilotIdentity, arena, rows.Address, index, resource, resource.Address),
                 SpriteFrame = frame,
                 Phase = streaks ? (ushort)0 : unchecked((ushort)phase),
                 Anchor = new(Word(arena, record + 8), Word(arena, record + 10), Word(arena, record + 12), 0),
@@ -125,14 +137,13 @@ public static partial class NativeBattleGilgameshParticles
         }
         if (paused)
         {
-            return new(task, arena, random, packets.ToImmutable(), survivors, 0);
+            return new(task, original, random, packets.ToImmutable(), survivors, 0);
         }
         task = task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1)));
-        return new(task, arena, random, packets.ToImmutable(), survivors, survivors == 0 ? 2 : 0);
+        return new(task, original, random, packets.ToImmutable(), survivors, survivors == 0 ? 2 : 0);
     }
 
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
-    private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
 
     private static NativeBattleEffectArena WriteWord(NativeBattleEffectArena arena, int offset, int value)
     {

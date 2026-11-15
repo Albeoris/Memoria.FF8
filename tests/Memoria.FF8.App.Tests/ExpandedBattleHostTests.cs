@@ -97,7 +97,7 @@ public sealed class ExpandedBattleHostTests
         }
         GameSession session = new(initial.State with { FieldId = 133, FieldName = "cavern-component", EventState = null, DepartingFieldState = initial.State.EventState, FieldLoadContext = null, FieldRequestPacket = null });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: capacity, expandedBattleEnemyCount: 8);
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: capacity);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
 
@@ -137,12 +137,12 @@ public sealed class ExpandedBattleHostTests
     [InlineData(0, true, false, 8)]
     [InlineData(89, false, true, 8)]
     [InlineData(87, false, false, 11)]
-    [InlineData(87, false, false, 11, false, 11)]
+    [InlineData(87, false, false, 11, false, 10)]
     [InlineData(0, true, false, 11)]
     [InlineData(89, false, true, 11)]
     [InlineData(0, true, false, 11, true)]
-    [InlineData(0, true, false, 11, true, 11)]
-    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount, bool coldRestore = false, int largeEnemyCount = 8)
+    [InlineData(0, true, false, 11, true, 10)]
+    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount, bool coldRestore = false, int requestedDonors = 0)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
@@ -196,14 +196,18 @@ public sealed class ExpandedBattleHostTests
             FieldRequestPacket = null
         });
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, expandedBattleEnemyCount: largeEnemyCount);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         byte[] selectedRows = Enumerable.Range(0, allyCount).Select(row => (byte)row).ToArray();
         session.SetCharacterVitals((initial with { Records = records }).WithBattleParty(selectedRows, allyCount));
         session.SetEconomy(economy with { Items = items });
-        bool guardianFormsEnabled = largeEnemyCount == 11;
-        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount, GuardianFormsEnabled = guardianFormsEnabled });
+        BattleDefinition original = world.CreateEncounterBattle(88);
+        Assert.False(original.UsesExpandedRoster);
+        Assert.NotNull(original.NativeGraphics);
+        Assert.Contains(original.Combatants, actor => actor.NativeAi is not null);
+        bool guardianFormsEnabled = requestedDonors == 10;
+        world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount, AdditionalEnemies = requestedDonors, GuardianFormsEnabled = guardianFormsEnabled });
         if (!mass)
         {
             Assert.Contains(formation, world.Field!.RandomEncounters!.Formations);
@@ -215,18 +219,14 @@ public sealed class ExpandedBattleHostTests
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.UsesExpandedRoster);
         Assert.Equal(guardianFormsEnabled, battle.ReadDefinition().GuardianFormsEnabled);
-        BattleDefinition original = world.CreateEncounterBattle(88);
-        Assert.False(original.UsesExpandedRoster);
-        Assert.NotNull(original.NativeGraphics);
-        Assert.Contains(original.Combatants, actor => actor.NativeAi is not null);
-        int enemyCount = allyCount == 11 ? largeEnemyCount : ExpandedBattleFormation.DefaultEnemyCount(allyCount);
-        string lastEnemy = $"enemy-{enemyCount - 1}";
-        Assert.Equal(allyCount + enemyCount, battle.Combatants.Count);
+        BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
+        int enemyCount = enemies.Length;
+        string lastEnemy = enemies[^1].Id;
+        Assert.Equal(allyCount, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
         BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
         string casterId = $"party-{casterRow}";
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
-        BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer).ToArray();
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
         Assert.Equal(allyCount, hud.Party.Count);
         if (allyCount == 11)
@@ -234,10 +234,10 @@ public sealed class ExpandedBattleHostTests
             Assert.Equal(Enumerable.Range(0, 11), hud.Party.Select(actor => actor.ModelId).Order());
             Assert.True(session.State.CharacterVitals!.ExtendedRosterEnabled);
         }
-        Assert.Equal(allyCount + enemyCount, BattleSession.Restore(battle.Capture()).Combatants.Count);
+        Assert.Equal(battle.Combatants.Count, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));
         Assert.Equal(5, MagicCount(quake.ActionId));
-        Assert.Equal(BattleRosterSlot.Enemy(enemyCount - 1), battle.PreviewSmartAttack(casterId, lastEnemy, forcePhysical: true).TargetSlot);
+        Assert.Equal(enemies[^1].Slot, battle.PreviewSmartAttack(casterId, lastEnemy, forcePhysical: true).TargetSlot);
         if (allyCount >= 8)
         {
             _ = presentation.Render(battle, 640, 448);
@@ -280,7 +280,7 @@ public sealed class ExpandedBattleHostTests
             Assert.Equal(5, MagicCount(fire.ActionId));
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
             Assert.Equal(enemyCount, battle.EnemyDefeats.Count);
-            Assert.Equal(Enumerable.Range(0, enemyCount), battle.EnemyDefeats.Select(defeat => defeat.Slot).Order());
+            Assert.Equal(enemies.Select(enemy => enemy.SceneSlot!.Value).Order(), battle.EnemyDefeats.Select(defeat => defeat.Slot).Order());
             BattleRewardSummary rewards = world.PreviewBattleRewards();
             Assert.Equal(allyCount, rewards.CharacterGrowth.Length);
             Assert.True(rewards.CharacterExperience.ContainsKey((byte)casterRow));
@@ -373,7 +373,7 @@ public sealed class ExpandedBattleHostTests
                     using var checkpoint = new TemporaryBattleCheckpoint();
                     session.Save(checkpoint.Path, compact: true);
                     GameSession resumed = new(GameSession.Load(checkpoint.Path));
-                    using GameWorld resumedWorld = new(resumed, directory, expandedBattleEnemyCount: 11);
+                    using GameWorld resumedWorld = new(resumed, directory);
                     resumedWorld.EnsureField();
                     BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
                     Assert.Equal(recipient.Id, restored.ActiveAction?.DrawCastTargetId ?? Assert.Single(restored.QueuedActions).DrawCastTargetId);
@@ -410,9 +410,9 @@ public sealed class ExpandedBattleHostTests
         void CheckColdContinuations()
         {
             GameState initialBattle = session.PrepareSnapshot();
-            GameSession uninterrupted = new(initialBattle);
-            int differentEnemyCount = largeEnemyCount == 11 ? 8 : 11;
-            using GameWorld uninterruptedWorld = new(uninterrupted, directory, expandedBattleEnemyCount: differentEnemyCount);
+            int differentDonorCount = requestedDonors == 10 ? 0 : 10;
+            GameSession uninterrupted = new(initialBattle with { GameplayPreferences = initialBattle.GameplayPreferences with { AdditionalEnemies = differentDonorCount } });
+            using GameWorld uninterruptedWorld = new(uninterrupted, directory);
             uninterruptedWorld.EnsureField();
             AssertEquivalentBattle(battle, uninterruptedWorld.Battle!);
             BattleSession active = uninterruptedWorld.Battle!;
@@ -432,7 +432,7 @@ public sealed class ExpandedBattleHostTests
             using var checkpoint = new TemporaryBattleCheckpoint();
             uninterrupted.Save(checkpoint.Path, compact: true);
             GameSession resumed = new(GameSession.Load(checkpoint.Path));
-            using GameWorld resumedWorld = new(resumed, directory, expandedBattleEnemyCount: differentEnemyCount);
+            using GameWorld resumedWorld = new(resumed, directory);
             resumedWorld.EnsureField();
             BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
             AssertEquivalentBattle(active, restored);
@@ -456,7 +456,7 @@ public sealed class ExpandedBattleHostTests
 
             resumed.Save(checkpoint.Path, compact: true);
             GameSession terminal = new(GameSession.Load(checkpoint.Path));
-            using GameWorld terminalWorld = new(terminal, directory, expandedBattleEnemyCount: differentEnemyCount);
+            using GameWorld terminalWorld = new(terminal, directory);
             terminalWorld.EnsureField();
             AssertEquivalentBattle(active, terminalWorld.Battle!);
             uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.Return));

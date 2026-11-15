@@ -147,7 +147,6 @@ internal sealed partial class GameWorld
         }
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
-        bool localRandomEncounter = effectPreviewRequest is null && Events.PendingHostedBattle is null && Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending?.Formation == encounterId;
         byte[] nativeParty = entryVitals.GetBattlePartyRows(3);
         byte[]? selectedParty = null;
         if (restoredDefinition is { UsesExpandedRoster: true })
@@ -155,48 +154,46 @@ internal sealed partial class GameWorld
             selectedParty = ExpandedBattlePartyRows.ReadBoundRows(restoredDefinition, entryVitals);
             entryVitals = entryVitals with { AdditionalCombatParty = restoredDefinition.MagicVitals!.AdditionalCombatParty };
         }
-        else if (restoredDefinition is null && localRandomEncounter)
+        else if (restoredDefinition is null && effectPreviewRequest is null)
         {
             selectedParty = entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
         }
         byte[]? expandedParty = selectedParty is not null && !selectedParty.SequenceEqual(nativeParty) ? selectedParty : null;
         int allyCount = expandedParty?.Length ?? nativeParty.Length;
-        bool legacyExpandedEntry = restoredDefinition is { UsesExpandedRoster: true, AddedEnemySources: null, UsesOriginalEnemySlots: false }
-            || restoredDefinition is null && legacyExpandedEnemyCount.HasValue && localRandomEncounter && expandedParty is not null;
-        bool useOriginalEnemySlots = restoredDefinition?.UsesOriginalEnemySlots ?? (localRandomEncounter && !legacyExpandedEntry && expandedParty is not null && NeedsOriginalEnemySlots(encounter));
         ImmutableSortedDictionary<int, BattleEnemyRosterSource>? addedEnemySources = restoredDefinition?.AddedEnemySources;
-        if (restoredDefinition is null && localRandomEncounter && !legacyExpandedEntry && !useOriginalEnemySlots)
+        if (restoredDefinition is null && effectPreviewRequest is null)
         {
             int requested = Math.Max(defaultAdditionalEnemyCount, session.State.GameplayPreferences.GetEffectiveAdditionalEnemies(allyCount));
-            if ((requested > 0 || expandedParty is not null) && !NeedsOriginalEnemySlots(encounter))
+            if (requested > 0)
             {
                 addedEnemySources = SelectAdditionalEnemies(encounter, requested, nativeSeed);
             }
         }
+        bool expanded = restoredDefinition?.UsesExpandedRoster ?? (expandedParty is not null || addedEnemySources is { Count: > 0 });
+        if (expanded && restoredDefinition is null)
+        {
+            addedEnemySources ??= ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty;
+        }
+        bool useOriginalEnemySlots = restoredDefinition?.UsesOriginalEnemySlots ?? expanded;
         BattleEnemyPlacement[]? expandedEnemies = null;
-        if (useOriginalEnemySlots)
+        if (expanded && useOriginalEnemySlots)
         {
             expandedEnemies = OriginalExpandedEnemyPlacements(encounter, restoredDefinition);
-            if (addedEnemySources is not null)
+            if (addedEnemySources is { Count: > 0 })
             {
                 expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: expandedEnemies);
             }
         }
-        else if (legacyExpandedEntry)
+        else if (expanded)
         {
-            int enemyCount = restoredDefinition?.Combatants.Count(actor => !actor.IsPlayer) ?? (allyCount == 11 ? legacyExpandedEnemyCount!.Value : ExpandedBattleFormation.DefaultEnemyCount(allyCount));
-            expandedEnemies = ExpandRandomEnemyRoster(encounter, enemyCount);
+            expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources ?? throw new NotSupportedException("Legacy expanded combat requires admitted enemy placement provenance."));
         }
-        else if (addedEnemySources is not null && (expandedParty is not null || addedEnemySources.Count != 0))
-        {
-            expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources);
-        }
-        bool expanded = expandedEnemies is not null && (useOriginalEnemySlots
+        bool validExpandedRoster = expandedEnemies is not null && (useOriginalEnemySlots
             ? expandedEnemies.Length <= ExpandedBattleFormation.MaximumRewardSlots && ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Count(enemy => enemy.Enabled))
             : ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Length));
-        if (restoredDefinition?.UsesExpandedRoster == true && !expanded)
+        if (expanded && !validExpandedRoster)
         {
-            throw new InvalidDataException("Saved expanded combat no longer has its eligible party or encounter.");
+            throw new InvalidDataException($"Expanded formation {encounterId} does not have a supported party and authored enemy roster.");
         }
         List<BattleCombatantDefinition> combatants = [.. CreateBattleParty(entryVitals, expanded ? expandedParty : null)];
         NativeBattleRandomState random = NativeBattleRandomState.Initialize(nativeSeed);
@@ -326,6 +323,10 @@ internal sealed partial class GameWorld
         if (primitive is not null)
         {
             throw new NotSupportedException($"Saved expanded formation {formation}, scene slot {primitive.SceneSlot}, model {primitive.ModelId} uses the retired primitive enemy execution contract. Migrate this battle snapshot explicitly before restoring it.");
+        }
+        if (!definition.UsesOriginalEnemySlots && definition.AddedEnemySources is null)
+        {
+            throw new NotSupportedException($"Saved expanded formation {formation} uses the retired generated enemy roster without admitted placement provenance.");
         }
     }
 
@@ -772,7 +773,7 @@ internal sealed partial class GameWorld
         return result;
     }
 
-    internal void ApplyBattleResult(BattleEncounterOccurrence expected, BattleResult result, IReadOnlyDictionary<int, int>? guardianForceLearning = null)
+    internal void ApplyBattleResult(BattleEncounterOccurrence expected, BattleResult result, IReadOnlyDictionary<int, int>? guardianForceLearning = null, BattleDefinition? admittedDefinition = null)
     {
         expected.Validate();
         result.Validate();
@@ -800,7 +801,7 @@ internal sealed partial class GameWorld
                 throw new InvalidDataException("Battle reward policy differs from its actual hosted battle backend.");
             }
         }
-        BattleResultOwners owners = ProjectBattleResult(result);
+        BattleResultOwners owners = ProjectBattleResult(result, admittedDefinition);
         if (guardianForceLearning is not null)
         {
             foreach ((int id, int ability) in guardianForceLearning)
@@ -830,13 +831,20 @@ internal sealed partial class GameWorld
         LastBattleRewards = owners.Rewards;
     }
 
-    private BattleResultOwners ProjectBattleResult(BattleResult result)
+    private BattleResultOwners ProjectBattleResult(BattleResult result, BattleDefinition? admittedDefinition = null)
     {
         BattleEncounter formation = BattleResources.LoadEncounter(result.Encounter.Formation);
+        BattleDefinition? admittedBattle = admittedDefinition ?? (result.UsesExpandedRoster ? battle?.ReadDefinition() : null);
+        if (admittedBattle is not null && (admittedBattle.EncounterId != result.Encounter.Formation || admittedBattle.UsesExpandedRoster != result.UsesExpandedRoster ||
+            admittedBattle.UsesOriginalEnemySlots != result.UsesOriginalEnemySlots || (admittedBattle.AddedEnemySources is null) != (result.AddedEnemySources is null) ||
+            admittedBattle.AddedEnemySources is { } admittedSources && !admittedSources.SequenceEqual(result.AddedEnemySources!)))
+        {
+            throw new InvalidDataException("Battle result disagrees with its admitted encounter and enemy placement authority.");
+        }
         IReadOnlyList<BattleEnemyPlacement> slots = result.AddedEnemySources is { } sources
             ? ResolveExpandedEnemyPlacements(formation, sources, originalSlots: result.UsesOriginalEnemySlots)
             : result.UsesExpandedRoster && !result.UsesOriginalEnemySlots
-                ? ExpandRandomEnemyRoster(formation, result.EffectiveEnemySlotCount) ?? throw new InvalidDataException("Expanded battle reward formation is unavailable.")
+                ? throw new NotSupportedException("Legacy expanded rewards require admitted enemy placement provenance.")
                 : formation.Slots;
         if (result.AddedEnemySources is not null && slots.Count != result.EffectiveEnemySlotCount)
         {
@@ -850,7 +858,6 @@ internal sealed partial class GameWorld
         Dictionary<int, int> currentAp = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
         Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyRewards(enemy.ModelId));
         bool noExperience = NativeBattleRewardDistribution.NoExperience(checked((ushort)(result.Encounter.ScriptedOwner?.Flags ?? 0)), formation.Flags);
-        BattleDefinition? admittedBattle = result.UsesExpandedRoster ? battle?.ReadDefinition() : null;
         return BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp, currentRewards, assets.ReadNativeBattleExperienceDefinition(), session.State.CardInventory, noExperience, NativeItemOrderAliases.From(session.State), admittedBattle);
     }
 }

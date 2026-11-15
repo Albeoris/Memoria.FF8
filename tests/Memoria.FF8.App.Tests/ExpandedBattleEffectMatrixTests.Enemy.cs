@@ -54,7 +54,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 _ => null
             };
             Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = effect.Effect == 186 ? vitals => PrepareHigherBandParty(directory, vitals, BlasterPartyLevel) : null;
-            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireExpanded: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals, useAreaEnemyRoster: configuredRoute, examSeconds: effect.Effect == 167 ? 0 : 600);
+            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireExpanded: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals, examSeconds: effect.Effect == 167 ? 0 : 600);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster)
             {

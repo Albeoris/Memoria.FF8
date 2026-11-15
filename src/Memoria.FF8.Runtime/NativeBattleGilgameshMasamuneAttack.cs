@@ -10,13 +10,18 @@ public static class NativeBattleGilgameshMasamuneAttack
 {
     public static NativeBattleGilgameshMasamuneAttackStep Advance(NativeBattleGilgameshFrame frame, uint parentAddress, uint graphicsFlags, ImmutableArray<BattleModelOwner> contactActors, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> execute)
     {
+        return AdvanceOccurrences(frame, parentAddress, graphicsFlags, contactActors.IsDefault ? default : contactActors.Select(owner => (owner, (BattleContactOccurrence?)null)).ToImmutableArray(), execute);
+    }
+
+    internal static NativeBattleGilgameshMasamuneAttackStep AdvanceOccurrences(NativeBattleGilgameshFrame frame, uint parentAddress, uint graphicsFlags, ImmutableArray<(BattleModelOwner Owner, BattleContactOccurrence? Occurrence)> contacts, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> execute)
+    {
         if (frame.Effect.Binding.Effect != 328 || frame.Effect.Binding.Entry != 0x58D930 || frame.Effect.Pools.IsDefault || frame.Effect.Pools.Length != 3)
         {
             throw new InvalidDataException("Masamune requires its original selected entry and raw task banks.");
         }
         NativeBattleGilgameshFrame current = frame;
         NativeBattleEffectTaskPool children = current.Effect.Pools[1];
-        if (children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(frame.Effect, children))
         {
             throw new InvalidDataException("Masamune requires its original hundred raw child tasks.");
         }
@@ -33,13 +38,18 @@ public static class NativeBattleGilgameshMasamuneAttack
         ushort counter = parent.ReadWord(0x0C);
         if (counter is 0 or 16)
         {
-            if (contactActors.IsDefault)
+            if (contacts.IsDefault)
             {
                 throw new NotSupportedException("Masamune requires its actual first-header contact actors.");
             }
-            for (int index = 0; index < contactActors.Length; index++)
+            bool expanded = frame.Effect.GilgameshAttackStorage is not null;
+            if (expanded && contacts.Any(contact => contact.Occurrence is null))
             {
-                BattleModelOwner actor = contactActors[index];
+                throw new InvalidDataException("Masamune requires each expanded contact occurrence.");
+            }
+            for (int index = 0; index < contacts.Length; index++)
+            {
+                (BattleModelOwner actor, BattleContactOccurrence? occurrence) = contacts[index];
                 if (counter == 0)
                 {
                     uint flare = Append(0x590790);
@@ -60,12 +70,11 @@ public static class NativeBattleGilgameshMasamuneAttack
                 ushort larger = unchecked((ushort)(Read(first).ReadWord(0x1E) + 1536));
                 Write(second, CopyAnchor(Read(second), Read(first)).WriteWord(0x18, 0x200).WriteWord(0x1C, larger).WriteWord(0x1E, larger));
 
-                ushort mask = unchecked((ushort)(1u << index));
                 uint particles = Append(0x590B60);
-                Write(particles, CopyAnchor(Read(particles), Read(first)).WriteWord(0x16, mask));
+                Write(particles, NativeBattleGilgameshParticleRows.WriteGroup(CopyAnchor(Read(particles), Read(first)), index, NativeBattleGilgameshParticleVariant.Masamune, expanded ? occurrence : null));
 
                 uint ring = Append(0x590F10);
-                Write(ring, CopyAnchor(Read(ring), Read(first)).WriteWord(0x0E, 3).WriteWord(0x16, mask));
+                Write(ring, NativeBattleGilgameshParticleRows.WriteGroup(CopyAnchor(Read(ring), Read(first)).WriteWord(0x0E, 3), index, NativeBattleGilgameshParticleVariant.Masamune, expanded ? occurrence : null));
             }
         }
         parent = Read(parentAddress);

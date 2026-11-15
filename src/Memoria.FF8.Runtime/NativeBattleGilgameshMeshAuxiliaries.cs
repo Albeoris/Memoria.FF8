@@ -103,7 +103,7 @@ public static class NativeBattleGilgameshMeshAuxiliaries
 
     private static void ValidatePool(NativeBattleEffectTaskPool pool)
     {
-        if (pool.DescriptorAddress != 0x21FFD58 || pool.BankAddress != 0x21FFD68 || pool.Stride != 36 || pool.Slots.Length != 100)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(pool))
         {
             throw new InvalidDataException("Native Gilgamesh mesh initialization requires its actual raw child bank.");
         }

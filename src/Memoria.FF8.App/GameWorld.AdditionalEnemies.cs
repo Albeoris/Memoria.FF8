@@ -11,12 +11,6 @@ internal sealed partial class GameWorld
         return encounter.Slots.Where(slot => slot.NativeModelId != 255 && (slot.Enabled || slot.NativeModelId != 0));
     }
 
-    private bool NeedsOriginalEnemySlots(BattleEncounter encounter)
-    {
-        return encounter.Enemies.Any(slot => !IsOrdinaryEnemyPlacement(slot) || HasAuthoredEnemyAddresses(slot.ModelId, encounter.Id))
-            || ReferencedReserveSlots(encounter).Count != 0;
-    }
-
     private static bool IsEnemyPrototype(BattleEnemyPlacement slot)
     {
         return slot.IsEnemyModel && slot.NativeModelId != 255;
@@ -25,12 +19,6 @@ internal sealed partial class GameWorld
     private static bool IsOrdinaryEnemyPlacement(BattleEnemyPlacement slot)
     {
         return IsEnemyPrototype(slot) && slot.Enabled && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended;
-    }
-
-    private bool HasAuthoredEnemyAddresses(int model, int formation)
-    {
-        HashSet<int> explicitModels = [];
-        return EnemyAdmissions(model, formation, explicitModels).Contains(ExpandedAiAdmission.RequiresOriginalSlots) || explicitModels.Count != 0;
     }
 
     private ExpandedAiAdmission[] EnemyAdmissions(int model, int formation, ISet<int> explicitEnemyModels)
@@ -164,7 +152,7 @@ internal sealed partial class GameWorld
                 while (placements.Count != 0 && sources.Count < available)
                 {
                     int enemyIndex = DrawIndex(placements.Count);
-                    sources.Add(originalCount + sources.Count, new(formation, placements[enemyIndex].Slot, hash));
+                    sources.Add(ExpandedBattleFormation.OriginalEnemyPrototypeCount + sources.Count, new(formation, placements[enemyIndex].Slot, hash));
                     placements.RemoveAt(enemyIndex);
                 }
             }

@@ -8,7 +8,7 @@ public static class NativeBattleGilgameshOpening
 {
     public static NativeBattleGilgameshOpeningInitialization Initialize592D00(NativeBattleEffectTaskPool pool, NativeCrtRandomState random)
     {
-        if (pool.DescriptorAddress != 0x21FFD58 || pool.BankAddress != 0x21FFD68 || pool.Stride != 0x24 || pool.Slots.Length != 100)
+        if (!NativeBattleGilgameshAttackStorage.ValidChildBank(pool))
         {
             throw new InvalidDataException("Native592D00 requires its actual raw opening-task bank.");
         }

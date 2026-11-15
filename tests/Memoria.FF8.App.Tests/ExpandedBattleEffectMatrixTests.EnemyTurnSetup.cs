@@ -97,7 +97,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         NativeBattleRandomState random = NativeBattleRandomState.ForecastPhase(3);
         string checkpoint = TestResources.ArtifactFile($"{Guid.NewGuid():N}.battle.json");
         File.WriteAllText(checkpoint, JsonSerializer.Serialize(state with { Battle = snapshot with { Combatants = combatants, Random = random } }));
-        using GameWorld world = new(new(GameSession.Load(checkpoint)), directory, expandedBattleEnemyCount: 11);
+        using GameWorld world = new(new(GameSession.Load(checkpoint)), directory);
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));

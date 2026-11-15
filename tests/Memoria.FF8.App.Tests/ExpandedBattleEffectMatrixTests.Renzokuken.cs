@@ -77,7 +77,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             {
                 break;
             }
-            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireExpanded: !originalAllocation, useAreaEnemyRoster: originalAllocation);
+            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireExpanded: !originalAllocation);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             if (!battle.UsesExpandedRoster)
             {

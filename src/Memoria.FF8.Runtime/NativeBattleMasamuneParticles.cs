@@ -17,23 +17,31 @@ public static class NativeBattleMasamuneParticles
 
     public static NativeBattleMasamuneParticlePreparation PrepareWithPresentation(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, bool ring, bool paused, Action<NativeBattleVector>? observeDirection = null, bool capturePresentation = false)
     {
+        return PrepareRows(task, new(arena, !ring, null), random, ring, paused, observeDirection, capturePresentation);
+    }
+
+    internal static NativeBattleMasamuneParticlePreparation PrepareRows(NativeBattleModulePoolTask task, NativeBattleGilgameshParticleRows rows, NativeCrtRandomState random, bool ring, bool paused, Action<NativeBattleVector>? observeDirection, bool capturePresentation)
+    {
         if (task.Callback != (ring ? 0x590F10u : 0x590B60u) || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Masamune particles require their actual raw callback task.");
         }
+        NativeBattleEffectArena arena = rows.Arena;
         if (ring && Signed(task, 14) > 0)
         {
             return new(paused ? task : task.WriteWord(14, unchecked((ushort)(task.ReadWord(14) - 1))), arena, random, true);
         }
         if (!paused && Signed(task, 12) <= 2)
         {
+            BattleExecutionReference.GilgameshGroup? group = rows.ReadGroup(task);
             for (int birth = 0; birth < 8; birth++)
             {
                 int record = -1;
-                for (int index = 0; index < Capacity; index++)
+                int slot = 0;
+                for (; slot < rows.Capacity; slot++)
                 {
-                    int current = checked(Bank(ring) + index * Stride(ring));
-                    if (NativeBattleStaticMeshContext88.Dword(arena, current) == 0)
+                    int current = rows.Record(slot);
+                    if (rows.Free(current))
                     {
                         record = current;
                         break;
@@ -41,9 +49,14 @@ public static class NativeBattleMasamuneParticles
                 }
                 if (record < 0)
                 {
+                    if (group is not null)
+                    {
+                        throw new InvalidDataException("Masamune exhausted its reserved attack particle bank.");
+                    }
                     break;
                 }
-                arena = NativeBattleStaticMeshContext88.Put(arena, record, unchecked((uint)(int)Signed(task, 0x16)));
+                ushort originalWord = group is null ? task.ReadWord(0x16) : (ushort)0;
+                rows.Occupy(record, originalWord, group);
                 arena = PutWord(arena, record + 4, 0);
                 int size = ring ? Draw() % 4096 + 1280 : Draw() % 2048 + 1536;
                 arena = PutWord(arena, record + 6, size);
@@ -88,7 +101,7 @@ public static class NativeBattleMasamuneParticles
                 }
                 if (capturePresentation)
                 {
-                    NativeBattlePilotVisualLifetimes.Allocated(arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)Bank(ring)), (record - Bank(ring)) / Stride(ring));
+                    NativeBattlePilotVisualLifetimes.Allocated(arena, rows.Address, slot);
                 }
             }
         }

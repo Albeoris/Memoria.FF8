@@ -2,9 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleGilgameshParticles
 {
-    private static (NativeBattleEffectArena Arena, NativeCrtRandomState Random) Spawn(uint callback, NativeBattleEffectArena arena, int record, int mask, NativeCrtRandomState random)
+    private static (NativeBattleEffectArena Arena, NativeCrtRandomState Random) Spawn(uint callback, NativeBattleEffectArena arena, int record, NativeCrtRandomState random)
     {
-        arena = WriteDword(arena, record, unchecked((uint)mask));
         arena = WriteWord(arena, record + 4, 0);
         int size = callback switch
         {

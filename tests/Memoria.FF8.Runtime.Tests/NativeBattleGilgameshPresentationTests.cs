@@ -21,7 +21,7 @@ public sealed class NativeBattleGilgameshPresentationTests
         Assert.NotEqual(first, NativeBattleGilgameshVisuals.ActorResource(parent, resource with { PilotGeometryResource = cpu with { Offset = cpu.Offset + 4 } }, OriginalOwner(2)));
         NativeBattleModelCpuReference guest = cpu with { Offset = 4, ResourceOnly = false };
         NativeBattleGraphicsResource numeric = resource with { PilotGeometryResource = guest };
-        NativeBattlePilotVisualIdentity expected = NativeBattleGilgameshVisuals.Resource(parent, guest, guest.PhysicalAddress, 2)!.Value;
+        NativeBattlePilotVisualIdentity expected = NativeBattleGilgameshVisuals.Resource(parent with { ModelOwner = OriginalOwner(2) }, guest, guest.PhysicalAddress)!.Value;
         Assert.Equal(expected, NativeBattleGilgameshVisuals.ActorResource(parent, numeric, OriginalOwner(2)));
     }
 
