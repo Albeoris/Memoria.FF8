@@ -36,6 +36,41 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
     // Optional coverage learned before dispatch-phase entry admission must be observed again.
     private const int EntryAdmissionRevision = 2;
     private readonly Dictionary<(int Entity, int Script), FieldScriptAnalysis> analyses = [];
+    private readonly EntryDependencyCache entryDependencies = new();
+
+    internal sealed class EntryDependencyCache
+    {
+        private readonly Dictionary<(int Entity, int Script), (FieldScriptEntryDependencies Entry, FieldHostRead[] HostLayout)> entries = [];
+
+        public void Clear()
+        {
+            entries.Clear();
+        }
+
+        public FieldScriptEntryDependencies Read(FieldMachine machine, int entity, int script, FieldScriptAnalysis analysis)
+        {
+            var key = (entity, script);
+            if (!analysis.Complete)
+            {
+                entries.Remove(key);
+                return new(false, analysis.Reason, analysis.Reads, analysis.HostReads);
+            }
+            if (entries.TryGetValue(key, out var cached) && cached.HostLayout.SequenceEqual(analysis.HostReads))
+            {
+                return cached.Entry;
+            }
+            FieldScriptEntryDependencies entry = machine.AnalyzeEntryDependencies(entity, script, analysis);
+            if (entry.Complete)
+            {
+                entries[key] = (entry, analysis.HostReads);
+            }
+            else
+            {
+                entries.Remove(key);
+            }
+            return entry;
+        }
+    }
     private readonly Dictionary<(int Entity, int Script), FieldScriptInputDemand?> entryInputs = [];
     private string? analysisAllocation;
 
@@ -58,6 +93,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         if (analysisAllocation != allocation)
         {
             analyses.Clear();
+            entryDependencies.Clear();
             entryInputs.Clear();
             analysisAllocation = allocation;
         }
@@ -130,13 +166,14 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                     analyses[(entity, script)] = analysis;
                 }
             }
-            string fingerprint = analysis.Complete ? session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads) : analysis.Fingerprint;
+            FieldScriptEntryDependencies dependencies = entryDependencies.Read(session.Machine, entity, script, analysis);
+            string fingerprint = analysis.Complete && dependencies.Complete ? session.Machine.ReadScriptAnalysisFingerprint(entity, script, dependencies.Reads) : analysis.Fingerprint;
             if (analysis.Complete)
             {
-                persistentReads.UnionWith(analysis.Reads.Where(read => read.Bank is not (FieldBank.Immediate or FieldBank.MapByte or FieldBank.MapWord)));
-                globalHostReads.UnionWith(analysis.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity));
+                persistentReads.UnionWith(dependencies.Reads.Where(read => read.Bank is not (FieldBank.Immediate or FieldBank.MapByte or FieldBank.MapWord)));
+                globalHostReads.UnionWith(dependencies.HostReads.Where(read => read.Kind is FieldHostReadKind.Gil or FieldHostReadKind.ItemQuantity or FieldHostReadKind.PartyAvailable or FieldHostReadKind.MateriaCapacity));
             }
-            Ff7AutoPlayHostConditions external = ReadHostConditions(analysis.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
+            Ff7AutoPlayHostConditions external = ReadHostConditions(dependencies.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
             fingerprint = CombineConditionFingerprints(fingerprint, external.Fingerprint);
             if (!entryInputs.TryGetValue((entity, script), out FieldScriptInputDemand? entryInput))
             {
@@ -150,7 +187,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && external.Complete, SupportReason: analysis.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0));
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0));
         }
     }
 }
