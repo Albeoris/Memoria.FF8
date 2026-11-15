@@ -8,6 +8,13 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeMinigameTests
 {
+    public static void RunReturnOnly()
+    {
+        TypedOpcode();
+        StoryHealthConversion();
+        InstalledStoryDeparture(returnOnly: true);
+    }
+
     public static void Run()
     {
         TypedOpcode();
@@ -128,7 +135,7 @@ internal static class NativeMinigameTests
         Console.WriteLine("PASS highway native menu HP conversion and unaffected character slots");
     }
 
-    private static void InstalledStoryDeparture()
+    private static void InstalledStoryDeparture(bool returnOnly = false)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(directory))
@@ -170,7 +177,12 @@ internal static class NativeMinigameTests
         cold.AdvanceTick();
         Check(ReferenceEquals(prepared, cold.HighwayStart) && session.HighwayStart is { } original && original.Request == prepared.Request && original.Road.SequenceEqual(prepared.Road), "A repeated or cold highway start changed the prepared startup.");
         Check(cold.Highway is { Tick: 1, TrackPosition: 0x237A, OverlayFlags: 1 } && cold.Machine.Tick == pending.Vm.Tick, "The first chase update lost the native first event or advanced field scripts.");
-        PlayHighwayToReturn(installation, session, cold, pending);
+        PlayHighwayToReturn(installation, session, cold, pending, returnOnly);
+        if (returnOnly)
+        {
+            Console.WriteLine("PASS original highway return, cold departure and native gauge publication");
+            return;
+        }
         RejectCorruptMinigameOwner(installation, pending, request);
 
         FieldVariables arcadeVariables = new(entry.Vm.PersistentVariables, entry.Vm.MapVariables);
@@ -185,7 +197,7 @@ internal static class NativeMinigameTests
         Console.WriteLine("PASS installed story chase, Motorball victory, Reform and physical exit to world entry 1");
     }
 
-    private static void PlayHighwayToReturn(Ff7Installation installation, Ff7Session session, Ff7Session cold, Ff7SessionSave pending)
+    private static void PlayHighwayToReturn(Ff7Installation installation, Ff7Session session, Ff7Session cold, Ff7SessionSave pending, bool returnOnly = false)
     {
         Ff7HighwayRuntime race = session.Highway ?? throw new InvalidOperationException("The original story request did not initialize its chase.");
         Ff7HighwayRuntime restored = cold.Highway!;
@@ -225,6 +237,10 @@ internal static class NativeMinigameTests
         Check(session.Progress.Characters.Select(character => character.HitPoints).SequenceEqual(pending.Progress.Characters.Select(character => character.HitPoints)), "The native retirement applied field HP before an authored consumer.");
         ushort[] written = Enumerable.Range(0, 5).Select(index => unchecked((ushort)session.Machine.Variables.ReadWord(FieldBank.Persistent1Word, (byte)(0x74 + index * 2)))).ToArray();
         Check(written.SequenceEqual(new[] { 0, 1, 3, 2, 4 }.Select(index => race.Gauges[index].Value)), "The native return did not publish the five gauges in character order.");
+        if (returnOnly)
+        {
+            return;
+        }
         session.AdvanceTick();
         Check(session.Battle?.Capture().FormationId == 468, "The original blackbg9 director did not start Motorball after the chase.");
         RunMotorball(installation, session);

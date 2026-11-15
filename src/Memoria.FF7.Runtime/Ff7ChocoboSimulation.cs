@@ -13,7 +13,7 @@ internal sealed partial class Ff7ChocoboSimulation
     private readonly int animationDivisor;
     private uint random;
 
-    internal Ff7ChocoboSimulation(PcChocoboCourse course, Ff7ChocoboNativeData native, ReadOnlySpan<byte> parameters, uint seed)
+    internal Ff7ChocoboSimulation(PcChocoboCourse course, Ff7ChocoboNativeData native, ReadOnlySpan<byte> parameters, uint seed, Ff7ChocoboSimulationState? saved = null, Ff7ChocoboRacerState[]? previous = null)
     {
         if (parameters.Length != 29 || parameters[23] >= native.Classes.Count)
         {
@@ -25,8 +25,32 @@ internal sealed partial class Ff7ChocoboSimulation
         specialOpponent = parameters[22] != 0;
         animationDivisor = (parameters[23] + 3) * 2;
         random = seed;
+        if (saved is not null)
+        {
+            saved.Validate(course.Track.Count);
+            Racers = saved.Racers.Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray();
+            random = saved.RandomSeed;
+            FinishTimer = saved.FinishTimer;
+            FirstFinisher = saved.FirstFinisher;
+            SecondFinished = saved.SecondFinished;
+            lastRacer = saved.LastRacer;
+            consumedCameraEvents.UnionWith(saved.ConsumedCameraEvents);
+            return;
+        }
         int playerModel = jockey ? parameters[6] + 6 : 10;
-        Racers = Enumerable.Range(0, 6).Select(index => new Racer { Lane = S(index * 224 / 6 + 16), Jockey = S(index), Model = S(index == 0 ? playerModel : index + 10), SoundCounter = S(index == 0 ? 30 : 0) }).ToArray();
+        Racers = new Ff7ChocoboRacerState[6];
+        for (int index = 0; index < Racers.Length; index++)
+        {
+            Ff7ChocoboRacerState racer = previous is null ? new() : previous[index] with { Name = previous[index].Name.ToArray() };
+            racer.Lane = S(index * 224 / 6 + 16);
+            racer.Jockey = S(index);
+            racer.Model = S(index == 0 ? playerModel : index + 10);
+            if (index == 0)
+            {
+                racer.SoundCounter = 30;
+            }
+            Racers[index] = racer;
+        }
         for (int swap = 0; swap < 40; swap++)
         {
             int first = NextRandom() % 6;
@@ -37,7 +61,7 @@ internal sealed partial class Ff7ChocoboSimulation
         Ff7ChocoboClass rank = native.Classes[parameters[23]];
         for (int index = 0; index < Racers.Length; index++)
         {
-            Racer racer = Racers[index];
+            Ff7ChocoboRacerState racer = Racers[index];
             if (jockey && index == 0)
             {
                 racer.TopSpeed = BinaryPrimitives.ReadInt16LittleEndian(parameters[10..]);
@@ -77,17 +101,26 @@ internal sealed partial class Ff7ChocoboSimulation
             racer.DesiredSpeed = racer.CruiseSpeed;
             racer.Path = 10;
             racer.NextPath = 11;
+            racer.Stagnation = 0;
             racer.CanSprint = -1;
+            racer.EarlySprint = 0;
+            racer.UnusedFlag = 0;
+            racer.UnusedAbility = 0;
+            racer.FixedSpeed = 0;
             racer.OriginalLane = racer.Lane;
             racer.Position = racer.Origin = Sample(10, racer.Lane);
             racer.Target = Sample(11, racer.Lane);
             racer.AnimationStep = S(racer.Speed / animationDivisor);
+            racer.Placement = 0;
+            racer.AnimationCounter = 0;
+            racer.Finished = 0;
+            racer.Animation = 0;
             racer.Yaw = racer.TargetYaw = Direction(racer.Target.X - racer.Position.X, racer.Target.Y - racer.Position.Y, racer.Target.Z - racer.Position.Z);
         }
         if (specialOpponent)
         {
-            Racer previous = Racers[1];
-            Racer rival = Racers[0] with { Name = Racers[0].Name.ToArray(), Position = previous.Position, Origin = previous.Position, Target = previous.Target };
+            Ff7ChocoboRacerState originalRival = Racers[1];
+            Ff7ChocoboRacerState rival = Racers[0] with { Name = Racers[0].Name.ToArray(), Position = originalRival.Position, Origin = originalRival.Position, Target = originalRival.Target };
             rival.MaxStamina += rival.MaxStamina / 4;
             rival.Stamina += rival.Stamina / 4;
             rival.CruiseSpeed = S(rival.CruiseSpeed + rival.CruiseSpeed / 10);
@@ -108,7 +141,7 @@ internal sealed partial class Ff7ChocoboSimulation
         }
         for (int index = 0; index < Racers.Length; index++)
         {
-            Racer racer = Racers[index];
+            Ff7ChocoboRacerState racer = Racers[index];
             if (specialOpponent && index == 1)
             {
                 racer.Name = native.SpecialName.ToArray();
@@ -126,8 +159,13 @@ internal sealed partial class Ff7ChocoboSimulation
         }
     }
 
-    internal Racer[] Racers { get; }
+    internal Ff7ChocoboRacerState[] Racers { get; }
     internal uint RandomSeed => random;
+
+    internal Ff7ChocoboSimulationState Capture()
+    {
+        return new(Racers.Select(racer => racer with { Name = racer.Name.ToArray() }).ToArray(), random, FinishTimer, FirstFinisher, SecondFinished, lastRacer, consumedCameraEvents.Order().ToArray());
+    }
 
     private int NextRandom()
     {
@@ -135,7 +173,7 @@ internal sealed partial class Ff7ChocoboSimulation
         return (int)(random >> 16) & 0x7FFF;
     }
 
-    private (short X, short Y, short Z) Sample(int index, int lane)
+    private Ff7ChocoboPoint Sample(int index, int lane)
     {
         PcChocoboTrackElement section = course.Track[index];
         return (S((section.Left.X * lane + section.Right.X * (256 - lane)) / 256), S((section.Left.Y * lane + section.Right.Y * (256 - lane)) / 256), S((section.Left.Z * lane + section.Right.Z * (256 - lane)) / 256));
@@ -162,59 +200,4 @@ internal sealed partial class Ff7ChocoboSimulation
 
     private static short S(int value) => unchecked((short)value);
 
-    internal sealed record Racer
-    {
-        public short Path { get; set; }
-        public short NextPath { get; set; }
-        public short Speed { get; set; }
-        public short Type { get; set; }
-        public short PreviousY { get; set; }
-        public (short X, short Y, short Z) Position { get; set; }
-        public int RemainderX { get; set; }
-        public int RemainderZ { get; set; }
-        public (short X, short Y, short Z) Target { get; set; }
-        public short Yaw { get; set; }
-        public short TargetYaw { get; set; }
-        public (short X, short Y, short Z) Origin { get; set; }
-        public short Dash { get; set; }
-        public short SmoothedLane { get; set; }
-        public short Behavior { get; set; }
-        public short DesiredSpeed { get; set; }
-        public short LaneBias { get; set; }
-        public short Guide { get; set; }
-        public short EffectiveSpeed { get; set; }
-        public short CruiseSpeed { get; set; }
-        public short TopSpeed { get; set; }
-        public short Acceleration { get; set; }
-        public short HandlingStep { get; set; }
-        public short SpeedResponse { get; set; }
-        public short Automatic { get; set; }
-        public short Obedience { get; set; }
-        public short Handling { get; set; }
-        public short LaneStep { get; set; }
-        public int Stamina { get; set; }
-        public int MaxStamina { get; set; }
-        public short Placement { get; set; }
-        public short AnimationCounter { get; set; }
-        public short SecondaryAnimationCounter { get; set; }
-        public short AnimationStep { get; set; }
-        public short PreviousAnimation { get; set; }
-        public short Lane { get; set; }
-        public short Finished { get; set; }
-        public short Animation { get; set; }
-        public short Rank { get; set; }
-        public short Stagnation { get; set; }
-        public short TerrainMask { get; set; }
-        public byte[] Name { get; set; } = new byte[8];
-        public short Model { get; set; }
-        public short Jockey { get; set; }
-        public short SoundCounter { get; set; }
-        public short OriginalLane { get; set; }
-        public short LastSprint { get; set; }
-        public short CanSprint { get; set; }
-        public short UnusedAbility { get; set; }
-        public short UnusedFlag { get; set; }
-        public short EarlySprint { get; set; }
-        public short FixedSpeed { get; set; }
-    }
 }

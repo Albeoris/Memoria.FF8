@@ -71,6 +71,40 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                 {
                     return;
                 }
+                if (session.ChocoboRace is not null || session.Host.PendingMinigame?.Command is Memoria.FF7.Events.FieldMinigameCommand { Game: 1 })
+                {
+                    present?.Invoke();
+                    lastSafe = session.Capture();
+                    if (session.ChocoboRace is { } race)
+                    {
+                        string raceProgress = $"chocobo:{race.Phase}:" + string.Join(';', race.Racers.Select(racer => $"{racer.Path},{racer.Position},{racer.Stamina},{racer.Placement}"));
+                        if (raceProgress != previousProgress)
+                        {
+                            previousProgress = raceProgress;
+                            deadline.Reset();
+                        }
+                        if (deadline.Expired)
+                        {
+                            throw new TimeoutException("FFVII autoplay made no native Chocobo race progress within its idle deadline.");
+                        }
+                        session.SetChocoboInput(Ff7ChocoboAutoPlay.ChooseInput(race));
+                    }
+                    long generation = session.FieldGeneration;
+                    if (advanceTick is null)
+                    {
+                        session.AdvanceTick();
+                    }
+                    else
+                    {
+                        advanceTick();
+                    }
+                    Steps++;
+                    if (session.FieldGeneration != generation)
+                    {
+                        CaptureCheckpoint();
+                    }
+                    return;
+                }
                 if (session.Shop is { Phase: not Ff7ShopPhase.Completed } shop)
                 {
                     present?.Invoke();

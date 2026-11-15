@@ -23,6 +23,11 @@ public sealed partial class Ff7Session
         FieldMinigameCommand command = (FieldMinigameCommand)request.Command;
         try
         {
+            if (command.Game == 1)
+            {
+                AdvanceChocobo(request, advanceClock);
+                return;
+            }
             if (command.Game != 0)
             {
                 throw new NotSupportedException($"FFVII minigame {command.Game} requires its native gameplay module before returning to map {command.Return.Map}.");
@@ -86,11 +91,6 @@ public sealed partial class Ff7Session
 
     private void CompleteHighwayReturn(Ff7HighwayRuntime highway, FieldTransitionCommand entry)
     {
-        if (entry.Map <= 64)
-        {
-            throw new NotSupportedException("FFVII highway return requires a field destination.");
-        }
-
         FieldVariables variables = new(Machine.Variables.CopyPersistent(), new byte[256]);
         int[] gaugeOrder = [0, 1, 3, 2, 4];
         for (int character = 0; character < gaugeOrder.Length; character++)
@@ -102,6 +102,22 @@ public sealed partial class Ff7Session
         {
             BattleRng = (Progress.BattleRng ?? new(new byte[8])) with { CrtSeed = highway.RandomSeed }
         };
+        CompleteMinigameFieldReturn(entry, variables, progress, host =>
+        {
+            host.SubmitNativeAudio(new(0xF1));
+            host.SubmitNativeAudio(new(0x10, 0));
+        });
+        Highway = null;
+        HighwayStart = null;
+        highwayHeld = highwayPressed = 0;
+    }
+
+    private void CompleteMinigameFieldReturn(FieldTransitionCommand entry, FieldVariables variables, Ff7Progress progress, Action<Ff7FieldHost>? prepareAudio = null)
+    {
+        if (entry.Map <= 64)
+        {
+            throw new NotSupportedException("FFVII minigame return requires a field destination.");
+        }
         long generation = checked(FieldGeneration + 1);
         var original = (Field, MapId, models, encounterTables, Host, Machine, Progress);
         List<Action> effects = [];
@@ -114,9 +130,8 @@ public sealed partial class Ff7Session
                 host.AudioRequested = audio => effects.Add(() => original.Host.AudioRequested?.Invoke(audio));
                 host.NativeSoundRequested = sound => effects.Add(() => original.Host.NativeSoundRequested?.Invoke(sound));
                 host.NativeSoundLoopAlreadyPlaying = null;
-                host.BeginBattleRequest = _ => throw new NotSupportedException("FFVII highway return cannot prepare a field initializer that starts a battle.");
-                host.SubmitNativeAudio(new(0xF1));
-                host.SubmitNativeAudio(new(0x10, 0));
+                host.BeginBattleRequest = _ => throw new NotSupportedException("FFVII minigame return cannot prepare a field initializer that starts a battle.");
+                prepareAudio?.Invoke(host);
             });
             fieldLoadIncomplete = true;
             Machine.Initialize();
@@ -143,9 +158,6 @@ public sealed partial class Ff7Session
         Host.NativeSoundRequested = original.Host.NativeSoundRequested;
         Host.NativeSoundLoopAlreadyPlaying = original.Host.NativeSoundLoopAlreadyPlaying;
         Host.BeginBattleRequest = BeginFieldBattle;
-        Highway = null;
-        HighwayStart = null;
-        highwayHeld = highwayPressed = 0;
         foreach (Action effect in effects)
         {
             effect();

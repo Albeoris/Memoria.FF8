@@ -33,7 +33,7 @@ internal sealed partial class Ff7ChocoboSimulation
         lastRacer = order[^1];
         for (int index = 0; index < Racers.Length; index++)
         {
-            Racer racer = Racers[index];
+            Ff7ChocoboRacerState racer = Racers[index];
             if (!started)
             {
                 racer.Animation = 3;
@@ -71,14 +71,14 @@ internal sealed partial class Ff7ChocoboSimulation
 
     private void Collide(int index)
     {
-        Racer racer = Racers[index];
+        Ff7ChocoboRacerState racer = Racers[index];
         for (int otherIndex = 0; otherIndex < Racers.Length; otherIndex++)
         {
             if (otherIndex == index)
             {
                 continue;
             }
-            Racer other = Racers[otherIndex];
+            Ff7ChocoboRacerState other = Racers[otherIndex];
             int dx = racer.Position.X - other.Position.X;
             int dz = racer.Position.Z - other.Position.Z;
             int distance = (int)Math.Sqrt(unchecked(dx * dx + dz * dz));
@@ -126,7 +126,7 @@ internal sealed partial class Ff7ChocoboSimulation
 
     private void Move(int index, ushort held, int countdown)
     {
-        Racer racer = Racers[index];
+        Ff7ChocoboRacerState racer = Racers[index];
         if (racer.Finished != 0)
         {
             racer.Speed = S(racer.Speed - (racer.Placement + 1) * 80 - racer.Speed / 64);
@@ -252,7 +252,7 @@ internal sealed partial class Ff7ChocoboSimulation
 
     private void UpdateSection(int index, ushort held, int countdown)
     {
-        Racer racer = Racers[index];
+        Ff7ChocoboRacerState racer = Racers[index];
         if (index != 0 || !jockey || racer.Automatic != 0)
         {
             if (NextRandom() < 5000)

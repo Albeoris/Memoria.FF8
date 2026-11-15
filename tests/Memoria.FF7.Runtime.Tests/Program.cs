@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--minigame-return-only", StringComparer.Ordinal))
+{
+    NativeMinigameTests.RunReturnOnly();
+    return 0;
+}
+
+if (args.Contains("--chocobo-session-only", StringComparer.Ordinal))
+{
+    NativeChocoboSessionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--chocobo-simulation-only", StringComparer.Ordinal))
 {
     NativeChocoboSimulationTests.Run();

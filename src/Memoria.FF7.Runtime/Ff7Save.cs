@@ -103,6 +103,10 @@ public sealed record Ff7SessionSave
     public Ff7AutoPlayState? AutoPlay { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7BattleSnapshot? Battle { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7ChocoboSnapshot? ChocoboRace { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7ChocoboCarryState? ChocoboCarry { get; init; }
 
     public void Validate()
     {
@@ -116,6 +120,15 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("The preserved native FFVII save slot has an invalid size.");
         }
         Process.Validate();
+        ChocoboCarry?.Validate();
+        if (ChocoboRace is { } race)
+        {
+            race.Validate();
+            if (Process.GlobalCommand != Ff7GlobalCommand.Minigame || Process.GlobalRequestId != race.Request.Id || Vm.PendingRequests?.Contains(race.Request) != true || !race.Parameters.AsSpan().SequenceEqual(Vm.PersistentVariables.AsSpan(0x200, 29)))
+            {
+                throw new InvalidDataException("The FFVII Chocobo snapshot requires its matching field departure and persistent parameters.");
+            }
+        }
         if (Process.GlobalCommand == Ff7GlobalCommand.Minigame && (World is not null || Battle is not null || Process.Transition is not null || Process.GlobalRequestId is not long minigameId || Process.Receipts.Count(receipt => receipt.Request.Id == minigameId && receipt.Request.Command is FieldMinigameCommand && !receipt.Reply.Completed && Vm.PendingRequests?.Contains(receipt.Request) == true) != 1))
         {
             throw new InvalidDataException("The FFVII minigame departure requires its matching unfinished field request.");
