@@ -137,7 +137,7 @@ public sealed partial class BattleSession
             if (frame == 36)
             {
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(effect.Parameters!.Header) });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts(effect.Parameters!.Header) });
                 graphics = graphics with { PendingContacts = pending };
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));

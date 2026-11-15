@@ -9,7 +9,7 @@ public static partial class NativeBattleEffect70Controller
         inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
         NativeBattleModulePoolTask task = Read(frame, address);
         uint record = task.ReadDword(12);
-        int actor = Actor(ReadDword(frame, record));
+        BattleModelOwner actor = ReadRecipient(frame, record);
         NativeBattleEffectArena caller = TargetCaller(frame, record, inputs);
         frame = NativeBattleEffect70Programme.Advance(frame, address + 20, 0x100, 0x1325A88, 0x100, false, caller, resources, inputs).Frame;
         int clock = Signed(Read(frame, address), 16);
@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect70Controller
                 frame = PutWord(PutWord(PutWord(frame, child + 12, position.X), child + 14, 0), child + 16, position.Z);
                 frame = InitializeWorkspace(frame, child + 20, 0x100, resources.Act(0x1324FF0), 0xD8);
             }
-            frame = AdjustRotation(frame, record, actor, ratio / 8);
+            frame = AdjustRotation(frame, record, actor, ratio / 8, inputs);
             int square = unchecked(ratio * ratio) >> 12;
             short savedY = ReadShort(frame, record + 6);
             frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionWord(actor, 0x1E, unchecked((short)(savedY - square * 2))));
@@ -50,7 +50,7 @@ public static partial class NativeBattleEffect70Controller
     {
         inputs = NativeBattleEffect70Presentation.ForTask(frame, address, inputs);
         uint record = Read(frame, address).ReadDword(12);
-        int actor = Actor(ReadDword(frame, record));
+        BattleModelOwner actor = ReadRecipient(frame, record);
         NativeBattleEffectArena caller = TargetCaller(frame, record, inputs);
         frame = NativeBattleEffect70Programme.Advance(frame, address + 20, 0x100, 0x1326C68, 0xBC, false, caller, resources, inputs).Frame;
         int clock = Signed(Read(frame, address), 16);
@@ -60,7 +60,7 @@ public static partial class NativeBattleEffect70Controller
             frame = BirthReturnSparks(frame, actor, inputs);
         }
         int inverse = 4096 - ratio;
-        frame = AdjustRotation(frame, record, actor, inverse / 8);
+        frame = AdjustRotation(frame, record, actor, inverse / 8, inputs);
         short y = unchecked((short)(unchecked(inverse * inverse) >> 12));
         frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionWord(actor, 0x1E, y));
         NativeBattleModulePoolTask task = Read(frame, address);
@@ -85,7 +85,7 @@ public static partial class NativeBattleEffect70Controller
 
     private static NativeBattleEffectArena TargetCaller(NativeBattleEffect70Frame frame, uint record, NativeBattleEffect70Inputs inputs)
     {
-        int actor = Actor(ReadDword(frame, record));
+        BattleModelOwner actor = ReadRecipient(frame, record);
         NativeBattleVector position = Position(frame, actor, inputs);
         int maximum = ReadShort(frame, record + 20);
         int minimum = ReadShort(frame, record + 22);
@@ -94,12 +94,12 @@ public static partial class NativeBattleEffect70Controller
         return Point(position.X, y, position.Z).Write(8, BitConverter.GetBytes(extent)).Write(12, BitConverter.GetBytes(extent)).Write(16, BitConverter.GetBytes(extent)).Write(20, BitConverter.GetBytes(1)).Write(24, BitConverter.GetBytes(0x1334D5Cu)).Write(28, BitConverter.GetBytes((short)-256)).Write(32, BitConverter.GetBytes(frame.State.ReadDword(ArenaGlobal) + 0x241C));
     }
 
-    private static NativeBattleEffect70Frame AdjustRotation(NativeBattleEffect70Frame frame, uint record, int actor, int increment)
+    private static NativeBattleEffect70Frame AdjustRotation(NativeBattleEffect70Frame frame, uint record, BattleModelOwner actor, int increment, NativeBattleEffect70Inputs inputs)
     {
-        int delta = (actor & 1) != 0 ? increment : -increment;
+        int delta = NativeBattleEffectVisualPhase.IsOdd(inputs.ReadPackets(frame).ModelAliases, actor) ? increment : -increment;
         frame = PutWord(frame, record + 12, unchecked((short)(ReadShort(frame, record + 12) + delta)));
         return PutWord(frame, record + 14, unchecked((short)(ReadShort(frame, record + 14) + delta)));
     }
 
-    private static NativeBattleVector Position(NativeBattleEffect70Frame frame, int actor, NativeBattleEffect70Inputs inputs) => inputs.ReadModel(frame, actor).Transform?.Position28 ?? throw new NotSupportedException("Effect70 requires its actual current actor position.");
+    private static NativeBattleVector Position(NativeBattleEffect70Frame frame, BattleModelOwner actor, NativeBattleEffect70Inputs inputs) => inputs.ReadModel(frame, actor).Transform?.Position28 ?? throw new NotSupportedException("Effect70 requires its actual current actor position.");
 }

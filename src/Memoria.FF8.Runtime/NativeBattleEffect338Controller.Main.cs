@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect338Controller
         int age = Signed(Read(frame, address), 12);
         int intensity = age < 8 ? unchecked(age * 256) : age > 68 ? unchecked((76 - age) * 256) : 2048;
         frame = inputs.Execute(frame, new NativeBattleEffect338Stage5713E0(intensity));
-        uint target = frame.State.ReadDword(TargetGlobal);
+        BattleModelOwner target = frame.State.ReadModelAddress(TargetGlobal);
         short height = Signed(Read(frame, address), 22);
         if (age == 7)
         {
@@ -45,7 +45,9 @@ public static partial class NativeBattleEffect338Controller
                     hit = false;
                     break;
                 case 42:
-                    int contact = inputs.ReadPackets(frame).ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Effect338 contact requires its actual physical header.");
+                    NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+                    BattleContactCursor cursor = packets.ReadHeader(Parameters(frame).Header).FirstContact;
+                    BattleContactOccurrence contact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect338 requires its reached contact occurrence.");
                     frame = inputs.Execute(frame, new NativeBattleEffect338Contact506690(contact));
                     frame = SpawnFinalProgramme(frame, address, 0x1376658, resources);
                     hit = false;

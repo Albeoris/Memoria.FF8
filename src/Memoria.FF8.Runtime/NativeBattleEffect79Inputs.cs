@@ -27,7 +27,7 @@ public sealed record NativeBattleEffect79StartVibration4A29A0(uint BankAddress, 
 public sealed record NativeBattleEffect79StopVibration4A2940(short Handle) : NativeBattleEffect79Operation;
 public sealed record NativeBattleEffect79SoundBank501860(uint SourceAddress, uint CompletionByteAddress) : NativeBattleEffect79Operation;
 public sealed record NativeBattleEffect79TextureLoad508630(uint SourceAddress, uint CompletionByteAddress) : NativeBattleEffect79Operation;
-public sealed record NativeBattleEffect79Contact506690(int ContactIndex) : NativeBattleEffect79Operation;
+public sealed record NativeBattleEffect79Contact506690(BattleContactOccurrence ContactIndex) : NativeBattleEffect79Operation;
 public sealed record NativeBattleEffect79ObserveCasterAnchor(uint TaskAddress, uint ContextAddress) : NativeBattleEffect79Operation;
 public sealed record NativeBattleEffect79DrawBody7BD020(uint ContextAddress) : NativeBattleEffect79Operation
 {

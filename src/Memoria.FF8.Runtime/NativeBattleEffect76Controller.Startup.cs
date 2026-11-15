@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect76Controller
             }
         }
         int age = Signed(Read(frame, address), 12);
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
         if (age == 0)
         {
             frame = WriteBytes(frame, SavedPointAddress, inputs.ReadPosition8(frame, actor), 8);

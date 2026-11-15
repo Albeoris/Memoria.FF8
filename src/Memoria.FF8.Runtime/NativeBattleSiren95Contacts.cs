@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleSiren95ContactServices(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, byte, int, NativeBattleSiren95Frame> SelectSequence);
+public sealed record NativeBattleSiren95ContactServices(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSiren95Frame, BattleModelOwner, int, NativeBattleSiren95Frame> SelectSequence);
 
 public static class NativeBattleSiren95Contacts
 {
@@ -14,7 +14,7 @@ public static class NativeBattleSiren95Contacts
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                NativeBattleGraphicsModel target = services.ReadModel(task.ReadByte(0x2D));
+                NativeBattleGraphicsModel target = services.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 NativeBattleEffectLocalBounds bounds = target.GeometryBounds52 ?? throw new NotSupportedException("Native Siren contact emitter requires its current target bounds.");
                 if (bounds.Maximum.Y <= -512)
                 {
@@ -27,7 +27,7 @@ public static class NativeBattleSiren95Contacts
                     if (((target.Flags8 ?? throw new NotSupportedException("Native Siren contact emitter requires its current target status flags.")) & 2) == 0)
                     {
                         frame = frame with { Random = frame.Random.Draw(out ushort random) };
-                        frame = services.SelectSequence(frame, task.ReadByte(0x2D), 4 + random % 3);
+                        frame = services.SelectSequence(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 4 + random % 3);
                     }
                     frame = Next(Write(frame, address, Read(frame, address).WriteWord(0xDC, 8)), address);
                 }
@@ -60,7 +60,7 @@ public static class NativeBattleSiren95Contacts
 
         void Spawn(uint callback, bool gravity)
         {
-            byte actor = Read(frame, address).ReadByte(0x2D);
+            BattleModelOwner actor = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             var appended = NativeBattleSiren95Actors.AppendTask(frame, 0x257FA90, callback, 0xE0, address, services.Packets);
             frame = appended.Frame;
             NativeBattleModulePoolTask child = Read(frame, appended.Address);

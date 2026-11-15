@@ -7,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] NativeBattleEffectArena LiteralStorage, [property: JsonRequired] NativeBattleEffectArena? RootBankStorage, [property: JsonRequired] NativeBattleEffectArena? ChildQueueStorage)
 {
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+
     public static NativeBattleEffect65State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear());
 
     public static NativeBattleEffect65State FromUnknown()
@@ -47,6 +50,14 @@ public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBa
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
         return Write(address, encoded);
     }
+    internal BattleModelOwner ReadModelAddress(uint address) => Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4, BaseAddress, OwnedRanges), 4).Owner;
+
+    internal NativeBattleEffect65State WriteModelAddress(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena storage = Storage.WriteExecutionReference(Require(address, 4, BaseAddress, OwnedRanges), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Storage = storage };
+    }
+
     public NativeBattleEffect65State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

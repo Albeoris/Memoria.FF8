@@ -22,7 +22,7 @@ public static partial class NativeBattleShotgun281Controller
         return frame with { State = frame.State.WriteDword(0x2507FA4, unchecked((uint)registers.Colors.Mac[0]!.Value)).WriteDword(0x2507FA8, unchecked((uint)registers.Colors.Mac[1]!.Value)).WriteDword(0x2507FAC, unchecked((uint)registers.Colors.Mac[2]!.Value)) };
     }
 
-    public static NativeBattleShotgun281PointStep ReadAnchor67E550(NativeBattleShotgun281Frame frame, uint model, int selector, NativeBattleEffectArena retainedPoint8, NativeBattleShotgun281Inputs inputs)
+    public static NativeBattleShotgun281PointStep ReadAnchor67E550(NativeBattleShotgun281Frame frame, BattleModelOwner model, int selector, NativeBattleEffectArena retainedPoint8, NativeBattleShotgun281Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 20);
         NativeBattleBoneAnchor67E550Step result = NativeBattleBoneAnchor67E550.Query(selector, Context(frame, temporary, 20), retainedPoint8, value => inputs.ReadBoneAlias(frame, model, value), bone => inputs.ReadBoneParent(frame, model, bone), bone => inputs.ReadCurrentBoneMatrix(frame, model, bone), () => inputs.ReadModelWorld(frame, model));

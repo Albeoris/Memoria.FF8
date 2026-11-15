@@ -62,7 +62,7 @@ public enum NativeBattleForeignSequenceKind
 
 public sealed record NativeBattleForeignSequenceRequest(BattleModelOwner Owner, NativeBattleForeignSequenceKind Kind);
 
-public sealed record NativeBattleEffectActivation(string ActorId, int PhysicalIndex);
+public sealed record NativeBattleEffectActivation(string ActorId, BattleModelOwner Owner);
 
 public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBattleContactPacket> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds)
 {

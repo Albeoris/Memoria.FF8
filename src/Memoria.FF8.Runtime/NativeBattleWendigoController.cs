@@ -40,7 +40,6 @@ public static partial class NativeBattleWendigoController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, shoot ? 0x83EE00u : 0x8466F0u, 0x64);
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wendigo requires its actual first contact.");
         int maximum = NativeBattleEffectRootTask.LastContactPosition(header.ReadContactCount());
         if (maximum < header.ReadRepeatModeMinusOne())
         {
@@ -79,7 +78,7 @@ public static partial class NativeBattleWendigoController
         private uint Ball => BallAddress(shoot);
         private uint Base => ModuleBase(shoot);
         private int TaskSize => shoot ? 0x1FC : 0xDC;
-        private int Caster => current.Effect.Parameters!.Source;
+        private BattleModelOwner Caster => current.Effect.Parameters!.Source;
         private NativeBattleWendigoState State => (shoot ? current.Memory.Shoot42 : current.Memory.Dribble41) ?? throw new NotSupportedException("Native Wendigo lost its executable owner.");
 
         internal Execution(NativeBattleWendigoFrame frame, NativeBattleWendigoResources resources, NativeBattleWendigoInputs inputs)
@@ -101,7 +100,7 @@ public static partial class NativeBattleWendigoController
                 int half = shoot ? 0x6000 : 0x5000;
                 bool odd = (root.ReadWord(0x5C) & 1) != 0;
                 SetState(State with { PrimaryCursor = source + (odd ? 0 : half), SecondaryCursor = source + (odd ? half : 2 * half), PassEmitters = 0, PassGeometry = 0 });
-                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, inputs.ReadModel, inputs.ReadPoseSource);
                 Store(address, root);
                 switch (Stage(root))
                 {
@@ -132,7 +131,7 @@ public static partial class NativeBattleWendigoController
                     case 4:
                         if (root.ReadByte(0x63) == 0)
                         {
-                            Store(address, unchecked((sbyte)root.ReadByte(0x2A)) < Signed(root, 0x58) ? root.WriteByte(0x2A, unchecked((byte)(root.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(root.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(root));
+                            Store(address, unchecked((sbyte)root.ReadByte(0x2A)) < Signed(root, 0x58) ? root.WriteByte(0x2A, unchecked((byte)(root.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(root.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3) : Next(root));
                         }
                         break;
                     case 6:
@@ -209,7 +208,7 @@ public static partial class NativeBattleWendigoController
             current = current with { Random = random };
             return value;
         }
-        private NativeBattleVector Bone(int actor, byte bone, short fraction = 0) => NativeBattlePoseMatrices.ReadBoneLazy(inputs.ReadModel(actor), () => inputs.ReadPoseSource(actor), bone, fraction);
+        private NativeBattleVector Bone(BattleModelOwner actor, byte bone, short fraction = 0) => NativeBattlePoseMatrices.ReadBoneLazy(inputs.ReadModel(actor), () => inputs.ReadPoseSource(actor), bone, fraction);
         private NativeBattleVector Position(uint address) => new(Word(address), Word(address + 2), Word(address + 4));
         private void Position(uint address, NativeBattleVector position)
         {

@@ -272,11 +272,7 @@ public sealed partial class BattleSession
             return current with { Memory = appended.Memory, State = current.State with { PrimaryDrawCursor = appended.Cursor } };
         }
 
-        int Minimum(int source)
-        {
-            int[] ring = NativeBattleModelRings.Walk(graphics.Models, source).ToArray();
-            return graphics.ActorModels.Get(ring[^1]).ReadLinkedModelIndex140() is null ? source : ring.Min();
-        }
+        BattleModelOwner Minimum(BattleModelOwner source) => NativeBattleScanModelSelection.Minimum501FF0(graphics.ActorModels, source);
 
         int Roll()
         {

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleRinoa87ParticleEmission(NativeBattleEffectHierarchy Hierarchy, NativeCrtRandomState Random, bool Completed = false);
 public static class NativeBattleRinoa87Emitters
 {
-    public static NativeBattleRinoa87ParticleEmission Emit775510(NativeBattleEffectHierarchy hierarchy, uint parent, int mode, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleRinoa87ParticleEmission Emit775510(NativeBattleEffectHierarchy hierarchy, uint parent, int mode, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         if (mode is < 0 or > 5)
         {
@@ -51,7 +51,7 @@ public static class NativeBattleRinoa87Emitters
         }
     }
 
-    public static NativeBattleRinoa87ParticleEmission Emit775F40(NativeBattleEffectHierarchy hierarchy, uint parent, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleRinoa87ParticleEmission Emit775F40(NativeBattleEffectHierarchy hierarchy, uint parent, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(5, 0x775720, 144, parent, selectActors);
         hierarchy = appended.Hierarchy;
@@ -72,7 +72,7 @@ public static class NativeBattleRinoa87Emitters
         }
     }
 
-    public static NativeBattleRinoa87ParticleEmission Advance77E800(NativeBattleEffectHierarchy hierarchy, uint address, NativeCrtRandomState random, ImmutableArray<short> firstCounts, ImmutableArray<short> secondCounts, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleRinoa87ParticleEmission Advance77E800(NativeBattleEffectHierarchy hierarchy, uint address, NativeCrtRandomState random, ImmutableArray<short> firstCounts, ImmutableArray<short> secondCounts, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         if (firstCounts.IsDefault || firstCounts.Length != 6 || secondCounts.IsDefault || secondCounts.Length != 6)
         {

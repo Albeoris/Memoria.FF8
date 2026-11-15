@@ -179,13 +179,13 @@ public sealed partial class BattleSession
 
     private static bool SameDiagnosticAftercareRandom(BattleDiagnosticRepairRandomState first, BattleDiagnosticRepairRandomState second) => first.Battle.Lane == second.Battle.Lane && first.Battle.Indexes.AsSpan().SequenceEqual(second.Battle.Indexes.AsSpan()) && first.Crt == second.Crt && first.Ui == second.Ui && first.Global == second.Global;
 
-    private void ObserveDiagnosticInvocationAftercareDescriptorQueued(int slot, ushort command, uint argument, NativeBattleDescriptorPacket packet)
+    private void ObserveDiagnosticInvocationAftercareDescriptorQueued(int slot, NativeBattleDescriptorPacket packet)
     {
         if (diagnosticAftercare is not { HandlerActive: true } state)
         {
             return;
         }
-        if (command != 10 || argument != 0x47DDA0 || state.CompletionPacket is not null)
+        if (packet.Command != 10 || packet.Argument != 0x47DDA0 || state.CompletionPacket is not null)
         {
             state.Failed = true;
             return;

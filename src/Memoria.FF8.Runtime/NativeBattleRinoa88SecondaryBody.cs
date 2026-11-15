@@ -15,7 +15,7 @@ public static class NativeBattleRinoa88SecondaryBody
         switch (unchecked((sbyte)task.ReadByte(41)))
         {
             case 0:
-                NativeBattleModelTransform transform = inputs.ReadModel(frame, task.ReadByte(44)).Transform ?? throw new NotSupportedException("Native771B80 requires its actual caster position owner.");
+                NativeBattleModelTransform transform = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner).Transform ?? throw new NotSupportedException("Native771B80 requires its actual caster position owner.");
                 task = task.WriteByte(38, (byte)(task.ReadByte(38) | 4)).WriteWord(76, unchecked((ushort)transform.Position28.X)).WriteWord(78, unchecked((ushort)transform.Position28.Y)).WriteWord(80, unchecked((ushort)transform.Position28.Z)).WriteWord(82, unchecked((ushort)transform.Vertical34)).WriteDword(276, 4096).WriteDword(280, 4096).WriteDword(284, 4096);
                 Next();
                 break;

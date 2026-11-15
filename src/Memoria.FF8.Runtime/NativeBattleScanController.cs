@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleScanState([property: JsonRequired] int? CurrentDrawOffset);
 public sealed record NativeBattleScanFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleScanState State);
 public sealed record NativeBattleScanChildStep(NativeBattleScanFrame Frame, int Result);
-public sealed record NativeBattleScanControllerInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleScanFrame, NativeBattleScanFrame> Begin50A730, Func<NativeBattleScanFrame, int, NativeBattleScanFrame> SetMode4A8480);
+public sealed record NativeBattleScanControllerInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleScanFrame, NativeBattleScanFrame> Begin50A730, Func<NativeBattleScanFrame, int, NativeBattleScanFrame> SetMode4A8480);
 
 /// <summary>84D030/84D110's Scan entry and root scheduling; child callbacks and their completion remain caller-owned.</summary>
 public static class NativeBattleScanController

@@ -11,40 +11,32 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Effect312 physical read requires a nonnegative length.");
         }
-        if (TryResolveNativeModelRead(graphics, address, length, out int modelOffset))
+        if (TryResolveNativeModelRead(address, length, out int modelOffset))
         {
             if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
             {
                 throw new InvalidDataException("Effect312 physical read crosses a current model row.");
             }
-            (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+            (NativeBattleModelSlot slot, int offset) = NativeBattleGraphicsModelAddress.ResolveOriginalField(address, length);
+            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         if (address >= 0x1D99A78 && (ulong)address + (uint)length <= 0x1D99A80)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect312 requires its current physical action parameters.");
-            NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [parameters.Source, parameters.Flags79]).Write(2, BitConverter.GetBytes(parameters.TargetActors)).Write(4, BitConverter.GetBytes(checked(0x1D280C4u + (uint)parameters.Header * 20)));
-            return NativeBattleEffectNodeContextMemory.Copy(bytes, checked((int)(address - 0x1D99A78)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+            return NativeBattleEffectArena.Clear().MarkUnknown(0, length).Write(0, NativeBattleCinematicParameterBytes.Read(parameters, checked((int)(address - 0x1D99A78)), length));
         }
-        if (address >= 0x1D280C4 && address < NativeBattleContactAddress.Encode(0))
+        if (TryReadOriginalHeaderBytes(address, length, out byte[] header))
         {
-            uint relative = address - 0x1D280C4;
-            int offset = checked((int)(relative % 20));
-            if (length > 20 - offset)
-            {
-                throw new InvalidDataException("Effect312 physical read crosses a current action header.");
-            }
-            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
-            return NativeBattleEffectArena.Clear().Write(0, Enumerable.Range(offset, length).Select(header.ReadByte).ToArray());
+            return NativeBattleEffectArena.Clear().MarkUnknown(0, length).Write(0, header);
         }
-        if (TryResolveNativeContactRead(address, length, out int row, out int contactOffset))
+        if (TryResolveNativeContactRead(address, length, out BattleContactOccurrence row, out int contactOffset))
         {
             if (length > NativeBattleContactAddress.RowSize - contactOffset)
             {
                 throw new InvalidDataException("Effect312 physical read crosses a current contact row.");
             }
-            byte[] contact = nativeActionPackets.ReadContactBytes(row);
-            return NativeBattleEffectArena.Clear().Write(0, contact.AsSpan(contactOffset, length));
+            byte[] contact = ReadOriginalContactBytes(row, contactOffset, length);
+            return NativeBattleEffectArena.Clear().Write(0, contact.AsSpan());
         }
         return ReadNativeEffect312Backing(frame, address, length);
     }

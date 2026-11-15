@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleRinoa88Operation;
@@ -13,9 +15,9 @@ public static class NativeBattleRinoa88Scene
     public static NativeBattleRinoa88Frame InitializeTarget(NativeBattleRinoa88Frame frame, uint address, NativeBattleRinoa88Inputs inputs, NativeBattleRinoa88IoResources resources)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        NativeBattleRinoa88SceneMemory scene = NativeBattleRinoa88SceneMemory.Initialize(task.ReadByte(44), task.ReadByte(45), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), frame.State.Scene?.Camera, frame.State.Scene?.CameraAnchorPaddingKnown);
+        NativeBattleRinoa88SceneMemory scene = NativeBattleRinoa88SceneMemory.Initialize(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner, task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner, inputs.ReadModel, frame.State.Scene?.Camera, frame.State.Scene?.CameraAnchorPaddingKnown);
         NativeBattleRinoa88IoState io = NativeBattleRinoa88Io.Initialize7689C0(frame.State.Io?.Script ?? resources.Script.Data, checked(0x20DFAB8u + (uint)frame.State.AuxiliaryCursor));
-        return frame with { State = frame.State with { Scene = scene, Io = io, AuxiliaryCursor = checked(frame.State.AuxiliaryCursor + 40960) } };
+        return frame with { State = frame.State with { Scene = scene, Io = io, AuxiliaryCursor = checked(frame.State.AuxiliaryCursor + 40960) }, Effect = frame.Effect with { Rinoa88SavedFlags = inputs.Packets.Roster.Owners.ToImmutableDictionary(owner => owner, _ => (ushort)0) } };
     }
 
     public static NativeBattleRinoa88LeafStep Advance(NativeBattleRinoa88Frame frame, uint address, NativeBattleRinoa88SceneInputs inputs)
@@ -147,7 +149,7 @@ public static class NativeBattleRinoa88Scene
         }
         return new(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, complete ? 2 : 0);
 
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
         void Execute(NativeBattleRinoa88Operation operation)
         {
             frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };

@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa88BindActor(BattleModelOwner Actor, uint Resource, uint SavedOwner) : NativeBattleRinoa88Operation;
-public sealed record NativeBattleRinoa88ActorSequence(byte Actor, short Sequence) : NativeBattleRinoa88Operation;
+public sealed record NativeBattleRinoa88ActorSequence(BattleModelOwner Actor, short Sequence) : NativeBattleRinoa88Operation;
 public sealed record NativeBattleRinoa88Sound(uint Descriptor, short Argument, short Volume) : NativeBattleRinoa88Operation;
 public sealed record NativeBattleRinoa88BodyEmission(uint Body, uint Callback) : NativeBattleRinoa88Operation;
 public sealed record NativeBattleRinoa88Pause(short Value) : NativeBattleRinoa88Operation;
@@ -21,7 +21,7 @@ public static class NativeBattleRinoa88PrimaryBody
         {
             throw new InvalidDataException("Native771DB0 requires its actual primary model task and source.");
         }
-        byte actor = task.ReadByte(44);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner;
         switch (unchecked((sbyte)task.ReadByte(41)))
         {
             case 0:

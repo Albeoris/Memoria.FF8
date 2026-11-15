@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect315Controller
             {
                 throw new InvalidDataException("Effect315 delayed particle source selector leaves its three original rows.");
             }
-            NativeBattleActionMatrix world = inputs.ReadModel(frame, ModelAddress(Caster(frame))).GeometryWorldMatrix ?? throw new NotSupportedException("Effect315 particles require the current caster world matrix.");
+            NativeBattleActionMatrix world = inputs.ReadModel(frame, Caster(frame)).GeometryWorldMatrix ?? throw new NotSupportedException("Effect315 particles require the current caster world matrix.");
             NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(PointRowsAddress + (uint)(selector * 8), 8).AsSpan());
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(world, Vector315(source));
             source = source.Write(0, BitConverter.GetBytes(unchecked((short)(rotated.X + Signed(task, 0x10))))).Write(2, BitConverter.GetBytes(unchecked((short)(rotated.Y + Signed(task, 0x12))))).Write(4, BitConverter.GetBytes(unchecked((short)(rotated.Z + Signed(task, 0x14)))));

@@ -185,7 +185,7 @@ public sealed partial class BattleSession
         }
         if (hostedGuardianFormMode != GuardianFormInvocationMode.EntryOnly)
         {
-            NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters } };
+            NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters.CaptureOriginalWindow(NativeGraphics.NativeBindings.CaptureAliases(NativeGraphics.ActorModels)) } };
         }
         if (!inputs.DeferInvocation)
         {

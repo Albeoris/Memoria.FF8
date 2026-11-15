@@ -29,7 +29,7 @@ public static partial class NativeBattleShotgun281Controller
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, 524);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 524);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, workspace);
-            NativeBattleModelTransform casterPosition = inputs.ReadModel(frame, frame.State.ReadModelOwner(CasterGlobal)).Transform ?? throw new NotSupportedException("Shotgun requires its current caster position.");
+            NativeBattleModelTransform casterPosition = inputs.ReadModel(frame, frame.State.ReadModelOwner(NativeBattleShotgun281Profile.CasterGlobal)).Transform ?? throw new NotSupportedException("Shotgun requires its current caster position.");
             NativeBattleModelTransform targetPosition = inputs.ReadModel(frame, target).Transform ?? throw new NotSupportedException("Shotgun requires its current recipient position.");
             int x = targetPosition.Position28.X - casterPosition.Position28.X;
             int z = casterPosition.Position28.Z - targetPosition.Position28.Z;
@@ -38,7 +38,7 @@ public static partial class NativeBattleShotgun281Controller
         }
         if (Read(frame, address).ReadByte(15) != 0)
         {
-            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
+            BattleModelOwner caster = frame.State.ReadModelOwner(NativeBattleShotgun281Profile.CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleShotgun281ComposeCaster5095B0(caster));
             (frame, int mainSurvivors) = AdvancePool(frame, 3, resources, inputs);
             frame = inputs.Execute(frame, new NativeBattleShotgun281RestoreCaster508C90(caster));

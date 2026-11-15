@@ -7,12 +7,12 @@ public sealed partial class BattleSession
     private (NativeBattleBreath129Frame Frame, NativeBattleGraphicsState Graphics, NativeBattleBreath129BodySource Source) ReadNativeBreath129Body(NativeBattleBreath129Frame frame, NativeBattleGraphicsState graphics, uint row100, bool publish)
     {
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Breath body access requires its actual current shared staging owner.");
-        int[] actors = Enumerable.Range(0, graphics.Models.Length).Where(index => graphics.ActorIds[index] is not null && RowAddress(graphics.ActorModels.Get(index)) == row100).ToArray();
+        BattleModelOwner[] actors = graphics.ActorModels.Entries.Where(entry => RowAddress(entry.State) == row100).Select(entry => entry.Owner).ToArray();
         if (actors.Length != 1)
         {
-            throw new NotSupportedException("Breath body row requires one actual current physical actor binding.");
+            throw new NotSupportedException("Breath body row requires one actual current resource owner.");
         }
-        int actor = actors[0];
+        BattleModelOwner actor = actors[0];
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeFileStaging = staging;
         NativeEffectMemory = frame.Memory;

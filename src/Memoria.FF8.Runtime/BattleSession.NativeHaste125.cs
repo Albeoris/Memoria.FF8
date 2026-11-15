@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x7C4);
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 BattleContactCursor contact = header.FirstContact;
-                int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target)), 28, ReadNativeGraphicsBone(graphics, target, 0xF0, 0));
                 task = Init(task, 0x24, 0x254, resources.Clock);
                 task = Init(task, 0x278, 0x558, resources.Lower);

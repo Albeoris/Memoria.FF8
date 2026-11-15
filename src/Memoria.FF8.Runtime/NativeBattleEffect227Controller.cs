@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect227Controller
 {
-    public static NativeBattleEffect227Frame Initialize(NativeBattleEffect227Frame frame, NativeBattleEffect227Resources resources, NativeBattleEffect227Inputs inputs)
+    public static NativeBattleEffect227Frame Initialize(NativeBattleEffect227Frame frame, NativeBattleEffect227Resources resources, NativeBattleEffect227Inputs inputs, NativeBattleActionPacketsState packets)
     {
         RequireBinding(frame);
         resources.Validate();
@@ -19,8 +19,8 @@ public static partial class NativeBattleEffect227Controller
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect227UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect227 requires its actual parameters.");
-        frame = frame with { State = frame.State.WriteDword(CasterGlobal, ModelAddress(parameters.Source)).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78) };
-        frame = inputs.Execute(frame, new NativeBattleEffect227ModelFlags(frame.State.ReadDword(CasterGlobal), 2, 0xFFFB, 0));
+        frame = frame with { State = frame.State.WriteModelAddress(CasterGlobal, parameters.Source, packets.ModelAliases).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78) };
+        frame = inputs.Execute(frame, new NativeBattleEffect227ModelFlags(frame.State.ReadModelAddress(CasterGlobal), 2, 0xFFFB, 0));
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State.DetachBank(0), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor } };
@@ -86,7 +86,6 @@ public static partial class NativeBattleEffect227Controller
         return pool;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect227 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect227Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

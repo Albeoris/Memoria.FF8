@@ -8,8 +8,8 @@ public static partial class NativeBattleDuel274BasicMoves
     {
         NativeBattleDuel274MoveInputs inputs = supplied.Moves;
         NativeBattleModulePoolTask task = Target(frame, slot, 5);
-        int actor = Actor(frame);
-        int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
+        BattleModelOwner actor = Actor(frame);
+        BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
         if (task.ReadWord(12) == 0)
         {
             PositionActor(frame, task, target, actor, inputs, 0);

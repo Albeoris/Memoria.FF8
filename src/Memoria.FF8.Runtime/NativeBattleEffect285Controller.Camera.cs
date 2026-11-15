@@ -13,9 +13,9 @@ public static partial class NativeBattleEffect285Controller
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect285CameraForce50A730());
                 frame = inputs.Execute(frame, new NativeBattleEffect285CameraScalarFocal(288));
-                for (int actor = 0; actor < 3; actor++)
+                foreach (BattleModelOwner actor in inputs.ReadPackets(frame).Roster.Party)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleEffect285ModelFlags(ModelAddress(actor), 2, ushort.MaxValue, 4));
+                    frame = inputs.Execute(frame, new NativeBattleEffect285ModelFlags(actor, 2, ushort.MaxValue, 4));
                 }
                 frame = inputs.Execute(frame, new NativeBattleEffect285CameraRoll(0));
             }

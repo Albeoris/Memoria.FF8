@@ -36,6 +36,17 @@ public sealed record NativeBattleEffect313State([property: JsonRequired] NativeB
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
         return Write(address, encoded);
     }
+    internal BattleModelOwner ReadModelOperand(uint address) => Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleEffect313State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena storage = Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this with { Storage = storage };
+    }
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena> SavedActors { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena>.Empty;
+
     public NativeBattleEffect313State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

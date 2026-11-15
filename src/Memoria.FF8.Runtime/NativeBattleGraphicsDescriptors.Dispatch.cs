@@ -27,7 +27,7 @@ public sealed partial record NativeBattleDescriptorState
             next = task.Next;
             if (completed.Release)
             {
-                state = state with { Tasks = state.Tasks.SetItem(slot, task with { Flags = 0 }) };
+                state = state with { Tasks = state.Tasks.SetItem(slot, task with { Flags = 0, ModelSubject = null, Header = null }) };
                 if (previous is int retained)
                 {
                     state = state with { Tasks = state.Tasks.SetItem(retained, state.Tasks[retained] with { Next = next }) };

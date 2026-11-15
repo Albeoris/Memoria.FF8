@@ -10,12 +10,12 @@ public abstract record NativeBattleTripleOperation;
 public sealed record NativeBattleTripleFlash : NativeBattleTripleOperation;
 public sealed record NativeBattleTriplePackets(NativeBattleGfGeometryBatch Batch, ushort Flags20 = 0) : NativeBattleTripleOperation;
 public sealed record NativeBattleTripleSprite(NativeBattleModuleDraw Draw) : NativeBattleTripleOperation;
-public sealed record NativeBattleTripleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTripleFrame, NativeBattleTripleOperation, NativeBattleTripleFrame> Execute)
+public sealed record NativeBattleTripleInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleTripleFrame, NativeBattleTripleOperation, NativeBattleTripleFrame> Execute)
 {
-    public Func<NativeBattleTripleFrame, int, NativeBattleTripleFrame>? ApplyContact { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<NativeBattleTripleFrame, BattleContactOccurrence, NativeBattleTripleFrame>? ApplyContact { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
-public sealed record NativeBattleTripleStep(NativeBattleTripleFrame Frame, NativeCrtRandomState Random, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleTripleStep(NativeBattleTripleFrame Frame, NativeCrtRandomState Random, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleTripleParticleStep(NativeBattleTripleFrame Frame, NativeCrtRandomState Random, int Result);
 
 public static partial class NativeBattleTripleController
@@ -34,9 +34,9 @@ public static partial class NativeBattleTripleController
         }
         NativeBattleTripleFrame current = frame;
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Triple lost its50AFC0 parameters.");
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEnhancementRootInputs sharedInputs = new(inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, (childFrame, childAddress, childRandom) =>
         {
             current = new(childFrame.Memory, childFrame.Effect, new(childFrame.DrawCursor));
@@ -85,8 +85,7 @@ public static partial class NativeBattleTripleController
                     break;
                 case 2:
                     BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native8D6940 requires its physical header contact pointer.");
-                    _ = inputs.Packets.ReadContact(contact);
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(header).FirstContact).Occurrence ?? throw new InvalidDataException("Triple contact has no occurrence reference.");
                     current = current with { Effect = current.Effect with { Pools = state.Write(address, task).Pools } };
                     current = inputs.ApplyContact?.Invoke(current, contact) ?? current;
                     state = new(current.Effect.Pools);

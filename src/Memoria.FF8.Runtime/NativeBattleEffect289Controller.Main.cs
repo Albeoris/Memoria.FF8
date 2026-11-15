@@ -17,7 +17,7 @@ public static partial class NativeBattleEffect289Controller
             int half = progress >> 1;
             int delta = (progress - 2048) >> 1;
             NativeBattleModulePoolTask task = Read(frame, address);
-            uint target = task.ReadDword(0x10);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
             short x = unchecked((short)(Signed(task, 0x14) + delta));
             short z = unchecked((short)(Signed(task, 0x18) - delta));
             short angle = (inputs.ReadModel(frame, target).Transform ?? throw new NotSupportedException("Effect289 requires its current target Angle36.")).Angle36;
@@ -123,7 +123,7 @@ public static partial class NativeBattleEffect289Controller
     private static NativeBattleEffect289Frame SpawnTargetParticles289(NativeBattleEffect289Frame frame, uint main, NativeBattleEffect289Resources resources, NativeBattleEffect289Inputs inputs)
     {
         NativeBattleModulePoolTask owner = Read(frame, main);
-        uint target = owner.ReadDword(0x10);
+        BattleModelOwner target = owner.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
         (frame, uint first) = Append(frame, ParticleDescriptor, 0x6783F0);
         if (first != 0)
         {
@@ -154,7 +154,7 @@ public static partial class NativeBattleEffect289Controller
         }
         return frame;
 
-        int TargetParticleY289(uint modelAddress, int random)
+        int TargetParticleY289(BattleModelOwner modelAddress, int random)
         {
             NativeBattleGraphicsModel model = inputs.ReadModel(frame, modelAddress);
             short angle = (model.Transform ?? throw new NotSupportedException("Effect289 requires its current target Angle36.")).Angle36;

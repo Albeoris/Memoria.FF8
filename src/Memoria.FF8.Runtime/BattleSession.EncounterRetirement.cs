@@ -99,7 +99,7 @@ public sealed partial class BattleSession
             }
             int physical = retirement.PhysicalIndex;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(physical);
-            bool pendingRemoval = graphics.Descriptors.Queue.Any(slot => graphics.Descriptors.Packets[slot].Command == 105 && graphics.Descriptors.Packets[slot].Index == physical) || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Remove502ED0 && graphics.Descriptors.Packets[task.PacketSlot].Index == physical);
+            bool pendingRemoval = graphics.Descriptors.Queue.Any(slot => graphics.Descriptors.Packets[slot].Command == 105 && graphics.Descriptors.Packets[slot].ScalarWord8 == physical) || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Remove502ED0 && graphics.Descriptors.Packets[task.PacketSlot].ScalarWord8 == physical);
             if (graphics.ActorIds[physical] != allocation.Id)
             {
                 if (!retirement.RemovalQueued)

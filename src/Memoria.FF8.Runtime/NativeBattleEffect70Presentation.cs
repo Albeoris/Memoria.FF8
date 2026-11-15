@@ -20,9 +20,11 @@ internal static class NativeBattleEffect70Presentation
         return owner with { Primitive = unchecked(owner.Primitive * 397 + copy), ResourceGeneration = source };
     }
 
-    internal static NativeBattleEffect70DrawActor693170 Actor(NativeBattleEffect70Inputs inputs, uint record, int actor, NativeBattleEffectArena rotation, NativeBattleEffectArena offset, short scale)
+    internal static NativeBattleEffect70DrawActor693170 Actor(NativeBattleEffect70Inputs inputs, uint record, BattleModelOwner actor, NativeBattleEffectArena rotation, NativeBattleEffectArena offset, short scale)
     {
-        NativeBattlePilotVisualIdentity? identity = Source(inputs, 0x693170, unchecked((int)record * 7 + actor));
+        NativeBattlePilotVisualIdentity? identity = Source(inputs, 0x693170, unchecked((int)record)) is { } taskIdentity
+            ? NativeBattlePilotVisualIdentity.ForModel(70, taskIdentity.Bank, actor, taskIdentity.Primitive) with { Slot = taskIdentity.Slot, Generation = taskIdentity.Generation, ResourceGeneration = taskIdentity.ResourceGeneration }
+            : null;
         return new(actor, rotation, offset, scale) { PilotIdentity = identity };
     }
 

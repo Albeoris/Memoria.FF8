@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
                 BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContact;
-                int actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == entity && WindWord(task, 12) <= 43))
                 {

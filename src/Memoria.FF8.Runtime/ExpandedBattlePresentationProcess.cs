@@ -91,10 +91,10 @@ public sealed class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, int? headerIndex = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null)
+    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedDispatch(headers, headerIndex, dispatchAppended, completion, acknowledgment);
+        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment);
     }
 
     internal void ValidatePreparedDispatch(BattleSession.PreparedHostedDispatch prepared)
@@ -108,10 +108,10 @@ public sealed class ExpandedBattlePresentationProcess
         presentation.CommitHostedDispatch(prepared);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareCompletion(uint callback, int row, string actorId)
+    internal BattleSession.PreparedHostedDispatch PrepareCompletion(uint callback, BattleModelOwner owner, string actorId)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedCompletion(callback, row, actorId);
+        return presentation.PrepareHostedCompletion(callback, owner, actorId);
     }
 
     internal long PublishCompletion(BattleSession.PreparedHostedDispatch prepared)

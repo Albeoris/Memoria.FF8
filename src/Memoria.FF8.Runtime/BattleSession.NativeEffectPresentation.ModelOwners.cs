@@ -63,6 +63,11 @@ public sealed partial class BattleSession
         {
             return presentationSourceResource;
         }
+        if (hostedBattlePresentation)
+        {
+            string actorId = RequireCanonicalGraphicsActorId(owner);
+            return definition.NativeGraphics?.Bindings.SingleOrDefault(binding => binding.ActorId == actorId)?.Resource;
+        }
         if (presentationNativeTargets?.TryGetValue(owner, out NativeBattleEffectModelBinding? target) == true)
         {
             return target.Resource;

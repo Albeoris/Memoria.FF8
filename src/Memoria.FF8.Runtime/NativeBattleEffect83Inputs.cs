@@ -19,7 +19,7 @@ public sealed record NativeBattleEffect83Point502170(uint ModelAddress, ushort S
 public sealed record NativeBattleEffect83UploadTim(uint Address) : NativeBattleEffect83Operation;
 public sealed record NativeBattleEffect83RegisterCamera(NativeBattleEffectHeapAllocation Camera) : NativeBattleEffect83Operation;
 public sealed record NativeBattleEffect83Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleEffect83Operation;
-public sealed record NativeBattleEffect83Contact506690(int ContactIndex) : NativeBattleEffect83Operation;
+public sealed record NativeBattleEffect83Contact506690(BattleContactOccurrence ContactIndex) : NativeBattleEffect83Operation;
 public sealed record NativeBattleEffect83TextureLoad508630(uint SourceAddress, uint CompletionByteAddress) : NativeBattleEffect83Operation;
 public sealed record NativeBattleEffect83TargetCapture79E590(uint TaskAddress) : NativeBattleEffect83Operation;
 public sealed record NativeBattleEffect83TargetDraw79DA20(uint BodyAddress) : NativeBattleEffect83Operation;

@@ -130,7 +130,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(flash.Rise, flash.Hold, flash.Fall, flash.Intensity) };
                     return current;
                 case NativeBattleLionHeart165Contact contact:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.Header];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Parameters.Header);
                     int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Lion Heart receipt requires its selected contact pointer.");
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(first + contact.RelativeIndex))] });

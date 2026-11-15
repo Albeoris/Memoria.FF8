@@ -132,12 +132,7 @@ public sealed partial class BattleSession
                 PlayStream = current => PublishNativeModuleSound((current.Memory.SummonStream ?? throw new NotSupportedException("Native Pandemona requires its retained summon-stream number.")).Play5018C0(128, 127)),
                 InitializeBody = (current, address, task) =>
                 {
-                    uint caster = current.Memory.Pandemona291?.Caster2556260 ?? throw new NotSupportedException("Native Pandemona model initialization requires its actual caster pointer.");
-                    if (!NativeBattleGraphicsModelAddress.TryDecode(caster, out int index, graphics.Models.Length) ||
-                        graphics.PresentationRoster is { } roster && !roster.ContainsRow(index))
-                    {
-                        throw new InvalidDataException("Native Pandemona caster pointer leaves its current graphics-model rows.");
-                    }
+                    BattleModelOwner index = current.Effect.Parameters?.Source ?? throw new NotSupportedException("Native Pandemona model initialization requires its caster owner.");
                     NativeBattlePandemona291ChildStep initialized = NativeBattlePandemona291Body.Initialize99(current, address, task, () => graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Alpha7 = 0 }) });
                     NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pandemona requires its current camera globals.");
                     int center = initialized.Frame.Memory.Pandemona291!.Center25562E8!.Value;

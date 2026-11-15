@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleNoMercy200Controller
 {
-    public static NativeBattleNoMercy200ChildStep BeginCamera63E960(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool)
+    public static NativeBattleNoMercy200ChildStep BeginCamera63E960(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool, NativeBattleActionPacketsState packets)
     {
         NativeBattleNoMercy200State state = frame.Memory.NoMercy200 ?? throw new InvalidDataException("Native No Mercy camera requires its entered owner.");
         NativeBattleNoMercy200Resources resources = state.Resources ?? throw new NotSupportedException("Native No Mercy camera requires resources retained by actual entry.");
@@ -12,7 +12,8 @@ public static partial class NativeBattleNoMercy200Controller
         NativeBattleGuardianCameraTask camera = NativeBattleGuardianCameraProgram.Begin63E960(process, resources.Camera.Data, 0);
         (pool, int slot) = pool.Append(0x63E9C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
-        task = TaskDword(TaskDword(TaskDword(task, 20, 0xE33D8C), 24, 0x24F8D90), 28, NativeBattleGraphicsModelAddress.Encode(frame.Parameters.Source));
+        task = TaskDword(TaskDword(task, 20, 0xE33D8C), 24, 0x24F8D90);
+        task.WriteExecutionReference(28, 4, new BattleExecutionReference.Model(frame.Parameters.Source), packets.ModelAliases.EncodeAddress(frame.Parameters.Source));
         pool = pool.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { NoMercy200 = state with { CameraTask = camera }, GuardianCameraProcess = camera.Process } };
         return new(frame, pool, 0);
@@ -23,7 +24,7 @@ public static partial class NativeBattleNoMercy200Controller
         NativeBattleNoMercy200State state = frame.Memory.NoMercy200 ?? throw new InvalidDataException("Native No Mercy camera requires its entered owner.");
         NativeBattleGuardianCameraTask camera = state.CameraTask ?? throw new NotSupportedException("Native No Mercy camera requires its actually appended program task.");
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xE33D8Cu + camera.Offset || TaskDword(task, 24) != 0x24F8D90 || TaskDword(task, 28) != NativeBattleGraphicsModelAddress.Encode(frame.Parameters.Source))
+        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || TaskDword(task, 20) != 0xE33D8Cu + camera.Offset || TaskDword(task, 24) != 0x24F8D90 || task.ReadExecutionReference<BattleExecutionReference.Model>(28, 4).Owner != frame.Parameters.Source)
         {
             throw new InvalidDataException("Native No Mercy camera lost its physical task operands.");
         }

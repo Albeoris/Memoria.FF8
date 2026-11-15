@@ -8,7 +8,7 @@ public static partial class NativeBattleEffect227Controller
     public static NativeBattleEffect227Step AdvanceMain693A10(NativeBattleEffect227Frame frame, uint address, NativeBattleEffect227Resources resources, NativeBattleEffect227Inputs inputs)
     {
         int age = Signed(Read(frame, address), 12);
-        uint model = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner model = frame.State.ReadModelAddress(CasterGlobal);
         uint morph = frame.State.ReadDword(ArenaGlobal) + MorphOffset;
         if ((uint)(age - 212) < 50)
         {
@@ -109,10 +109,7 @@ public static partial class NativeBattleEffect227Controller
         };
         if (index >= 0)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(frame.State.ReadDword(CasterGlobal), out int row))
-            {
-                throw new InvalidDataException("Effect227 text requires its actual physical caster.");
-            }
+            BattleModelOwner row = frame.State.ReadModelAddress(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleEffect227Text4876F0(row, index, duration));
         }
         return frame;

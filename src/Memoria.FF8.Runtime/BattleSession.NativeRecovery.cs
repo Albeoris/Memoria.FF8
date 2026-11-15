@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = step.Frame.Memory;
         return graphics with { OriginalEffect = step.Frame.Effect with { Recovery = step.Frame.State } };
 
-        NativeBattleEffectActorGeometry? ReadForeignGeometry(int index)
+        NativeBattleEffectActorGeometry? ReadForeignGeometry(BattleModelOwner index)
         {
             if (!foreignGeometry.TryGetValue(index, out NativeBattleEffectActorGeometry? geometry))
             {

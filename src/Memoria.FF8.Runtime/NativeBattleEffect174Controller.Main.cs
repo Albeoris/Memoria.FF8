@@ -11,7 +11,7 @@ public static partial class NativeBattleEffect174Controller
             return new(frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
         if (age == 10)
         {
             (frame, uint child) = AppendRequired(frame, ChildDescriptor, 0x5D4CB0);
@@ -53,11 +53,11 @@ public static partial class NativeBattleEffect174Controller
             int secondAngle = RollMain(ref frame) % 4096;
             frame = Write(frame, second, Read(frame, second).WriteWord(12, 0).WriteWord(24, (ushort)secondAngle).WriteWord(26, unchecked((ushort)-32)).WriteWord(28, 0x360));
         }
-        int target = checked((int)frame.State.ReadDword(TargetGlobal));
+        BattleModelOwner target = frame.State.ReadModelOperand(TargetGlobal);
         if (age == 100)
         {
             NativeBattleEffectArena retained = TaskView(Read(frame, address), 16, 8);
-            NativeBattleEffect174PointStep point = target < 3 ? inputs.Point502170(frame, target, 0xF1, 0, retained) : inputs.Anchor571400(frame, target, retained);
+            NativeBattleEffect174PointStep point = target.Side == BattleSide.Allies ? inputs.Point502170(frame, target, 0xF1, 0, retained) : inputs.Anchor571400(frame, target, retained);
             frame = WriteBytes(point.Frame, address + 16, point.Output8, 8);
             for (int index = 0; index < 2; index++)
             {
@@ -77,27 +77,29 @@ public static partial class NativeBattleEffect174Controller
                 frame = Write(frame, child, Read(frame, child).WriteWord(24, (ushort)angle).WriteWord(26, (ushort)(index == 0 ? 40 : 60)).WriteWord(32, (ushort)(index == 0 ? 0 : 2048)).WriteWord(28, unchecked((ushort)radius)).WriteWord(30, unchecked((ushort)(radius / 40))));
             }
         }
-        if (age == 130 && (FirstContact(frame, inputs).Packet.Primary.HitFlags3 & 4) == 0)
+        if (age == 130 && (FirstContact(frame, inputs).Primary.HitFlags & 4) == 0)
         {
             (frame, _) = AppendPointChild(frame, address, 0x5D64E0);
             (frame, uint child) = AppendPointChild(frame, address, 0x5D7220);
-            frame = Write(frame, child, Read(frame, child).WriteWord(14, unchecked((ushort)target)));
+            NativeBattleModulePoolTask motion = Read(frame, child);
+            motion.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(target), inputs.ReadPackets(frame).ModelAliases.EncodeOperand(target, 2));
+            frame = Write(frame, child, motion);
             int angle = (RollMain(ref frame) % 2 + 1) << 12;
             frame = Write(frame, child, Read(frame, child).WriteWord(24, unchecked((ushort)angle)));
         }
-        if (age == 159 && (FirstContact(frame, inputs).Packet.Primary.HitFlags3 & 4) == 0)
+        if (age == 159 && (FirstContact(frame, inputs).Primary.HitFlags & 4) == 0)
         {
             (frame, _) = AppendPointChild(frame, address, 0x5D6AA0);
         }
         if (age == 175)
         {
-            (int contactIndex, NativeBattleContactPacket packet) = FirstContact(frame, inputs);
-            if ((packet.Primary.HitFlags3 & 4) == 0)
+            NativeBattleContactPacket packet = FirstContact(frame, inputs);
+            if ((packet.Primary.HitFlags & 4) == 0)
             {
                 ushort flags = inputs.ReadModel(frame, target).Flags0;
                 frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(target, 0, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((ushort)(flags | 4)))), 2));
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect174FirstContact506690(contactIndex));
+            frame = inputs.Execute(frame, new NativeBattleEffect174FirstContact506690(packet.Occurrence ?? throw new InvalidDataException("Effect174 requires its stored contact occurrence.")));
         }
         if (age == 129)
         {
@@ -159,8 +161,8 @@ public static partial class NativeBattleEffect174Controller
         return (Write(frame, address, CopyTask(Read(frame, address), 16, TaskView(Read(frame, parent), 16, 8), 8).WriteWord(12, 0)), address);
     }
 
-    private static short CasterRotation(NativeBattleEffect174Frame frame, NativeBattleEffect174Inputs inputs) => inputs.ReadModel(frame, checked((int)frame.State.ReadDword(CasterGlobal))).Rotation14 ?? throw new NotSupportedException("Effect174 requires current caster rotation14.");
-    private static short TargetScale(NativeBattleEffect174Frame frame, NativeBattleEffect174Inputs inputs) => inputs.ReadModel(frame, checked((int)frame.State.ReadDword(TargetGlobal))).Transform?.Scale38 ?? throw new NotSupportedException("Effect174 requires current target scale38.");
+    private static short CasterRotation(NativeBattleEffect174Frame frame, NativeBattleEffect174Inputs inputs) => inputs.ReadModel(frame, frame.State.ReadModelOperand(CasterGlobal)).Rotation14 ?? throw new NotSupportedException("Effect174 requires current caster rotation14.");
+    private static short TargetScale(NativeBattleEffect174Frame frame, NativeBattleEffect174Inputs inputs) => inputs.ReadModel(frame, frame.State.ReadModelOperand(TargetGlobal)).Transform?.Scale38 ?? throw new NotSupportedException("Effect174 requires current target scale38.");
 
     private static int RollMain(ref NativeBattleEffect174Frame frame)
     {
@@ -169,11 +171,10 @@ public static partial class NativeBattleEffect174Controller
         return value;
     }
 
-    private static (int Index, NativeBattleContactPacket Packet) FirstContact(NativeBattleEffect174Frame frame, NativeBattleEffect174Inputs inputs)
+    private static NativeBattleContactPacket FirstContact(NativeBattleEffect174Frame frame, NativeBattleEffect174Inputs inputs)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect174 requires its current header.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        int index = packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect174 requires the actual first contact pointer.");
-        return (index, packets.ReadContact(index));
+        return packets.ReadContact(packets.ReadHeader(parameters.Header).FirstContact);
     }
 }

@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect65Controller
     {
         if (relative == 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(frame.State.ReadDword(CasterGlobal), 0xFFF3, 0));
+            frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(frame.State.ReadModelAddress(CasterGlobal), 0xFFF3, 0));
         }
         if (frame.State.ReadDword(ControlGlobal) == 0)
         {
@@ -79,19 +79,19 @@ public static partial class NativeBattleEffect65Controller
             for (int index = 0; index < count; index++)
             {
                 task = Read(frame, main);
-                uint actor = task.ReadDword(0x24 + index * 12);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x24 + index * 12, 4).Owner;
                 NativeBattleVector saved = Vector(TaskView(task, 0x28 + index * 12, 8));
                 NativeBattleVector placed = V(center.X + (saved.X - center.X) / 2, center.Y + (saved.Y - center.Y) / 2, center.Z + (saved.Z - center.Z) / 2 + 2000);
                 frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPositionXYZ(actor, placed, false));
                 frame = inputs.Execute(frame, new NativeBattleEffect65SetActorScalePointer30(actor, 0x133AB88));
             }
-            uint caster = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
             NativeBattleVector casterSaved = Vector(TaskView(Read(frame, main), 0x14, 8));
             NativeBattleVector casterPoint = V(center.X + (casterSaved.X - center.X) / 2, center.Y + (casterSaved.Y - center.Y) / 2, center.Z + (casterSaved.Z - center.Z) / 2 - 2000);
             frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPositionXYZ(caster, casterPoint, true));
             frame = inputs.Execute(frame, new NativeBattleEffect65SetActorScalePointer30(caster, 0x133AB88));
             frame = RestoreActorFlags6E2BD0(frame, inputs);
-            frame = HideEnabledActors(frame, 3, inputs);
+            frame = HideEnabledActors(frame, true, inputs);
             frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(caster, 0xFFF3, 0));
         }
         if (frame.State.ReadDword(ControlGlobal) == 0)

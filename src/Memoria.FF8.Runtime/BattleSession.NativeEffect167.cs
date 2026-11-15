@@ -116,7 +116,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect167AllContacts506BA0 contacts:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    ImmutableArray<NativeBattleContactPacket> selected = Enumerable.Range(contacts.FirstContactIndex, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray();
+                    ImmutableArray<NativeBattleContactPacket> selected = Enumerable.Range(0, contacts.Count).Select(relative => nativeActionPackets.ReadContact(contacts.FirstContact.Advance(relative))).ToImmutableArray();
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = selected });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

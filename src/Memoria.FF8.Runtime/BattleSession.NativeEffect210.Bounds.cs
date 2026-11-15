@@ -8,7 +8,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleEffect210Frame ReadNativeEffect210Bounds(ref NativeBattleGraphicsState graphics, NativeBattleEffect210Frame current, NativeBattleEffect210Bounds9800 operation)
     {
-        int actor = Actor(operation.ModelAddress);
+        BattleModelOwner actor = operation.Actor;
         NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect210 bounds require their current addressed memory.");
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect210 bounds require their current primary skeleton.");

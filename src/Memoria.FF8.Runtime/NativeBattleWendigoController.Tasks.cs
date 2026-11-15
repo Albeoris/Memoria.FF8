@@ -69,8 +69,8 @@ public static partial class NativeBattleWendigoController
 
         private void Emitter(uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
-            int actor = task.ReadByte(0x2D);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), inputs.ReadModel, inputs.ReadPoseSource);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleSequenceState sequence = inputs.ReadModel(actor).SequenceState ?? throw new NotSupportedException("Native Wendigo requires its selected target's current pose.");
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
             NativeBattleDecodedPose pose = sequence.DecodedPose ?? source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Wendigo requires its decoded target pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Wendigo requires its target pose frame."), sequence.PoseFlags109);
@@ -101,10 +101,11 @@ public static partial class NativeBattleWendigoController
                     if (Signed(task, 0x24) >= (shoot ? 125 : 116))
                     {
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
-                        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wendigo requires its actual action contact pointer.");
+                        BattleContactCursor first = header.FirstContact;
                         for (int index = 0; index < header.ReadContactCount(); index++)
                         {
-                            Emit(new NativeBattleWendigoContact(first + index));
+                            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(first.Advance(index)).Occurrence ?? throw new InvalidDataException("Wendigo contact has no occurrence reference.");
+                            Emit(new NativeBattleWendigoContact(occurrence));
                         }
                         Store(address, Next(Read(address).WriteByte(0x26, (byte)(Read(address).ReadByte(0x26) | 1))));
                     }
@@ -153,7 +154,7 @@ public static partial class NativeBattleWendigoController
             {
                 throw new NotSupportedException("Native Wendigo actor mode2 requires its actual uninitialized prior stack VECTOR.");
             }
-            int actor = Signed(task, 0x34 + 0x1E);
+            BattleModelOwner actor = NativeBattleEffectNodeContext.Read(task).Source;
             NativeBattleVector a = Bone(actor, 0x18);
             NativeBattleVector b = Bone(actor, 0x15);
             a = a with { Z = unchecked((short)(a.Z + 256)) };

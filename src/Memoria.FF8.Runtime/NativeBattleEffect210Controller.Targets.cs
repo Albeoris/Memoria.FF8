@@ -10,9 +10,9 @@ public static partial class NativeBattleEffect210Controller
         for (int index = 0; index < count; index++)
         {
             uint record = main + 16u + (uint)(index * 24);
-            uint model = Dword(ReadBytes(frame, record, 4), 0);
-            frame = inputs.Execute(frame, new NativeBattleEffect210Bounds9800(model, record + 20));
-            frame = ModelFlags(frame, Actor(model), 0xFFFF, 12, inputs, true);
+            BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
+            frame = inputs.Execute(frame, new NativeBattleEffect210Bounds9800(actor, record + 20));
+            frame = ModelFlags(frame, actor, 0xFFFF, 12, inputs, true);
         }
         return frame;
     }
@@ -25,8 +25,7 @@ public static partial class NativeBattleEffect210Controller
         for (int index = 0; index < count; index++)
         {
             uint record = main + 16u + (uint)(index * 24);
-            uint model = Dword(ReadBytes(frame, record, 4), 0);
-            int actor = Actor(model);
+            BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
             int originalY = Word(ReadBytes(frame, record + 6, 2), 0);
             if (age >= 195 || !Frozen(frame))
             {
@@ -54,7 +53,7 @@ public static partial class NativeBattleEffect210Controller
             frame = WriteBytes(frame, record + 12, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(angle)), 2);
             short midpoint = unchecked((short)((Word(ReadBytes(frame, record + 20, 2), 0) + Word(ReadBytes(frame, record + 22, 2), 0)) >> 1));
             NativeBattleEffectArena pivot = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[6]).Write(2, BitConverter.GetBytes(midpoint));
-            frame = inputs.Execute(frame, new NativeBattleEffect210DrawModel9960(model, ReadBytes(frame, record + 12, 8), pivot) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, main), index) });
+            frame = inputs.Execute(frame, new NativeBattleEffect210DrawModel9960(actor, ReadBytes(frame, record + 12, 8), pivot) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, main), index) });
         }
         return frame;
     }
@@ -65,7 +64,7 @@ public static partial class NativeBattleEffect210Controller
         for (int index = 0; index < count; index++)
         {
             uint record = main + 16u + (uint)(index * 24);
-            int actor = Actor(Dword(ReadBytes(frame, record, 4), 0));
+            BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
             short y = unchecked((short)(Word(inputs.ReadModelArena9C(frame, actor), 30) + 512));
             frame = WriteModel(frame, actor, 30, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(y)), 2, inputs);
             if (birth)

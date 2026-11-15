@@ -2,35 +2,72 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static bool TryResolveNativeModelRead(NativeBattleGraphicsState graphics, uint address, int length, out int offset)
+    private static bool TryResolveNativeModelRead(uint address, int length, out int offset)
     {
-        int actorCount = graphics.Models.Length;
-        if (!NativeBattleGraphicsModelAddress.TryResolveField(address, out int actor, out offset, actorCount))
+        if (!NativeBattleGraphicsModelAddress.TryResolveOriginalField(address, out NativeBattleModelSlot slot, out offset))
         {
             return false;
         }
-
-        int bankEnd = actor < NativeBattleGraphicsModelAddress.NativeRowCount ? Math.Min(actorCount, NativeBattleGraphicsModelAddress.NativeRowCount) : actorCount;
-        return (uint)length <= (uint)((bankEnd - actor) * NativeBattleGraphicsModelAddress.RowSize - offset);
+        return (uint)length <= (uint)((NativeBattleModelBoundary.CellCount - slot.Offset) * NativeBattleGraphicsModelAddress.RowSize - offset);
     }
 
-    private bool TryResolveNativeContactRead(uint address, int length, out int row, out int offset)
+    private static bool TryResolveNativeContactRead(uint address, int length, out BattleContactOccurrence occurrence, out int offset)
     {
-        int capacity = nativeActionPackets.StorageCapacity;
-        if (!NativeBattleContactAddress.TryResolveField(address, 0, out row, out offset, capacity))
+        if (!NativeBattleContactAddress.TryResolveOriginalField(address, 0, out occurrence, out offset))
         {
             return false;
         }
-        int bankEnd = row < NativeBattleContactAddress.NativeRowCount ? Math.Min(capacity, NativeBattleContactAddress.NativeRowCount) : capacity;
-        return (uint)length <= (uint)((bankEnd - row) * NativeBattleContactAddress.RowSize - offset);
+        return (uint)length <= (uint)((NativeBattleContactAddress.NativeRowCount - occurrence.Ordinal) * NativeBattleContactAddress.RowSize - offset);
+    }
+
+    private byte[] ReadOriginalContactBytes(BattleContactOccurrence occurrence, int offset, int length)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (occurrence.Ordinal >= NativeBattleContactAddress.NativeRowCount || offset >= NativeBattleContactAddress.RowSize || length > NativeBattleContactAddress.RowSize - offset)
+        {
+            throw new InvalidDataException("The native contact byte span must stay within one original row.");
+        }
+        NativeBattleRawContactPacket packet = nativeActionPackets.ExportRetained().Contacts[occurrence.Ordinal] ??
+            throw new NotSupportedException("Native contact memory requires an observed original row.");
+        for (int index = offset; index < offset + length; index++)
+        {
+            if (packet.UnknownBitsAt(index) != 0)
+            {
+                throw new NotSupportedException("Native contact memory reaches an unobserved byte.");
+            }
+        }
+        return NativeBattleContactPacketCodec.Encode(packet).AsSpan(offset, length).ToArray();
+    }
+
+    private bool TryReadOriginalHeaderBytes(uint address, int length, out byte[] bytes)
+    {
+        uint relative = unchecked(address - NativeBattleEffectParameterWindow.HeaderBase);
+        if (relative >= NativeBattleRetainedActionPackets.HeaderCapacity * NativeBattleEffectParameterWindow.HeaderSize)
+        {
+            bytes = [];
+            return false;
+        }
+        int offset = (int)(relative % NativeBattleEffectParameterWindow.HeaderSize);
+        if (length < 0 || length > NativeBattleEffectParameterWindow.HeaderSize - offset)
+        {
+            throw new InvalidDataException("The native header byte span must stay within one original row.");
+        }
+        NativeBattleRetainedActionHeaderSlot header = nativeActionPackets.ExportRetained().Headers[(int)(relative / NativeBattleEffectParameterWindow.HeaderSize)];
+        bytes = new byte[length];
+        for (int index = 0; index < length; index++)
+        {
+            bytes[index] = header.ReadKnownByte(offset + index) ?? throw new NotSupportedException("Native action header memory reaches an unobserved byte.");
+        }
+        return true;
     }
 
     private byte ReadNativeDescriptorByte(NativeBattleGraphicsState graphics, uint address)
     {
-        if (NativeBattleGraphicsModelAddress.TryResolveField(address, out int actor, out int modelOffset, graphics.Models.Length) && (graphics.PresentationRoster is not { } roster || roster.Rows[actor] is not null))
+        if (NativeBattleGraphicsModelAddress.TryResolveOriginalField(address, out NativeBattleModelSlot modelSlot, out int modelOffset))
         {
             int offset = modelOffset;
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+            NativeBattleGraphicsModel model = graphics.NativeBindings.ReadOriginalCell(modelSlot, graphics.ActorModels);
             if (offset == 4)
             {
                 return model.ModelId4 ?? throw new NotSupportedException("Native descriptor memory requires its retained model identity byte.");
@@ -92,14 +129,13 @@ public sealed partial class BattleSession
             }
             return task.Payload[offset - 12];
         }
-        if (address >= 0x1D280C4 && address < NativeBattleContactAddress.Encode(0))
+        if (TryReadOriginalHeaderBytes(address, 1, out byte[] headerBytes))
         {
-            uint relative = address - 0x1D280C4;
-            return nativeActionPackets.Headers[checked((int)(relative / 20))].ReadByte(checked((int)(relative % 20)));
+            return headerBytes[0];
         }
-        if (NativeBattleContactAddress.TryResolveField(address, 1, out int contact, out int contactOffset, nativeActionPackets.StorageCapacity))
+        if (NativeBattleContactAddress.TryResolveOriginalField(address, 1, out BattleContactOccurrence contact, out int contactOffset))
         {
-            return nativeActionPackets.ReadContactBytes(contact)[contactOffset];
+            return ReadOriginalContactBytes(contact, contactOffset, 1)[0];
         }
         int resourceRowCount = NativeModelCpuResources?.Rows.Length ?? NativeBattleModelResourceRowAddress.NativeRowCount;
         if (NativeBattleModelResourceRowAddress.TryResolveField(address, 1, out int alias, out int resourceOffset, resourceRowCount))
@@ -133,20 +169,16 @@ public sealed partial class BattleSession
             uint value = pointer is null ? 0 : pointer.TryPhysicalAddress() ?? (pointer.Bank < 3 ? checked(pointer.EffectiveLayout.BaseAddress + (uint)pointer.EffectiveLayout.BankLength * (uint)pointer.Bank + (uint)pointer.Offset) : pointer.NativePlacementAddress);
             return ByteOf(value, offset - field);
         }
-        if (address >= NativeBattleModelResourceRowAddress.HostedBase && NativeBattleModelResourceRowAddress.TryResolveField(address, 1, out _, out _, NativeBattleModelResourceRowAddress.MaximumRowCount))
+        if (address >= NativeBattleModelResourceRowAddress.HostedBase && NativeBattleModelResourceRowAddress.TryResolveField(address, 1, out _, out _, NativeBattleModelResourceRowAddress.MaximumEncodedRowCount))
         {
             throw new NotSupportedException("Hosted resource row address leaves the owned CPU alias array.");
         }
-        if (address >= 0x1D99A78 && address < 0x1D99A80 && graphics.OriginalEffect?.Parameters is { } parameters)
+        uint parameterOffset = unchecked(address - NativeBattleEffectParameterWindow.Address);
+        if (parameterOffset < NativeBattleEffectParameterWindow.Length)
         {
-            int offset = checked((int)(address - 0x1D99A78));
-            return offset switch
-            {
-                0 => parameters.Source,
-                1 => parameters.Flags79,
-                2 or 3 => ByteOf(parameters.TargetActors, offset - 2),
-                _ => ByteOf(checked(0x1D280C4u + (uint)parameters.Header * 20), offset - 4)
-            };
+            NativeBattleEffectParameterWindow window = graphics.OriginalEffect?.Parameters?.OriginalWindow ??
+                throw new NotSupportedException("Native effect parameter memory requires its publishing writer's original byte projection.");
+            return window.ReadByte((int)parameterOffset);
         }
         return (NativeFileStaging ?? throw new NotSupportedException("Native descriptor memory requires its addressed retained backing.")).ReadByte(address);
 

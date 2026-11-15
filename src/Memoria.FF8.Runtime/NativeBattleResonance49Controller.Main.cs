@@ -34,7 +34,7 @@ public static partial class NativeBattleResonance49Controller
                 {
                     if (unchecked((sbyte)root.ReadByte(0x2A)) < Signed(root, 0x58))
                     {
-                        frame = Write(frame, address, root.WriteByte(0x2A, unchecked((byte)(root.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(root.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(root.ReadByte(0x29) - 1))));
+                        frame = Write(frame, address, root.WriteByte(0x2A, unchecked((byte)(root.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(root.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(root.ReadByte(0x29) - 1))));
                     }
                     else
                     {
@@ -117,7 +117,7 @@ public static partial class NativeBattleResonance49Controller
     private static NativeBattleResonance49Frame InitializeEffect8218F0(NativeBattleResonance49Frame frame, uint address, NativeBattleResonance49Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleModelTransform transform = inputs.ReadModel(frame, task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Resonance requires its current target packed model position.");
+        NativeBattleModelTransform transform = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Resonance requires its current target packed model position.");
         NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, new byte[84]);
         view = NativeBattleEffectNodeContextMemory.Copy(PointView(transform.Position28, transform.Vertical34), 0, view, 8, 8);
         int angle = NativePrecision53.RoundInteger(Math.Atan2(transform.Position28.X, transform.Position28.Z) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
@@ -187,16 +187,21 @@ public static partial class NativeBattleResonance49Controller
         for (int index = 0; index < count; index++)
         {
             (frame, uint child) = Append(frame, 0x26466D0, 0x824970, 128, address, inputs.Packets);
-            NativeBattleContactPacket contact = inputs.Packets.ReadContact(checked((header.FirstContactIndex ?? throw new NotSupportedException("Resonance requires its physical contact pointer.")) + index));
-            frame = Write(frame, child, Read(frame, child).WriteByte(0x2B, unchecked((byte)index)).WriteByte(0x2D, contact.Primary.Recipient));
+            NativeBattleContactPacket contact = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+            NativeBattleModulePoolTask childTask = Read(frame, child).WriteTraversalPosition(0x2B, index);
+            BattleModelOwner target = contact.Primary.Recipient;
+            childTask.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(target), inputs.Packets.ModelAliases.EncodeOperand(target, 1));
+            frame = Write(frame, child, childTask);
         }
         return frame;
     }
 
-    private static NativeBattleResonance49Frame SpawnProgramme821C00(NativeBattleResonance49Frame frame, uint parent, uint callback, uint source, short bytes, ushort selector, byte actor, NativeBattleActionPacketsState packets)
+    private static NativeBattleResonance49Frame SpawnProgramme821C00(NativeBattleResonance49Frame frame, uint parent, uint callback, uint source, short bytes, ushort selector, byte originalActor, NativeBattleActionPacketsState packets)
     {
         (frame, uint address) = Append(frame, 0x26472C0, callback, 872, parent, packets);
-        NativeBattleModulePoolTask task = Read(frame, address).WriteDword(0x74, source).WriteDword(0x78, unchecked((uint)(int)bytes)).WriteWord(0x80, selector).WriteWord(0x82, 0).WriteByte(0x2C, actor);
+        NativeBattleModulePoolTask task = Read(frame, address).WriteDword(0x74, source).WriteDword(0x78, unchecked((uint)(int)bytes)).WriteWord(0x80, selector).WriteWord(0x82, 0);
+        BattleModelOwner actor = packets.ModelAliases.DecodeLiteral(originalActor);
+        task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 1));
         return Write(frame, address, task);
     }
 
@@ -296,7 +301,7 @@ public static partial class NativeBattleResonance49Controller
                     frame = DrawRandom(frame, out ushort random);
                     int sequence = (random & 1) != 0 ? 5 : 4;
                     frame = Write(frame, address, Read(frame, address).WriteWord(0x78, (ushort)sequence));
-                    frame = inputs.Execute(frame, new NativeBattleResonance49SelectSequence505CE0(Read(frame, address).ReadByte(0x2D), sequence));
+                    frame = inputs.Execute(frame, new NativeBattleResonance49SelectSequence505CE0(Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, sequence));
                     frame = Next(frame, address);
                 }
                 break;
@@ -304,7 +309,7 @@ public static partial class NativeBattleResonance49Controller
                 if (CurrentSequence(frame, address, inputs) != Read(frame, address).ReadWord(0x78))
                 {
                     frame = Write(frame, address, Read(frame, address).WriteWord(0x78, 6));
-                    frame = inputs.Execute(frame, new NativeBattleResonance49SelectSequence505CE0(Read(frame, address).ReadByte(0x2D), 6));
+                    frame = inputs.Execute(frame, new NativeBattleResonance49SelectSequence505CE0(Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 6));
                     frame = Next(frame, address);
                 }
                 break;
@@ -325,8 +330,7 @@ public static partial class NativeBattleResonance49Controller
                 if (CurrentSequence(frame, address, inputs) != task.ReadWord(0x78))
                 {
                     NativeBattleActionHeaderSlot header = Header(frame, task, inputs.Packets);
-                    int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Resonance requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
-                    _ = inputs.Packets.ReadContact(contact);
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(header.FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Resonance contact has no occurrence reference.");
                     frame = inputs.Execute(frame, new NativeBattleResonance49Contact506690(contact));
                     frame = Done(frame, address);
                 }
@@ -339,7 +343,7 @@ public static partial class NativeBattleResonance49Controller
         return Finish(frame, address);
     }
 
-    private static byte CurrentSequence(NativeBattleResonance49Frame frame, uint address, NativeBattleResonance49Inputs inputs) => inputs.ReadModel(frame, Read(frame, address).ReadByte(0x2D)).Sequence ?? throw new NotSupportedException("Resonance reaction requires its current resource header sequence BYTE.");
+    private static byte CurrentSequence(NativeBattleResonance49Frame frame, uint address, NativeBattleResonance49Inputs inputs) => inputs.ReadModel(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Sequence ?? throw new NotSupportedException("Resonance reaction requires its current resource header sequence BYTE.");
 
     private static NativeBattleActionHeaderSlot Header(NativeBattleResonance49Frame frame, NativeBattleModulePoolTask task, NativeBattleActionPacketsState packets)
     {

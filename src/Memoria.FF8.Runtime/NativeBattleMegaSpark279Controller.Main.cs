@@ -34,15 +34,15 @@ public static partial class NativeBattleMegaSpark279Controller
             for (int index = 0; index < count; index++)
             {
                 packets = inputs.ReadPackets(frame);
-                int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Mega Spark requires its actual physical contacts.");
-                uint target = ModelAddress(packets.ReadContact(first + index).Primary.Recipient);
-                NativeBattleModulePoolTask task = Read(frame, main).WriteDword(20 + index * 4, target);
+                BattleModelOwner target = packets.ReadContact(Header(frame, packets).FirstContact.Advance(index)).Primary.Recipient;
+                NativeBattleModulePoolTask task = Read(frame, main);
+                task.WriteExecutionReference(20 + index * 4, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
                 short z = ModelTransform279(inputs.ReadModel(frame, target)).Position28.Z;
                 frame = Write(frame, main, task.WriteWord(16, unchecked((ushort)(Signed(task, 16) + z))));
             }
             NativeBattleModulePoolTask current = Read(frame, main);
             frame = Write(frame, main, current.WriteWord(16, unchecked((ushort)(Signed(current, 16) / count))));
-            NativeBattleModelTransform transform = ModelTransform279(inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal)));
+            NativeBattleModelTransform transform = ModelTransform279(inputs.ReadModel(frame, frame.State.ReadModelOwner(CasterGlobal)));
             frame = WriteBytes(frame, main + 32, PointView(transform.Position28, transform.Vertical34), 8);
         }
         int mains = 1;
@@ -50,7 +50,7 @@ public static partial class NativeBattleMegaSpark279Controller
         if (Read(frame, address).ReadByte(15) != 0)
         {
             (frame, _) = AdvancePool(frame, 4, resources, inputs);
-            uint caster = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleMegaSpark279ComposeCaster5095B0(caster));
             (frame, mains) = AdvancePool(frame, 6, resources, inputs);
             (frame, attachments) = AdvancePool(frame, 5, resources, inputs);
@@ -77,7 +77,7 @@ public static partial class NativeBattleMegaSpark279Controller
 
     public static (NativeBattleMegaSpark279Frame Frame, int Result) AdvanceMain(NativeBattleMegaSpark279Frame frame, uint address, NativeBattleMegaSpark279Resources resources, NativeBattleMegaSpark279Inputs inputs)
     {
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleMegaSpark279ModelFields(caster, 0, 0x1000, 128));
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
@@ -141,7 +141,7 @@ public static partial class NativeBattleMegaSpark279Controller
         {
             int count = Signed(Read(frame, address), 14);
             int ordinal = checked((int)((uint)targetPhase % (uint)count));
-            uint target = Read(frame, address).ReadDword(20 + ordinal * 4);
+            BattleModelOwner target = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(20 + ordinal * 4, 4).Owner;
             if (targetPhase == 0)
             {
                 frame = inputs.Execute(frame, new NativeBattleMegaSpark279Flash5712C0(0, 1, 2, 128));
@@ -182,8 +182,7 @@ public static partial class NativeBattleMegaSpark279Controller
         else if (age == 58)
         {
             NativeBattleActionHeaderSlot header = Header(frame, inputs.ReadPackets(frame));
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Mega Spark requires its actual current contact base.");
-            frame = inputs.Execute(frame, new NativeBattleMegaSpark279Contact506BA0(first, header.ReadContactCount()));
+            frame = inputs.Execute(frame, new NativeBattleMegaSpark279Contact506BA0(header.FirstContact, header.ReadContactCount()));
         }
         int remaining = unchecked(85 - age);
         if ((uint)remaining < 16)
@@ -223,7 +222,7 @@ public static partial class NativeBattleMegaSpark279Controller
     {
         var bytes = resources.ReadStatic(sourceAddress, 8);
         int bone = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(6));
-        uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal)), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
+        uint row100 = NativeBattleModelResourceRow.Address100(inputs.ReadModel(frame, frame.State.ReadModelOwner(CasterGlobal)), inputs.ReadResourceRowCapacity?.Invoke() ?? NativeBattleModelResourceRowAddress.NativeRowCount);
         frame = LoadMatrix(frame, inputs.ReadCurrentBoneMatrix(frame, row100, bone));
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters!, frame.Memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan()), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(4))), unchecked((short)bone));

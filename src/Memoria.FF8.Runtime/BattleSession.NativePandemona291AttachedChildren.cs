@@ -11,11 +11,7 @@ public sealed partial class BattleSession
         int start = NativeBattleWaterExecutionFields.ArenaOffset(address, 0x10);
         uint rowPointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(start + 0xC, 4));
         int row = NativeBattleWaterExecutionFields.ArenaOffset(rowPointer, 32);
-        uint actorPointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-        if (!NativeBattleGraphicsModelAddress.TryDecode(actorPointer, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Native Pandemona attached programme requires its actual physical actor pointer.");
-        }
+        BattleModelOwner actorIndex = NativeBattlePandemona291Construction.ReadTargetOwner(arena, row);
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Pandemona attached programme requires its current actor position and scale.");
         short height = BinaryPrimitives.ReadInt16LittleEndian(arena.Read(row + 4, 2));

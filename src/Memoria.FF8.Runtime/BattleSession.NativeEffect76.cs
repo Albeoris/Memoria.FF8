@@ -98,7 +98,15 @@ public sealed partial class BattleSession
                 case NativeBattleEffect76SyncModelColors61FC60 color:
                     NativeBattleStageState colorStage = Stage();
                     NativeStage = colorStage with { ModelColors = (colorStage.ModelColors ?? throw new NotSupportedException("Effect76 requires its current model color owner.")) with { Color44 = color.Color } };
-                    graphics = graphics with { ActorModels = graphics.Models.Select(item => (item.Flags0 & 2) != 0 ? item with { Color44 = color.Color } : item).ToImmutableArray() };
+                    BattleActorModels loadedModels = graphics.ActorModels;
+                    foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
+                    {
+                        if ((entry.State.Flags0 & 2) != 0)
+                        {
+                            loadedModels = loadedModels.Set(entry.Owner, entry.State with { Color44 = color.Color });
+                        }
+                    }
+                    graphics = graphics with { ActorModels = loadedModels };
                     return current;
                 case NativeBattleEffect76WaveRequest46CBB0 wave:
                     NativeBattleFileAudioRequest request = NativeBattleFileAudioRequest.Create46CBB0(NativeGlobalSoundProcess ?? throw new NotSupportedException("Effect76 requires its current sound process."), wave.Channel, wave.ResourceName, wave.Gain);

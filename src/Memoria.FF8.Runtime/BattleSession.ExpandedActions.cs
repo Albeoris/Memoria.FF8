@@ -509,8 +509,8 @@ public sealed partial class BattleSession
         }
         foreach (NativeBattleEffectActivation activation in step.Activations)
         {
-            BattleCombatant actor = GetActor(ReadExpandedEffectModelActor(activation.PhysicalIndex));
-            if (!UsesOriginalEnemySlots || actor.Id != activation.ActorId || actor.NativeActorIndex != activation.PhysicalIndex ||
+            BattleCombatant actor = GetActor(activation.ActorId);
+            if (!UsesOriginalEnemySlots || activation.Owner is not BattleEnemyActorModel enemy || enemy.Actor.ActorId != actor.Id || actor.NativeActorIndex is null ||
                 !actor.IsActive || !actor.Suspended || !actor.Hidden || !actor.Untargetable)
             {
                 throw new InvalidDataException("Native activation no longer matches its original host participant.");

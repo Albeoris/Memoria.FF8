@@ -150,7 +150,7 @@ public static partial class NativeBattleEffect66Lower
             frame = PublishContext(frame, temporary, context, 176);
             if (age != 0)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect66ModelFlags((int)frame.State.ReadDword(CasterGlobal), 0xFFFF, 4));
+                frame = inputs.Execute(frame, new NativeBattleEffect66ModelFlags(frame.State.ReadModelOperand(CasterGlobal), 0xFFFF, 4));
             }
             frame = inputs.Execute(frame, new NativeBattleEffect66DrawBody176(temporary) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(66, Read(frame, task)) });
             frame = Release(frame, 176);

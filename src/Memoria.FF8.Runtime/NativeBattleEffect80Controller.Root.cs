@@ -110,9 +110,8 @@ public static partial class NativeBattleEffect80Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect80 requires its actual first contact pointer.");
-                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
-                    _ = packets.ReadContact(contact);
+                    BattleContactCursor cursor = packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
+                    BattleContactOccurrence contact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect80 requires its reached contact occurrence.");
                     frame = inputs.Execute(frame, new NativeBattleEffect80Contact506690(contact));
                     frame = NextPhase(frame, address);
                 }

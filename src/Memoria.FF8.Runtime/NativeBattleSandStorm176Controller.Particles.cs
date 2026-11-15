@@ -87,8 +87,8 @@ public static partial class NativeBattleSandStorm176Controller
             }
             if (landing && age == 2)
             {
-                int offset = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset ?? throw new InvalidDataException("Sand Storm landing requires its contact offset.");
-                BattleContactOccurrence occurrence = inputs.Packets.ReadContact(FirstContact.Advance(offset)).Occurrence ?? throw new InvalidDataException("Sand Storm contact has no occurrence reference.");
+                int contactOffset = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset ?? throw new InvalidDataException("Sand Storm landing requires its contact offset.");
+                BattleContactOccurrence occurrence = inputs.Packets.ReadContact(FirstContact.Advance(contactOffset)).Occurrence ?? throw new InvalidDataException("Sand Storm contact has no occurrence reference.");
                 Emit(new NativeBattleSandStorm176Contact(occurrence));
             }
             task = task.WriteWord(12, unchecked((ushort)(age + 1)));

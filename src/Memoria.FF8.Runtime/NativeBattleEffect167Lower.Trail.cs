@@ -14,7 +14,7 @@ public static partial class NativeBattleEffect167Lower
         (frame, uint temporary) = Allocate(frame, 64);
         NativeBattleEffectArena context = Context(frame, temporary, 64);
         context = LowerPut(LowerPut(LowerPut(context, 0x30, 6656), 0x34, 6656), 0x38, 6656);
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
         NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(1024, 0, 2048)), 6656, 6656, 6656);
         NativeBattleActionMatrix boneWorld = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadWorld(frame, actor).ReadMatrix(), inputs.ReadCurrentBoneMatrix32(frame, actor, 59).ReadMatrix());
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(boneWorld, scaled);

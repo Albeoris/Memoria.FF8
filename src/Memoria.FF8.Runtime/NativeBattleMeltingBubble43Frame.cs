@@ -32,6 +32,6 @@ public sealed record NativeBattleMeltingBubble43Frame(NativeBattleEffectMemory M
 
 public sealed record NativeBattleMeltingBubble43LeafStep(NativeBattleMeltingBubble43Frame Frame, int Result);
 public abstract record NativeBattleMeltingBubble43Operation;
-public sealed record NativeBattleMeltingBubble43Contact(int Index) : NativeBattleMeltingBubble43Operation;
+public sealed record NativeBattleMeltingBubble43Contact(BattleContactOccurrence Occurrence) : NativeBattleMeltingBubble43Operation;
 public sealed record NativeBattleMeltingBubble43Sound(NativeBattleModuleSound Sound) : NativeBattleMeltingBubble43Operation;
-public sealed record NativeBattleMeltingBubble43Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltingBubble43Frame, NativeBattleMeltingBubble43Operation, NativeBattleMeltingBubble43Frame> Execute, Func<NativeBattleMeltingBubble43Frame, uint, NativeBattleMeltingBubble43LeafStep> AdvanceGeneric);
+public sealed record NativeBattleMeltingBubble43Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltingBubble43Frame, NativeBattleMeltingBubble43Operation, NativeBattleMeltingBubble43Frame> Execute, Func<NativeBattleMeltingBubble43Frame, uint, NativeBattleMeltingBubble43LeafStep> AdvanceGeneric);

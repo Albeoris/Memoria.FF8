@@ -17,27 +17,27 @@ public sealed partial class BattleSession
 
     internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null)
     {
-        if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: { } roster } graphics ||
+        if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation || token != invocation.Token)
         {
             throw new InvalidOperationException("Contact replacement requires the active entry-ready hosted invocation outside graphics services.");
         }
-        RequireHostedActionModelBank(graphics, roster);
+        BattleModelRoster roster = graphics.ActorModels.Roster;
         NativeBattleActionPacketsState packets = nativeActionPackets;
-        if (packets.PresentationRoster is not { } packetRoster || !packetRoster.Rows.SequenceEqual(roster.Rows) ||
-            packets.ActiveHeaderIndex is int active && active != invocation.HeaderIndex)
+        if (!packets.Roster.Owners.SequenceEqual(roster.Owners) ||
+            packets.ActiveHeader is BattleActionHeaderReference active && active != invocation.Header)
         {
             throw new InvalidDataException("Contact replacement requires the active invocation's hosted packet bank and header.");
         }
 
         // The admitted header owns its full extent even before 104 first activates its cursor.
-        ImmutableArray<NativeBattleContactPacket> original = packets.ReadHeaderContacts506BA0(invocation.HeaderIndex);
-        NativeBattleActionHeaderSlot header = packets.Headers[invocation.HeaderIndex];
-        if (replacements.IsDefault || replacements.Length != original.Length || header.FirstContactIndex is not int first)
+        ImmutableArray<NativeBattleContactPacket> original = packets.ReadHeaderContacts(invocation.Header);
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(invocation.Header);
+        if (replacements.IsDefault || replacements.Length != original.Length)
         {
             throw new InvalidDataException("Contact replacement must retain the invocation's original contact extent.");
         }
-        byte caster = header.Source;
+        BattleModelOwner caster = header.Source;
         NativeBattleGraphicsState? replacementGraphics = null;
         if (acknowledgeTrigger is not null)
         {
@@ -49,19 +49,7 @@ public sealed partial class BattleSession
             }
             replacementGraphics = graphics with { PendingTrigger = null };
         }
-        ImmutableArray<NativeBattleContactPacket?>.Builder contacts = packets.Contacts.ToBuilder();
-        for (int index = 0; index < replacements.Length; index++)
-        {
-            NativeBattleContactPacket packet = replacements[index];
-            if (packet?.Primary is not { } primary || primary.Recipient != original[index].Primary.Recipient ||
-                packet.Secondary is not { } secondary || secondary.Recipient != byte.MaxValue && secondary.Recipient != caster)
-            {
-                throw new InvalidDataException("Contact replacement must retain each primary recipient and bind any secondary to the header caster.");
-            }
-            contacts[first + index] = packet;
-        }
-        NativeBattleActionPacketsState replacement = packets with { Contacts = contacts.MoveToImmutable() };
-        replacement.Validate();
+        NativeBattleActionPacketsState replacement = packets.ReplaceHeaderContacts(invocation.Header, replacements);
         return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics);
     }
 
@@ -70,7 +58,7 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(prepared);
         if (!ReferenceEquals(prepared.Owner, this) || !ReferenceEquals(prepared.Invocation, hostedPresentationInvocation) ||
             !ReferenceEquals(prepared.Graphics, NativeGraphics) || !ReferenceEquals(prepared.OriginalPackets, nativeActionPackets) ||
-            prepared.Epoch != hostedPreparationEpoch || !hostedBattlePresentation || NativeGraphics is not { EntryReady: true, PresentationRoster: not null } ||
+            prepared.Epoch != hostedPreparationEpoch || !hostedBattlePresentation || NativeGraphics is not { EntryReady: true } ||
             hostedFrameServices is not null)
         {
             throw new InvalidOperationException("The prepared contact replacement no longer belongs to this active hosted invocation.");

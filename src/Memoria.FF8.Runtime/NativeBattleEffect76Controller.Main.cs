@@ -13,10 +13,10 @@ public static partial class NativeBattleEffect76Controller
             return new(frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
         if (age == 0)
         {
-            frame = BeginCamera63E960(frame, resources);
+            frame = BeginCamera63E960(frame, resources, inputs);
             frame = inputs.Execute(frame, new NativeBattleEffect76ForceCamera50A730());
             frame = inputs.Execute(frame, new NativeBattleEffect76Vibration4A29A0(VibrationAddress, 1, 128, VibrationGlobal));
         }
@@ -105,7 +105,9 @@ public static partial class NativeBattleEffect76Controller
         if (age == 605)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect76 requires its current parameters.");
-            int contact = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect76 requires its current first contact pointer.");
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            BattleContactCursor cursor = packets.ReadHeader(parameters.Header).FirstContact;
+            BattleContactOccurrence contact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect76 requires its reached contact occurrence.");
             frame = inputs.Execute(frame, new NativeBattleEffect76Contact506690(contact));
         }
         if (age == 662)

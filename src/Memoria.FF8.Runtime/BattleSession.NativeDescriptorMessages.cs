@@ -22,7 +22,7 @@ public sealed partial class BattleSession
     {
         BattleEvent message = packet.Message ?? throw new NotSupportedException("Native text descriptor lacks its original logical string binding.");
         //5009B0 passes the duration WORD to506EE0's BYTE parameter. The zero-duration task releases before becoming visible.
-        byte duration = unchecked((byte)packet.Index);
+        byte duration = unchecked((byte)packet.ScalarWord8);
         if (duration != 0)
         {
             events.Add(message with { Frame = Frame, Amount = duration, NativeMessageMode = (byte)packet.Value });

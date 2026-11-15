@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274SelectedServices(NativeBattleDuel274ActorServices Actors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, int, uint, NativeBattleDuel274Frame> Bind5022C0, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> Select505C00, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Camera503520, Func<NativeBattleDuel274Frame, NativeBattleEffectFileRequest, NativeBattleDuel274Frame> QueueFile, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, uint, uint, NativeBattleDuel274Frame> Texture508630, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> DrawVariant, Action<int> Stage5713E0, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Draw68D4B0)
+public sealed record NativeBattleDuel274SelectedServices(NativeBattleDuel274ActorServices Actors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, BattleModelOwner, uint, NativeBattleDuel274Frame> Bind5022C0, Func<NativeBattleDuel274Frame, BattleModelOwner, byte, NativeBattleDuel274Frame> Select505C00, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Camera503520, Func<NativeBattleDuel274Frame, NativeBattleEffectFileRequest, NativeBattleDuel274Frame> QueueFile, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, uint, uint, NativeBattleDuel274Frame> Texture508630, Func<NativeBattleDuel274Frame, int, byte, NativeBattleDuel274Frame> DrawVariant, Action<int> Stage5713E0, Func<NativeBattleDuel274Frame, byte, NativeBattleDuel274Frame> Draw68D4B0)
 {
     public bool NativeCameraEnabled { get; init; } = true;
 }
@@ -20,7 +20,7 @@ public static class NativeBattleDuel274Target
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[slot];
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel target requires its actual parameter owner.");
         BattleModelOwner actor = parameters.Source;
-        int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
+        BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
         if (frame.Staging.Read(0x25084D8, 1)[0] != 0)
         {
             frame = NativeBattleDuel274Banks.DetachUnscheduledPrivateBanks(frame);
@@ -91,12 +91,15 @@ public static class NativeBattleDuel274Target
                     RestoreTarget();
                     if (IsNativeModel(target, 84))
                     {
-                        for (int index = 0; index < 3; index++)
+                        foreach (BattlePartyModelOwner owner in inputs.Actors.Aliases.Roster.Party)
                         {
-                            NativeBattleGraphicsModel model = inputs.ReadModel(index);
+                            NativeBattleGraphicsModel model = inputs.ReadModel(owner);
                             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel party restoration requires the actual position fields.");
-                            short z = BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(checked(0x25084E0u + (uint)index * 2), 2));
-                            inputs.WriteModel(index, model with { Transform = transform with { Position28 = transform.Position28 with { Z = z } } });
+                            if (!frame.Effect.Duel274SavedPartyZ.TryGetValue(owner, out short z))
+                            {
+                                throw new InvalidDataException("Native Duel cannot restore party position without its captured model owner.");
+                            }
+                            inputs.WriteModel(owner, model with { Transform = transform with { Position28 = transform.Position28 with { Z = z } } });
                         }
                     }
                 }
@@ -164,9 +167,9 @@ public static class NativeBattleDuel274Target
         }
         return Result(0);
 
-        bool IsNativeModel(int index, byte modelId)
+        bool IsNativeModel(BattleModelOwner owner, byte modelId)
         {
-            return inputs.Actors.IsNativeModel?.Invoke(index, modelId) ?? (inputs.ReadModel(index).ModelId4 ?? throw new NotSupportedException("Native Duel target positioning requires its actual BYTE4.")) == modelId;
+            return inputs.Actors.IsNativeModel?.Invoke(owner, modelId) ?? (inputs.ReadModel(owner).ModelId4 ?? throw new NotSupportedException("Native Duel target positioning requires its actual BYTE4.")) == modelId;
         }
         void SaveModels()
         {
@@ -186,12 +189,16 @@ public static class NativeBattleDuel274Target
             }
             else if (IsNativeModel(target, 84))
             {
-                for (int index = 0; index < 3; index++)
+                foreach (BattlePartyModelOwner owner in inputs.Actors.Aliases.Roster.Party)
                 {
-                    NativeBattleGraphicsModel model = inputs.ReadModel(index);
+                    NativeBattleGraphicsModel model = inputs.ReadModel(owner);
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel party positioning requires its actual position fields.");
-                    frame = frame with { Staging = frame.Staging.Write(checked(0x25084E0u + (uint)index * 2), BitConverter.GetBytes(transform.Position28.Z)) };
-                    inputs.WriteModel(index, model with { Transform = transform with { Position28 = transform.Position28 with { Z = unchecked((short)(transform.Position28.Z + 1000)) } } });
+                    frame = frame with { Effect = frame.Effect with { Duel274SavedPartyZ = frame.Effect.Duel274SavedPartyZ.SetItem(owner, transform.Position28.Z) } };
+                    if (inputs.Actors.Aliases.TryEncodeExact(owner, out byte alias))
+                    {
+                        frame = frame with { Staging = frame.Staging.Write(checked(0x25084E0u + (uint)alias * 2), BitConverter.GetBytes(transform.Position28.Z)) };
+                    }
+                    inputs.WriteModel(owner, model with { Transform = transform with { Position28 = transform.Position28 with { Z = unchecked((short)(transform.Position28.Z + 1000)) } } });
                 }
                 task = task.WriteWord(44, unchecked((ushort)(Signed(task, 44) - 2000)));
             }
@@ -209,8 +216,8 @@ public static class NativeBattleDuel274Target
             NativeBattleGraphicsModel model = inputs.ReadModel(target);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel restoration requires its actual target position fields.");
             inputs.WriteModel(target, model with { Transform = transform with { Position28 = transform.Position28 with { X = Signed(task, 48), Y = Signed(task, 50), Z = Signed(task, 52) }, Vertical34 = Signed(task, 54) } });
-            HashSet<int> visited = [];
-            int current = target;
+            HashSet<BattleModelOwner> visited = [];
+            BattleModelOwner current = target;
             do
             {
                 if (!visited.Add(current))
@@ -220,15 +227,15 @@ public static class NativeBattleDuel274Target
                 ushort flags = inputs.Actors.ReadFlags(current);
                 if ((flags & 2) != 0)
                 {
-                    ushort original = BinaryPrimitives.ReadUInt16LittleEndian(frame.Staging.Read(checked(0x2508414u + (uint)current * 4), 2));
+                    ushort original = NativeBattleDuel274Controller.ReadSavedFlags(frame.Effect, current);
                     inputs.Actors.WriteFlags(current, (ushort)(flags ^ ((flags ^ original) & 0x1004)));
                 }
-                uint linked = inputs.Actors.ReadLinkedModel140(current);
-                if (linked == 0)
+                BattleModelOwner? linked = inputs.Actors.ReadLinkedModel140(current);
+                if (linked is null)
                 {
                     break;
                 }
-                current = NativeBattleDuel274Controller.Index(linked);
+                current = linked;
             }
             while (current != target);
         }

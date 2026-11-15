@@ -10,14 +10,17 @@ public static partial class NativeBattleShockwavePulsar260Controller
         RootRequireBinding(frame);
         resources.Validate();
         NativeBattleEffectParameters parameters = RootParameters(frame);
-        _ = RootModelAddress(parameters.Source);
+        if (!inputs.Packets.Roster.Contains(parameters.Source))
+        {
+            throw new InvalidDataException("Shockwave Pulsar source has no current model owner.");
+        }
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Shockwave Pulsar requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Shockwave Pulsar requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(Arena(frame), tim);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (roots, int slot) = roots.Append(RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(0xC, 0));
-        NativeBattleShockwavePulsar260State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, RootModelAddress(parameters.Source));
+        NativeBattleShockwavePulsar260State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, parameters.Source, inputs.Packets.ModelAliases);
         return frame with { State = state, Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -108,10 +111,17 @@ public static partial class NativeBattleShockwavePulsar260Controller
     private static NativeBattleShockwavePulsar260Frame RootStart(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattleShockwavePulsar260Inputs inputs)
     {
         uint working = frame.State.ReadDword(WorkingGlobal);
-        for (int actor = 0; actor < 7; actor++)
+        var savedFlags = ImmutableDictionary.CreateBuilder<BattleModelOwner, ushort>();
+        foreach (BattleModelOwner actor in inputs.Packets.Roster.Owners)
         {
-            frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)actor * 4, inputs.ReadModel(actor).Flags0) };
+            ushort flags = inputs.ReadModel(actor).Flags0;
+            savedFlags.Add(actor, flags);
+            if (inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte alias))
+            {
+                frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)alias * 4, flags) };
+            }
         }
+        frame = frame with { Effect = frame.Effect with { ShockwaveSavedFlags = savedFlags.ToImmutable() } };
         NativeBattleEffectArena arena = Arena(frame);
         int workingOffset = Offset(working, 1);
         for (int index = 0; index < PuffsCount; index++)
@@ -130,7 +140,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         mains = mains.WriteSlot(mainSlot, mains.Slots[mainSlot].WriteBytes(0xC, new byte[0x4A3 * 4]));
         frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], mains, children] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [mains, children]) };
         uint mainAddress = checked(mains.BankAddress + (uint)(mainSlot * mains.Stride));
-        byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
+        BattleModelOwner caster = frame.State.ReadModelOwner(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260BindCaster(caster, mainAddress + 0x178, 0x111B3CC));
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260RingSequence(caster, 1));
         NativeBattleEffectParameters parameters = RootParameters(frame);
@@ -138,17 +148,17 @@ public static partial class NativeBattleShockwavePulsar260Controller
         inputs.SceneContext.Validate();
         int count = inputs.SceneContext.TargetBoundsMode == NativeBattleTargetBoundsMode.FirstContact ? 1 : header.ReadContactCount();
         frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteWord(0xE, (ushort)count));
-        List<int> actors = [];
+        List<BattleModelOwner> actors = [];
         short[] minimum = [32767, 32767, 32767];
         short[] maximum = [-32767, -32767, -32767];
         for (int index = 0; index < count; index++)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Shockwave Pulsar requires its physical target-contact pointer.");
-            int actor = inputs.Packets.ReadContact(checked(first + index)).Primary.Recipient;
-            _ = RootModelAddress(actor);
+            BattleModelOwner actor = inputs.Packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
             actors.Add(actor);
             uint record = checked(mainAddress + 0x10 + (uint)(index * 0x24));
-            frame = WriteDword(frame, record, RootModelAddress(actor));
+            NativeBattleModulePoolTask main = Read(frame, mainAddress);
+            main.WriteExecutionReference(checked((int)(record - mainAddress)), 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+            frame = Write(frame, mainAddress, main);
             frame = WriteView(frame, record + 4, inputs.ReadPosition8(actor), 8);
             frame = WriteView(frame, record + 0xC, frame.State.ReadView(0x2508690, 8), 8);
             NativeBattleShockwavePulsar260AnchorStep anchor = inputs.ReadAnchor571400(frame, actor);
@@ -164,13 +174,13 @@ public static partial class NativeBattleShockwavePulsar260Controller
         }
         for (int index = 0; index < actors.Count; index++)
         {
-            int actor = actors[index];
+            BattleModelOwner actor = actors[index];
             bool grouped = true;
-            HashSet<int> visited = [actor];
-            int? linked = inputs.ReadLinkedActor(actor);
-            while (linked is int next && next != actor)
+            HashSet<BattleModelOwner> visited = [actor];
+            BattleModelOwner? linked = inputs.ReadLinkedActor(actor);
+            while (linked is { } next && next != actor)
             {
-                if (next is < 0 or > 6 || !visited.Add(next))
+                if (!inputs.Packets.Roster.Contains(next) || !visited.Add(next))
                 {
                     throw new NotSupportedException("Shockwave Pulsar requires its actual terminated or circular linked-model ring.");
                 }
@@ -213,7 +223,6 @@ public static partial class NativeBattleShockwavePulsar260Controller
     }
 
     private static NativeBattleEffectParameters RootParameters(NativeBattleShockwavePulsar260Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Shockwave Pulsar requires its captured native action parameters.");
-    private static uint RootModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Shockwave Pulsar selected an actor outside its seven-model bank.");
     private static void RootRequireBinding(NativeBattleShockwavePulsar260Frame frame)
     {
         if (frame.Effect.RequestedEffect != 260 || frame.Effect.Binding.Entry != Entry)

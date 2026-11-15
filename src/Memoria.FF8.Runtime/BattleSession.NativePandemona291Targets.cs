@@ -19,7 +19,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < Count(); index++)
             {
                 int row = start + 0x14 + index * 32;
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = RequireTransform(model);
                 NativeBattleVector position = transform.Position28;
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < Count(); index++)
             {
                 int row = start + 0x14 + index * 32;
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = RequireTransform(model);
                 phase = unchecked(phase - 256);
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < Count(); index++)
             {
                 int row = start + 0x14 + index * 32;
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = RequireTransform(model);
                 phase = unchecked(phase - 256);
@@ -107,7 +107,7 @@ public sealed partial class BattleSession
                 for (int index = 0; index < Count(); index++)
                 {
                     int row = start + 0x14 + index * 32;
-                    int actor = Actor(row);
+                    BattleModelOwner actor = Actor(row);
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = RequireTransform(model);
                     NativeBattleVector position = new(Word(row + 0xC), Word(row + 0xE), Word(row + 0x10));
@@ -131,7 +131,7 @@ public sealed partial class BattleSession
                 for (int index = 0; index < Count(); index++)
                 {
                     int row = start + 0x14 + index * 32;
-                    int actor = Actor(row);
+                    BattleModelOwner actor = Actor(row);
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModelTransform transform = RequireTransform(model);
                     Store(row + 0x16, Word(row + 0x16) + ((index & 1) != 0 ? 256 : -256));
@@ -156,7 +156,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (arena.Read(row + 0x1D, 1)[0] != 0 && (model.Flags0 & 2) != 0)
                 {
@@ -166,10 +166,9 @@ public sealed partial class BattleSession
                     NativeBattleVector position = RequireTransform(model).Position28;
                     NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Pandemona target draw requires its current world matrix.");
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { GeometryWorldMatrix = world with { X = position.X, Y = position.Y, Z = position.Z } }) };
-                    IEnumerable<int> rows = arena.Read(row + 0x1E, 1)[0] != 0 ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor };
-                    foreach (int selected in rows)
+                    IEnumerable<BattleModelOwner> rows = arena.Read(row + 0x1E, 1)[0] != 0 ? NativeBattleModelRings.Walk(graphics.ActorModels, actor) : new[] { actor };
+                    foreach (BattleModelOwner selected in rows)
                     {
-                        RequireBoundRingRow(selected);
                         if ((graphics.ActorModels.Get(selected).Flags0 & 2) != 0 || selected == actor)
                         {
                             var drawn = DrawNativePandemona291Actor(frame, selected, angles, new(0, center, 0), new(factor, factor, factor), graphics);
@@ -179,10 +178,9 @@ public sealed partial class BattleSession
                     }
                 }
                 bool ring = arena.Read(row + 0x1E, 1)[0] != 0;
-                IEnumerable<int> hidden = ring ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor };
-                foreach (int selected in hidden)
+                IEnumerable<BattleModelOwner> hidden = ring ? NativeBattleModelRings.Walk(graphics.ActorModels, actor) : new[] { actor };
+                foreach (BattleModelOwner selected in hidden)
                 {
-                    RequireBoundRingRow(selected);
                     NativeBattleGraphicsModel target = graphics.ActorModels.Get(selected);
                     if (!ring || (target.Flags0 & 2) != 0)
                     {
@@ -196,23 +194,7 @@ public sealed partial class BattleSession
         int Count() => nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadContactCount();
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
         void Store(int offset, int value) => arena = arena.Write(offset, BitConverter.GetBytes(unchecked((ushort)value)));
-        int Actor(int row)
-        {
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length) ||
-                graphics.PresentationRoster is { } roster && !roster.ContainsRow(actorIndex))
-            {
-                throw new NotSupportedException("Native Pandemona target record requires its actual physical actor pointer.");
-            }
-            return actorIndex;
-        }
-        void RequireBoundRingRow(int row)
-        {
-            if (graphics.PresentationRoster is { } roster && ((uint)row >= graphics.Models.Length || !roster.ContainsRow(row)))
-            {
-                throw new InvalidDataException("Hosted Pandemona linked target ring leaves its bound model rows.");
-            }
-        }
+        BattleModelOwner Actor(int row) => NativeBattlePandemona291Construction.ReadTargetOwner(arena, row);
         static NativeBattleModelTransform RequireTransform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Native Pandemona target motion requires its retained signed position.");
         short Trig(int angle, bool cosine) => BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice((angle & 0xFFF) * 4 + (cosine ? 2 : 0), 2));
     }

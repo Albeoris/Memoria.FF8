@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             if (action <= nativeActionPackets.ReadHeader(effect.Parameters!.Header).ReadRepeatModeMinusOne())
             {
                 BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContact;
-                int actor = nativeActionPackets.ReadContact(first).Primary.Recipient;
+                BattleModelOwner actor = nativeActionPackets.ReadContact(first).Primary.Recipient;
                 uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 uint color = graphics.ActorModels.Get(actor).Color40 ?? throw new NotSupportedException("Native Flare requires its target color.");
                 bool busy = false;

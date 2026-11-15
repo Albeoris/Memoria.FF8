@@ -13,6 +13,6 @@ public abstract record NativeBattleEffect344Operation;
 public sealed record NativeBattleEffect344MusicFade46BBC0(int Channel, int Duration, int Gain) : NativeBattleEffect344Operation;
 public sealed record NativeBattleEffect344StageMusic501A20(uint SourceAddress, uint CompletionByteAddress) : NativeBattleEffect344Operation;
 public sealed record NativeBattleEffect344RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect344Operation;
-public sealed record NativeBattleEffect344SetSequence505C00(int Actor, byte Sequence) : NativeBattleEffect344Operation;
+public sealed record NativeBattleEffect344SetSequence505C00(BattleModelOwner Actor, byte Sequence) : NativeBattleEffect344Operation;
 public sealed record NativeBattleEffect344MusicGain501B10(int Duration, int Gain) : NativeBattleEffect344Operation;
-public sealed record NativeBattleEffect344ConsumeFirstContact506690(int ContactIndex) : NativeBattleEffect344Operation;
+public sealed record NativeBattleEffect344ConsumeFirstContact506690(BattleContactOccurrence ContactIndex) : NativeBattleEffect344Operation;

@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect65Controller
     {
         inputs = NativeBattleEffect65Presentation.ForTask(frame, address, inputs);
         int age = Signed(Read(frame, address), 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         uint arena = frame.State.ReadDword(ArenaGlobal);
         NativeBattleVector saved = Vector(frame.State.ReadView(CasterPointAddress, 8));
         if (age is >= 1 and < 32)
@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect65Controller
                     {
                         frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(caster, 0xFFFF, 8));
                         frame = inputs.Execute(frame, new NativeBattleEffect65StageFlags(0xFD, 0));
-                        frame = HideEnabledActors(frame, 0, inputs);
+                        frame = HideEnabledActors(frame, false, inputs);
                     }
                 }
                 frame = DrawMainProgramme6E45D0(frame, address, age - phase.Start, phase.Size, resources, inputs);
@@ -69,7 +69,7 @@ public static partial class NativeBattleEffect65Controller
                     if (age == 238)
                     {
                         frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(caster, 0xFFFF, 8));
-                        frame = HideEnabledActors(frame, 0, inputs);
+                        frame = HideEnabledActors(frame, false, inputs);
                     }
                 }
                 frame = DrawMainProgramme6E4670(frame, address, phase.Size, resources, inputs);
@@ -166,11 +166,12 @@ public static partial class NativeBattleEffect65Controller
     private static NativeBattleEffect65Frame Fade(NativeBattleEffect65Frame frame, int age, int rise, int hold, int fall, NativeBattleEffect65Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect65DeliverBatch(NativeBattleModuleRenderCommands.Emit700150(age, 255, 255, 255, rise, hold, fall), 0x1D8E054));
     private static NativeBattleEffect65Frame RequestWhite(NativeBattleEffect65Frame frame, NativeBattleEffect65Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect65PcRenderRequest47CF50(0, 255, 255, 255, 63));
 
-    private static NativeBattleEffect65Frame HideEnabledActors(NativeBattleEffect65Frame frame, int first, NativeBattleEffect65Inputs inputs)
+    private static NativeBattleEffect65Frame HideEnabledActors(NativeBattleEffect65Frame frame, bool enemiesOnly, NativeBattleEffect65Inputs inputs)
     {
-        for (int actor = first; actor < 7; actor++)
+        BattleModelRoster roster = inputs.ReadPackets(frame).Roster;
+        IEnumerable<BattleModelOwner> actors = enemiesOnly ? roster.Enemies : roster.Owners;
+        foreach (BattleModelOwner model in actors)
         {
-            uint model = ModelAddress(actor);
             if ((inputs.ReadModel(frame, model).Flags0 & 2) != 0)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(model, 0xFFFF, 4));
@@ -181,7 +182,7 @@ public static partial class NativeBattleEffect65Controller
 
     private static NativeBattleEffect65Frame MoveCasterZ(NativeBattleEffect65Frame frame, int delta, NativeBattleEffect65Inputs inputs)
     {
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         NativeBattleVector point = Vector(inputs.ReadPosition8(frame, caster));
         return inputs.Execute(frame, new NativeBattleEffect65WriteActorPositionXYZ(caster, V(point.X, point.Y, point.Z + delta), false));
     }
@@ -192,7 +193,7 @@ public static partial class NativeBattleEffect65Controller
         for (int index = 0; index < count; index++)
         {
             NativeBattleModulePoolTask task = Read(frame, main);
-            uint model = task.ReadDword(0x24 + index * 12);
+            BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(0x24 + index * 12, 4).Owner;
             NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x28 + index * 12, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8);
             point = point.Write(4, BitConverter.GetBytes(unchecked((short)(Vector(point).Z + deltaZ))));
             frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPoint8(model, point, false));
@@ -209,7 +210,7 @@ public static partial class NativeBattleEffect65Controller
         frame = inputs.Execute(frame, new NativeBattleEffect65CameraRestoreCaptured503300());
         frame = frame with { State = frame.State.Write(0x2544FD2, [0, 0]) };
         frame = RestoreTargetPoints(frame, main, 0, true, inputs);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(caster, 0xFFF7, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPoint8(caster, TaskView(Read(frame, main), 0x14, 8), false));
         frame = inputs.Execute(frame, new NativeBattleEffect65SetActorScalePointer30(caster, 0));

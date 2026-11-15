@@ -12,12 +12,12 @@ public sealed partial class BattleSession
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(parameters.Source);
         NativeBattleVector rotation = new(model.Rotation12 ?? throw new NotSupportedException("Native No Mercy requires actor rotation X."), model.Rotation14 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Y."), model.Rotation16 ?? throw new NotSupportedException("Native No Mercy requires actor rotation Z."));
         NativeBattleVector bone = ReadNativeGraphicsBone(graphics, parameters.Source, 241, 0);
-        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(parameters.TargetActors.EnumerateRows().Select(actor => graphics.Models[actor].Transform?.Position28 ?? throw new NotSupportedException("Native No Mercy requires actual target positions.")).ToArray());
+        NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(graphics.ActorModels.Owners.Where(parameters.TargetActors.Contains).Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Native No Mercy requires actual target positions.")).ToArray());
         NativeBattleNoMercy200EntryStep entered = NativeBattleNoMercy200Controller.Enter6391D0(NativeEffectMemory ?? throw new NotSupportedException("Native No Mercy requires its retained process memory."), effect, NativeFileStaging ?? NativeBattleFileStaging.Unknown(), nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native No Mercy requires its retained CRT random owner."), rotation, model.RotationPadding18, bone, center);
         NativeEffectMemory = entered.Frame.Memory;
         NativeFileStaging = entered.Frame.Staging;
         nativeCrtRandom = entered.Frame.Random;
-        return graphics with { OriginalEffect = entered.Frame.Effect, Models = graphics.Models.SetItem(parameters.Source, model with { Rotation14 = entered.Facing14 }) };
+        return graphics with { OriginalEffect = entered.Frame.Effect, ActorModels = graphics.ActorModels.Set(parameters.Source, model with { Rotation14 = entered.Facing14 }) };
     }
 
     private NativeBattleGraphicsState AdvanceNativeNoMercy200(NativeBattleGraphicsState graphics)
@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native No Mercy requires its published view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native No Mercy requires its original color arithmetic.");
         NativeBattleNoMercy200Frame frame = new(memory, (graphics.OriginalEffect ?? throw new InvalidDataException("Native No Mercy requires its entered module.")) with { PresentationPackets = [] }, NativeFileStaging ?? throw new NotSupportedException("Native No Mercy requires its retained resource memory."), nativeCrtRandom ?? throw new NotSupportedException("Native No Mercy requires its retained CRT random owner."));
-        NativeBattleNoMercy200TargetInputs targets = new(nativeActionPackets, actor => ReadNativeModelAnchor(graphics, actor) with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires the actual model WORD36.")).Angle36 }, actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native No Mercy requires actual target scale."), actor => graphics.Models[actor].Transform?.Angle36 ?? throw new NotSupportedException("Native No Mercy requires actual target WORD36."));
+        NativeBattleNoMercy200TargetInputs targets = new(nativeActionPackets, actor => ReadNativeModelAnchor(graphics, actor) with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native571400 requires the actual model WORD36.")).Angle36 }, actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Native No Mercy requires actual target scale."), actor => graphics.ActorModels.Get(actor).Transform?.Angle36 ?? throw new NotSupportedException("Native No Mercy requires actual target WORD36."));
         NativeBattleNoMercy200BoneInputs bones = new(actor => ReadNativeGraphicsBoneCount(graphics, actor), (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)selector), fraction));
         NativeBattleNoMercy200Inputs inputs = new(graphics.Flags, view, () => NativeEffectIoResult ?? throw new NotSupportedException("Native No Mercy requires its signed file IO result."), Execute) { CapturePresentation = true };
         frame = NativeBattleNoMercy200Controller.AdvanceRoot(frame, inputs, Child);
@@ -115,29 +115,29 @@ public sealed partial class BattleSession
             {
                 case NativeBattleNoMercy200Camera:
                     NativeBattleEffectTaskPool children = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleNoMercy200Controller.Children);
-                    NativeBattleNoMercy200ChildStep started = NativeBattleNoMercy200Controller.BeginCamera63E960(current, children);
+                    NativeBattleNoMercy200ChildStep started = NativeBattleNoMercy200Controller.BeginCamera63E960(current, children, nativeActionPackets);
                     current = started.Frame with { Effect = started.Frame.Effect with { Pools = started.Frame.Effect.Pools.SetItem(started.Frame.Effect.Pools.IndexOf(children), started.Pool) } };
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native No Mercy requires its actual camera owner.")).Apply50A730();
                     return current;
                 case NativeBattleNoMercy200Bind:
                     BattleModelOwner actor = current.Parameters.Source;
-                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor));
+                    NativeBattleGraphicsModel model = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(actor), NativeGraphicsPoseResource(graphics, actor));
                     NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(current.Staging, NativeModelCpuResources ?? throw new NotSupportedException("Native No Mercy requires its actual CPU resource rows."), model, 0x24F9710, 0xE2B518);
                     NativeFileStaging = bound.Staging;
-                    graphics = graphics with { Models = graphics.Models.SetItem(actor, bound.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, bound.Model) };
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleNoMercy200Sequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleNoMercy200TargetSequence sequence:
-                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[current.Parameters.Header];
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Parameters.Header);
                     int count = header.ReadContactCount();
                     if (count > 0)
                     {
-                        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its selected contact pointer.");
+                        BattleContactCursor first = header.FirstContact;
                         for (int index = 0; index < count; index++)
                         {
-                            graphics = SelectNativeHeaderSequence(graphics, nativeActionPackets.ReadContact(first + index).Primary.Recipient, sequence.Sequence);
+                            graphics = SelectNativeHeaderSequence(graphics, nativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient, sequence.Sequence);
                         }
                     }
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };

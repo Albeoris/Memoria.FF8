@@ -37,7 +37,8 @@ public static class NativeBattleRush91Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleEffectTaskActors actors = new(header.Source, packets.ReadContact(contact).Primary.Recipient, packets.ModelAliases);
+        NativeBattleModulePoolTask root = actors.WriteTo(hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters)).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         int lastTarget = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -86,7 +87,7 @@ public static class NativeBattleRush91Controller
         {
             throw new InvalidDataException("Native Rush91 lost its explicitly initialized shared state.");
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep rootStep = state.Advance(0, (current, address) =>
         {
             state = current;
@@ -119,7 +120,7 @@ public static class NativeBattleRush91Controller
                 case 4:
                     if (task.ReadByte(0x63) == 0)
                     {
-                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(task);
+                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3) : Next(task);
                         Store(address, task);
                     }
                     break;
@@ -212,7 +213,7 @@ public static class NativeBattleRush91Controller
         {
             NativeBattleModulePoolTask task = state.Read(address);
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Rush91 target bounds require the actual pose owner.");
@@ -236,7 +237,7 @@ public static class NativeBattleRush91Controller
                     if (DogWord(0x48) == 1)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native Rush91 lost its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(headerIndex).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         Emit(new NativeBattleRush91Contact(contact));
                         Store(address, Next(task));
                     }
@@ -450,7 +451,7 @@ public static class NativeBattleRush91Controller
             Store(address, task);
         }
 
-        int Scale(NativeBattleModulePoolTask task) => (inputs.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Native Rush requires the actual target scale WORD38.")).Scale38;
+        int Scale(NativeBattleModulePoolTask task) => (inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Native Rush requires the actual target scale WORD38.")).Scale38;
         NativeBattleModulePoolTask Height(NativeBattleModulePoolTask task)
         {
             int index = Word(task, 0x154);
@@ -639,7 +640,7 @@ public static class NativeBattleRush91Controller
             Store(address, task);
         }
 
-        NativeBattleVector Bone(int actor, byte selector) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), selector, 0);
+        NativeBattleVector Bone(BattleModelOwner actor, byte selector) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), selector, 0);
         bool RequestMode(short requested)
         {
             if (DogWord(0x44) != DogWord(0x40) || DogWord(0x40) != requested - 1)

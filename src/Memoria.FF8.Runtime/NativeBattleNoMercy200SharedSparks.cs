@@ -22,8 +22,8 @@ public static partial class NativeBattleNoMercy200Controller
         if (!paused && tick <= (impact ? 19 : moving ? 6 : 7))
         {
             int count = impact ? tick / 12 + 1 : moving ? 3 : 2;
-            int actor = impact ? -1 : Word(task, 26);
-            int boneCount = impact ? 0 : bones.ReadBoneCount(actor);
+            BattleModelOwner? actor = impact ? null : task.ReadExecutionReference<BattleExecutionReference.Model>(26, 2).Owner;
+            int boneCount = actor is { } owner ? bones.ReadBoneCount(owner) : 0;
             if (moving)
             {
                 frame = frame with { Staging = WriteDword(WriteDword(frame.Staging, temporary.Address, TaskDword(task, 16)), temporary.Address + 4, TaskDword(task, 20)) };
@@ -58,7 +58,7 @@ public static partial class NativeBattleNoMercy200Controller
                 {
                     int selector = boneCount == 0 ? 0 : Rand() % boneCount;
                     short fraction = (short)(Rand() % 4096);
-                    NativeBattleVector point = bones.ReadBone(actor, selector, fraction);
+                    NativeBattleVector point = bones.ReadBone(actor ?? throw new InvalidDataException("No Mercy moving spark lost its model owner."), selector, fraction);
                     frame = frame with { Staging = WritePoint(frame.Staging, row + 8, point) };
                     if (moving)
                     {

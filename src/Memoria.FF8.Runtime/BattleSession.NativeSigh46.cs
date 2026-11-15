@@ -87,7 +87,7 @@ public sealed partial class BattleSession
                 case NativeBattleSigh46Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleSigh46StageColorDepth stage:

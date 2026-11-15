@@ -46,19 +46,19 @@ public sealed partial class BattleSession
         InitializeNativeAllocatedStatistics(actor);
         if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
         {
-            graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), 0x100);
+            graphics = QueueNativePlannedModelDescriptor(graphics, 103, actor, 0x100);
             return QueueNativeDescriptor(graphics, 10, 0x4876B0);
         }
-        return QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.EncodeNativeSlot()), checked((ushort)actor.EncodeNativeSlot()), (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
+        return QueueNativePlannedModelDescriptor(graphics, 103, actor, (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
     }
 
-    private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, int index)
+    private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
         if (presentationNativeTargets is not null)
         {
-            return CompleteEffectPresentationActivation(graphics, index);
+            return CompleteEffectPresentationActivation(graphics, owner);
         }
-        BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == index);
+        BattleCombatant actor = GraphicsActor(graphics, owner);
         actor.NativeCombatantFlags &= ~0xC2u;
         QueueNativeParticipantInitialization(actor);
         Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");

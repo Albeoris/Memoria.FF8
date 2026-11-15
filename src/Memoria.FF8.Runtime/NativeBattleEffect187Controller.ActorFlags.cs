@@ -10,10 +10,12 @@ public static partial class NativeBattleEffect187Controller
         BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
             (frame, uint address) = AppendRequired(frame, 0x64DCF0);
             ushort saved = (ushort)(inputs.ReadModel(frame, actor).Flags0 & 8);
-            frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteWord(14, delay).WriteWord(0x18, checked((ushort)actor)).WriteWord(0x1A, saved));
+            NativeBattleModulePoolTask task = Read(frame, address).WriteWord(12, 0).WriteWord(14, delay);
+            task.WriteExecutionReference(0x18, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2));
+            frame = Write(frame, address, task.WriteWord(0x1A, saved));
             frame = inputs.Execute(frame, new NativeBattleEffect187ModelFlags(actor, ushort.MaxValue, 8));
         }
         return frame;
@@ -32,7 +34,7 @@ public static partial class NativeBattleEffect187Controller
         {
             return new(frame, 0);
         }
-        int actor = Signed(task, 0x18);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x18, 2).Owner;
         frame = inputs.Execute(frame, new NativeBattleEffect187ModelFlags(actor, 0xFFF7, task.ReadWord(0x1A)));
         return new(frame, 2);
     }

@@ -173,18 +173,15 @@ public sealed partial class BattleSession
                 NativeBattleEffectParameters parameters = outputParameters ?? throw new NotSupportedException("Native cinematic parameter read requires its current action owner.");
                 return NativeBattleCinematicParameterBytes.Read(parameters, checked((int)(address - WaterParametersAddress)), length);
             }
-            if (address >= WaterHeadersAddress && address < NativeBattleContactAddress.Encode(0))
+            if (TryReadOriginalHeaderBytes(address, length, out byte[] header))
             {
-                uint relative = address - WaterHeadersAddress;
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
-                return Enumerable.Range((int)(relative % 20), length).Select(header.ReadByte).ToArray();
+                return header;
             }
-            if (!TryResolveNativeContactRead(address, length, out int row, out _))
+            if (!TryResolveNativeContactRead(address, length, out BattleContactOccurrence contact, out int offset))
             {
                 throw new NotSupportedException("Native cinematic action read leaves its actual header, contact and parameter owners.");
             }
-            (_, int offset) = NativeBattleContactAddress.ResolveField(address, length, nativeActionPackets.StorageCapacity);
-            return nativeActionPackets.ReadContactBytes(row).AsSpan(offset, length).ToArray();
+            return ReadOriginalContactBytes(contact, offset, length);
         }
 
         NativeBattleWaterScriptProgram Program(NativeBattleWaterExecutionFrame current, uint address)

@@ -18,7 +18,7 @@ public sealed record NativeBattleEffect313UploadTim505E30(uint SourceAddress) : 
 public sealed record NativeBattleEffect313RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect313Operation;
 public sealed record NativeBattleEffect313WriteModelBytes(BattleModelOwner Model, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect313Operation;
 public sealed record NativeBattleEffect313SelectSequence505C00(BattleModelOwner Model, byte Sequence) : NativeBattleEffect313Operation;
-public sealed record NativeBattleEffect313Contact506690(int HeaderRelativeIndex) : NativeBattleEffect313Operation;
+public sealed record NativeBattleEffect313Contact506690(BattleContactOccurrence Occurrence) : NativeBattleEffect313Operation;
 public sealed record NativeBattleEffect313Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect313Operation;
 public sealed record NativeBattleEffect313Stage5713E0(int Intensity, int Mode) : NativeBattleEffect313Operation;
 public sealed record NativeBattleEffect313AppendTextureLoad508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect313Operation;

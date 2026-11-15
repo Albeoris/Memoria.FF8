@@ -7,11 +7,13 @@ internal sealed record NativeBattleModelEntryFacts(string ActorId, bool IsParty,
 public sealed partial class BattleSession
 {
     private readonly bool hostedBattlePresentation;
-    private readonly ImmutableArray<NativeBattleModelEntryFacts?> hostedEntryFacts;
+    private readonly ImmutableDictionary<BattleModelOwner, NativeBattleModelEntryFacts> hostedEntryFacts = ImmutableDictionary<BattleModelOwner, NativeBattleModelEntryFacts>.Empty;
+    private readonly BattleModelRoster? hostedEntryRoster;
+    private readonly NativeBattleModelAliases? hostedEntryAliases;
     private readonly Queue<HostedEntryDescriptor>? hostedEntryDescriptors;
     private readonly NativeBattleHostedModelPackets? hostedModelPackets;
 
-    private sealed record HostedEntryDescriptor(ushort Command, uint Argument = 0, ushort? Index = null, ushort? Value = null, BattleEvent? Message = null);
+    private sealed record HostedEntryDescriptor(ushort Command, uint Argument = 0, ushort? Index = null, ushort? Value = null, BattleEvent? Message = null, NativeBattleDescriptorModelSubject.PlannedLoad? ModelLoad = null);
 
     private BattleSession(BattleSession logicalOwner, BattleDefinition presentationResources)
     {
@@ -29,9 +31,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted entry lacks its actual stage, camera, wave, sound, music, random or retained graphics owner.");
         }
+        hostedEntryRoster = roster;
+        hostedEntryAliases = aliases;
         hostedEntryFacts = logicalOwner.CaptureHostedEntryFacts(roster);
         Dictionary<string, NativeBattleGraphicsBinding> bindings = ReadHostedEntryBindings(roster, source);
-        foreach (NativeBattleModelEntryFacts facts in hostedEntryFacts.OfType<NativeBattleModelEntryFacts>())
+        foreach (NativeBattleModelEntryFacts facts in hostedEntryFacts.Values)
         {
             BattleCombatant actor = logicalOwner.GetActor(facts.ActorId);
             NativeBattleGraphicsBinding binding = bindings[facts.ActorId];
@@ -65,17 +69,9 @@ public sealed partial class BattleSession
         InitializeNativeGraphicsProcessOwners();
         InitializeNativeGraphicsModelOwners();
 
-        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearPresentationBank(roster, retained.ModelTransformRows, retained.ModelColors40, retained.ModelStatusTimers, retained.ModelWorldMatrices64, retained.ModelSequenceLocals).ToImmutableArray();
         presentationForeignActors = [];
-        presentationNativeTargets = new();
-        for (int row = 0; row < roster.ActorCount; row++)
-        {
-            if (roster.Rows[row] is { } actor)
-            {
-                presentationNativeTargets.Add(row, new(actor.ActorId, models[row], bindings[actor.ActorId].Resource) { IsParty = actor.IsParty });
-            }
-        }
-        NativeBattleGraphicsState graphics = new(models, roster.Rows.Select(actor => actor?.ActorId).ToImmutableArray(), 0, 0) { PresentationRoster = roster };
+        presentationNativeTargets = [];
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(retained), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
         graphics = InitializeNativePrimitiveFrame500400(graphics);
         InitializeHostedPresentationModelOwners(roster, useRetainedModelOwners: true);
         NativeGraphics = QueueHostedNativeEntryLoads(graphics);
@@ -86,19 +82,19 @@ public sealed partial class BattleSession
         return new(logicalOwner, presentationResources);
     }
 
-    private ImmutableArray<NativeBattleModelEntryFacts?> CaptureHostedEntryFacts(BattleModelRoster roster)
+    private ImmutableDictionary<BattleModelOwner, NativeBattleModelEntryFacts> CaptureHostedEntryFacts(BattleModelRoster roster)
     {
-        NativeBattleModelEntryFacts?[] facts = new NativeBattleModelEntryFacts?[roster.ActorCount];
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.Slot is not null))
+        var facts = ImmutableDictionary.CreateBuilder<BattleModelOwner, NativeBattleModelEntryFacts>();
+        foreach (BattleModelOwner owner in roster.Owners)
         {
-            int row = RequireExpandedPresentationRow(roster, actor);
-            if (facts[row] is not null || roster[row].IsParty != actor.IsPlayer)
+            BattleCombatant actor = GetActor(RequireCanonicalGraphicsActorId(owner));
+            if (owner.Side != actor.Side || actor.Slot is null)
             {
                 throw new InvalidDataException("Hosted entry actor has a conflicting roster binding.");
             }
-            facts[row] = new(actor.Id, actor.IsPlayer, actor.SceneSlot, actor.IsActive, actor.Hidden, actor.NativeInformation246, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
+            facts.Add(owner, new(actor.Id, actor.IsPlayer, actor.SceneSlot, actor.IsActive, actor.Hidden, actor.NativeInformation246, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor)));
         }
-        return facts.ToImmutableArray();
+        return facts.ToImmutable();
     }
 
     private static Dictionary<string, NativeBattleGraphicsBinding> ReadHostedEntryBindings(BattleModelRoster roster, NativeBattleGraphicsDefinition source)
@@ -108,7 +104,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted entry requires its installed graphics rules and bindings.");
         }
         source.Rules.Validate();
-        HashSet<string> expected = roster.Rows.OfType<BattleModelOwner>().Select(actor => actor.ActorId).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> expected = roster.Owners.Select(RequireCanonicalGraphicsActorId).ToHashSet(StringComparer.Ordinal);
         Dictionary<string, NativeBattleGraphicsBinding> bindings = new(StringComparer.Ordinal);
         foreach (NativeBattleGraphicsBinding binding in source.Bindings)
         {
@@ -129,20 +125,24 @@ public sealed partial class BattleSession
         return bindings;
     }
 
-    private NativeBattleModelEntryFacts RequireHostedEntryFacts(NativeBattleGraphicsState graphics, int row)
+    private NativeBattleModelEntryFacts RequireHostedEntryFacts(BattleModelOwner owner)
     {
-        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted entry descriptor lost its presentation roster.");
-        if (!roster.ContainsRow(row) || hostedEntryFacts[row] is not { Active: true } facts || graphics.ActorIds[row] != facts.ActorId)
+        if (!hostedEntryFacts.TryGetValue(owner, out NativeBattleModelEntryFacts? facts) || !facts.Active)
         {
             throw new InvalidDataException("Hosted entry descriptor requires its active allocation identity.");
         }
         return facts;
     }
 
-    private IEnumerable<int> HostedEntryRows(bool party)
+    private IEnumerable<BattleModelOwner> HostedEntryOwners(bool party)
     {
-        IEnumerable<int> rows = Enumerable.Range(0, hostedEntryFacts.Length).Where(row => hostedEntryFacts[row] is { Active: true } facts && facts.IsParty == party);
-        return party ? rows : rows.OrderBy(row => hostedEntryFacts[row]!.SceneSlot).ThenBy(row => row);
+        IEnumerable<BattleModelOwner> owners = hostedEntryRoster!.Owners.Where(owner => hostedEntryFacts[owner] is { Active: true } facts && facts.IsParty == party);
+        return party ? owners : owners.OrderBy(owner => hostedEntryFacts[owner].SceneSlot);
+    }
+
+    private BattleActorModels OrderHostedEntryModels(BattleActorModels models)
+    {
+        return new(hostedEntryRoster!.Owners.Where(models.Contains).Select(owner => new BattleModelEntry<BattleModelOwner>(owner, models.Get(owner))));
     }
 
     private NativeBattleGraphicsState QueueHostedNativeEntryLoads(NativeBattleGraphicsState graphics)
@@ -152,9 +152,9 @@ public sealed partial class BattleSession
         pending.Enqueue(new(1));
         pending.Enqueue(new(1003));
         pending.Enqueue(new(9));
-        foreach (int row in HostedEntryRows(party: false))
+        foreach (BattleModelOwner owner in HostedEntryOwners(party: false))
         {
-            QueueHostedEntryModelLoad(row);
+            QueueHostedEntryModelDescriptor(102, owner);
         }
         pending.Enqueue(new(10, 0x47DD80));
         return FeedHostedEntryDescriptors(graphics);
@@ -167,18 +167,18 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted entry reached its second phase before the initial descriptor list drained.");
         }
-        foreach (int row in HostedEntryRows(party: false))
+        foreach (BattleModelOwner owner in HostedEntryOwners(party: false))
         {
-            pending.Enqueue(new(103, Index: checked((ushort)row), Value: hostedEntryFacts[row]!.Hidden ? (ushort)0x101 : (ushort)1));
+            QueueHostedEntryModelDescriptor(103, owner, hostedEntryFacts[owner].Hidden ? (ushort)0x101 : (ushort)1);
         }
-        foreach (int row in HostedEntryRows(party: true))
+        foreach (BattleModelOwner owner in HostedEntryOwners(party: true))
         {
-            QueueHostedEntryModelLoad(row);
+            QueueHostedEntryModelDescriptor(102, owner);
         }
         pending.Enqueue(new(13));
-        foreach (int row in HostedEntryRows(party: true))
+        foreach (BattleModelOwner owner in HostedEntryOwners(party: true))
         {
-            pending.Enqueue(new(103, Index: checked((ushort)row), Value: 0));
+            QueueHostedEntryModelDescriptor(103, owner, 0);
         }
         pending.Enqueue(new(10, 0x4A94B0));
         if (CreateNativeEntryAdvantageMessage() is { } message)
@@ -190,11 +190,13 @@ public sealed partial class BattleSession
         return graphics with { EntryLifecycle = 2 };
     }
 
-    private void QueueHostedEntryModelLoad(int row)
+    private void QueueHostedEntryModelDescriptor(ushort command, BattleModelOwner owner, ushort? value = null)
     {
-        NativeBattleModelEntryFacts facts = hostedEntryFacts[row]!;
+        NativeBattleModelEntryFacts facts = RequireHostedEntryFacts(owner);
         NativeBattleGraphicsBinding binding = RequireHostedEntryBinding(facts);
-        hostedEntryDescriptors!.Enqueue(new(102, Index: checked((ushort)row), Value: binding.ModelId));
+        NativeBattleModelSlot? slot = hostedEntryAliases!.TryEncodeExact(owner, out byte operand) ? NativeBattleModelSlot.Decode(operand) : null;
+        var plan = new NativeBattleDescriptorModelSubject.PlannedLoad(owner, slot, binding);
+        hostedEntryDescriptors!.Enqueue(new(command, Value: value ?? binding.ModelId, ModelLoad: plan));
     }
 
     private NativeBattleGraphicsBinding RequireHostedEntryBinding(NativeBattleModelEntryFacts facts)
@@ -202,9 +204,9 @@ public sealed partial class BattleSession
         return definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == facts.ActorId);
     }
 
-    private void ValidateHostedEntryModelCompletion(NativeBattleGraphicsState graphics, int row, NativeBattleGraphicsBinding binding, bool isParty)
+    private void ValidateHostedEntryModelCompletion(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsBinding binding, bool isParty)
     {
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(row);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         if (binding.ModelId == 143)
         {
             throw new NotSupportedException("Hosted entry model143 requires its original model142 linked-ring ownership.");
@@ -215,7 +217,7 @@ public sealed partial class BattleSession
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new InvalidDataException("Hosted entry model completion lacks its CPU resource owner.");
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Hosted entry model completion lacks its texture alias owner.");
-        RequireHostedModelLoadAlias(cpu, cache, body, row, isParty ? (byte)1 : (byte)3, binding.ModelId);
+        RequireHostedModelLoadAlias(cpu, cache, body, owner, isParty ? (byte)1 : (byte)3, binding.ModelId);
         if (isParty && binding.ModelId != 7)
         {
             if (model.LinkedTextureSlots is null)
@@ -225,7 +227,7 @@ public sealed partial class BattleSession
             if (binding.ModelId is not (1 or 9))
             {
                 int linked = model.LinkedTextureResourceIndex ?? throw new InvalidDataException("Hosted linked model completion lacks its allocated alias.");
-                RequireHostedModelLoadAlias(cpu, cache, linked, row, 2, binding.ModelId);
+                RequireHostedModelLoadAlias(cpu, cache, linked, owner, 2, binding.ModelId);
             }
         }
     }
@@ -258,7 +260,9 @@ public sealed partial class BattleSession
             }
             else
             {
-                (NativeBattleDescriptorState queued, int slot) = descriptors.Enqueue(request.Command, 128, request.Argument, request.Index, request.Value);
+                (NativeBattleDescriptorState queued, int slot) = request.ModelLoad is { } model
+                    ? descriptors.EnqueuePlannedLoad(request.Command, 128, request.Argument, model, request.Value!.Value)
+                    : descriptors.Enqueue(request.Command, 128, request.Argument, request.Index, request.Value);
                 graphics = graphics with { Descriptors = queued, EntryBarrierPacket = request.Command == 112 ? slot : graphics.EntryBarrierPacket };
             }
             pending.Dequeue();

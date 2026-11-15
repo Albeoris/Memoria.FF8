@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private sealed record NativeDeformedBodyBridge(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleGraphicsState Graphics, NativeBattleGraphicsModel Model, NativeBattleFileStaging Staging, NativeBattleEffectArena Temporary, uint TemporaryAddress);
 
-    private NativeDeformedBodyBridge SnapshotNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, uint cacheAddress, int cacheLength)
+    private NativeDeformedBodyBridge SnapshotNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint cacheAddress, int cacheLength)
     {
         if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
         {
@@ -42,7 +42,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeDeformedBodyBridge DrawNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, short fraction, uint cacheAddress, int cacheLength, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private NativeDeformedBodyBridge DrawNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, BattleModelOwner actor, short fraction, uint cacheAddress, int cacheLength, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
         {
@@ -110,13 +110,13 @@ public sealed partial class BattleSession
         }
     }
 
-    private static NativeDeformedBodyBridge AllocateNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, int length)
+    private static NativeDeformedBodyBridge AllocateNativeDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, BattleModelOwner actor, int length)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, length);
         return new(memory, effect, random, graphics, graphics.ActorModels.Get(actor), allocation.Staging, NativeDeformedBodyView(allocation.Staging, allocation.Address, length), allocation.Address);
     }
 
-    private static NativeDeformedBodyBridge FinishNativeDeformedBody(NativeDeformedBodyBridge current, byte actor, int length, bool resourcePointers = false)
+    private static NativeDeformedBodyBridge FinishNativeDeformedBody(NativeDeformedBodyBridge current, BattleModelOwner actor, int length, bool resourcePointers = false)
     {
         NativeBattleFileStaging published = resourcePointers ? NativeBattleTemporaryMemory.PublishResourceView(current.Staging, current.TemporaryAddress, current.Temporary, length) : NativeBattleTemporaryMemory.PublishView(current.Staging, current.TemporaryAddress, current.Temporary, length);
         return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(published, length), Graphics = current.Graphics with { ActorModels = current.Graphics.ActorModels.Set(actor, current.Model) } };

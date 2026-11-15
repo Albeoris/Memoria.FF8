@@ -8,7 +8,7 @@ public static partial class NativeBattleDegenerator306Controller
     {
         RequireBinding(frame);
         resources.Validate();
-        int first = FirstContact(frame, inputs);
+        BattleContactCursor first = FirstContact(frame, inputs);
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Degenerator requires its executed texture initializer pointer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Degenerator requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Degenerator requires its current arena."), tim);
@@ -18,7 +18,7 @@ public static partial class NativeBattleDegenerator306Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int main) = children.Append(MainCallback);
         children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
-        NativeBattleDegenerator306State state = frame.State.ClearSlotHeads().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.Recipient).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(ParametersGlobal, 0x1D99A78);
+        NativeBattleDegenerator306State state = (frame.State with { FadedActors = frame.State.FadedActors.Clear(), SavedActors = frame.State.SavedActors.Clear() }).ClearSlotHeads().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteModelOperand(TargetGlobal, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteModelOperand(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(ParametersGlobal, 0x1D99A78);
         return frame with { State = state, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) } };
     }
 

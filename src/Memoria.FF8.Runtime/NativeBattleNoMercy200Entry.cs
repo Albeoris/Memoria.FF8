@@ -23,12 +23,12 @@ public static partial class NativeBattleNoMercy200Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        int first = packets.Headers[parameters.Header].FirstContactIndex ?? throw new NotSupportedException("Native6391D0 requires its actual first contact pointer.");
-        byte recipient = packets.ReadContact(first).Primary.Recipient;
+        BattleContactCursor first = packets.ReadHeader(parameters.Header).FirstContact;
+        BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         staging = WriteDword(staging, 0x24FBD60, 0x20DFAB8);
         staging = WriteDword(staging, 0x24FBCC8, 0x1D99A78);
-        staging = WriteDword(staging, 0x24F8D58, recipient);
-        staging = WriteDword(staging, 0x24FBCE0, parameters.Source);
+        staging = staging.WriteExecutionReference(0x24F8D58, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 4));
+        staging = staging.WriteExecutionReference(0x24FBCE0, 4, new BattleExecutionReference.Model(parameters.Source), packets.ModelAliases.EncodeOperand(parameters.Source, 4));
         for (uint address = 0x24F8DB0; address < 0x24F9710; address += 24)
         {
             staging = WriteDword(staging, address, 0);

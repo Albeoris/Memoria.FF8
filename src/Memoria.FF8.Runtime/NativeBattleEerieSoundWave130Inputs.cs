@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleEerieSoundWave130Operation;
 public sealed record NativeBattleEerieSoundWave130Sound(uint Packed) : NativeBattleEerieSoundWave130Operation;
-public sealed record NativeBattleEerieSoundWave130Contact(int Index) : NativeBattleEerieSoundWave130Operation;
+public sealed record NativeBattleEerieSoundWave130Contact(BattleContactOccurrence Occurrence) : NativeBattleEerieSoundWave130Operation;
 public sealed record NativeBattleEerieSoundWave130ActAdvanceStep(NativeBattleEerieSoundWave130Frame Frame, int Remaining);
 public sealed record NativeBattleEerieSoundWave130PointStep(NativeBattleEerieSoundWave130Frame Frame, NativeBattleVector Point);
 public sealed record NativeBattleEerieSoundWave130AnchorStep(NativeBattleEerieSoundWave130Frame Frame, NativeBattleModuleAnchor Anchor);

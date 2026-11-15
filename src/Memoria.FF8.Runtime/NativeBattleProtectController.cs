@@ -34,7 +34,8 @@ public static class NativeBattleProtectController
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         int maximum = Math.Max(NativeBattleEffectRootTask.LastContactPosition(targets), groups);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
+        NativeBattleEffectTaskActors actors = new(header.Source, packets.ReadContact(first).Primary.Recipient, packets.ModelAliases);
+        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -89,7 +90,7 @@ public static class NativeBattleProtectController
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < unchecked((short)task.ReadWord(0x58)))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3);
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3);
                         }
                         else
                         {
@@ -158,7 +159,7 @@ public static class NativeBattleProtectController
                     else if (phase == 2 && age >= 18)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Protect result lost its contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         Emit(ref state, new NativeBattleProtectContact(contact));
                         state = Done(state, address);
                     }
@@ -337,8 +338,8 @@ public static class NativeBattleProtectController
             current = current with { Random = random };
             return value;
         }
-        NativeBattleVector Bone(NativeBattleModulePoolTask task, byte selector) => inputs.ReadBone?.Invoke(task.ReadByte(0x2D), selector, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(task.ReadByte(0x2D)), inputs.ReadPoseSource(task.ReadByte(0x2D)), selector, 0);
-        short Facing(NativeBattleModulePoolTask task) => inputs.ReadModel(task.ReadByte(0x2D)).Rotation14 ?? throw new NotSupportedException("Native Protect requires target facingWORD0E.");
+        NativeBattleVector Bone(NativeBattleModulePoolTask task, byte selector) => inputs.ReadBone?.Invoke(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, selector, 0) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner), inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner), selector, 0);
+        short Facing(NativeBattleModulePoolTask task) => inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Rotation14 ?? throw new NotSupportedException("Native Protect requires target facingWORD0E.");
         void PublishFar(uint? color)
         {
             if (color is uint far)

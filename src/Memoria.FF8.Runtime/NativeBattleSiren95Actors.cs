@@ -87,8 +87,10 @@ public static class NativeBattleSiren95Actors
                     break;
                 }
                 uint child = append();
-                int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Native Siren contact pointer is unknown.")) + ordinal);
-                Store(child, Read(frame, child).WriteByte(0x2D, services.Packets.ReadContact(contact).Primary.Recipient));
+                BattleModelOwner target = services.Packets.ReadContact(header.FirstContact.Advance(ordinal)).Primary.Recipient;
+                NativeBattleModulePoolTask childTask = Read(frame, child);
+                childTask.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(target), services.Packets.ModelAliases.EncodeOperand(target, 1));
+                Store(child, childTask);
                 ordinal++;
             }
         }

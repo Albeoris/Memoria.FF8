@@ -15,9 +15,10 @@ public static class NativeBattleEffect344Controller
             throw new InvalidDataException("Effect344 requires its inactive physical BSS banks.");
         }
         NativeBattleEffectParameters parameters = Parameters(frame);
-        int contact = FirstContact(frame, inputs);
-        int target = inputs.ReadPackets(frame).ReadContact(contact).Primary.Recipient;
-        NativeBattleEffect344State state = frame.State.WriteDword(TargetGlobal, (uint)target).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source);
+        BattleContactOccurrence contact = FirstContact(frame, inputs);
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        BattleModelOwner target = packets.ReadContact(contact).Primary.Recipient;
+        NativeBattleEffect344State state = frame.State.WriteModelOperand(TargetGlobal, target, packets.ModelAliases).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOperand(CasterGlobal, parameters.Source, packets.ModelAliases);
         var pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>(2);
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -109,8 +110,7 @@ public static class NativeBattleEffect344Controller
         if (age == 32)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect344RegisterCamera5099A0(0xE106D8));
-            int caster = checked((int)frame.State.ReadDword(CasterGlobal));
-            _ = ModelAddress(caster);
+            BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleEffect344SetSequence505C00(caster, 20));
         }
         if (age == 34)
@@ -161,17 +161,15 @@ public static class NativeBattleEffect344Controller
         return (current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(index, step.Pool) } }, step.Survivors);
     }
 
-    private static int FirstContact(NativeBattleEffect344Frame frame, NativeBattleEffect344Inputs inputs)
+    private static BattleContactOccurrence FirstContact(NativeBattleEffect344Frame frame, NativeBattleEffect344Inputs inputs)
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference index = Parameters(frame).Header;
-        int first = packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Effect344 requires its actual first contact pointer.");
-        _ = packets.ReadContact(first);
-        return first;
+        BattleContactCursor first = packets.ReadHeader(index).FirstContact;
+        return packets.ReadContact(first).Occurrence ?? throw new InvalidDataException("Effect344 requires its reached contact occurrence.");
     }
 
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect344Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect344 requires its actual original parameters.");
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect344 requires an actual physical actor index.");
     private static NativeBattleEffectArena Slice(NativeBattleEffectArena source, int offset, int length) => NativeBattleEffectNodeContextMemory.Copy(source, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
 
     private static NativeBattleModulePoolTask CopyTask(NativeBattleModulePoolTask task, int offset, NativeBattleEffectArena source, int length)

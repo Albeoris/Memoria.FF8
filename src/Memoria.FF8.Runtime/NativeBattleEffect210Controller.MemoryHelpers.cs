@@ -197,15 +197,7 @@ public static partial class NativeBattleEffect210Controller
     }
     public static NativeBattleEffectArena CopyBytes(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
     {
-        destination = NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, destination, destinationOffset, count);
-        foreach ((int offset, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
-        {
-            if (offset >= sourceOffset && offset + 4 <= sourceOffset + count)
-            {
-                destination = destination.WriteResourcePointer(destinationOffset + offset - sourceOffset, pointer);
-            }
-        }
-        return destination;
+        return destination.CopyResourceSnapshot(source, sourceOffset, destinationOffset, count);
     }
 
     public static NativeBattleVector Vector(NativeBattleEffectArena point, int offset = 0) => new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(offset, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(offset + 2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(offset + 4, 2)));

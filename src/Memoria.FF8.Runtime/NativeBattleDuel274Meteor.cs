@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274MeteorInputs(NativeBattleDuel274MoveInputs Moves, NativeBattleDuel274ActorServices Actors, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, uint, NativeBattleActionMatrix, uint, int?, uint?, NativeBattleDuel274Frame> Draw572200, Func<NativeBattleDuel274Frame, int, NativeBattleVector, NativeBattleVector, NativeBattleVector, NativeBattleDuel274Frame> DrawBody68D1D0);
+public sealed record NativeBattleDuel274MeteorInputs(NativeBattleDuel274MoveInputs Moves, NativeBattleDuel274ActorServices Actors, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel274Frame, uint, NativeBattleActionMatrix, uint, int?, uint?, NativeBattleDuel274Frame> Draw572200, Func<NativeBattleDuel274Frame, BattleModelOwner, NativeBattleVector, NativeBattleVector, NativeBattleVector, NativeBattleDuel274Frame> DrawBody68D1D0);
 
 public static partial class NativeBattleDuel274BasicMoves
 {
@@ -11,8 +11,8 @@ public static partial class NativeBattleDuel274BasicMoves
     {
         NativeBattleDuel274MoveInputs inputs = supplied.Moves;
         NativeBattleModulePoolTask task = Target(frame, slot, 7);
-        int actor = Actor(frame);
-        int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
+        BattleModelOwner actor = Actor(frame);
+        BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
         if (task.ReadWord(12) == 0)
         {
             NativeBattleGraphicsModel targetModel = inputs.ReadModel(target);
@@ -130,8 +130,8 @@ public static partial class NativeBattleDuel274BasicMoves
             NativeBattleVector rotation = new(Signed(task, 104), 0, 0);
             NativeBattleVector pivot = new(0, center, 0);
             NativeBattleVector scale = new(4096, unchecked((short)vertical), 4096);
-            HashSet<int> visited = [];
-            int current = target;
+            HashSet<BattleModelOwner> visited = [];
+            BattleModelOwner current = target;
             do
             {
                 if (!visited.Add(current))
@@ -143,12 +143,12 @@ public static partial class NativeBattleDuel274BasicMoves
                     frame = supplied.DrawBody68D1D0(frame, current, rotation, pivot, scale);
                     supplied.Actors.WriteFlags(current, (ushort)(supplied.Actors.ReadFlags(current) | 0x1004));
                 }
-                uint linked = supplied.Actors.ReadLinkedModel140(current);
-                if (linked == 0)
+                BattleModelOwner? linked = supplied.Actors.ReadLinkedModel140(current);
+                if (linked is null)
                 {
                     break;
                 }
-                current = NativeBattleDuel274Controller.Index(linked);
+                current = linked;
             }
             while (current != target);
         }

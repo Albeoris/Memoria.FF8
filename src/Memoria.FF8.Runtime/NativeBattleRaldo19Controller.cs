@@ -94,7 +94,7 @@ public static class NativeBattleRaldo19Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
                             state = state.Write(address, task);
                         }
                         else
@@ -148,7 +148,7 @@ public static class NativeBattleRaldo19Controller
                 case NativeBattleRaldo19Profile.GenericCallback:
                     if (unchecked((sbyte)task.ReadByte(0x29)) == 0 && Word(task, 0x24) >= Word(task, 0x298))
                     {
-                        state = state.Write(address, PrepareMode4Caster(task, inputs.ReadModel(task.ReadByte(0x2C))));
+                        state = state.Write(address, PrepareMode4Caster(task, inputs.ReadModel));
                     }
                     return Leaf(state, new NativeBattleRaldo19GenericTask(address));
                 case NativeBattleRaldo19Profile.BallCallback:
@@ -168,9 +168,9 @@ public static class NativeBattleRaldo19Controller
         {
             NativeBattleModulePoolTask task = state.Read(address);
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Raldo target requires its current pose.");
-            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, source.Sample(sequence.Pose ?? throw new NotSupportedException("Raldo target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Raldo target requires its current pose frame."), sequence.PoseFlags109));
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -184,7 +184,8 @@ public static class NativeBattleRaldo19Controller
                     if (current.State.Word(0x48) == 1)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Raldo requires its actual selected contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Raldo contact has no occurrence reference.");
                         state = Execute(state, new NativeBattleRaldo19Contact(contact));
                         state = Next(state, address);
                     }
@@ -240,8 +241,8 @@ public static class NativeBattleRaldo19Controller
                         throw new NotSupportedException("Raldo ball allocation returned null before its original actor selection.");
                     }
                     state = ball.Hierarchy;
-                    NativeBattleModelTransform caster = inputs.ReadModel(state.Read(address).ReadByte(0x2C)).Transform ?? throw new NotSupportedException("Raldo actor selection requires its actual caster position.");
-                    for (byte actor = 0; actor < 7; actor++)
+                    NativeBattleModelTransform caster = inputs.ReadModel(state.Read(address).ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Transform ?? throw new NotSupportedException("Raldo actor selection requires its actual caster position.");
+                    foreach (BattleModelOwner actor in inputs.Packets.Roster.Owners)
                     {
                         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
                         if ((model.Flags0 & 2) == 0)
@@ -255,7 +256,9 @@ public static class NativeBattleRaldo19Controller
                         NativeBattleModelTransform candidate = model.Transform ?? throw new NotSupportedException("Raldo actor selection requires its physical position.");
                         if (candidate.Position28 == caster.Position28)
                         {
-                            state = state.Write(ball.Address, state.Read(ball.Address).WriteByte(0x2C, actor));
+                            NativeBattleModulePoolTask selected = state.Read(ball.Address);
+                            selected.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
+                            state = state.Write(ball.Address, selected);
                         }
                     }
                 }
@@ -314,19 +317,19 @@ public static class NativeBattleRaldo19Controller
             return new(current.Effect.Pools);
         }
 
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target)
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target)
         {
             return NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         }
     }
 
-    public static NativeBattleModulePoolTask PrepareMode4Caster(NativeBattleModulePoolTask task, NativeBattleGraphicsModel model)
+    public static NativeBattleModulePoolTask PrepareMode4Caster(NativeBattleModulePoolTask task, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
-        if (task.Callback != NativeBattleRaldo19Profile.GenericCallback || unchecked((short)task.ReadWord(0x29C)) != 4 || model.Index != task.ReadByte(0x2C))
+        if (task.Callback != NativeBattleRaldo19Profile.GenericCallback || unchecked((short)task.ReadWord(0x29C)) != 4)
         {
             throw new InvalidDataException("Raldo generic capture requires its actual mode4 task.");
         }
-        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Raldo generic capture requires the actor's packed position.");
+        NativeBattleModelTransform transform = readModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Transform ?? throw new NotSupportedException("Raldo generic capture requires the actor's packed position.");
         uint xy = unchecked((ushort)transform.Position28.X) | (uint)unchecked((ushort)transform.Position28.Y) << 16;
         uint zw = unchecked((ushort)transform.Position28.Z) | (uint)unchecked((ushort)transform.Vertical34) << 16;
         return task.WriteDword(0x290, xy).WriteWord(0x292, unchecked((ushort)-768)).WriteDword(0x294, zw);
@@ -334,8 +337,8 @@ public static class NativeBattleRaldo19Controller
 
     public static NativeBattleRaldo19State InitializeShared(NativeBattleRaldo19State retained, NativeBattleModulePoolTask task, NativeBattleRaldo19Inputs inputs)
     {
-        NativeBattleModelTransform actor = inputs.ReadModel(task.ReadByte(0x2C)).Transform ?? throw new NotSupportedException("Raldo requires its actual caster position.");
-        NativeBattleModelTransform target = inputs.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Raldo requires its actual target position.");
+        NativeBattleModelTransform actor = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner).Transform ?? throw new NotSupportedException("Raldo requires its actual caster position.");
+        NativeBattleModelTransform target = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Raldo requires its actual target position.");
         NativeBattleRaldo19State state = retained with { Shared84 = new byte[84].ToImmutableArray() };
         state = state.WithWord(0, actor.Position28.X).WithWord(2, actor.Position28.Y).WithWord(4, actor.Position28.Z).WithWord(6, actor.Vertical34).WithWord(8, target.Position28.X).WithWord(10, target.Position28.Y).WithWord(12, target.Position28.Z).WithWord(14, target.Vertical34);
         short x = unchecked((short)(target.Position28.X - actor.Position28.X));

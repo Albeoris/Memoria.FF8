@@ -8,11 +8,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect210Frame DrawNativeEffect210Body(ref NativeBattleGraphicsState graphics, NativeBattleEffect210Frame frame, NativeBattleEffect210DrawModel9960 operation)
     {
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect210 body requires its current temporary memory.");
-        if (!NativeBattleGraphicsModelAddress.TryDecode(operation.ModelAddress, out int actorIndex, graphics.Models.Length))
-        {
-            throw new InvalidDataException("Effect210 body requires its actual physical model pointer.");
-        }
-        byte actor = checked((byte)actorIndex);
+        BattleModelOwner actor = operation.Actor;
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect210 body requires its current skeleton.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect210 body requires its current camera.");

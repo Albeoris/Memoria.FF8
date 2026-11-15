@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleAcid317Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
         }
 
-        NativeBattleAcid317AnchorStep Anchor(NativeBattleAcid317Frame current, int actor)
+        NativeBattleAcid317AnchorStep Anchor(NativeBattleAcid317Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }
 
-        NativeBattleAcid317PointStep Bone(NativeBattleAcid317Frame current, int actor, short selector, short distance)
+        NativeBattleAcid317PointStep Bone(NativeBattleAcid317Frame current, BattleModelOwner actor, short selector, short distance)
         {
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Acid bone query requires its addressed temporary memory.");
             var observed = ObserveNativeGraphicsBoneAnchor(current.Memory, graphics, actor, checked((byte)selector), distance);

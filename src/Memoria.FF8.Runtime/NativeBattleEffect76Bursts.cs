@@ -16,7 +16,7 @@ public static class NativeBattleEffect76Bursts
             0x6210A0 => 0x621110,
             _ => throw new NotSupportedException($"Effect76 factory {function:X8} is unsupported.")
         };
-        int actor = checked((int)Dword(frame, 0x24C6658));
+        BattleModelOwner actor = frame.State.ReadModelOperand(NativeBattleEffect76Profile.CasterGlobal);
         if (function == 0x620D60)
         {
             NativeBattleEffect76PointStep sampled = inputs.Point502170(frame, actor, 0xF0, 2048, ReadBytes(frame, Point, 8));
@@ -63,7 +63,7 @@ public static class NativeBattleEffect76Bursts
         NativeBattleEffectArena point;
         if (attached)
         {
-            NativeBattleEffect76PointStep sampled = inputs.Point502170(frame, checked((int)Dword(frame, 0x24C6658)), 0xF0, 2048, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
+            NativeBattleEffect76PointStep sampled = inputs.Point502170(frame, frame.State.ReadModelOperand(NativeBattleEffect76Profile.CasterGlobal), 0xF0, 2048, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
             frame = sampled.Frame;
             point = sampled.Output8;
         }

@@ -7,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect285State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks)
 {
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+
     public static NativeBattleEffect285State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()));
 
     public static NativeBattleEffect285State FromUnknown()

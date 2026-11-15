@@ -176,12 +176,9 @@ public static class NativeBattleEffect70Particles
             short cosine = unchecked((short)NativeBattleCameraMath.Cosine(-angle));
             temporary = temporary.Write(0, new byte[20]);
             temporary = Word(Word(Word(Word(Word(temporary, 0, cosine), 4, unchecked((short)-sine)), 8, I16(arena, offset + 4)), 12, unchecked((short)(sine * I16(arena, offset + 6) >> 12))), 16, unchecked((short)(cosine * I16(arena, offset + 6) >> 12)));
-            NativeBattleEffectArena target = NativeBattleEffect70Controller.ReadBytes(frame, U32(arena, offset + 12), 24);
-            uint model = U32(target, 0);
-            if (!NativeBattleGraphicsModelAddress.TryDecode(model, out int row))
-            {
-                throw new InvalidDataException("Effect70 ring target requires its actual physical model row.");
-            }
+            uint targetAddress = U32(arena, offset + 12);
+            NativeBattleEffectArena target = NativeBattleEffect70Controller.ReadBytes(frame, targetAddress, 24);
+            BattleModelOwner row = NativeBattleEffect70Controller.ReadRecipient(frame, targetAddress);
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(Staging(frame), allocation.Address, temporary, 120) };
             frame = inputs.Execute(frame, new NativeBattleEffect70QueryBonePoint(row, I16(arena, offset + 2), allocation.Address + 0x14));
             temporary = NativeBattleTemporaryMemory.ReadView(Staging(frame), allocation.Address, 120);

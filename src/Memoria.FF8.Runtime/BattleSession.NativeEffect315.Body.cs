@@ -5,12 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect315Frame Frame) DrawNativeEffect315Body(NativeBattleGraphicsState graphics, NativeBattleEffect315Frame frame, uint temporaryAddress, uint modelAddress)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect315Frame Frame) DrawNativeEffect315Body(NativeBattleGraphicsState graphics, NativeBattleEffect315Frame frame, uint temporaryAddress, BattleModelOwner actor)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
-        {
-            throw new InvalidDataException("Effect315 body requires its actual physical target model.");
-        }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePilotVisualIdentity? bodyIdentity = frame.PilotIdentity;
         int geometryPass = 0;

@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattlePsychoBlast23Particles
 {
-    public static NativeBattlePsychoBlast23LeafStep AdvanceEmitter(NativeBattlePsychoBlast23Frame frame, uint address, NativeBattlePsychoBlast23Inputs inputs, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattlePsychoBlast23LeafStep AdvanceEmitter(NativeBattlePsychoBlast23Frame frame, uint address, NativeBattlePsychoBlast23Inputs inputs, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleModulePoolTask task = NativeBattlePsychoBlast23Act.Read(frame, address);
         if (task.Callback != NativeBattlePsychoBlast23Profile.DebrisEmitterCallback)

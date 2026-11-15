@@ -75,7 +75,7 @@ public sealed partial class BattleSession
                 case NativeBattleEerieSoundWave130Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Eerie Sound Wave contact lost its process memory."), Staging = NativeFileStaging };
                 default:

@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect70Controller
         for (int index = 0; index < count; index++)
         {
             uint record = checked(main + 0x14 + (uint)index * 24);
-            int actor = Actor(ReadDword(frame, record));
+            BattleModelOwner actor = ReadRecipient(frame, record);
             int extent = ReadShort(frame, record + 22) - ReadShort(frame, record + 20);
             for (int attempt = 0; attempt < 2; attempt++)
             {
@@ -60,7 +60,7 @@ public static partial class NativeBattleEffect70Controller
         return frame;
     }
 
-    public static NativeBattleEffect70Frame BirthReturnSparks(NativeBattleEffect70Frame frame, int actor, NativeBattleEffect70Inputs inputs)
+    public static NativeBattleEffect70Frame BirthReturnSparks(NativeBattleEffect70Frame frame, BattleModelOwner actor, NativeBattleEffect70Inputs inputs)
     {
         for (int angle = 4096; angle > 0; angle -= 256)
         {

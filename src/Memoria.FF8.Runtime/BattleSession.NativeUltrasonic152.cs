@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         bool paused = (graphics.Flags & 0x201) != 0;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         BattleContactCursor first = header.FirstContact;
-        int target = nativeActionPackets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner target = nativeActionPackets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectTaskStep rootStep = roots.Advance((pool, slot) =>
         {
             roots = pool;

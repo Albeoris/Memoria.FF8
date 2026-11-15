@@ -64,7 +64,7 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(Staging(frame), 180) };
     }
 
-    public static NativeBattleShockwavePulsar260Frame DrawSecondaryParticles(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<uint, NativeBattleEffectArena> readTargetRecord, Func<uint, NativeBattleVector> readModelPosition, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleShockwavePulsar260Frame DrawSecondaryParticles(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Resources resources, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<uint, NativeBattleEffectArena> readTargetRecord, Func<BattleModelOwner, NativeBattleVector> readModelPosition, Func<NativeBattleShockwavePulsar260Frame, NativeBattleGfGeometryBatch, NativeBattleShockwavePulsar260Frame> deliverPrivate, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(Staging(frame), 120);
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 120);
@@ -78,8 +78,9 @@ public static class NativeBattleShockwavePulsar260ParticlesDrawing
             {
                 continue;
             }
-            NativeBattleEffectArena target = readTargetRecord(U32(arena, offset + 12));
-            NativeBattleVector position = readModelPosition(U32(target, 0));
+            uint recordAddress = U32(arena, offset + 12);
+            NativeBattleEffectArena target = readTargetRecord(recordAddress);
+            NativeBattleVector position = readModelPosition(NativeBattleShockwavePulsar260Controller.ReadTargetOwner(frame, recordAddress));
             int middle = (I16(target, 0x20) + I16(target, 0x22)) / 2;
             short xScale = I16(arena, offset + 4);
             short zScale = I16(arena, offset + 6);

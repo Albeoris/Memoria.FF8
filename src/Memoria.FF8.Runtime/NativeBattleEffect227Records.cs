@@ -51,7 +51,7 @@ public static class NativeBattleEffect227Records
         }
         int selected = unchecked(Roll(ref frame) * pointCount) / 32768;
         NativeBattleEffectArena local = NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(checked(pointBank + (uint)(selected * 8)), 8));
-        NativeBattleEffect227PointStep point = inputs.BonePoint693990(frame, frame.State.ReadDword(CasterGlobal), local, ReadBytes(frame, address + 4, 8));
+        NativeBattleEffect227PointStep point = inputs.BonePoint693990(frame, frame.State.ReadModelAddress(CasterGlobal), local, ReadBytes(frame, address + 4, 8));
         frame = WriteBytes(point.Frame, address + 4, point.Output8, 8);
         frame = WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x112D2E0u)), 4);
         byte horizontal = unchecked((byte)((Roll(ref frame) & 3) - 2));

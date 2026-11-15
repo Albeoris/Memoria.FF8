@@ -34,12 +34,12 @@ public sealed partial class BattleSession
         }
         return graphics with { OriginalEffect = step.Frame.Effect };
 
-        short ReadModelY(int index)
+        short ReadModelY(BattleModelOwner index)
         {
             return (graphics.ActorModels.Get(index).Transform ?? throw new NotSupportedException("Native status-cure item requires its actual target position.")).Position28.Y;
         }
 
-        NativeBattleVector ReadAnchor(int index)
+        NativeBattleVector ReadAnchor(BattleModelOwner index)
         {
             if (resources.Effect == 293)
             {

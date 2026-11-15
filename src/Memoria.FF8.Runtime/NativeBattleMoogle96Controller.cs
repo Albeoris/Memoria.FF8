@@ -39,7 +39,8 @@ public static class NativeBattleMoogle96Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleEffectTaskActors actors = new(header.Source, packets.ReadContact(contact).Primary.Recipient, packets.ModelAliases);
+        NativeBattleModulePoolTask root = actors.WriteTo(hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters)).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         int lastTarget = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -87,7 +88,7 @@ public static class NativeBattleMoogle96Controller
         {
             throw new InvalidDataException("Native Moogle96 lost its explicitly initialized shared state.");
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep rootStep = state.Advance(0, (current, address) =>
         {
             state = current;
@@ -120,7 +121,7 @@ public static class NativeBattleMoogle96Controller
                 case 4:
                     if (task.ReadByte(0x63) == 0)
                     {
-                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(task);
+                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3) : Next(task);
                         Store(address, task);
                     }
                     break;
@@ -229,7 +230,7 @@ public static class NativeBattleMoogle96Controller
         {
             NativeBattleModulePoolTask task = state.Read(address);
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Moogle96 target bounds require the actual pose owner.");
@@ -241,14 +242,14 @@ public static class NativeBattleMoogle96Controller
                 case 0:
                     byte[] dog = new byte[84];
                     BinaryPrimitives.WriteInt16LittleEndian(dog.AsSpan(2), -256);
-                    int[] enemies = Enumerable.Range(3, 4).Where(index => (inputs.ReadModel(index).Flags0 & 2) != 0).ToArray();
+                    BattleEnemyModelOwner[] enemies = LoadedEnemies().ToArray();
                     if (enemies.Length != 0)
                     {
-                        NativeBattleVector[] positions = enemies.Select(index => (inputs.ReadModel(index).Transform ?? throw new NotSupportedException("Native Moogle centroid requires actual enemy positions.")).Position28).ToArray();
+                        NativeBattleVector[] positions = enemies.Select(enemy => (inputs.ReadModel(enemy).Transform ?? throw new NotSupportedException("Native Moogle centroid requires actual enemy positions.")).Position28).ToArray();
                         BinaryPrimitives.WriteInt16LittleEndian(dog.AsSpan(8), unchecked((short)((positions.Min(position => (int)position.X) + positions.Max(position => (int)position.X)) / 2)));
                         BinaryPrimitives.WriteInt16LittleEndian(dog.AsSpan(12), unchecked((short)((positions.Min(position => (int)position.Z) + positions.Max(position => (int)position.Z)) / 2)));
                     }
-                    frame = frame with { Memory = frame.Memory with { Moogle96 = Shared() with { DogControl = dog.ToImmutableArray() } } };
+                    frame = frame with { Memory = frame.Memory with { Moogle96 = Shared() with { DogControl = dog.ToImmutableArray() } }, Effect = frame.Effect with { MoogleSavedEnemyFlags = inputs.Packets.Roster.Enemies.ToImmutableDictionary(enemy => (BattleModelOwner)enemy, _ => (ushort)0) } };
                     ImmutableArray<byte> script = Shared().Io?.Script ?? (Shared().IoScriptKnownCold ? resources.IoScript.Data : throw new NotSupportedException("Native Moogle's warmed mutable IO script is missing."));
                     NativeBattleMoogle96IoInitialization initializedIo = NativeBattleMoogle96Io.Initialize7322A0(script, Shared().NextAllocation ?? throw new InvalidDataException("Native Moogle next allocation is unknown."));
                     frame = frame with { Memory = frame.Memory with { Moogle96 = Shared() with { Io = initializedIo.State, IoScriptKnownCold = false, NextAllocation = initializedIo.NextAddress } } };
@@ -261,10 +262,10 @@ public static class NativeBattleMoogle96Controller
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         NativeBattleActionHeaderSlot selectedHeader = inputs.Packets.ReadHeader(headerIndex);
-                        int firstContact = selectedHeader.FirstContactIndex ?? throw new NotSupportedException("Native Moogle lost its physical contact pointer.");
                         for (int contact = 0; contact < selectedHeader.ReadContactCount(); contact++)
                         {
-                            Emit(new NativeBattleMoogle96Contact(checked(firstContact + contact)));
+                            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(selectedHeader.FirstContact.Advance(contact)).Occurrence ?? throw new InvalidDataException("Moogle contact has no occurrence reference.");
+                            Emit(new NativeBattleMoogle96Contact(occurrence));
                         }
                         Store(address, Next(task));
                     }
@@ -659,6 +660,8 @@ public static class NativeBattleMoogle96Controller
             Store(address, task);
         }
 
+        IEnumerable<BattleEnemyModelOwner> LoadedEnemies() => inputs.Packets.Roster.Enemies.Where(owner => (inputs.ReadModel(owner).Flags0 & 2) != 0);
+
         void EnemyFade(uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
@@ -668,10 +671,14 @@ public static class NativeBattleMoogle96Controller
                 case 0:
                     if (!fadeIn)
                     {
-                        foreach (int actor in Enumerable.Range(3, 4).Where(index => (inputs.ReadModel(index).Flags0 & 2) != 0))
+                        foreach (BattleEnemyModelOwner actor in LoadedEnemies())
                         {
                             ushort flags = inputs.ReadModel(actor).Flags0;
-                            Emit(new NativeBattleMoogle96EnemyFlags(actor, unchecked((ushort)((flags & 0xFFFBu) | (DogDword(0x2C + 4 * (actor - 3)) & 4u)))));
+                            if (!frame.Effect.MoogleSavedEnemyFlags.TryGetValue(actor, out ushort savedFlags))
+                            {
+                                throw new InvalidDataException("Moogle cannot restore enemy flags without its captured owner.");
+                            }
+                            Emit(new NativeBattleMoogle96EnemyFlags(actor, unchecked((ushort)((flags & 0xFFFBu) | (savedFlags & 4u)))));
                         }
                     }
                     task = Next(task.WriteWord(0x1C, fadeIn ? (ushort)0 : (ushort)4096));
@@ -684,10 +691,14 @@ public static class NativeBattleMoogle96Controller
                         task = Next(task.WriteWord(0x1C, fadeIn ? (ushort)4096 : (ushort)0).WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));
                         if (fadeIn)
                         {
-                            foreach (int actor in Enumerable.Range(3, 4).Where(index => (inputs.ReadModel(index).Flags0 & 2) != 0))
+                            foreach (BattleEnemyModelOwner actor in LoadedEnemies())
                             {
                                 ushort flags = inputs.ReadModel(actor).Flags0;
-                                SetDogDword(0x2C + 4 * (actor - 3), flags);
+                                frame = frame with { Effect = frame.Effect with { MoogleSavedEnemyFlags = frame.Effect.MoogleSavedEnemyFlags.SetItem(actor, flags) } };
+                                if (inputs.Packets.ModelAliases.TryEncodeExact(actor, out byte alias))
+                                {
+                                    SetDogDword(0x2C + 4 * (alias - 3), flags);
+                                }
                                 Emit(new NativeBattleMoogle96EnemyFlags(actor, (ushort)(flags | 4)));
                             }
                         }
@@ -703,7 +714,7 @@ public static class NativeBattleMoogle96Controller
         }
         void ApplyEnemyFade(short progress)
         {
-            foreach (int actor in Enumerable.Range(3, 4).Where(index => (inputs.ReadModel(index).Flags0 & 2) != 0))
+            foreach (BattleEnemyModelOwner actor in LoadedEnemies())
             {
                 uint source = inputs.TransitionColor;
                 uint color = source & 0xFFFFFF;

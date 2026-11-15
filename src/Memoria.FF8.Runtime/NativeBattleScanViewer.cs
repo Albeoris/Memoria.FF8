@@ -2,9 +2,9 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanViewerFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleScanByteOwner> Models, NativeBattleScanByteOwner CameraTarget8, NativeBattleScanTextFrame Text);
+public sealed record NativeBattleScanViewerFrame(NativeBattleScanFrame Scan, BattleActorModels Models, NativeBattleScanByteOwner CameraTarget8, NativeBattleScanTextFrame Text);
 public sealed record NativeBattleScanViewerProfile(ushort Category, NativeBattleScanByteOwner Bytes16);
-public sealed record NativeBattleScanViewerInputs(NativeBattleActionPacketsState Packets, NativeBattleScanInputBank Input, uint Options, IReadOnlyList<byte> ButtonMap, Func<int, NativeBattleScanByteOwner> ReadName24, Func<int, uint> ReadDescriptionPointer, Func<int, NativeBattleScanViewerProfile> ReadProfile, Func<NativeBattleScanViewerFrame, BattleModelOwner, byte, int, NativeBattleVector> ReadBone502170)
+public sealed record NativeBattleScanViewerInputs(NativeBattleActionPacketsState Packets, NativeBattleScanInputBank Input, uint Options, IReadOnlyList<byte> ButtonMap, Func<BattleModelOwner, NativeBattleScanByteOwner> ReadName24, Func<BattleModelOwner, uint> ReadDescriptionPointer, Func<BattleModelOwner, NativeBattleScanViewerProfile> ReadProfile, Func<NativeBattleScanViewerFrame, BattleModelOwner, byte, int, NativeBattleVector> ReadBone502170)
 {
     public bool UnrestrictedRotation { get; init; }
 }
@@ -24,10 +24,10 @@ public static class NativeBattleScanViewer
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                NativeBattleScanByteOwner name = inputs.ReadName24(task.ReadByte(0x2D));
+                NativeBattleScanByteOwner name = inputs.ReadName24(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 name.RequireLength(24);
                 SetPresentation(Presentation() with { Name269AA78 = name });
-                frame = frame with { Text = frame.Text with { Windows = frame.Text.Windows.SetText4A0410(2, 0x269AA78).SetFlags4A0700(2, 0).SetRect4A07A0(2, new(170, 30, 136, 28)).Open4A0640(2).SetText4A0410(0, inputs.ReadDescriptionPointer(task.ReadByte(0x2D))).SetFlags4A0700(0, 0).SetRect4A07A0(0, new(170, 52, 136, 128)).Open4A0640(0) } };
+                frame = frame with { Text = frame.Text with { Windows = frame.Text.Windows.SetText4A0410(2, 0x269AA78).SetFlags4A0700(2, 0).SetRect4A07A0(2, new(170, 30, 136, 28)).Open4A0640(2).SetText4A0410(0, inputs.ReadDescriptionPointer(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner)).SetFlags4A0700(0, 0).SetRect4A07A0(0, new(170, 52, 136, 128)).Open4A0640(0) } };
                 _ = frame.Scan.Effect.Parameters ?? throw new InvalidDataException("Native Scan viewer requires its actual action parameters.");
                 NativeBattleEffectHierarchyAppend result = hierarchy.Append8DC540(2, 0x84FAF0, 0x78, address, Select);
                 hierarchy = result.Hierarchy;
@@ -88,7 +88,7 @@ public static class NativeBattleScanViewer
         Publish();
         return new(frame, complete ? 2 : 0);
 
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte actor) => NativeBattleCureController.SelectActors(frame.Scan.Effect.Parameters!, inputs.Packets, pointer, group, actor);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int actor) => NativeBattleCureController.SelectActors(frame.Scan.Effect.Parameters!, inputs.Packets, pointer, group, actor);
         NativeBattleScanProcess Process() => frame.Scan.Memory.Scan!;
         NativeBattleScanPresentationMemory Presentation() => Process().Presentation;
         void SetPresentation(NativeBattleScanPresentationMemory value) => frame = frame with { Scan = frame.Scan with { Memory = frame.Scan.Memory with { Scan = Process() with { Presentation = value } } } };
@@ -109,17 +109,17 @@ public static class NativeBattleScanViewer
         Validate(frame);
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        int selected = Selected(frame);
-        NativeBattleScanByteOwner model = frame.Models[selected];
+        BattleModelOwner selected = Selected(frame);
+        NativeBattleScanByteOwner model = ReadModel(frame, selected);
         NativeBattleScanPresentationMemory presentation = frame.Scan.Memory.Scan!.Presentation;
         NativeBattleScanByteOwner camera = Copy(presentation.Camera269A168, 0x20, model, 0x0C, 8);
         camera = Copy(camera, 0x28, model, 0x1C, 8);
         model = model.WriteDword(0x30, checked(address + 0x30));
         task = task.WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);
         hierarchy = hierarchy.Write(address, task);
-        frame = frame with { Models = frame.Models.SetItem(selected, model), Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools }, Memory = frame.Scan.Memory with { Scan = frame.Scan.Memory.Scan! with { Presentation = presentation with { Camera269A168 = camera } } } } };
+        frame = frame with { Models = WriteModel(frame, selected, model), Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools }, Memory = frame.Scan.Memory with { Scan = frame.Scan.Memory.Scan! with { Presentation = presentation with { Camera269A168 = camera } } } } };
         NativeBattleVector bone = inputs.ReadBone502170(frame, selected, 0xF1, 0);
-        NativeBattleScanViewerProfile profile = inputs.ReadProfile(task.ReadByte(0x2D));
+        NativeBattleScanViewerProfile profile = inputs.ReadProfile(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
         profile.Bytes16.RequireLength(16);
         camera = camera.WriteWord(0x4C, profile.Category);
         if (profile.Bytes16.ReadWord(8) == 0)
@@ -134,12 +134,12 @@ public static class NativeBattleScanViewer
     public static NativeBattleScanViewerFrame Reset850600(NativeBattleScanViewerFrame frame, uint address)
     {
         Validate(frame);
-        int selected = Selected(frame);
+        BattleModelOwner selected = Selected(frame);
         NativeBattleScanByteOwner camera = frame.Scan.Memory.Scan!.Presentation.Camera269A168;
-        NativeBattleScanByteOwner model = Copy(frame.Models[selected], 0x0C, camera, 0x20, 8);
+        NativeBattleScanByteOwner model = Copy(ReadModel(frame, selected), 0x0C, camera, 0x20, 8);
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address).WriteWord(0x70, 0).WriteWord(0x40, 0).WriteWord(0x42, 0).WriteWord(0x44, 0).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);
-        return frame with { Models = frame.Models.SetItem(selected, model), Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Write(address, task).Pools } } };
+        return frame with { Models = WriteModel(frame, selected, model), Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Write(address, task).Pools } } };
     }
 
     public static NativeBattleScanViewerFrame Advance84FD90(NativeBattleScanViewerFrame frame, uint address, NativeBattleScanViewerInputs inputs)
@@ -147,7 +147,7 @@ public static class NativeBattleScanViewer
         Validate(frame);
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        NativeBattleScanViewerProfile profile = inputs.ReadProfile(task.ReadByte(0x2D));
+        NativeBattleScanViewerProfile profile = inputs.ReadProfile(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
         profile.Bytes16.RequireLength(16);
         NativeBattleScanProcess process = frame.Scan.Memory.Scan!;
         process = process with { Presentation = process.Presentation with { Camera269A168 = process.Presentation.Camera269A168.WriteWord(0x4C, profile.Category) }, InteractiveInput269AAA8 = NativeBattleScanInput.Sample8501F0(process.InteractiveInput269AAA8, inputs.Input, inputs.Options, inputs.ButtonMap) };
@@ -157,8 +157,8 @@ public static class NativeBattleScanViewer
         {
             Reset();
         }
-        int selected = Selected(frame);
-        NativeBattleScanByteOwner model = frame.Models[selected];
+        BattleModelOwner selected = Selected(frame);
+        NativeBattleScanByteOwner model = ReadModel(frame, selected);
         if (unchecked((short)task.ReadWord(0x70)) == 0)
         {
             task = task.WriteWord(0x72, 75);
@@ -173,7 +173,7 @@ public static class NativeBattleScanViewer
             if (unchecked((short)task.ReadWord(0x72)) <= 0)
             {
                 Reset();
-                model = frame.Models[selected];
+                model = ReadModel(frame, selected);
             }
         }
         Rotate(0x20, 0x0E, 0x0D, 16);
@@ -213,12 +213,10 @@ public static class NativeBattleScanViewer
         Add(NativeBattleGfMatrices.RotateShort56C4F0(basis, new(unchecked((short)task.ReadWord(0x40)), unchecked((short)task.ReadWord(0x42)), unchecked((short)task.ReadWord(0x44)))));
         PublishTranslation();
         NativeBattleScanByteOwner source = model;
-        for (int index = 0; index < 7; index++)
+        foreach (BattleModelOwner owner in frame.Scan.Effect.ScanSelectedTargets.Enumerate())
         {
-            if (process.Presentation.Selection269A1BC.ReadDword(index * 4) == 1)
-            {
-                frame = frame with { Models = frame.Models.SetItem(index, Copy(Copy(frame.Models[index], 0x1C, source, 0x1C, 8), 0x40, source, 0x40, 32)) };
-            }
+            NativeBattleScanByteOwner destination = ReadModel(frame, owner);
+            frame = frame with { Models = WriteModel(frame, owner, Copy(Copy(destination, 0x1C, source, 0x1C, 8), 0x40, source, 0x40, 32)) };
         }
         PublishModel();
         return frame;
@@ -257,7 +255,7 @@ public static class NativeBattleScanViewer
         {
             PublishTranslation();
             hierarchy = hierarchy.Write(address, task);
-            frame = frame with { Models = frame.Models.SetItem(selected, model), Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools } } };
+            frame = frame with { Models = WriteModel(frame, selected, model), Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools } } };
         }
         void Reset()
         {
@@ -273,13 +271,10 @@ public static class NativeBattleScanViewer
     {
         Validate(frame);
         NativeBattleScanPresentationMemory presentation = frame.Scan.Memory.Scan!.Presentation;
-        for (int index = 0; index < 7; index++)
+        foreach (BattleModelOwner owner in frame.Scan.Effect.ScanSelectedTargets.Enumerate())
         {
-            if (presentation.Selection269A1BC.ReadDword(index * 4) == 1)
-            {
-                NativeBattleScanByteOwner model = Copy(Copy(frame.Models[index], 0x0C, presentation.Camera269A168, 0x20, 8), 0x1C, presentation.Camera269A168, 0x28, 8).WriteDword(0x30, 0);
-                frame = frame with { Models = frame.Models.SetItem(index, model) };
-            }
+            NativeBattleScanByteOwner model = Copy(Copy(ReadModel(frame, owner), 0x0C, presentation.Camera269A168, 0x20, 8), 0x1C, presentation.Camera269A168, 0x28, 8).WriteDword(0x30, 0);
+            frame = frame with { Models = WriteModel(frame, owner, model) };
         }
         return frame;
     }
@@ -303,23 +298,25 @@ public static class NativeBattleScanViewer
     private static short Word(NativeBattleScanByteOwner owner, int offset) => unchecked((short)owner.ReadWord(offset));
     private static NativeBattleVector Position(NativeBattleScanByteOwner owner) => new(Word(owner, 0x1C), Word(owner, 0x1E), Word(owner, 0x20));
     private static NativeBattleActionMatrix Euler(NativeBattleScanByteOwner owner, int offset) => NativeBattleGfMatrices.Euler56CE30(new(Word(owner, offset), Word(owner, offset + 2), Word(owner, offset + 4)));
-    private static int Selected(NativeBattleScanViewerFrame frame)
+    private static BattleModelOwner Selected(NativeBattleScanViewerFrame frame)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(frame.Scan.Memory.Scan!.Presentation.PrimaryModel269CE30, out int row))
+        BattleModelOwner owner = frame.Scan.Effect.ScanSelectedModel ?? throw new NotSupportedException("Native Scan viewer has no selected model owner.");
+        if (!frame.Models.Contains(owner))
         {
-            throw new NotSupportedException("Native Scan viewer selected model leaves its actual physical bank.");
+            throw new InvalidDataException("Native Scan viewer selected model is no longer bound.");
         }
-        return row;
+        return owner;
     }
+
+    private static NativeBattleScanByteOwner ReadModel(NativeBattleScanViewerFrame frame, BattleModelOwner owner) => NativeBattleScanPhysicalModels.Capture(frame.Models.Get(owner));
+
+    private static BattleActorModels WriteModel(NativeBattleScanViewerFrame frame, BattleModelOwner owner, NativeBattleScanByteOwner model) => frame.Models.Set(owner, NativeBattleScanPhysicalModels.Apply(frame.Models.Get(owner), model));
+
     private static void Validate(NativeBattleScanViewerFrame frame)
     {
-        if (frame.Scan.Memory.Scan is null || frame.Models.IsDefault || frame.Models.Length != 7)
+        if (frame.Scan.Memory.Scan is null)
         {
-            throw new NotSupportedException("Native Scan viewer requires its actual process and seven current physical model views.");
-        }
-        foreach (NativeBattleScanByteOwner model in frame.Models)
-        {
-            model.RequireLength(156);
+            throw new NotSupportedException("Native Scan viewer requires its actual process.");
         }
         frame.CameraTarget8.RequireLength(8);
     }

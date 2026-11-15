@@ -83,7 +83,7 @@ public static class NativeBattlePsychoBlast23Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                         }
                         else
                         {
@@ -154,9 +154,9 @@ public static class NativeBattlePsychoBlast23Controller
         {
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Psycho Blast target requires its pose.");
-            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Psycho Blast target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Psycho Blast target requires its current pose frame."), sequence.PoseFlags109));
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -170,7 +170,7 @@ public static class NativeBattlePsychoBlast23Controller
                     if (current.State.Word(0x48) == 1)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Psycho Blast requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         current = inputs.Execute(With(current, hierarchy), new NativeBattlePsychoBlast23Contact(contact));
                         hierarchy = Next(new(current.Effect.Pools), address);
                     }
@@ -253,12 +253,12 @@ public static class NativeBattlePsychoBlast23Controller
             }
             return NativeBattlePsychoBlast23Act.Finish(current, address);
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
     }
 
     public static NativeBattlePsychoBlast23State InitializeShared(NativeBattlePsychoBlast23State retained, NativeBattleModulePoolTask task, NativeBattlePsychoBlast23Inputs inputs)
     {
-        NativeBattleModelTransform target = inputs.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Psycho Blast requires its actual target position.");
+        NativeBattleModelTransform target = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Psycho Blast requires its actual target position.");
         NativeBattlePsychoBlast23State state = retained with { Shared84 = new byte[84].ToImmutableArray() };
         state = state.WithWord(8, target.Position28.X).WithWord(10, target.Position28.Y).WithWord(12, target.Position28.Z).WithWord(14, target.Vertical34);
         int angle = NativePrecision53.RoundInteger(Math.Atan2(target.Position28.X, target.Position28.Z) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
@@ -272,7 +272,7 @@ public static class NativeBattlePsychoBlast23Controller
         return accepted;
     }
 
-    private static NativeBattlePsychoBlast23Frame SpawnStage(NativeBattlePsychoBlast23Frame frame, uint parent, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    private static NativeBattlePsychoBlast23Frame SpawnStage(NativeBattlePsychoBlast23Frame frame, uint parent, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchyAppend generic = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(3, NativeBattlePsychoBlast23Profile.GenericCallback, 676, parent, selectActors);
         NativeBattleModulePoolTask task = generic.Hierarchy.Read(generic.Address).WriteDword(0x30, 0x17EA4F0).WriteWord(0x298, 0).WriteWord(0x29E, 40).WriteWord(0x29C, 4);
@@ -285,8 +285,8 @@ public static class NativeBattlePsychoBlast23Controller
 
     private static NativeBattlePsychoBlast23Frame InitializeBasis(NativeBattlePsychoBlast23Frame frame, NativeBattleModulePoolTask task, NativeBattlePsychoBlast23Inputs inputs)
     {
-        int actor = task.ReadByte(0x2C);
-        int target = task.ReadByte(0x2D);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Psycho Blast requires its caster packed position.");
         short angle = model.Rotation14 ?? throw new NotSupportedException("Psycho Blast requires its caster angle.");

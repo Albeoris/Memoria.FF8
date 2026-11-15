@@ -18,7 +18,7 @@ public abstract record NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321UploadTim505E30(uint SourceAddress) : NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321WriteModelBytes(BattleModelOwner Model, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect321Operation;
-public sealed record NativeBattleEffect321Contact506690(int ContactIndex) : NativeBattleEffect321Operation;
+public sealed record NativeBattleEffect321Contact506690(BattleContactOccurrence ContactIndex) : NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321PcRender47CF50(int Kind, byte Red, byte Green, byte Blue, int Duration) : NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321PositionalSound5013A0(uint SourceAddress, uint Flags, NativeBattleEffectArena Point8) : NativeBattleEffect321Operation;

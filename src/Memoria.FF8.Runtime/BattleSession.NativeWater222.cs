@@ -175,32 +175,16 @@ public sealed partial class BattleSession
             NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(parameters.Header);
             return new(parameters.Source, index, WaterContacts(first)[0], WaterContacts(header), header.ReadContactCount(), graphics.Models);
         }
-        byte ParameterByte(uint address)
-        {
-            return unchecked(address - WaterParametersAddress) switch
-            {
-                0 => parameters.Source,
-                1 => parameters.Flags79,
-                2 => (byte)parameters.TargetActors,
-                3 => (byte)(parameters.TargetActors >> 8),
-                8 => parameters.Parameter80 ?? throw new NotSupportedException("Native Water parameter80 is unknown."),
-                9 => parameters.Parameter81,
-                10 => parameters.Parameter82 ?? throw new NotSupportedException("Native Water parameter82 is unknown."),
-                11 => parameters.Parameter83,
-                _ => throw new NotSupportedException("Native Water requires an established parameter byte.")
-            };
-        }
+        byte ParameterByte(uint address) => NativeBattleCinematicParameterBytes.Read(parameters, checked((int)(address - WaterParametersAddress)), 1)[0];
+
         byte[] ReadAction(uint address, int length)
         {
-            if (address >= WaterHeadersAddress && address < NativeBattleContactAddress.Encode(0))
+            if (TryReadOriginalHeaderBytes(address, length, out byte[] header))
             {
-                uint relative = address - WaterHeadersAddress;
-                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[checked((int)(relative / 20))];
-                int start = (int)(relative % 20);
-                return Enumerable.Range(start, length).Select(header.ReadByte).ToArray();
+                return header;
             }
-            (int row, int offset) = NativeBattleContactAddress.ResolveField(address, length, nativeActionPackets.StorageCapacity);
-            return nativeActionPackets.ReadContactBytes(row).AsSpan(offset, length).ToArray();
+            (BattleContactOccurrence occurrence, int offset) = NativeBattleContactAddress.ResolveOriginalField(address, length);
+            return ReadOriginalContactBytes(occurrence, offset, length);
         }
         NativeBattleWaterScriptProgram ResolveProgram(NativeBattleWaterExecutionFrame current, uint address)
         {

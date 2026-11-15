@@ -32,7 +32,7 @@ public static partial class NativeBattleEffect227Controller
         if (initialized)
         {
             NativeBattleEffectArena local = NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(AnchorPointAddress, 8));
-            NativeBattleEffect227PointStep anchor = inputs.BonePoint693990(frame, frame.State.ReadDword(CasterGlobal), local, frame.State.ReadView(AnchorAddress, 8));
+            NativeBattleEffect227PointStep anchor = inputs.BonePoint693990(frame, frame.State.ReadModelAddress(CasterGlobal), local, frame.State.ReadView(AnchorAddress, 8));
             frame = anchor.Frame with { State = anchor.Frame.State.WriteView(AnchorAddress, anchor.Output8, 8) };
             (frame, int mainSurvivors) = AdvancePool(frame, 1, resources, inputs);
             (frame, _) = AdvancePool(frame, 2, resources, inputs);

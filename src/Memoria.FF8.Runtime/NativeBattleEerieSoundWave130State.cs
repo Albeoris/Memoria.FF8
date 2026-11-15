@@ -27,6 +27,14 @@ public sealed record NativeBattleEerieSoundWave130State([property: JsonRequired]
     }
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
+    internal BattleModelOwner ReadModelAddress(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleEerieSoundWave130State WriteModelAddress(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = globals };
+    }
+
     public NativeBattleEerieSoundWave130State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

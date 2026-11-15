@@ -11,7 +11,7 @@ public static partial class NativeBattleNoMercy200Controller
 
     public static NativeBattleNoMercy200ChildStep Begin63DAF0(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool, NativeBattleNoMercy200TargetInputs inputs)
     {
-        foreach (int actor in SelectedTargets(frame, inputs.Packets))
+        foreach (BattleModelOwner actor in SelectedTargets(frame, inputs.Packets))
         {
             (pool, int slot) = pool.Append(0x63DBD0);
             NativeBattleModulePoolTask task = Anchor(pool.Slots[slot].WriteWord(12, 0), inputs.ReadAnchor(actor));
@@ -32,14 +32,16 @@ public static partial class NativeBattleNoMercy200Controller
     public static NativeBattleNoMercy200ChildStep Begin63DD10(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool, NativeBattleNoMercy200TargetInputs inputs)
     {
         ushort index = 0;
-        foreach (int actor in SelectedTargets(frame, inputs.Packets))
+        foreach (BattleModelOwner actor in SelectedTargets(frame, inputs.Packets))
         {
             int displacement = unchecked(2000 * inputs.ReadScale38(actor)) >> 12;
             (pool, int first) = pool.Append(0x63DE90);
-            NativeBattleModulePoolTask task = pool.Slots[first].WriteWord(12, 0).WriteWord(14, index).WriteWord(24, unchecked((ushort)displacement)).WriteWord(26, checked((ushort)actor));
+            NativeBattleModulePoolTask task = pool.Slots[first].WriteWord(12, 0).WriteWord(14, index).WriteWord(24, unchecked((ushort)displacement));
+            task.WriteExecutionReference(26, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
             pool = pool.WriteSlot(first, task);
             (pool, int second) = pool.Append(0x63E170);
-            task = Anchor(pool.Slots[second].WriteWord(12, 0).WriteWord(14, index), inputs.ReadAnchor(actor)).WriteWord(24, unchecked((ushort)displacement)).WriteWord(26, checked((ushort)actor));
+            task = Anchor(pool.Slots[second].WriteWord(12, 0).WriteWord(14, index), inputs.ReadAnchor(actor)).WriteWord(24, unchecked((ushort)displacement));
+            task.WriteExecutionReference(26, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2));
             pool = pool.WriteSlot(second, task);
             (pool, int third) = pool.Append(0x63E4E0);
             task = CopyPoint(pool.Slots[third].WriteWord(12, 0), task).WriteWord(24, (ushort)(Rand() % 2048)).WriteWord(26, (ushort)(Rand() % 120 + 50));
@@ -57,18 +59,18 @@ public static partial class NativeBattleNoMercy200Controller
         }
     }
 
-    private static IEnumerable<int> SelectedTargets(NativeBattleNoMercy200Frame frame, NativeBattleActionPacketsState packets)
+    private static IEnumerable<BattleModelOwner> SelectedTargets(NativeBattleNoMercy200Frame frame, NativeBattleActionPacketsState packets)
     {
-        NativeBattleActionHeaderSlot header = packets.Headers[frame.Parameters.Header];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(frame.Parameters.Header);
         int count = header.ReadContactCount();
         if (count == 0)
         {
             yield break;
         }
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its actual selected header contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < count; index++)
         {
-            yield return packets.ReadContact(checked(first + index)).Primary.Recipient;
+            yield return packets.ReadContact(first.Advance(index)).Primary.Recipient;
         }
     }
 

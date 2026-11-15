@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         (tasks, int first) = tasks.Append(0x614350);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        byte actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+        BattleModelOwner actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
         tasks = tasks.WriteSlot(first, tasks.Slots[first].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, actor));
         state = state with { Storage = RegenDword(RegenDword(state.Storage, 0, actor), 0xE4C, effect.Parameters.Source) };
         NativeEffectMemory = memory with { Regen147 = state };

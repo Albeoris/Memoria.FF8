@@ -32,7 +32,7 @@ public sealed partial class BattleSession
             return NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native Cactuar requires its current camera globals.");
         }
 
-        ImmutableArray<byte> ReadBone(int actor, byte selector, short fraction)
+        ImmutableArray<byte> ReadBone(BattleModelOwner actor, byte selector, short fraction)
         {
             return RawVector(ReadNativeGraphicsBone(graphics, actor, selector, fraction));
         }

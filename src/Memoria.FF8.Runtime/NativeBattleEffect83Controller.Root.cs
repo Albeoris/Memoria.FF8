@@ -106,12 +106,8 @@ public static partial class NativeBattleEffect83Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect83 requires its actual first contact pointer.");
-                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
-                    if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)
-                    {
-                        throw new InvalidDataException("Effect83 contact selector leaves its physical contact arena.");
-                    }
+                    BattleContactCursor cursor = packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
+                    BattleContactOccurrence contact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect83 requires its reached contact occurrence.");
                     frame = inputs.Execute(frame, new NativeBattleEffect83Contact506690(contact));
                     frame = NextPhase(frame, address);
                 }

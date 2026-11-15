@@ -4,7 +4,7 @@ public sealed record NativeBattleRinoa86ParticleEmission(NativeBattleEffectHiera
 
 public static class NativeBattleRinoa86Emitters
 {
-    public static NativeBattleRinoa86ParticleEmission Emit(NativeBattleEffectHierarchy hierarchy, uint parent, int mode, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleRinoa86ParticleEmission Emit(NativeBattleEffectHierarchy hierarchy, uint parent, int mode, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         if (mode is < 0 or > 6)
         {

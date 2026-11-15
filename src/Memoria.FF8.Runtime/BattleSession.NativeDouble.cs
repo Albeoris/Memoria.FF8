@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         }
         return graphics with { OriginalEffect = step.Frame.Effect with { Double = step.Frame.State } };
 
-        NativeBattleDoubleFrame ApplyContact(NativeBattleDoubleFrame current, int index)
+        NativeBattleDoubleFrame ApplyContact(NativeBattleDoubleFrame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             var pending = graphics.PendingContacts;

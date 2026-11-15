@@ -16,7 +16,7 @@ public static partial class NativeBattleEffect313Controller
         }
         int offset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect313 requires its executed texture initializer.");
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect313 requires its actual parameters.");
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)offset)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(ArenaGlobal, CommonAddress) };
+        frame = frame with { State = (frame.State with { SavedActors = frame.State.SavedActors.Clear() }).WriteDword(InitializerGlobal, checked(CommonAddress + (uint)offset)).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOperand(CasterGlobal, parameters.Source, inputs.ReadPackets(frame).ModelAliases).WriteDword(ArenaGlobal, CommonAddress) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0]);
         NativeBattleEffectTaskPool child = CreatePool(frame, Pools[1]);
         frame = frame with { State = frame.State.DetachBank(RootBank).DetachBank(ChildBank), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };
@@ -101,7 +101,6 @@ public static partial class NativeBattleEffect313Controller
         return packets.ReadHeader(parameters.Header);
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect313 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect313Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

@@ -16,7 +16,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < count; index++)
             {
                 int row = start + 0x14 + index * 32;
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona contacts require their current actor position.");
                 Store(row + 0x18, Word(row + 0x18) + 2048);
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
                     arena = arena.Write(row + 0x1C, [unchecked((byte)(state + 1))]);
                     continue;
                 }
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona contacts require their current actor position.");
                 Store(row + 0x16, Word(row + 0x16) + ((index & 1) != 0 ? 256 : -256));
@@ -51,11 +51,11 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Transform = transform with { Position28 = transform.Position28 with { Y = unchecked((short)-Word(row + 4)) } } }) };
                     Store(row + 0x18, model.Rotation16 ?? throw new NotSupportedException("Native Pandemona impact requires its current Z rotation."));
                     Store(row + 0x16, (model.Rotation14 ?? throw new NotSupportedException("Native Pandemona impact requires its current Y rotation.")) + 2048);
-                    ImmutableArray<NativeBattleContactPacket> contacts = nativeActionPackets.ReadHeaderContacts506BA0(frame.Effect.Parameters!.Header).Where(contact => contact.Primary.ActorIndex == actor).ToImmutableArray();
+                    ImmutableArray<NativeBattleContactPacket> contacts = nativeActionPackets.ReadHeaderContacts(frame.Effect.Parameters!.Header).Where(contact => contact.Primary.Recipient == actor).ToImmutableArray();
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = contacts }) with { PendingContacts = pending };
                     bool ring = arena.Read(row + 0x1E, 1)[0] != 0;
-                    foreach (int selected in ring ? NativeBattleModelRings.Walk(graphics.Models, actor) : new[] { actor })
+                    foreach (BattleModelOwner selected in ring ? NativeBattleModelRings.Walk(graphics.ActorModels, actor) : new[] { actor })
                     {
                         NativeBattleGraphicsModel target = graphics.ActorModels.Get(selected);
                         if (!ring || (target.Flags0 & 2) != 0)
@@ -84,7 +84,7 @@ public sealed partial class BattleSession
             for (int index = 0; index < count; index++)
             {
                 int row = start + 0x14 + index * 32;
-                int actor = Actor(row);
+                BattleModelOwner actor = Actor(row);
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (arena.Read(row + 0x1C, 1)[0] == 0 || NativeGraphicsActorAtStandingPose(graphics, actor) || (model.Flags0 & 2) == 0)
                 {
@@ -108,14 +108,7 @@ public sealed partial class BattleSession
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
         void Store(int offset, int value) => arena = arena.Write(offset, BitConverter.GetBytes(unchecked((ushort)value)));
-        int Actor(int row)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4)), out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Native Pandemona contact target leaves its original actor rows.");
-            }
-            return actorIndex;
-        }
+        BattleModelOwner Actor(int row) => NativeBattlePandemona291Construction.ReadTargetOwner(arena, row);
     }
 
     private NativeBattlePandemona291Frame SpawnNativePandemona291Attached(NativeBattlePandemona291Frame frame, uint address, int target, bool impact)

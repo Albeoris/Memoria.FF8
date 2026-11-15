@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect287Controller
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress) };
         frame = frame with { Random = frame.Random.Draw(out ushort initialRandom), State = frame.State.WriteDword(RandomGlobal, initialRandom) };
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect287 requires its actual parameters.");
-        frame = frame with { State = frame.State.WriteDword(CasterGlobal, ModelAddress(parameters.Source)).WriteDword(ParametersGlobal, 0x1D99A78) };
+        frame = frame with { State = frame.State.WriteModelAddress(CasterGlobal, parameters.Source, inputs.ReadPackets(frame).ModelAliases).WriteDword(ParametersGlobal, 0x1D99A78) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State.DetachBank(0), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor } };
@@ -144,7 +144,6 @@ public static partial class NativeBattleEffect287Controller
         return -1;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect287 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect287Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

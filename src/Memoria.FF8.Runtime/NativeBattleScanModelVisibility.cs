@@ -1,21 +1,19 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanVisibilityFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleStageState Stage, uint BackgroundB8B7D8);
+public sealed record NativeBattleScanVisibilityFrame(NativeBattleScanFrame Scan, BattleActorModels Models, NativeBattleStageState Stage, uint BackgroundB8B7D8);
 public sealed record NativeBattleScanVisibilityStep(NativeBattleScanVisibilityFrame Frame, int Result);
 
 /// <summary>84ED90/8507F0's shared model and stage fade, including retained physical backups.</summary>
 public static class NativeBattleScanModelVisibility
 {
-    public static NativeBattleScanVisibilityStep Advance(NativeBattleScanVisibilityFrame frame, uint address)
+    public static NativeBattleScanVisibilityStep Advance(NativeBattleScanVisibilityFrame frame, uint address, NativeBattleModelAliases aliases)
     {
         NativeBattleScanProcess process = frame.Scan.Memory.Scan ?? throw new NotSupportedException("Native Scan fade requires its retained presentation owners.");
         NativeBattleScanPresentationMemory memory = process.Presentation;
         memory.Validate();
-        if (frame.Models.IsDefault || frame.Models.Length != 7 || frame.Stage.Groups.IsDefault || frame.Stage.Groups.Length != 4)
+        if (frame.Stage.Groups.IsDefault || frame.Stage.Groups.Length != 4)
         {
-            throw new InvalidDataException("Native Scan fade requires its seven physical models and four stage rows.");
+            throw new InvalidDataException("Native Scan fade requires its four stage rows.");
         }
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -24,20 +22,26 @@ public static class NativeBattleScanModelVisibility
         {
             throw new InvalidDataException("Native Scan fade requires84ED90 or8507F0.");
         }
+        var savedModels = frame.Scan.Effect.ScanSavedModels;
         int phase = unchecked((sbyte)task.ReadByte(0x29));
         switch (phase)
         {
             case 0 when !restore:
                 task = task.WriteWord(0x1C, 0);
+                savedModels = savedModels.Clear();
                 SetStage(group => group with { ColorDepth = 0, ColorFlags = group.ColorFlags & 0xFF000000u });
-                for (int index = 0; index < 7; index++)
+                foreach (BattleModelOwner owner in frame.Models.Owners)
                 {
-                    NativeBattleGraphicsModel model = Model(index);
+                    NativeBattleGraphicsModel model = frame.Models.Get(owner);
                     uint color = Color(model);
-                    memory = memory with { SavedFlags269A1D8 = memory.SavedFlags269A1D8.WriteDword(index * 4, model.Flags0), SavedColors269CE34 = memory.SavedColors269CE34.WriteDword(index * 4, color) };
-                    if (!Selected(index))
+                    savedModels = savedModels.SetItem(owner, new(model.Flags0, color));
+                    if (aliases.TryEncodeExact(owner, out byte alias))
                     {
-                        SetModel(index, model with { Flags0 = (ushort)(model.Flags0 | 0x0800) });
+                        memory = memory with { SavedFlags269A1D8 = memory.SavedFlags269A1D8.WriteDword(alias * 4, model.Flags0), SavedColors269CE34 = memory.SavedColors269CE34.WriteDword(alias * 4, color) };
+                    }
+                    if (!Selected(owner))
+                    {
+                        SetModel(owner, model with { Flags0 = (ushort)(model.Flags0 | 0x0800) });
                     }
                 }
                 Next();
@@ -45,18 +49,19 @@ public static class NativeBattleScanModelVisibility
             case 0:
                 task = task.WriteWord(0x1C, 4096);
                 SetStage(group => group with { Flags = (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2)) });
-                for (int index = 0; index < 7; index++)
+                foreach (BattleModelOwner owner in frame.Models.Owners)
                 {
-                    NativeBattleGraphicsModel model = Model(index);
-                    ushort oldFlags = unchecked((ushort)memory.SavedFlags269A1D8.ReadDword(index * 4));
-                    bool selected = Selected(index);
+                    NativeBattleGraphicsModel model = frame.Models.Get(owner);
+                    NativeBattleScanSavedModel saved = ReadSaved(owner);
+                    ushort oldFlags = saved.Flags;
+                    bool selected = Selected(owner);
                     ushort mask = selected ? (ushort)0x20 : (ushort)0x24;
                     model = model with { Flags0 = (ushort)((model.Flags0 & ~mask) | (oldFlags & mask)) };
                     if (selected)
                     {
-                        model = model with { Color40 = memory.SavedColors269CE34.ReadDword(index * 4) };
+                        model = model with { Color40 = saved.Color };
                     }
-                    SetModel(index, model);
+                    SetModel(owner, model);
                 }
                 Next();
                 break;
@@ -69,13 +74,13 @@ public static class NativeBattleScanModelVisibility
                 }
                 task = task.WriteWord(0x1C, unchecked((ushort)fade));
                 SetStage(group => group with { ColorDepth = fade });
-                for (int index = 0; index < 7; index++)
+                foreach (BattleModelOwner owner in frame.Models.Owners)
                 {
-                    if (Selected(index))
+                    if (Selected(owner))
                     {
                         continue;
                     }
-                    NativeBattleGraphicsModel model = Model(index);
+                    NativeBattleGraphicsModel model = frame.Models.Get(owner);
                     uint color = Color(model) & 0xFF000000u;
                     for (int shift = 0; shift < 24; shift += 8)
                     {
@@ -83,25 +88,25 @@ public static class NativeBattleScanModelVisibility
                         byte channel = unchecked((byte)(background - background * fade / 4096));
                         color |= (uint)channel << shift;
                     }
-                    SetModel(index, model with { Color40 = color });
+                    SetModel(owner, model with { Color40 = color });
                 }
                 break;
             case 2 when !restore:
                 SetStage(group => group with { Flags = (byte)(group.Flags & 0xFD) });
-                for (int index = 0; index < 7; index++)
+                foreach (BattleModelOwner owner in frame.Models.Owners)
                 {
-                    NativeBattleGraphicsModel model = Model(index);
-                    model = memory.Selection269A1BC.ReadDword(index * 4) == 1 ? model with { Color40 = 0x00808080, Flags0 = (ushort)(model.Flags0 | 0x20) } : model with { Flags0 = (ushort)(model.Flags0 | 0x24) };
-                    SetModel(index, model);
+                    NativeBattleGraphicsModel model = frame.Models.Get(owner);
+                    model = Selected(owner) ? model with { Color40 = 0x00808080, Flags0 = (ushort)(model.Flags0 | 0x20) } : model with { Flags0 = (ushort)(model.Flags0 | 0x24) };
+                    SetModel(owner, model);
                 }
                 Finish();
                 break;
             case 2:
-                for (int index = 0; index < 7; index++)
+                foreach (BattleModelOwner owner in frame.Models.Owners)
                 {
-                    NativeBattleGraphicsModel model = Model(index);
-                    ushort backup = unchecked((ushort)memory.SavedFlags269A1D8.ReadDword(index * 4));
-                    if (Selected(index))
+                    NativeBattleGraphicsModel model = frame.Models.Get(owner);
+                    ushort backup = ReadSaved(owner).Flags;
+                    if (Selected(owner))
                     {
                         model = model with { Flags0 = (ushort)((model.Flags0 & ~0x20) | (backup & 0x20)) };
                     }
@@ -109,7 +114,7 @@ public static class NativeBattleScanModelVisibility
                     {
                         model = model with { Flags0 = (ushort)((model.Flags0 & ~0x0800) | (backup & 0x0800)), Color40 = (Color(model) & 0xFF000000u) | (frame.BackgroundB8B7D8 & 0xFFFFFFu) };
                     }
-                    SetModel(index, model);
+                    SetModel(owner, model);
                 }
                 Finish();
                 break;
@@ -125,24 +130,16 @@ public static class NativeBattleScanModelVisibility
         {
             hierarchy = hierarchy.Complete8DC530(address);
         }
-        frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools }, Memory = frame.Scan.Memory with { Scan = process with { Presentation = memory } } } };
+        frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools, ScanSavedModels = savedModels }, Memory = frame.Scan.Memory with { Scan = process with { Presentation = memory } } } };
         return new(frame, complete ? 2 : 0);
 
-        bool Selected(int index) => memory.Selection269A1BC.ReadDword(index * 4) != 0;
+        bool Selected(BattleModelOwner owner) => frame.Scan.Effect.ScanSelectedTargets.Contains(owner);
 
-        NativeBattleGraphicsModel Model(int index)
-        {
-            NativeBattleGraphicsModel model = frame.Models[index];
-            if (model.Index != index)
-            {
-                throw new InvalidDataException("Native Scan model order differs from its physical bank.");
-            }
-            return model;
-        }
+        NativeBattleScanSavedModel ReadSaved(BattleModelOwner owner) => savedModels.TryGetValue(owner, out NativeBattleScanSavedModel? saved) ? saved : throw new InvalidDataException("Native Scan cannot restore flags and color without their captured model owner.");
 
         static uint Color(NativeBattleGraphicsModel model) => model.Color40 ?? throw new NotSupportedException("Native Scan fade requires the model's actual DWORD28 color.");
 
-        void SetModel(int index, NativeBattleGraphicsModel model) => frame = frame with { Models = frame.Models.SetItem(index, model) };
+        void SetModel(BattleModelOwner owner, NativeBattleGraphicsModel model) => frame = frame with { Models = frame.Models.Set(owner, model) };
 
         void SetStage(Func<NativeBattleStageGroup, NativeBattleStageGroup> change) => frame = frame with { Stage = frame.Stage with { Groups = frame.Stage.Groups.Select(change).ToImmutableArray() } };
 

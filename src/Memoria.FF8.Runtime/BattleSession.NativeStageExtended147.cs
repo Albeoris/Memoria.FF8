@@ -63,7 +63,7 @@ public sealed partial class BattleSession
                 break;
             case 1:
                 graphics = graphics with { Effects = graphics.Effects with { PublishedCount = 1 } };
-                if (!graphics.Models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40, 0)))
+                if (!graphics.ActorModels.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40, 0)))
                 {
                     owner = owner with { Subphase = 2 };
                 }

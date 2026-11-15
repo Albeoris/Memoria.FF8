@@ -34,6 +34,12 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
     public byte[] Read(uint address, int length) => ReadView(address, length).Read(0, length);
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    internal NativeBattleEffect187State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena storage = Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this with { Storage = storage };
+    }
+
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public NativeBattleEffect187State Write(uint address, ReadOnlySpan<byte> bytes)
     {

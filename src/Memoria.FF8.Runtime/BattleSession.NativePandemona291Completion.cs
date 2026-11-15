@@ -10,10 +10,7 @@ public sealed partial class BattleSession
         int index = Enumerable.Range(0, main.Slots.Length).Single(index => (main.Slots[index].Flags & 1) != 0 && main.Slots[index].Callback == 0x6ED900);
         int row = NativeBattleWaterExecutionFields.ArenaOffset(unchecked(main.BankAddress + (uint)(index * main.Stride) + 0x14), 32);
         NativeBattleEffectArena arena = frame.Memory.Arena!;
-        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4)), out int actorIndex, graphics.Models.Length))
-        {
-            throw new InvalidDataException("Native Pandemona camera requires its actual first target pointer.");
-        }
+        BattleModelOwner actorIndex = NativeBattlePandemona291Construction.ReadTargetOwner(arena, row);
         return (graphics.ActorModels.Get(actorIndex), arena.Read(row + 0x1C, 1)[0]);
     }
 
@@ -25,10 +22,7 @@ public sealed partial class BattleSession
         int count = nativeActionPackets.ReadHeader(frame.Effect.Parameters!.Header).ReadContactCount();
         for (int target = 0; target < count; target++)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(start + 0x14 + target * 32, 4)), out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Native Pandemona completion requires its actual target resource pointer.");
-            }
+            BattleModelOwner actorIndex = NativeBattlePandemona291Construction.ReadTargetOwner(frame.Memory.Arena!, start + 0x14 + target * 32);
             if (!NativeGraphicsActorAtStandingPose(graphics, actorIndex))
             {
                 return true;
@@ -61,11 +55,7 @@ public sealed partial class BattleSession
         for (int index = 0; index < count; index++)
         {
             int row = start + 0x14 + index * 32;
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(row, 4));
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actor, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Native Pandemona completion target leaves its original actor rows.");
-            }
+            BattleModelOwner actor = NativeBattlePandemona291Construction.ReadTargetOwner(arena, row);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona completion requires its current actor position.");
             NativeBattleVector position = new(Word(row + 0xC), Word(row + 0xE), Word(row + 0x10));

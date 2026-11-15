@@ -11,7 +11,7 @@ public static partial class NativeBattleNoMercy200Controller
         NativeBattleVector origin = new(unchecked((short)(rotated.X + basis.X)), unchecked((short)(rotated.Y + basis.Y)), unchecked((short)(rotated.Z + basis.Z)));
         NativeBattleFileStaging staging = WritePoint(frame.Staging, 0x24FBCD8, origin);
         int index = 0;
-        foreach (int actor in SelectedTargets(frame, inputs.Packets))
+        foreach (BattleModelOwner actor in SelectedTargets(frame, inputs.Packets))
         {
             if (index >= 8)
             {

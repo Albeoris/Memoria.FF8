@@ -107,7 +107,7 @@ public static class NativeBattleEffect210Particles
             return new(frame, 0);
         }
         NativeBattleModulePoolTask task = Read(frame, address);
-        int actor = Signed(task, 0x20);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20, 2).Owner;
         if (task.ReadWord(12) == 1)
         {
             NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, actor);

@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
         NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Drink Magic requires its actual posed model source.");
 
-        NativeBattleVector ReadBone12(byte actor, short distance)
+        NativeBattleVector ReadBone12(BattleModelOwner actor, short distance)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
@@ -58,8 +58,8 @@ public sealed partial class BattleSession
                 return unchecked((short)(low | high << 8));
             }
         }
-        short ReadYaw(byte actor) => graphics.ActorModels.Get(actor).Rotation14 ?? throw new NotSupportedException("Drink Magic requires the actor's actual rotation WORD14.");
-        NativeBattleVector ReadPosition(byte actor) => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Drink Magic requires its actor position WORD28/30/32.");
+        short ReadYaw(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Rotation14 ?? throw new NotSupportedException("Drink Magic requires the actor's actual rotation WORD14.");
+        NativeBattleVector ReadPosition(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Drink Magic requires its actor position WORD28/30/32.");
 
         NativeBattleDrinkMagic37Frame Execute(NativeBattleDrinkMagic37Frame current, NativeBattleDrinkMagic37Operation operation)
         {

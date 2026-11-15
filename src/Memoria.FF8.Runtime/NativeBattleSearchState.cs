@@ -18,14 +18,14 @@ public sealed partial record NativeBattleEffectMemory
 public sealed record NativeBattleSearchFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleSearchOperation;
 public sealed record NativeBattleSearchBindTargetResource(BattleModelOwner Actor) : NativeBattleSearchOperation;
-public sealed record NativeBattleSearchSelectActorSequence(int Actor, byte Sequence) : NativeBattleSearchOperation;
+public sealed record NativeBattleSearchSelectActorSequence(BattleModelOwner Actor, byte Sequence) : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchUploadModelTim : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchSound(uint Descriptor, int First, int Second) : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchVoice(uint Descriptor, int First, int Second, int Third) : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchSprite(NativeBattleModulePoolTask Task) : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchMesh(NativeBattleModulePoolTask Task) : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchCommonTextureLoad(int DestinationArenaOffset, uint CompletionAddress) : NativeBattleSearchOperation;
-public sealed record NativeBattleSearchContact(int Contact) : NativeBattleSearchOperation;
+public sealed record NativeBattleSearchContact(BattleContactOccurrence Occurrence) : NativeBattleSearchOperation;
 public sealed record NativeBattleSearchModelDrawStep(NativeBattleSearchFrame Frame, NativeBattleModulePoolTask Task);
 public sealed record NativeBattleSearchProgramStep(NativeBattleSearchFrame Frame, NativeBattleModulePoolTask Task, int Remaining);
-public sealed record NativeBattleSearchInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<int, ImmutableArray<byte>> ReadTargetWorld8, Func<NativeBattleSearchFrame, uint, byte, NativeBattleVector> ReadOwnedBone, Func<NativeBattleSearchFrame, NativeBattleModulePoolTask, NativeBattleEffectOwnedModelState, NativeBattleSearchModelDrawStep> DrawModel, Func<NativeBattleSearchFrame, NativeBattleModulePoolTask, NativeBattleSearchProgramStep> AdvanceProgram, Func<NativeBattleSearchFrame, NativeBattleSearchOperation, NativeBattleSearchFrame> Execute);
+public sealed record NativeBattleSearchInputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<BattleModelOwner, ImmutableArray<byte>> ReadTargetWorld8, Func<NativeBattleSearchFrame, uint, byte, NativeBattleVector> ReadOwnedBone, Func<NativeBattleSearchFrame, NativeBattleModulePoolTask, NativeBattleEffectOwnedModelState, NativeBattleSearchModelDrawStep> DrawModel, Func<NativeBattleSearchFrame, NativeBattleModulePoolTask, NativeBattleSearchProgramStep> AdvanceProgram, Func<NativeBattleSearchFrame, NativeBattleSearchOperation, NativeBattleSearchFrame> Execute);

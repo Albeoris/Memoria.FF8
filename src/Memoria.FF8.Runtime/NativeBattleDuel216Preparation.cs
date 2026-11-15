@@ -1,10 +1,9 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel216PreparationBounds(NativeBattleDuel216Frame Frame, short Maximum, short Minimum);
-public sealed record NativeBattleDuel216PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel216Frame, NativeBattleModuleAnchor, NativeBattleDuel216Extents, NativeBattleDuel216Frame> PrepareCamera69A790, Func<NativeBattleDuel216Frame, int, uint, NativeBattleDuel216Frame> BindActor5022C0, Func<NativeBattleDuel216Frame, int, byte, NativeBattleDuel216Frame> SelectSequence505C00, Func<NativeBattleDuel216Frame, int, NativeBattleDuel216PreparationBounds> Bounds695F60, Func<NativeBattleDuel216Frame, NativeBattleDuel216Frame> RestoreFocal1D8E038);
+public sealed record NativeBattleDuel216PreparationServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<NativeBattleDuel216Frame, NativeBattleModuleAnchor, NativeBattleDuel216Extents, NativeBattleDuel216Frame> PrepareCamera69A790, Func<NativeBattleDuel216Frame, BattleModelOwner, uint, NativeBattleDuel216Frame> BindActor5022C0, Func<NativeBattleDuel216Frame, BattleModelOwner, byte, NativeBattleDuel216Frame> SelectSequence505C00, Func<NativeBattleDuel216Frame, BattleModelOwner, NativeBattleDuel216PreparationBounds> Bounds695F60, Func<NativeBattleDuel216Frame, NativeBattleDuel216Frame> RestoreFocal1D8E038);
 
 public static class NativeBattleDuel216Preparation
 {
@@ -12,8 +11,8 @@ public static class NativeBattleDuel216Preparation
     {
         NativeBattleDuel216State state = frame.Memory.Duel216 ?? throw new NotSupportedException("Native Duel216 preparation requires its retained entered owner.");
         NativeBattleDuel216Resources resources = state.Resources ?? throw new NotSupportedException("Native Duel216 preparation requires its original resources.");
-        int actor = ModelIndex(frame.Staging, 0x2508880);
-        int target = ModelIndex(frame.Staging, 0x2508884);
+        BattleModelOwner actor = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508880);
+        BattleModelOwner target = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508884);
         if (frame.Effect.Parameters?.Source != actor)
         {
             throw new InvalidDataException("Native Duel216 actor pointer differs from its entered actor.");
@@ -65,8 +64,8 @@ public static class NativeBattleDuel216Preparation
     public static NativeBattleDuel216Frame Restore695AB0(NativeBattleDuel216Frame frame, NativeBattleDuel216PreparationServices services)
     {
         NativeBattleModulePoolTask task = Main(frame).Slots[0];
-        int actor = ModelIndex(frame.Staging, 0x2508880);
-        int target = ModelIndex(frame.Staging, 0x2508884);
+        BattleModelOwner actor = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508880);
+        BattleModelOwner target = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508884);
         RestorePosition(target, 6120);
         Ring(services, target, false);
         RestorePosition(actor, 64);
@@ -84,11 +83,11 @@ public static class NativeBattleDuel216Preparation
         }
     }
 
-    private static void Ring(NativeBattleDuel216PreparationServices services, int source, bool hidden)
+    private static void Ring(NativeBattleDuel216PreparationServices services, BattleModelOwner source, bool hidden)
     {
-        HashSet<int> visited = [];
-        int? current = source;
-        while (current is int index)
+        HashSet<BattleModelOwner> visited = [];
+        BattleModelOwner? current = source;
+        while (current is { } index)
         {
             if (!visited.Add(index))
             {
@@ -103,7 +102,7 @@ public static class NativeBattleDuel216Preparation
             {
                 services.WriteModel(index, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & ~8) });
             }
-            current = model.ReadLinkedModelIndex140();
+            current = model.ReadLinkedModel();
         }
     }
     private static NativeBattleModulePoolTask SavePosition(NativeBattleModulePoolTask task, int offset, NativeBattleGraphicsModel model)
@@ -118,13 +117,4 @@ public static class NativeBattleDuel216Preparation
     }
     private static NativeBattleEffectTaskPool Main(NativeBattleDuel216Frame frame) => frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel216Controller.Main && pool.BankAddress == NativeBattleDuel216Controller.Arena && pool.Stride == 6128 && pool.Slots.Length == 1);
     private static NativeBattleDuel216Frame Publish(NativeBattleDuel216Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(candidate => candidate.DescriptorAddress == pool.DescriptorAddress ? pool.WriteSlot(slot, task) : candidate).ToImmutableArray() } };
-    private static int ModelIndex(NativeBattleFileStaging staging, uint global)
-    {
-        uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(global, 4));
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
-        {
-            throw new InvalidDataException("Native Duel216 requires its actual retained actor or minimum-target pointer.");
-        }
-        return row;
-    }
 }

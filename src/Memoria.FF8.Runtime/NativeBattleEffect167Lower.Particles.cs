@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect167Lower
     {
         (frame, uint spriteAddress) = Allocate(frame, 180);
         (frame, uint scratchAddress) = Allocate(frame, 80);
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
         NativeBattleEffectArena scratch = Context(frame, scratchAddress, 80);
         NativeBattleEffect167PointStep point = inputs.Point502170(frame, caster, 40, 0, ParticleSlice(scratch, 0, 8));
         frame = point.Frame;

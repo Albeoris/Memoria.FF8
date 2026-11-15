@@ -155,7 +155,7 @@ public static partial class NativeBattleDegenerator306Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        byte actor = checked((byte)frame.State.ReadDword(TargetGlobal));
+        BattleModelOwner actor = frame.State.ReadModelOperand(TargetGlobal);
         if (age < 30)
         {
             frame = inputs.Execute(frame, new NativeBattleDegenerator306ActorFlags(actor, 0, 4));
@@ -163,7 +163,7 @@ public static partial class NativeBattleDegenerator306Controller
             NativeBattleEffectArena temporary = Dword(Bounded(allocation.Staging, allocation.Address, 136), 0x2C, unchecked((uint)((age << 12) / 30)));
             temporary = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x10, 8), 0, temporary, 0x60, 8);
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, 136) };
-            frame = inputs.Execute(frame, new NativeBattleDegenerator306DrawBody136(allocation.Address, actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, Read(frame, address)) with { ResourceGeneration = 0 } : null });
+            frame = inputs.Execute(frame, new NativeBattleDegenerator306DrawBody136(allocation.Address, actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, Read(frame, address)) with { ModelOwner = actor } : null });
             frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 136) };
         }
         return Age(frame, address, 31, inputs);

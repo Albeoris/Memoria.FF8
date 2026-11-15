@@ -17,7 +17,7 @@ public static partial class NativeBattleSonic139Controller
                 frame = WriteBytes(frame, address + 0x20, emitter.Point8, 8);
             }
             NativeBattleVector point = Point(emitter.Point8);
-            NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(unchecked((short)-inputs.ReadHeading(frame, frame.State.ReadDword(CasterGlobal)))) with { X = point.X, Y = point.Y, Z = point.Z };
+            NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(unchecked((short)-inputs.ReadHeading(frame, frame.State.ReadModelOwner(CasterGlobal)))) with { X = point.X, Y = point.Y, Z = point.Z };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
             NativeBattleSonic139ActStep act = inputs.AdvanceAct(frame, address + 0x30, resources.MainAct, new(NativeBattlePackedMatrix32.FromMatrix(composed, null), -128, frame.State.ReadDword(WorkingGlobal) + MorphOffset) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(139, Read(frame, address), 0x30) });
             frame = act.Frame;
@@ -51,7 +51,7 @@ public static partial class NativeBattleSonic139Controller
             int count = Signed(task, 14);
             for (int index = 0; index < count; index++)
             {
-                (uint actor, _) = ReadTarget(frame, inputs, task, index);
+                (BattleModelOwner actor, _) = ReadTarget(frame, inputs, task, index);
                 (frame, bounds) = IncludeActor6A9AD0(frame, inputs.ReadModel(frame, actor), bounds, inputs);
             }
             int bucketDepth = unchecked(bounds.MinimumDepth - 512);
@@ -91,9 +91,11 @@ public static partial class NativeBattleSonic139Controller
                 (frame, uint childAddress) = Append(frame, 2, TargetCallback);
                 if (childAddress != 0)
                 {
-                    (uint actor, byte contactIndex) = ReadTarget(frame, inputs, main, index);
+                    (BattleModelOwner actor, byte contactIndex) = ReadTarget(frame, inputs, main, index);
                     uint color = inputs.ReadModel(frame, actor).Color40 ?? throw new NotSupportedException("Sonic Wave requires the actual target color DWORD.");
-                    NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteWord(14, contactIndex).WriteDword(16, actor).WriteDword(20, color);
+                    NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteWord(14, contactIndex);
+                    child.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                    child = child.WriteDword(20, color);
                     frame = Write(frame, childAddress, child);
                     NativeBattleSonic139PointStep anchor = inputs.ReadAnchor571400(frame, actor);
                     frame = WriteBytes(anchor.Frame, childAddress + 24, anchor.Point8, 8);
@@ -136,7 +138,7 @@ public static partial class NativeBattleSonic139Controller
         NativeBattleSonic139ActStep act = inputs.AdvanceAct(frame, address + 32, resources.TargetAct, new(NativeBattlePackedMatrix32.FromMatrix(matrix, view.Known[18] && view.Known[19] ? BitConverter.ToUInt16(view.Bytes.AsSpan().Slice(18)) : null), 0, frame.State.ReadDword(WorkingGlobal) + MorphOffset) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(139, Read(frame, address), 0x20) });
         frame = act.Frame;
         task = Read(frame, address);
-        uint actor = task.ReadDword(16);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
         if (act.Remaining == 0)
         {
             frame = inputs.Execute(frame, new NativeBattleSonic139WriteActorColor(actor, task.ReadDword(20)));

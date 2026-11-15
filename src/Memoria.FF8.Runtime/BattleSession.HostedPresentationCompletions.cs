@@ -43,9 +43,9 @@ public sealed partial class BattleSession
         }
     }
 
-    internal PreparedHostedDispatch PrepareHostedCompletion(uint callback, int row, string actorId)
+    internal PreparedHostedDispatch PrepareHostedCompletion(uint callback, BattleModelOwner owner, string actorId)
     {
-        return PrepareHostedDispatch([], completion: new(callback, row, actorId));
+        return PrepareHostedDispatch([], completion: new(callback, owner, actorId));
     }
 
     internal void ValidatePreparedHostedCompletion(PreparedHostedDispatch prepared)
@@ -65,8 +65,7 @@ public sealed partial class BattleSession
     {
         NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted completion requires its current ordered receipt service.");
         if (hostedPresentationInvocation is not null || hostedCompletionInvocation is not { Reached: false } pending || !MatchesHostedCompletion(pending, slot, packet) ||
-            graphics.PresentationRoster is not { } roster || !roster.ContainsRow(pending.Request.Row) ||
-            !StringComparer.Ordinal.Equals(roster[pending.Request.Row].ActorId, pending.Request.ActorId))
+            !OwnsHostedCompletionActor(graphics, pending.Request))
         {
             throw new InvalidDataException("The native combat completion is not owned by this hosted descriptor.");
         }
@@ -88,12 +87,16 @@ public sealed partial class BattleSession
     internal bool IsHostedCompletionQueued(long token)
     {
         if (hostedCompletionInvocation is not { Reached: false, Retired: false } pending || pending.Request.Token != token ||
-            NativeGraphics is not { PresentationRoster: { } roster } graphics || !roster.ContainsRow(pending.Request.Row) ||
-            !StringComparer.Ordinal.Equals(roster[pending.Request.Row].ActorId, pending.Request.ActorId))
+            NativeGraphics is not { } graphics || !OwnsHostedCompletionActor(graphics, pending.Request))
         {
             return false;
         }
         return graphics.Descriptors.Queue.Contains(pending.Slot) && MatchesHostedCompletion(pending, pending.Slot, graphics.Descriptors.Packets[pending.Slot]);
+    }
+
+    private static bool OwnsHostedCompletionActor(NativeBattleGraphicsState graphics, NativeBattlePresentationCompletionRequested request)
+    {
+        return graphics.ActorModels.Contains(request.Owner) && StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(request.Owner), request.ActorId);
     }
 
     private static bool MatchesHostedCompletion(HostedCompletionInvocation pending, int slot, NativeBattleDescriptorPacket packet)
@@ -105,12 +108,11 @@ public sealed partial class BattleSession
     {
         if (!hostedBattlePresentation || hostedPresentationInvocation is not null ||
             hostedCompletionInvocation is not { Reached: true, Retired: true } pending || pending.Request.Token != token ||
-            hostedFrameServices is not null || NativeGraphics is not { EntryReady: true, PresentationRoster: { } roster } graphics)
+            hostedFrameServices is not null || NativeGraphics is not { EntryReady: true } graphics)
         {
             throw new InvalidOperationException("Acknowledgement requires the exact reached and retired hosted completion.");
         }
-        RequireHostedActionModelBank(graphics, roster);
-        if (!roster.ContainsRow(pending.Request.Row) || !StringComparer.Ordinal.Equals(roster[pending.Request.Row].ActorId, pending.Request.ActorId))
+        if (!OwnsHostedCompletionActor(graphics, pending.Request))
         {
             throw new InvalidDataException("Hosted completion acknowledgement requires its canonical bound actor.");
         }

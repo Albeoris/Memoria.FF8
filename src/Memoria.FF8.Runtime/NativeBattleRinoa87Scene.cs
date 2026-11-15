@@ -11,10 +11,10 @@ public sealed record NativeBattleRinoa87SceneInputs(NativeBattleRinoa87Inputs Co
 /// <summary>774190/774240's original ten-state scene and its two-stage requests.</summary>
 public static class NativeBattleRinoa87Scene
 {
-    public static NativeBattleRinoa87Frame InitializeTarget(NativeBattleRinoa87Frame frame, uint address, NativeBattleRinoa87Inputs inputs, NativeBattleRinoa87IoResources resources, Func<int, int> minimum501FF0)
+    public static NativeBattleRinoa87Frame InitializeTarget(NativeBattleRinoa87Frame frame, uint address, NativeBattleRinoa87Inputs inputs, NativeBattleRinoa87IoResources resources, Func<BattleModelOwner, BattleModelOwner> minimum501FF0)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        NativeBattleRinoa87SceneMemory scene = NativeBattleRinoa87SceneMemory.Initialize(task.ReadByte(44), task.ReadByte(45), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), minimum501FF0, frame.State.Scene?.Camera);
+        NativeBattleRinoa87SceneMemory scene = NativeBattleRinoa87SceneMemory.Initialize(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner, task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner, inputs.ReadModel, minimum501FF0, frame.State.Scene?.Camera);
         NativeBattleRinoa87IoState io = NativeBattleRinoa87Io.Initialize773D40(frame.State.Io?.Script ?? resources.Script.Data, checked(0x20DFAB8u + (uint)frame.State.AuxiliaryCursor));
         return frame with { State = frame.State with { Scene = scene, Io = io, AuxiliaryCursor = checked(frame.State.AuxiliaryCursor + 40960) } };
     }
@@ -117,7 +117,7 @@ public static class NativeBattleRinoa87Scene
         }
         return new(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, complete ? 2 : 0);
 
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
         void Request(short phase)
         {
             if (scene.CanRequestPhase(phase))

@@ -43,5 +43,5 @@ public static partial class NativeBattleEffect174Lower
         return value;
     }
 
-    private static NativeBattleEffect174Frame L174WriteModel(NativeBattleEffect174Frame frame, int actor, int offset, NativeBattleEffectArena data, int length, NativeBattleEffect174Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, offset, data, length));
+    private static NativeBattleEffect174Frame L174WriteModel(NativeBattleEffect174Frame frame, BattleModelOwner actor, int offset, NativeBattleEffectArena data, int length, NativeBattleEffect174Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, offset, data, length));
 }

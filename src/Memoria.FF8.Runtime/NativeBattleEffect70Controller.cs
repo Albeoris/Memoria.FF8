@@ -15,7 +15,7 @@ public static partial class NativeBattleEffect70Controller
             throw new InvalidDataException("Effect70 requires its previous physical task banks to be released.");
         }
         int offset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect70 requires its executed current TIM initializer.");
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)offset)).WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, PhysicalModelAddress(Parameters(frame).Source)) };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)offset)).WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, Parameters(frame).Source, inputs.ReadPackets(frame).ModelAliases) };
         frame = inputs.Execute(frame, new NativeBattleEffect70UploadTim(frame.State.ReadDword(InitializerGlobal)));
         NativeBattleCureFamilyPool shape = Pools[0];
         NativeBattleEffectTaskPool root = PreparePool(shape, frame.State.ReadRootBank());
@@ -121,9 +121,18 @@ public static partial class NativeBattleEffect70Controller
         return (current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(index, step.Pool) } }, step.Survivors);
     }
 
-    public static int Actor(uint address)
+    internal static BattleModelOwner ReadRecipient(NativeBattleEffect70Frame frame, uint address)
     {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Effect70 requires an actual physical actor pointer.");
+        foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
+        {
+            if (!Contains(pool.BankAddress, pool.Stride * pool.Slots.Length, address, 4))
+            {
+                continue;
+            }
+            int offset = checked((int)(address - pool.BankAddress));
+            return pool.Slots[offset / pool.Stride].ReadExecutionReference<BattleExecutionReference.Model>(offset % pool.Stride, 4).Owner;
+        }
+        throw new InvalidDataException("Effect70 recipient record is absent from its task bank.");
     }
 
     private static void RequireBinding(NativeBattleEffect70Frame frame)

@@ -52,7 +52,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         BattleContactCursor firstContact = header.FirstContact;
-        int target = nativeActionPackets.ReadContact(firstContact).Primary.Recipient;
+        BattleModelOwner target = nativeActionPackets.ReadContact(firstContact).Primary.Recipient;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleDuel274Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDuel274Echo(NativeBattleDuel274Frame frame, NativeBattleGraphicsState graphics, int actor, uint echo, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    private (NativeBattleDuel274Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeDuel274Echo(NativeBattleDuel274Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint echo, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
     {
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native Duel echo requires its actual CPU resource owner.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

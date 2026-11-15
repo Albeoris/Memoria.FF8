@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect167Lower
         int age = Signed(task, 12);
         if (age < 40)
         {
-            int actor = Signed(task, 14);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
             NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, actor);
             frame = inputs.Execute(frame, new NativeBattleEffect167WriteModelBytes(actor, 0, NativeBattleEffectArena.Clear().Write(0, [(byte)(model.Read(0, 1)[0] | 4)]), 1));
             (frame, uint temporary) = Allocate(frame, 464);

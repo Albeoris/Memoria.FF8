@@ -13,15 +13,17 @@ public static partial class NativeBattleEffect187Controller
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
             NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
-            if ((contact.Primary.HitFlags3 & 4) != 0)
+            if ((contact.Primary.HitFlags & 4) != 0)
             {
                 continue;
             }
-            int actor = contact.Primary.Recipient;
+            BattleModelOwner actor = contact.Primary.Recipient;
             NativeBattleGraphicsModel model = inputs.ReadModel(frame, actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect187 actor overlay requires its current model transform.");
             (frame, uint address) = AppendRequired(frame, 0x648AF0);
-            frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteWord(14, checked((ushort)actor)));
+            NativeBattleModulePoolTask actorTask = Read(frame, address).WriteWord(12, 0);
+            actorTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2));
+            frame = Write(frame, address, actorTask);
             NativeBattleEffect187PointStep firstBone = inputs.ReadBone502170(frame, actor, 0xF0, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
             frame = firstBone.Frame;
             NativeBattleEffect187PointStep secondBone = inputs.ReadBone502170(frame, actor, 0xF1, 0, TaskView(Read(frame, address), 0x10, 8));

@@ -140,7 +140,7 @@ public static partial class NativeBattleAquaParticles
                     break;
                 case 1:
                     BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
-                    if (((TargetVisualPhase(inputs.Packets.ModelAliases, target) + task.ReadByte(0x24)) & 1) != 0)
+                    if (NativeBattleEffectVisualPhase.IsOdd(inputs.Packets.ModelAliases, target) != ((task.ReadByte(0x24) & 1) != 0))
                     {
                         hierarchy = hierarchy.Write(address, task);
                         NativeBattleEffectHierarchyAppend child = Add(current, hierarchy, 3, spray ? 0x80C7B0u : 0x80C430u, 340, address, inputs);
@@ -287,33 +287,6 @@ public static partial class NativeBattleAquaParticles
             throw new InvalidOperationException("The Aqua callback exhausted an unguarded original task pool.");
         }
         return result;
-    }
-
-    internal static int TargetVisualPhase(NativeBattleModelAliases aliases, BattleModelOwner target)
-    {
-        if (!aliases.Roster.Contains(target))
-        {
-            throw new InvalidDataException("The Aqua target is absent from the current roster.");
-        }
-        if (aliases.TryEncodeExact(target, out byte originalOperand))
-        {
-            return originalOperand & 1;
-        }
-
-        // Additional actors alternate the visual cadence in roster order.
-        int phase = 0;
-        foreach (BattleModelOwner owner in aliases.Roster.Owners)
-        {
-            if (owner == target)
-            {
-                return phase;
-            }
-            if (!aliases.TryEncodeExact(owner, out _))
-            {
-                phase ^= 1;
-            }
-        }
-        throw new InvalidDataException("The Aqua target is absent from the current roster.");
     }
 
     private static NativeBattleModulePoolTask CasterAnchor(NativeBattleModulePoolTask task, NativeBattleAquaProfile profile, NativeBattleAquaInputs inputs, Action<NativeBattleAquaOperation> publish)

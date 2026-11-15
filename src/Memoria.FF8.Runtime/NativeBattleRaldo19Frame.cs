@@ -29,7 +29,7 @@ public sealed record NativeBattleRaldo19Frame(NativeBattleEffectMemory Memory, N
 }
 
 public abstract record NativeBattleRaldo19Operation;
-public sealed record NativeBattleRaldo19Contact(int Index) : NativeBattleRaldo19Operation;
+public sealed record NativeBattleRaldo19Contact(BattleContactOccurrence Occurrence) : NativeBattleRaldo19Operation;
 public sealed record NativeBattleRaldo19Sound(NativeBattleModuleSound Sound) : NativeBattleRaldo19Operation;
 public sealed record NativeBattleRaldo19GenericTask(uint Address) : NativeBattleRaldo19Operation;
 public sealed record NativeBattleRaldo19BallTask(uint Address) : NativeBattleRaldo19Operation;

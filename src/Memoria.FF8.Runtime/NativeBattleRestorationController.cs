@@ -17,7 +17,7 @@ public static class NativeBattleRestorationController
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor firstContact = header.FirstContact;
-        byte target = packets.ReadContact(firstContact).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(firstContact).Primary.Recipient;
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
@@ -25,7 +25,8 @@ public static class NativeBattleRestorationController
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
+        NativeBattleEffectTaskActors actors = new(header.Source, target, packets.ModelAliases);
+        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native88CF70/883110 requires its actual initializer pointer, including texture-skip entries.");
         if (source > NativeBattleEffectArena.Length - 2 * profile.DrawBankBytes)
@@ -55,9 +56,9 @@ public static class NativeBattleRestorationController
         inputs.Camera.Validate();
         NativeBattleRestorationFrame current = frame with { State = frame.State with { CopiedCamera = inputs.Camera } };
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
@@ -67,7 +68,7 @@ public static class NativeBattleRestorationController
             }
             bool odd = (task.ReadWord(0x5C) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : profile.DrawBankBytes)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? profile.DrawBankBytes : 2 * profile.DrawBankBytes)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -101,7 +102,7 @@ public static class NativeBattleRestorationController
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < unchecked((short)task.ReadWord(0x58)))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
                         }
                         else
                         {
@@ -171,14 +172,14 @@ public static class NativeBattleRestorationController
             {
                 throw new NotSupportedException("Native Esuna/Full-life child pool has an unsupported callback.");
             }
-            int target = task.ReadByte(0x2D);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             if (inputs.ReadForeignTarget?.Invoke(target) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
             }
             else
             {
-                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+                task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
                 NativeBattleGraphicsModel model = inputs.ReadModel(target);
                 NativeBattleSequenceState pose = model.SequenceState ?? throw new NotSupportedException("Native8DC870 requires the target's current decoded pose.");
                 NativeBattlePoseSource source = inputs.ReadPoseSource(target);
@@ -209,8 +210,7 @@ public static class NativeBattleRestorationController
                     if (unchecked((short)task.ReadWord(0x24)) >= 30)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native892E10/8883C0 requires its selected group's contact pointer.");
-                        int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         if (inputs.ApplyContact is { } applyContact)
                         {
                             current = applyContact(current, contact);

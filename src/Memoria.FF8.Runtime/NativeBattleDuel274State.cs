@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -30,7 +31,16 @@ public sealed record NativeBattleDuel274Frame(NativeBattleEffectMemory Memory, N
 }
 public sealed record NativeBattleDuel274TaskStep(NativeBattleDuel274Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
 
-public sealed record NativeBattleDuel274ActorServices(Func<int, ushort> ReadFlags, Action<int, ushort> WriteFlags, Func<int, uint> ReadLinkedModel140, Func<int, int> ResolveMinimum501FF0, Func<int, (short Maximum, short Minimum)> ReadBounds6DFD90)
+public sealed record NativeBattleDuel274ActorServices(NativeBattleModelAliases Aliases, Func<BattleModelOwner, ushort> ReadFlags, Action<BattleModelOwner, ushort> WriteFlags, Func<BattleModelOwner, BattleModelOwner?> ReadLinkedModel140, Func<BattleModelOwner, BattleModelOwner> ResolveMinimum501FF0, Func<BattleModelOwner, (short Maximum, short Minimum)> ReadBounds6DFD90)
 {
-    public Func<int, byte, bool>? IsNativeModel { get; init; }
+    public Func<BattleModelOwner, byte, bool>? IsNativeModel { get; init; }
+}
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> Duel274SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, short> Duel274SavedPartyZ { get; init; } = ImmutableDictionary<BattleModelOwner, short>.Empty;
 }

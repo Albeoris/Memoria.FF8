@@ -117,7 +117,7 @@ public static partial class NativeBattleOilBlast137Controller
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);
     }
 
-    private static NativeBattleOilBlast137Frame CaptureBone(NativeBattleOilBlast137Frame frame, uint taskAddress, int offset, uint model, byte selector, NativeBattleOilBlast137Inputs inputs)
+    private static NativeBattleOilBlast137Frame CaptureBone(NativeBattleOilBlast137Frame frame, uint taskAddress, int offset, BattleModelOwner model, byte selector, NativeBattleOilBlast137Inputs inputs)
     {
         NativeBattleOilBlast137PointStep result = inputs.ReadBone502170(frame, model, selector, 0);
         return Write(result.Frame, taskAddress, PutVector(Read(result.Frame, taskAddress), offset, result.Point));

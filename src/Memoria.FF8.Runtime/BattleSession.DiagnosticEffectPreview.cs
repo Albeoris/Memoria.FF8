@@ -61,12 +61,12 @@ public sealed partial class BattleSession
         BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == 0);
         byte sequence = ResolveNativeDispatchSequence(actor, command, 0, action);
         NativeBattleActionHeaderPreparation header = new(0, command, sequence, -1, action, effect, null);
-        (nativeActionPackets, int index) = nativeActionPackets.Prepare(header);
+        (nativeActionPackets, BattleActionHeaderReference index) = nativeActionPackets.Prepare(header);
         (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(3, 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
         (nativeActionPackets, _) = nativeActionPackets.Publish(1);
         nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(index, 1);
         ObserveDiagnosticPreparedHeader(index);
-        NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)index));
+        NativeGraphics = QueueNativeActionDescriptor(graphics, index);
         diagnosticEffectPreviewPublished = true;
     }
 }

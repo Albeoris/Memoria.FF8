@@ -23,7 +23,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         int factor = unchecked(age << 12) / 29;
         uint recordAddress = task.ReadDword(0xC);
         NativeBattleEffectArena record = ReadView(frame, recordAddress, 0x24);
-        int actor = Actor(TargetDword(record, 0));
+        BattleModelOwner actor = ReadTargetOwner(frame, recordAddress);
         NativeBattleEffectArena position = inputs.ReadPosition8(actor);
         int height = (TargetWord(record, 0x20) + TargetWord(record, 0x22)) / 2;
         NativeBattleEffectArena context = TargetContext(frame, TargetWord(position, 0), unchecked((short)(TargetWord(position, 2) + height)), TargetWord(position, 4), -1024);
@@ -57,7 +57,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         }
         int remaining = unchecked(4096 - factor);
         int rotationDelta = remaining / 8;
-        if ((actor & 1) == 0)
+        if (!NativeBattleEffectVisualPhase.IsOdd(inputs.Packets.ModelAliases, actor))
         {
             rotationDelta = -rotationDelta;
         }
@@ -71,7 +71,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         frame = Write(frame, address, task);
         if (Signed(task, 0x10) >= 30)
         {
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)actor, 8, 0));
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(actor, 8, 0));
             return new(frame, 2);
         }
         return new(frame, 0);
@@ -84,7 +84,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         int duration = Signed(task, 0x12);
         uint recordAddress = task.ReadDword(0xC);
         NativeBattleEffectArena record = ReadView(frame, recordAddress, 0x24);
-        int actor = Actor(TargetDword(record, 0));
+        BattleModelOwner actor = ReadTargetOwner(frame, recordAddress);
         int targetScale = unchecked((int)TargetDword(record, 0x18));
         int scale = age < 13 ? unchecked(4096 - unchecked((4096 - targetScale) * age) / 13) : targetScale;
         frame = WriteDword(frame, recordAddress + 0x1C, unchecked((uint)scale));
@@ -105,7 +105,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
                 frame = InitializeAct(frame, childAddress, 0x14, 0xD8, 0x111D424, resources);
             }
             int rotationDelta = fraction / 8;
-            if ((actor & 1) == 0)
+            if (!NativeBattleEffectVisualPhase.IsOdd(inputs.Packets.ModelAliases, actor))
             {
                 rotationDelta = -rotationDelta;
             }
@@ -130,25 +130,25 @@ public static partial class NativeBattleShockwavePulsar260Controller
         short currentScale = unchecked((short)ReadWord(frame, recordAddress + 0x1C));
         if (TargetDword(record, 0x14) != 0)
         {
-            foreach (int linked in TargetRing(actor, inputs))
+            foreach (BattleModelOwner linked in TargetRing(actor, inputs))
             {
                 if ((inputs.ReadModel(linked).Flags0 & 2) != 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)linked, rotation, bodyOffset, currentScale) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), linked) });
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody(linked, rotation, bodyOffset, currentScale) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), 0) with { ModelOwner = linked } });
                 }
             }
-            foreach (int linked in TargetRing(actor, inputs))
+            foreach (BattleModelOwner linked in TargetRing(actor, inputs))
             {
                 if ((inputs.ReadModel(linked).Flags0 & 2) != 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)linked, 0, 4));
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(linked, 0, 4));
                 }
             }
         }
         else
         {
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)actor, rotation, bodyOffset, currentScale) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), actor) });
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)actor, 0, 4));
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody(actor, rotation, bodyOffset, currentScale) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), 0) with { ModelOwner = actor } });
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(actor, 0, 4));
         }
         frame = Write(frame, address, Read(frame, address).WriteWord(0x10, unchecked((ushort)(age + 1))));
         return new(frame, 0);
@@ -167,27 +167,27 @@ public static partial class NativeBattleShockwavePulsar260Controller
         return NativeBattleEffectArena.Clear().MarkUnknown(0, 20).Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z)).Write(8, BitConverter.GetBytes(0x112D190u)).Write(0xC, BitConverter.GetBytes(depth)).Write(0x10, BitConverter.GetBytes(checked(frame.State.ReadDword(WorkingGlobal) + MorphOffset)));
     }
 
-    private static NativeBattleShockwavePulsar260Frame TargetPositionY(NativeBattleShockwavePulsar260Frame frame, int actor, short y, NativeBattleShockwavePulsar260Inputs inputs) => inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite((byte)actor, 0x1E, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(y)), 2));
+    private static NativeBattleShockwavePulsar260Frame TargetPositionY(NativeBattleShockwavePulsar260Frame frame, BattleModelOwner actor, short y, NativeBattleShockwavePulsar260Inputs inputs) => inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite(actor, 0x1E, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(y)), 2));
     private static short TargetWord(NativeBattleEffectArena view, int offset) => BinaryPrimitives.ReadInt16LittleEndian(view.Read(offset, 2));
     private static uint TargetDword(NativeBattleEffectArena view, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(view.Read(offset, 4));
 
-    private static IEnumerable<int> TargetRing(int first, NativeBattleShockwavePulsar260Inputs inputs)
+    private static IEnumerable<BattleModelOwner> TargetRing(BattleModelOwner first, NativeBattleShockwavePulsar260Inputs inputs)
     {
-        HashSet<int> visited = [];
-        int current = first;
+        HashSet<BattleModelOwner> visited = [];
+        BattleModelOwner current = first;
         while (true)
         {
-            if (current is < 0 or > 6 || !visited.Add(current))
+            if (!inputs.Packets.Roster.Contains(current) || !visited.Add(current))
             {
                 throw new NotSupportedException("Shockwave Pulsar requires its actual terminated or circular linked-model ring.");
             }
             yield return current;
-            int? next = inputs.ReadLinkedActor(current);
+            BattleModelOwner? next = inputs.ReadLinkedActor(current);
             if (next is null || next == first)
             {
                 yield break;
             }
-            current = next.Value;
+            current = next;
         }
     }
 }

@@ -1,8 +1,6 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanPrimaryFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleGraphicsModel> Models, ushort Highlight269AA90, short? CameraAngle3A);
+public sealed record NativeBattleScanPrimaryFrame(NativeBattleScanFrame Scan, BattleActorModels Models, ushort Highlight269AA90, short? CameraAngle3A);
 public sealed record NativeBattleScanPrimaryStep(NativeBattleScanPrimaryFrame Frame, int Result);
 
 /// <summary>84D4B0's normal-target timeline, retaining its real child tasks and their completion counters.</summary>
@@ -126,13 +124,9 @@ public static class NativeBattleScanPrimary
 
         void SetModelFlags(Func<ushort, ushort> change)
         {
-            int target = task.ReadByte(0x2D);
-            if (frame.Models.IsDefault || frame.Models.Length != 7 || target >= 7 || frame.Models[target].Index != target)
-            {
-                throw new InvalidDataException("Native Scan primary requires its seven actual physical models.");
-            }
-            NativeBattleGraphicsModel model = frame.Models[target];
-            frame = frame with { Models = frame.Models.SetItem(target, model with { Flags0 = change(model.Flags0) }) };
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+            NativeBattleGraphicsModel model = frame.Models.Get(target);
+            frame = frame with { Models = frame.Models.Set(target, model with { Flags0 = change(model.Flags0) }) };
         }
     }
 }

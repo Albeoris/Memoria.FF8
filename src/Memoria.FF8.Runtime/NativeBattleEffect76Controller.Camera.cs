@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect76Controller
 {
-    public static NativeBattleEffect76Frame BeginCamera63E960(NativeBattleEffect76Frame frame, NativeBattleEffect76Resources resources)
+    public static NativeBattleEffect76Frame BeginCamera63E960(NativeBattleEffect76Frame frame, NativeBattleEffect76Resources resources, NativeBattleEffect76Inputs inputs)
     {
         NativeBattleGuardianCameraProcess process = frame.Memory.GuardianCameraProcess ?? throw new NotSupportedException("Effect76 requires its retained camera process.");
         NativeBattleGuardianCameraTask camera = NativeBattleGuardianCameraProgram.Begin63E960(process, resources.Camera.Data, 0);
@@ -15,8 +15,10 @@ public static partial class NativeBattleEffect76Controller
         {
             throw new NotSupportedException("Effect76 exhausted its required camera task bank.");
         }
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
-        frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteDword(20, CameraAddress).WriteDword(24, CapturedWorldAddress).WriteDword(28, ModelAddress(actor)));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
+        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteDword(20, CameraAddress).WriteDword(24, CapturedWorldAddress);
+        task.WriteExecutionReference(28, 4, new BattleExecutionReference.Model(actor), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(actor));
+        frame = Write(frame, address, task);
         return frame with { Memory = frame.Memory with { GuardianCameraProcess = camera.Process }, State = frame.State with { CameraTasks = frame.State.CameraTasks.Add(address, camera) } };
     }
 
@@ -24,7 +26,7 @@ public static partial class NativeBattleEffect76Controller
     {
         NativeBattleGuardianCameraTask camera = frame.State.CameraTasks.TryGetValue(address, out NativeBattleGuardianCameraTask? current) ? current : throw new NotSupportedException("Effect76 requires its actually appended camera task.");
         NativeBattleModulePoolTask task = Read(frame, address);
-        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || task.ReadDword(20) != CameraAddress + (uint)camera.Offset || task.ReadDword(24) != CapturedWorldAddress || task.ReadDword(28) != ModelAddress(checked((int)frame.State.ReadDword(CasterGlobal))))
+        if (task.Callback != 0x63E9C0 || task.ReadWord(12) != camera.Frame || task.ReadDword(20) != CameraAddress + (uint)camera.Offset || task.ReadDword(24) != CapturedWorldAddress || task.ReadExecutionReference<BattleExecutionReference.Model>(28, 4).Owner != frame.State.ReadModelOperand(CasterGlobal))
         {
             throw new InvalidDataException("Effect76 camera lost its actual task operands.");
         }

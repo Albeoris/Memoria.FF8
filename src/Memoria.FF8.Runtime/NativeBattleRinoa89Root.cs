@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa89RootInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa89Frame, int, NativeBattleRinoa89Frame> PrepareBody, Func<NativeBattleRinoa89Frame, uint, int, NativeBattleRinoa89TaskStep> AdvanceChild);
+public sealed record NativeBattleRinoa89RootInputs(NativeBattleModelAliases Aliases, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa89Frame, int, NativeBattleRinoa89Frame> PrepareBody, Func<NativeBattleRinoa89Frame, uint, int, NativeBattleRinoa89TaskStep> AdvanceChild);
 
 public static partial class NativeBattleRinoa89Controller
 {
@@ -19,7 +19,7 @@ public static partial class NativeBattleRinoa89Controller
             NativeBattleModulePoolTask task = pool.Slots[slot];
             if (task.ReadWord(12) == 2)
             {
-                frame = SnapshotModels6FA270(frame, inputs.ReadModel);
+                frame = SnapshotModels6FA270(frame, inputs.Aliases, inputs.ReadModel);
                 if (task.ReadByte(15) == 0)
                 {
                     task = task.WriteByte(15, 1);

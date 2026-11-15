@@ -24,7 +24,7 @@ public sealed record NativeBattleRush91Sound(uint Descriptor, int First, int Sec
 public sealed record NativeBattleRush91CommonTextureLoad(int DestinationArenaOffset, uint CompletionAddress) : NativeBattleRush91Operation;
 public sealed record NativeBattleRush91Sprite(NativeBattleModulePoolTask Task) : NativeBattleRush91Operation;
 public sealed record NativeBattleRush91Mesh(NativeBattleModulePoolTask Task) : NativeBattleRush91Operation;
-public sealed record NativeBattleRush91Contact(int Contact) : NativeBattleRush91Operation;
+public sealed record NativeBattleRush91Contact(BattleContactOccurrence Occurrence) : NativeBattleRush91Operation;
 public sealed record NativeBattleRush91ModelDrawStep(NativeBattleRush91Frame Frame, NativeBattleModulePoolTask Task);
 public sealed record NativeBattleRush91ProgramStep(NativeBattleRush91Frame Frame, NativeBattleModulePoolTask Task, int Remaining);
 public sealed record NativeBattleRush91NodesStep(NativeBattleRush91Frame Frame, bool Complete);

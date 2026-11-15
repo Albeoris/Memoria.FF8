@@ -1,29 +1,16 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePandemona291Vibration(NativeBattlePandemona291Frame Frame, int Handle);
 public sealed record NativeBattlePandemona291BoundStep(NativeBattlePandemona291Frame Frame, NativeBattlePandemona291Bounds Bounds);
-public sealed record NativeBattlePandemona291ConstructionInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattlePandemona291Frame, int, NativeBattlePandemona291BoundStep> Bounds, Func<NativeBattlePandemona291Frame, NativeBattlePandemona291Vibration> StartVibration);
+public sealed record NativeBattlePandemona291ConstructionInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattlePandemona291Frame, BattleModelOwner, NativeBattlePandemona291BoundStep> Bounds, Func<NativeBattlePandemona291Frame, NativeBattlePandemona291Vibration> StartVibration);
 
 public static class NativeBattlePandemona291Construction
 {
-    internal static void ValidateHostedRows(NativeBattleActionPacketsState packets, NativeBattleEffectParameters? parameters)
+    internal static BattleModelOwner ReadTargetOwner(NativeBattleEffectArena arena, int recordOffset)
     {
-        if (packets.PresentationRoster is not { } roster)
-        {
-            return;
-        }
-        if (parameters is null)
-        {
-            throw new NotSupportedException("Native Pandemona requires its current action parameters.");
-        }
-        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
-        if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.Recipient)))
-        {
-            throw new InvalidDataException("Hosted Pandemona requires a bound caster and at least one bound recipient model row.");
-        }
+        return arena.ReadExecutionReference<BattleExecutionReference.Model>(recordOffset, 4).Owner;
     }
 
     public static NativeBattlePandemona291Frame Initialize6ED3B6(NativeBattlePandemona291Frame frame, NativeBattlePandemona291ConstructionInputs inputs)
@@ -35,8 +22,6 @@ public static class NativeBattlePandemona291Construction
             throw new NotSupportedException("Native Pandemona construction requires the actual current arena buffer.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona construction requires its arena.");
-        BattleModelRoster? roster = inputs.Packets.PresentationRoster;
-        ValidateHostedRows(inputs.Packets, frame.Effect.Parameters);
         ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools;
         AddPool(0x25562A8, 0x21A4, 0x1030, 1);
         AddPool(0x2556298, 0x1AA4, 0x1C, 0x40);
@@ -57,14 +42,14 @@ public static class NativeBattlePandemona291Construction
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona construction requires its action header.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int count = header.ReadContactCount();
-        int first = count == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Native Pandemona construction requires its actual contact array.");
+        BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < count; index++)
         {
-            int actorIndex = inputs.Packets.ReadContact(first + index).Primary.Recipient;
-            NativeBattleGraphicsModel actor = inputs.ReadModel(actorIndex);
+            BattleModelOwner owner = inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            NativeBattleGraphicsModel actor = inputs.ReadModel(owner);
             NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native Pandemona target requires its current position and scale.");
             int record = child + 0x14 + index * 32;
-            WriteDword(record, NativeBattleGraphicsModelAddress.Encode(actorIndex));
+            arena = arena.WriteExecutionReference(record, 4, new BattleExecutionReference.Model(owner), inputs.Packets.ModelAliases.EncodeAddress(owner));
             WriteWord(record + 0xC, unchecked((ushort)transform.Position28.X));
             WriteWord(record + 0xE, unchecked((ushort)transform.Position28.Y));
             WriteWord(record + 0x10, unchecked((ushort)transform.Position28.Z));
@@ -77,7 +62,7 @@ public static class NativeBattlePandemona291Construction
             int factor = transform.Scale38 == 0 ? 16 : 65536 / (transform.Scale38 + 1024);
             WriteWord(record + 8, unchecked((ushort)factor));
             frame = frame with { Memory = frame.Memory with { Arena = arena } };
-            NativeBattlePandemona291BoundStep bound = inputs.Bounds(frame, actorIndex);
+            NativeBattlePandemona291BoundStep bound = inputs.Bounds(frame, owner);
             frame = bound.Frame;
             arena = frame.Memory.Arena!;
             WriteWord(record + 4, unchecked((ushort)bound.Bounds.Maximum));
@@ -91,8 +76,8 @@ public static class NativeBattlePandemona291Construction
                 int right = child + 0x14 + next * 32;
                 if (ReadActor(left).Transform!.Position28.X < ReadActor(right).Transform!.Position28.X)
                 {
-                    var saved = arena.ReadSnapshot(left, 32);
-                    CopySnapshot(right, left);
+                    var saved = ReadSnapshot(left);
+                    StoreSnapshot(left, ReadSnapshot(right));
                     StoreSnapshot(right, saved);
                 }
             }
@@ -100,28 +85,24 @@ public static class NativeBattlePandemona291Construction
         for (int index = 0; index < count; index++)
         {
             int record = child + 0x14 + index * 32;
-            int source = ActorIndex(record);
+            BattleModelOwner source = ReadTargetOwner(arena, record);
             NativeBattleGraphicsModel actor = inputs.ReadModel(source);
-            int? linked = actor.ReadLinkedModelIndex140();
+            BattleModelOwner? linked = actor.ReadLinkedModel();
             bool onlyTarget = true;
-            HashSet<int> visited = [];
-            while (linked is int current && current != source)
+            HashSet<BattleModelOwner> visited = [];
+            while (linked is { } current && current != source)
             {
                 if (!visited.Add(current))
                 {
                     throw new InvalidDataException("Native Pandemona linked target ring does not close at its source.");
                 }
-                if (roster is not null && !roster.ContainsRow(current))
-                {
-                    throw new InvalidDataException("Hosted Pandemona linked target ring leaves its bound model rows.");
-                }
                 NativeBattleGraphicsModel other = inputs.ReadModel(current);
-                if ((other.Flags0 & 2) != 0 && Enumerable.Range(0, count).Any(target => ActorIndex(child + 0x14 + target * 32) == current))
+                if ((other.Flags0 & 2) != 0 && Enumerable.Range(0, count).Any(target => ReadTargetOwner(arena, child + 0x14 + target * 32) == current))
                 {
                     onlyTarget = false;
                     break;
                 }
-                linked = other.ReadLinkedModelIndex140();
+                linked = other.ReadLinkedModel();
             }
             arena = arena.Write(record + 0x1E, new byte[] { onlyTarget ? (byte)1 : (byte)0 });
         }
@@ -152,18 +133,13 @@ public static class NativeBattlePandemona291Construction
 
         void WriteWord(int offset, ushort value) => arena = arena.Write(offset, BitConverter.GetBytes(value));
         void WriteDword(int offset, uint value) => arena = arena.Write(offset, BitConverter.GetBytes(value));
-        int ActorIndex(int record)
+        NativeBattleGraphicsModel ReadActor(int record) => inputs.ReadModel(ReadTargetOwner(arena, record));
+        (byte[] Data, bool[] Known, BattleModelOwner Owner) ReadSnapshot(int source)
         {
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(record, 4));
-            if (roster is null)
-            {
-                return NativeBattleGraphicsModelAddress.Decode(pointer);
-            }
-            return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actor, roster) ? actor : throw new InvalidDataException("Hosted Pandemona target record leaves its bound model rows.");
+            (byte[] data, bool[] known) = arena.ReadSnapshot(source, 32);
+            return (data, known, ReadTargetOwner(arena, source));
         }
-        NativeBattleGraphicsModel ReadActor(int record) => inputs.ReadModel(ActorIndex(record));
-        void CopySnapshot(int source, int destination) => StoreSnapshot(destination, arena.ReadSnapshot(source, 32));
-        void StoreSnapshot(int destination, (byte[] Data, bool[] Known) snapshot)
+        void StoreSnapshot(int destination, (byte[] Data, bool[] Known, BattleModelOwner Owner) snapshot)
         {
             arena = arena.Write(destination, snapshot.Data);
             for (int index = 0; index < snapshot.Known.Length; index++)
@@ -173,6 +149,8 @@ public static class NativeBattlePandemona291Construction
                     arena = arena.MarkUnknown(destination + index, 1);
                 }
             }
+            ImmutableArray<byte>? address = snapshot.Known.AsSpan(0, 4).Contains(false) ? null : snapshot.Data.AsSpan(0, 4).ToArray().ToImmutableArray();
+            arena = arena.WriteExecutionReference(destination, 4, new BattleExecutionReference.Model(snapshot.Owner), address);
         }
     }
 }

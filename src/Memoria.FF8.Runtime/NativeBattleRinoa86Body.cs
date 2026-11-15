@@ -3,12 +3,12 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa86BindActor(BattleModelOwner Actor, uint Resource, uint SavedModel) : NativeBattleRinoa86Operation;
-public sealed record NativeBattleRinoa86ActorSequence(byte Actor, short Sequence) : NativeBattleRinoa86Operation;
+public sealed record NativeBattleRinoa86ActorSequence(BattleModelOwner Actor, short Sequence) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86ActorFlags(BattleModelOwner Actor, ushort Flags) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86Sound(uint Descriptor, short Argument, short Volume) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86Emit(uint Body, int Mode) : NativeBattleRinoa86Operation;
 public sealed record NativeBattleRinoa86PublishWorld(ImmutableArray<byte> Matrix) : NativeBattleRinoa86Operation;
-public sealed record NativeBattleRinoa86BodyInputs(NativeBattleRinoa86Inputs Controller, NativeBattleRinoa86Resources Resources, Func<NativeBattleRinoa86Frame, byte, ushort> ReadActorFlags, Func<NativeBattleRinoa86Frame, NativeBattleRinoa86Operation, NativeBattleRinoa86Frame> Execute, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86Frame> Draw780130, Func<NativeBattleRinoa86Frame, uint, byte, NativeBattleVector> ReadBone502170);
+public sealed record NativeBattleRinoa86BodyInputs(NativeBattleRinoa86Inputs Controller, NativeBattleRinoa86Resources Resources, Func<NativeBattleRinoa86Frame, BattleModelOwner, ushort> ReadActorFlags, Func<NativeBattleRinoa86Frame, NativeBattleRinoa86Operation, NativeBattleRinoa86Frame> Execute, Func<NativeBattleRinoa86Frame, uint, NativeBattleRinoa86Frame> Draw780130, Func<NativeBattleRinoa86Frame, uint, byte, NativeBattleVector> ReadBone502170);
 
 /// <summary>77FF90 and its eleven original body phases, with physical child pools and retained pose ownership.</summary>
 public static class NativeBattleRinoa86Body
@@ -21,7 +21,7 @@ public static class NativeBattleRinoa86Body
             throw new InvalidDataException("Native77FF90 requires its original352-byte body task.");
         }
         NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86Scene.Read(frame);
-        byte actor = task.ReadByte(44);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner;
         switch (unchecked((sbyte)task.ReadByte(41)))
         {
             case 0:
@@ -227,7 +227,7 @@ public static class NativeBattleRinoa86Body
                 frame = frame with { State = frame.State with { Counter25BC218 = value, Counter25B7080 = value } };
             }
         }
-        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
         void AppendBodyLayer(uint callback)
         {
             Store();

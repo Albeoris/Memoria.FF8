@@ -19,9 +19,9 @@ public static class NativeBattleDuel216Controller
     public const uint Small = 0x2508888;
     public const uint Arena = 0x20DFAB8;
 
-    public static NativeBattleDuel216Frame Enter695A10(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel216Resources resources, NativeCrtRandomState random, int minimumTargetIndex)
+    public static NativeBattleDuel216Frame Enter695A10(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleDuel216Resources resources, NativeCrtRandomState random, BattleModelOwner minimumTarget, NativeBattleModelAliases aliases)
     {
-        if (effect.Binding is not { Effect: 216, Entry: 0x6959E0, Initializer: 0x6959F0 } || effect.Parameters is not { } parameters || (uint)minimumTargetIndex >= 7)
+        if (effect.Binding is not { Effect: 216, Entry: 0x6959E0, Initializer: 0x6959F0 } || effect.Parameters is not { } parameters || !aliases.Roster.Contains(minimumTarget))
         {
             throw new InvalidDataException("Native Duel216 requires its original entered binding, parameters and501FF0 target.");
         }
@@ -35,7 +35,9 @@ public static class NativeBattleDuel216Controller
         NativeBattleEffectResourcePointer tim = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2508870) ?? throw new NotSupportedException("Native Duel216 requires its actual initializer texture pointer.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Duel216 requires its actual texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Duel216 requires its retained arena."), tim.ArenaOffset);
-        staging = Dword(Dword(Dword(Dword(Dword(staging, 0x2508870, checked(Arena + (uint)tim.ArenaOffset)), 0x250890C, Arena), 0x250887C, 0x1D99A78), 0x2508880, NativeBattleGraphicsModelAddress.Encode(parameters.Source)), 0x2508884, NativeBattleGraphicsModelAddress.Encode(minimumTargetIndex));
+        staging = Dword(Dword(Dword(staging, 0x2508870, checked(Arena + (uint)tim.ArenaOffset)), 0x250890C, Arena), 0x250887C, 0x1D99A78)
+            .WriteExecutionReference(0x2508880, 4, new BattleExecutionReference.Model(parameters.Source), aliases.EncodeAddress(parameters.Source))
+            .WriteExecutionReference(0x2508884, 4, new BattleExecutionReference.Model(minimumTarget), aliases.EncodeAddress(minimumTarget));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x25088D8, 16, 1);
         (root, int slot) = root.Append(0x695AB0);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
@@ -172,6 +174,8 @@ public static class NativeBattleDuel216Controller
         int[] matches = Enumerable.Range(0, frame.Effect.Pools.Length).Where(index => frame.Effect.Pools[index].DescriptorAddress == descriptor).ToArray();
         return matches.Length == 1 ? matches[0] : throw new InvalidDataException("Native Duel216 requires one physical descriptor owner.");
     }
+
+    internal static BattleModelOwner ReadModelOwner(NativeBattleFileStaging staging, uint address) => staging.ReadExecutionReference<BattleExecutionReference.Model>(address, 4).Owner;
 
     private static uint ReadDword(NativeBattleFileStaging staging, uint address) => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(address, 4));
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value) => staging.Write(address, BitConverter.GetBytes(value));

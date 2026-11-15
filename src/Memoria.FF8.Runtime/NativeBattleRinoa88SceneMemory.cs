@@ -9,19 +9,11 @@ public sealed record NativeBattleRinoa88SceneMemory([property: JsonRequired] Nat
     public NativeBattleMoogleCameraState? Camera { get; init; }
     public bool? CameraAnchorPaddingKnown { get; init; }
 
-    public static NativeBattleRinoa88SceneMemory Initialize(byte caster, byte target, IReadOnlyList<NativeBattleGraphicsModel> models, NativeBattleMoogleCameraState? retainedCamera, bool? retainedAnchorPaddingKnown)
+    public static NativeBattleRinoa88SceneMemory Initialize(BattleModelOwner caster, BattleModelOwner target, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, NativeBattleMoogleCameraState? retainedCamera, bool? retainedAnchorPaddingKnown)
     {
-        if (models.Count != 7 || caster >= 7 || target >= 7)
-        {
-            throw new InvalidDataException("Native768E20 requires its actual seven model rows and selected actors.");
-        }
-        int selected = target;
-        if ((uint)selected >= models.Count)
-        {
-            throw new InvalidDataException("Native768E20 selected target leaves its physical bank.");
-        }
-        NativeBattleModelTransform actor = models[caster].Transform ?? throw new NotSupportedException("Native768E20 requires its caster's actual position owner.");
-        NativeBattleModelTransform enemy = models[selected].Transform ?? throw new NotSupportedException("Native768E20 requires its selected target model's actual position and scale.");
+        BattleModelOwner selected = target;
+        NativeBattleModelTransform actor = readModel(caster).Transform ?? throw new NotSupportedException("Native768E20 requires its caster's actual position owner.");
+        NativeBattleModelTransform enemy = readModel(selected).Transform ?? throw new NotSupportedException("Native768E20 requires its selected target model's actual position and scale.");
         NativeBattleRinoa88SceneMemory result = new(NativeBattleEffectArena.Clear()) { Camera = retainedCamera, CameraAnchorPaddingKnown = retainedAnchorPaddingKnown };
         Copy(0, actor);
         Copy(8, enemy);

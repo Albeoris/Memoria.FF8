@@ -29,14 +29,14 @@ public sealed partial class BattleSession
             int size = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Effect314 requires its original loaded scratch capacity.")) * 8);
             return NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(checked(0x196B018u - (uint)size)));
         }
-        if (TryResolveNativeModelRead(graphics, address, length, out int modelOffset))
+        if (TryResolveNativeModelRead(address, length, out int modelOffset))
         {
             if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
             {
                 throw new InvalidDataException("Effect314 model read crosses a physical model row.");
             }
-            (int actor, int offset) = NativeBattleGraphicsModelAddress.ResolveField(address, length, graphics.Models.Length);
-            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+            (NativeBattleModelSlot slot, int offset) = NativeBattleGraphicsModelAddress.ResolveOriginalField(address, length);
+            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         for (int actor = 0; actor < graphics.Models.Length; actor++)
         {

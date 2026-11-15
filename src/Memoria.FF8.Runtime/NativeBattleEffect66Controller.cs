@@ -17,9 +17,9 @@ public static partial class NativeBattleEffect66Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleModelOwner actor = parameters.Source;
-        int target = packets.ReadContact(header.FirstContact).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(header.FirstContact).Primary.Recipient;
         int textureOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect66 requires its actual executed initializer pointer.");
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)textureOffset)).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(CommonAddress + (uint)textureOffset)).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOperand(CasterGlobal, actor, packets.ModelAliases).WriteModelOperand(TargetGlobal, target, packets.ModelAliases) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool child = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);
@@ -115,7 +115,6 @@ public static partial class NativeBattleEffect66Controller
         return new(frame, survivors == 0 ? 2 : 0);
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect66 requires an actual physical model.");
     private static void RequireBinding(NativeBattleEffect66Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

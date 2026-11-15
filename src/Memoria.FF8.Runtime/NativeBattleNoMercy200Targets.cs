@@ -1,6 +1,15 @@
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleNoMercy200TargetInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor, Func<int, short> ReadScale38, Func<int, short> ReadGround36);
+public sealed record NativeBattleNoMercy200TargetInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor, Func<BattleModelOwner, short> ReadScale38, Func<BattleModelOwner, short> ReadGround36);
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableHashSet<BattleModelOwner> NoMercyBusyTargets { get; init; } = ImmutableHashSet<BattleModelOwner>.Empty;
+}
 
 public static partial class NativeBattleNoMercy200Controller
 {
@@ -10,6 +19,7 @@ public static partial class NativeBattleNoMercy200Controller
         {
             frame = frame with { Staging = WriteDword(frame.Staging, address, 1) };
         }
+        frame = frame with { Effect = frame.Effect with { NoMercyBusyTargets = ImmutableHashSet<BattleModelOwner>.Empty } };
         pool = AppendHeader(frame, pool, inputs.Packets, 0);
         return new(frame, pool, 0);
     }
@@ -29,55 +39,51 @@ public static partial class NativeBattleNoMercy200Controller
         if (Word(task, 34) == 12)
         {
             int next = Word(task, 14) + 1;
-            if (next <= inputs.Packets.Headers[parameters.Header].ReadByte(17))
+            if (next <= inputs.Packets.ReadHeader(parameters.Header).ReadRepeatModeMinusOne())
             {
                 pool = AppendHeader(frame, pool, inputs.Packets, next);
             }
         }
         task = task.WriteWord(34, unchecked((ushort)(task.ReadWord(34) + 1)));
         bool single = task.Callback == 0x639FD0;
-        int actor = single ? Word(task, 32) : -1;
-        if (single)
+        BattleModelOwner? actor = single ? task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner : null;
+        if (actor is { } owner && Word(task, 12) == 0)
         {
-            uint address = checked(0xE33D70u + (uint)actor * 4);
-            if (ReadDword(frame.Staging, address) == 0 && Word(task, 12) == 0)
+            if (frame.Effect.NoMercyBusyTargets.Contains(owner))
             {
                 return new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), 0);
             }
-            if (Word(task, 12) == 0)
-            {
-                frame = frame with { Staging = WriteDword(frame.Staging, address, 0) };
-            }
+            frame = SetBusyTarget(frame, inputs.Packets.ModelAliases, owner, true);
         }
         if (Word(task, 12) == 1)
         {
-            if (single)
+            if (actor is { } selected)
             {
-                Spawn(actor, 4);
+                Spawn(selected, 4);
             }
             else
             {
-                NativeBattleActionHeaderSlot header = inputs.Packets.Headers[checked(parameters.Header + Word(task, 14))];
+                NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header.Advance(Word(task, 14)));
                 int count = header.ReadContactCount();
                 if (count > 0)
                 {
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy requires its actual grouped contact pointer.");
+                    BattleContactCursor first = header.FirstContact;
                     for (int index = 0; index < count; index++)
                     {
-                        Spawn(inputs.Packets.ReadContact(checked(first + index)).Primary.Recipient, 3);
+                        Spawn(inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient, 3);
                     }
                 }
             }
         }
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
         bool complete = Word(task, 12) >= 22;
-        if (complete && single)
+        if (complete && actor is { } completed)
         {
-            frame = frame with { Staging = WriteDword(frame.Staging, checked(0xE33D70u + (uint)actor * 4), 1) };
+            frame = SetBusyTarget(frame, inputs.Packets.ModelAliases, completed, false);
         }
         return new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), complete ? 2 : 0);
 
-        void Spawn(int target, int count)
+        void Spawn(BattleModelOwner target, int count)
         {
             int spread = Math.Min(unchecked(2800 * inputs.ReadScale38(target)) >> 12, 1000);
             if (spread <= 0)
@@ -111,17 +117,34 @@ public static partial class NativeBattleNoMercy200Controller
         }
     }
 
+    private static NativeBattleNoMercy200Frame SetBusyTarget(NativeBattleNoMercy200Frame frame, NativeBattleModelAliases aliases, BattleModelOwner owner, bool busy)
+    {
+        if (!aliases.Roster.Contains(owner))
+        {
+            throw new InvalidDataException("No Mercy target no longer belongs to its current model roster.");
+        }
+        NativeBattleFileStaging staging = frame.Staging;
+        if (aliases.TryEncodeExact(owner, out byte operand))
+        {
+            staging = WriteDword(staging, 0xE33D70u + (uint)operand * 4, busy ? 0u : 1u);
+        }
+        ImmutableHashSet<BattleModelOwner> busyTargets = frame.Effect.NoMercyBusyTargets;
+        busyTargets = busy ? busyTargets.Add(owner) : busyTargets.Remove(owner);
+        return frame with { Staging = staging, Effect = frame.Effect with { NoMercyBusyTargets = busyTargets } };
+    }
+
     private static NativeBattleEffectTaskPool AppendHeader(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool, NativeBattleActionPacketsState packets, int relative)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native No Mercy target requires its actual parameter block.");
-        NativeBattleActionHeaderSlot header = packets.Headers[checked(parameters.Header + relative)];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header.Advance(relative));
         bool single = header.ReadContactCount() <= 1;
         (pool, int slot) = pool.Append(single ? 0x639FD0u : 0x639800u);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)relative)).WriteWord(34, 0);
         if (single)
         {
             BattleContactCursor first = header.FirstContact;
-            task = task.WriteWord(32, packets.ReadContact(first).Primary.Recipient);
+            BattleModelOwner owner = packets.ReadContact(first).Primary.Recipient;
+            task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(owner), packets.ModelAliases.EncodeOperand(owner, 2));
         }
         return pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback));
     }

@@ -98,7 +98,7 @@ public sealed partial class BattleSession
             {
                 BeginNativeBattleActionPause();
                 nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
-                NativeGraphics = QueueNativeDescriptor(NativeGraphics!, 104, checked(0x1D280C4u + 20u * (uint)header));
+                NativeGraphics = QueueNativeActionDescriptor(NativeGraphics!, header);
                 NativeGraphics = QueueNativeDescriptor(NativeGraphics, 10, 0x47DD90);
                 actions.Enqueue(queued with { NativeHeaderIndex = header, NativeSequence = nativeActionPackets.Headers[header].ReadByte(2), NativeLimitCallback = actionId == 65532 ? NativeLimitCallback.DuelFinisher : callback });
             }

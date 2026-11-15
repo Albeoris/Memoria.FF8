@@ -186,12 +186,4 @@ public static partial class NativeBattleEffect315Controller
         return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(root), ChildBankStorage = NativeBattleEffectTaskMemory.CaptureBank(child) } };
     }
 
-    public static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new NotSupportedException("Effect315 requires an actual physical model row.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
 }

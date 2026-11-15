@@ -17,6 +17,6 @@ public sealed record NativeBattleResonance49UpdateCaster8DC740(uint TaskAddress)
 public sealed record NativeBattleResonance49UpdateTargetBounds8DC610_8DC870(uint TaskAddress) : NativeBattleResonance49Operation;
 public sealed record NativeBattleResonance49SelectSequence505CE0(BattleModelOwner Actor, int Sequence) : NativeBattleResonance49Operation;
 public sealed record NativeBattleResonance49Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleResonance49Operation;
-public sealed record NativeBattleResonance49Contact506690(int ContactIndex) : NativeBattleResonance49Operation;
+public sealed record NativeBattleResonance49Contact506690(BattleContactOccurrence Occurrence) : NativeBattleResonance49Operation;
 public sealed record NativeBattleResonance49CommonTextureLoad508630(uint DestinationAddress, uint CompletionAddress) : NativeBattleResonance49Operation;
 public sealed record NativeBattleResonance49DrawMesh104(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleResonance49Operation;

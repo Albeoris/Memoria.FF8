@@ -44,7 +44,8 @@ public static class NativeBattleShellController
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         int maximum = Math.Max(NativeBattleEffectRootTask.LastContactPosition(targets), groups);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
+        NativeBattleEffectTaskActors actors = new(header.Source, packets.ReadContact(first).Primary.Recipient, packets.ModelAliases);
+        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -104,7 +105,7 @@ public static class NativeBattleShellController
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3);
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3);
                         }
                         else
                         {
@@ -174,7 +175,7 @@ public static class NativeBattleShellController
                     else if (phase == 2 && age >= 30)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native Shell result lost its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         Emit(ref state, new NativeBattleShellContact(contact));
                         state = Done(state, address);
                     }
@@ -224,11 +225,11 @@ public static class NativeBattleShellController
                     {
                         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x258);
                         task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Shield, 0x258));
-                        NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+                        NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                         NativeBattleEffectLocalBounds bounds = model.GeometryBounds52 ?? throw new NotSupportedException("Native Shell shield requires its current native geometry bounds.");
                         if (task.ReadWord(0x80) == 0)
                         {
-                            NativeBattleVector anchor = inputs.ReadBone?.Invoke(task.ReadByte(0x2D), 0xF1, 0) ?? NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(task.ReadByte(0x2D)), 0xF1, 0);
+                            NativeBattleVector anchor = inputs.ReadBone?.Invoke(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 0xF1, 0) ?? NativeBattlePoseMatrices.ReadBone(model, inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner), 0xF1, 0);
                             NativeBattleVector point = anchor with { Y = bounds.Maximum.Y };
                             task = task.WriteWord(0x1C, unchecked((ushort)point.X)).WriteWord(0x1E, unchecked((ushort)point.Y)).WriteWord(0x20, unchecked((ushort)point.Z));
                         }
@@ -242,7 +243,7 @@ public static class NativeBattleShellController
                     }
                     else if (phase == 1)
                     {
-                        short facing = inputs.ReadModel(task.ReadByte(0x2D)).Rotation14 ?? throw new NotSupportedException("Native Shell requires its current target facing.");
+                        short facing = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Rotation14 ?? throw new NotSupportedException("Native Shell requires its current target facing.");
                         NativeBattleActionMatrix world = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), facing) with { X = Word(task, 0x1C), Y = Word(task, 0x1E), Z = Word(task, 0x20) };
                         world = NativeBattlePoseMatrices.Scale56BEF0(world, unchecked((int)task.ReadDword(0x50)), unchecked((int)task.ReadDword(0x54)), unchecked((int)task.ReadDword(0x58)));
                         NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Camera, world);

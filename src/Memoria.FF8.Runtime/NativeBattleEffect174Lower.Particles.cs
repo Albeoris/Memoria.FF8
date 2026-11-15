@@ -1,4 +1,5 @@
 using static Memoria.FF8.Runtime.NativeBattleEffect174Controller;
+using static Memoria.FF8.Runtime.NativeBattleEffect174Profile;
 
 namespace Memoria.FF8.Runtime;
 
@@ -65,7 +66,7 @@ public static partial class NativeBattleEffect174Lower
         {
             if (!moving)
             {
-                int caster = checked((int)frame.State.ReadDword(0x2395E50));
+                BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
                 NativeBattleEffect174PointStep point = inputs.Point502170(frame, caster, 25, 8192, TaskView(task, 0x10, 8));
                 frame = point.Frame;
                 task = CopyTask(Read(frame, taskAddress), 0x10, point.Output8, 8);

@@ -4,13 +4,13 @@ using System.Buffers.Binary;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa87BindActor(BattleModelOwner Actor, uint Resource, uint SavedModel) : NativeBattleRinoa87Operation;
-public sealed record NativeBattleRinoa87ActorSequence(byte Actor, short Sequence) : NativeBattleRinoa87Operation;
+public sealed record NativeBattleRinoa87ActorSequence(BattleModelOwner Actor, short Sequence) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87Sound(uint Descriptor, short Argument, short Volume) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87Emit(uint Body, int Mode) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87GroundParticle(uint Body) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87CaptureGround(uint Body) : NativeBattleRinoa87Operation;
 public sealed record NativeBattleRinoa87PublishWorld(ImmutableArray<byte> Matrix) : NativeBattleRinoa87Operation;
-public sealed record NativeBattleRinoa87BodyInputs(NativeBattleRinoa87Inputs Controller, NativeBattleEffectOwnedModelResource Model, ImmutableArray<short> TargetCurve, Func<NativeBattleRinoa87Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa87Frame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleRinoa87Frame> WriteModel, Func<NativeBattleRinoa87Frame, int, int> Minimum501FF0, Func<NativeBattleRinoa87Frame, BattleModelOwner, byte, NativeBattleVector> ReadBone502170, Func<NativeBattleRinoa87Frame, NativeBattleRinoa87Operation, NativeBattleRinoa87Frame> Execute, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> Draw775330);
+public sealed record NativeBattleRinoa87BodyInputs(NativeBattleRinoa87Inputs Controller, NativeBattleEffectOwnedModelResource Model, ImmutableArray<short> TargetCurve, Func<NativeBattleRinoa87Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRinoa87Frame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleRinoa87Frame> WriteModel, Func<NativeBattleRinoa87Frame, BattleModelOwner, BattleModelOwner> Minimum501FF0, Func<NativeBattleRinoa87Frame, BattleModelOwner, byte, NativeBattleVector> ReadBone502170, Func<NativeBattleRinoa87Frame, NativeBattleRinoa87Operation, NativeBattleRinoa87Frame> Execute, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> Draw775330);
 
 /// <summary>7751A0's original seventeen body phases and native target save/restore ordering.</summary>
 public static class NativeBattleRinoa87Body
@@ -23,7 +23,7 @@ public static class NativeBattleRinoa87Body
             throw new InvalidDataException("Native7751A0 requires its actual376-byte body task.");
         }
         NativeBattleRinoa87SceneMemory scene = NativeBattleRinoa87Scene.Read(frame);
-        byte actor = task.ReadByte(44);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner;
         switch (unchecked((sbyte)task.ReadByte(41)))
         {
             case 0:
@@ -32,15 +32,15 @@ public static class NativeBattleRinoa87Body
                 Execute(new NativeBattleRinoa87BindActor(actor, 0x1560550, 0x25B4B28));
                 Execute(new NativeBattleRinoa87ActorSequence(actor, 1));
                 task = task.WriteByte(38, (byte)(task.ReadByte(38) | 4)).WriteBytes(76, scene.Settings.Read(0, 8)).WriteWord(62, scene.Word(74));
-                int targetIndex = Minimum();
-                NativeBattleGraphicsModel target = inputs.ReadModel(frame, targetIndex);
-                NativeBattleModelTransform targetTransform = Transform(target);
-                task = task.WriteWord(336, Raw(target.Rotation12)).WriteWord(338, Raw(target.Rotation14)).WriteWord(340, Raw(target.Rotation16));
-                task = target.RotationPadding18 is { } padding ? task.WriteWord(342, unchecked((ushort)padding)) : task.MarkPayloadUnknown(342, 2);
+                BattleModelOwner target = Minimum();
+                NativeBattleGraphicsModel targetModel = inputs.ReadModel(frame, target);
+                NativeBattleModelTransform targetTransform = Transform(targetModel);
+                task = task.WriteWord(336, Raw(targetModel.Rotation12)).WriteWord(338, Raw(targetModel.Rotation14)).WriteWord(340, Raw(targetModel.Rotation16));
+                task = targetModel.RotationPadding18 is { } padding ? task.WriteWord(342, unchecked((ushort)padding)) : task.MarkPayloadUnknown(342, 2);
                 task = CopyPosition(task, 344, targetTransform).WriteDword(276, 4096).WriteDword(280, 4096).WriteDword(284, 4096);
-                frame = frame with { State = frame.State with { TargetRotationPadding18 = target.RotationPadding18 } };
+                frame = frame with { State = frame.State with { TargetRotationPadding18 = targetModel.RotationPadding18 } };
                 Store();
-                frame = inputs.WriteModel(frame, targetIndex, target with { Rotation14 = (short)((scene.Word(74) - 2048) & 4095) });
+                frame = inputs.WriteModel(frame, target, targetModel with { Rotation14 = (short)((scene.Word(74) - 2048) & 4095) });
                 task = Read();
                 Next();
                 break;
@@ -101,7 +101,7 @@ public static class NativeBattleRinoa87Body
                     Select(2);
                     CopyCurrentToStart();
                     NativeBattleGraphicsModel enemy = inputs.ReadModel(frame, Minimum());
-                    NativeBattleVector bone = inputs.ReadBone502170(frame, checked((byte)Minimum()), 241);
+                    NativeBattleVector bone = inputs.ReadBone502170(frame, Minimum(), 241);
                     task = task.WriteWord(328, unchecked((ushort)bone.X)).WriteWord(330, unchecked((ushort)bone.Y)).WriteWord(332, unchecked((ushort)bone.Z));
                     NativeBattleVector delta = NativeBattleGfMatrices.RotateShort56C4F0(TargetYaw(enemy), new(0, 512, unchecked((short)(MinimumZ(enemy) / 2))));
                     Add(328, delta.X);
@@ -245,7 +245,7 @@ public static class NativeBattleRinoa87Body
                 Move();
                 if (Animate(false))
                 {
-                    int selected = Minimum();
+                    BattleModelOwner selected = Minimum();
                     NativeBattleGraphicsModel enemy = inputs.ReadModel(frame, selected);
                     NativeBattleModelTransform transform = Transform(enemy) with { Position28 = new(Signed(344), Signed(346), Signed(348)), Vertical34 = Signed(350) };
                     Store();
@@ -318,7 +318,7 @@ public static class NativeBattleRinoa87Body
         void Add(int offset, int value) => Set(offset, Signed(offset) + value);
         void Next() => task = task.WriteByte(41, unchecked((byte)(task.ReadByte(41) + 1)));
         void Store() => frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
-        int Minimum() => inputs.Minimum501FF0(frame, task.ReadByte(45));
+        BattleModelOwner Minimum() => inputs.Minimum501FF0(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner);
         void Move() => task = NativeBattleRinoa87Motion.Move7762D0(task);
         void Arc()
         {
@@ -327,14 +327,15 @@ public static class NativeBattleRinoa87Body
         }
         void MoveTarget(bool curve)
         {
-            NativeBattleRinoa87TargetMotion moved = NativeBattleRinoa87Motion.MoveTarget77E260(task, Enumerable.Range(0, 7).Select(index => inputs.ReadModel(frame, index)).ToImmutableArray(), Minimum(), curve, inputs.TargetCurve);
+            BattleActorModels models = new(inputs.Controller.Packets.Roster.Owners.Select(owner => new BattleModelEntry<BattleModelOwner>(owner, inputs.ReadModel(frame, owner))));
+            NativeBattleRinoa87TargetMotion moved = NativeBattleRinoa87Motion.MoveTarget77E260(task, models, Minimum(), curve, inputs.TargetCurve);
             task = moved.Task;
             Store();
-            for (int index = 0; index < moved.Models.Length; index++)
+            foreach (BattleModelEntry<BattleModelOwner> entry in moved.Models.Entries)
             {
-                if (moved.Models[index] != inputs.ReadModel(frame, index))
+                if (entry.State != inputs.ReadModel(frame, entry.Owner))
                 {
-                    frame = inputs.WriteModel(frame, index, moved.Models[index]);
+                    frame = inputs.WriteModel(frame, entry.Owner, entry.State);
                 }
             }
             task = Read();
@@ -359,7 +360,7 @@ public static class NativeBattleRinoa87Body
             return step.Completed;
         }
         NativeBattleEffectOwnedModelState RequireModel() => frame.State.BodyModel ?? throw new NotSupportedException("Native7751A0 requires its actual8DD0F0 model owner.");
-        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
         void CopyCurrentToStart() => task = task.WriteDword(320, task.ReadDword(76)).WriteDword(324, task.ReadDword(80));
         void AppendMesh(uint callback, bool bodyPointer)
         {

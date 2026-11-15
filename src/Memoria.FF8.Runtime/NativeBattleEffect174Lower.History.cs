@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect174Controller;
+using static Memoria.FF8.Runtime.NativeBattleEffect174Profile;
 
 namespace Memoria.FF8.Runtime;
 
@@ -13,7 +14,7 @@ public static partial class NativeBattleEffect174Lower
         {
             throw new InvalidDataException("Effect174 history leaves its selected physical slots.");
         }
-        int actor = checked((int)frame.State.ReadDword(0x2395E50));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
         ImmutableArray<NativeBattlePackedMatrix32> current = inputs.ReadCurrentBoneMatrices32(frame, actor);
         if (current.IsDefault || current.Length > 32)
         {
@@ -43,7 +44,7 @@ public static partial class NativeBattleEffect174Lower
             }
             frame = inputs.WriteCurrentBoneMatrices32(frame, actor, L174ReadBones(frame, history + 4, length));
             frame = L174WriteModel(frame, actor, 0x28, L174Put(NativeBattleEffectArena.Clear(), 0, resources.HistoryColors[index]), 4, inputs);
-            frame = inputs.Execute(frame, new NativeBattleEffect174DrawModelHistory5120(actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattleEffect174Presentation.Row(frame, 0x2395E58, previous, address, checked((uint)actor), index) : null });
+            frame = inputs.Execute(frame, new NativeBattleEffect174DrawModelHistory5120(actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattleEffect174Presentation.Row(frame, 0x2395E58, previous, address, 0, index) with { ModelOwner = actor } : null });
             previous--;
             if (previous < 0)
             {

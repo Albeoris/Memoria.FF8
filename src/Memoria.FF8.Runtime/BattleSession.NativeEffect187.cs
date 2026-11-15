@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect187Contacts506BA0:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect187Flash5712C0 flash:

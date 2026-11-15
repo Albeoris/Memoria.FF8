@@ -20,14 +20,14 @@ public static partial class NativeBattleEffect315Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header;
         BattleContactCursor first = packets.ReadHeader(header).FirstContact;
-        uint target = packets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectTaskPool root = RetainPayload(NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount), frame.State.RootBankStorage);
         NativeBattleEffectTaskPool children = RetainPayload(NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount), frame.State.ChildBankStorage);
         (root, int rootSlot) = root.Append(0x59B000);
         (children, int mainSlot) = children.Append(0x598E70);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(0xC, 0));
         children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(0xC, 0));
-        frame = frame with { Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, State = frame.State.WriteDword(TargetGlobal, target).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Source).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
+        frame = frame with { Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, State = frame.State.WriteModelOperand(TargetGlobal, target, packets.ModelAliases).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOperand(CasterGlobal, Parameters(frame).Source, packets.ModelAliases).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
         for (int index = 0; index < ParticleCount; index++)
         {
             frame = WriteBytes(frame, checked(ParticleAddress + (uint)(index * ParticleStride)), NativeBattleEffectArena.Clear(), 4);
@@ -148,7 +148,13 @@ public static partial class NativeBattleEffect315Controller
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect315Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect315 requires its actual current parameters.");
     private static bool Paused(NativeBattleEffect315Frame frame, NativeBattleEffect315Inputs inputs) => (inputs.ReadFlags(frame) & 0x201) != 0;
     private static NativeBattleEffect315Frame Global(NativeBattleEffect315Frame frame, uint address, uint value) => frame with { State = frame.State.WriteDword(address, value) };
-    private static int Caster(NativeBattleEffect315Frame frame) => checked((int)frame.State.ReadDword(CasterGlobal));
+    private static BattleModelOwner Caster(NativeBattleEffect315Frame frame) => frame.State.ReadModelOperand(CasterGlobal);
+    private static NativeBattleModulePoolTask WriteTaskActor(NativeBattleModulePoolTask task, NativeBattleEffect315Frame frame, BattleModelOwner actor, NativeBattleEffect315Inputs inputs)
+    {
+        task.WriteExecutionReference(0xE, 2, new BattleExecutionReference.Model(actor), inputs.ReadPackets(frame).ModelAliases.EncodeOperand(actor, 2));
+        return task;
+    }
+
     private static NativeBattleVector Vector315(NativeBattleEffectArena source, int offset = 0) => new(Word315(source, offset), Word315(source, offset + 2), Word315(source, offset + 4));
     private static short Word315(NativeBattleEffectArena source, int offset) => BinaryPrimitives.ReadInt16LittleEndian(source.Read(offset, 2));
     private static int Int315(NativeBattleEffectArena source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(source.Read(offset, 4));

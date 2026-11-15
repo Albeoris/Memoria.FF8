@@ -14,7 +14,7 @@ public static partial class NativeBattleEffect210Controller
         return NativeBattleEffect210Programme.Advance(frame, main + 0x168, length, caller, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, main))).Frame;
     }
 
-    private static NativeBattleEffect210Frame DrawEarlyMesh(NativeBattleEffect210Frame frame, uint main, int caster, int phase, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
+    private static NativeBattleEffect210Frame DrawEarlyMesh(NativeBattleEffect210Frame frame, uint main, BattleModelOwner caster, int phase, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 128);
         NativeBattleEffect210PointStep point = inputs.Point502170(frame, caster, 0x25, 0, Context(frame, temporary + 0x78, 8));

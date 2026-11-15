@@ -13,7 +13,7 @@ public static class NativeBattleSiren95TargetMeshes
             switch (phase)
             {
                 case 0:
-                    NativeBattleModelTransform position = services.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Native Siren target mesh emitter requires its current target position.");
+                    NativeBattleModelTransform position = services.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Native Siren target mesh emitter requires its current target position.");
                     task = task.WriteWord(0x1C, unchecked((ushort)position.Position28.X)).WriteWord(0x1E, unchecked((ushort)position.Position28.Y)).WriteWord(0x20, unchecked((ushort)position.Position28.Z)).WriteWord(0x22, unchecked((ushort)position.Vertical34));
                     Next();
                     break;
@@ -24,9 +24,9 @@ public static class NativeBattleSiren95TargetMeshes
                     }
                     break;
                 case 2:
-                    if (((task.ReadByte(0x2D) + task.ReadByte(0x24)) & 3) == 0)
+                    if (NativeBattleEffectVisualPhase.IsFourthFrame(services.Packets.ModelAliases, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, task.ReadByte(0x24)))
                     {
-                        NativeBattleGraphicsModel target = services.ReadModel(task.ReadByte(0x2D));
+                        NativeBattleGraphicsModel target = services.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                         NativeBattleEffectLocalBounds bounds = target.GeometryBounds52 ?? throw new NotSupportedException("Native Siren target mesh emitter requires its current target bounds.");
                         NativeBattleModelTransform transform = target.Transform ?? throw new NotSupportedException("Native Siren target mesh emitter requires its current target position.");
                         frame = Put(frame, address, task);

@@ -22,7 +22,7 @@ public static partial class NativeBattleEffect66Clouds
                 int bone = BinaryPrimitives.ReadInt32LittleEndian(resources.ReadStatic(0xDEA360 + (uint)((random % 29) * 4), 4));
                 frame = Random(frame, out random);
                 NativeBattleEffectArena retained = NativeBattleEffectNodeContextMemory.Copy(outer, 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
-                NativeBattleEffect66PointStep queried = inputs.ReadBone502170(frame, (int)frame.State.ReadDword(CasterGlobal), bone, random & 4095, retained);
+                NativeBattleEffect66PointStep queried = inputs.ReadBone502170(frame, frame.State.ReadModelOperand(CasterGlobal), bone, random & 4095, retained);
                 frame = queried.Frame;
                 outer = NativeBattleEffectNodeContextMemory.Copy(queried.Point8, 0, outer, 8, 8);
                 int[] direction = new int[3];

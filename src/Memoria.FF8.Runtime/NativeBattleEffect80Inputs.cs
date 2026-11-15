@@ -20,7 +20,7 @@ public sealed record NativeBattleEffect80Point502170(uint ModelAddress, ushort S
 public sealed record NativeBattleEffect80UploadTim(uint Address) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80RegisterCamera(NativeBattleEffectHeapAllocation Camera) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleEffect80Operation;
-public sealed record NativeBattleEffect80Contact506690(int ContactIndex) : NativeBattleEffect80Operation;
+public sealed record NativeBattleEffect80Contact506690(BattleContactOccurrence ContactIndex) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80TextureLoad508630(uint SourceAddress, uint CompletionByteAddress) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80TargetFlags(uint ModelAddress, ushort AndMask, ushort OrMask, bool WordWidth, byte ByteOffset = 0) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80StageTransition(int Index, ushort Intensity, bool ClearRgb) : NativeBattleEffect80Operation;

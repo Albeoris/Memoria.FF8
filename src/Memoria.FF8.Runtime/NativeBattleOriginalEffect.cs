@@ -8,6 +8,14 @@ public sealed record NativeBattleEffectParameters([property: JsonRequired] Battl
 {
     public byte? Parameter80 { get; init; }
     public byte? Parameter82 { get; init; }
+
+    [JsonIgnore]
+    internal NativeBattleEffectParameterWindow? OriginalWindow { get; init; }
+
+    internal NativeBattleEffectParameters CaptureOriginalWindow(NativeBattleModelAliases aliases)
+    {
+        return this with { OriginalWindow = NativeBattleEffectParameterWindow.Capture(this, aliases) };
+    }
 }
 public sealed record NativeBattleEffectResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int ArenaOffset);
 public sealed record NativeBattleEffectHeapResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int AllocationIndex);

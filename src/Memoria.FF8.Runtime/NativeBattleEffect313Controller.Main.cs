@@ -13,7 +13,7 @@ public static partial class NativeBattleEffect313Controller
         short age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            uint model = ModelAddress(checked((int)frame.State.ReadDword(CasterGlobal)));
+            BattleModelOwner model = frame.State.ReadModelOperand(CasterGlobal);
             NativeBattleEffect313PointStep point = inputs.Point502170(frame, model, 0xF0, 4096, frame.State.ReadView(CenterAddress, 8));
             frame = point.Frame with { State = point.Frame.State.WriteView(CenterAddress, point.Output8, 8) };
             NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(CurrentCasterMatrix313(frame, inputs), new(0, 200, 50));
@@ -160,30 +160,36 @@ public static partial class NativeBattleEffect313Controller
 
     private static NativeBattleEffect313Frame BirthParty313(NativeBattleEffect313Frame frame, NativeBattleEffect313Inputs inputs)
     {
-        for (int actor = 0; actor < 3; actor++)
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        foreach (BattlePartyModelOwner actor in packets.Roster.Party)
         {
-            if ((inputs.ReadModelArena9C(frame, ModelAddress(actor)).Read(0, 1)[0] & 2) == 0)
+            if ((inputs.ReadModelArena9C(frame, actor).Read(0, 1)[0] & 2) == 0)
             {
                 continue;
             }
             (frame, uint child) = AppendRequired(frame, 0x59C4F0);
-            frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, (ushort)actor));
+            NativeBattleModulePoolTask partyTask = Read(frame, child).WriteWord(12, 0);
+            partyTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2));
+            frame = Write(frame, child, partyTask);
             int scale = (Roll313(ref frame) % 3 + 1) << 12;
             int velocity = -2500 - Roll313(ref frame) % 1000;
-            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
-            int contact = -1;
+            int? contact = null;
             int contactCount = header.ReadContactCount();
-            int first = contactCount == 0 ? 0 : header.FirstContactIndex ?? throw new NotSupportedException("Effect313 requires its current contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             for (int index = 0; index < contactCount; index++)
             {
-                if (packets.ReadContact(first + index).Primary.Recipient == actor)
+                if (packets.ReadContact(first.Advance(index)).Primary.Recipient == actor)
                 {
                     contact = index;
                     break;
                 }
             }
-            frame = Write(frame, child, Read(frame, child).WriteWord(0x18, (ushort)scale).WriteWord(0x1A, unchecked((ushort)contact)).WriteWord(0x20, unchecked((ushort)(contact < 0 ? velocity >> 1 : velocity))));
+            partyTask = Read(frame, child).WriteWord(0x18, (ushort)scale);
+            var offset = new BattleExecutionReference.ContactOffset(contact);
+            partyTask.WriteExecutionReference(0x1A, 2, offset, offset.EncodeOriginalWord());
+            frame = Write(frame, child, partyTask.WriteWord(0x20, unchecked((ushort)(contact is null ? velocity >> 1 : velocity))));
         }
         return frame;
     }

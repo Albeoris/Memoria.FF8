@@ -17,7 +17,7 @@ public static partial class NativeBattleEffect338Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header;
         BattleContactCursor first = packets.ReadHeader(header).FirstContact;
-        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
         frame = frame with { Random = frame.Random.Draw(out ushort seed), State = frame.State.InitializeSource(resources) };
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect338 requires its current texture process.");
         foreach (NativeBattleEffectHeapAllocation texture in resources.Textures)
@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect338Controller
         }
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        frame = frame with { Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, State = frame.State.WriteDword(0x25561C8, seed).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)).WriteDword(TargetGlobal, target).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        frame = frame with { Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, State = frame.State.WriteDword(0x25561C8, seed).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, Parameters(frame).Source, packets.ModelAliases).WriteModelAddress(TargetGlobal, target, packets.ModelAliases).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
         return ClearDwords701200(frame, RootBank + 12, 2);
     }
 
@@ -120,8 +120,11 @@ public static partial class NativeBattleEffect338Controller
                 throw new InvalidDataException("Effect338 mandatory main allocation failed after pool reset.");
             }
             frame = ClearDwords701200(frame, main + 12, 0x31);
-            uint target = frame.State.ReadDword(TargetGlobal);
-            frame = Write(frame, main, Read(frame, main).WriteDword(24, frame.State.ReadDword(CasterGlobal)));
+            BattleModelOwner target = frame.State.ReadModelAddress(TargetGlobal);
+            BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
+            NativeBattleModulePoolTask casterTask = Read(frame, main);
+            casterTask.WriteExecutionReference(24, 4, new BattleExecutionReference.Model(caster), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(caster));
+            frame = Write(frame, main, casterTask);
             frame = inputs.Execute(frame, new NativeBattleEffect338CaptureBounds6DFD90(target, main + 20));
             NativeBattleEffect338VibrationStep vibration = inputs.StartVibration(frame);
             frame = vibration.Frame;

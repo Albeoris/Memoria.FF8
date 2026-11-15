@@ -77,18 +77,19 @@ public sealed partial class BattleSession
                     NativeVibrationProcess = (NativeVibrationProcess ?? throw new NotSupportedException("Effect20 requires its retained vibration process.")).Stop4A2940(vibration.Handle);
                     return current;
                 case NativeBattleEffect20RingSequence ring:
-                    if (ring.Address != NativeBattleGraphicsModelAddress.Encode(6))
+                    if (ring.Address != NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(6)))
                     {
                         throw new NotSupportedException("Effect20 requires its original actor ring owner.");
                     }
+                    BattleModelOwner ringOwner = graphics.NativeBindings.DecodeLiteral(6, graphics.ActorModels);
                     if (presentationNativeTargets is not null)
                     {
-                        presentationActivationSequences.Add(6);
+                        presentationActivationSequences.Add(ringOwner);
                     }
-                    graphics = ScheduleNativeRingSequence505C00(graphics, 6, ring.Count);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, ringOwner, ring.Count);
                     return current;
                 case NativeBattleEffect20Activate activation:
-                    graphics = QueueEffectPresentationActivation(graphics, activation.Actor);
+                    graphics = QueueEffectPresentationActivation(graphics, graphics.NativeBindings.DecodeLiteral(checked((byte)activation.Actor), graphics.ActorModels));
                     return current;
                 case NativeBattleEffect20BodyDraw body:
                     (graphics, current) = DrawNativeEffect20Body(graphics, current, body.Address);

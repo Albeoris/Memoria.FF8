@@ -35,10 +35,10 @@ public static partial class NativeBattleEffect70Controller
                 for (int index = 0; index < count; index++)
                 {
                     uint record = checked(address + 0x14 + (uint)index * 24);
-                    int actor = Actor(ReadDword(frame, record));
+                    BattleModelOwner actor = ReadRecipient(frame, record);
                     (frame, uint child) = Append(frame, 2, 0x6DFF00);
                     frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionWord(actor, 0x1E, 4096));
-                    short angle = (actor & 1) != 0 ? unchecked((short)0xE20B) : (short)0x1DF5;
+                    short angle = NativeBattleEffectVisualPhase.IsOdd(inputs.ReadPackets(frame).ModelAliases, actor) ? unchecked((short)0xE20B) : (short)0x1DF5;
                     frame = PutWord(PutWord(PutWord(frame, record + 12, angle), record + 14, angle), record + 16, 0);
                     frame = PutWord(PutDword(frame, child + 12, record), child + 16, 0);
                     frame = InitializeWorkspace(frame, child + 20, 0x100, resources.Act(0x1326C68), 0xBC);
@@ -63,7 +63,7 @@ public static partial class NativeBattleEffect70Controller
                     for (int index = 0; index < count; index++)
                     {
                         uint record = checked(address + 0x14 + (uint)index * 24);
-                        int actor = Actor(ReadDword(frame, record));
+                        BattleModelOwner actor = ReadRecipient(frame, record);
                         frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFF3, 0, true));
                         frame = inputs.Execute(frame, new NativeBattleEffect70ModelPositionPacked(actor, ReadBytes(frame, record + 4, 8)));
                     }
@@ -97,7 +97,7 @@ public static partial class NativeBattleEffect70Controller
         {
             uint record = checked(address + 0x14 + (uint)(launch >> 3) * 24);
             (frame, uint child) = Append(frame, 2, 0x6E0100);
-            int actor = Actor(ReadDword(frame, record));
+            BattleModelOwner actor = ReadRecipient(frame, record);
             frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFF, 8, false));
             frame = inputs.Execute(frame, new NativeBattleEffect70CaptureBounds6DFD90(actor, record + 20));
             frame = PutDword(PutWord(PutWord(frame, child + 16, 0), child + 18, (short)(50 - launch)), child + 12, record);
@@ -133,7 +133,7 @@ public static partial class NativeBattleEffect70Controller
         for (int index = 0; index < count; index++)
         {
             uint record = checked(address + 0x14 + (uint)index * 24);
-            int actor = Actor(ReadDword(frame, record));
+            BattleModelOwner actor = ReadRecipient(frame, record);
             short y = unchecked((short)((ReadShort(frame, record + 20) + ReadShort(frame, record + 22)) >> 1));
             NativeBattleEffectArena point = Point(0, y, 0);
             frame = inputs.Execute(frame, NativeBattleEffect70Presentation.Actor(inputs, record, actor, ReadBytes(frame, record + 12, 8), point, 2048));

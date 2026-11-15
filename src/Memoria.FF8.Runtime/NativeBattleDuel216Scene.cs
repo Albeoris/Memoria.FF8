@@ -10,9 +10,9 @@ public sealed record NativeBattleDuel216Spawn69A550(short X, short Y, short Z, s
 public sealed record NativeBattleDuel216Spawn69A110(int Count, short X, short Y, short Z) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216Spawn69A2D0(int Count, short X, short Y, short Z, int MinimumDuration, int MaximumDuration, int MinimumX, int MaximumX, int MinimumZ, int MaximumZ) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216Spawn699F80(int Count, short X, short Y, short Z, int MinimumX, int MaximumX, int MinimumZ, int MaximumZ) : NativeBattleDuel216SceneOperation;
-public sealed record NativeBattleDuel216BodyDraw(int Model, NativeBattleVector Rotation, NativeBattleVector Pivot, NativeBattleModelScaleVector Scale) : NativeBattleDuel216SceneOperation;
-public sealed record NativeBattleDuel216Sequence(int Model, byte Sequence) : NativeBattleDuel216SceneOperation;
-public sealed record NativeBattleDuel216BoundsUpdate(int Slot, int Model) : NativeBattleDuel216SceneOperation;
+public sealed record NativeBattleDuel216BodyDraw(BattleModelOwner Model, NativeBattleVector Rotation, NativeBattleVector Pivot, NativeBattleModelScaleVector Scale) : NativeBattleDuel216SceneOperation;
+public sealed record NativeBattleDuel216Sequence(BattleModelOwner Model, byte Sequence) : NativeBattleDuel216SceneOperation;
+public sealed record NativeBattleDuel216BoundsUpdate(int Slot, BattleModelOwner Model) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216EchoDraw(int Slot) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216EchoCapture(int Slot) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216Flash699EE0(int Phase) : NativeBattleDuel216SceneOperation;
@@ -21,7 +21,7 @@ public sealed record NativeBattleDuel216Contact506690 : NativeBattleDuel216Scene
 public sealed record NativeBattleDuel216MainCamera(short Tick) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216MainFile(short File, uint Destination, short Type) : NativeBattleDuel216SceneOperation;
 public sealed record NativeBattleDuel216MainStageReset : NativeBattleDuel216SceneOperation;
-public sealed record NativeBattleDuel216SceneServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelOwner, int, NativeBattleVector> ReadBone502170, ImmutableArray<byte> TargetRing, NativeBattleActionMatrix View, Func<NativeBattleDuel216Frame, NativeBattleDuel216SceneOperation, NativeBattleDuel216Frame> Execute);
+public sealed record NativeBattleDuel216SceneServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor571400, Func<BattleModelOwner, int, NativeBattleVector> ReadBone502170, ImmutableArray<BattleModelOwner> TargetRing, NativeBattleActionMatrix View, Func<NativeBattleDuel216Frame, NativeBattleDuel216SceneOperation, NativeBattleDuel216Frame> Execute);
 
 public static class NativeBattleDuel216Scene
 {
@@ -33,8 +33,8 @@ public static class NativeBattleDuel216Scene
             throw new InvalidDataException("Native Different Beat scene requires its registered main task.");
         }
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat scene requires its entered resources.");
-        int actor = ModelIndex(0x2508880);
-        int target = ModelIndex(0x2508884);
+        BattleModelOwner actor = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508880);
+        BattleModelOwner target = NativeBattleDuel216Controller.ReadModelOwner(frame.Staging, 0x2508884);
         if (services.TargetRing.IsDefaultOrEmpty || services.TargetRing[0] != target)
         {
             throw new InvalidDataException("Native Different Beat requires its actual target-ring traversal.");
@@ -318,7 +318,7 @@ public static class NativeBattleDuel216Scene
         }
         void RingFlags(int set, int clear)
         {
-            foreach (byte index in services.TargetRing)
+            foreach (BattleModelOwner index in services.TargetRing)
             {
                 NativeBattleGraphicsModel model = services.ReadModel(index);
                 if ((model.Flags0 & 2) != 0)
@@ -329,7 +329,7 @@ public static class NativeBattleDuel216Scene
         }
         void DrawTargets(NativeBattleVector rotation, NativeBattleVector pivot, NativeBattleModelScaleVector scale)
         {
-            foreach (byte index in services.TargetRing)
+            foreach (BattleModelOwner index in services.TargetRing)
             {
                 if ((services.ReadModel(index).Flags0 & 2) != 0)
                 {
@@ -338,15 +338,6 @@ public static class NativeBattleDuel216Scene
                     services.WriteModel(index, model with { Flags0 = (ushort)(model.Flags0 | 4) });
                 }
             }
-        }
-        int ModelIndex(uint address)
-        {
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(address, 4));
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
-            {
-                throw new InvalidDataException("Native Different Beat model pointer leaves its physical rows.");
-            }
-            return row;
         }
         NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     }

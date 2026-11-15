@@ -55,7 +55,7 @@ public static partial class NativeBattleSiren95Controller
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(0, 0x739F40, 0x64);
         hierarchy = appended.Hierarchy;
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0x0C, ActionParameters);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, ActionParameters, unchecked((sbyte)root.ReadByte(0x2A)), unchecked((sbyte)root.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, ActionParameters, unchecked((sbyte)root.ReadByte(0x2A)), root.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         root = actors.WriteTo(root).WriteByte(0x29, 0).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         int last = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));

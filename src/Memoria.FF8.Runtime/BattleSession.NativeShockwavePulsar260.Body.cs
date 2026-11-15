@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private (NativeBattleShockwavePulsar260Frame Frame, NativeBattleGraphicsState Graphics) CaptureNativeShockwavePulsar260Bounds(NativeBattleShockwavePulsar260Frame frame, NativeBattleGraphicsState graphics, byte actor, uint destination)
+    private (NativeBattleShockwavePulsar260Frame Frame, NativeBattleGraphicsState Graphics) CaptureNativeShockwavePulsar260Bounds(NativeBattleShockwavePulsar260Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint destination)
     {
         if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
         {

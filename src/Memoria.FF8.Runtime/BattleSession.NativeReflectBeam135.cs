@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             return new(current, point);
         }
 
-        NativeBattlePackedMatrix32 ReadCurrentBone(NativeBattleReflectBeam135Frame current, int actor, short selector)
+        NativeBattlePackedMatrix32 ReadCurrentBone(NativeBattleReflectBeam135Frame current, BattleModelOwner actor, short selector)
         {
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), PoseSource(actor));
             if (selector < 0 || selector >= bones.Length)

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEerieSoundWave130Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -15,7 +16,7 @@ public static class NativeBattleEerieSoundWave130Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleEerieSoundWave130State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattleEerieSoundWave130State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -71,22 +72,29 @@ public static class NativeBattleEerieSoundWave130Controller
             task = task.WriteWord(14, (ushort)count);
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.Recipient;
-                task = task.WriteDword(0x10 + index * 4, ModelAddress(actor)).WriteByte(0x1C + index, (byte)index);
+                BattleModelOwner actor = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(index)).Primary.Recipient;
+                task.WriteExecutionReference(0x10 + index * 4, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                task = task.WriteByte(0x1C + index, (byte)index);
             }
             for (int firstIndex = 0; firstIndex < count - 1; firstIndex++)
             {
                 for (int secondIndex = firstIndex + 1; secondIndex < count; secondIndex++)
                 {
-                    uint firstActor = task.ReadDword(0x10 + firstIndex * 4);
-                    uint secondActor = task.ReadDword(0x10 + secondIndex * 4);
-                    short firstX = unchecked((short)(inputs.ReadModel(Actor(firstActor)).Transform ?? throw new NotSupportedException("Eerie Sound Wave requires its first sorted actor position.")).Position28.X);
-                    short secondX = unchecked((short)(inputs.ReadModel(Actor(secondActor)).Transform ?? throw new NotSupportedException("Eerie Sound Wave requires its second sorted actor position.")).Position28.X);
+                    int firstOffset = 0x10 + firstIndex * 4;
+                    int secondOffset = 0x10 + secondIndex * 4;
+                    BattleExecutionReference.Model firstActor = task.ReadExecutionReference<BattleExecutionReference.Model>(firstOffset, 4);
+                    BattleExecutionReference.Model secondActor = task.ReadExecutionReference<BattleExecutionReference.Model>(secondOffset, 4);
+                    short firstX = unchecked((short)(inputs.ReadModel(firstActor.Owner).Transform ?? throw new NotSupportedException("Eerie Sound Wave requires its first sorted actor position.")).Position28.X);
+                    short secondX = unchecked((short)(inputs.ReadModel(secondActor.Owner).Transform ?? throw new NotSupportedException("Eerie Sound Wave requires its second sorted actor position.")).Position28.X);
                     if (firstX < secondX)
                     {
                         byte firstOrdinal = task.ReadByte(0x1C + firstIndex);
                         byte secondOrdinal = task.ReadByte(0x1C + secondIndex);
-                        task = task.WriteDword(0x10 + firstIndex * 4, secondActor).WriteDword(0x10 + secondIndex * 4, firstActor).WriteByte(0x1C + firstIndex, secondOrdinal).WriteByte(0x1C + secondIndex, firstOrdinal);
+                        var firstEncoding = ReadModelEncoding(task, firstOffset);
+                        var secondEncoding = ReadModelEncoding(task, secondOffset);
+                        task.WriteExecutionReference(firstOffset, 4, secondActor, secondEncoding);
+                        task.WriteExecutionReference(secondOffset, 4, firstActor, firstEncoding);
+                        task = task.WriteByte(0x1C + firstIndex, secondOrdinal).WriteByte(0x1C + secondIndex, firstOrdinal);
                     }
                 }
             }
@@ -124,7 +132,7 @@ public static class NativeBattleEerieSoundWave130Controller
 
     private static (NativeBattleEerieSoundWave130Frame Frame, int Result) Main(NativeBattleEerieSoundWave130Frame frame, uint address, NativeBattleEerieSoundWave130Resources resources, NativeBattleEerieSoundWave130Inputs inputs)
     {
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         NativeBattleEerieSoundWave130PointStep first = inputs.ReadBone(frame, caster, 0xB, 0x4000);
         frame = first.Frame;
         short yaw = inputs.ReadModel(caster).Rotation14 ?? throw new NotSupportedException("Eerie Sound Wave requires its caster's actual yaw.");
@@ -150,7 +158,9 @@ public static class NativeBattleEerieSoundWave130Controller
             if (child != 0)
             {
                 int index = age / 12;
-                NativeBattleModulePoolTask travel = Read(frame, child).WriteWord(12, 0).WriteByte(14, (byte)(age % 12 == 9 ? 0 : 1)).WriteByte(15, task.ReadByte(0x1C + index)).WriteDword(0x10, task.ReadDword(0x10 + index * 4));
+                NativeBattleModulePoolTask travel = Read(frame, child).WriteWord(12, 0).WriteByte(14, (byte)(age % 12 == 9 ? 0 : 1)).WriteByte(15, task.ReadByte(0x1C + index));
+                int modelOffset = 0x10 + index * 4;
+                travel.WriteExecutionReference(0x10, 4, task.ReadExecutionReference<BattleExecutionReference.Model>(modelOffset, 4), ReadModelEncoding(task, modelOffset));
                 travel = Vector(travel, 0x14, origin.Point).MarkPayloadUnknown(0x1A, 2);
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(travel, 0x1C, 0x58).Initialize7016B0(resources.TravelAct, 0x58);
                 frame = Write(frame, child, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(travel, 0x1C, workspace));
@@ -162,7 +172,7 @@ public static class NativeBattleEerieSoundWave130Controller
     private static (NativeBattleEerieSoundWave130Frame Frame, int Result) Travel(NativeBattleEerieSoundWave130Frame frame, uint address, NativeBattleEerieSoundWave130Resources resources, NativeBattleEerieSoundWave130Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int actor = Actor(task.ReadDword(0x10));
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
         NativeBattleEerieSoundWave130AnchorStep anchor = inputs.ReadAnchor(frame, actor);
         frame = anchor.Frame;
         NativeBattleVector point = new(anchor.Anchor.X, anchor.Anchor.Y, anchor.Anchor.Z);
@@ -191,7 +201,8 @@ public static class NativeBattleEerieSoundWave130Controller
             {
                 NativeBattleEerieSoundWave130AnchorStep currentAnchor = inputs.ReadAnchor(frame, actor);
                 frame = currentAnchor.Frame;
-                NativeBattleModulePoolTask impact = Read(frame, child).WriteWord(12, unchecked((ushort)currentAnchor.Anchor.X)).WriteWord(14, unchecked((ushort)currentAnchor.Anchor.Y)).WriteWord(16, unchecked((ushort)currentAnchor.Anchor.Z)).WriteWord(18, unchecked((ushort)currentAnchor.Anchor.W)).WriteDword(0x14, ModelAddress(actor));
+                NativeBattleModulePoolTask impact = Read(frame, child).WriteWord(12, unchecked((ushort)currentAnchor.Anchor.X)).WriteWord(14, unchecked((ushort)currentAnchor.Anchor.Y)).WriteWord(16, unchecked((ushort)currentAnchor.Anchor.Z)).WriteWord(18, unchecked((ushort)currentAnchor.Anchor.W));
+                impact.WriteExecutionReference(0x14, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(impact, 0x18, 0xA8).Initialize7016B0(resources.ImpactAct, 0xA8);
                 frame = Write(frame, child, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(impact, 0x18, workspace));
             }
@@ -217,14 +228,14 @@ public static class NativeBattleEerieSoundWave130Controller
         }
         if (advanced.Remaining == 8)
         {
-            int actor = Actor(Read(frame, address).ReadDword(0x14));
+            BattleModelOwner actor = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x14, 4).Owner;
             int count = Header(frame, inputs).ReadContactCount();
             for (int index = 0; index < count; index++)
             {
-                int contact = FirstContact(frame, inputs) + index;
-                if (inputs.Packets.ReadContact(contact).Primary.Recipient == actor)
+                NativeBattleContactPacket contact = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(index));
+                if (contact.Primary.Recipient == actor)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleEerieSoundWave130Contact(contact));
+                    frame = inputs.Execute(frame, new NativeBattleEerieSoundWave130Contact(contact.Occurrence ?? throw new InvalidDataException("Eerie Sound Wave requires a stored contact occurrence.")));
                 }
             }
         }
@@ -278,10 +289,16 @@ public static class NativeBattleEerieSoundWave130Controller
 
     private static NativeBattleEffectParameters Parameters(NativeBattleEerieSoundWave130Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Eerie Sound Wave requires its captured native parameters.");
     private static NativeBattleActionHeaderSlot Header(NativeBattleEerieSoundWave130Frame frame, NativeBattleEerieSoundWave130Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
-    private static int FirstContact(NativeBattleEerieSoundWave130Frame frame, NativeBattleEerieSoundWave130Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Eerie Sound Wave requires its captured physical contacts.");
+    private static BattleContactCursor FirstContact(NativeBattleEerieSoundWave130Frame frame, NativeBattleEerieSoundWave130Inputs inputs) => Header(frame, inputs).FirstContact;
+    private static ImmutableArray<byte>? ReadModelEncoding(NativeBattleModulePoolTask task, int offset)
+    {
+        Span<byte> data = stackalloc byte[4];
+        Span<bool> known = stackalloc bool[4];
+        task.ReadWithKnownness(offset, data, known);
+        return ExecutionReferenceEncoding.Capture(data, known);
+    }
+
     private static uint Working(NativeBattleEerieSoundWave130Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Eerie Sound Wave selected an absent physical actor.");
-    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Eerie Sound Wave requires an actual physical actor pointer.");
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
     private static NativeBattleVector ReadVector(NativeBattleModulePoolTask task, int offset) => new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)));
     private static NativeBattleEerieSoundWave130Frame WithPool(NativeBattleEerieSoundWave130Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };

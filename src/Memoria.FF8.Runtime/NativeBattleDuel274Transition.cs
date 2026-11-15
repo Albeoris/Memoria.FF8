@@ -51,12 +51,12 @@ public static class NativeBattleDuel274Transition
         }
         void SetModelFlag(bool frozen)
         {
-            for (int index = 0; index < 7; index++)
+            foreach (BattleModelOwner owner in actors.Aliases.Roster.Owners)
             {
-                ushort flags = actors.ReadFlags(index);
+                ushort flags = actors.ReadFlags(owner);
                 if ((flags & 2) != 0)
                 {
-                    actors.WriteFlags(index, frozen ? (ushort)(flags | 8) : (ushort)(flags & 0xFFF7));
+                    actors.WriteFlags(owner, frozen ? (ushort)(flags | 8) : (ushort)(flags & 0xFFF7));
                 }
             }
         }

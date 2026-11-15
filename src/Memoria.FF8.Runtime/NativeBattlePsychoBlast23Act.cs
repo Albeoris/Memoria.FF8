@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattlePsychoBlast23Act
 {
-    public static NativeBattlePsychoBlast23LeafStep Advance(NativeBattlePsychoBlast23Frame frame, uint address, NativeBattlePsychoBlast23Resources resources, NativeBattlePsychoBlast23Inputs inputs, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattlePsychoBlast23LeafStep Advance(NativeBattlePsychoBlast23Frame frame, uint address, NativeBattlePsychoBlast23Resources resources, NativeBattlePsychoBlast23Inputs inputs, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         uint callback = task.Callback;
@@ -103,7 +103,7 @@ public static class NativeBattlePsychoBlast23Act
         return Finish(frame, address);
     }
 
-    public static NativeBattlePsychoBlast23Frame Append(NativeBattlePsychoBlast23Frame frame, uint parent, uint callback, uint source, int workspaceLength, short selector, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors, out uint address)
+    public static NativeBattlePsychoBlast23Frame Append(NativeBattlePsychoBlast23Frame frame, uint parent, uint callback, uint source, int workspaceLength, short selector, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors, out uint address)
     {
         NativeBattleEffectHierarchyAppend append = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(4, callback, 384, parent, selectActors);
         address = append.Address;

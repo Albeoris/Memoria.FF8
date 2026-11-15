@@ -84,7 +84,7 @@ public static class NativeBattleMeltingBubble43Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                         }
                         else
                         {
@@ -140,9 +140,9 @@ public static class NativeBattleMeltingBubble43Controller
         {
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
             NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(hierarchy.Read(address), inputs.ReadModel, inputs.ReadPoseSource);
-            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+            NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Melting Bubble target requires its pose.");
-            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadByte(0x2D));
+            NativeBattlePoseSource pose = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, pose, pose.Sample(sequence.Pose ?? throw new NotSupportedException("Melting Bubble target requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Melting Bubble target requires its current pose frame."), sequence.PoseFlags109));
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -165,12 +165,7 @@ public static class NativeBattleMeltingBubble43Controller
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
-                        int first = header.FirstContactIndex ?? throw new NotSupportedException("Melting Bubble requires its selected header's actual contact pointer.");
-                        int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
-                        if (contact is < 0 or >= NativeBattleActionPacketsState.ContactCapacity)
-                        {
-                            throw new InvalidDataException("Melting Bubble selected contact leaves its physical contact arena.");
-                        }
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(header.FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleMeltingBubble43Contact(contact));
                         hierarchy = new(current.Effect.Pools);
                         task = hierarchy.Read(address);
@@ -194,7 +189,7 @@ public static class NativeBattleMeltingBubble43Controller
             bool complete = Complete(task);
             return new(With(current, complete ? hierarchy.Complete8DC530(address) : hierarchy), complete ? 2 : 0);
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
     }
 
     private static NativeBattleMeltingBubble43Frame With(NativeBattleMeltingBubble43Frame frame, NativeBattleEffectHierarchy hierarchy) => frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };

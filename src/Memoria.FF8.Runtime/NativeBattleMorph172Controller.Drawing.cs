@@ -87,7 +87,7 @@ public static partial class NativeBattleMorph172Controller
             frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = color.Registers, PrimitiveProcess = process with { ModelRendererRegisters = far } } };
             NativeBattleEffectArena context = Context(frame, temporary, 220).Write(0xA8, BitConverter.GetBytes((int)Signed(task, 0x10))).Write(0xAC, BitConverter.GetBytes((int)Signed(task, 0x12))).Write(0xB0, BitConverter.GetBytes((int)Signed(task, 0x14))).Write(0xB4, BitConverter.GetBytes(1000)).Write(0xB8, BitConverter.GetBytes(color.PackedRgb));
             frame = PublishContext(frame, temporary, context, 220);
-            frame = inputs.Execute(frame, new NativeBattleMorph172DrawBody220(actor, temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(172, task) with { ResourceGeneration = actor } : null });
+            frame = inputs.Execute(frame, new NativeBattleMorph172DrawBody220(actor, temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(172, task) with { ModelOwner = actor } : null });
             frame = Release(frame, 220);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)

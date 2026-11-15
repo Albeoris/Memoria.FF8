@@ -13,7 +13,7 @@ public sealed partial class BattleSession
     {
         if (phase == 0)
         {
-            if (graphics.Models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40, 0x101A)))
+            if (graphics.ActorModels.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40, 0x101A)))
             {
                 return (graphics, phase, false);
             }

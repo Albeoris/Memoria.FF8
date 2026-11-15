@@ -7,8 +7,8 @@ public sealed partial class BattleSession
     private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw)
     {
         internal bool PendingGunblade { get; init; }
-        internal int? HeaderIndex { get; init; }
-        internal int FirstContactIndex { get; init; }
+        internal BattleActionHeaderReference? HeaderReference { get; init; }
+        internal BattleContactCursor FirstContact { get; init; }
     }
 
     private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken);
@@ -88,21 +88,21 @@ public sealed partial class BattleSession
         PreparedHostedDispatch prepared = process.PrepareDispatch(headers, dispatchAppended: true, completion: completion, acknowledgment: acknowledgment);
         expandedHostedInvocations = expandedHostedInvocations.Select((invocation, index) =>
         {
-            int headerIndex = prepared.AppendedIndices[index];
-            int firstContactIndex = prepared.Packets.Headers[headerIndex].FirstContactIndex ?? throw new InvalidDataException("The appended hosted header has no retained contact pointer.");
-            return invocation with { HeaderIndex = headerIndex, FirstContactIndex = firstContactIndex };
+            BattleActionHeaderReference header = prepared.AppendedHeaders[index];
+            BattleContactCursor firstContact = prepared.Packets.ReadHeader(header).FirstContact;
+            return invocation with { HeaderReference = header, FirstContact = firstContact };
         }).ToImmutableArray();
         return prepared;
     }
 
     private HostedDispatchCompletion ReadExpandedHostedCompletion(BattleModelRoster roster, BattleActionPresentation command, uint callback)
     {
-        return new(callback, RequireExpandedPresentationRow(roster, GetActor(command.ActorId)), command.ActorId);
+        return new(callback, RequirePresentationModelOwner(roster, GetActor(command.ActorId)), command.ActorId);
     }
 
     private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, BattleModelRoster roster)
     {
-        return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster, invocation.FirstContactIndex);
+        return invocation.Contacts.IsEmpty ? null : new(invocation.Contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster, invocation.FirstContact);
     }
 
     private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
@@ -146,8 +146,8 @@ public sealed partial class BattleSession
         ImmutableArray<ExpandedHostedInvocation> remaining = expandedHostedInvocations.RemoveAt(0);
         ExpandedHostedInvocation invocation = remaining[0];
         HostedDispatchCompletion? completion = remaining.Length == 1 ? ReadExpandedHostedCompletion(roster, hostedEvent.Command, hostedEvent.Callback) : null;
-        int index = invocation.HeaderIndex ?? throw new InvalidDataException("Hosted invocation lost its prepared header index.");
-        PreparedHostedDispatch next = process.PrepareDispatch([], headerIndex: index, completion: completion);
+        BattleActionHeaderReference reference = invocation.HeaderReference ?? throw new InvalidDataException("Hosted invocation lost its prepared header index.");
+        PreparedHostedDispatch next = process.PrepareDispatch([], headerReference: reference, completion: completion);
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(invocation, roster);
         ExpandedHostedEvent nextEvent = hostedEvent with { CompletionToken = next.Completion?.Request.Token };
         process.ValidatePreparedDispatch(next);

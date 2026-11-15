@@ -29,7 +29,7 @@ public sealed partial class BattleSession
             {
                 NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native50A9A0 requires its retained parameterBYTE80 owner.")) with { Parameter80 = 0 };
             }
-            NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(context);
+            NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(graphics, context);
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(context.Actor);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.Actor, actor with { Flags8 = (actor.Flags8 ?? throw new InvalidDataException("Native50A9A0 requires its loaded model DWORD8.")) & ~0x800000u }) };
             graphics = SelectNativeHeaderSequence(graphics, context.Actor, header.Sequence);

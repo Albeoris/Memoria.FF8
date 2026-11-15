@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleSiren95LayerProgrammes
 {
-    public static NativeBattleSiren95TaskStep Advance(NativeBattleSiren95Frame frame, uint address, NativeBattleGfAnimationSource source, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95ProgramAdvance> draw, Func<NativeBattleActionMatrix>? readCameraView = null, Func<byte, NativeBattleVector>? readTargetAnchor = null)
+    public static NativeBattleSiren95TaskStep Advance(NativeBattleSiren95Frame frame, uint address, NativeBattleGfAnimationSource source, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95ProgramAdvance> draw, Func<NativeBattleActionMatrix>? readCameraView = null, Func<BattleModelOwner, NativeBattleVector>? readTargetAnchor = null)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         uint callback = task.Callback;
@@ -25,7 +25,7 @@ public static class NativeBattleSiren95LayerProgrammes
             }
             if (callback == 0x73F800)
             {
-                NativeBattleVector anchor = (readTargetAnchor ?? throw new NotSupportedException("Native Siren target layer requires its actual502170 bone anchor."))(task.ReadByte(0x2D));
+                NativeBattleVector anchor = (readTargetAnchor ?? throw new NotSupportedException("Native Siren target layer requires its actual502170 bone anchor."))(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 task = task.WriteWord(0x1C, unchecked((ushort)anchor.X)).WriteWord(0x1E, unchecked((ushort)anchor.Y)).WriteWord(0x20, unchecked((ushort)anchor.Z));
             }
             if (callback is 0x73EF60 or 0x73F800)

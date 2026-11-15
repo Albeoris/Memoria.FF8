@@ -57,7 +57,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleActionHeaderSlot selected = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 BattleContactCursor contact = selected.FirstContact;
-                int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint pointer = NativeBattleGraphicsModelAddress.Encode(target);
                 NativeBattleModulePoolTask live = pools[1].Slots[0];
                 if ((live.Flags & 1) != 0 && live.ReadDword(16) == pointer)

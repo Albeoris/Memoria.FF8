@@ -1,13 +1,10 @@
-using System.Collections.Immutable;
+using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanTargetFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleGraphicsModel> Models, ImmutableArray<NativeBattleScanByteOwner> PhysicalModels);
+public sealed record NativeBattleScanTargetFrame(NativeBattleScanFrame Scan, BattleActorModels Models);
 public sealed record NativeBattleScanTargetStep(NativeBattleScanTargetFrame Frame, int Result);
-public sealed record NativeBattleScanTargetInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<uint, byte> ReadExternalByte, Func<NativeBattleScanTargetFrame, uint, uint, byte, NativeBattleScanTargetFrame> Sound501330, Func<NativeBattleScanTargetFrame, int, NativeBattleScanTargetFrame> ApplyContact506690)
-{
-    public Func<int, byte>? ReadResourceSequence { get; init; }
-}
+public sealed record NativeBattleScanTargetInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<BattleModelOwner, byte> ReadResourceSequence, Func<NativeBattleScanTargetFrame, uint, uint, byte, NativeBattleScanTargetFrame> Sound501330, Func<NativeBattleScanTargetFrame, BattleContactOccurrence, NativeBattleScanTargetFrame> ApplyContact506690);
 
 public static class NativeBattleScanTarget
 {
@@ -15,7 +12,7 @@ public static class NativeBattleScanTarget
     {
         ArgumentNullException.ThrowIfNull(inputs);
         ArgumentNullException.ThrowIfNull(inputs.ReadPoseSource);
-        ArgumentNullException.ThrowIfNull(inputs.ReadExternalByte);
+        ArgumentNullException.ThrowIfNull(inputs.ReadResourceSequence);
         ArgumentNullException.ThrowIfNull(inputs.Sound501330);
         ArgumentNullException.ThrowIfNull(inputs.ApplyContact506690);
         NativeBattleEffectParameters parameters = frame.Scan.Effect.Parameters ?? throw new InvalidDataException("Native Scan target requires its actual action parameters.");
@@ -35,13 +32,9 @@ public static class NativeBattleScanTarget
             hierarchy = new(frame.Scan.Effect.Pools);
             task = hierarchy.Read(address);
         }
-        if (frame.Models.IsDefault || frame.Models.Length != 7 || frame.Models.Where((model, index) => model is null || model.Index != index).Any())
-        {
-            throw new InvalidDataException("Native Scan target requires its seven actual graphics models.");
-        }
-        task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, frame.Models, inputs.ReadPoseSource);
-        int target = task.ReadByte(0x2D);
-        NativeBattleGraphicsModel model = frame.Models[target];
+        task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, frame.Models.Get, inputs.ReadPoseSource);
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+        NativeBattleGraphicsModel model = frame.Models.Get(target);
         NativeBattlePoseSource source = inputs.ReadPoseSource(target);
         NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Scan target bounds require their current posed skeleton.");
         NativeBattleDecodedPose pose = source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Scan target bounds require their selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Scan target bounds require their actual pose frame."), sequence.PoseFlags109);
@@ -52,15 +45,23 @@ public static class NativeBattleScanTarget
             case 0:
                 NativeBattleScanProcess process = frame.Scan.Memory.Scan ?? throw new NotSupportedException("Native Scan target requires its retained presentation process.");
                 frame = frame with { Scan = frame.Scan with { Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Result269D938 = 0, Exit269CE2C = 0 } } } } };
-                NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(frame.PhysicalModels, task.ReadByte(0x2D), inputs.ReadExternalByte, inputs.ReadResourceSequence);
+                NativeBattleScanModelSelectionResult selection = NativeBattleScanModelSelection.Select84D320(frame.Models, target, inputs.ReadResourceSequence);
                 process = frame.Scan.Memory.Scan!;
                 NativeBattleScanByteOwner selected = process.Presentation.Selection269A1BC;
-                for (int index = 0; index < 7; index++)
+                for (int slot = 0; slot < 7; slot++)
                 {
-                    selected = selected.WriteDword(index * 4, selection.SelectionFlags[index]);
+                    selected = selected.WriteDword(slot * 4, 0);
                 }
-                frame = frame with { Scan = frame.Scan with { Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Selection269A1BC = selected, PrimaryModel269CE30 = selection.SelectedPhysicalModel } } } } };
-                int groupContact = checked(FirstContact(parameters.Header) + unchecked((sbyte)task.ReadByte(0x2A)));
+                foreach (BattleModelOwner owner in selection.Targets.Enumerate())
+                {
+                    if (inputs.Packets.ModelAliases.TryEncodeExact(owner, out byte alias))
+                    {
+                        selected = selected.WriteDword(alias * 4, 1);
+                    }
+                }
+                uint? primaryPointer = inputs.Packets.ModelAliases.EncodeAddress(selection.Primary) is { } nativeAddress ? BinaryPrimitives.ReadUInt32LittleEndian(nativeAddress.AsSpan()) : null;
+                frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { ScanSelectedModel = selection.Primary, ScanSelectedTargets = selection.Targets }, Memory = frame.Scan.Memory with { Scan = process with { Presentation = process.Presentation with { Selection269A1BC = selected, PrimaryModel269CE30 = primaryPointer } } } } };
+                BattleContactCursor groupContact = inputs.Packets.ReadHeader(parameters.Header).FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                 uint callback = (inputs.Packets.ReadContact(groupContact).Primary.Flags2 & 2) == 0 ? 0x84D4B0u : 0x850B40u;
                 hierarchy = hierarchy.Append8DC540(2, callback, 0x78, address, (pointer, group, actor) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, actor)).Hierarchy;
                 task = hierarchy.Read(address).WriteByte(0x29, 1);
@@ -71,7 +72,8 @@ public static class NativeBattleScanTarget
                     uint rootAddress = task.ReadDword(0x10);
                     hierarchy = hierarchy.Write(rootAddress, hierarchy.Read(rootAddress).WriteByte(0x63, 0));
                     PublishHierarchy();
-                    int contact = FirstContact(checked(parameters.Header + unchecked((sbyte)task.ReadByte(0x2A))));
+                    BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
+                    BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(header).FirstContact).Occurrence ?? throw new InvalidDataException("Scan contact has no occurrence reference.");
                     frame = inputs.ApplyContact506690(frame, contact);
                     hierarchy = new(frame.Scan.Effect.Pools);
                     task = hierarchy.Read(address).WriteByte(0x26, (byte)(hierarchy.Read(address).ReadByte(0x26) | 1)).WriteByte(0x29, 2);
@@ -91,15 +93,6 @@ public static class NativeBattleScanTarget
         }
         PublishHierarchy();
         return new(frame, completed ? 2 : 0);
-
-        int FirstContact(int header)
-        {
-            if ((uint)header >= inputs.Packets.Headers.Length)
-            {
-                throw new NotSupportedException("Native Scan target group leaves its actual header directory.");
-            }
-            return inputs.Packets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Scan target requires its actual header contact pointer.");
-        }
 
         void PublishHierarchy() => frame = frame with { Scan = frame.Scan with { Effect = frame.Scan.Effect with { Pools = hierarchy.Pools } } };
     }

@@ -91,10 +91,10 @@ public sealed record NativeBattleRecoveryState([property: JsonRequired] int Sour
 
 public sealed record NativeBattleRecoveryFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRecoveryState State);
 public sealed record NativeBattleRecoveryLeafStep(NativeBattleRecoveryFrame Frame, int Result);
-public sealed record NativeBattleRecoveryControllerStep(NativeBattleRecoveryFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleRecoveryControllerStep(NativeBattleRecoveryFrame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleRecoveryControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Func<NativeBattleRecoveryFrame, int, NativeBattleRecoveryFrame>? ApplyContact { get; init; }
+    public Func<NativeBattleRecoveryFrame, BattleContactOccurrence, NativeBattleRecoveryFrame>? ApplyContact { get; init; }
     public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 

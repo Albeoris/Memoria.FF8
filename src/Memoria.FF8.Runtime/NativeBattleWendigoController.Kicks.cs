@@ -13,11 +13,11 @@ public static partial class NativeBattleWendigoController
             int kicker = Field(8);
             if (kicker is >= 1 and <= 4)
             {
-                int actor = Word(Ball + (kicker is 1 or 3 ? 0xDAu : 0xDCu));
+                BattleModelOwner actor = ReadBallOwner(kicker is 1 or 3 ? 0xDAu : 0xDCu);
                 Sequence(actor, kicker <= 2 ? (byte)4 : (byte)6);
                 if (kicker <= 2)
                 {
-                    Model(Model(actor) with { Rotation14 = kicker == 1 ? unchecked((short)0xFC00) : (short)0x400 });
+                    Model(actor, Model(actor) with { Rotation14 = kicker == 1 ? unchecked((short)0xFC00) : (short)0x400 });
                 }
             }
             switch (Field(0))

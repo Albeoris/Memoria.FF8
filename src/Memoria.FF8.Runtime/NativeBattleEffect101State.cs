@@ -24,6 +24,14 @@ public sealed record NativeBattleEffect101State([property: JsonRequired] NativeB
         Globals.Write(Require(address, bytes.Length), bytes);
         return this;
     }
+    internal BattleModelOwner ReadModelAddress(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleEffect101State WriteModelAddress(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena storage = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = storage };
+    }
+
     public NativeBattleEffect101State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

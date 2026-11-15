@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect210Controller
         int age = Signed(Read(frame, address), 12);
         int brightness = age < 12 ? age * 2300 / 12 : age >= 231 ? (243 - age) * 2300 / 12 : 2300;
         frame = frame with { State = frame.State.WriteDword(BrightnessGlobal, unchecked((uint)brightness)) };
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         if (age >= 55 && age < 62)
         {
             if (age == 55)
@@ -22,10 +22,10 @@ public static partial class NativeBattleEffect210Controller
                     frame = NativeBattleEffect210Lower.InitializeRibbon82A0(frame, resources, inputs);
                 }
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect210DrawEcho7EE0(caster + 1, address + 0x60));
+            frame = inputs.Execute(frame, new NativeBattleEffect210DrawEcho7EE0(inputs.ResolveCompanion(frame, caster), address + 0x60));
             if (age < 60 && !Frozen(frame))
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect210CaptureEcho8200(caster + 1, address + 0x60));
+                frame = inputs.Execute(frame, new NativeBattleEffect210CaptureEcho8200(inputs.ResolveCompanion(frame, caster), address + 0x60));
             }
         }
         if (age >= 64 && age < 79)
@@ -49,10 +49,10 @@ public static partial class NativeBattleEffect210Controller
             {
                 frame = NativeBattleEffect210Lower.InitializeEcho6A1230(frame, address + 0x60);
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect210DrawEcho7EE0(caster + 1, address + 0x60));
+            frame = inputs.Execute(frame, new NativeBattleEffect210DrawEcho7EE0(inputs.ResolveCompanion(frame, caster), address + 0x60));
             if (age < 98 && !Frozen(frame))
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect210CaptureEcho8200(caster + 1, address + 0x60));
+                frame = inputs.Execute(frame, new NativeBattleEffect210CaptureEcho8200(inputs.ResolveCompanion(frame, caster), address + 0x60));
             }
         }
         if (age >= 85 && age < 115)
@@ -100,7 +100,7 @@ public static partial class NativeBattleEffect210Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect210StageFlags(0xFD, 0));
                 frame = NativeBattleEffect210Programme.Initialize(frame, address + 0x168, 0x146A668, 0x258, resources);
                 frame = ModelFlags(frame, caster, 0xFFFF, 4, inputs, true);
-                frame = ModelFlags(frame, caster + 1, 0xFFFF, 4, inputs, true);
+                frame = ModelFlags(frame, inputs.ResolveCompanion(frame, caster), 0xFFFF, 4, inputs, true);
             }
             frame = MoveTargets(frame, address, age, inputs);
             if (!Frozen(frame))
@@ -114,14 +114,14 @@ public static partial class NativeBattleEffect210Controller
             for (int index = 0; index < Read(frame, address).ReadWord(14); index++)
             {
                 uint record = address + 16u + (uint)(index * 24);
-                int actor = Actor(Dword(ReadBytes(frame, record, 4), 0));
+                BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
                 frame = ModelFlags(frame, actor, 0xFFF3, 0, inputs);
                 frame = WriteModel(frame, actor, 28, ReadBytes(frame, record + 4, 8), 8, inputs);
                 short y = unchecked((short)(Word(inputs.ReadModelArena9C(frame, actor), 30) - 4096));
                 frame = WriteModel(frame, actor, 30, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(y)), 2, inputs);
             }
             frame = ModelFlags(frame, caster, 0xFFFB, 0, inputs);
-            frame = ModelFlags(frame, caster + 1, 0xFFFB, 0, inputs);
+            frame = ModelFlags(frame, inputs.ResolveCompanion(frame, caster), 0xFFFB, 0, inputs);
             frame = inputs.Execute(frame, new NativeBattleEffect210StageFlags(0xFF, 2));
             frame = DetachCommonPool(frame, MeshDescriptor, true);
         }
@@ -137,7 +137,7 @@ public static partial class NativeBattleEffect210Controller
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect210 requires its current contact header.");
                 NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).ReadHeader(parameters.Header);
                 int count = header.ReadContactCount();
-                frame = inputs.Execute(frame, new NativeBattleEffect210AllContacts506BA0(header.FirstContactIndex ?? (count == 0 ? 0 : throw new NotSupportedException("Effect210 requires its current contact pointer.")), count));
+                frame = inputs.Execute(frame, new NativeBattleEffect210AllContacts506BA0(header.FirstContact, count));
             }
         }
         if (age >= 227 && age < 243)
@@ -195,8 +195,8 @@ public static partial class NativeBattleEffect210Controller
         NativeBattleVector value = Vector(ReadBytes(frame, main + 0x58, 6));
         return new(value.X, 0, value.Z);
     }
-    private static NativeBattleEffect210Frame WriteModel(NativeBattleEffect210Frame frame, int actor, int offset, NativeBattleEffectArena bytes, int count, NativeBattleEffect210Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect210WriteModelBytes(actor, offset, bytes, count));
-    private static NativeBattleEffect210Frame ModelFlags(NativeBattleEffect210Frame frame, int actor, ushort andMask, ushort orMask, NativeBattleEffect210Inputs inputs, bool byteOnly = false)
+    private static NativeBattleEffect210Frame WriteModel(NativeBattleEffect210Frame frame, BattleModelOwner actor, int offset, NativeBattleEffectArena bytes, int count, NativeBattleEffect210Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect210WriteModelBytes(actor, offset, bytes, count));
+    private static NativeBattleEffect210Frame ModelFlags(NativeBattleEffect210Frame frame, BattleModelOwner actor, ushort andMask, ushort orMask, NativeBattleEffect210Inputs inputs, bool byteOnly = false)
     {
         ushort flags = byteOnly ? inputs.ReadModelArena9C(frame, actor).Read(0, 1)[0] : unchecked((ushort)Word(inputs.ReadModelArena9C(frame, actor), 0));
         ushort value = unchecked((ushort)((flags & andMask) | orMask));

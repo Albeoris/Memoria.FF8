@@ -34,10 +34,9 @@ public static partial class NativeBattleEffect210Controller
             for (int index = 0; index < count; index++)
             {
                 BattleContactCursor first = header.FirstContact;
-                int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                uint model = NativeBattleGraphicsModelAddress.Encode(actor);
+                BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                 uint record = main + 16u + (uint)(index * 24);
-                frame = WriteBytes(frame, record, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(model)), 4);
+                frame = WriteBytes(frame, record, NativeBattleEffectArena.Clear().WriteExecutionReference(0, 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor)), 4);
                 frame = WriteBytes(frame, record + 4, CopyBytes(inputs.ReadModelArena9C(frame, actor), 28, NativeBattleEffectArena.Clear(), 0, 8), 8);
                 frame = WriteBytes(frame, record + 12, frame.State.ReadView(RetainedPairAddress, 8), 8);
                 NativeBattleEffect210PointStep point = inputs.Anchor571400(frame, actor, retained);
@@ -50,7 +49,7 @@ public static partial class NativeBattleEffect210Controller
                     minimum[axis] = Math.Min(minimum[axis], coordinates[axis]);
                     maximum[axis] = Math.Max(maximum[axis], coordinates[axis]);
                 }
-                frame = Birth6F6BB0(frame, model);
+                frame = Birth6F6BB0(frame, actor, packets.ModelAliases);
             }
             for (int axis = 0; axis < 3; axis++)
             {
@@ -58,7 +57,7 @@ public static partial class NativeBattleEffect210Controller
                 frame = frame with { State = frame.State.WriteWord(CenterAddress + (uint)(axis * 2), value) };
                 frame = Write(frame, main, Read(frame, main).WriteWord(0x58 + axis * 2, value));
             }
-            frame = frame with { State = frame.State.WriteView(SavedPositionAddress, CopyBytes(inputs.ReadModelArena9C(frame, Actor(frame.State.ReadDword(CasterGlobal))), 28, NativeBattleEffectArena.Clear(), 0, 8), 8) };
+            frame = frame with { State = frame.State.WriteView(SavedPositionAddress, CopyBytes(inputs.ReadModelArena9C(frame, frame.State.ReadModelAddress(CasterGlobal)), 28, NativeBattleEffectArena.Clear(), 0, 8), 8) };
         }
         int mainSurvivors = 1;
         int finalSurvivors = 1;
@@ -87,12 +86,14 @@ public static partial class NativeBattleEffect210Controller
         return new(frame, 0);
     }
 
-    public static NativeBattleEffect210Frame Birth6F6BB0(NativeBattleEffect210Frame frame, uint model)
+    public static NativeBattleEffect210Frame Birth6F6BB0(NativeBattleEffect210Frame frame, BattleModelOwner actor, NativeBattleModelAliases aliases)
     {
         (frame, uint address) = Append(frame, EarlyDescriptor, 0x6F6C00);
         if (address != 0)
         {
-            frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, unchecked((ushort)Actor(model))).WriteWord(34, 0));
+            NativeBattleModulePoolTask task = Read(frame, address).WriteWord(12, 0).WriteWord(14, 0);
+            task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+            frame = Write(frame, address, task.WriteWord(34, 0));
         }
         return frame;
     }

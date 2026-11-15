@@ -19,7 +19,7 @@ public sealed partial record NativeBattleEffectMemory
 public sealed record NativeBattleMoogle96Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleMoogle96Operation;
 public sealed record NativeBattleMoogle96Sound(uint Descriptor, int First, int Second) : NativeBattleMoogle96Operation;
-public sealed record NativeBattleMoogle96Contact(int Contact) : NativeBattleMoogle96Operation;
+public sealed record NativeBattleMoogle96Contact(BattleContactOccurrence Occurrence) : NativeBattleMoogle96Operation;
 public sealed record NativeBattleMoogle96CommonTextureLoad(int DestinationArenaOffset, uint CompletionAddress) : NativeBattleMoogle96Operation;
 public sealed record NativeBattleMoogle96CameraPublish(NativeBattleMoogleCameraStep Step) : NativeBattleMoogle96Operation;
 public sealed record NativeBattleMoogle96StageFade(short? Depth, bool ClearRgb, bool Clear0200, bool TransformFlagsByte1) : NativeBattleMoogle96Operation;
@@ -35,3 +35,9 @@ public sealed record NativeBattleMoogle96ProgramStep(NativeBattleMoogle96Frame F
 public sealed record NativeBattleMoogle96NodesStep(NativeBattleMoogle96Frame Frame, bool Complete);
 public sealed record NativeBattleMoogle96VibrationStep(NativeBattleMoogle96Frame Frame, short Handle);
 public sealed record NativeBattleMoogle96Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, uint TransitionColor, Func<NativeBattleMoogle96Frame, NativeBattleModulePoolTask, NativeBattleEffectOwnedModelState, NativeBattleMoogle96ModelDrawStep> DrawModel, Func<NativeBattleMoogle96Frame, NativeBattleModulePoolTask, NativeBattleMoogle96ProgramStep> AdvanceProgram, Func<NativeBattleMoogle96Frame, uint, NativeBattleMoogle96NodesStep> AdvanceNodes, Func<NativeBattleMoogle96Frame, NativeBattleMoogle96VibrationStep> StartVibration, Func<NativeBattleMoogle96Frame, NativeBattleMoogle96Operation, NativeBattleMoogle96Frame> Execute);
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> MoogleSavedEnemyFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+}

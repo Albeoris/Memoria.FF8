@@ -23,11 +23,11 @@ public static partial class NativeBattleEffect66Controller
                 return new(frame, 0);
             }
         }
-        int actor = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner actor = frame.State.ReadModelOperand(CasterGlobal);
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            frame = BeginCamera63E960(frame, resources);
+            frame = BeginCamera63E960(frame, resources, inputs);
             frame = inputs.Execute(frame, new NativeBattleEffect66ForceCamera50A730());
             frame = inputs.Execute(frame, new NativeBattleEffect66ModelMask7C(actor, 3));
             frame = inputs.Execute(frame, new NativeBattleEffect66Vibration4A29A0(VibrationAddress, 1, 128, VibrationGlobal));
@@ -136,7 +136,9 @@ public static partial class NativeBattleEffect66Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleActionHeaderReference header = (frame.Effect.Parameters ?? throw new NotSupportedException("Effect66 requires its current contact header.")).Header;
-            frame = inputs.Execute(frame, new NativeBattleEffect66Contact506690(packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect66 requires its current contact pointer.")));
+            BattleContactCursor cursor = packets.ReadHeader(header).FirstContact;
+            BattleContactOccurrence contact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect66 requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleEffect66Contact506690(contact));
         }
         if (age == 829)
         {
@@ -159,7 +161,7 @@ public static partial class NativeBattleEffect66Controller
         return new(frame, 2);
     }
 
-    private static NativeBattleEffect66Frame CaptureMidpoint(NativeBattleEffect66Frame frame, int actor, NativeBattleEffect66Inputs inputs)
+    private static NativeBattleEffect66Frame CaptureMidpoint(NativeBattleEffect66Frame frame, BattleModelOwner actor, NativeBattleEffect66Inputs inputs)
     {
         NativeBattleEffect66PointStep first = inputs.ReadBone502170(frame, actor, 1, 2048, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
         NativeBattleEffect66PointStep second = inputs.ReadBone502170(first.Frame, actor, 10, 2048, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
@@ -171,6 +173,6 @@ public static partial class NativeBattleEffect66Controller
         return frame with { State = frame.State.WriteWord(CenterAddress + 6, unchecked((ushort)(unchecked(scale * 1450) >> 13))) };
     }
 
-    private static NativeBattleEffect66Frame Sequence(NativeBattleEffect66Frame frame, int actor, byte sequence, NativeBattleEffect66Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect66Sequence505C00(actor, sequence));
+    private static NativeBattleEffect66Frame Sequence(NativeBattleEffect66Frame frame, BattleModelOwner actor, byte sequence, NativeBattleEffect66Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect66Sequence505C00(actor, sequence));
     private static NativeBattleEffect66Frame Sound(NativeBattleEffect66Frame frame, uint source, NativeBattleEffect66Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect66Sound501330(source, 1, 128));
 }

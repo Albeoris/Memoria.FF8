@@ -4,19 +4,39 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
+internal abstract record NativeBattleDescriptorModelSubject
+{
+    internal sealed record ExplicitModel(BattleModelOwner Owner) : NativeBattleDescriptorModelSubject;
+    internal sealed record PlannedLoad(BattleModelOwner Owner, NativeBattleModelSlot? OriginalSlot, NativeBattleGraphicsBinding Binding) : NativeBattleDescriptorModelSubject;
+    internal sealed record AuthoredOriginalSlot(NativeBattleModelSlot Slot) : NativeBattleDescriptorModelSubject;
+}
+
 public sealed record NativeBattleDescriptorPacket([property: JsonRequired] ImmutableArray<byte> Bytes)
 {
     [JsonRequired]
     public ushort UnknownByteMask { get; init; }
     [JsonRequired]
     public BattleEvent? Message { get; init; }
+    [JsonIgnore]
+    internal NativeBattleDescriptorModelSubject? ModelSubject { get; init; }
+    [JsonIgnore]
+    internal BattleActionHeaderReference? Header { get; init; }
     [JsonIgnore] public byte Serial => Bytes[0];
     [JsonIgnore] public byte PriorityState => Bytes[1];
     [JsonIgnore] public ushort Command => BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(2));
-    [JsonIgnore] public uint Argument => (UnknownByteMask & 0xF0) == 0 ? BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(4)) : throw new NotSupportedException("Native descriptor argument is a logical text binding, not an invented native heap address.");
-    [JsonIgnore] public short Index => BinaryPrimitives.ReadInt16LittleEndian(Bytes.AsSpan().Slice(8));
-    [JsonIgnore] public ushort Value => BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(10));
-    [JsonIgnore] public uint Data => BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(8));
+    [JsonIgnore] public uint Argument => RequireKnown(0xF0, BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(4)));
+    [JsonIgnore] public short ScalarWord8 => RequireKnown(0x300, BinaryPrimitives.ReadInt16LittleEndian(Bytes.AsSpan().Slice(8)));
+    [JsonIgnore] public ushort Value => RequireKnown(0xC00, BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(10)));
+    [JsonIgnore] public uint Data => RequireKnown(0xF00, BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(8)));
+
+    private T RequireKnown<T>(ushort mask, T value)
+    {
+        if ((UnknownByteMask & mask) != 0)
+        {
+            throw new NotSupportedException("The native descriptor scalar has unobserved bytes.");
+        }
+        return value;
+    }
 }
 
 public sealed record NativeBattleDescriptorNode([property: JsonRequired] int? Next, [property: JsonRequired] uint Data);
@@ -41,6 +61,10 @@ public enum NativeBattleDescriptorTaskKind
 
 public sealed record NativeBattleDescriptorTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleDescriptorTaskKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
 {
+    [JsonIgnore]
+    internal NativeBattleDescriptorModelSubject? ModelSubject { get; init; }
+    [JsonIgnore]
+    internal BattleActionHeaderReference? Header { get; init; }
     [JsonIgnore] public byte Phase => Payload[1];
     [JsonIgnore] public int PacketSlot => checked((int)((BinaryPrimitives.ReadUInt32LittleEndian(Payload.AsSpan().Slice(4)) - 0x1D96AB8u) / 12));
 }
@@ -70,7 +94,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     public void Validate()
     {
-        if (Packets.IsDefault || Packets.Length != 30 || Packets.Any(packet => packet is null || packet.Bytes.IsDefault || packet.Bytes.Length != 12 || (packet.UnknownByteMask & ~0xF0) != 0 || (packet.UnknownByteMask == 0) != (packet.Message is null) || packet.Message is not null && packet.Message.Kind != "NativeText") || Nodes.IsDefault || Nodes.Length != 30 || Nodes.Any(node => node is null || node.Next is < 0 or >= 30) || Root is < 0 or >= 30 || Priorities.IsDefault || Priorities.Length != 16 || Depth >= 16 || Tasks.IsDefault || Tasks.Length != 4 || Tasks.Any(task => task is null || task.Next is < 0 or >= 4 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 8 || (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.None) || TaskHead is < 0 or >= 4 || TaskTail is < 0 or >= 4)
+        if (Packets.IsDefault || Packets.Length != 30 || Packets.Any(packet => packet is null || packet.Bytes.IsDefault || packet.Bytes.Length != 12 || (packet.UnknownByteMask & ~0xFF0) != 0 || packet.Message is not null && (packet.UnknownByteMask & 0xF0) != 0xF0 || packet.Message is not null && packet.Message.Kind != "NativeText") || Nodes.IsDefault || Nodes.Length != 30 || Nodes.Any(node => node is null || node.Next is < 0 or >= 30) || Root is < 0 or >= 30 || Priorities.IsDefault || Priorities.Length != 16 || Depth >= 16 || Tasks.IsDefault || Tasks.Length != 4 || Tasks.Any(task => task is null || task.Next is < 0 or >= 4 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 8 || (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.None) || TaskHead is < 0 or >= 4 || TaskTail is < 0 or >= 4)
         {
             throw new InvalidDataException("Native descriptors require their physical packet/node/task banks and priority stack.");
         }
@@ -112,6 +136,58 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     public (NativeBattleDescriptorState State, int Slot) Enqueue(ushort command, byte priority, uint argument, ushort? index = null, ushort? value = null)
     {
+        NativeBattleDescriptorModelSubject? subject = command is 102 or 103 or 105 or 106 or 110 or 111 or 113 or 114 or 117 or 118 or 119 &&
+            index is ushort literal && literal < NativeBattleModelBoundary.CellCount
+            ? new NativeBattleDescriptorModelSubject.AuthoredOriginalSlot(NativeBattleModelSlot.Decode((byte)literal))
+            : null;
+        uint relative = unchecked(argument - NativeBattleEffectParameterWindow.HeaderBase);
+        BattleActionHeaderReference? header = command == 104 && relative < NativeBattleRetainedActionPackets.HeaderCapacity * NativeBattleEffectParameterWindow.HeaderSize &&
+            relative % NativeBattleEffectParameterWindow.HeaderSize == 0
+            ? new((int)(relative / NativeBattleEffectParameterWindow.HeaderSize))
+            : null;
+        return EnqueueCore(command, priority, argument, index, value, subject, false, header);
+    }
+
+    internal (NativeBattleDescriptorState State, int Slot) EnqueueModel(ushort command, byte priority, uint argument, BattleModelOwner owner, NativeBattleModelAliases aliases, ushort? value = null)
+    {
+        RequireModelDescriptor(command);
+        ArgumentNullException.ThrowIfNull(aliases);
+        ArgumentNullException.ThrowIfNull(owner);
+        if (!aliases.Roster.Contains(owner))
+        {
+            throw new InvalidDataException("The descriptor model is not a current packet writer owner.");
+        }
+        ushort? operand = aliases.TryEncodeExact(owner, out byte slot) ? slot : null;
+        return EnqueueCore(command, priority, argument, operand, value, new NativeBattleDescriptorModelSubject.ExplicitModel(owner), operand is null, null);
+    }
+
+    internal (NativeBattleDescriptorState State, int Slot) EnqueuePlannedLoad(ushort command, byte priority, uint argument, NativeBattleDescriptorModelSubject.PlannedLoad plan, ushort value)
+    {
+        if (command is not (102 or 103) || plan.OriginalSlot is { } original && original.Side != plan.Owner.Side)
+        {
+            throw new InvalidDataException("The model-load descriptor requires its planned owner and matching original slot.");
+        }
+        return EnqueueCore(command, priority, argument, plan.OriginalSlot?.Offset, value, plan, plan.OriginalSlot is null, null);
+    }
+
+    internal (NativeBattleDescriptorState State, int Slot) EnqueueAction(byte priority, BattleActionHeaderReference header)
+    {
+        uint? argument = header.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity
+            ? checked(NativeBattleEffectParameterWindow.HeaderBase + (uint)header.Ordinal * NativeBattleEffectParameterWindow.HeaderSize)
+            : null;
+        return EnqueueCore(104, priority, argument, null, null, null, false, header);
+    }
+
+    private static void RequireModelDescriptor(ushort command)
+    {
+        if (command is not (102 or 103 or 105 or 106 or 110 or 111 or 113 or 114 or 117 or 118 or 119))
+        {
+            throw new ArgumentOutOfRangeException(nameof(command), "The descriptor does not accept a model subject.");
+        }
+    }
+
+    private (NativeBattleDescriptorState State, int Slot) EnqueueCore(ushort command, byte priority, uint? argument, ushort? index, ushort? value, NativeBattleDescriptorModelSubject? subject, bool unknownOperand, BattleActionHeaderReference? header)
+    {
         Validate();
         if (command == 107)
         {
@@ -126,20 +202,40 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
             return (cancelled, -1);
         }
         (ImmutableArray<NativeBattleDescriptorPacket> packets, ImmutableArray<NativeBattleDescriptorNode> nodes, int? root, int packet) = NativeBattlePacketQueues.Allocate(Packets, Nodes, Root, 0x1D96AB8, priority);
-        byte[] bytes = Packets[packet].Bytes.ToArray();
+        NativeBattleDescriptorPacket previous = Packets[packet];
+        byte[] bytes = previous.Bytes.ToArray();
+        ushort unknown = (ushort)(previous.UnknownByteMask & 0xF00);
         bytes[0] = Serial;
         bytes[1] = (byte)(priority & 0xF0);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), command);
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), argument);
+        if (argument is uint rawArgument)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), rawArgument);
+        }
+        else
+        {
+            unknown |= 0xF0;
+        }
         if (index is ushort low)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), low);
+            unknown &= 0xCFF;
+        }
+        else if (unknownOperand)
+        {
+            unknown |= 0x300;
+        }
+        else
+        {
+            subject = previous.ModelSubject;
         }
         if (value is ushort high)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10), high);
+            unknown &= 0x3FF;
         }
-        return (this with { Nodes = nodes, Root = root, Packets = packets.SetItem(packet, new(bytes.ToImmutableArray())), Serial = unchecked((byte)(Serial + 1)) }, packet);
+        NativeBattleDescriptorPacket admitted = new(bytes.ToImmutableArray()) { UnknownByteMask = unknown, ModelSubject = subject, Header = header };
+        return (this with { Nodes = nodes, Root = root, Packets = packets.SetItem(packet, admitted), Serial = unchecked((byte)(Serial + 1)) }, packet);
     }
 
     public (NativeBattleDescriptorState State, int Slot) EnqueueMessage(BattleEvent message, byte priority, byte tag)
@@ -149,7 +245,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
             throw new InvalidDataException("Native text descriptor requires its message and original mode BYTE.");
         }
         (NativeBattleDescriptorState state, int slot) = Enqueue(8, priority, 0, unchecked((ushort)message.Amount), (ushort)(message.NativeMessageMode.Value | tag << 8));
-        return (state with { Packets = state.Packets.SetItem(slot, state.Packets[slot] with { UnknownByteMask = 0xF0, Message = message }) }, slot);
+        return (state with { Packets = state.Packets.SetItem(slot, state.Packets[slot] with { UnknownByteMask = (ushort)(state.Packets[slot].UnknownByteMask | 0xF0), Message = message }) }, slot);
     }
 
     public NativeBattleDescriptorState Rotate()
@@ -200,7 +296,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
         {
             payload[3] = 20;
         }
-        ImmutableArray<NativeBattleDescriptorTask> tasks = Tasks.SetItem(slot, task with { Flags = (ushort)(task.Flags | 1), State = 0, Next = null, Kind = kind, Payload = payload.ToImmutableArray() });
+        ImmutableArray<NativeBattleDescriptorTask> tasks = Tasks.SetItem(slot, task with { Flags = (ushort)(task.Flags | 1), State = 0, Next = null, Kind = kind, Payload = payload.ToImmutableArray(), ModelSubject = packet is int packetSlot ? Packets[packetSlot].ModelSubject : null, Header = packet is int headerSlot ? Packets[headerSlot].Header : null });
         if (TaskTail is int tail)
         {
             tasks = tasks.SetItem(tail, tasks[tail] with { Next = slot });

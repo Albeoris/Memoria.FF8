@@ -3,15 +3,15 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel274MoveInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, short, NativeBattleVector> ReadBone502170, Func<int, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
+public sealed record NativeBattleDuel274MoveInputs(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteModel, Func<BattleModelOwner, short, NativeBattleVector> ReadBone502170, Func<BattleModelOwner, int, NativeBattleActionMatrix> ReadBoneMatrix68A790, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> DrawEcho68A7B0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> CaptureEcho68ADF0, Func<NativeBattleDuel274Frame, NativeBattleGfGeometryBatch, NativeBattleDuel274Frame> Submit, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, int, short, short, short, NativeBattleDuel274Frame> Draw571C80, Func<NativeBattleDuel274Frame, NativeBattleModulePoolTask, NativeBattleDuel274Frame> Draw68B270, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274Frame> Contact506690, Func<NativeBattleDuel274Frame, bool, NativeBattleDuel274Frame> Flash5712C0, Func<NativeBattleDuel274Frame, uint, NativeBattleDuel274Frame> Sound501330);
 
 public static partial class NativeBattleDuel274BasicMoves
 {
     public static NativeBattleDuel274Frame Advance68A050(NativeBattleDuel274Frame frame, int slot, NativeBattleDuel274Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleDuel274MoveInputs inputs)
     {
         NativeBattleModulePoolTask task = Target(frame, slot, 2);
-        int actor = Actor(frame);
-        int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
+        BattleModelOwner actor = Actor(frame);
+        BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
         if (task.ReadWord(12) == 0)
         {
             PositionActor(frame, task, target, actor, inputs, 0);
@@ -94,8 +94,8 @@ public static partial class NativeBattleDuel274BasicMoves
     public static NativeBattleDuel274Frame Advance68B2F0(NativeBattleDuel274Frame frame, int slot, NativeBattleDuel274Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleDuel274MoveInputs inputs)
     {
         NativeBattleModulePoolTask task = Target(frame, slot, 3);
-        int actor = Actor(frame);
-        int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
+        BattleModelOwner actor = Actor(frame);
+        BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
         if (task.ReadWord(12) == 0)
         {
             PositionActor(frame, task, target, actor, inputs, 1);
@@ -167,8 +167,8 @@ public static partial class NativeBattleDuel274BasicMoves
     {
         NativeBattleModulePoolTask task = Target(frame, slot, 4);
         frame = PublishBillboard(frame, view);
-        int actor = Actor(frame);
-        int target = NativeBattleDuel274Controller.Index(task.ReadDword(20));
+        BattleModelOwner actor = Actor(frame);
+        BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
         if (task.ReadWord(12) == 0)
         {
             PositionActor(frame, task, target, actor, inputs, 2);
@@ -293,7 +293,7 @@ public static partial class NativeBattleDuel274BasicMoves
         return frame with { Staging = frame.Staging.Write(0x2508454, BitConverter.GetBytes(matrix.X)).Write(0x2508458, BitConverter.GetBytes(matrix.Y)).Write(0x250845C, BitConverter.GetBytes(matrix.Z)) };
     }
 
-    private static void PositionActor(NativeBattleDuel274Frame frame, NativeBattleModulePoolTask task, int target, int actor, NativeBattleDuel274MoveInputs inputs, int mode)
+    private static void PositionActor(NativeBattleDuel274Frame frame, NativeBattleModulePoolTask task, BattleModelOwner target, BattleModelOwner actor, NativeBattleDuel274MoveInputs inputs, int mode)
     {
         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel move requires actual actor position and scale.");
@@ -304,7 +304,7 @@ public static partial class NativeBattleDuel274BasicMoves
         inputs.WriteModel(actor, model with { Transform = transform with { Position28 = position } });
     }
 
-    private static void OffsetTarget(int target, int delta, NativeBattleDuel274MoveInputs inputs)
+    private static void OffsetTarget(BattleModelOwner target, int delta, NativeBattleDuel274MoveInputs inputs)
     {
         NativeBattleGraphicsModel model = inputs.ReadModel(target);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel impact requires actual target WORD32.");
@@ -323,7 +323,7 @@ public static partial class NativeBattleDuel274BasicMoves
     }
 
     private static NativeBattleActionMatrix Yaw(short angle, int x, int y, int z) => NativeBattleGfMatrices.Euler701310(new(0, angle, 0)) with { X = x, Y = y, Z = z };
-    private static int Actor(NativeBattleDuel274Frame frame) => (frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel move requires actual actor parameters.")).Source;
+    private static BattleModelOwner Actor(NativeBattleDuel274Frame frame) => (frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel move requires actual actor parameters.")).Source;
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static uint Cursor(NativeBattleDuel274Frame frame) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x2508434, 4));
     private static NativeBattleDuel274Frame SetCursor(NativeBattleDuel274Frame frame, uint cursor) => frame with { Staging = frame.Staging.Write(0x2508434, BitConverter.GetBytes(cursor)) };

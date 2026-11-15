@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         }
         memory = (NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its initialized process owner.")).SetDirectParameters(callback, header.Command, header.Action, unchecked((byte)header.Effect));
         NativeEffectMemory = memory;
-        graphics = graphics with { OriginalEffect = selected with { Parameters = parameters with { Parameter80 = memory.Parameter80, Parameter81 = 0, Parameter82 = memory.Parameter82, Parameter83 = 0 } } };
+        graphics = graphics with { OriginalEffect = selected with { Parameters = (parameters with { Parameter80 = memory.Parameter80, Parameter81 = 0, Parameter82 = memory.Parameter82, Parameter83 = 0 }).CaptureOriginalWindow(graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) } };
         uint? returnedDescriptor = selected.ReturnedDescriptor;
         graphics = InvokeNativeOriginalEffect(graphics, assignReturnedTask: false);
         NativeGraphics = graphics with { Flags = graphics.Flags | 0x10, OriginalEffect = graphics.OriginalEffect! with { ReturnedDescriptor = returnedDescriptor } };

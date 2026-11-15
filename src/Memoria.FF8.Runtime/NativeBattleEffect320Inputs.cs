@@ -27,5 +27,5 @@ public abstract record NativeBattleEffect320Operation;
 public sealed record NativeBattleEffect320UploadTim505E30(uint SourceAddress) : NativeBattleEffect320Operation;
 public sealed record NativeBattleEffect320RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect320Operation;
 public sealed record NativeBattleEffect320Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect320Operation;
-public sealed record NativeBattleEffect320AllContacts506BA0(int FirstContactIndex, int Count) : NativeBattleEffect320Operation;
+public sealed record NativeBattleEffect320AllContacts506BA0(BattleContactCursor FirstContact, int Count) : NativeBattleEffect320Operation;
 public sealed record NativeBattleEffect320DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect320Operation;

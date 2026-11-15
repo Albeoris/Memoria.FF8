@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeDeformedBodyBridge DrawNativeForeignDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, short fraction, uint cacheAddress, int cacheLength, NativeBattleForeignModelGeometry geometry, NativeBattlePilotVisualIdentity? pilotIdentity)
+    private NativeDeformedBodyBridge DrawNativeForeignDeformedBody(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeCrtRandomState random, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, BattleModelOwner actor, short fraction, uint cacheAddress, int cacheLength, NativeBattleForeignModelGeometry geometry, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleForeignModelDrawing.RequireCoefficientCache(geometry, cacheAddress, cacheAddress, cacheLength);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Host body deformation requires its current camera.");

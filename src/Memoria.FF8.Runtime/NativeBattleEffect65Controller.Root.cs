@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleEffect65Profile;
 
@@ -59,21 +60,27 @@ public static partial class NativeBattleEffect65Controller
 
     public static NativeBattleEffect65Frame SaveActorFlags6E07A0(NativeBattleEffect65Frame frame, NativeBattleEffect65Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        ImmutableDictionary<BattleModelOwner, ushort>.Builder saved = ImmutableDictionary.CreateBuilder<BattleModelOwner, ushort>();
+        foreach (BattleModelOwner actor in packets.Roster.Owners)
         {
-            frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)(actor * 4), inputs.ReadModel(frame, ModelAddress(actor)).Flags0) };
+            ushort flags = inputs.ReadModel(frame, actor).Flags0;
+            saved.Add(actor, flags);
+            if (packets.ModelAliases.TryEncodeExact(actor, out byte originalSlot))
+            {
+                frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)originalSlot * 4, flags) };
+            }
         }
-        return frame;
+        return frame with { State = frame.State with { SavedFlags = saved.ToImmutable() } };
     }
 
     public static NativeBattleEffect65Frame RestoreActorFlags6E2BD0(NativeBattleEffect65Frame frame, NativeBattleEffect65Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        foreach (BattleModelOwner model in inputs.ReadPackets(frame).Roster.Owners)
         {
-            uint model = ModelAddress(actor);
             if ((inputs.ReadModel(frame, model).Flags0 & 2) != 0)
             {
-                byte saved = frame.State.Read(SavedFlagsAddress + (uint)(actor * 4), 1)[0];
+                ushort saved = frame.State.SavedFlags.TryGetValue(model, out ushort flags) ? flags : throw new InvalidDataException("The current model has no retained effect flags.");
                 frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(model, 0xFFFB, (ushort)(saved & 4)));
             }
         }
@@ -90,11 +97,11 @@ public static partial class NativeBattleEffect65Controller
         int[] maximum = [-32767, -32767, -32767];
         for (int index = 0; index < count; index++)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect65 requires its actual header contact pointer.");
-            NativeBattleContactPacket contact = packets.Contacts[first + index] ?? throw new NotSupportedException("Effect65 requires its current contact row.");
-            uint model = ModelAddress(contact.Primary.Recipient);
+            BattleModelOwner model = packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
             uint row = checked(main + 0x24 + (uint)(index * 12));
-            frame = WriteBytes(frame, row, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(model)), 4);
+            NativeBattleModulePoolTask recipientTask = Read(frame, main);
+            recipientTask.WriteExecutionReference(0x24 + index * 12, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
+            frame = Write(frame, main, recipientTask);
             frame = WriteBytes(frame, row + 4, inputs.ReadPosition8(frame, model), 8);
             NativeBattleEffect65PointStep anchor = inputs.ReadAnchor571400(frame, model);
             frame = anchor.Frame;
@@ -109,7 +116,7 @@ public static partial class NativeBattleEffect65Controller
         NativeBattleVector center = new(unchecked((short)((minimum[0] + maximum[0]) / 2)), unchecked((short)((minimum[1] + maximum[1]) / 2)), unchecked((short)((minimum[2] + maximum[2]) / 2)));
         frame = WriteBytes(frame, main + 0x1C, PointView(center), 6);
         frame = WriteBytes(frame, CenterAddress, PointView(center), 6);
-        NativeBattleEffectArena caster = inputs.ReadPosition8(frame, frame.State.ReadDword(CasterGlobal));
+        NativeBattleEffectArena caster = inputs.ReadPosition8(frame, frame.State.ReadModelAddress(CasterGlobal));
         frame = WriteBytes(frame, main + 0x14, caster, 8);
         return WriteBytes(frame, CasterPointAddress, caster, 8);
     }

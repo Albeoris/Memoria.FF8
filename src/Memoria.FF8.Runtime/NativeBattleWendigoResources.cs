@@ -50,11 +50,11 @@ public abstract record NativeBattleWendigoOperation
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleWendigoContact(int Index) : NativeBattleWendigoOperation;
+public sealed record NativeBattleWendigoContact(BattleContactOccurrence Occurrence) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoSound(uint Sound, ushort Flags) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoPackets(NativeBattleGfGeometryBatch Batch, bool Secondary) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoSprite(NativeBattleModuleDraw Draw, bool Secondary) : NativeBattleWendigoOperation;
-public sealed record NativeBattleWendigoModel(NativeBattleGraphicsModel Model) : NativeBattleWendigoOperation;
-public sealed record NativeBattleWendigoSequence(byte Actor, byte Sequence) : NativeBattleWendigoOperation;
-public sealed record NativeBattleWendigoDrawBall(int Actor) : NativeBattleWendigoOperation;
+public sealed record NativeBattleWendigoModel(BattleModelOwner Owner, NativeBattleGraphicsModel Model) : NativeBattleWendigoOperation;
+public sealed record NativeBattleWendigoSequence(BattleModelOwner Actor, byte Sequence) : NativeBattleWendigoOperation;
+public sealed record NativeBattleWendigoDrawBall(BattleModelOwner Actor) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleWendigoFrame, NativeBattleWendigoOperation, NativeBattleWendigoFrame> Execute);

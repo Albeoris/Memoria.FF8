@@ -321,7 +321,7 @@ public static class NativeBattleShot193
                 state = state with { ImpactSerial = unchecked(impactSerial + 1) };
                 NativeBattleModulePoolTask sourceTask = task;
                 Append(2, 0x5B8120, child => NativeBattleShotTaskTarget.Copy(sourceTask, child.WriteWord(12, 0).WriteWord(14, unchecked((ushort)impactSerial)).WriteWord(22, unchecked((ushort)height))));
-                NativeBattleVector center = inputs.ReadCenter(target);
+                NativeBattleVector center = inputs.ReadCenter(NativeBattleShotTaskTarget.Read(sourceTask));
                 scale = (((height << 12) / 1000 * (Roll() % 1536 + 5632)) >> 12) / 4;
                 Append(2, 0x5B8410, child => WriteVector(child.WriteWord(12, 0).WriteWord(22, unchecked((ushort)height)).WriteWord(28, (ushort)scale).WriteWord(30, (ushort)scale), 16, center));
                 Execute(new NativeBattleShot193Contact());

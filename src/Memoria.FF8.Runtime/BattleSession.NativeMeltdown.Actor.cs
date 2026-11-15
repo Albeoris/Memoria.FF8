@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleMeltdownFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeMeltdownActor(NativeBattleMeltdownFrame frame, NativeBattleGraphicsState graphics, NativeBattleMeltdownActor request)
     {
-        int index = request.Actor;
+        BattleModelOwner index = request.Actor;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0xC) };
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };

@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleSiren95VibrationStep(NativeBattleSiren95Frame Frame, short Handle);
@@ -5,7 +7,7 @@ public sealed record NativeBattleSiren95DirectorServices(NativeBattleActionPacke
 
 public static class NativeBattleSiren95Director
 {
-    public static NativeBattleSiren95Frame Initialize73A6E0(NativeBattleSiren95Frame frame, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleSiren95Frame Initialize73A6E0(NativeBattleSiren95Frame frame, BattleModelRoster roster, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         uint director = Director(frame);
         NativeBattleSiren95State state = State(frame).Write(director, new byte[0x54]).Write(unchecked(director + 4), BitConverter.GetBytes((ushort)0xCC0));
@@ -14,14 +16,14 @@ public static class NativeBattleSiren95Director
         short minZ = 0;
         short maxZ = 0;
         int count = 0;
-        for (int index = 3; index < 7; index++)
+        foreach (BattleEnemyModelOwner owner in roster.Enemies)
         {
-            NativeBattleGraphicsModel model = readModel(index);
+            NativeBattleGraphicsModel model = readModel(owner);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;
             }
-            NativeBattleVector point = (model.Transform ?? throw new NotSupportedException("Native Siren boot requires current party positions.")).Position28;
+            NativeBattleVector point = (model.Transform ?? throw new NotSupportedException("Native Siren boot requires current enemy positions.")).Position28;
             short x = unchecked((short)point.X);
             short z = unchecked((short)point.Z);
             if (count == 0)
@@ -54,7 +56,7 @@ public static class NativeBattleSiren95Director
         state = state.Write(unchecked(director + 0xA), new byte[2]);
         state = state.Write(unchecked(director + 0xC), BitConverter.GetBytes(unchecked((short)((maxZ + minZ) / 2))));
         state = state.Write(unchecked(director + 8), new byte[2]);
-        return frame with { Memory = frame.Memory with { Siren95 = state } };
+        return frame with { Memory = frame.Memory with { Siren95 = state }, Effect = frame.Effect with { SirenSavedEnemyFlags = roster.Enemies.ToImmutableDictionary(owner => (BattleModelOwner)owner, _ => (ushort)0) } };
     }
 
     public static NativeBattleSiren95TaskStep Advance73A7B0(NativeBattleSiren95Frame frame, uint address, NativeBattleSiren95DirectorServices services)
@@ -257,25 +259,32 @@ public static class NativeBattleSiren95Director
         }
         void SavePartyFlags()
         {
-            for (int index = 3; index < 7; index++)
+            foreach (BattleEnemyModelOwner owner in services.Packets.Roster.Enemies)
             {
-                NativeBattleGraphicsModel model = services.ReadModel(index);
+                NativeBattleGraphicsModel model = services.ReadModel(owner);
                 if ((model.Flags0 & 2) != 0)
                 {
-                    frame = frame with { Memory = frame.Memory with { Siren95 = State(frame).WriteDword(unchecked(Director(frame) + 0x2C + (uint)(4 * (index - 3))), model.Flags0) } };
-                    frame = services.WriteModel(frame, index, model with { Flags0 = (ushort)(model.Flags0 | 4) });
+                    frame = frame with { Effect = frame.Effect with { SirenSavedEnemyFlags = frame.Effect.SirenSavedEnemyFlags.SetItem(owner, model.Flags0) } };
+                    if (services.Packets.ModelAliases.TryEncodeExact(owner, out byte alias))
+                    {
+                        frame = frame with { Memory = frame.Memory with { Siren95 = State(frame).WriteDword(unchecked(Director(frame) + 0x2C + (uint)(4 * (alias - 3))), model.Flags0) } };
+                    }
+                    frame = services.WriteModel(frame, owner, model with { Flags0 = (ushort)(model.Flags0 | 4) });
                 }
             }
         }
         void RestorePartyFlags()
         {
-            for (int index = 3; index < 7; index++)
+            foreach (BattleEnemyModelOwner owner in services.Packets.Roster.Enemies)
             {
-                NativeBattleGraphicsModel model = services.ReadModel(index);
+                NativeBattleGraphicsModel model = services.ReadModel(owner);
                 if ((model.Flags0 & 2) != 0)
                 {
-                    uint saved = State(frame).ReadDword(unchecked(Director(frame) + 0x2C + (uint)(4 * (index - 3))));
-                    frame = services.WriteModel(frame, index, model with { Flags0 = (ushort)(model.Flags0 ^ ((saved ^ model.Flags0) & 4)) });
+                    if (!frame.Effect.SirenSavedEnemyFlags.TryGetValue(owner, out ushort saved))
+                    {
+                        throw new InvalidDataException("Siren cannot restore enemy flags without its captured owner.");
+                    }
+                    frame = services.WriteModel(frame, owner, model with { Flags0 = (ushort)(model.Flags0 ^ ((saved ^ model.Flags0) & 4)) });
                 }
             }
         }

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory, NativeBattlePandemona291Bounds Bounds) CaptureNativePandemona291Bounds(NativeBattleGraphicsState graphics, NativeBattleEffectMemory memory, int actorIndex)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory, NativeBattlePandemona291Bounds Bounds) CaptureNativePandemona291Bounds(NativeBattleGraphicsState graphics, NativeBattleEffectMemory memory, BattleModelOwner actorIndex)
     {
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         if (ReadNativeForeignModel(graphics, actorIndex) is { } foreign)

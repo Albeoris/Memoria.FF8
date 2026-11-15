@@ -56,11 +56,7 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         BattleModelOwner owner = RequirePresentationModelOwner(graphics.ActorModels.Roster, actor);
-        if (!graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte operand))
-        {
-            throw new InvalidDataException("Native106 death requires an original descriptor operand for its bound actor.");
-        }
-        NativeGraphics = QueueNativeDescriptor(graphics, 106, 0, operand);
+        NativeGraphics = QueueNativeModelDescriptor(graphics, 106, 0, owner);
         actor.NativeStatus0 |= 1;
         actor.NativeCombatantFlags &= ~0xCu;
         actor.Atb = 0;
@@ -76,11 +72,7 @@ public sealed partial class BattleSession
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         BattleModelOwner owner = RequirePresentationModelOwner(graphics.ActorModels.Roster, actor);
-        if (!graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte operand))
-        {
-            throw new InvalidDataException("Native105 removal requires an original descriptor operand for its bound actor.");
-        }
-        NativeGraphics = QueueNativeDescriptor(graphics, 105, 0, operand);
+        NativeGraphics = QueueNativeModelDescriptor(graphics, 105, 0, owner);
     }
 
     private NativeBattleGraphicsState RequireNativeGraphics() => NativeGraphics ?? throw new NotSupportedException("Native graphical descriptors require their explicitly initialized seven-row resource bank.");
@@ -272,9 +264,9 @@ public sealed partial class BattleSession
         return AdvanceNativeDescriptors(graphics);
     }
 
-    private static bool ModelsBusy(IReadOnlyList<NativeBattleGraphicsModel> models)
+    private static bool ModelsBusy(BattleActorModels models)
     {
-        return models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40));
+        return models.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40));
     }
 
     private BattleCombatant GraphicsActor(NativeBattleGraphicsState graphics, BattleModelOwner owner)

@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Shockwave Pulsar requires its current process memory.");
         NativeBattleShockwavePulsar260Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Shockwave Pulsar requires its CRT stream."), memory.ShockwavePulsar260 ?? throw new NotSupportedException("Shockwave Pulsar requires its retained native state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Shockwave Pulsar requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Shockwave Pulsar requires its original color constants.");
-        NativeBattleShockwavePulsar260Inputs inputs = new(nativeActionPackets, ReadRequiredEffectSceneContext(), actor => graphics.ActorModels.Get(actor), Position, actor => graphics.ActorModels.Get(actor).ReadLinkedModelIndex140(), _ => Camera().CapturePackedView1D97778(), _ => Camera(), Anchor, PollIo, Execute);
+        NativeBattleShockwavePulsar260Inputs inputs = new(nativeActionPackets, ReadRequiredEffectSceneContext(), actor => graphics.ActorModels.Get(actor), Position, actor => graphics.ActorModels.Get(actor).ReadLinkedModel(), _ => Camera().CapturePackedView1D97778(), _ => Camera(), Anchor, PollIo, Execute);
         frame = initialize ? NativeBattleShockwavePulsar260Controller.Initialize(frame, resources, inputs) : NativeBattleShockwavePulsar260Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -26,15 +26,7 @@ public sealed partial class BattleSession
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Shockwave Pulsar requires its current camera process.");
-        NativeBattleEffectArena Position(int actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Shockwave Pulsar model pointer leaves its current physical model directory.");
-            }
-            return actorIndex;
-        }
+        NativeBattleEffectArena Position(BattleModelOwner actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
         void Publish(NativeBattleShockwavePulsar260Frame current)
         {
             NativeEffectMemory = current.Memory with { ShockwavePulsar260 = current.State };
@@ -47,7 +39,7 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory latest = NativeEffectMemory ?? throw new InvalidDataException("Shockwave Pulsar external service lost its process memory.");
             return current with { Memory = latest, State = latest.ShockwavePulsar260 ?? throw new InvalidDataException("Shockwave Pulsar lost its retained native state."), Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Shockwave Pulsar lost its effect tasks."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Shockwave Pulsar lost its CRT stream.") };
         }
-        NativeBattleShockwavePulsar260AnchorStep Anchor(NativeBattleShockwavePulsar260Frame current, int actor)
+        NativeBattleShockwavePulsar260AnchorStep Anchor(NativeBattleShockwavePulsar260Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -151,7 +143,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleShockwavePulsar260ContactAll:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleShockwavePulsar260CameraPose pose:
@@ -189,7 +181,7 @@ public sealed partial class BattleSession
                 case NativeBattleShockwavePulsar260DrawPuffs puffs:
                     return NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffs(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its puff projection."), Deliver, pilotIdentity: puffs.PilotIdentity);
                 case NativeBattleShockwavePulsar260DrawSecondaryParticles secondary:
-                    return NativeBattleShockwavePulsar260ParticlesDrawing.DrawSecondaryParticles(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its secondary projection."), colors, address => NativeBattleShockwavePulsar260Controller.ReadView(current, address, 36), pointer => (graphics.ActorModels.Get(Actor(pointer)).Transform ?? throw new NotSupportedException("Shockwave Pulsar requires its target position.")).Position28, Deliver, pilotIdentity: secondary.PilotIdentity);
+                    return NativeBattleShockwavePulsar260ParticlesDrawing.DrawSecondaryParticles(current, resources, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Shockwave Pulsar requires its secondary projection."), colors, address => NativeBattleShockwavePulsar260Controller.ReadView(current, address, 36), actor => (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Shockwave Pulsar requires its target position.")).Position28, Deliver, pilotIdentity: secondary.PilotIdentity);
                 default:
                     throw new NotSupportedException("Shockwave Pulsar selected an unsupported native service.");
             }

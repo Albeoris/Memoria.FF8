@@ -6,7 +6,7 @@ public sealed record NativeBattleRinoa88ParticleEmission(NativeBattleEffectHiera
 
 public static class NativeBattleRinoa88Particles
 {
-    public static NativeBattleRinoa88ParticleEmission Emit(NativeBattleEffectHierarchy hierarchy, uint parent, uint callback, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleRinoa88ParticleEmission Emit(NativeBattleEffectHierarchy hierarchy, uint parent, uint callback, NativeCrtRandomState random, Func<byte, NativeBattleVector> readBone502170, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         if (callback is not (0x771F50 or 0x772880))
         {

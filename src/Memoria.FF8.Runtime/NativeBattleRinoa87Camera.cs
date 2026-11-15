@@ -40,7 +40,7 @@ public sealed record NativeBattleRinoa87CameraResources(ImmutableArray<NativeBat
     }
 }
 
-public sealed record NativeBattleRinoa87CameraInputs(NativeBattleRinoa87CameraResources Resources, Func<int, short> ReadCasterYaw, Func<NativeBattleRinoa87Frame, ImmutableArray<byte>> ReadBodyDestination328, Func<NativeBattleRinoa87Frame, (NativeBattleRinoa87Frame Frame, int Value)> Random55CBD2, Func<NativeBattleRinoa87Frame, NativeBattleMoogleCameraStep, NativeBattleRinoa87Frame> Publish);
+public sealed record NativeBattleRinoa87CameraInputs(NativeBattleRinoa87CameraResources Resources, Func<BattleModelOwner, short> ReadCasterYaw, Func<NativeBattleRinoa87Frame, ImmutableArray<byte>> ReadBodyDestination328, Func<NativeBattleRinoa87Frame, (NativeBattleRinoa87Frame Frame, int Value)> Random55CBD2, Func<NativeBattleRinoa87Frame, NativeBattleMoogleCameraStep, NativeBattleRinoa87Frame> Publish);
 
 /// <summary>7743A0's fourteen camera states and its layout-identical7749C0/774500/774850 orbit kernel.</summary>
 public static class NativeBattleRinoa87Camera
@@ -58,7 +58,7 @@ public static class NativeBattleRinoa87Camera
         {
             case 0:
                 byte[] reset = NativeBattleMoogleCamera.Reset732AF0().Data.ToArray();
-                BinaryPrimitives.WriteInt16LittleEndian(reset.AsSpan(232), inputs.ReadCasterYaw(task.ReadByte(44)));
+                BinaryPrimitives.WriteInt16LittleEndian(reset.AsSpan(232), inputs.ReadCasterYaw(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner));
                 Store(new(reset.ToImmutableArray(), true));
                 Next();
                 break;

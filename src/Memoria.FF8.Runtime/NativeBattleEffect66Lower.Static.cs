@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect66Lower
         frame = Random(frame, out int boneIndex);
         frame = Random(frame, out int offset);
         int bone = BinaryPrimitives.ReadInt32LittleEndian(resources.ReadStatic(0xDEA360 + (uint)((boneIndex % 29) * 4), 4));
-        NativeBattleEffect66PointStep point = inputs.ReadBone502170(frame, (int)frame.State.ReadDword(CasterGlobal), bone, offset & 4095, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
+        NativeBattleEffect66PointStep point = inputs.ReadBone502170(frame, frame.State.ReadModelOperand(CasterGlobal), bone, offset & 4095, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
         frame = point.Frame;
         (frame, uint ring) = Mandatory(frame, 0x624CB0);
         frame = WriteBytes(frame, ring + 0x10, point.Point8, 8);

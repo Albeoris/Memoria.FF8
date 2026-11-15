@@ -8,7 +8,7 @@ public sealed record NativeBattleRinoa88Inputs(NativeBattleActionPacketsState Pa
 {
     public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
 }
-public sealed record NativeBattleRinoa88TargetInputs(NativeBattleRinoa88Inputs Controller, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> InitializeScene, Func<NativeBattleRinoa88Frame, ushort> ReadContactReady, Func<NativeBattleRinoa88Frame, ushort> ReadSceneComplete, Func<NativeBattleRinoa88Frame, int, NativeBattleRinoa88Frame> ApplyContact);
+public sealed record NativeBattleRinoa88TargetInputs(NativeBattleRinoa88Inputs Controller, Func<NativeBattleRinoa88Frame, uint, NativeBattleRinoa88Frame> InitializeScene, Func<NativeBattleRinoa88Frame, ushort> ReadContactReady, Func<NativeBattleRinoa88Frame, ushort> ReadSceneComplete, Func<NativeBattleRinoa88Frame, BattleContactOccurrence, NativeBattleRinoa88Frame> ApplyContact);
 
 /// <summary>7684F0/768690's physical pools, node workspaces and eleven-state root.</summary>
 public static class NativeBattleRinoa88Controller
@@ -31,7 +31,7 @@ public static class NativeBattleRinoa88Controller
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        byte target = packets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
         int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
@@ -39,7 +39,8 @@ public static class NativeBattleRinoa88Controller
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
+        NativeBattleEffectTaskActors actors = new(header.Source, target, packets.ModelAliases);
+        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0)).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25A4D98)?.ArenaOffset ?? throw new NotSupportedException("Native7684F0 requires its retained mag087 initializer pointer.");
         if (source > NativeBattleEffectArena.Length - 81920)
@@ -67,7 +68,7 @@ public static class NativeBattleRinoa88Controller
         inputs.Camera.Validate();
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         NativeBattleRinoa88Frame current = frame with { State = frame.State with { CopiedCamera = inputs.Camera } };
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep advanced = new NativeBattleEffectHierarchy(current.Effect.Pools).Advance(0, (hierarchy, address) =>
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -77,7 +78,7 @@ public static class NativeBattleRinoa88Controller
             }
             bool odd = (task.ReadByte(92) & 1) != 0;
             current = current with { State = current.State with { PrimaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 0 : 40960)), SecondaryDrawCursor = checked(current.State.SourceArenaOffset + (odd ? 40960 : 81920)) } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource, readForeign: inputs.ReadForeignActorGeometry);
             hierarchy = hierarchy.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(41)))
             {
@@ -111,7 +112,7 @@ public static class NativeBattleRinoa88Controller
                         }
                         else
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(42, unchecked((byte)(task.ReadByte(42) + 1))).WriteByte(46, unchecked((byte)(task.ReadByte(46) + 1))).WriteByte(41, unchecked((byte)(task.ReadByte(41) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(42, unchecked((byte)(task.ReadByte(42) + 1))).WriteTraversalPosition(46, checked(task.ReadTraversalPosition(46) + 1)).WriteByte(41, unchecked((byte)(task.ReadByte(41) - 1))));
                         }
                     }
                     break;
@@ -176,7 +177,7 @@ public static class NativeBattleRinoa88Controller
             throw new InvalidDataException("Native7688F0 requires its actual target task.");
         }
         NativeBattleRinoa88Inputs controller = inputs.Controller;
-        task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(controller.ReadModel).ToArray(), controller.ReadPoseSource, controller.ReadForeignActorGeometry);
+        task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, controller.ReadModel, controller.ReadPoseSource, controller.ReadForeignActorGeometry);
         hierarchy = hierarchy.Write(address, task);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
         switch (unchecked((sbyte)task.ReadByte(41)))
@@ -185,7 +186,7 @@ public static class NativeBattleRinoa88Controller
                 frame = inputs.InitializeScene(frame, address);
                 hierarchy = new(frame.Effect.Pools);
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
-                NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, controller.Packets, pointer, group, target);
+                NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, controller.Packets, pointer, group, target);
                 hierarchy = hierarchy.Append8DC540(9, 0x768AC0, 48, address, Select).Hierarchy;
                 hierarchy = hierarchy.Append8DC540(2, 0x768ED0, 72, address, Select).Hierarchy;
                 hierarchy = Next(hierarchy, address);
@@ -195,10 +196,10 @@ public static class NativeBattleRinoa88Controller
                 {
                     BattleActionHeaderReference header = frame.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
                     NativeBattleActionHeaderSlot group = controller.Packets.ReadHeader(header);
-                    int first = group.FirstContactIndex ?? throw new NotSupportedException("Native7842F0 requires its selected group's actual contact pointer.");
                     for (int contact = 0; contact < group.ReadContactCount(); contact++)
                     {
-                        frame = inputs.ApplyContact(frame, checked(first + contact));
+                        BattleContactOccurrence occurrence = controller.Packets.ReadContact(group.FirstContact.Advance(contact)).Occurrence ?? throw new InvalidDataException("Rinoa contact has no occurrence reference.");
+                        frame = inputs.ApplyContact(frame, occurrence);
                     }
                     hierarchy = Next(new(frame.Effect.Pools), address);
                 }

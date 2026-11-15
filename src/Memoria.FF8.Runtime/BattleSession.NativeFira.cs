@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleFiraPosition ReadPosition(int model)
+        NativeBattleFiraPosition ReadPosition(BattleModelOwner model)
         {
             NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, model);
             NativeBattleModelTransform transform = graphics.ActorModels.Get(model).Transform ?? throw new NotSupportedException("Native571400 requires its actual graphics transform row.");

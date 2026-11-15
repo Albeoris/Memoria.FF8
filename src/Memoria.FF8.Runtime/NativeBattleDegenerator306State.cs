@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -26,6 +27,20 @@ public sealed record NativeBattleDegenerator306State([property: JsonRequired] Na
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public byte[] Read(uint address, int length) => Globals.Read(Require(address, length), length);
+    internal BattleModelOwner ReadModelOperand(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleDegenerator306State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this with { Globals = globals };
+    }
+
+    [JsonIgnore]
+    internal ImmutableHashSet<BattleModelOwner> FadedActors { get; init; } = ImmutableHashSet<BattleModelOwner>.Empty;
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena> SavedActors { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena>.Empty;
+
     public NativeBattleDegenerator306State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

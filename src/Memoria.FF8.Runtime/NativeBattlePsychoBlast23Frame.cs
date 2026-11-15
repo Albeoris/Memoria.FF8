@@ -32,7 +32,7 @@ public sealed record NativeBattlePsychoBlast23Frame(NativeBattleEffectMemory Mem
 
 public sealed record NativeBattlePsychoBlast23LeafStep(NativeBattlePsychoBlast23Frame Frame, int Result);
 public abstract record NativeBattlePsychoBlast23Operation;
-public sealed record NativeBattlePsychoBlast23Contact(int Index) : NativeBattlePsychoBlast23Operation;
+public sealed record NativeBattlePsychoBlast23Contact(BattleContactOccurrence Occurrence) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23Sound(NativeBattleModuleSound Sound) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23LookBasis(NativeBattleVector Direction, NativeBattleVector Up) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23Rotate(NativeBattleActionMatrix Matrix, char Axis, short Angle, short? Padding18) : NativeBattlePsychoBlast23Operation;
@@ -40,4 +40,4 @@ public sealed record NativeBattlePsychoBlast23TargetAnchor(BattleModelOwner Acto
 public sealed record NativeBattlePsychoBlast23ActDraw(uint Address) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23DebrisDraw(uint Address) : NativeBattlePsychoBlast23Operation;
 public sealed record NativeBattlePsychoBlast23TextureLoad(uint RootTaskAddress, int SourceArenaOffset) : NativeBattlePsychoBlast23Operation;
-public sealed record NativeBattlePsychoBlast23Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattlePsychoBlast23Frame, NativeBattlePsychoBlast23Operation, NativeBattlePsychoBlast23Frame> Execute, Func<NativeBattlePsychoBlast23Frame, uint, NativeBattlePsychoBlast23LeafStep> AdvanceGeneric, Func<NativeBattlePsychoBlast23Frame, uint, NativeBattlePsychoBlast23LeafStep> AdvanceOverlay);
+public sealed record NativeBattlePsychoBlast23Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattlePsychoBlast23Frame, NativeBattlePsychoBlast23Operation, NativeBattlePsychoBlast23Frame> Execute, Func<NativeBattlePsychoBlast23Frame, uint, NativeBattlePsychoBlast23LeafStep> AdvanceGeneric, Func<NativeBattlePsychoBlast23Frame, uint, NativeBattlePsychoBlast23LeafStep> AdvanceOverlay);

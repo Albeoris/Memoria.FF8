@@ -12,12 +12,12 @@ public static partial class NativeBattleDegenerator306Controller
             return (frame, 0);
         }
         int age = Signed(Read(frame, address), 12);
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
-        int target = checked((int)frame.State.ReadDword(TargetGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
+        BattleModelOwner target = frame.State.ReadModelOperand(TargetGlobal);
         if (age == 1)
         {
-            frame = inputs.Execute(frame, new NativeBattleDegenerator306BindCaster((byte)caster, BindingSave, 0xCE454C));
-            frame = inputs.Execute(frame, new NativeBattleDegenerator306RingSequence((byte)caster, 2));
+            frame = inputs.Execute(frame, new NativeBattleDegenerator306BindCaster(caster, BindingSave, 0xCE454C));
+            frame = inputs.Execute(frame, new NativeBattleDegenerator306RingSequence(caster, 2));
         }
         if (age == 10)
         {
@@ -47,7 +47,7 @@ public static partial class NativeBattleDegenerator306Controller
         }
         if (age == 42)
         {
-            if (target < 3)
+            if (target.Side == BattleSide.Allies)
             {
                 NativeBattleDegenerator306PointStep point = inputs.ReadBone502170(frame, target, 0xF1, 0);
                 frame = StorePoint(point.Frame, 0x2244210, point.Position);
@@ -67,13 +67,15 @@ public static partial class NativeBattleDegenerator306Controller
             frame = SpawnTargetMesh(frame, 0x5A3970, 40, scale, unchecked((short)(scale / 40)), 0);
             frame = SpawnTargetMesh(frame, 0x5A3970, 60, scale, unchecked((short)(scale / 40)), 2048);
         }
-        bool miss = (inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.HitFlags3 & 4) != 0;
+        bool miss = (inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.HitFlags & 4) != 0;
         if (age == 72 && !miss)
         {
             (frame, _) = Spawn(frame, 0x5A47C0, 0x2244210);
             (frame, uint child) = Spawn(frame, 0x5A5540, 0x2244210);
             frame = DrawRandom(frame, out ushort random);
-            frame = Write(frame, child, Read(frame, child).WriteWord(14, (ushort)target).WriteWord(0x18, (ushort)(((random & 1) + 1) << 12)));
+            NativeBattleModulePoolTask motion = Read(frame, child);
+            motion.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(target), inputs.Packets.ModelAliases.EncodeOperand(target, 2));
+            frame = Write(frame, child, motion.WriteWord(0x18, (ushort)(((random & 1) + 1) << 12)));
         }
         if (age == 101 && !miss)
         {
@@ -83,9 +85,9 @@ public static partial class NativeBattleDegenerator306Controller
         {
             if (!miss)
             {
-                frame = inputs.Execute(frame, new NativeBattleDegenerator306ActorFlags((byte)target, 0, 4));
+                frame = inputs.Execute(frame, new NativeBattleDegenerator306ActorFlags(target, 0, 4));
             }
-            frame = inputs.Execute(frame, new NativeBattleDegenerator306Contact(FirstContact(frame, inputs)));
+            frame = inputs.Execute(frame, new NativeBattleDegenerator306Contact(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("Degenerator requires its stored contact occurrence.")));
         }
         if (age == 71)
         {

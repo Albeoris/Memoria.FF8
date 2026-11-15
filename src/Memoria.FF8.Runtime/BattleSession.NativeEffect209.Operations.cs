@@ -49,7 +49,15 @@ public sealed partial class BattleSession
             case NativeBattleEffect209PublishNormalColor44 color:
                 NativeBattleStageState normalStage = NativeStage ?? throw new NotSupportedException("Effect209 requires its current normal model color.");
                 NativeStage = normalStage with { ModelColors = (normalStage.ModelColors ?? throw new NotSupportedException("Effect209 requires its retained color DWORDs.")) with { Color44 = color.Color } };
-                graphics = graphics with { ActorModels = graphics.Models.Select(model => (model.Flags0 & 2) != 0 ? model with { Color44 = color.Color } : model).ToImmutableArray() };
+                BattleActorModels loadedModels = graphics.ActorModels;
+                foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
+                {
+                    if ((entry.State.Flags0 & 2) != 0)
+                    {
+                        loadedModels = loadedModels.Set(entry.Owner, entry.State with { Color44 = color.Color });
+                    }
+                }
+                graphics = graphics with { ActorModels = loadedModels };
                 return current;
             case NativeBattleEffect209Sound501330 sound:
                 PublishNativeEffect209Frame(current);

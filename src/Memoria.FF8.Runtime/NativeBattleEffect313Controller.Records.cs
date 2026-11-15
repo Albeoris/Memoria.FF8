@@ -88,7 +88,7 @@ public static partial class NativeBattleEffect313Controller
     private static NativeBattleEffectArena Static313(NativeBattleEffect313Resources resources, uint address, int length) => NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(address, length));
     private static NativeBattleActionMatrix CurrentCasterMatrix313(NativeBattleEffect313Frame frame, NativeBattleEffect313Inputs inputs)
     {
-        (byte[] bytes, bool[] known) = inputs.ReadModelArena9C(frame, ModelAddress(checked((int)frame.State.ReadDword(CasterGlobal)))).ReadSnapshot(0x40, 32);
+        (byte[] bytes, bool[] known) = inputs.ReadModelArena9C(frame, frame.State.ReadModelOperand(CasterGlobal)).ReadSnapshot(0x40, 32);
         return new NativeBattlePackedMatrix32(bytes.ToImmutableArray(), known.ToImmutableArray()).ReadMatrix();
     }
     private static int Roll313(ref NativeBattleEffect313Frame frame)

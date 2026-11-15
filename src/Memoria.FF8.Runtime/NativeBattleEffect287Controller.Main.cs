@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect287Controller
 {
     public static NativeBattleEffect287Step AdvanceMain6F31A0(NativeBattleEffect287Frame frame, uint address, NativeBattleEffect287Resources resources, NativeBattleEffect287Inputs inputs)
     {
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleEffect287ModelFlags(caster, 2, 0xFFF7, 0));
         int age = Signed(Read(frame, address), 12);
         if ((uint)age < 75)
@@ -74,7 +74,7 @@ public static partial class NativeBattleEffect287Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = CurrentHeader(frame, packets);
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect287 requires its current contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             frame = inputs.Execute(frame, new NativeBattleEffect287Contacts506BA0(first, header.ReadContactCount()));
         }
         short next = unchecked((short)(age + 1));
@@ -108,7 +108,7 @@ public static partial class NativeBattleEffect287Controller
         uint morph = frame.State.ReadDword(ArenaGlobal) + MorphOffset;
         NativeBattleEffectArena caller = ProgrammeCaller(inputs.ReadView(frame), world, 0, unchecked((byte)((age & 3) << 5)), morph);
         frame = NativeBattleEffect287Programme.Advance(frame, main + 0x2C, 0x8C4, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, Read(frame, main)) : null).Frame;
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         short secondY = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, caster).Read(36, 2));
         caller = ProgrammeCaller(inputs.ReadView(frame), world with { Y = secondY }, 1, unchecked((byte)((-age & 3) << 5)), morph);
         return NativeBattleEffect287Programme.Advance(frame, main + 0x8F0, 0xB8, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, Read(frame, main)) : null).Frame;
@@ -132,7 +132,7 @@ public static partial class NativeBattleEffect287Controller
         {
             return frame;
         }
-        uint model = Read(frame, main).ReadDword(32 + target * 4);
+        BattleModelOwner model = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(32 + target * 4, 4).Owner;
         NativeBattleEffect287PointStep point = inputs.Anchor571400(frame, model, TaskView(Read(frame, child), 12, 8));
         frame = Write(point.Frame, child, CopyTask(Read(point.Frame, child), 12, point.Output8, 8));
         frame = Write(frame, child, Read(frame, child).WriteWord(16, unchecked((ushort)(Signed(Read(frame, child), 16) - 500))));

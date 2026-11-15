@@ -32,7 +32,8 @@ public static class NativeBattleSearchController
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleEffectTaskActors actors = new(header.Source, packets.ReadContact(contact).Primary.Recipient, packets.ModelAliases);
+        NativeBattleModulePoolTask root = actors.WriteTo(hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters)).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         int lastTarget = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -81,7 +82,7 @@ public static class NativeBattleSearchController
         {
             throw new InvalidDataException("Native Search lost its explicitly initialized shared state.");
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep rootStep = state.Advance(0, (current, address) =>
         {
             state = current;
@@ -112,7 +113,7 @@ public static class NativeBattleSearchController
                 case 4:
                     if (task.ReadByte(0x63) == 0)
                     {
-                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(task);
+                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3) : Next(task);
                         Store(address, task);
                     }
                     break;
@@ -196,7 +197,7 @@ public static class NativeBattleSearchController
         {
             NativeBattleModulePoolTask task = state.Read(address);
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Search target bounds require the actual pose owner.");
@@ -218,7 +219,7 @@ public static class NativeBattleSearchController
                     if (DogWord(0x48) == 1)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native Search lost its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(headerIndex).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         Emit(new NativeBattleSearchContact(contact));
                         Store(address, Next(task));
                     }
@@ -298,7 +299,7 @@ public static class NativeBattleSearchController
         void Model(uint address)
         {
             NativeBattleModulePoolTask task = state.Read(address);
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             switch (Stage(task))
             {
                 case 0:
@@ -602,7 +603,7 @@ public static class NativeBattleSearchController
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), unchecked((ushort)value));
             frame = frame with { Memory = frame.Memory with { Search = Shared() with { DogControl = bytes.ToImmutableArray() } } };
         }
-        ImmutableArray<byte> World(int actor)
+        ImmutableArray<byte> World(BattleModelOwner actor)
         {
             ImmutableArray<byte> bytes = inputs.ReadTargetWorld8(actor);
             if (bytes.IsDefault || bytes.Length != 8)

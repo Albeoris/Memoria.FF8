@@ -15,7 +15,7 @@ public static partial class NativeBattleEffect287Controller
                 continue;
             }
             frame = Write(frame, child, Read(frame, child).WriteDword(12, SecondSpriteAddress));
-            NativeBattleEffect287PointStep point = inputs.LocalPoint6F3AD0(frame, frame.State.ReadDword(CasterGlobal), index + 22, TaskView(Read(frame, child), 20, 8));
+            NativeBattleEffect287PointStep point = inputs.LocalPoint6F3AD0(frame, frame.State.ReadModelAddress(CasterGlobal), index + 22, TaskView(Read(frame, child), 20, 8));
             frame = Write(point.Frame, child, CopyTask(Read(point.Frame, child), 20, point.Output8, 8).WriteWord(32, 0).WriteWord(28, 0));
             int velocity = -20 - (Roll(ref frame) & 15);
             frame = Write(frame, child, Read(frame, child).WriteWord(34, 12).WriteWord(30, unchecked((ushort)velocity)).WriteWord(26, 0));
@@ -33,7 +33,7 @@ public static partial class NativeBattleEffect287Controller
             return frame;
         }
         int angle = Roll(ref frame) & 2047;
-        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, frame.State.ReadDword(CasterGlobal));
+        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, frame.State.ReadModelAddress(CasterGlobal));
         int x = BinaryPrimitives.ReadInt16LittleEndian(model.Read(28, 2)) + (NativeBattleCameraMath.Cosine(angle) >> 1);
         int z = BinaryPrimitives.ReadInt16LittleEndian(model.Read(32, 2)) - (NativeBattleCameraMath.Sine(angle) >> 1) + 5000;
         frame = Write(frame, child, Read(frame, child).WriteWord(16, unchecked((ushort)x)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)z)));

@@ -9,15 +9,11 @@ public static class NativeBattlePresentationTaskStorage
     private const uint EndAddress = 0xF0000000;
     private const uint BankAlignment = 16;
 
-    public static (NativeBattleEffectMemory Memory, uint BankAddress) Reserve(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, ushort stride, int capacity)
+    public static (NativeBattleEffectMemory Memory, uint BankAddress) Reserve(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, BattleModelRoster roster, ushort stride, int capacity)
     {
         ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(effect);
-        if (effect.PresentationRoster is not { } roster)
-        {
-            throw new InvalidDataException("Hosted task storage requires the current effect's presentation roster.");
-        }
-        roster.Validate();
+        effect.Validate(roster);
         if (!ValidStride(stride))
         {
             throw new ArgumentOutOfRangeException(nameof(stride));

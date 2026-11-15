@@ -43,7 +43,7 @@ public static partial class NativeBattleEffect287Controller
         int mains = 0;
         if (initialized)
         {
-            uint caster = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleEffect287Compose5095B0(caster));
             (frame, mains) = AdvanceDescriptor(frame, MainDescriptor, resources, inputs);
             (frame, _) = AdvanceDescriptor(frame, MeshDescriptor, resources, inputs);
@@ -78,7 +78,10 @@ public static partial class NativeBattleEffect287Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient)));
+            BattleModelOwner target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            NativeBattleModulePoolTask recipientTask = Read(frame, main);
+            recipientTask.WriteExecutionReference(0x20 + index * 4, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+            frame = Write(frame, main, recipientTask);
         }
         return frame;
     }

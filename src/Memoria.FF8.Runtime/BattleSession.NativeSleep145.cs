@@ -191,7 +191,7 @@ public sealed partial class BattleSession
             DrawTrails(mainTrails, trailOffset, counter, 864, true, flatFade);
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
             BattleContactCursor contact = header.FirstContact;
-            int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+            BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
             if (counter < 26)
             {
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Flags0 = (ushort)(graphics.ActorModels.Get(target).Flags0 | 4) }) };

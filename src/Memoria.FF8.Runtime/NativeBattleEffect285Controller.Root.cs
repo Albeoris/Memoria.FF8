@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect285Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -53,12 +54,18 @@ public static partial class NativeBattleEffect285Controller
 
     public static NativeBattleEffect285Frame CaptureModelFlags67ABD0(NativeBattleEffect285Frame frame, NativeBattleEffect285Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        ImmutableDictionary<BattleModelOwner, ushort>.Builder saved = ImmutableDictionary.CreateBuilder<BattleModelOwner, ushort>();
+        foreach (BattleModelOwner actor in packets.Roster.Owners)
         {
-            ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(actor)).Read(0, 2));
-            frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)(actor * 4), flags) };
+            ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(inputs.ReadModelArena9C(frame, actor).Read(0, 2));
+            saved.Add(actor, flags);
+            if (packets.ModelAliases.TryEncodeExact(actor, out byte originalSlot))
+            {
+                frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)originalSlot * 4, flags) };
+            }
         }
-        return frame;
+        return frame with { State = frame.State with { SavedFlags = saved.ToImmutable() } };
     }
 
     public static NativeBattleEffect285Frame CaptureTargetCentroid(NativeBattleEffect285Frame frame, NativeBattleEffect285Inputs inputs)
@@ -76,7 +83,7 @@ public static partial class NativeBattleEffect285Controller
         for (int index = 0; index < count; index++)
         {
             NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
-            short z = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(contact.Primary.Recipient)).Read(32, 2));
+            short z = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, contact.Primary.Recipient).Read(32, 2));
             sum = unchecked((short)(sum + z));
             frame = frame with { State = frame.State.WriteWord(CentroidGlobal, unchecked((ushort)sum)) };
         }

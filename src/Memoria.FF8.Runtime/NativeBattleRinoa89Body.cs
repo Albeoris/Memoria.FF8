@@ -10,7 +10,9 @@ public sealed record NativeBattleRinoa89WorldPoint(int X, int Y, int Z)
 public abstract record NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89Sequence(byte Sequence) : NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89Visibility(uint Callback) : NativeBattleRinoa89Operation;
-public sealed record NativeBattleRinoa89BoneEmission(uint Model, uint Reference, int Extras) : NativeBattleRinoa89Operation;
+public abstract record NativeBattleRinoa89BoneEmission(uint Reference, int Extras) : NativeBattleRinoa89Operation;
+public sealed record NativeBattleRinoa89BodyBoneEmission(uint BodyAddress, uint Reference, int Extras) : NativeBattleRinoa89BoneEmission(Reference, Extras);
+public sealed record NativeBattleRinoa89ActorBoneEmission(BattleModelOwner Actor, uint Reference, int Extras) : NativeBattleRinoa89BoneEmission(Reference, Extras);
 public sealed record NativeBattleRinoa89Program(uint Source, int WorkOffset, int ClearSize, bool Initialize, bool Common, NativeBattleRinoa89WorldPoint Anchor, short Depth, bool Advance = true) : NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89ApproachMesh(int Delta, NativeBattleRinoa89WorldPoint Anchor) : NativeBattleRinoa89Operation;
 public sealed record NativeBattleRinoa89ReturnMeshes(int Age, int Ratio, NativeBattleVector Anchor) : NativeBattleRinoa89Operation;
@@ -74,11 +76,11 @@ public static partial class NativeBattleRinoa89Controller
                 uint reference = (age % 6) switch { 0 => 0x14AF460u, 1 => 0x14AF468u, 3 => 0x14AF470u, 4 => 0x14AF478u, _ => 0u };
                 if (reference != 0)
                 {
-                    Execute(new NativeBattleRinoa89BoneEmission(checked(pool.BankAddress + (uint)(slot * pool.Stride) + 52), reference, age % 6 is 3 or 4 ? 4 : 0));
+                    Execute(new NativeBattleRinoa89BodyBoneEmission(checked(pool.BankAddress + (uint)(slot * pool.Stride) + 52), reference, age % 6 is 3 or 4 ? 4 : 0));
                 }
                 if (age % 7 == 0)
                 {
-                    Execute(new NativeBattleRinoa89BoneEmission(ModelAddress(parameters.Source), checked(21689472u + 8u * (uint)((age / 7) & 1)), 0));
+                    Execute(new NativeBattleRinoa89ActorBoneEmission(parameters.Source, checked(21689472u + 8u * (uint)((age / 7) & 1)), 0));
                 }
             }
         }

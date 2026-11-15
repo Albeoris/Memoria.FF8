@@ -32,11 +32,11 @@ public static partial class NativeBattleShockwavePulsar260Controller
             if (elapsed == 0)
             {
                 frame = WithPool(frame, 2, NativeBattleEffectTaskPool.Initialize(ChildDescriptor, frame.State.ReadDword(WorkingGlobal) + ChildrenOffset, ChildStride, ChildCount));
-                for (int actor = 0; actor < 7; actor++)
+                foreach (BattleModelOwner actor in inputs.Packets.Roster.Owners)
                 {
                     if ((inputs.ReadModel(actor).Flags0 & 2) != 0)
                     {
-                        frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)actor, 0, 4));
+                        frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(actor, 0, 4));
                     }
                 }
                 frame = InitializeAct(frame, address, 0x198, 0x1100, 0x112015C, resources);
@@ -45,10 +45,10 @@ public static partial class NativeBattleShockwavePulsar260Controller
                     uint record = address + 0x10 + (uint)(index * 0x24);
                     (NativeBattleShockwavePulsar260Frame allocated, uint child) = Append(frame, 2, TargetCallback);
                     frame = allocated;
-                    int actor = Actor(ReadDword(frame, record));
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite((byte)actor, 0x1E, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)4096)), 2));
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite((byte)actor, 0x58, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(4096)), 4));
-                    short angle = unchecked((short)((actor & 1) != 0 ? -7669 : 7669));
+                    BattleModelOwner actor = ReadTargetOwner(frame, record);
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite(actor, 0x1E, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)4096)), 2));
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite(actor, 0x58, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(4096)), 4));
+                    short angle = unchecked((short)(NativeBattleEffectVisualPhase.IsOdd(inputs.Packets.ModelAliases, actor) ? -7669 : 7669));
                     frame = WriteWord(frame, record + 0xC, unchecked((ushort)angle));
                     frame = WriteWord(frame, record + 0xE, unchecked((ushort)angle));
                     frame = WriteWord(frame, record + 0x10, 0);
@@ -83,9 +83,9 @@ public static partial class NativeBattleShockwavePulsar260Controller
                     for (int index = 0; index < targets; index++)
                     {
                         uint record = address + 0x10 + (uint)(index * 0x24);
-                        int actor = Actor(ReadDword(frame, record));
+                        BattleModelOwner actor = ReadTargetOwner(frame, record);
                         frame = MainLinkedFlags(frame, actor, ReadDword(frame, record + 0x14) != 0, 12, 0, inputs);
-                        frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite((byte)actor, 0x1C, ReadView(frame, record + 4, 8), 8));
+                        frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorWrite(actor, 0x1C, ReadView(frame, record + 4, 8), 8));
                     }
                     frame = RestoreMainFlags(frame, inputs);
                 }
@@ -126,9 +126,9 @@ public static partial class NativeBattleShockwavePulsar260Controller
             uint record = address + 0x10 + (uint)((late / 8) * 0x24);
             (NativeBattleShockwavePulsar260Frame allocated, uint child) = Append(frame, 2, LateTargetCallback);
             frame = allocated;
-            int actor = Actor(ReadDword(frame, record));
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260CaptureBounds((byte)actor, record + 0x20));
-            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)actor, 0, 8));
+            BattleModelOwner actor = ReadTargetOwner(frame, record);
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260CaptureBounds(actor, record + 0x20));
+            frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(actor, 0, 8));
             frame = Write(frame, child, Read(frame, child).WriteWord(0x10, 0).WriteWord(0x12, unchecked((ushort)(50 - late))));
             frame = InitializeAct(frame, child, 0x14, 0x100, 0x111DEBC, resources);
             frame = Write(frame, child, Read(frame, child).WriteDword(0xC, record));
@@ -164,10 +164,10 @@ public static partial class NativeBattleShockwavePulsar260Controller
         return NativeBattleEffectArena.Clear().MarkUnknown(0, 20).Write(0, BitConverter.GetBytes(unchecked((short)frame.State.ReadDword(0x25086A0)))).Write(2, BitConverter.GetBytes(unchecked((short)y))).Write(4, BitConverter.GetBytes(unchecked((short)(frame.State.ReadDword(0x25086A4) + zOffset)))).Write(8, BitConverter.GetBytes(dispatch)).Write(12, BitConverter.GetBytes(depth)).Write(16, BitConverter.GetBytes(frame.State.ReadDword(WorkingGlobal) + MorphOffset));
     }
 
-    private static NativeBattleShockwavePulsar260Frame MainLinkedFlags(NativeBattleShockwavePulsar260Frame frame, int actor, bool linked, ushort clear, ushort set, NativeBattleShockwavePulsar260Inputs inputs)
+    private static NativeBattleShockwavePulsar260Frame MainLinkedFlags(NativeBattleShockwavePulsar260Frame frame, BattleModelOwner actor, bool linked, ushort clear, ushort set, NativeBattleShockwavePulsar260Inputs inputs)
     {
-        int current = actor;
-        HashSet<int> seen = [];
+        BattleModelOwner current = actor;
+        HashSet<BattleModelOwner> seen = [];
         do
         {
             if (!seen.Add(current))
@@ -176,14 +176,14 @@ public static partial class NativeBattleShockwavePulsar260Controller
             }
             if (!linked || (inputs.ReadModel(current).Flags0 & 2) != 0)
             {
-                frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)current, clear, set));
+                frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(current, clear, set));
             }
-            int? next = linked ? inputs.ReadLinkedActor(current) : null;
+            BattleModelOwner? next = linked ? inputs.ReadLinkedActor(current) : null;
             if (next is null || next == actor)
             {
                 break;
             }
-            current = next.Value;
+            current = next;
         }
         while (true);
         return frame;
@@ -194,12 +194,12 @@ public static partial class NativeBattleShockwavePulsar260Controller
         for (int index = 0; index < targets; index++)
         {
             uint record = address + 0x10 + (uint)(index * 0x24);
-            int actor = Actor(ReadDword(frame, record));
+            BattleModelOwner actor = ReadTargetOwner(frame, record);
             bool linked = ReadDword(frame, record + 0x14) != 0;
             short height = unchecked((short)((unchecked((short)ReadWord(frame, record + 0x20)) + unchecked((short)ReadWord(frame, record + 0x22))) >> 1));
             NativeBattleEffectArena pivot = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)0)).Write(2, BitConverter.GetBytes(height)).Write(4, BitConverter.GetBytes((short)0));
-            int current = actor;
-            HashSet<int> seen = [];
+            BattleModelOwner current = actor;
+            HashSet<BattleModelOwner> seen = [];
             do
             {
                 if (!seen.Add(current))
@@ -208,14 +208,14 @@ public static partial class NativeBattleShockwavePulsar260Controller
                 }
                 if (!linked || (inputs.ReadModel(current).Flags0 & 2) != 0)
                 {
-                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody((byte)current, ReadView(frame, record + 0xC, 8), pivot, unchecked((short)ReadWord(frame, record + 0x1C))) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), index * 8 + current) });
+                    frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260DrawBody(current, ReadView(frame, record + 0xC, 8), pivot, unchecked((short)ReadWord(frame, record + 0x1C))) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(260, Read(frame, address), index) with { ModelOwner = current } });
                 }
-                int? next = linked ? inputs.ReadLinkedActor(current) : null;
+                BattleModelOwner? next = linked ? inputs.ReadLinkedActor(current) : null;
                 if (next is null || next == actor)
                 {
                     break;
                 }
-                current = next.Value;
+                current = next;
             }
             while (true);
             frame = MainLinkedFlags(frame, actor, linked, 0, 4, inputs);
@@ -225,12 +225,15 @@ public static partial class NativeBattleShockwavePulsar260Controller
 
     private static NativeBattleShockwavePulsar260Frame RestoreMainFlags(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        foreach (BattleModelOwner actor in inputs.Packets.Roster.Owners)
         {
             if ((inputs.ReadModel(actor).Flags0 & 2) != 0)
             {
-                byte original = frame.State.ReadView(SavedFlagsAddress + (uint)(actor * 4), 1).Read(0, 1)[0];
-                frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags((byte)actor, 4, (ushort)(original & 4)));
+                if (!frame.Effect.ShockwaveSavedFlags.TryGetValue(actor, out ushort original))
+                {
+                    throw new InvalidDataException("Shockwave Pulsar cannot restore flags without a captured model owner.");
+                }
+                frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260ActorFlags(actor, 4, (ushort)(original & 4)));
             }
         }
         return frame;

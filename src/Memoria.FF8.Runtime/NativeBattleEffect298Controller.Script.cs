@@ -101,17 +101,17 @@ public static partial class NativeBattleEffect298Controller
                     frame = WriteBytes(frame, row + (uint)offset, ReadBytes(frame, source + (uint)offset, length), length);
                     break;
                 case 0x1090:
-                    (frame, cursor) = BirthFragments6710E0(frame, cursor, frame.State.ReadDword(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, resources, inputs);
+                    (frame, cursor) = BirthFragments6710E0(frame, cursor, frame.State.ReadModelAddress(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, resources, inputs);
                     break;
                 case 0x10A0:
                 case 0x10A1:
-                    (frame, cursor) = BirthProgramme671990(frame, cursor, frame.State.ReadDword(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, opcode == 0x10A1, resources, inputs);
+                    (frame, cursor) = BirthProgramme671990(frame, cursor, frame.State.ReadModelAddress(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, opcode == 0x10A1, resources, inputs);
                     break;
                 case 0x10A8:
-                    (frame, cursor) = BirthSprite671E40(frame, cursor, frame.State.ReadDword(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, resources, inputs);
+                    (frame, cursor) = BirthSprite671E40(frame, cursor, frame.State.ReadModelAddress(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, resources, inputs);
                     break;
                 case 0x10A9:
-                    (frame, cursor) = BirthSpriteBatch671FF0(frame, cursor, frame.State.ReadDword(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, resources, inputs);
+                    (frame, cursor) = BirthSpriteBatch671FF0(frame, cursor, frame.State.ReadModelAddress(CasterGlobal), frame.State.ReadDword(ArenaGlobal) + 0x17B0, resources, inputs);
                     break;
                 case 0x10F0:
                     short count = ReadScriptWord298(frame, resources, cursor);

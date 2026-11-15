@@ -21,7 +21,7 @@ public abstract record NativeBattleEffect285Operation
 }
 public sealed record NativeBattleEffect285UploadTim505E30(uint SourceAddress) : NativeBattleEffect285Operation;
 public sealed record NativeBattleEffect285Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect285Operation;
-public sealed record NativeBattleEffect285AllContacts506BA0(int FirstContactIndex, int Count) : NativeBattleEffect285Operation;
+public sealed record NativeBattleEffect285AllContacts506BA0(BattleContactCursor FirstContact, int Count) : NativeBattleEffect285Operation;
 public sealed record NativeBattleEffect285CameraForce50A730 : NativeBattleEffect285Operation;
 public sealed record NativeBattleEffect285CameraScalarFocal(short Value) : NativeBattleEffect285Operation;
 public sealed record NativeBattleEffect285CameraRoll(short Value) : NativeBattleEffect285Operation;

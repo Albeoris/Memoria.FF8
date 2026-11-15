@@ -12,11 +12,11 @@ public static partial class NativeBattleEffect65Controller
         {
             frame = InitializeProgramme(frame, main + 0x48, 0xC8, 6, resources);
             frame = WriteBytes(frame, ChildDescriptor, NativeBattleEffectArena.Clear().Write(0, new byte[8]), 8);
-            frame = HideEnabledActors(frame, 0, inputs);
+            frame = HideEnabledActors(frame, false, inputs);
             frame = NativeBattleEffect65Particles.Initialize6E2E20(frame);
             frame = NativeBattleEffect65Particles.Initialize6E3580(frame);
             frame = frame with { State = frame.State.Write(0x2544FD0, [0, 0, 1, 1]) };
-            frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(frame.State.ReadDword(CasterGlobal), 0xFFFF, 4));
+            frame = inputs.Execute(frame, new NativeBattleEffect65ModelFlags(frame.State.ReadModelAddress(CasterGlobal), 0xFFFF, 4));
             NativeBattleVector center = Vector(TaskView(Read(frame, main), 0x1C, 6));
             center = V(center.X, center.Y, center.Z + 2000);
             frame = BirthShards(frame, center, inputs.CapturePresentation);

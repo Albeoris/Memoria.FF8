@@ -81,7 +81,7 @@ public sealed record NativeBattleMightyGuardFrame(NativeBattleEffectMemory Memor
 }
 
 public abstract record NativeBattleMightyGuardOperation;
-public sealed record NativeBattleMightyGuardContact(int Index) : NativeBattleMightyGuardOperation;
+public sealed record NativeBattleMightyGuardContact(BattleContactOccurrence Occurrence) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardSound(NativeBattleModuleSound Sound) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardStage(short Depth, bool ClearRgb) : NativeBattleMightyGuardOperation;
 public sealed record NativeBattleMightyGuardBindCaster(BattleModelOwner Actor, uint SavedBank, uint Resource, byte Sequence) : NativeBattleMightyGuardOperation;

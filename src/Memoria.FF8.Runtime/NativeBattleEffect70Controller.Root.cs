@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect70Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -64,16 +65,23 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Frame CaptureFlags(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        ImmutableDictionary<BattleModelOwner, ushort>.Builder saved = ImmutableDictionary.CreateBuilder<BattleModelOwner, ushort>();
+        foreach (BattleModelOwner actor in packets.Roster.Owners)
         {
-            frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)actor * 4, inputs.ReadModel(frame, actor).Flags0) };
+            ushort flags = inputs.ReadModel(frame, actor).Flags0;
+            saved.Add(actor, flags);
+            if (packets.ModelAliases.TryEncodeExact(actor, out byte originalSlot))
+            {
+                frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)originalSlot * 4, flags) };
+            }
         }
-        return frame;
+        return frame with { State = frame.State with { SavedFlags = saved.ToImmutable() } };
     }
 
     public static NativeBattleEffect70Frame HideEnabled(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        foreach (BattleModelOwner actor in inputs.ReadPackets(frame).Roster.Owners)
         {
             if ((inputs.ReadModel(frame, actor).Flags0 & 2) != 0)
             {
@@ -85,12 +93,12 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Frame RestoreFlags(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs)
     {
-        for (int actor = 0; actor < 7; actor++)
+        foreach (BattleModelOwner actor in inputs.ReadPackets(frame).Roster.Owners)
         {
             if ((inputs.ReadModel(frame, actor).Flags0 & 2) != 0)
             {
-                ushort bit = (ushort)(frame.State.ReadDword(SavedFlagsAddress + (uint)actor * 4) & 4);
-                frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFB, bit, true));
+                ushort saved = frame.State.SavedFlags.TryGetValue(actor, out ushort flags) ? flags : throw new InvalidDataException("The current model has no retained effect flags.");
+                frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFB, (ushort)(saved & 4), true));
             }
         }
         return frame;
@@ -108,9 +116,11 @@ public static partial class NativeBattleEffect70Controller
         for (int index = 0; index < count; index++)
         {
             BattleContactCursor first = header.FirstContact;
-            int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
             uint record = checked(main + 0x14 + (uint)index * 24);
-            frame = PutDword(frame, record, PhysicalModelAddress(actor));
+            NativeBattleModulePoolTask recipientTask = Read(frame, main);
+            recipientTask.WriteExecutionReference(0x14 + index * 24, 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor));
+            frame = Write(frame, main, recipientTask);
             frame = WriteBytes(frame, record + 4, (inputs.ReadPosition8 ?? throw new NotSupportedException("Effect70 requires actual packed model position bytes."))(frame, actor), 8);
             frame = WriteBytes(frame, record + 12, frame.State.ReadView(RetainedFirstGlobal, 8), 8);
             NativeBattleEffect70PointStep step = (inputs.ReadAnchor571400 ?? throw new NotSupportedException("Effect70 requires its current target point producer."))(frame, actor);
@@ -122,7 +132,7 @@ public static partial class NativeBattleEffect70Controller
                 minimum[axis] = Math.Min(minimum[axis], xyz[axis]);
                 maximum[axis] = Math.Max(maximum[axis], xyz[axis]);
             }
-            frame = frame with { State = frame.State.WriteDword(SideGlobal, actor >= 3 ? 0xFFFFFFFF : 1) };
+            frame = frame with { State = frame.State.WriteDword(SideGlobal, actor.Side == BattleSide.Enemies ? uint.MaxValue : 1) };
         }
         for (int axis = 0; axis < 3; axis++)
         {

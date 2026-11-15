@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState BeginNativeOriginalEffect(NativeBattleGraphicsState graphics, ushort effect, bool destination21DFEC0 = false)
     {
-        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, definition.NativeEffectCatalog) with { PresentationRoster = graphics.PresentationRoster };
+        NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(effect, definition.NativeEffectCatalog);
         selected = NativeBattleEffectResourceResolver.MaterializeSelected(selected, nativeEffectResourceResolver);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50AF20 requires its retained571870 allocator owner; migrate the standalone snapshot explicitly.");
         memory = memory.RetainReturnedTaskOnModuleLoad(graphics.OriginalEffect);
@@ -17,18 +17,17 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native module invocation requires the retained50AF20 entry owner.");
         graphics = PrepareNativeHeaderGeometry(graphics, context);
-        NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(context, parameterFlags);
+        NativeBattleEffectParameters parameters = CreateNativeOriginalEffectParameters(graphics, context, parameterFlags);
         return graphics with { OriginalEffect = effect with { Parameters = parameters } };
     }
 
-    private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleActionGraphicsState context, byte parameterFlags = 0)
+    private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
-        return new(context.Actor, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.Header, 0, 0)
+        return new NativeBattleEffectParameters(context.Actor, (byte)(context.HitFlags | parameterFlags), context.TargetActors, context.Header, 0, 0)
         {
             Parameter80 = NativeEffectMemory?.Parameter80,
-            Parameter82 = NativeEffectMemory?.Parameter82,
-            PresentationTargets = context.PresentationTargets
-        };
+            Parameter82 = NativeEffectMemory?.Parameter82
+        }.CaptureOriginalWindow(graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
@@ -38,10 +37,10 @@ public sealed partial class BattleSession
         return InvokeNativeOriginalEffect(graphics);
     }
 
-    private static NativeBattleGraphicsState PrepareNativeOriginalEffectActor(NativeBattleGraphicsState graphics, byte actorIndex)
+    private static NativeBattleGraphicsState PrepareNativeOriginalEffectActor(NativeBattleGraphicsState graphics, BattleModelOwner actorIndex)
     {
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
-        bool isParty = graphics.PresentationRoster is null ? actorIndex < 3 : graphics.IsPartyActor(actorIndex);
+        bool isParty = actorIndex is BattlePartyModelOwner;
         return graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { Rotation12 = 0, Rotation14 = isParty ? (short)0 : (short)2048, Rotation16 = 0 }) };
     }
 
@@ -1108,11 +1107,11 @@ public sealed partial class BattleSession
                 NativeEffectMemory = memory with { Textures = textures };
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Fire camera registration requires its actual camera owner.")).RegisterControlResource(textures.Animation);
             }
-            if (effect.PresentationRoster is not null)
+            if (graphics.Effects.StorageContract == BattleContactTaskStorageContract.ExpandableArena)
             {
                 NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Hosted Fire requires its effect task storage owner.");
                 int capacity = NativeBattleFireEffect.RequiredChildCapacity(effect, nativeActionPackets);
-                (memory, uint bank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, NativeBattleFireEffect.ChildStride, capacity);
+                (memory, uint bank) = NativeBattlePresentationTaskStorage.Reserve(memory, effect, nativeActionPackets.Roster, NativeBattleFireEffect.ChildStride, capacity);
                 NativeEffectMemory = memory;
                 return graphics with { OriginalEffect = NativeBattleFireEffect.InitializePools(effect, nativeActionPackets, bank) };
             }
@@ -1143,7 +1142,7 @@ public sealed partial class BattleSession
     private bool NativeOriginalEffectBusy(NativeBattleGraphicsState graphics)
     {
         //A replacement DWORD100 can reference an effect resource or a row in the current shared file staging.
-        if (graphics.Models.Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)))
+        if (graphics.ActorModels.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)))
         {
             return true;
         }
@@ -1190,7 +1189,7 @@ public sealed partial class BattleSession
     {
         if (phase == 0)
         {
-            if (ModelsBusy(graphics.Models))
+            if (ModelsBusy(graphics.ActorModels))
             {
                 return (graphics, phase, false);
             }
@@ -1198,7 +1197,7 @@ public sealed partial class BattleSession
         }
         if (phase == 1)
         {
-            graphics = BeginNativeOriginalEffect(graphics, NativeBattleActionGraphics.Word(nativeActionPackets.Headers[context.Header], 6));
+            graphics = BeginNativeOriginalEffect(graphics, nativeActionPackets.ReadHeader(context.Header).Effect);
             return (graphics, 2, false);
         }
         if (phase == 2)

@@ -307,7 +307,7 @@ internal abstract class NativeBattleStorageContext
             NativeBattleOriginalEffectState effect = (NativeBattleOriginalEffectState)result;
             if (this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
             {
-                effect = effect with { Parameters = null, EntryFirstRecipient = null, FireModelCompletion = null, SavedActorTransforms = effect.SavedActorTransforms.Clear() };
+                effect = effect with { Parameters = null, EntryFirstRecipient = null, FireModelCompletion = null, SavedActorTransforms = effect.SavedActorTransforms.Clear(), NoMercyBusyTargets = effect.NoMercyBusyTargets.Clear(), ShockwaveSavedFlags = effect.ShockwaveSavedFlags.Clear(), MoogleSavedEnemyFlags = effect.MoogleSavedEnemyFlags.Clear(), SirenSavedEnemyFlags = effect.SirenSavedEnemyFlags.Clear(), Rinoa88SavedFlags = effect.Rinoa88SavedFlags.Clear(), Rinoa89SavedFlags = effect.Rinoa89SavedFlags.Clear(), Duel274SavedFlags = effect.Duel274SavedFlags.Clear(), Duel274SavedPartyZ = effect.Duel274SavedPartyZ.Clear() };
                 result = effect;
             }
             effect.RetainedAuthority = null;
@@ -316,6 +316,19 @@ internal abstract class NativeBattleStorageContext
             if (this is NativeBattleStorageRestoreContext restore)
             {
                 restore.RegisterRetained(effect);
+            }
+        }
+        if (this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            if (source is NativeBattleDescriptorPacket)
+            {
+                NativeBattleDescriptorPacket packet = (NativeBattleDescriptorPacket)(result ?? source);
+                return packet with { ModelSubject = null, Header = null };
+            }
+            if (source is NativeBattleDescriptorTask)
+            {
+                NativeBattleDescriptorTask task = (NativeBattleDescriptorTask)(result ?? source);
+                return task with { ModelSubject = null, Header = null };
             }
         }
         if (source is NativeBattleScriptedEffectMemory && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })

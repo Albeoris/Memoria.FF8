@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect298Controller
             NativeBattleEffect298VibrationStep vibration = inputs.StartVibration(frame);
             frame = vibration.Frame;
             NativeBattleModulePoolTask task = Read(frame, main).WriteDword(16, unchecked((uint)vibration.Handle)).WriteDword(0x89EC, main + 0x2EC).WriteDword(0x89F0, main + 0x83EC);
-            NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal));
+            NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadModelAddress(CasterGlobal));
             NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Effect298 requires its current caster transform.");
             task = CopyTask(task, 20, PointView(transform.Position28, transform.Vertical34), 8);
             frame = Write(frame, main, task);
@@ -66,10 +66,10 @@ public static partial class NativeBattleEffect298Controller
         {
             return (frame, 2);
         }
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         if (age >= 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect298DrawOffsetBody672330(caster, address + 28) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(298, frame.Effect.Pools, address, caster, address + 28) : null });
+            frame = inputs.Execute(frame, new NativeBattleEffect298DrawOffsetBody672330(caster, address + 28) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(298, frame.Effect.Pools, address, address + 28) with { ModelOwner = caster } : null });
             frame = inputs.Execute(frame, new NativeBattleEffect298ModelFields(caster, 0, 4));
         }
         frame = DrawChunks6725F0(frame, address, resources, inputs);

@@ -23,13 +23,20 @@ public static class NativeBattleDuel274Controller
             frame = frame with { Effect = frame.Effect with { ReturnedDescriptor = 0 } };
             return frame;
         }
-        for (int index = 0; index < 7; index++)
+        var savedFlags = ImmutableDictionary.CreateBuilder<BattleModelOwner, ushort>();
+        foreach (BattleModelOwner owner in actors.Aliases.Roster.Owners)
         {
-            frame = frame with { Staging = Dword(frame.Staging, checked(0x2508414u + (uint)index * 4), actors.ReadFlags(index)) };
+            ushort flags = actors.ReadFlags(owner);
+            savedFlags.Add(owner, flags);
+            if (actors.Aliases.TryEncodeExact(owner, out byte alias))
+            {
+                frame = frame with { Staging = Dword(frame.Staging, checked(0x2508414u + (uint)alias * 4), flags) };
+            }
         }
+        frame = frame with { Effect = frame.Effect with { Duel274SavedFlags = savedFlags.ToImmutable(), Duel274SavedPartyZ = ImmutableDictionary<BattleModelOwner, short>.Empty } };
         frame = enqueueTexture505E30(frame);
         frame = frame with { Staging = Dword(frame.Staging, 0x2508430, NativeBattleEffectNodeMemory.ArenaAddress) };
-        frame = frame with { Staging = Dword(frame.Staging, 0x2508470, Address(parameters.Source)) };
+        frame = frame with { Staging = frame.Staging.WriteExecutionReference(0x2508470, 4, new BattleExecutionReference.Model(parameters.Source), actors.Aliases.EncodeAddress(parameters.Source)) };
         frame = frame with { Staging = Dword(frame.Staging, 0x2508468, 0) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
         (root, int slot) = root.Append(0x689990);
@@ -38,7 +45,7 @@ public static class NativeBattleDuel274Controller
         return WriteRootTransition(frame, 0, selector);
     }
 
-    public static NativeBattleDuel274Frame Advance689990(NativeBattleDuel274Frame frame, NativeBattleDuel274ActorServices actors, Func<int, int> readTarget, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274TaskStep> advanceTarget)
+    public static NativeBattleDuel274Frame Advance689990(NativeBattleDuel274Frame frame, NativeBattleDuel274ActorServices actors, Func<int, BattleModelOwner> readTarget, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274TaskStep> advanceTarget)
     {
         if (frame.Effect.Pools.IsDefaultOrEmpty || frame.Effect.Pools[0].DescriptorAddress != 0x25084B8)
         {
@@ -71,9 +78,11 @@ public static class NativeBattleDuel274Controller
                 if (targets.Slots.Any(candidate => (candidate.Flags & 1) == 0))
                 {
                     (targets, int targetSlot) = targets.Append(0x689AC0);
-                    int target = actors.ResolveMinimum501FF0(readTarget(task.ReadByte(14)));
+                    BattleModelOwner target = actors.ResolveMinimum501FF0(readTarget(task.ReadByte(14)));
                     (short maximum, short minimum) = actors.ReadBounds6DFD90(target);
-                    NativeBattleModulePoolTask child = targets.Slots[targetSlot].WriteBytes(12, new byte[104]).WriteByte(15, 0).WriteByte(14, task.ReadByte(14)).WriteByte(16, 1).WriteDword(20, Address(target)).WriteWord(92, unchecked((ushort)maximum)).WriteWord(94, unchecked((ushort)minimum));
+                    NativeBattleModulePoolTask child = targets.Slots[targetSlot].WriteBytes(12, new byte[104]).WriteByte(15, 0).WriteByte(14, task.ReadByte(14)).WriteByte(16, 1);
+                    child.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(target), actors.Aliases.EncodeAddress(target));
+                    child = child.WriteWord(92, unchecked((ushort)maximum)).WriteWord(94, unchecked((ushort)minimum));
                     targets = targets.WriteSlot(targetSlot, child);
                     task = task.WriteByte(14, unchecked((byte)(task.ReadByte(14) + 1)));
                     root = root.WriteSlot(slot, task);
@@ -129,9 +138,9 @@ public static class NativeBattleDuel274Controller
         }
         byte selector = frame.Staging.Read(0x25084D9, 1)[0];
         task = task.WriteByte(15, selector);
-        int first = Index(task.ReadDword(20));
-        HashSet<int> visited = [];
-        int current = first;
+        BattleModelOwner first = ReadTarget(task);
+        HashSet<BattleModelOwner> visited = [];
+        BattleModelOwner current = first;
         do
         {
             if (!visited.Add(current))
@@ -141,15 +150,15 @@ public static class NativeBattleDuel274Controller
             ushort flags = actors.ReadFlags(current);
             if ((flags & 2) != 0)
             {
-                ushort original = BinaryPrimitives.ReadUInt16LittleEndian(frame.Staging.Read(checked(0x2508414u + (uint)current * 4), 2));
+                ushort original = ReadSavedFlags(frame.Effect, current);
                 actors.WriteFlags(current, (ushort)(flags ^ ((flags ^ original) & 4)));
             }
-            uint linked = actors.ReadLinkedModel140(current);
-            if (linked == 0)
+            BattleModelOwner? linked = actors.ReadLinkedModel140(current);
+            if (linked is null)
             {
                 break;
             }
-            current = Index(linked);
+            current = linked;
         }
         while (current != first);
         pool = pool.WriteSlot(slot, task);
@@ -181,21 +190,10 @@ public static class NativeBattleDuel274Controller
 
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value) => staging.Write(address, BitConverter.GetBytes(value));
 
-    public static uint Address(int index)
-    {
-        if ((uint)index >= 7)
-        {
-            throw new InvalidDataException("Native Duel requires a physical model index in its seven-row bank.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(index);
-    }
+    internal static BattleModelOwner ReadTarget(NativeBattleModulePoolTask task) => task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner;
 
-    public static int Index(uint address)
+    internal static ushort ReadSavedFlags(NativeBattleOriginalEffectState effect, BattleModelOwner owner)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Native Duel requires its exact physical model pointer.");
-        }
-        return row;
+        return effect.Duel274SavedFlags.TryGetValue(owner, out ushort flags) ? flags : throw new InvalidDataException("Native Duel cannot restore flags without its captured model owner.");
     }
 }

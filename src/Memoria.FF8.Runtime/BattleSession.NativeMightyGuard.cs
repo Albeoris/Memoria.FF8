@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Mighty Guard requires its actual posed model source.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Mighty Guard requires its actual posed model source.");
 
         void Publish(NativeBattleMightyGuardFrame current)
         {
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
                 case NativeBattleMightyGuardContact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Mighty Guard contact lost its actual process memory.") };
                 case NativeBattleMightyGuardStage fade:

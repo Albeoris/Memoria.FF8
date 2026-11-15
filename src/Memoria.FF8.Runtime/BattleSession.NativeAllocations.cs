@@ -77,7 +77,7 @@ public sealed partial class BattleSession
             spawned.NativeAllocationPendingStatistics = true;
             nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)sceneSlot), true, true) };
             SetNativeBattleClockActive(false);
-            NativeBattleGraphicsState graphics = QueueNativeDescriptor(NativeGraphics, 102, NativeParticipantAddress(physicalIndex), checked((ushort)physicalIndex), checked((ushort)(spawned.ModelId + 16)));
+            NativeBattleGraphicsState graphics = QueueNativePlannedModelDescriptor(NativeGraphics, 102, spawned, checked((ushort)(spawned.ModelId + 16)));
             graphics = QueueNativeDescriptor(graphics, 113, 0x48AD10);
             if (activate)
             {

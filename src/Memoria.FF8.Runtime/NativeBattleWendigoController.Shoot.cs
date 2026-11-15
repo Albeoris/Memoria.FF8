@@ -6,16 +6,19 @@ public static partial class NativeBattleWendigoController
     {
         private void ShootBall(uint address)
         {
-            int actor = 1;
-            switch (Stage(Read(address)))
+            int phase = Stage(Read(address));
+            BattleModelOwner actor = phase == 0 ? inputs.Packets.ModelAliases.DecodeLiteral(1) : ReadBallOwner(0xD0);
+            switch (phase)
             {
                 case 0:
                     InitializeBall(address, actor);
-                    Word(Ball + 0xD8, 1);
-                    Word(Ball + 0xDA, 0);
-                    Word(Ball + 0xDC, 2);
-                    Position(Ball + 0xB4, Bone(0, 0xF1));
-                    Position(Ball + 0xBC, Bone(2, 0xF1));
+                    WriteBallOwner(0xD8, actor);
+                    BattleModelOwner left = inputs.Packets.ModelAliases.DecodeLiteral(0);
+                    WriteBallOwner(0xDA, left);
+                    BattleModelOwner right = inputs.Packets.ModelAliases.DecodeLiteral(2);
+                    WriteBallOwner(0xDC, right);
+                    Position(Ball + 0xB4, Bone(left, 0xF1));
+                    Position(Ball + 0xBC, Bone(right, 0xF1));
                     Pivot(actor);
                     Radii(address);
                     Placement(address);
@@ -105,15 +108,15 @@ public static partial class NativeBattleWendigoController
                     break;
                 case 7:
                     Store(address, Next(Read(address).WriteByte(0x26, (byte)(Read(address).ReadByte(0x26) & ~8))));
-                    Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 & ~4), Transform = Transform(actor) with { Position28 = Transform(actor).Position28 with { Y = Transform(actor).Angle36 } } });
+                    Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 & ~4), Transform = Transform(actor) with { Position28 = Transform(actor).Position28 with { Y = Transform(actor).Angle36 } } });
                     break;
                 case 8:
                     Dword(Ball + 0xC4, Model(actor).Flags0);
-                    Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 | 0x1000) });
+                    Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 | 0x1000) });
                     if (Model(actor).Sequence != 6)
                     {
                         Sequence(actor, 0x1A);
-                        Model(Model(actor) with { Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
+                        Model(actor, Model(actor) with { Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
                         Word(Ball + 0xD2, 16);
                         Word(Ball + 0x94, (Word(Ball + 0x8C) - Transform(actor).Position28.X) / 16);
                         Word(Ball + 0x98, (Word(Ball + 0x90) - Transform(actor).Position28.Z) / 16);
@@ -122,17 +125,17 @@ public static partial class NativeBattleWendigoController
                     break;
                 case 9:
                     NativeBattleVector old = Transform(actor).Position28;
-                    Model(Model(actor) with { Transform = Transform(actor) with { Position28 = old with { X = unchecked((short)(old.X + Word(Ball + 0x94))), Z = unchecked((short)(old.Z + Word(Ball + 0x98))) } } });
+                    Model(actor, Model(actor) with { Transform = Transform(actor) with { Position28 = old with { X = unchecked((short)(old.X + Word(Ball + 0x94))), Z = unchecked((short)(old.Z + Word(Ball + 0x98))) } } });
                     Word(Ball + 0xD2, Word(Ball + 0xD2) - 1);
                     if (Word(Ball + 0xD2) <= 0)
                     {
                         Sequence(actor, Model(actor).SequenceState?.Default2 ?? throw new NotSupportedException("Native Shoot requires its return animation."));
-                        Model(Model(actor) with { Transform = Transform(actor) with { Position28 = Position(Ball + 0x8C), Vertical34 = Word(Ball + 0x92) }, Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
+                        Model(actor, Model(actor) with { Transform = Transform(actor) with { Position28 = Position(Ball + 0x8C), Vertical34 = Word(Ball + 0x92) }, Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
                         Store(address, Next(Read(address)));
                     }
                     break;
                 case 10:
-                    Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 ^ ((Model(actor).Flags0 ^ Word(Ball + 0xC4)) & 0x1000)) });
+                    Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 ^ ((Model(actor).Flags0 ^ Word(Ball + 0xC4)) & 0x1000)) });
                     Store(address, Next(Read(address).WriteByte(0x26, (byte)(Read(address).ReadByte(0x26) | 1))));
                     break;
                 case 11:

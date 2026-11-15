@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 using static Memoria.FF8.Runtime.NativeBattleEffect70Profile;
 
@@ -6,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] NativeBattleEffectArena? RootBankStorage)
 {
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+
     public static NativeBattleEffect70State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear());
 
     public static NativeBattleEffect70State FromUnknown()
@@ -40,6 +44,12 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
         return Write(address, encoded);
     }
+    internal NativeBattleEffect70State WriteModelAddress(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena storage = Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Storage = storage };
+    }
+
     public NativeBattleEffect70State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

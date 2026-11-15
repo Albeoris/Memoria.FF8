@@ -73,7 +73,13 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattleSiren95Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public sealed record NativeBattleSiren95TaskStep(NativeBattleSiren95Frame Frame, bool Complete);
-public sealed record NativeBattleSiren95Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95Frame> InitializeTarget, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95TaskStep> AdvanceLeaf, Func<NativeBattleSiren95Frame, int, NativeBattleSiren95Frame> ApplyContact, Func<NativeBattleSiren95Frame, NativeBattleChoco97Operation, NativeBattleSiren95Frame> Execute)
+public sealed record NativeBattleSiren95Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 CameraMatrix, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95Frame> InitializeTarget, Func<NativeBattleSiren95Frame, uint, NativeBattleSiren95TaskStep> AdvanceLeaf, Func<NativeBattleSiren95Frame, BattleContactOccurrence, NativeBattleSiren95Frame> ApplyContact, Func<NativeBattleSiren95Frame, NativeBattleChoco97Operation, NativeBattleSiren95Frame> Execute)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+}
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> SirenSavedEnemyFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
 }

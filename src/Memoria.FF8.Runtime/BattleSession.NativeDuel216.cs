@@ -9,11 +9,11 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native Different Beat requires its entered module.");
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native Different Beat requires its entered parameters.");
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        byte recipient = nativeActionPackets.ReadContact(first).Primary.Recipient;
-        uint minimum = NativeBattleScanModelSelection.Minimum501FF0(NativeBattleScanPhysicalModels.Capture(graphics.Models), NativeBattleDuel274Controller.Address(recipient));
-        NativeBattleDuel216Frame frame = NativeBattleDuel216Controller.Enter695A10(NativeEffectMemory ?? throw new NotSupportedException("Native Different Beat requires retained effect memory."), effect, NativeFileStaging ?? throw new NotSupportedException("Native Different Beat requires retained shared memory."), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Different Beat requires its retained CRT random owner."), NativeBattleDuel274Controller.Index(minimum));
+        BattleModelOwner recipient = nativeActionPackets.ReadContact(first).Primary.Recipient;
+        BattleModelOwner minimum = NativeBattleScanModelSelection.Minimum501FF0(graphics.ActorModels, recipient);
+        NativeBattleDuel216Frame frame = NativeBattleDuel216Controller.Enter695A10(NativeEffectMemory ?? throw new NotSupportedException("Native Different Beat requires retained effect memory."), effect, NativeFileStaging ?? throw new NotSupportedException("Native Different Beat requires retained shared memory."), resources, nativeCrtRandom ?? throw new NotSupportedException("Native Different Beat requires its retained CRT random owner."), minimum, nativeActionPackets.ModelAliases);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging.Write(NativeBattleDuel216Resources.ActorDirectory, resources.ReadActorDat().AsSpan());
         nativeCrtRandom = frame.Random;

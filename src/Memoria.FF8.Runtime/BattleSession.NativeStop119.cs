@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x4F8);
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 BattleContactCursor contact = header.FirstContact;
-                int target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 task = WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x4E8);
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Clock, 0x4E8));

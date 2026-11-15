@@ -53,7 +53,7 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory with { Pain34 = state }, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };
         }
-        NativeBattlePain34Frame Contact(NativeBattlePain34Frame current, int index)
+        NativeBattlePain34Frame Contact(NativeBattlePain34Frame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             NativeFileStaging = current.Staging;

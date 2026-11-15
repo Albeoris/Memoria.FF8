@@ -42,7 +42,7 @@ public sealed record NativeBattleEffect298BodySource
     public uint? VertexScratchAddress { get; init; }
     public int? VertexScratchLength { get; init; }
 }
-public sealed record NativeBattleEffect298Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect298Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect298Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect298Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect298Frame, uint, int, int, NativeBattleEffect298PointStep> ReadBone502170, Func<NativeBattleEffect298Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect298Frame, uint, NativeBattleEffect298BodySource> ReadBody, Func<NativeBattleEffect298Frame, NativeBattleEffect298Operation, NativeBattleEffect298Frame> Execute, Func<NativeBattleEffect298Frame, NativeBattleEffect298VibrationStep> StartVibration, Func<NativeBattleEffect298Frame, int, NativeBattleEffect298IoPoll> PollIo5342C0)
+public sealed record NativeBattleEffect298Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect298Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect298Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect298Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect298Frame, BattleModelOwner, int, int, NativeBattleEffect298PointStep> ReadBone502170, Func<NativeBattleEffect298Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect298Frame, BattleModelOwner, NativeBattleEffect298BodySource> ReadBody, Func<NativeBattleEffect298Frame, NativeBattleEffect298Operation, NativeBattleEffect298Frame> Execute, Func<NativeBattleEffect298Frame, NativeBattleEffect298VibrationStep> StartVibration, Func<NativeBattleEffect298Frame, int, NativeBattleEffect298IoPoll> PollIo5342C0)
 {
     public bool CapturePresentation { get; init; }
 }
@@ -51,13 +51,13 @@ public abstract record NativeBattleEffect298Operation;
 public sealed record NativeBattleEffect298Music47E3C0(int Duration) : NativeBattleEffect298Operation;
 public sealed record NativeBattleEffect298StopVibration4A2940(int Handle) : NativeBattleEffect298Operation;
 public sealed record NativeBattleEffect298Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleEffect298Operation;
-public sealed record NativeBattleEffect298ModelFields(uint ModelAddress, ushort ClearFlags0, ushort SetFlags0, short? PositionZ = null) : NativeBattleEffect298Operation;
+public sealed record NativeBattleEffect298ModelFields(BattleModelOwner Actor, ushort ClearFlags0, ushort SetFlags0, short? PositionZ = null) : NativeBattleEffect298Operation;
 public sealed record NativeBattleEffect298InitializeIo534110(int ArenaOffset) : NativeBattleEffect298Operation;
 public sealed record NativeBattleEffect298QueueFile5341D0(short FileId, uint DestinationAddress, short Type) : NativeBattleEffect298Operation;
 public sealed record NativeBattleEffect298AdvanceIo534210 : NativeBattleEffect298Operation;
-public sealed record NativeBattleEffect298ApplyOffsetPose662C00(uint ModelAddress, uint OffsetRowsAddress) : NativeBattleEffect298Operation;
-public sealed record NativeBattleEffect298RestorePose508C90(uint ModelAddress) : NativeBattleEffect298Operation;
-public sealed record NativeBattleEffect298DrawOffsetBody672330(uint ModelAddress, uint OffsetRowsAddress) : NativeBattleEffect298Operation
+public sealed record NativeBattleEffect298ApplyOffsetPose662C00(BattleModelOwner Actor, uint OffsetRowsAddress) : NativeBattleEffect298Operation;
+public sealed record NativeBattleEffect298RestorePose508C90(BattleModelOwner Actor) : NativeBattleEffect298Operation;
+public sealed record NativeBattleEffect298DrawOffsetBody672330(BattleModelOwner Actor, uint OffsetRowsAddress) : NativeBattleEffect298Operation
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }

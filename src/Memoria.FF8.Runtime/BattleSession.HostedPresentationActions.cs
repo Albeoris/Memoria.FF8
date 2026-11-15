@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed record HostedPresentationInvocation(long Token, int DescriptorSlot, byte DescriptorSerial, int HeaderIndex, uint HeaderArgument);
+    internal sealed record HostedPresentationInvocation(long Token, int DescriptorSlot, byte DescriptorSerial, BattleActionHeaderReference Header);
 
     private HostedPresentationInvocation? hostedPresentationInvocation;
     private long lastHostedActionIssued;
@@ -48,7 +48,7 @@ public sealed partial class BattleSession
     private void ObserveHostedActionPacketRemoved(int slot, NativeBattleDescriptorPacket packet)
     {
         if (hostedPresentationInvocation is { } invocation && slot == invocation.DescriptorSlot &&
-            packet.Serial == invocation.DescriptorSerial && packet.Command == 104 && packet.Argument == invocation.HeaderArgument &&
+            packet.Serial == invocation.DescriptorSerial && packet.Command == 104 && packet.Header == invocation.Header &&
             packet.PriorityState == 255)
         {
             lastHostedActionCompleted = invocation.Token;

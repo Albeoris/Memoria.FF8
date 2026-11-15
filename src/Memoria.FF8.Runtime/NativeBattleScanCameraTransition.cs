@@ -1,9 +1,7 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanCameraFrame(NativeBattleScanFrame Scan, NativeBattleScanByteOwner Eye, NativeBattleScanByteOwner Target, ushort Zoom);
-public sealed record NativeBattleScanCameraInputs(ImmutableArray<NativeBattleScanByteOwner> Models, NativeBattleScanByteOwner Profile, ushort Category, short Direction1D9777C, short Direction1D97788, Func<BattleModelOwner, byte, int, NativeBattleVector> ReadBone502170);
+public sealed record NativeBattleScanCameraInputs(BattleActorModels Models, NativeBattleScanByteOwner Profile, ushort Category, short Direction1D9777C, short Direction1D97788, Func<BattleModelOwner, byte, int, NativeBattleVector> ReadBone502170);
 public sealed record NativeBattleScanCameraStep(NativeBattleScanCameraFrame Frame, int Result);
 public sealed record NativeBattleScanCameraInterpolation(NativeBattleScanByteOwner Camera, bool Complete);
 
@@ -23,7 +21,7 @@ public static class NativeBattleScanCameraTransition
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                camera = Initialize84E870(camera, task.ReadByte(0x2D), task.ReadWord(0x68), process.Presentation.PrimaryModel269CE30, frame.Eye, frame.Target, frame.Zoom, inputs);
+                camera = Initialize84E870(camera, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, task.ReadWord(0x68), frame.Scan.Effect.ScanSelectedModel ?? throw new NotSupportedException("Native Scan camera has no selected model owner."), frame.Eye, frame.Target, frame.Zoom, inputs);
                 task = Next(task);
                 break;
             case 1:
@@ -53,18 +51,17 @@ public static class NativeBattleScanCameraTransition
         return new(frame, complete ? 2 : 0);
     }
 
-    public static NativeBattleScanByteOwner Initialize84E870(NativeBattleScanByteOwner camera, int targetModel, ushort mode, uint selectedModelPointer, NativeBattleScanByteOwner eye, NativeBattleScanByteOwner target, ushort zoom, NativeBattleScanCameraInputs inputs)
+    public static NativeBattleScanByteOwner Initialize84E870(NativeBattleScanByteOwner camera, BattleModelOwner targetModel, ushort mode, BattleModelOwner selected, NativeBattleScanByteOwner eye, NativeBattleScanByteOwner target, ushort zoom, NativeBattleScanCameraInputs inputs)
     {
         camera.RequireLength(80);
         eye.RequireLength(8);
         target.RequireLength(8);
         inputs.Profile.RequireLength(16);
-        int selected = ModelIndex(inputs.Models, selectedModelPointer);
-        if ((uint)targetModel >= 7)
+        if (!inputs.Models.Contains(targetModel))
         {
-            throw new InvalidDataException("Native Scan camera requires its actual target physical model.");
+            throw new InvalidDataException("Native Scan camera target model is no longer bound.");
         }
-        NativeBattleScanByteOwner primary = inputs.Models[selected];
+        NativeBattleScanByteOwner primary = NativeBattleScanPhysicalModels.Capture(inputs.Models.Get(selected));
         camera = camera.WriteWord(0x4C, inputs.Category).WriteWord(0x30, 0);
         if (mode <= 3)
         {
@@ -82,12 +79,13 @@ public static class NativeBattleScanCameraTransition
         camera = camera.WriteWord(0x48, zoom).WriteWord(0x4A, 576).WriteWord(0x3C, unchecked((ushort)-distance)).WriteWord(0x42, unchecked((ushort)(S(eye, 2) - S(target, 2)))).WriteWord(0x38, primary.ReadWord(0x0E)).WriteWord(0x36, (ushort)((NativeWorldScriptedPathMath.NativeAngle(inputs.Direction1D97788, inputs.Direction1D9777C) - 1024) & 0xFFF));
         if (mode <= 3)
         {
-            int sampled = mode == 1 ? selected : targetModel;
+            BattleModelOwner sampled = mode == 1 ? selected : targetModel;
             NativeBattleVector anchor = inputs.ReadBone502170(sampled, 0xF1, 0);
             camera = camera.WriteWord(0x18, unchecked((ushort)anchor.X)).WriteWord(0x1A, unchecked((ushort)anchor.Y)).WriteWord(0x1C, unchecked((ushort)anchor.Z));
             if (inputs.Profile.ReadWord(8) == 0)
             {
-                camera = camera.WriteDword(0x18, inputs.Models[sampled].ReadDword(0x1C)).WriteDword(0x1C, inputs.Models[sampled].ReadDword(0x20));
+                NativeBattleScanByteOwner sampledModel = NativeBattleScanPhysicalModels.Capture(inputs.Models.Get(sampled));
+                camera = camera.WriteDword(0x18, sampledModel.ReadDword(0x1C)).WriteDword(0x1C, sampledModel.ReadDword(0x20));
             }
             camera = camera.WriteWord(0x1A, 0);
             NativeBattleVector local = new(mode == 1 ? S(inputs.Profile, 2) : (short)0, S(inputs.Profile, 4), 0);
@@ -139,17 +137,4 @@ public static class NativeBattleScanCameraTransition
 
     private static short S(NativeBattleScanByteOwner owner, int offset) => unchecked((short)owner.ReadWord(offset));
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
-
-    private static int ModelIndex(ImmutableArray<NativeBattleScanByteOwner> models, uint pointer)
-    {
-        if (models.IsDefault || models.Length != 7 || models.Any(model => model is null) || !NativeBattleGraphicsModelAddress.TryDecode(pointer, out int selected))
-        {
-            throw new InvalidDataException("Native Scan camera requires its actual selected physical model pointer.");
-        }
-        foreach (NativeBattleScanByteOwner model in models)
-        {
-            model.RequireLength(156);
-        }
-        return selected;
-    }
 }

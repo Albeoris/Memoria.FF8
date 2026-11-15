@@ -2,17 +2,14 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDescriptorCallbacks
 {
-    public static bool IsBlocked502F30(IReadOnlyList<NativeBattleGraphicsModel> models, short index, Func<uint, byte> readByte, BattleModelRoster? roster = null)
+    internal static bool IsBlocked502F30(NativeBattleGraphicsModel model) => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40, 0x1A);
+
+    public static bool IsBlocked502F30(BattleActorModels models, NativeBattleModelBoundary boundary, short index, Func<uint, byte> readByte)
     {
-        roster?.Validate();
-        if (models.Count != (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount))
+        if ((uint)index < NativeBattleModelBoundary.CellCount)
         {
-            throw new InvalidDataException("Native502F30 requires the graphics records owned by its model bank.");
-        }
-        if ((uint)index < (uint)models.Count && (roster is null || roster.Rows[index] is not null))
-        {
-            NativeBattleGraphicsModel model = models[index];
-            return (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40, 0x1A);
+            NativeBattleGraphicsModel model = boundary.ReadOriginalCell(NativeBattleModelSlot.Decode((byte)index), models);
+            return IsBlocked502F30(model);
         }
         // WORD8 survives packet reuse. 502F30 sign-extends it before addressing memory,
         // even when the callback itself does not consume a model index.

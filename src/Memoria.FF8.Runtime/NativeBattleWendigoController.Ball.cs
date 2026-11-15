@@ -7,21 +7,21 @@ public static partial class NativeBattleWendigoController
     private sealed partial class Execution
     {
         private static NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        private NativeBattleGraphicsModel Model(int actor) => inputs.ReadModel(actor);
-        private NativeBattleModelTransform Transform(int actor) => Model(actor).Transform ?? throw new NotSupportedException("Native Wendigo requires its selected actor transform.");
-        private void Model(NativeBattleGraphicsModel value) => Emit(new NativeBattleWendigoModel(value));
-        private void Sequence(int actor, byte value) => Emit(new NativeBattleWendigoSequence((byte)actor, value));
-        private short Facing(int actor) => Model(actor).Rotation14 ?? throw new NotSupportedException("Native Wendigo requires its actor facing.");
-        private void InitializeBall(uint address, int actor)
+        private NativeBattleGraphicsModel Model(BattleModelOwner actor) => inputs.ReadModel(actor);
+        private NativeBattleModelTransform Transform(BattleModelOwner actor) => Model(actor).Transform ?? throw new NotSupportedException("Native Wendigo requires its selected actor transform.");
+        private void Model(BattleModelOwner owner, NativeBattleGraphicsModel value) => Emit(new NativeBattleWendigoModel(owner, value));
+        private void Sequence(BattleModelOwner actor, byte value) => Emit(new NativeBattleWendigoSequence(actor, value));
+        private short Facing(BattleModelOwner actor) => Model(actor).Rotation14 ?? throw new NotSupportedException("Native Wendigo requires its actor facing.");
+        private void InitializeBall(uint address, BattleModelOwner actor)
         {
             SetState(State with { Module = State.Module.Write(checked((int)(Ball - Base)), new byte[shoot ? 0xE0 : 0xB8]) });
             uint descriptor = shoot ? 0x267AC68u : 0x2698A60u;
             Dword(Ball + 0x60, shoot ? 0x26591F8u : 0x267B920u);
             Dword(Ball + 0x64, descriptor);
-            Dword(Ball + 0x68, NativeBattleGraphicsModelAddress.Encode(actor));
+            SetState(State with { Module = State.Module.WriteExecutionReference(checked((int)(Ball + 0x68 - Base)), 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor)) });
             Dword(Ball + 0x6C, 0x1D8E054);
             Dword(Ball + 0x70, 0x1D8E054);
-            Word(Ball + (shoot ? 0xD0u : 0xB0u), actor);
+            WriteBallOwner(shoot ? 0xD0u : 0xB0u, actor);
             Dword(descriptor + 4, shoot ? 0x2672DF0u : 0x2690BE8u);
             Word(descriptor + 0x14, 0);
             Word(descriptor + 0x16, 0);
@@ -33,7 +33,7 @@ public static partial class NativeBattleWendigoController
             NativeBattleModelTransform transform = Transform(actor);
             Position(Ball + 0x8C, transform.Position28);
             Word(Ball + 0x92, transform.Vertical34);
-            Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 | 4) });
+            Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 | 4) });
             Store(address, Read(address).WriteByte(0x26, (byte)(Read(address).ReadByte(0x26) | 8)));
             if ((byte)Roll() == 0)
             {
@@ -41,7 +41,10 @@ public static partial class NativeBattleWendigoController
                 Word(Ball + 0x9E, 0x800);
             }
         }
-        private void Pivot(int actor)
+        private BattleModelOwner ReadBallOwner(uint offset) => State.Module.ReadExecutionReference<BattleExecutionReference.Model>(checked((int)(Ball + offset - Base)), 2).Owner;
+        private void WriteBallOwner(uint offset, BattleModelOwner owner) => SetState(State with { Module = State.Module.WriteExecutionReference(checked((int)(Ball + offset - Base)), 2, new BattleExecutionReference.Model(owner), inputs.Packets.ModelAliases.EncodeOperand(owner, 2)) });
+
+        private void Pivot(BattleModelOwner actor)
         {
             NativeBattleGraphicsModel local = Model(actor) with { Transform = Transform(actor) with { Position28 = new(0, 0, 0) }, GeometryWorldMatrix = Identity() };
             Position(Ball + 0x74, NativeBattlePoseMatrices.ReadBoneLazy(local, () => inputs.ReadPoseSource(actor), Word(Ball + (shoot ? 0xD4u : 0xB4u)) == 1 ? (byte)0xF0 : (byte)0xF1, 0));
@@ -96,7 +99,7 @@ public static partial class NativeBattleWendigoController
             NativeBattleVector origin = Bone(Caster, 0x18);
             Position(Ball + 0x7C, new(unchecked((short)(origin.X + delta.X)), unchecked((short)(origin.Y + delta.Y)), unchecked((short)(origin.Z + delta.Z))));
         }
-        private void DrawBall(uint address, int actor)
+        private void DrawBall(uint address, BattleModelOwner actor)
         {
             if ((Read(address).ReadByte(0x26) & 8) == 0)
             {
@@ -106,12 +109,12 @@ public static partial class NativeBattleWendigoController
             NativeBattleVector pivot = Position(Ball + 0x74);
             NativeBattleVector position = new(unchecked((short)(point.X - pivot.X)), unchecked((short)(point.Y - pivot.Y)), unchecked((short)(point.Z - pivot.Z)));
             NativeBattleActionMatrix world = Model(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Wendigo requires the ball actor world matrix.");
-            Model(Model(actor) with { Transform = Transform(actor) with { Position28 = position }, GeometryWorldMatrix = world with { X = position.X, Y = position.Y, Z = position.Z } });
+            Model(actor, Model(actor) with { Transform = Transform(actor) with { Position28 = position }, GeometryWorldMatrix = world with { X = position.X, Y = position.Y, Z = position.Z } });
             Emit(new NativeBattleWendigoDrawBall(actor) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, Read(address)) });
         }
         private void DribbleBall(uint address)
         {
-            int actor = Read(address).ReadByte(0x2D);
+            BattleModelOwner actor = Read(address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             switch (Stage(Read(address)))
             {
                 case 0:
@@ -182,15 +185,15 @@ public static partial class NativeBattleWendigoController
                     break;
                 case 6:
                     Store(address, Next(Read(address).WriteByte(0x26, (byte)(Read(address).ReadByte(0x26) & ~8))));
-                    Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 & ~4), Transform = Transform(actor) with { Position28 = Transform(actor).Position28 with { Y = Transform(actor).Angle36 } } });
+                    Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 & ~4), Transform = Transform(actor) with { Position28 = Transform(actor).Position28 with { Y = Transform(actor).Angle36 } } });
                     break;
                 case 7:
                     Dword(Ball + 0xA4, Model(actor).Flags0);
-                    Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 | 0x1000) });
+                    Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 | 0x1000) });
                     if (Model(actor).Sequence != 6)
                     {
                         Sequence(actor, 0x1A);
-                        Model(Model(actor) with { Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
+                        Model(actor, Model(actor) with { Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
                         Word(Ball + 0xB2, 10);
                         Word(Ball + 0x94, (Word(Ball + 0x8C) - Transform(actor).Position28.X) / 10);
                         Word(Ball + 0x98, (Word(Ball + 0x90) - Transform(actor).Position28.Z) / 10);
@@ -199,17 +202,17 @@ public static partial class NativeBattleWendigoController
                     break;
                 case 8:
                     NativeBattleVector old = Transform(actor).Position28;
-                    Model(Model(actor) with { Transform = Transform(actor) with { Position28 = old with { X = unchecked((short)(old.X + Word(Ball + 0x94))), Z = unchecked((short)(old.Z + Word(Ball + 0x98))) } } });
+                    Model(actor, Model(actor) with { Transform = Transform(actor) with { Position28 = old with { X = unchecked((short)(old.X + Word(Ball + 0x94))), Z = unchecked((short)(old.Z + Word(Ball + 0x98))) } } });
                     Word(Ball + 0xB2, Word(Ball + 0xB2) - 1);
                     if (Word(Ball + 0xB2) <= 0)
                     {
                         Sequence(actor, Model(actor).SequenceState?.Default2 ?? throw new NotSupportedException("Native Dribble requires its return animation."));
-                        Model(Model(actor) with { Transform = Transform(actor) with { Position28 = Position(Ball + 0x8C), Vertical34 = Word(Ball + 0x92) }, Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
+                        Model(actor, Model(actor) with { Transform = Transform(actor) with { Position28 = Position(Ball + 0x8C), Vertical34 = Word(Ball + 0x92) }, Rotation14 = (short)((Facing(actor) - 0x800) & 4095) });
                         Store(address, Next(Read(address)));
                     }
                     break;
                 case 9:
-                    Model(Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 ^ ((Model(actor).Flags0 ^ Word(Ball + 0xA4)) & 0x1000)) });
+                    Model(actor, Model(actor) with { Flags0 = (ushort)(Model(actor).Flags0 ^ ((Model(actor).Flags0 ^ Word(Ball + 0xA4)) & 0x1000)) });
                     Store(address, Next(Read(address).WriteByte(0x26, (byte)(Read(address).ReadByte(0x26) | 1))));
                     break;
                 case 10:

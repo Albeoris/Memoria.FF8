@@ -1,4 +1,5 @@
 using static Memoria.FF8.Runtime.NativeBattleEffect174Controller;
+using static Memoria.FF8.Runtime.NativeBattleEffect174Profile;
 
 namespace Memoria.FF8.Runtime;
 
@@ -144,7 +145,7 @@ public static partial class NativeBattleEffect174Lower
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        int actor = checked((int)frame.State.ReadDword(0x2394208));
+        BattleModelOwner actor = frame.State.ReadModelOperand(TargetGlobal);
         if (age < 30)
         {
             NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, actor);
@@ -153,7 +154,7 @@ public static partial class NativeBattleEffect174Lower
             NativeBattleEffectArena context = L174Put(Context(frame, temporary, 136), 0x2C, unchecked((uint)((age << 12) / 30)));
             context = CopyBytes(TaskView(task, 0x10, 8), 0, context, 0x60, 8);
             frame = PublishContext(frame, temporary, context, 136);
-            frame = inputs.Execute(frame, new NativeBattleEffect174DrawBody136(temporary, actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattleEffect174Presentation.Task(frame, address, checked((uint)actor)) : null });
+            frame = inputs.Execute(frame, new NativeBattleEffect174DrawBody136(temporary, actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattleEffect174Presentation.Task(frame, address) with { ModelOwner = actor } : null });
             frame = Release(frame, 136);
         }
         return L174Age(frame, address, 31, inputs);

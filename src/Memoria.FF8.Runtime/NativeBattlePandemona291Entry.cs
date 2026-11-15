@@ -51,7 +51,6 @@ public static class NativeBattlePandemona291Entry
             throw new InvalidDataException("Native Pandemona requires its selected original entry.");
         }
         resources.Validate();
-        NativeBattlePandemona291Construction.ValidateHostedRows(packets, frame.Effect.Parameters);
         NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona entry requires its retained module owner.");
         state = state with { Scratch25562EC = 0 };
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Pandemona requires its current TIM queue.");
@@ -60,7 +59,7 @@ public static class NativeBattlePandemona291Entry
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Pandemona requires its current action parameters.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona requires its current model buffer.");
         arena.Validate();
-        state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78, Caster2556260 = NativeBattleGraphicsModelAddress.Encode(parameters.Source) };
+        state = state with { ModelBuffer25562F4 = NativeBattleEffectNodeMemory.ArenaAddress, Action255625C = 0x1D99A78 };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x14, 1);
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask root = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
@@ -70,10 +69,10 @@ public static class NativeBattlePandemona291Entry
         int sum = 0;
         if (count > 0)
         {
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Pandemona requires its actual contact array.");
+            BattleContactCursor first = header.FirstContact;
             for (int index = 0; index < count; index++)
             {
-                int actor = packets.ReadContact(checked(first + index)).Primary.Recipient;
+                BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                 NativeBattleGraphicsModel model = readModel(actor);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Pandemona requires the selected actor's current position WORD20.");
                 sum = unchecked(sum + transform.Position28.Z);

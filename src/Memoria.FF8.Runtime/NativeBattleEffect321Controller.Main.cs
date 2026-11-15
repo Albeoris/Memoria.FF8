@@ -14,7 +14,7 @@ public static partial class NativeBattleEffect321Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            uint caster = ModelAddress(checked((int)frame.State.ReadDword(CasterGlobal)));
+            BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
             NativeBattleEffect321PointStep point = inputs.Anchor571400(frame, caster, TaskView(Read(frame, address), 16, 8));
             frame = point.Frame;
             short yaw = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, caster).Read(14, 2));
@@ -71,13 +71,18 @@ public static partial class NativeBattleEffect321Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
-            int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
             (frame, uint target) = AppendRequired(frame, 0x5985C0);
-            frame = Write(frame, target, Read(frame, target).WriteWord(12, 0).WriteWord(14, (ushort)actor));
-            NativeBattleEffect321PointStep anchor = inputs.Anchor571400(frame, ModelAddress(actor), TaskView(Read(frame, target), 16, 8));
+            NativeBattleModulePoolTask actorTask = Read(frame, target).WriteWord(12, 0);
+            actorTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2));
+            frame = Write(frame, target, actorTask);
+            NativeBattleEffect321PointStep anchor = inputs.Anchor571400(frame, actor, TaskView(Read(frame, target), 16, 8));
             frame = Write(anchor.Frame, target, CopyTask(Read(anchor.Frame, target), 16, anchor.Output8, 8));
             int turn = Roll(ref frame);
-            frame = Write(frame, target, Read(frame, target).WriteWord(24, (ushort)(((turn % 3) + 1) << 12)).WriteWord(26, (ushort)index));
+            actorTask = Read(frame, target).WriteWord(24, (ushort)(((turn % 3) + 1) << 12));
+            BattleExecutionReference.ContactOffset offset = new(index);
+            actorTask.WriteExecutionReference(26, 2, offset, offset.EncodeOriginalWord());
+            frame = Write(frame, target, actorTask);
             int altitude = Roll(ref frame);
             frame = Write(frame, target, Read(frame, target).WriteWord(32, unchecked((ushort)(-6000 - altitude % 2500))));
             (frame, uint particle) = AppendRequired(frame, 0x598B90);

@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect289Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect289 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect289 requires its current texture process.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)).WriteDword(ArenaGlobal, ArenaAddress) };
+        frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, Parameters(frame).Source, inputs.ReadPackets(frame).ModelAliases).WriteDword(ArenaGlobal, ArenaAddress) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State with { RootBankStorage = null }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
@@ -96,8 +96,10 @@ public static partial class NativeBattleEffect289Controller
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleActionHeaderReference header = Parameters(frame).Header;
             BattleContactCursor first = packets.ReadHeader(header).FirstContact;
-            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
+            BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+            NativeBattleModulePoolTask targetTask = Read(frame, main);
+            targetTask.WriteExecutionReference(0x10, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+            frame = Write(frame, main, targetTask);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + MainProgrammeWorkspaceOffset, workspace);
             if (frame.CapturePresentation)

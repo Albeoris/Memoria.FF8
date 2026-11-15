@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect298Controller
 {
-    public static (NativeBattleEffect298Frame Frame, uint Next) BirthFragments6710E0(NativeBattleEffect298Frame frame, uint script, uint model, uint offsets, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
+    public static (NativeBattleEffect298Frame Frame, uint Next) BirthFragments6710E0(NativeBattleEffect298Frame frame, uint script, BattleModelOwner model, uint offsets, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
     {
         List<int> selected = [];
         while (true)

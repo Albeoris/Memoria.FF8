@@ -29,7 +29,7 @@ public abstract record NativeBattleShellOperation;
 public sealed record NativeBattleShellPackets(NativeBattleGfGeometryBatch Batch) : NativeBattleShellOperation;
 public sealed record NativeBattleShellStage(NativeBattleStageFadeWrite Write) : NativeBattleShellOperation;
 public sealed record NativeBattleShellSound(NativeBattleModuleSound Sound) : NativeBattleShellOperation;
-public sealed record NativeBattleShellContact(int Index) : NativeBattleShellOperation;
+public sealed record NativeBattleShellContact(BattleContactOccurrence Occurrence) : NativeBattleShellOperation;
 public sealed record NativeBattleShellInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleShellFrame, NativeBattleShellOperation, NativeBattleShellFrame> Execute)
 {
     public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }

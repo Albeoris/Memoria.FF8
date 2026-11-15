@@ -65,7 +65,7 @@ public sealed partial class BattleSession
                 else if (pools[1].Slots.Any(task => (task.Flags & 1) == 0))
                 {
                     BattleContactCursor first = nativeActionPackets.ReadHeader(parameters.Header.Advance(action)).FirstContact;
-                    byte model = nativeActionPackets.ReadContact(first).Primary.Recipient;
+                    BattleModelOwner model = nativeActionPackets.ReadContact(first).Primary.Recipient;
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
                     task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(model));

@@ -63,7 +63,7 @@ public static class NativeBattleMoogle96Nodes
         NativeBattleRecover93NodeFrame pass = NativeBattleEffectNodeCaller.BeginPass(Policy(frame.Effect, 0x169227C), new(frame.Memory, frame.Effect, frame.State.Work, frame.Random), view, privateCursor);
         return frame with { State = frame.State with { Work = pass.State } };
     }
-    public static NativeBattleMoogle96NodeFrame InitializeContext(NativeBattleMoogle96NodeFrame frame, uint address, NativeBattleMoogle96NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins dogOrigins)
+    public static NativeBattleMoogle96NodeFrame InitializeContext(NativeBattleMoogle96NodeFrame frame, uint address, NativeBattleMoogle96NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins dogOrigins)
     {
         frame.State.Validate();
         NativeBattleEffectNodeCallerPolicy profile = Policy(frame.Effect, resource.Address);

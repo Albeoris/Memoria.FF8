@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         InitializeNativeGraphicsProcessOwners();
         InitializeNativePartyPresentation();
         InitializeNativeGraphicsModelOwners();
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank(definition.NativeRetainedMemory?.ModelColors40, definition.NativeRetainedMemory?.ModelStatusTimers, definition.NativeRetainedMemory?.ModelWorldMatrices64, definition.NativeRetainedMemory?.ModelTransformRows, definition.NativeRetainedMemory?.ModelSequenceLocals).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(definition.NativeRetainedMemory), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena));
         graphics = InitializeNativePrimitiveFrame500400(graphics);
         NativeGraphics = QueueNativeEntryLoads(graphics);
     }

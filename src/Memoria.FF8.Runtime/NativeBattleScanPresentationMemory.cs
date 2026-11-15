@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanPresentationMemory([property: JsonRequired] NativeBattleScanByteOwner Camera269A168, [property: JsonRequired] NativeBattleScanByteOwner Selection269A1BC, [property: JsonRequired] NativeBattleScanByteOwner SavedFlags269A1D8, [property: JsonRequired] NativeBattleScanByteOwner SavedColors269CE34, [property: JsonRequired] NativeBattleScanByteOwner Name269AA78, [property: JsonRequired] ushort Highlight269AA90, [property: JsonRequired] ushort Result269D938, [property: JsonRequired] ushort Exit269CE2C, [property: JsonRequired] uint PrimaryModel269CE30)
+public sealed record NativeBattleScanPresentationMemory([property: JsonRequired] NativeBattleScanByteOwner Camera269A168, [property: JsonRequired] NativeBattleScanByteOwner Selection269A1BC, [property: JsonRequired] NativeBattleScanByteOwner SavedFlags269A1D8, [property: JsonRequired] NativeBattleScanByteOwner SavedColors269CE34, [property: JsonRequired] NativeBattleScanByteOwner Name269AA78, [property: JsonRequired] ushort Highlight269AA90, [property: JsonRequired] ushort Result269D938, [property: JsonRequired] ushort Exit269CE2C, [property: JsonRequired] uint? PrimaryModel269CE30)
 {
     public static NativeBattleScanPresentationMemory FromColdProcess() => new(Known(0x50), Known(28), Known(28), Known(28), Known(24), 0, 0, 0, 0);
 
@@ -17,4 +17,18 @@ public sealed record NativeBattleScanPresentationMemory([property: JsonRequired]
     }
 
     private static NativeBattleScanByteOwner Known(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());
+}
+
+internal sealed record NativeBattleScanSavedModel(ushort Flags, uint Color);
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal BattleModelOwner? ScanSelectedModel { get; init; }
+
+    [JsonIgnore]
+    internal BattleModelTargets ScanSelectedTargets { get; init; } = BattleModelTargets.Empty;
+
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleScanSavedModel> ScanSavedModels { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleScanSavedModel>.Empty;
 }

@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa87ProgramNode(NativeBattleActionMatrix Context, NativeBattleGfAnimationNode Node, NativeBattleModulePoolTask Task, uint MorphScratch);
-public sealed record NativeBattleRinoa87ProgramInputs(Func<uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleRinoa87Frame, uint, byte, NativeBattleVector> ReadBodyBone502170, Func<NativeBattleRinoa87Frame, byte, short> ReadTargetScale38, Func<NativeBattleRinoa87Frame, NativeBattleGfAnimationSource, NativeBattleRinoa87ProgramNode, NativeBattleRinoa87Frame> Draw7766B0, NativeBattleActionMatrix View);
+public sealed record NativeBattleRinoa87ProgramInputs(Func<uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleRinoa87Frame, uint, byte, NativeBattleVector> ReadBodyBone502170, Func<NativeBattleRinoa87Frame, BattleModelOwner, short> ReadTargetScale38, Func<NativeBattleRinoa87Frame, NativeBattleGfAnimationSource, NativeBattleRinoa87ProgramNode, NativeBattleRinoa87Frame> Draw7766B0, NativeBattleActionMatrix View);
 
 /// <summary>7764B0/77E6C0's embedded701970 workspaces and776580 context construction.</summary>
 public static class NativeBattleRinoa87Program
@@ -27,7 +27,7 @@ public static class NativeBattleRinoa87Program
                 task = StoreWorkspace(task, workspace);
                 NativeBattleVector anchor = inputs.ReadBodyBone502170(frame, task.ReadDword(576), 241);
                 task = task.WriteWord(28, unchecked((ushort)anchor.X)).WriteWord(30, 0).WriteWord(32, unchecked((ushort)anchor.Z));
-                int scale = task.Callback == 0x7764B0 ? task.ReadWord(138) == 0 ? 3072 : 4096 : Scale77E780(inputs.ReadTargetScale38(frame, task.ReadByte(45)));
+                int scale = task.Callback == 0x7764B0 ? task.ReadWord(138) == 0 ? 3072 : 4096 : Scale77E780(inputs.ReadTargetScale38(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner));
                 task = task.WriteDword(80, unchecked((uint)scale)).WriteDword(84, unchecked((uint)scale)).WriteDword(88, unchecked((uint)scale));
                 Draw();
                 Next();

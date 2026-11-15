@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa87TargetMotion(NativeBattleModulePoolTask Task, ImmutableArray<NativeBattleGraphicsModel> Models);
+public sealed record NativeBattleRinoa87TargetMotion(NativeBattleModulePoolTask Task, BattleActorModels Models);
 
 public static class NativeBattleRinoa87Motion
 {
@@ -12,11 +12,11 @@ public static class NativeBattleRinoa87Motion
         return Interpolate(task);
     }
 
-    public static NativeBattleRinoa87TargetMotion MoveTarget77E260(NativeBattleModulePoolTask task, ImmutableArray<NativeBattleGraphicsModel> models, int selectedMinimum, bool useCurve, ImmutableArray<short> actualCurve)
+    public static NativeBattleRinoa87TargetMotion MoveTarget77E260(NativeBattleModulePoolTask task, BattleActorModels models, BattleModelOwner selectedMinimum, bool useCurve, ImmutableArray<short> actualCurve)
     {
-        if ((uint)selectedMinimum >= models.Length || models.Length != 7)
+        if (!models.Contains(selectedMinimum))
         {
-            throw new InvalidDataException("Native77E260 requires its selected501FF0 model in the physical bank.");
+            throw new InvalidDataException("Native77E260 requires its selected501FF0 model owner.");
         }
         if (useCurve)
         {
@@ -36,7 +36,7 @@ public static class NativeBattleRinoa87Motion
             task = Accelerate(task);
         }
         task = Interpolate(task);
-        NativeBattleGraphicsModel source = models[selectedMinimum];
+        NativeBattleGraphicsModel source = models.Get(selectedMinimum);
         NativeBattleModelTransform transform = source.Transform ?? throw new NotSupportedException("Native77E260 requires its actual model position and fourth WORD.");
         short pitch = (short)((-1024 - task.ReadWord(60)) & 4095);
         short yaw = source.Rotation14 ?? throw new NotSupportedException("Native77E260 requires the selected model's actual yaw.");
@@ -50,13 +50,13 @@ public static class NativeBattleRinoa87Motion
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CE30(new(pitch, yaw, roll)) with { X = x, Y = y, Z = z };
         NativeBattleModelTransform moved = transform with { Position28 = new(unchecked((short)x), unchecked((short)y), unchecked((short)z)) };
         source = source with { Rotation12 = pitch, Transform = moved, GeometryWorldMatrix = world };
-        models = models.SetItem(selectedMinimum, source);
-        foreach (int index in NativeBattleModelRings.Walk(models, selectedMinimum))
+        models = models.Set(selectedMinimum, source);
+        foreach (BattleModelOwner owner in NativeBattleModelRings.Walk(models, selectedMinimum))
         {
-            if ((models[index].Flags0 & 2) != 0)
+            if ((models.Get(owner).Flags0 & 2) != 0)
             {
-                NativeBattleModelTransform target = models[index].Transform ?? throw new NotSupportedException("Native77E260 loaded ring member lacks its actual transform.");
-                models = models.SetItem(index, models[index] with { Rotation12 = source.Rotation12, Rotation14 = source.Rotation14, Rotation16 = source.Rotation16, RotationPadding18 = source.RotationPadding18, Transform = target with { Position28 = moved.Position28, Vertical34 = moved.Vertical34 }, GeometryWorldMatrix = world });
+                NativeBattleModelTransform target = models.Get(owner).Transform ?? throw new NotSupportedException("Native77E260 loaded ring member lacks its actual transform.");
+                models = models.Set(owner, models.Get(owner) with { Rotation12 = source.Rotation12, Rotation14 = source.Rotation14, Rotation16 = source.Rotation16, RotationPadding18 = source.RotationPadding18, Transform = target with { Position28 = moved.Position28, Vertical34 = moved.Vertical34 }, GeometryWorldMatrix = world });
             }
         }
         return new(task, models);

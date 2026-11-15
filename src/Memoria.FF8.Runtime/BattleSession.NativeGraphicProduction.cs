@@ -19,7 +19,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native entrance requires the live, loaded physical enemy selected by the script.");
         }
         // 487DF0 selects command 0/id 3. 48FE20 writes ADC from the second operand and suppresses action memory with DF5.
-        (nativeActionPackets, int header) = nativeActionPackets.Prepare(new(checked((byte)actor.EncodeNativeSlot()), 0, 0, -1, 3, 0, null));
+        (nativeActionPackets, BattleActionHeaderReference header) = nativeActionPackets.Prepare(new(checked((byte)actor.EncodeNativeSlot()), 0, 0, -1, 3, 0, null));
         target.NativeCombatantFlags &= ~0x4000u;
         target.LastNativeHealing = 1;
         StoreNativeAttackClass(target, 3);
@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = 1 };
         BeginNativeBattleActionPause();
         graphics = QueueNativeDescriptor(graphics, 112, 0);
-        graphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + (uint)header * 20));
+        graphics = QueueNativeActionDescriptor(graphics, header);
         graphics = QueueNativeDescriptor(graphics, 113, 0x487670, targetIndex);
         NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);
     }
@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native command252 requires its original485610 dispatch context.");
         byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1);
         NativeBattleActionHeaderPreparation header = new(checked((byte)actor.EncodeNativeSlot()), 252, sequence, -1, 1, graphic.MagicId, null);
-        (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
+        (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
         nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = 252, Action = 1, DeferredEffectsE00 = false };
 
         //48D200 caseFC leaves AE3=1;48E830 resolves its single target mask before48FE20.
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = count };
         if (NativeGraphics is { } graphics)
         {
-            NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
+            NativeGraphics = QueueNativeActionDescriptor(graphics, headerIndex);
         }
         if (nativeAiDepth == 0 && context.MultiCastMode != 0 && !aborted)
         {

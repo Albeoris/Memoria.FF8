@@ -48,10 +48,10 @@ public sealed partial class BattleSession
                 if (Allocate(1, 0x679510, out int slot))
                 {
                     NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + ordinal);
-                    int actor = contact.Primary.Recipient;
+                    BattleModelOwner actor = contact.Primary.Recipient;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(1044);
-                    target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags3 & 4)).WriteDword(20, NativeBattleGraphicsModelAddress.Encode(actor));
+                    target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags & 4)).WriteDword(20, NativeBattleGraphicsModelAddress.Encode(actor));
                     target = Init(target, 24, 252, resources.First);
                     Put(1, slot, Init(target, 276, 780, resources.Second));
                 }

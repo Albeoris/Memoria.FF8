@@ -19,7 +19,7 @@ public static partial class NativeBattleSonic139Controller
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (roots, int slot) = roots.Append(RootCallback);
         roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleSonic139State state = frame.State.CopyEntrySnapshot6A8860(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattleSonic139State state = frame.State.CopyEntrySnapshot6A8860(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -92,10 +92,12 @@ public static partial class NativeBattleSonic139Controller
             short[] sum = new short[3];
             for (int index = 0; index < count; index++)
             {
-                uint actor = ReadContactActor(frame, inputs, index);
+                BattleModelOwner actor = ReadContactActor(frame, inputs, index);
                 if (index < TargetCapacity)
                 {
-                    frame = Write(frame, mainAddress, Read(frame, mainAddress).WriteByte(16 + index, checked((byte)index)).WriteDword(20 + index * 4, actor));
+                    NativeBattleModulePoolTask mainTask = Read(frame, mainAddress).WriteByte(16 + index, checked((byte)index));
+                    mainTask.WriteExecutionReference(20 + index * 4, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                    frame = Write(frame, mainAddress, mainTask);
                 }
                 NativeBattleSonic139PointStep anchor = inputs.ReadAnchor571400(frame, actor);
                 frame = anchor.Frame;
@@ -122,18 +124,17 @@ public static partial class NativeBattleSonic139Controller
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)))), 0);
     }
 
-    private static uint ReadContactActor(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, int index)
+    private static BattleModelOwner ReadContactActor(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, int index)
     {
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
-        int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Sonic Wave requires its captured contacts.");
-        return ModelAddress(inputs.Packets.ReadContact(firstContact + index).Primary.Recipient);
+        return inputs.Packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
     }
 
-    private static (uint Actor, byte ContactIndex) ReadTarget(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, NativeBattleModulePoolTask task, int index)
+    private static (BattleModelOwner Actor, byte ContactIndex) ReadTarget(NativeBattleSonic139Frame frame, NativeBattleSonic139Inputs inputs, NativeBattleModulePoolTask task, int index)
     {
         if (index < TargetCapacity)
         {
-            return (task.ReadDword(20 + index * 4), task.ReadByte(16 + index));
+            return (task.ReadExecutionReference<BattleExecutionReference.Model>(20 + index * 4, 4).Owner, task.ReadByte(16 + index));
         }
         if (!inputs.AllowFourthTarget || index != TargetCapacity)
         {

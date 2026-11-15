@@ -6,9 +6,9 @@ public abstract record NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallActorWrite(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Source, int SourceOffset, int Length) : NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallPivot(BattleModelOwner Actor) : NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallTargetAnchor(BattleModelOwner Actor) : NativeBattleRaldo19BallOperation;
-public sealed record NativeBattleRaldo19BallRender(int Actor) : NativeBattleRaldo19BallOperation;
+public sealed record NativeBattleRaldo19BallRender(BattleModelOwner Actor) : NativeBattleRaldo19BallOperation;
 public sealed record NativeBattleRaldo19BallSound(NativeBattleModuleSound Sound) : NativeBattleRaldo19BallOperation;
-public sealed record NativeBattleRaldo19BallInputs(Func<int, NativeBattleEffectArena> ReadActor, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19BallOperation, NativeBattleRaldo19Frame> Execute, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors);
+public sealed record NativeBattleRaldo19BallInputs(Func<BattleModelOwner, NativeBattleEffectArena> ReadActor, Func<NativeBattleRaldo19Frame, NativeBattleRaldo19BallOperation, NativeBattleRaldo19Frame> Execute, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors, NativeBattleActionPacketsState Packets);
 
 public static class NativeBattleRaldo19BallController
 {
@@ -20,7 +20,7 @@ public static class NativeBattleRaldo19BallController
         {
             throw new InvalidDataException("Raldo ball requires its original callback.");
         }
-        int actor = task.ReadByte(0x2C);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
@@ -54,7 +54,7 @@ public static class NativeBattleRaldo19BallController
                 CopyActor(0x20, 0x80, 4);
                 CopyBall(0x7C, 0x8C, 4);
                 CopyActor(0x20, 0x90, 4);
-                Execute(new NativeBattleRaldo19BallTargetAnchor(Task().ReadByte(0x2D)));
+                Execute(new NativeBattleRaldo19BallTargetAnchor(Task().ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
                 SetWord(0x96, -384);
                 SetWord(0xC2, 0);
                 SpawnDebris(2);
@@ -218,12 +218,12 @@ public static class NativeBattleRaldo19BallController
         void InitializeBall()
         {
             SetBall(NativeBattleEffectArena.Clear());
-            SetDword(0x68, NativeBattleGraphicsModelAddress.Encode(actor));
+            SetBall(current.State.BallC4.WriteExecutionReference(0x68, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor)));
             SetDword(0x60, 0x2726AC0);
             SetDword(0x6C, 0x1D8E054);
             SetDword(0x70, 0x1D8E054);
             SetDword(0x64, 0x27303E8);
-            SetWord(0xAC, actor);
+            SetBall(current.State.BallC4.WriteExecutionReference(0xAC, 2, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 2)));
             NativeBattleEffectArena descriptor = current.State.Descriptor48.Write(4, DwordBytes(0x272E0A0).Read(0, 4));
             descriptor = descriptor.Write(0x14, new byte[] { 0, 0, 0, 0, 0x40, 1, 0, 0, 0x80, 0x80, 0x80 });
             descriptor = descriptor.Write(0x20, DwordBytes(uint.MaxValue).Read(0, 4)).Write(0x24, new byte[2]);

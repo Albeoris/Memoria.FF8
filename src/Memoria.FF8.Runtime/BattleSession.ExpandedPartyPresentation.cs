@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             return null;
         }
         NativeBattlePartyPresentedVital row = RequireExpandedPartyPresentedRow(state, actor.Id);
-        if (actor.GuardianFormVitals is not null && (half.HitFlags3 & 0x20) != 0)
+        if (actor.GuardianFormVitals is not null && (half.HitFlags & 0x20) != 0)
         {
             row = row with { GuardianForceHitPoints = checked((ushort)actor.CurrentHp), GuardianForceMaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedGuardianForceHitPointsQ12 = actor.CurrentHp << 12 };
         }

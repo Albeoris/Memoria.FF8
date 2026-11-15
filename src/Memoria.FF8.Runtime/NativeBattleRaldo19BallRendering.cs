@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRaldo19BallParameters(short Actor, NativeBattleVector Pivot, short Weight, NativeBattleVector Radii, NativeBattleVector Angles);
+public sealed record NativeBattleRaldo19BallParameters(BattleModelOwner Actor, NativeBattleVector Pivot, short Weight, NativeBattleVector Radii, NativeBattleVector Angles);
 public sealed record NativeBattleRaldo19BallPreparation(NativeBattleEffectArena BallC4, NativeBattleGeometryRegisterStep Registers);
 public sealed record NativeBattleRaldo19BallDraw(NativeBattleEffectArena TemporaryA8, NativeBattleEffectArena VertexScratch, NativeBattleGeometryRegisterStep Registers, NativeBattleScriptedLightingMemory Lighting, NativeBattleGfGeometryBatch Batch);
 
@@ -18,8 +18,8 @@ public static class NativeBattleRaldo19BallRendering
     public static NativeBattleRaldo19BallParameters Read(NativeBattleEffectArena ball)
     {
         ValidateBound(ball, 0xC4);
-        short actor = Short(ball, 0xAC);
-        if (actor is < 0 or >= 11 || Dword(ball, 0x64) != DescriptorAddress || Dword(ball, 0x68) != NativeBattleGraphicsModelAddress.Encode(actor) || Dword(ball, 0x6C) != 0x1D8E054)
+        BattleModelOwner actor = ball.ReadExecutionReference<BattleExecutionReference.Model>(0xAC, 2).Owner;
+        if (Dword(ball, 0x64) != DescriptorAddress || ball.ReadExecutionReference<BattleExecutionReference.Model>(0x68, 4).Owner != actor || Dword(ball, 0x6C) != 0x1D8E054)
         {
             throw new InvalidDataException("Raldo ball rendering requires its actual selected actor, descriptor and common cursor owner.");
         }

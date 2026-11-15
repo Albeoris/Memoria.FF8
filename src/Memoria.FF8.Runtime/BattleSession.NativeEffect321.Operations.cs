@@ -49,9 +49,7 @@ public sealed partial class BattleSession
             case NativeBattleEffect321Contact506690 contact:
                 PublishNativeEffect321Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                BattleActionHeaderReference header = frame.Effect.Parameters?.Header ?? throw new NotSupportedException("Effect321 requires its current action header.");
-                int first = nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect321 requires its current contact base.");
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(checked(first + contact.ContactIndex))] });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect321Frame(frame);
             case NativeBattleEffect321AppendTextureLoad508630 load when load.SourceAddress == FirstPacketAddress:

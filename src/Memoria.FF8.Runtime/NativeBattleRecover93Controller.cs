@@ -34,7 +34,8 @@ public static class NativeBattleRecover93Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleEffectTaskActors actors = new(header.Source, packets.ReadContact(contact).Primary.Recipient, packets.ModelAliases);
+        NativeBattleModulePoolTask root = actors.WriteTo(hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters)).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         int lastTarget = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (lastTarget < root.ReadWord(0x58))
         {
@@ -85,7 +86,7 @@ public static class NativeBattleRecover93Controller
         {
             throw new InvalidDataException("Native Recover93 lost its explicitly initialized shared state.");
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep rootStep = state.Advance(0, (current, address) =>
         {
             state = current;
@@ -118,7 +119,7 @@ public static class NativeBattleRecover93Controller
                 case 4:
                     if (task.ReadByte(0x63) == 0)
                     {
-                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(task);
+                        task = unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3) : Next(task);
                         Store(address, task);
                     }
                     break;
@@ -206,7 +207,7 @@ public static class NativeBattleRecover93Controller
         {
             NativeBattleModulePoolTask task = state.Read(address);
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattlePoseSource source = inputs.ReadPoseSource(actor);
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Recover93 target bounds require the actual pose owner.");
@@ -228,7 +229,7 @@ public static class NativeBattleRecover93Controller
                     if (DogWord(0x48) == 1)
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native Recover93 lost its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(inputs.Packets.ReadHeader(headerIndex).FirstContact.Advance(task.ReadTraversalPosition(0x2B))).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                         Emit(new NativeBattleRecover93Contact(contact));
                         Store(address, Next(task));
                     }
@@ -321,7 +322,7 @@ public static class NativeBattleRecover93Controller
             switch (Stage(task))
             {
                 case 0:
-                    NativeBattleVector target = Bone(task.ReadByte(0x2D), 241);
+                    NativeBattleVector target = Bone(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 241);
                     task = Position(task, 0x4C, target).WriteWord(0x4C, unchecked((ushort)(target.X - 1024))).WriteWord(0x4E, 0).WriteWord(0x50, unchecked((ushort)(target.Z + 4608))).WriteWord(0x128, unchecked((ushort)-256)).WriteDword(0x114, 4096).WriteDword(0x118, 4096).WriteDword(0x11C, 4096);
                     task = Next(Pose(task, address, 0, 0));
                     Emit(new NativeBattleRecover93Sound(resources.SoundAppearance, 0, 128));
@@ -461,7 +462,7 @@ public static class NativeBattleRecover93Controller
             if (phase == 0)
             {
                 task = NativeBattleSearchProgramDrawing.InitializeWorkspace7016B0(task, resources.ProgramSource).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x86, unchecked((ushort)-256));
-                NativeBattleVector target = Bone(task.ReadByte(0x2D), 241);
+                NativeBattleVector target = Bone(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 241);
                 task = Position(task, 0x174, target).WriteWord(0x68, unchecked((ushort)((target.X - Word(task, 0x1C)) / 8))).WriteWord(0x6A, unchecked((ushort)-8)).WriteWord(0x6C, unchecked((ushort)((target.Z - Word(task, 0x20)) / 8)));
             }
             else if (phase == 1)
@@ -496,7 +497,7 @@ public static class NativeBattleRecover93Controller
             Store(address, task);
         }
 
-        NativeBattleVector Bone(int actor, byte selector) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), selector, 0);
+        NativeBattleVector Bone(BattleModelOwner actor, byte selector) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), selector, 0);
 
         NativeBattleModulePoolTask Pose(NativeBattleModulePoolTask task, uint address, short animation, int mode, Action<bool>? completed = null)
         {
@@ -529,7 +530,7 @@ public static class NativeBattleRecover93Controller
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), unchecked((ushort)value));
             frame = frame with { Memory = profile.Write(frame.Memory, Shared() with { DogControl = bytes.ToImmutableArray() }) };
         }
-        ImmutableArray<byte> World(int actor)
+        ImmutableArray<byte> World(BattleModelOwner actor)
         {
             ImmutableArray<byte> bytes = inputs.ReadTargetWorld8(actor);
             if (bytes.IsDefault || bytes.Length != 8)

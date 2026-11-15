@@ -7,22 +7,31 @@ public static partial class NativeBattleEffect313Lower
     public static NativeBattleEffect313Step AdvanceActor(NativeBattleEffect313Frame frame, uint address, NativeBattleEffect313Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int actor = Signed(task, 14);
-        if ((uint)actor >= 3)
+        BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
+        if (model is not BattlePartyModelOwner)
         {
-            throw new NotSupportedException("Effect313 actor callback requires its selected party row.");
+            throw new InvalidDataException("Effect313 actor callback requires its selected party model.");
         }
-        uint model = NativeBattleGraphicsModelAddress.Encode(actor);
-        uint saved = checked(0x223CC38u + (uint)actor * 20);
         int age = Signed(task, 12);
         if (age == 0)
         {
             NativeBattleEffect313PointStep anchor = inputs.Anchor571400(frame, model, TaskView(task, 16, 8));
             frame = Write(anchor.Frame, address, CopyTask(Read(anchor.Frame, address), 16, anchor.Output8, 8));
             NativeBattleEffectArena current = inputs.ReadModelArena9C(frame, model);
-            frame = frame with { State = frame.State.WriteView(saved, PutWord313(NativeBattleEffectArena.Clear(), 0, unchecked((ushort)Word313(current, 0)) & 0x1020), 2).WriteView(saved + 4, CopyBytes(current, 12, NativeBattleEffectArena.Clear(), 0, 8), 8).WriteView(saved + 12, CopyBytes(current, 28, NativeBattleEffectArena.Clear(), 0, 8), 8) };
+            NativeBattleEffectArena savedFields = NativeBattleEffectArena.Clear().MarkUnknown(0, 20);
+            savedFields = PutWord313(savedFields, 0, unchecked((ushort)Word313(current, 0)) & 0x1020);
+            savedFields = CopyBytes(current, 12, savedFields, 4, 8);
+            savedFields = CopyBytes(current, 28, savedFields, 12, 8);
+            NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+            if (aliases.TryEncodeExact(model, out byte originalSlot))
+            {
+                uint original = checked(0x223CC38u + (uint)originalSlot * 20);
+                frame = frame with { State = frame.State.WriteView(original, CopyBytes(savedFields, 0, NativeBattleEffectArena.Clear(), 0, 2), 2).WriteView(original + 4, CopyBytes(savedFields, 4, NativeBattleEffectArena.Clear(), 0, 8), 8).WriteView(original + 12, CopyBytes(savedFields, 12, NativeBattleEffectArena.Clear(), 0, 8), 8) };
+            }
+            frame = frame with { State = frame.State with { SavedActors = frame.State.SavedActors.SetItem(model, savedFields) } };
             task = Read(frame, address);
         }
+        NativeBattleEffectArena saved = frame.State.SavedActors.TryGetValue(model, out NativeBattleEffectArena? fields) ? fields : throw new InvalidDataException("Effect313 requires its own saved actor fields.");
         if (age <= 24)
         {
             NativeBattleEffectArena current = inputs.ReadModelArena9C(frame, model);
@@ -30,7 +39,7 @@ public static partial class NativeBattleEffect313Lower
             frame = WriteModel313(frame, model, 12, PutWord313(NativeBattleEffectArena.Clear(), 0, unchecked(Signed(task, 24) * age) / 24), 2, inputs);
             frame = WriteModel313(frame, model, 14, PutWord313(NativeBattleEffectArena.Clear(), 0, unchecked(age << 13) / 24), 2, inputs);
             NativeBattleVector anchor = new(Signed(task, 16), Signed(task, 18), Signed(task, 20));
-            NativeBattleVector original = Vector(frame.State.ReadView(saved + 12, 8));
+            NativeBattleVector original = Vector(CopyBytes(saved, 12, NativeBattleEffectArena.Clear(), 0, 8));
             NativeBattleVector delta = new(unchecked((short)(anchor.X - original.X)), unchecked((short)(anchor.Y - original.Y)), unchecked((short)(anchor.Z - original.Z)));
             NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Euler56CE30(Vector(inputs.ReadModelArena9C(frame, model), 12));
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(rotation, delta);
@@ -54,7 +63,7 @@ public static partial class NativeBattleEffect313Lower
         if (Signed(task, 12) is 24 or 31)
         {
             frame = BirthActorRecords313(frame, task, Signed(task, 12) == 24, inputs.CapturePresentation);
-            if (Signed(task, 12) == 24 && Signed(task, 26) >= 0)
+            if (Signed(task, 12) == 24 && task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset is not null)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect313SelectSequence505C00(model, 6));
             }
@@ -66,21 +75,24 @@ public static partial class NativeBattleEffect313Lower
         {
             return new(frame, 0);
         }
-        short contact = Signed(task, 26);
-        if (contact >= 0 && inputs.ReadSequenceHeaderByte0(frame, model) == 6)
+        int? contact = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(26, 2).Offset;
+        if (contact is not null && inputs.ReadSequenceHeaderByte0(frame, model) == 6)
         {
             return new(frame, 0);
         }
         NativeBattleEffectArena final = inputs.ReadModelArena9C(frame, model);
-        int flags = (unchecked((ushort)Word313(final, 0)) & 0xEFDF) | unchecked((ushort)Word313(frame.State.ReadView(saved, 2), 0));
+        int flags = (unchecked((ushort)Word313(final, 0)) & 0xEFDF) | unchecked((ushort)Word313(CopyBytes(saved, 0, NativeBattleEffectArena.Clear(), 0, 2), 0));
         frame = WriteModel313(frame, model, 0, PutWord313(NativeBattleEffectArena.Clear(), 0, flags), 2, inputs);
-        frame = WriteModel313(frame, model, 28, frame.State.ReadView(saved + 12, 4), 4, inputs);
-        frame = WriteModel313(frame, model, 32, frame.State.ReadView(saved + 16, 4), 4, inputs);
-        frame = WriteModel313(frame, model, 12, frame.State.ReadView(saved + 4, 4), 4, inputs);
-        frame = WriteModel313(frame, model, 16, frame.State.ReadView(saved + 8, 4), 4, inputs);
-        if (contact >= 0)
+        frame = WriteModel313(frame, model, 28, CopyBytes(saved, 12, NativeBattleEffectArena.Clear(), 0, 4), 4, inputs);
+        frame = WriteModel313(frame, model, 32, CopyBytes(saved, 16, NativeBattleEffectArena.Clear(), 0, 4), 4, inputs);
+        frame = WriteModel313(frame, model, 12, CopyBytes(saved, 4, NativeBattleEffectArena.Clear(), 0, 4), 4, inputs);
+        frame = WriteModel313(frame, model, 16, CopyBytes(saved, 8, NativeBattleEffectArena.Clear(), 0, 4), 4, inputs);
+        if (contact is int relativeIndex)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect313Contact506690(contact));
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect313 requires its current action header.");
+            BattleContactOccurrence occurrence = packets.ResolveContact(parameters.Header, relativeIndex);
+            frame = inputs.Execute(frame, new NativeBattleEffect313Contact506690(occurrence));
         }
         return new(frame, 2);
     }
@@ -120,5 +132,5 @@ public static partial class NativeBattleEffect313Lower
         return frame;
     }
 
-    private static NativeBattleEffect313Frame WriteModel313(NativeBattleEffect313Frame frame, uint model, int offset, NativeBattleEffectArena data, int length, NativeBattleEffect313Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect313WriteModelBytes(model, offset, data, length));
+    private static NativeBattleEffect313Frame WriteModel313(NativeBattleEffect313Frame frame, BattleModelOwner model, int offset, NativeBattleEffectArena data, int length, NativeBattleEffect313Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect313WriteModelBytes(model, offset, data, length));
 }

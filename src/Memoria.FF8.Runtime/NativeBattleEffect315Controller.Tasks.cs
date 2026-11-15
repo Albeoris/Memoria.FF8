@@ -8,7 +8,7 @@ public static partial class NativeBattleEffect315Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 0xC);
-        uint model = ModelAddress(Signed(task, 0xE));
+        BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(0xE, 2).Owner;
         if (age < (recipient ? 110 : 65))
         {
             if (recipient)

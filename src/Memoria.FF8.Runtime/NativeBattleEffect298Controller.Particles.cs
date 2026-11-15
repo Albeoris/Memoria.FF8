@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect298Controller
 {
-    public static (NativeBattleEffect298Frame Frame, uint Next) BirthSprite671E40(NativeBattleEffect298Frame frame, uint script, uint model, uint offsets, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
+    public static (NativeBattleEffect298Frame Frame, uint Next) BirthSprite671E40(NativeBattleEffect298Frame frame, uint script, BattleModelOwner model, uint offsets, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
     {
         short[] words = Enumerable.Range(0, 11).Select(index => ScriptWord298(frame, resources, script + (uint)(index * 2))).ToArray();
         if (words[0] != 0)
@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect298Controller
         return (Write(frame, address, task), script + 22);
     }
 
-    public static (NativeBattleEffect298Frame Frame, uint Next) BirthSpriteBatch671FF0(NativeBattleEffect298Frame frame, uint script, uint model, uint offsets, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
+    public static (NativeBattleEffect298Frame Frame, uint Next) BirthSpriteBatch671FF0(NativeBattleEffect298Frame frame, uint script, BattleModelOwner model, uint offsets, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
     {
         short[] words = Enumerable.Range(0, 24).Select(index => ScriptWord298(frame, resources, script + (uint)(index * 2))).ToArray();
         if (words[0] != 0 || words[5] < 0)

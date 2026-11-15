@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleSiren95TargetParticles
 {
-    public static NativeBattleSiren95TaskStep Advance743250(NativeBattleSiren95Frame frame, uint address, NativeBattleActionPacketsState packets, Func<byte, NativeBattleGraphicsModel> readModel)
+    public static NativeBattleSiren95TaskStep Advance743250(NativeBattleSiren95Frame frame, uint address, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.Callback != 0x743250)
@@ -16,7 +16,7 @@ public static class NativeBattleSiren95TargetParticles
                 frame = Put(frame, address, task);
                 break;
             case 1:
-                NativeBattleGraphicsModel target = readModel(task.ReadByte(0x2D));
+                NativeBattleGraphicsModel target = readModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 NativeBattleEffectLocalBounds bounds = target.GeometryBounds52 ?? throw new NotSupportedException("Native Siren target particles require their current target bounds.");
                 NativeBattleModelTransform transform = target.Transform ?? throw new NotSupportedException("Native Siren target particles require their current target position.");
                 var appended = NativeBattleSiren95Actors.AppendTask(frame, 0x257FA90, 0x7433C0, 0xE0, address, packets);

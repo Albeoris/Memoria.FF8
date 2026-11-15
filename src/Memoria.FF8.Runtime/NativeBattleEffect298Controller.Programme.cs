@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect298Controller
 {
-    public static (NativeBattleEffect298Frame Frame, uint Next) BirthProgramme671990(NativeBattleEffect298Frame frame, uint script, uint model, uint offsets, bool forceYZero, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
+    public static (NativeBattleEffect298Frame Frame, uint Next) BirthProgramme671990(NativeBattleEffect298Frame frame, uint script, BattleModelOwner model, uint offsets, bool forceYZero, NativeBattleEffect298Resources resources, NativeBattleEffect298Inputs inputs)
     {
         short[] words = Enumerable.Range(0, 6).Select(index => ScriptWord298(frame, resources, script + (uint)(index * 2))).ToArray();
         (frame, uint address) = Append(frame, 0x25078B0, 0x671AB0);

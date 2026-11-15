@@ -15,9 +15,9 @@ public static partial class NativeBattleResonance49Controller
         NativeBattleGfAnimationSource source = resources.ReadProgramme(task.ReadDword(0x74));
         NativeBattleGfAnimationWorkspace workspace = ProgrammeWorkspace(task, false).Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, workspace);
-        NativeBattleResonance49PointStep bone = inputs.ReadBone502170(frame, task.ReadByte(0x2C), 0xF0, 4096);
+        NativeBattleResonance49PointStep bone = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner, 0xF0, 4096);
         frame = WriteBytes(bone.Frame, address + 0x1C, bone.Point8, 6);
-        NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadByte(0x2C));
+        NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner);
         short yaw = model.Rotation14 ?? throw new NotSupportedException("Resonance programme requires its current model yaw.");
         task = Read(frame, address).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x88, 0xFF80).WriteWord(0x62, unchecked((ushort)yaw));
         frame = Write(frame, address, task);

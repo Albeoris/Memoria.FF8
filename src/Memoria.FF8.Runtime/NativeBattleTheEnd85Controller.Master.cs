@@ -64,7 +64,7 @@ public static partial class NativeBattleTheEnd85Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < task.ReadWord(0x58))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
                             Store(address, task);
                         }
                         else
@@ -146,15 +146,15 @@ public static partial class NativeBattleTheEnd85Controller
         void Target(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            if (inputs.ReadForeign?.Invoke(task.ReadByte(0x2D)) is { } foreign)
+            if (inputs.ReadForeign?.Invoke(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
             }
             else
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, inputs.ReadModel, inputs.ReadPoseSource);
-                NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
-                NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
+                NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
+                NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native The End target bounds require its actual current pose state.");
                 task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(sequence, source));
             }
@@ -181,8 +181,7 @@ public static partial class NativeBattleTheEnd85Controller
                             {
                                 break;
                             }
-                            int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Native The End target contact pointer is unknown.")) + contactOrdinal);
-                            _ = inputs.Packets.ReadContact(contact);
+                            BattleContactOccurrence contact = inputs.Packets.ReadContact(header.FirstContact.Advance(contactOrdinal)).Occurrence ?? throw new InvalidDataException("Effect contact has no occurrence reference.");
                             Sync();
                             Accept(inputs.ApplyContact(frame, contact));
                             contactOrdinal++;

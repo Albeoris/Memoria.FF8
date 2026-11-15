@@ -13,11 +13,11 @@ public static class NativeBattleEffect101Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect101 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect101 requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
+        BattleModelOwner target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)).WriteDword(TargetGlobal, ModelAddress(target)), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteModelAddress(TargetGlobal, target, inputs.Packets.ModelAliases), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
         return inputs.Execute(frame, new NativeBattleEffect101ActorFlags(target, 12, 12));
     }
 
@@ -88,7 +88,7 @@ public static class NativeBattleEffect101Controller
         (main, int slot) = main.Append(MainCallback);
         frame = WithPool(frame, 1, main);
         uint address = main.BankAddress + (uint)(slot * main.Stride);
-        int target = Actor(frame.State.ReadDword(TargetGlobal));
+        BattleModelOwner target = frame.State.ReadModelAddress(TargetGlobal);
         NativeBattleGraphicsModel model = inputs.ReadModel(target);
         uint color = model.Color44 ?? throw new NotSupportedException("Effect101 requires its current target colorDWORD44.");
         short scale = (model.Transform ?? throw new NotSupportedException("Effect101 requires its target scaleWORD38.")).Scale38;
@@ -99,7 +99,7 @@ public static class NativeBattleEffect101Controller
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 32, 0x2B0).Initialize7016B0(resources.MainAct, 0x2B0);
         task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 32, workspace);
         frame = Write(frame, address, task);
-        NativeBattleVector caster = (inputs.ReadModel(Actor(frame.State.ReadDword(CasterGlobal))).Transform ?? throw new NotSupportedException("Effect101 requires its actual caster position.")).Position28;
+        NativeBattleVector caster = (inputs.ReadModel(frame.State.ReadModelAddress(CasterGlobal)).Transform ?? throw new NotSupportedException("Effect101 requires its actual caster position.")).Position28;
         frame = inputs.Execute(frame, new NativeBattleEffect101PositionXYZ(target, new(caster.X, 300, unchecked((short)(caster.Z - 1000)))));
         return inputs.Execute(frame, new NativeBattleEffect101RingSequence(target, 14));
     }
@@ -108,8 +108,8 @@ public static class NativeBattleEffect101Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         short age = unchecked((short)task.ReadWord(12));
-        int target = Actor(frame.State.ReadDword(TargetGlobal));
-        int caster = Actor(frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner target = frame.State.ReadModelAddress(TargetGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleEffect101ScalePointer(target, 0));
         int depth = age < 12 ? unchecked(age * 2200) / 12 : age >= 42 ? unchecked((54 - age) * 2200) / 12 : 2200;
         frame = inputs.Execute(frame, new NativeBattleEffect101Stage(unchecked((short)depth), 0));
@@ -228,8 +228,6 @@ public static class NativeBattleEffect101Controller
 
     private static NativeBattleEffect101Frame WithPool(NativeBattleEffect101Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleEffect101Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Effect101 requires its captured native parameters.");
-    private static int FirstContact(NativeBattleEffect101Frame frame, NativeBattleEffect101Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("Effect101 requires its current physical contacts.");
+    private static BattleContactCursor FirstContact(NativeBattleEffect101Frame frame, NativeBattleEffect101Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact;
     private static uint Working(NativeBattleEffect101Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Effect101 selected an absent actor.");
-    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Effect101 requires its current physical model pointer.");
 }

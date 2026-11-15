@@ -6,14 +6,14 @@ public static partial class NativeBattleDegenerator306Controller
 {
     private static NativeBattleDegenerator306Frame DrawRandom(NativeBattleDegenerator306Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
     private static NativeBattleEffectParameters Parameters(NativeBattleDegenerator306Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Degenerator requires its captured action parameters.");
-    private static int FirstContact(NativeBattleDegenerator306Frame frame, NativeBattleDegenerator306Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleDegenerator306Frame frame, NativeBattleDegenerator306Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
         if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Degenerator requires its first captured target contact.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Degenerator requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContact;
     }
     private static void RequireBinding(NativeBattleDegenerator306Frame frame)
     {
@@ -22,15 +22,6 @@ public static partial class NativeBattleDegenerator306Controller
             throw new InvalidDataException("Degenerator requires its original selected entry.");
         }
     }
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Degenerator actor pointer leaves the native seven-model bank.");
-        }
-        return row;
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Degenerator actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleDegenerator306Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleDegenerator306Frame WithPool(NativeBattleDegenerator306Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleDegenerator306Frame Put(NativeBattleDegenerator306Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));

@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanDecorationsFrame(NativeBattleScanPairMorphFrame Visual, ushort Complete269CE2C, ushort Ready269D938);
-public sealed record NativeBattleScanDecorationsInputs(NativeBattleActionPacketsState Packets, NativeBattleScanPairMorphInputs Visual, Func<byte, NativeBattleScanByteOwner> ReadActorDescriptor);
+public sealed record NativeBattleScanDecorationsInputs(NativeBattleActionPacketsState Packets, NativeBattleScanPairMorphInputs Visual, Func<BattleModelOwner, NativeBattleScanByteOwner> ReadActorDescriptor);
 public sealed record NativeBattleScanDecorationsStep(NativeBattleScanDecorationsFrame Frame, int Result);
 
 /// <summary>The normal Scan spinner, board, stat bars and backdrop, sharing84D8B0's direct mesh drawing.</summary>
@@ -145,7 +145,7 @@ public static class NativeBattleScanDecorations
                     {
                         throw new InvalidDataException("Native Scan stat bar requires its actual indexed row.");
                     }
-                    NativeBattleScanByteOwner descriptor = inputs.ReadActorDescriptor(task.ReadByte(0x2D));
+                    NativeBattleScanByteOwner descriptor = inputs.ReadActorDescriptor(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                     descriptor.RequireLength(208);
                     uint[] meshes = [0x15CF6FC, 0x15CF6FC, 0x15CF784, 0x15CF80C, 0x15CF894, 0x15CF91C, 0x15CF9A4, 0x15CFA2C];
                     int target;

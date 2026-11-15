@@ -12,14 +12,14 @@ public static partial class NativeBattleEffect315Controller
             return (frame, 0);
         }
         int age = Signed(Read(frame, address), 0xC);
-        uint caster = ModelAddress(Caster(frame));
+        BattleModelOwner caster = Caster(frame);
         if (age == 0)
         {
             NativeBattleEffect315PointStep point = inputs.ReadAnchor502170(frame, caster, 0xF1, 0x800, TaskView(Read(frame, address), 0x10, 8));
             frame = Write(point.Frame, address, CopyTask(Read(point.Frame, address), 0x10, point.Point8, 8));
             frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags8(caster, 0, 0x8000));
             frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags(caster, 4, 0));
-            uint next = ModelAddress(Caster(frame) + 1);
+            BattleModelOwner next = inputs.ResolveCompanion(frame, Caster(frame));
             frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags(next, 0, 4));
             NativeBattleGraphicsModel model = inputs.ReadModel(frame, caster);
             byte saved = (model.SequenceState ?? throw new NotSupportedException("Effect315 requires its current mutable sequence header.")).Default2;
@@ -33,12 +33,12 @@ public static partial class NativeBattleEffect315Controller
         if (age == 1)
         {
             (frame, uint child) = Spawn(frame, 0x59ADB0);
-            frame = Write(frame, child, Read(frame, child).WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)Caster(frame))));
+            frame = Write(frame, child, WriteTaskActor(Read(frame, child).WriteWord(0xC, 0), frame, Caster(frame), inputs));
         }
         if (age == 82)
         {
             (frame, uint child) = Spawn(frame, 0x59AEF0);
-            frame = Write(frame, child, Read(frame, child).WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)(Caster(frame) + 1))));
+            frame = Write(frame, child, WriteTaskActor(Read(frame, child).WriteWord(0xC, 0), frame, inputs.ResolveCompanion(frame, Caster(frame)), inputs));
         }
         if (age == 13)
         {
@@ -60,12 +60,12 @@ public static partial class NativeBattleEffect315Controller
             (frame, uint child) = Spawn(frame, 0x599CC0);
             NativeBattleGraphicsModel model = inputs.ReadModel(frame, caster);
             short value = unchecked((short)((model.GeometryBounds52 ?? throw new NotSupportedException("Effect315 requires its current caster minimum Y WORD54.")).Minimum.Y - 300));
-            frame = Write(frame, child, Read(frame, child).WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)Caster(frame))).WriteWord(0x10, main.ReadWord(0x10)).WriteWord(0x12, 0).WriteWord(0x14, main.ReadWord(0x14)).WriteWord(0x20, unchecked((ushort)value)).WriteWord(0x22, unchecked((ushort)(value / 70))));
+            frame = Write(frame, child, WriteTaskActor(Read(frame, child).WriteWord(0xC, 0), frame, Caster(frame), inputs).WriteWord(0x10, main.ReadWord(0x10)).WriteWord(0x12, 0).WriteWord(0x14, main.ReadWord(0x14)).WriteWord(0x20, unchecked((ushort)value)).WriteWord(0x22, unchecked((ushort)(value / 70))));
         }
         if (age == 82)
         {
             (frame, uint child) = Spawn(frame, 0x59A3E0);
-            frame = Write(frame, child, Read(frame, child).WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)(Caster(frame) + 1))).WriteWord(0x10, main.ReadWord(0x10)).WriteWord(0x12, unchecked((ushort)-2000)).WriteWord(0x14, main.ReadWord(0x14)).WriteWord(0x20, unchecked((ushort)-2000)).WriteWord(0x22, 25));
+            frame = Write(frame, child, WriteTaskActor(Read(frame, child).WriteWord(0xC, 0), frame, inputs.ResolveCompanion(frame, Caster(frame)), inputs).WriteWord(0x10, main.ReadWord(0x10)).WriteWord(0x12, unchecked((ushort)-2000)).WriteWord(0x14, main.ReadWord(0x14)).WriteWord(0x20, unchecked((ushort)-2000)).WriteWord(0x22, 25));
         }
         if (age >= 30 && age <= 82 && age % 4 == 1)
         {
@@ -126,7 +126,7 @@ public static partial class NativeBattleEffect315Controller
         }
         frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags8(caster, 0x8000, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect315ModelDefaultSequence2(caster, unchecked((byte)Read(frame, address).ReadWord(0xE))));
-        frame = inputs.Execute(frame, new NativeBattleEffect315Activate487670(Caster(frame) + 1));
+        frame = inputs.Execute(frame, new NativeBattleEffect315Activate487670(inputs.ResolveCompanion(frame, Caster(frame))));
         return (frame, 2);
     }
 
@@ -134,7 +134,7 @@ public static partial class NativeBattleEffect315Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 0xC);
-        int actor = Signed(task, 0xE);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0xE, 2).Owner;
         uint color;
         if (age < (recipient ? 8 : 4) || age >= (recipient ? 110 : 105))
         {
@@ -156,8 +156,8 @@ public static partial class NativeBattleEffect315Controller
             frame = Write(frame, address, task.WriteWord(0x1C, unchecked((ushort)selector)));
             color = recipient ? BinaryPrimitives.ReadUInt32LittleEndian(resources.RecipientColors96.AsSpan().Slice(selector * 4, 4)) : BinaryPrimitives.ReadUInt32LittleEndian(resources.CasterColors48.AsSpan().Slice(selector * 4, 4));
         }
-        frame = inputs.Execute(frame, new NativeBattleEffect315ModelColor40(ModelAddress(actor), color));
-        frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags(ModelAddress(actor), 0, 0x800));
+        frame = inputs.Execute(frame, new NativeBattleEffect315ModelColor40(actor, color));
+        frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags(actor, 0, 0x800));
         if (Paused(frame, inputs))
         {
             return (frame, 0);
@@ -168,6 +168,6 @@ public static partial class NativeBattleEffect315Controller
         {
             return (frame, 0);
         }
-        return (inputs.Execute(frame, new NativeBattleEffect315ModelFlags(ModelAddress(actor), 0x800, 0)), 2);
+        return (inputs.Execute(frame, new NativeBattleEffect315ModelFlags(actor, 0x800, 0)), 2);
     }
 }

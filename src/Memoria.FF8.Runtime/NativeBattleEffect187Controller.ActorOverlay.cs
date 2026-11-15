@@ -9,7 +9,7 @@ public static partial class NativeBattleEffect187Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        int actor = Signed(task, 14);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
         if (age < 30)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect187WriteModelBytes(actor, 0, NativeBattleEffectArena.Clear().Write(0, [(byte)(inputs.ReadModel(frame, actor).Flags0 | 8)]), 1));
@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect187Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect187WriteModelBytes(actor, 7, NativeBattleEffectArena.Clear().Write(0, [0]), 1));
             }
             frame = PublishContext(frame, temporary, context, 464);
-            frame = inputs.Execute(frame, new NativeBattleEffect187DrawBody464(temporary, actor, offsetWorld) { PilotIdentity = Visual187(frame, address, inputs, unchecked((uint)actor)) });
+            frame = inputs.Execute(frame, new NativeBattleEffect187DrawBody464(temporary, actor, offsetWorld) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(187, task) with { ModelOwner = actor } : null });
             frame = Release(frame, 464);
         }
         if ((inputs.ReadFlags(frame) & 0x201) != 0)

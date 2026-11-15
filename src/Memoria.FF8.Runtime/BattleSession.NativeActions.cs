@@ -133,7 +133,7 @@ public sealed partial class BattleSession
             uint callback = command.NativeLimitCallback == NativeLimitCallback.DuelOpening ? 0x48E5A0u : 0x48E5E0u;
             NativeGraphics = QueueNativeDescriptor(entryGraphics, 10, callback);
         }
-        (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
+        (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
         ObserveDiagnosticPreparedHeader(headerIndex);
         nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
         NativeBattleActionProductionResult produced;
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
         if (queueGraphics && NativeGraphics is { } graphics)
         {
-            graphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
+            graphics = QueueNativeActionDescriptor(graphics, headerIndex);
             if (header.Command == 14 && command.NativeLimitCallback == NativeLimitCallback.ShotOpening)
             {
                 graphics = QueueNativeDescriptor(graphics, 10, 0x48D1A0);

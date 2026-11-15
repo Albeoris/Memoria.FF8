@@ -57,7 +57,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleActionHeaderSlot header = Effect107Header(sequence);
                 BattleContactCursor contact = header.FirstContact;
-                int model = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+                BattleModelOwner model = nativeActionPackets.ReadContact(contact).Primary.Recipient;
                 uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
                 if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == modelAddress))
                 {

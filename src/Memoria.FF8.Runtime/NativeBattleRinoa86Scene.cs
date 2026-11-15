@@ -12,7 +12,7 @@ public static class NativeBattleRinoa86Scene
     public static NativeBattleRinoa86Frame InitializeTarget(NativeBattleRinoa86Frame frame, uint address, NativeBattleRinoa86Inputs inputs, NativeBattleRinoa86Resources resources)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(task.ReadByte(44), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray());
+        NativeBattleRinoa86SceneMemory scene = NativeBattleRinoa86SceneMemory.Initialize(task.ReadExecutionReference<BattleExecutionReference.Model>(44, 1).Owner, inputs.Packets.Roster, inputs.ReadModel);
         NativeBattleRinoa86IoState io = NativeBattleRinoa86Io.Initialize77F680(frame.State.Io?.Script ?? frame.State.RetainedScript ?? resources.Io.Script.Data, checked(0x20DFAB8u + (uint)frame.State.AuxiliaryCursor));
         return frame with { State = frame.State with { Scene = scene, Io = io, AuxiliaryCursor = checked(frame.State.AuxiliaryCursor + 40960) } };
     }
@@ -117,7 +117,7 @@ public static class NativeBattleRinoa86Scene
         }
         return new(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, complete ? 2 : 0);
 
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(frame.Effect.Parameters!, inputs.Controller.Packets, pointer, group, target);
         void Request(short phase)
         {
             if (scene.CanRequestPhase(phase))

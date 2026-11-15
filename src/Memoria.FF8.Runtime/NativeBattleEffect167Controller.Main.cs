@@ -47,13 +47,15 @@ public static partial class NativeBattleEffect167Controller
                 BattleContactCursor first = header.FirstContact;
                 for (int index = 0; index < count; index++)
                 {
-                    int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                    BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                     (frame, uint child) = Append(frame, ChildDescriptor, 0x5E3C20);
                     if (child == 0)
                     {
                         throw new InvalidDataException("Effect167 requires its selected target allocation.");
                     }
-                    frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, checked((ushort)actor)));
+                    NativeBattleModulePoolTask selectedTask = Read(frame, child).WriteWord(12, 0);
+                    selectedTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2));
+                    frame = Write(frame, child, selectedTask);
                     NativeBattleEffect167PointStep point = inputs.LocalBonePoint3B20(frame, actor, 0xF1, 0, TaskView(Read(frame, child), 0x10, 8));
                     frame = point.Frame;
                     NativeBattleModulePoolTask task = CopyTask(Read(frame, child), 0x10, point.Output8, 8);
@@ -87,7 +89,7 @@ public static partial class NativeBattleEffect167Controller
         {
             frame = inputs.Execute(frame, new NativeBattleEffect167Flash5712C0(4, 3, 5, 255));
         }
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
         if (age == 74)
         {
             frame = SetModelFlags167(frame, 8, true, false, inputs);
@@ -104,7 +106,7 @@ public static partial class NativeBattleEffect167Controller
         {
             NativeBattleActionHeaderSlot header = inputs.ReadPackets(frame).ReadHeader(frame.Effect.Parameters!.Header);
             int count = header.ReadContactCount();
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Effect167 requires its actual all-contact pointer.");
+            BattleContactCursor first = header.FirstContact;
             frame = inputs.Execute(frame, new NativeBattleEffect167AllContacts506BA0(first, count));
         }
         if (age == 28)
@@ -149,9 +151,9 @@ public static partial class NativeBattleEffect167Controller
 
     private static NativeBattleEffect167Frame SetModelFlags167(NativeBattleEffect167Frame frame, ushort mask, bool set, bool casterWord, NativeBattleEffect167Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
         frame = WriteFlags167(frame, caster, mask, set, casterWord, inputs);
-        for (int actor = 0; actor < 3; actor++)
+        foreach (BattlePartyModelOwner actor in inputs.ReadPackets(frame).Roster.Party)
         {
             if ((inputs.ReadModel(frame, actor).Flags0 & 2) != 0)
             {
@@ -161,7 +163,7 @@ public static partial class NativeBattleEffect167Controller
         return frame;
     }
 
-    private static NativeBattleEffect167Frame WriteFlags167(NativeBattleEffect167Frame frame, int actor, ushort mask, bool set, bool word, NativeBattleEffect167Inputs inputs)
+    private static NativeBattleEffect167Frame WriteFlags167(NativeBattleEffect167Frame frame, BattleModelOwner actor, ushort mask, bool set, bool word, NativeBattleEffect167Inputs inputs)
     {
         ushort flags = inputs.ReadModel(frame, actor).Flags0;
         ushort value = unchecked((ushort)(set ? flags | mask : flags & ~mask));

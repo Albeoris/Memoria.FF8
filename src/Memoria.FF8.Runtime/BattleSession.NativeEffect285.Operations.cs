@@ -21,7 +21,7 @@ public sealed partial class BattleSession
             case NativeBattleEffect285AllContacts506BA0 contacts:
                 PublishNativeEffect285Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(contacts.FirstContactIndex, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, contacts.Count).Select(relative => nativeActionPackets.ReadContact(contacts.FirstContact.Advance(relative))).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect285Frame(frame);
             case NativeBattleEffect285CameraForce50A730:

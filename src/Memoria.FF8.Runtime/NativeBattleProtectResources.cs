@@ -23,10 +23,10 @@ public sealed record NativeBattleProtectPackets(NativeBattleGfGeometryBatch Batc
 public sealed record NativeBattleProtectSprite(NativeBattleModuleDraw Draw) : NativeBattleProtectOperation;
 public sealed record NativeBattleProtectStage(NativeBattleStageFadeWrite Write) : NativeBattleProtectOperation;
 public sealed record NativeBattleProtectSound(NativeBattleModuleSound Sound) : NativeBattleProtectOperation;
-public sealed record NativeBattleProtectContact(int Index) : NativeBattleProtectOperation;
+public sealed record NativeBattleProtectContact(BattleContactOccurrence Occurrence) : NativeBattleProtectOperation;
 public sealed record NativeBattleProtectInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleProtectFrame, NativeBattleProtectOperation, NativeBattleProtectFrame> Execute)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
     public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
 }
 

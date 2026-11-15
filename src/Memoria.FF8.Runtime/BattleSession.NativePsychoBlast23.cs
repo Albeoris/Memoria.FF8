@@ -55,7 +55,7 @@ public sealed partial class BattleSession
                 case NativeBattlePsychoBlast23Contact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Psycho Blast contact lost its process memory.") };
                 case NativeBattlePsychoBlast23Rotate rotate:

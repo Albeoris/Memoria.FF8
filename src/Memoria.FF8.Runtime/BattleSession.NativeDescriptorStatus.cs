@@ -6,27 +6,29 @@ public sealed partial class BattleSession
     {
         if (packet.Command is 108 or 109)
         {
-            for (int index = 0; index < 3; index++)
+            uint mask = packet.Command == 108 ? 0x1000000u : 0;
+            graphics = graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundPartyStatusMask(0x1000000, mask) };
+            foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
             {
-                NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(entry.Owner);
                 if ((model.Flags0 & 2) == 0)
                 {
-                    model = model.WriteRetainedStatusMask(0x1000000, packet.Command == 108 ? 0x1000000u : 0);
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+                    model = model.WriteRetainedStatusMask(0x1000000, mask);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(entry.Owner, model) };
                 }
                 else
                 {
                     uint status = model.Flags8 ?? throw new InvalidDataException("Native503190 requires its loaded model status DWORD8.");
-                    graphics = SetNativeDescriptorStatusAndStanding(graphics, index, packet.Command == 108 ? status | 0x1000000 : status & ~0x1000000u);
+                    graphics = SetNativeDescriptorStatusAndStanding(graphics, entry.Owner, (status & ~0x1000000u) | mask);
                 }
             }
             return graphics;
         }
-        int target = RequireDescriptorModel(packet.Index);
+        BattleModelOwner target = RequireDescriptorModelOwner(graphics, packet.ModelSubject);
         NativeBattleGraphicsModel selected = graphics.ActorModels.Get(target);
         if (packet.Command == 111)
         {
-            return SelectNativeHeaderSequence(graphics, checked((byte)target), packet.Value);
+            return SelectNativeHeaderSequence(graphics, target, packet.Value);
         }
         uint previous = selected.Flags8 ?? throw new NotSupportedException("Native502380 status operation requires its actual retained graphics DWORD8.");
         uint flags;
@@ -53,11 +55,11 @@ public sealed partial class BattleSession
         return SetNativeDescriptorStatusAndStanding(graphics, target, flags);
     }
 
-    private NativeBattleGraphicsState SetNativeDescriptorStatusAndStanding(NativeBattleGraphicsState graphics, int index, uint flags)
+    private NativeBattleGraphicsState SetNativeDescriptorStatusAndStanding(NativeBattleGraphicsState graphics, BattleModelOwner index, uint flags)
     {
         graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, flags);
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         byte identity = model.ModelId4 ?? throw new NotSupportedException("Native509C80 requires its retained model identity BYTE4.");
-        return identity < 16 ? RefreshNativeGuardianStandingSequence(graphics, checked((byte)index)) : graphics;
+        return identity < 16 ? RefreshNativeGuardianStandingSequence(graphics, index) : graphics;
     }
 }

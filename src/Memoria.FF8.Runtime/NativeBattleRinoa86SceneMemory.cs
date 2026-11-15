@@ -6,25 +6,21 @@ namespace Memoria.FF8.Runtime;
 /// <summary>77FAE0/77FB60's84-byte scene; source position copies include the native fourth WORD.</summary>
 public sealed record NativeBattleRinoa86SceneMemory([property: JsonRequired] NativeBattleEffectArena Settings)
 {
-    public static NativeBattleRinoa86SceneMemory Initialize(byte caster, IReadOnlyList<NativeBattleGraphicsModel> models)
+    public static NativeBattleRinoa86SceneMemory Initialize(BattleModelOwner caster, BattleModelRoster roster, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel)
     {
-        if (models.Count != 7 || caster >= 7)
-        {
-            throw new InvalidDataException("Native77FAE0 requires its actual seven model rows and caster.");
-        }
-        NativeBattleModelTransform actor = models[caster].Transform ?? throw new NotSupportedException("Native77FAE0 requires its caster's original position and fourth WORD.");
+        NativeBattleModelTransform actor = readModel(caster).Transform ?? throw new NotSupportedException("Native77FAE0 requires its caster's original position and fourth WORD.");
         short minimumX = 0;
         short maximumX = 0;
         short minimumZ = 0;
         short maximumZ = 0;
         bool any = false;
-        for (int index = 3; index < 7; index++)
+        foreach (BattleEnemyModelOwner owner in roster.Enemies)
         {
-            if ((models[index].Flags0 & 2) == 0)
+            if ((readModel(owner).Flags0 & 2) == 0)
             {
                 continue;
             }
-            NativeBattleVector point = (models[index].Transform ?? throw new NotSupportedException("Native77FB60 requires each loaded enemy's actual position.")).Position28;
+            NativeBattleVector point = (readModel(owner).Transform ?? throw new NotSupportedException("Native77FB60 requires each loaded enemy's actual position.")).Position28;
             if (!any)
             {
                 minimumX = maximumX = point.X;

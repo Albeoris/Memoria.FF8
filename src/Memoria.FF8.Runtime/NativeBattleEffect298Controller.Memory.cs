@@ -184,12 +184,4 @@ public static partial class NativeBattleEffect298Controller
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[0]) } };
     }
 
-    private static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new NotSupportedException("Effect298 requires an actual physical model row.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
 }

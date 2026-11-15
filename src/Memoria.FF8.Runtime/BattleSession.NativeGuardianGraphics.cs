@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         {
             return PollGuardianFormFinisherGraphics(graphics, context, phase);
         }
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(context.Header);
         byte caster = context.Actor;
         if (caster >= 3)
         {
@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         }
         if (phase == 0)
         {
-            if (graphics.Models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40)) || NativeOriginalSoundBusy())
+            if (graphics.ActorModels.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40)) || NativeOriginalSoundBusy())
             {
                 return (graphics, phase, false);
             }
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             }
             graphics = BeginNativeOriginalEffect(graphics, header.Effect);
             context = context with { Guardian = new(hidden, selector, 0) };
-            return (graphics with { ActionGraphics = context, OriginalEffect = graphics.OriginalEffect! with { Parameters = CreateNativeOriginalEffectParameters(context) } }, 2, false);
+            return (graphics with { ActionGraphics = context, OriginalEffect = graphics.OriginalEffect! with { Parameters = CreateNativeOriginalEffectParameters(graphics, context) } }, 2, false);
         }
         NativeBattleGuardianServiceState guardian = context.Guardian ?? throw new InvalidDataException("Native50B2A0 lost its initialized action globals.");
         if (phase == 2)

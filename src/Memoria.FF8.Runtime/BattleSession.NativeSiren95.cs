@@ -22,11 +22,11 @@ public sealed partial class BattleSession
             NativeBattleSiren95DirectorServices director = new(nativeActionPackets, StartVibration, StopVibration, SpawnStage, PlaySound, actor => graphics.ActorModels.Get(actor), WriteModel);
             frame = NativeBattleSiren95Controller.Advance739F40(frame, new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), ReadPoseSource, InitializeTarget, AdvanceLeaf, ApplyContact, Execute) { ReadForeignTarget = ReadNativeForeignTarget });
 
-            NativeBattlePoseSource ReadPoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Siren requires its selected actor pose source.");
+            NativeBattlePoseSource ReadPoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Siren requires its selected actor pose source.");
 
             NativeBattleSiren95Frame InitializeTarget(NativeBattleSiren95Frame current, uint address)
             {
-                current = NativeBattleSiren95Director.Initialize73A6E0(current, actor => graphics.ActorModels.Get(actor));
+                current = NativeBattleSiren95Director.Initialize73A6E0(current, graphics.ActorModels.Roster, actor => graphics.ActorModels.Get(actor));
                 return NativeBattleSiren95Io.Initialize73A270(current, resources.IoScript);
             }
 

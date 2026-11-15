@@ -306,7 +306,7 @@ public static partial class NativeBattleMegaSpark279Controller
         NativeBattleGfAnimationSource source = resources.ReadProgramme(programme);
         var workspace = NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), 44, size).Initialize7016B0(source, size);
         NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, address + 44);
-        NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadDword(0x2508078));
+        NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadModelOwner(NativeBattleMegaSpark279Profile.CasterGlobal));
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Mega Spark programme requires its current caster transform.");
         NativeBattleActionMatrix matrix = NativeBattleFunguarLaser277.Basis50CBA0(Signed(task, 32) - transform.Position28.X, 0, Signed(task, 36) - transform.Position28.Z).Matrix;
         if (scale != 4096)

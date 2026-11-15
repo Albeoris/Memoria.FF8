@@ -23,9 +23,10 @@ public static partial class NativeBattleEffect174Lower
 
     private static NativeBattleEffect174Frame InitializeActorFade174(NativeBattleEffect174Frame frame, int duration, uint callback, NativeBattleEffect174Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
-        int target = checked((int)frame.State.ReadDword(TargetGlobal));
-        for (int actor = 0; actor < 7; actor++)
+        BattleModelOwner caster = frame.State.ReadModelOperand(CasterGlobal);
+        BattleModelOwner target = frame.State.ReadModelOperand(TargetGlobal);
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        foreach (BattleModelOwner actor in packets.Roster.Owners)
         {
             ushort flags = inputs.ReadModel(frame, actor).Flags0;
             if ((flags & 2) == 0 || actor == caster || actor == target)
@@ -37,7 +38,9 @@ public static partial class NativeBattleEffect174Lower
             {
                 throw new NotSupportedException("Effect174 actor fade exhausted its current physical task bank.");
             }
-            frame = Write(frame, address, Read(frame, address).WriteWord(12, 0).WriteWord(14, (ushort)actor).WriteWord(24, unchecked((ushort)duration)).WriteWord(26, (ushort)(flags & 0x800)));
+            NativeBattleModulePoolTask fade = Read(frame, address).WriteWord(12, 0);
+            fade.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeOperand(actor, 2));
+            frame = Write(frame, address, fade.WriteWord(24, unchecked((ushort)duration)).WriteWord(26, (ushort)(flags & 0x800)));
         }
         return frame;
     }
@@ -53,7 +56,7 @@ public static partial class NativeBattleEffect174Lower
     private static NativeBattleEffect174Step AdvanceActorFade174(NativeBattleEffect174Frame frame, uint address, bool hide, NativeBattleEffect174Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int actor = Signed(task, 14);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
         int age = Signed(task, 12);
         int duration = Signed(task, 24);
         int factor = unchecked(age << 12) / duration;
@@ -106,15 +109,25 @@ public static partial class NativeBattleEffect174Lower
     public static NativeBattleEffect174Step AdvanceActorMotion7220(NativeBattleEffect174Frame frame, uint address, NativeBattleEffect174Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int actor = Signed(task, 14);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
         int age = Signed(task, 12);
-        uint savedAddress = checked(SavedActorsAddress + (uint)(actor * 20));
         if (age == 0)
         {
             NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, actor);
-            frame = WriteBytes(frame, savedAddress, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)(inputs.ReadModel(frame, actor).Flags0 & 0x1020))), 2);
-            frame = WriteBytes(frame, savedAddress + 12, CopyBytes(model, 28, NativeBattleEffectArena.Clear(), 0, 8), 8);
-            frame = WriteBytes(frame, savedAddress + 4, CopyBytes(model, 12, NativeBattleEffectArena.Clear(), 0, 8), 8);
+            NativeBattleEffectArena originalFlags = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)(inputs.ReadModel(frame, actor).Flags0 & 0x1020)));
+            NativeBattleEffectArena saved = NativeBattleEffectArena.Clear().MarkUnknown(0, SavedActorStride);
+            saved = CopyBytes(originalFlags, 0, saved, 0, 2);
+            saved = CopyBytes(model, 28, saved, 12, 8);
+            saved = CopyBytes(model, 12, saved, 4, 8);
+            NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+            if (aliases.TryEncodeExact(actor, out byte originalSlot))
+            {
+                uint savedAddress = checked(SavedActorsAddress + (uint)(originalSlot * SavedActorStride));
+                frame = WriteBytes(frame, savedAddress, originalFlags, 2);
+                frame = WriteBytes(frame, savedAddress + 12, CopyBytes(saved, 12, NativeBattleEffectArena.Clear(), 0, 8), 8);
+                frame = WriteBytes(frame, savedAddress + 4, CopyBytes(saved, 4, NativeBattleEffectArena.Clear(), 0, 8), 8);
+            }
+            frame = frame with { State = frame.State with { SavedActors = frame.State.SavedActors.SetItem(actor, saved) } };
         }
         frame = WriteFlags174(frame, actor, unchecked((ushort)(inputs.ReadModel(frame, actor).Flags0 | 0x1020)), inputs);
         short angleX = unchecked((short)(unchecked(Signed(task, 24) * age) / 30));
@@ -122,7 +135,8 @@ public static partial class NativeBattleEffect174Lower
         frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 12, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(angleX)), 2));
         frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 14, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(angleY)), 2));
         NativeBattleVector anchor = Vector(TaskView(task, 16, 8));
-        NativeBattleVector original = Vector(ReadBytes(frame, savedAddress + 12, 8));
+        NativeBattleEffectArena savedActor = frame.State.SavedActors.TryGetValue(actor, out NativeBattleEffectArena? savedFields) ? savedFields : throw new InvalidDataException("Effect174 actor motion requires its own saved model fields.");
+        NativeBattleVector original = Vector(savedActor, 12);
         NativeBattleVector delta = new(unchecked((short)(anchor.X - original.X)), unchecked((short)(anchor.Y - original.Y)), unchecked((short)(anchor.Z - original.Z)));
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Euler56CE30(Vector(inputs.ReadModelArena9C(frame, actor), 12));
         NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(rotation, delta);
@@ -138,12 +152,12 @@ public static partial class NativeBattleEffect174Lower
         {
             return new(frame, 0);
         }
-        ushort flags = unchecked((ushort)((inputs.ReadModel(frame, actor).Flags0 & 0xEFDF) | BinaryPrimitives.ReadUInt16LittleEndian(ReadBytes(frame, savedAddress, 2).Read(0, 2))));
+        ushort flags = unchecked((ushort)((inputs.ReadModel(frame, actor).Flags0 & 0xEFDF) | BinaryPrimitives.ReadUInt16LittleEndian(savedActor.Read(0, 2))));
         frame = WriteFlags174(frame, actor, flags, inputs);
-        frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 28, ReadBytes(frame, savedAddress + 12, 8), 8));
-        frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 12, ReadBytes(frame, savedAddress + 4, 8), 8));
+        frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 28, CopyBytes(savedActor, 12, NativeBattleEffectArena.Clear(), 0, 8), 8));
+        frame = inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 12, CopyBytes(savedActor, 4, NativeBattleEffectArena.Clear(), 0, 8), 8));
         return new(frame, 2);
     }
 
-    private static NativeBattleEffect174Frame WriteFlags174(NativeBattleEffect174Frame frame, int actor, ushort flags, NativeBattleEffect174Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 0, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(flags)), 2));
+    private static NativeBattleEffect174Frame WriteFlags174(NativeBattleEffect174Frame frame, BattleModelOwner actor, ushort flags, NativeBattleEffect174Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect174WriteModelBytes(actor, 0, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(flags)), 2));
 }

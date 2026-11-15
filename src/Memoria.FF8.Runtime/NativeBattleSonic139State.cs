@@ -67,6 +67,14 @@ public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBa
     }
 
     public byte[] Read(uint address, int length) => Owner(address, length).Arena.Read(Owner(address, length).Offset, length);
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleSonic139State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public NativeBattleSonic139State WriteDword(uint address, uint value)

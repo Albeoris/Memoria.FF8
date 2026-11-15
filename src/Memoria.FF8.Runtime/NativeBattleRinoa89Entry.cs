@@ -10,7 +10,7 @@ public static partial class NativeBattleRinoa89Controller
     public const uint Beams = 0x2556598;
     private const uint ArenaAddress = 0x20DFAB8;
 
-    public static NativeBattleRinoa89Frame Enter6F9D00(NativeBattleRinoa89Frame frame, NativeBattleRinoa89Resources resources)
+    public static NativeBattleRinoa89Frame Enter6F9D00(NativeBattleRinoa89Frame frame, NativeBattleRinoa89Resources resources, NativeBattleModelAliases aliases)
     {
         if (frame.Effect.Binding is not { Effect: 89, Entry: 0x6F9CF0, Initializer: 0x5755E0 } || frame.Effect.Parameters is not { } parameters)
         {
@@ -29,7 +29,7 @@ public static partial class NativeBattleRinoa89Controller
         }
         frame = frame with { Staging = Dword(frame.Staging, 0x2556600, ArenaAddress) };
         frame = frame with { Staging = Dword(frame.Staging, 0x2556584, 0x1D99A78) };
-        frame = frame with { Staging = Dword(frame.Staging, 0x2556588, ModelAddress(parameters.Source)) };
+        frame = frame with { Staging = frame.Staging.WriteExecutionReference(0x2556588, 4, new BattleExecutionReference.Model(parameters.Source), aliases.EncodeAddress(parameters.Source)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x25565D8, 20, 1);
         (root, int slot) = root.Append(0x6F9D80);
         root = root.WriteSlot(slot, root.Slots[slot].WriteWord(12, 0));
@@ -51,7 +51,6 @@ public static partial class NativeBattleRinoa89Controller
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(frame.Effect.Pools.Single(pool => pool.DescriptorAddress == Root)), root) } };
     }
 
-    private static uint ModelAddress(byte actor) => NativeBattleGraphicsModelAddress.Encode(actor);
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value)
     {
         byte[] bytes = new byte[4];

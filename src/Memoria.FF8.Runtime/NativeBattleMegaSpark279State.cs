@@ -42,6 +42,14 @@ public sealed record NativeBattleMegaSpark279State([property: JsonRequired] Nati
     public byte[] Read(uint address, int length) => Globals.Read(Require(address, length), length);
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleMegaSpark279State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public NativeBattleMegaSpark279State Write(uint address, ReadOnlySpan<byte> bytes)
     {

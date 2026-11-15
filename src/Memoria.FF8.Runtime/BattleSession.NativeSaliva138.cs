@@ -52,9 +52,9 @@ public sealed partial class BattleSession
             return actorIndex;
         }
 
-        short ModelYaw(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Saliva requires its actual current model rotation WORD14.");
+        short ModelYaw(BattleModelOwner pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Saliva requires its actual current model rotation WORD14.");
 
-        NativeBattleSaliva138PointStep Bone(NativeBattleSaliva138Frame current, uint pointer, byte selector, short distance)
+        NativeBattleSaliva138PointStep Bone(NativeBattleSaliva138Frame current, BattleModelOwner pointer, byte selector, short distance)
         {
             int actor = Actor(pointer);
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);

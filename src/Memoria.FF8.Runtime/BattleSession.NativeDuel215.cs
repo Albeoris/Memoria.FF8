@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel215 requires its authenticated color arithmetic.");
         NativeBattleDuel215Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel215 requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel215 requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel215 requires retained CRT state."));
         frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.Header];
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Duel215 requires its actual action contact pointer.");
         int count = header.ReadContactCount();
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.Recipient).ToImmutableArray();

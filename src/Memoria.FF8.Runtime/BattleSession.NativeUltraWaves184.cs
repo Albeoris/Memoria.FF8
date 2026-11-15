@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleUltraWaves184ContactAll:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts506BA0(current.Effect.Parameters!.Header) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = nativeActionPackets.ReadHeaderContacts(current.Effect.Parameters!.Header) });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleUltraWaves184StageVisibility visible:

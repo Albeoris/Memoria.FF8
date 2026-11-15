@@ -14,7 +14,7 @@ public static class NativeBattleMightyGuardController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.MainCallback, 100);
         hierarchy = root.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
@@ -97,7 +97,7 @@ public static class NativeBattleMightyGuardController
                         state = Add(state, 3, profile.FadeInCallback, 64, address).Hierarchy;
                         if (profile.CasterDatAddress is { } casterDat)
                         {
-                            Emit(ref state, new NativeBattleMightyGuardBindCaster(task.ReadByte(0x2C), profile.SavedCasterBank!.Value, casterDat, 1));
+                            Emit(ref state, new NativeBattleMightyGuardBindCaster(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner, profile.SavedCasterBank!.Value, casterDat, 1));
                         }
                         state = Next(state, address);
                     }
@@ -177,8 +177,9 @@ public static class NativeBattleMightyGuardController
                         if (unchecked((short)task.ReadWord(0x24)) >= profile.ContactAge)
                         {
                             BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                            int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Mighty Guard requires the selected contact buffer.");
-                            Emit(ref state, new NativeBattleMightyGuardContact(checked(first + unchecked((sbyte)task.ReadByte(0x2B)))));
+                            BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
+                            BattleContactOccurrence occurrence = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Mighty Guard contact has no occurrence reference.");
+                            Emit(ref state, new NativeBattleMightyGuardContact(occurrence));
                             state = Done(state, address);
                         }
                         break;
@@ -294,9 +295,9 @@ public static class NativeBattleMightyGuardController
         {
             return task;
         }
-        if (unchecked((sbyte)task.ReadByte(0x2B)) < task.ReadContactCount(0x5A) - 1)
+        if (task.ReadTraversalPosition(0x2B) < task.ReadContactCount(0x5A) - 1)
         {
-            return task.WriteByte(0x2B, unchecked((byte)(task.ReadByte(0x2B) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+            return task.WriteTraversalPosition(0x2B, checked(task.ReadTraversalPosition(0x2B) + 1)).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
         }
         return task.WriteWord(0x60, profile.RootWait).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
     }
@@ -314,7 +315,7 @@ public static class NativeBattleMightyGuardController
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Mighty Guard requires its action context."), packets, readModel, readPoseSource, frame.Profile.SourceAddress, singleSelectedTarget: true, readForeignBone: (actor, selector) => NativeBattleEffectModelHelpers.ReadSemanticAnchor(readForeignTarget?.Invoke(actor), selector));
         if (frame.Profile.ScalesToTarget)
         {
-            short scale = TargetScale(readModel(task.ReadByte(0x2D)).GeometryBounds52 ?? throw new NotSupportedException("Enemy Mighty Guard requires its target's actual native bounds."));
+            short scale = TargetScale(readModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).GeometryBounds52 ?? throw new NotSupportedException("Enemy Mighty Guard requires its target's actual native bounds."));
             task = task.WriteDword(0x34 + 0x214, unchecked((uint)(int)scale)).WriteDword(0x34 + 0x218, unchecked((uint)(int)scale)).WriteDword(0x34 + 0x21C, unchecked((uint)(int)scale));
         }
         NativeBattleEffectHierarchy initialized = hierarchy.Write(address, task);

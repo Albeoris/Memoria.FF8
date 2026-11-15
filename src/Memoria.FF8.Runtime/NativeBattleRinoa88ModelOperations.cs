@@ -1,62 +1,65 @@
+using System.Text.Json.Serialization;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa88VisibilityStep(NativeBattleRinoa88SceneMemory Scene, ImmutableArray<NativeBattleGraphicsModel> Models);
+public sealed record NativeBattleRinoa88VisibilityStep(NativeBattleRinoa88SceneMemory Scene, BattleActorModels Models, NativeBattleOriginalEffectState Effect);
 
 public static class NativeBattleRinoa88ModelOperations
 {
-    public static NativeBattleRinoa88VisibilityStep ApplyVisibility(NativeBattleRinoa88SceneMemory scene, ImmutableArray<NativeBattleGraphicsModel> models, uint callback)
+    public static NativeBattleRinoa88VisibilityStep ApplyVisibility(NativeBattleRinoa88SceneMemory scene, BattleActorModels models, NativeBattleOriginalEffectState effect, NativeBattleModelAliases aliases, uint callback)
     {
-        if (models.IsDefault || models.Length != 7 || callback is not (0x769CB0 or 0x769DD0 or 0x769E90 or 0x769F40))
+        if (callback is not (0x769CB0 or 0x769DD0 or 0x769E90 or 0x769F40))
         {
             throw new InvalidDataException("Native Rinoa88 visibility requires its actual actor banks and reached callback.");
         }
-        int first = callback is 0x769CB0 or 0x769F40 ? 3 : 0;
-        int count = first == 3 ? 4 : 3;
-        int saved = first == 3 ? 44 : 32;
+        bool enemy = callback is 0x769CB0 or 0x769F40;
+        IEnumerable<BattleModelOwner> owners = enemy ? models.Roster.Enemies : models.Roster.Party;
         bool hide = callback is 0x769CB0 or 0x769DD0;
-        for (int index = 0; index < count; index++)
+        foreach (BattleModelOwner owner in owners)
         {
-            NativeBattleGraphicsModel model = models[first + index];
+            NativeBattleGraphicsModel model = models.Get(owner);
             if ((model.Flags0 & 2) == 0)
             {
                 continue;
             }
             if (hide)
             {
-                scene = scene with { Settings = scene.Settings.Write(saved + index * 4, BitConverter.GetBytes((uint)model.Flags0)) };
+                effect = effect with { Rinoa88SavedFlags = effect.Rinoa88SavedFlags.SetItem(owner, model.Flags0) };
+                if (aliases.TryEncodeExact(owner, out byte alias))
+                {
+                    scene = scene with { Settings = scene.Settings.Write(32 + alias * 4, BitConverter.GetBytes((uint)model.Flags0)) };
+                }
                 model = model with { Flags0 = unchecked((ushort)(model.Flags0 | 4)) };
             }
             else
             {
-                ushort original = scene.Word(saved + index * 4);
+                if (!effect.Rinoa88SavedFlags.TryGetValue(owner, out ushort original))
+                {
+                    throw new InvalidDataException("Native Rinoa88 cannot restore flags without its captured model owner.");
+                }
                 model = model with { Flags0 = unchecked((ushort)(model.Flags0 ^ ((model.Flags0 ^ original) & 4))) };
             }
-            models = models.SetItem(first + index, model);
+            models = models.Set(owner, model);
         }
-        return new(scene, models);
+        return new(scene, models, effect);
     }
 
-    public static ImmutableArray<byte> PartyMidpoint769A90(ImmutableArray<NativeBattleGraphicsModel> models)
+    public static ImmutableArray<byte> PartyMidpoint769A90(BattleActorModels models)
     {
-        if (models.IsDefault || models.Length != 7)
-        {
-            throw new InvalidDataException("Native769A90 requires the original seven actor records.");
-        }
         short minX = 0;
         short maxX = 0;
         short minZ = 0;
         short maxZ = 0;
         bool seen = false;
-        for (int index = 0; index < 3; index++)
+        foreach (BattleModelEntry<BattlePartyModelOwner> entry in models.Party.Entries)
         {
-            if ((models[index].Flags0 & 2) == 0)
+            if ((entry.State.Flags0 & 2) == 0)
             {
                 continue;
             }
-            NativeBattleModelTransform transform = models[index].Transform ?? throw new NotSupportedException("Native769A90 requires each active party member's actual position.");
+            NativeBattleModelTransform transform = entry.State.Transform ?? throw new NotSupportedException("Native769A90 requires each active party member's actual position.");
             short x = unchecked((short)transform.Position28.X);
             short z = unchecked((short)transform.Position28.Z);
             if (!seen)
@@ -110,4 +113,10 @@ public static class NativeBattleRinoa88ModelOperations
         }
         return task;
     }
+}
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> Rinoa88SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
 }

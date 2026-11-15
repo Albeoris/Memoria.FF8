@@ -14,7 +14,7 @@ public static class NativeBattleEffect285Lower
         return NativeBattleEffect285Sprite.Advance(frame, address, resources, inputs);
     }
 
-    public static NativeBattleEffect285PointStep BonePoint67B560(NativeBattleEffect285Frame frame, NativeBattleEffectArena local8, NativeBattleEffectArena retained8, NativeBattleEffect285Inputs inputs) => inputs.BonePoint67B560(frame, frame.State.ReadDword(0x2507D10), local8, retained8);
+    public static NativeBattleEffect285PointStep BonePoint67B560(NativeBattleEffect285Frame frame, NativeBattleEffectArena local8, NativeBattleEffectArena retained8, NativeBattleEffect285Inputs inputs) => inputs.BonePoint67B560(frame, frame.State.ReadModelAddress(0x2507D10), local8, retained8);
 
     public static NativeBattleEffect285Frame Camera67B5C0(NativeBattleEffect285Frame frame, int firstX, int secondY, int ratio, NativeBattleEffect285Resources resources, NativeBattleEffect285Inputs inputs)
     {
@@ -35,16 +35,15 @@ public static class NativeBattleEffect285Lower
     public static NativeBattleEffect285Frame Visibility67B6C0(NativeBattleEffect285Frame frame, int argument, NativeBattleEffect285Inputs inputs)
     {
         frame = inputs.Execute(frame, new NativeBattleEffect285StageFlags(0xFD, unchecked((byte)((argument & 1) << 1))));
-        for (int actor = 6; actor >= 0; actor--)
+        foreach (BattleModelOwner model in inputs.ReadPackets(frame).Roster.Owners.Reverse())
         {
-            uint model = NativeBattleGraphicsModelAddress.Encode(actor);
             if (argument == 0)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect285ModelFlags(model, 1, 0xFF, 4));
             }
             else
             {
-                byte saved = frame.State.Read(0x2507D90 + (uint)(actor * 4), 1)[0];
+                ushort saved = frame.State.SavedFlags.TryGetValue(model, out ushort flags) ? flags : throw new InvalidDataException("Effect285 requires its saved model flags.");
                 frame = inputs.Execute(frame, new NativeBattleEffect285ModelFlags(model, 2, 0xFFFB, (ushort)(saved & 4)));
             }
         }

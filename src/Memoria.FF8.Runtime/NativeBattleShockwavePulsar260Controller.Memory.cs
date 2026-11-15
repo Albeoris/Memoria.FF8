@@ -167,13 +167,11 @@ public static partial class NativeBattleShockwavePulsar260Controller
         return (frame with { State = frame.State.WriteDword(cursorGlobal, next) }, cursor);
     }
 
-    public static int Actor(uint address)
+    internal static BattleModelOwner ReadTargetOwner(NativeBattleShockwavePulsar260Frame frame, uint recordAddress)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Shockwave Pulsar selected a model outside the original actor bank.");
-        }
-        return row;
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == MainDescriptor);
+        int offset = checked((int)(recordAddress - pool.BankAddress));
+        return Read(frame, pool.BankAddress).ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
     }
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleShockwavePulsar260Frame DrawRandom(NativeBattleShockwavePulsar260Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };

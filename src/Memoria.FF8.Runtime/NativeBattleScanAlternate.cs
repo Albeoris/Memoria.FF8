@@ -1,9 +1,7 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleScanAlternateFrame(NativeBattleScanCameraFrame Camera, ImmutableArray<NativeBattleGraphicsModel> Models, ushort Highlight269AA90, ushort Complete269D93A, ushort Exit269CE2C);
-public sealed record NativeBattleScanAlternateInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleScanViewerProfile> ReadProfile);
+public sealed record NativeBattleScanAlternateFrame(NativeBattleScanCameraFrame Camera, BattleActorModels Models, ushort Highlight269AA90, ushort Complete269D93A, ushort Exit269CE2C);
+public sealed record NativeBattleScanAlternateInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleScanViewerProfile> ReadProfile);
 public sealed record NativeBattleScanAlternateStep(NativeBattleScanAlternateFrame Frame, int Result);
 public sealed record NativeBattleScanSavedCamera(NativeBattleScanByteOwner Eye8, NativeBattleScanByteOwner Target8, ushort Zoom);
 
@@ -45,7 +43,7 @@ public static class NativeBattleScanAlternate
                 }
                 break;
             case 3:
-                NativeBattleScanViewerProfile profile = inputs.ReadProfile(task.ReadByte(0x2D));
+                NativeBattleScanViewerProfile profile = inputs.ReadProfile(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
                 profile.Bytes16.RequireLength(16);
                 NativeBattleScanByteOwner camera = frame.Camera.Scan.Memory.Scan!.Presentation.Camera269A168.WriteWord(0x4C, profile.Category);
                 if (profile.Bytes16.ReadByte(0x0E) == 1)
@@ -120,12 +118,8 @@ public static class NativeBattleScanAlternate
 
         void Flags(Func<ushort, ushort> update)
         {
-            int actor = task.ReadByte(0x2D);
-            if (frame.Models.IsDefault || frame.Models.Length != 7 || actor >= 7 || frame.Models[actor].Index != actor)
-            {
-                throw new InvalidDataException("Native Scan alternate primary requires its seven current physical models.");
-            }
-            frame = frame with { Models = frame.Models.SetItem(actor, frame.Models[actor] with { Flags0 = update(frame.Models[actor].Flags0) }) };
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+            frame = frame with { Models = frame.Models.Set(actor, frame.Models.Get(actor) with { Flags0 = update(frame.Models.Get(actor).Flags0) }) };
         }
     }
 

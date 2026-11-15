@@ -82,6 +82,21 @@ public sealed partial class NativeBattleModelBoundary
         return updated == cells ? this : new(updated);
     }
 
+    internal NativeBattleModelBoundary WriteUnboundPartyStatusMask(uint mask, uint value)
+    {
+        ImmutableArray<Cell> updated = cells;
+        for (byte offset = 0; offset < CellCount; offset++)
+        {
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(offset);
+            Cell cell = cells[offset];
+            if (slot.Side == BattleSide.Allies && cell.Retained is { } retained && cell.Owner is null)
+            {
+                updated = updated.SetItem(offset, cell with { Retained = retained.WriteRetainedStatusMask(mask, value) });
+            }
+        }
+        return updated == cells ? this : new(updated);
+    }
+
     internal NativeBattleModelAliases CaptureAliases(BattleActorModels models)
     {
         ArgumentNullException.ThrowIfNull(models);

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
 
@@ -15,6 +16,14 @@ public sealed record NativeBattleShockwavePulsar260State([property: JsonRequired
     public const int GlobalsLength = 0xEC;
     public static NativeBattleShockwavePulsar260State FromColdProcess() => new(NativeBattleEffectArena.Clear());
     public static NativeBattleShockwavePulsar260State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, GlobalsLength));
+    internal BattleModelOwner ReadModelOwner(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleShockwavePulsar260State WriteModelOwner(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Require(address, 2), 2));
     public NativeBattleShockwavePulsar260State WriteDword(uint address, uint value)
@@ -56,4 +65,10 @@ public sealed record NativeBattleShockwavePulsar260State([property: JsonRequired
         }
         return checked((int)(address - GlobalsAddress));
     }
+}
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> ShockwaveSavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
 }
