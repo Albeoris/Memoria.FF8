@@ -1,7 +1,6 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -25,7 +24,7 @@ public sealed class NativeBattleClash26ControllerTests
     }
 
     [Fact]
-    public void MasterWaitUsesPreviousQueueCountThenReleasesItsActualDescriptorWithIndependentJsonContinuation()
+    public void MasterWaitUsesPreviousQueueCountThenReleasesItsActualDescriptorWithPrivateContinuation()
     {
         var fixture = Create();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
@@ -36,9 +35,8 @@ public sealed class NativeBattleClash26ControllerTests
         Assert.Equal(0xE000, first.Frame.State.DrawCursor);
         Assert.Equal((byte)3, first.Frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
         Assert.Equal((ushort)0, first.Frame.Effect.Pools[0].Slots[0].ReadWord(0x5E));
-        string json = NativeBattleTestSnapshots.Json(first.Frame);
-        NativeBattleClash26Step left = NativeBattleClash26Controller.Advance8886C0(NativeBattleTestSnapshots.RestoreJson<NativeBattleClash26Frame>(json)!, Resources(), fixture.Inputs, first.Random);
-        NativeBattleClash26Step right = NativeBattleClash26Controller.Advance8886C0(NativeBattleTestSnapshots.RestoreJson<NativeBattleClash26Frame>(json)!, Resources(), fixture.Inputs, first.Random);
+        NativeBattleClash26Step left = NativeBattleClash26Controller.Advance8886C0(NativeBattleTestSnapshots.Independent(first.Frame), Resources(), fixture.Inputs, first.Random);
+        NativeBattleClash26Step right = NativeBattleClash26Controller.Advance8886C0(NativeBattleTestSnapshots.Independent(first.Frame), Resources(), fixture.Inputs, first.Random);
         Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
         Assert.Equal(0u, left.Frame.Effect.ReturnedDescriptor);
         Assert.Equal(0x2000, left.Frame.State.DrawCursor);
@@ -73,16 +71,57 @@ public sealed class NativeBattleClash26ControllerTests
         Assert.Equal((ushort)1, result.Frame.Effect.Pools[0].Slots[0].ReadWord(0x5E));
     }
 
+    [Fact]
+    public void FifthContactWaitsForAnOriginalEmitterSlotWithoutReplayingFirstFour()
+    {
+        var fixture = Create(5);
+        byte[] skeleton = new byte[64];
+        skeleton[0] = 1;
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
+        NativeBattlePoseSource poseSource = new([.. skeleton], [1]);
+        NativeBattleDecodedPose pose = new(default, [new(default, new(4096, 4096, 4096))], false);
+        NativeBattleClash26Inputs inputs = fixture.Inputs with
+        {
+            ReadModel = _ => new(0) { SequenceState = new() { DecodedPose = pose } },
+            ReadPoseSource = _ => poseSource
+        };
+        NativeBattleClash26Step step = NativeBattleClash26Controller.Advance8886C0(fixture.Frame, Resources(), inputs, new(1));
+        step = NativeBattleClash26Controller.Advance8886C0(step.Frame, Resources(), inputs, step.Random);
+        step = NativeBattleTestSnapshots.Independent(step);
+        NativeBattleEffectHierarchy hierarchy = new(step.Frame.Effect.Pools);
+        NativeBattleModulePoolTask root = hierarchy.Read(hierarchy.Address(0, 0));
+        Assert.Equal((byte)1, root.ReadByte(0x29));
+        Assert.Equal(4, root.ReadTraversalPosition(0x2B));
+        Assert.Equal(new[] { 0, 1, 2, 3 }, hierarchy.Pools[1].Slots.Select(task => task.ReadTraversalPosition(0x2B)));
+
+        uint firstEmitter = hierarchy.Address(1, 0);
+        hierarchy.Write(firstEmitter, hierarchy.Read(firstEmitter).WriteByte(0x29, 3).WriteByte(0x26, 1));
+        step = NativeBattleClash26Controller.Advance8886C0(step.Frame, Resources(), inputs, step.Random);
+        Assert.Equal(4, root.ReadTraversalPosition(0x2B));
+        Assert.Equal((ushort)0, hierarchy.Read(firstEmitter).Flags);
+
+        step = NativeBattleClash26Controller.Advance8886C0(step.Frame, Resources(), inputs, step.Random);
+        Assert.Equal((byte)2, root.ReadByte(0x29));
+        Assert.Equal(5, root.ReadTraversalPosition(0x2B));
+        NativeBattleModulePoolTask fifth = hierarchy.Read(firstEmitter);
+        Assert.Equal(4, fifth.ReadTraversalPosition(0x2B));
+        Assert.Equal(OriginalOwner(5), fifth.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner);
+    }
+
     private static NativeBattleClash26Resources Resources() => new([], [], [], [], 0);
 
-    private static (NativeBattleClash26Frame Frame, NativeBattleClash26Inputs Inputs) Create()
+    private static (NativeBattleClash26Frame Frame, NativeBattleClash26Inputs Inputs) Create(int contactCount = 1)
     {
         NativeBattleActionPacketsState packets = OriginalPackets();
         (packets, _) = packets.Prepare(new(OriginalOwner(3), 8, 12, -1, 12, 26, null));
-        (packets, _) = packets.AppendContact(new(new(OriginalOwner(0), 1, 0, 0, 0, 1, 0), null));
+        BattleModelOwner[] targets = new[] { 0, 1, 2, 4, 5 }.Take(contactCount).Select(OriginalOwner).ToArray();
+        foreach (BattleModelOwner target in targets)
+        {
+            (packets, _) = packets.AppendContact(new(new(target, 1, 0, 0, 0, 1, 0), null));
+        }
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
-        (packets, _) = packets.Publish(1);
-        NativeBattleOriginalEffectState effect = new(26, 25, new(26, 0x8885D0, 0x8885B0), new(OriginalOwner(3), 0, BattleModelTargets.From([OriginalOwner(0)]), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26D90D8, 0)] };
+        (packets, _) = packets.Publish(targets.Length);
+        NativeBattleOriginalEffectState effect = new(26, 25, new(26, 0x8885D0, 0x8885B0), new(OriginalOwner(3), 0, BattleModelTargets.From(targets), new BattleActionHeaderReference(0), 0, 0), null) { ResourcePointers = [new(0x26D90D8, 0)] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(25);
         byte[] tim = new byte[66];
         BinaryPrimitives.WriteUInt32LittleEndian(tim, 16);

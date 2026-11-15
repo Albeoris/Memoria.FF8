@@ -78,14 +78,20 @@ public static partial class NativeBattleClash26Controller
                     execution.Write(address, Next(task));
                     break;
                 case 1:
-                    for (int target = 0; target < task.ReadContactCount(0x5A); target++)
+                    // The physical emitter bank holds four targets. Larger rosters keep the
+                    // next contact in the root cursor until a child retires.
+                    int target = task.ReadTraversalPosition(0x2B);
+                    int contactCount = task.ReadContactCount(0x5A);
+                    while (target < contactCount && execution.TryAppend(address, 0x8887F0, 0x58, 1) != 0)
                     {
-                        execution.Append(address, 0x8887F0, 0x58, 1);
                         task = execution.Read(address);
-                        task = task.WriteTraversalPosition(0x2B, checked(task.ReadTraversalPosition(0x2B) + 1));
-                        execution.Write(address, task);
+                        target++;
+                        execution.Write(address, task.WriteTraversalPosition(0x2B, target));
                     }
-                    execution.Write(address, Next(execution.Read(address)));
+                    if (target == contactCount)
+                    {
+                        execution.Write(address, Next(execution.Read(address)));
+                    }
                     break;
                 case 3:
                     if (task.ReadWord(0x5E) == 0)
@@ -140,13 +146,18 @@ public static partial class NativeBattleClash26Controller
         }
         public uint Append(uint parent, uint callback, int bytes, int pool)
         {
-            NativeBattleEffectParameters parameters = Frame.Effect.Parameters ?? throw new InvalidDataException("Native Clash append lost its original parameters.");
-            NativeBattleEffectHierarchyAppend appended = Hierarchy.Append8DC540(pool, callback, bytes, parent, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));
-            SetHierarchy(appended.Hierarchy);
-            if (appended.Address == 0)
+            uint address = TryAppend(parent, callback, bytes, pool);
+            if (address == 0)
             {
                 throw new NotSupportedException("Native Clash dereferenced its failed original task allocation.");
             }
+            return address;
+        }
+        public uint TryAppend(uint parent, uint callback, int bytes, int pool)
+        {
+            NativeBattleEffectParameters parameters = Frame.Effect.Parameters ?? throw new InvalidDataException("Native Clash append lost its original parameters.");
+            NativeBattleEffectHierarchyAppend appended = Hierarchy.Append8DC540(pool, callback, bytes, parent, (pointer, group, target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target));
+            SetHierarchy(appended.Hierarchy);
             return appended.Address;
         }
         private NativeBattleModulePoolTask CopyAnchor(NativeBattleModulePoolTask task)
