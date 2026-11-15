@@ -51,7 +51,7 @@ internal sealed partial class RecreateGame
                 effectPreviewDispatchUtc = DateTimeOffset.UtcNow;
                 if (effectComponentMeasurements is { IsActive: false } measurements)
                 {
-                    measurements.Begin(Stopwatch.GetTimestamp());
+                    measurements.Begin(Stopwatch.GetTimestamp(), diagnosticHostPhaseTiming.Enabled);
                 }
             }
         };
@@ -113,7 +113,7 @@ internal sealed partial class RecreateGame
                 effectPreviewSubmittedSeconds = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
                 if (effectPreviewSourceAdmission is not null)
                 {
-                    effectComponentMeasurements!.Begin(Stopwatch.GetTimestamp());
+                    effectComponentMeasurements!.Begin(Stopwatch.GetTimestamp(), diagnosticHostPhaseTiming.Enabled);
                 }
                 effectPreviewGate!.Write("started", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow);
             }

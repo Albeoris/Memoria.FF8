@@ -55,13 +55,13 @@ internal sealed class NativeBattleHostedModelPackets
             end = checked(end + length);
         }
 
-        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>(primitives.Length);
         using NativeBattleLogicalOrdering.Builder links = new(ordering);
         int cursor = start;
         foreach (NativeBattleGeometryPrimitive primitive in primitives)
         {
-            NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, cursor, primitive, linked: true);
-            AddLink(links, Reference(bank, cursor), primitive, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner, stores);
+            AddLink(links, Reference(bank, cursor), primitive, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
+            stores.Add(NativeBattleCommonPacketArena.CreateLinkedPrimitiveStore(cursor, primitive, links.LastHeaderLink));
             cursor += primitive.Words.Length * sizeof(uint);
         }
         return Publish(bank, end, links, stores);
@@ -121,7 +121,8 @@ internal sealed class NativeBattleHostedModelPackets
             stores.Add(new(address, attempt.Data, attempt.WriteMask));
             if (attempt.Primitive is { } primitive)
             {
-                AddLink(links, Reference(bank, address), primitive, flags20, moduleDraw, null, stores);
+                AddLink(links, Reference(bank, address), primitive, flags20, moduleDraw, null);
+                stores.Add(new(address, ImmutableArray.CreateRange(NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink)), NativeBattleCommonPacketArena.KnownLinkMask));
             }
         }
         return Publish(bank, checked(start + batch.AllocationBytes), links, stores);
@@ -177,10 +178,9 @@ internal sealed class NativeBattleHostedModelPackets
         }
     }
 
-    private static void AddLink(NativeBattleLogicalOrdering.Builder links, NativeBattlePrimitiveReference reference, NativeBattleGeometryPrimitive primitive, ushort flags20, int? moduleDraw, string? textureSourceOwner, ImmutableArray<NativeBattleCommonPacketStore>.Builder stores)
+    private static void AddLink(NativeBattleLogicalOrdering.Builder links, NativeBattlePrimitiveReference reference, NativeBattleGeometryPrimitive primitive, ushort flags20, int? moduleDraw, string? textureSourceOwner)
     {
         links.Prepend(primitive.Bucket, reference, primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId, primitive.ScreenCoverage, primitive.SceneCapture, primitive.ModelTextureOwner);
-        stores.Add(new(reference.ByteOffset, ImmutableArray.CreateRange(NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink)), NativeBattleCommonPacketArena.KnownLinkMask));
     }
 
     private static int ValidatePrimitive(NativeBattleGeometryPrimitive primitive)

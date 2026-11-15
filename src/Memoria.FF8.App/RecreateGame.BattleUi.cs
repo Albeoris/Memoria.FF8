@@ -103,7 +103,7 @@ internal sealed partial class RecreateGame
         {
             if (effectPreviewSubmitted)
             {
-                active.AdvanceNativeGraphicsPresentation(elapsed);
+                AdvanceMeasuredBattlePresentation(active, elapsed);
                 if (effectComponentSource is not null)
                 {
                     world!.SynchronizeBattlePresentation();
@@ -147,7 +147,7 @@ internal sealed partial class RecreateGame
         active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
         active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
         active.PublishNativeGuardianBoostMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
-        active.AdvanceNativeGraphicsPresentation(elapsed);
+        AdvanceMeasuredBattlePresentation(active, elapsed);
         battlePresentationUpdated = true;
         presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
         if (ReferenceEquals(active, world?.Battle))
@@ -592,8 +592,15 @@ internal sealed partial class RecreateGame
         SynchronizeBattleAudio();
     }
 
+    private void AdvanceMeasuredBattlePresentation(BattleSession active, TimeSpan elapsed)
+    {
+        using DiagnosticHostPhaseTiming.Scope presentationTimingScope = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.BattlePresentationUpdate);
+        active.AdvanceNativeGraphicsPresentation(elapsed);
+    }
+
     private void PrepareBattleTexture(Rectangle bounds)
     {
+        using DiagnosticHostPhaseTiming.Scope sceneTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.BattleSceneRender);
         BattleSession active = ActiveBattle!;
         EnsureBattleHud(active);
         PixelBounds size = ViewportLayout.WorldRenderTarget(bounds.Width, bounds.Height, options.WorldRenderLimit, false);

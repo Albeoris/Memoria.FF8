@@ -52,6 +52,25 @@ public sealed class EffectComponentFrameMeasurementsTests
     }
 
     [Fact]
+    public void Opt_in_pacing_uses_the_same_whole_component_intervals()
+    {
+        EffectComponentFrameMeasurements measurement = new(1000);
+        measurement.Begin(5);
+        measurement.Presented(10, 8, 9, new(true, 1, 0, 0, 0, 60, 0), new(1, 1, 1, 1, 1));
+        measurement.Presented(30, 25, 29, new(true, 2, 1, 2, 0, 60, 0), new(9, 4, 5, 3, 1));
+        measurement.Presented(70, 65, 69, new(true, 3, 2, 8, 1, 60, 0), new(18, 9, 10, 3, 1));
+        EffectComponentFrameReport report = measurement.Complete(40);
+        DiagnosticPacingSummary pacing = Assert.IsType<DiagnosticPacingSummary>(report.PresentationPacing);
+        DiagnosticHostPhaseSummary phases = Assert.IsType<DiagnosticHostPhaseSummary>(pacing.HostPhases);
+        Assert.Equal(report.IntervalCount, pacing.Samples);
+        Assert.Equal(report.IntervalMilliseconds, pacing.Interval.TotalMilliseconds);
+        Assert.Equal(0, pacing.ResetCalls);
+        Assert.Equal(1, phases.Samples);
+        Assert.Equal(7, phases.UpdateExcludingTimerWait.TotalMilliseconds);
+        Assert.Equal(1, phases.Uninstrumented.TotalMilliseconds);
+    }
+
+    [Fact]
     public void Strict_fifty_fps_threshold_and_nearest_rank_p95_use_individual_intervals()
     {
         EffectComponentFrameMeasurements measurement = new(1000);

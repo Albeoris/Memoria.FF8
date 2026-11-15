@@ -33,18 +33,38 @@ public static class NativeBattleCommonPacketArena
         }
     }
 
-    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleGeometryPrimitive primitive)
+    // The hosted body transaction has no physical reader between the packet stores and the
+    // accepted OT link. Publish their combined final write while retaining every other byte's mask.
+    internal static NativeBattleCommonPacketStore CreateLinkedPrimitiveStore(int address, NativeBattleGeometryPrimitive primitive, uint headerLink)
     {
-        if (primitive.PhysicalWriteMask is not { } mask)
+        return CreatePrimitiveStore(address, primitive, headerLink);
+    }
+
+    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleGeometryPrimitive primitive, uint? headerLink = null)
+    {
+        byte[] data = new byte[checked(4 * primitive.Words.Length)];
+        ImmutableArray<NativeBattleGfPacketByteState> mask;
+        if (primitive.PhysicalWriteMask is { } physicalMask)
+        {
+            mask = physicalMask;
+            for (int index = 0; index < primitive.Words.Length; index++)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
+            }
+        }
+        else
         {
             // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores.
-            int length = checked(4 * primitive.Words.Length);
-            return new(address, ImmutableCollectionsMarshal.AsImmutableArray(new byte[length]), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray());
+            mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, data.Length).ToImmutableArray();
         }
-        byte[] data = new byte[checked(4 * primitive.Words.Length)];
-        for (int index = 0; index < primitive.Words.Length; index++)
+        if (headerLink is uint link)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
+            data[0] = (byte)link;
+            data[1] = (byte)(link >> 8);
+            data[2] = (byte)(link >> 16);
+            NativeBattleGfPacketByteState[] finalMask = mask.ToArray();
+            KnownLinkMask.AsSpan().CopyTo(finalMask);
+            mask = ImmutableCollectionsMarshal.AsImmutableArray(finalMask);
         }
         return new(address, ImmutableCollectionsMarshal.AsImmutableArray(data), mask);
     }

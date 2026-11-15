@@ -78,6 +78,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private readonly bool pacingEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1";
     private DiagnosticPresentationPacing? pacing;
     private PresentationPacerObservation pacingObservation;
+    private DiagnosticHostFramePhases? hostPhases;
     private long presentBegin;
     private long presentEnd;
     private readonly bool visualChangesEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_VISUAL_CHANGES") == "1";
@@ -119,11 +120,12 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         secondVisualWindow?.Resolve(frame, changed, droppedComparison);
     }
 
-    internal void ObservePresentationPacing(long begin, long end, PresentationPacerObservation observation)
+    internal void ObservePresentationPacing(long begin, long end, PresentationPacerObservation observation, DiagnosticHostFramePhases? phases)
     {
         presentBegin = begin;
         presentEnd = end;
         pacingObservation = observation;
+        hostPhases = phases;
     }
 
 
@@ -236,7 +238,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             renders++;
         }
         previousRender = rendererVersion;
-        pacing?.Record(frame, timestamp, presentBegin, presentEnd, pacingObservation);
+        pacing?.Record(frame, timestamp, presentBegin, presentEnd, pacingObservation, hostPhases);
         visualChanges?.Presented(frame, successfulVisualFrame == frame ? successfulVisualTimestamp : timestamp, observedVisualFrame == frame, observedVisualFrame == frame ? observedVisualSubmission : default);
         presentationProgress.Presented(timestamp, effectStartedTicks, effectCompletedTicks);
         frames!.RecordPresentation(new(timestamp, frame, phase, battle.NativeHostCallbacks ?? battle.Frame, renders, drawCalls, textureUploads));

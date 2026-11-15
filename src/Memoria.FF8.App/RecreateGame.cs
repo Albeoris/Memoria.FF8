@@ -173,6 +173,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        using DiagnosticHostPhaseTiming.Scope updateTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Update);
         physicalInput.BeginFrame();
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
         {

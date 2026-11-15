@@ -1,6 +1,18 @@
+using System.Diagnostics;
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8;
 
-internal sealed record EffectComponentFrameReport(string Scope, int ObservedPresentedFrameCount, int PresentedFrameCount, int IntervalCount, double ElapsedMilliseconds, double IntervalMilliseconds, double EffectiveFps, double MedianIntervalMilliseconds, double P95IntervalMilliseconds, double MaximumIntervalMilliseconds, int IntervalsBelow50Fps, int IntervalsBelowTargetFps, int TargetFps, string BoundaryPolicy);
+internal sealed record EffectComponentFrameReport(string Scope, int ObservedPresentedFrameCount, int PresentedFrameCount, int IntervalCount, double ElapsedMilliseconds, double IntervalMilliseconds, double EffectiveFps, double MedianIntervalMilliseconds, double P95IntervalMilliseconds, double MaximumIntervalMilliseconds, int IntervalsBelow50Fps, int IntervalsBelowTargetFps, int TargetFps, string BoundaryPolicy)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticPacingSummary? PresentationPacing { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EffectComponentProcessWork? ProcessWorkThroughReport { get; init; }
+}
+
+internal sealed record EffectComponentProcessWork(double CpuMilliseconds, long AllocatedBytes, int[] Collections);
 
 internal sealed class EffectComponentFrameMeasurements
 {
@@ -13,6 +25,8 @@ internal sealed class EffectComponentFrameMeasurements
     private long started;
     private int count;
     private bool invalid;
+    private DiagnosticPresentationPacing? pacing;
+    private EffectComponentProcessWork? startWork;
 
     internal EffectComponentFrameMeasurements(double timestampFrequency, int maximumTimestamps = MaximumTimestampCount)
     {
@@ -30,7 +44,7 @@ internal sealed class EffectComponentFrameMeasurements
 
     internal bool IsActive { get; private set; }
 
-    internal void Begin(long timestamp)
+    internal void Begin(long timestamp, bool observeProcessWork = false)
     {
         if (IsActive)
         {
@@ -43,10 +57,12 @@ internal sealed class EffectComponentFrameMeasurements
         started = timestamp;
         count = 0;
         invalid = false;
+        pacing = null;
+        startWork = observeProcessWork ? SampleProcessWork() : null;
         IsActive = true;
     }
 
-    internal void Presented(long timestamp)
+    internal void Presented(long timestamp, long presentBegin = 0, long presentEnd = 0, PresentationPacerObservation pacer = default, DiagnosticHostFramePhases? phases = null)
     {
         if (!IsActive)
         {
@@ -69,6 +85,17 @@ internal sealed class EffectComponentFrameMeasurements
             {
                 invalid = true;
                 throw new InvalidDataException("Component presentation duration is not finite and positive.");
+            }
+        }
+        if (phases.HasValue)
+        {
+            if (pacing is null)
+            {
+                pacing = new(checked((long)timestampFrequency), timestamps.Length - 1, timestamp, pacer);
+            }
+            else
+            {
+                pacing.Record(count + 1, timestamp, presentBegin, presentEnd, pacer, phases);
             }
         }
         timestamps[count++] = timestamp;
@@ -119,9 +146,29 @@ internal sealed class EffectComponentFrameMeasurements
         int middle = intervals.Length / 2;
         double median = intervals.Length % 2 == 0 ? intervals[middle - 1] + (intervals[middle] - intervals[middle - 1]) / 2 : intervals[middle];
         double p95 = intervals[checked((int)Math.Ceiling(intervals.Length * 0.95)) - 1];
-        EffectComponentFrameReport report = new(Scope, count, included, intervals.Length, elapsed, duration, effectiveFps, median, p95, intervals[^1], below50, belowTarget, TargetFps, BoundaryPolicy);
+        EffectComponentFrameReport report = new(Scope, count, included, intervals.Length, elapsed, duration, effectiveFps, median, p95, intervals[^1], below50, belowTarget, TargetFps, BoundaryPolicy)
+        {
+            PresentationPacing = pacing?.Complete(completed),
+            ProcessWorkThroughReport = CompleteProcessWork()
+        };
         IsActive = false;
         return report;
+    }
+
+    private EffectComponentProcessWork? CompleteProcessWork()
+    {
+        if (startWork is not { } start)
+        {
+            return null;
+        }
+        EffectComponentProcessWork finish = SampleProcessWork();
+        return new(finish.CpuMilliseconds - start.CpuMilliseconds, finish.AllocatedBytes - start.AllocatedBytes, finish.Collections.Select((value, index) => value - start.Collections[index]).ToArray());
+    }
+
+    private static EffectComponentProcessWork SampleProcessWork()
+    {
+        using Process process = Process.GetCurrentProcess();
+        return new(process.TotalProcessorTime.TotalMilliseconds, GC.GetTotalAllocatedBytes(), Enumerable.Range(0, GC.MaxGeneration + 1).Select(GC.CollectionCount).ToArray());
     }
 
     private double Milliseconds(long ticks)

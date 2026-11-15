@@ -7,6 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
+    private readonly DiagnosticHostPhaseTiming diagnosticHostPhaseTiming = new(Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1");
     private VisualFrameRate? visualFrameRate;
     private readonly long presentationClockStarted = Stopwatch.GetTimestamp();
     private TimeSpan nextFpsLabelUpdate;
@@ -25,15 +26,18 @@ internal sealed partial class RecreateGame
 
     protected override void EndDraw()
     {
-        bool observePacing = diagnosticTelemetry?.PacingEnabled == true;
+        bool observePacing = diagnosticHostPhaseTiming.Enabled;
         long presentBegin = observePacing ? Stopwatch.GetTimestamp() : 0;
         base.EndDraw();
+        long presentEnd = observePacing ? Stopwatch.GetTimestamp() : 0;
+        DiagnosticHostFramePhases? phases = observePacing ? diagnosticHostPhaseTiming.CompleteInterval() : null;
+        using DiagnosticHostPhaseTiming.Scope postPresentTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.PostPresent);
         long visualTimestamp = diagnosticTelemetry?.VisualChangesEnabled == true ? Stopwatch.GetTimestamp() : 0;
         graphicsReadiness?.Presented(Window);
+        PresentationPacerObservation pacer = observePacing ? presentationPacer.TimingObservation : default;
         if (observePacing)
         {
-            long presentEnd = Stopwatch.GetTimestamp();
-            diagnosticTelemetry!.ObservePresentationPacing(presentBegin, presentEnd, presentationPacer.TimingObservation);
+            diagnosticTelemetry?.ObservePresentationPacing(presentBegin, presentEnd, pacer, phases);
         }
         if (visualTimestamp != 0)
         {
@@ -48,7 +52,7 @@ internal sealed partial class RecreateGame
             diagnosticPresentedFrames++;
             if ((effectPreviewDispatch is not null || effectPreviewSourceAdmission is not null) && !effectPreviewCompleted && !effectPreviewFailed)
             {
-                effectComponentMeasurements?.Presented(Stopwatch.GetTimestamp());
+                effectComponentMeasurements?.Presented(Stopwatch.GetTimestamp(), presentBegin, presentEnd, pacer, phases);
                 if (effectComponentMeasurements is not null && !IsActive)
                 {
                     effectComponentInactivePresentedFrames++;
@@ -56,7 +60,7 @@ internal sealed partial class RecreateGame
             }
         }
         AdvanceEffectPreview();
-        presentationPacer.ObserveTiming(diagnosticTelemetry?.PacingEnabled == true);
+        presentationPacer.ObserveTiming(observePacing);
         if (now >= nextFpsLabelUpdate)
         {
             double? fps = visualFrameRate?.PresentationsPerSecond;
