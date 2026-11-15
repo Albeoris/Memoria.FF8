@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Assets;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -12,9 +12,7 @@ internal sealed partial class GameWorld
 
     internal static void AttachExpandedEffects(BattleSession active, GameAssets game, BattleAssets assets)
     {
-        ExpandedBattlePresentationHost host = new(game, assets);
-        ExpandedBattlePresentationProcess process = host.CreateProcess(active);
-        active.AttachExpandedPresentationHost(host);
-        active.AttachExpandedPresentationProcess(process);
+        ExpandedBattlePresentationResources resources = new(game, assets);
+        active.AttachExpandedPresentationProcess(resources.CreateProcess(active));
     }
 }

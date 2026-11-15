@@ -221,7 +221,7 @@ public sealed partial class BattleSession
         candidate.LogRenzokukenBoundary(mirror, "Windup", $"{source.Name}: Renzokuken.");
         candidate.LogRenzokukenBoundary(mirror, "Renzokuken", $"{source.Name}: Renzokuken.");
 
-        foreach (ExpandedHostedInvocation invocation in candidate.expandedHostedOperations.OfType<ExpandedHostedInvocation>())
+        foreach (ExpandedHostedInvocation invocation in candidate.expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>())
         {
             NativeBattleOriginalEffectState effect = NativeBattleOriginalEffects.Select(invocation.Header.Effect, definition.NativeEffectCatalog);
             _ = NativeBattleEffectResourceResolver.MaterializeSelected(effect, nativeEffectResourceResolver);
@@ -230,14 +230,10 @@ public sealed partial class BattleSession
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
-        BattleSnapshot snapshot = candidate.CaptureState();
-        BattleSession preflight = Restore(before, customHandlers);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, snapshot, preparedExpandedAction: true);
-        preflight.ValidatePreparedExpandedPresentation(candidate);
+        PreparedActionPublication publication = new(this, candidate, Restore(before, customHandlers));
         process.ValidatePreparedDispatch(dispatch);
-        CopyCandidateState(candidate, snapshot, preparedExpandedAction: true);
-        TakeExpandedActionPresentation(candidate);
+        publication.Publish();
+        PublishStagedHostedOperations(candidate);
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
@@ -308,11 +304,11 @@ public sealed partial class BattleSession
             !ReferenceEquals(timed.Command, ActiveAction) || process.ActiveActionToken != frame.ActionToken || receipt.Actor != frame.Owner.Actor ||
             receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != frame.State.Input.ContactIndex ||
             receipt.TotalContacts != RenzokukenResource(frame.Owner.MagicId).Timeline.InputThresholds.Length ||
-            expandedExpectedContacts != 1 || !ReferenceEquals(expandedEffectCommand, invocation.Command))
+            expandedInvocationProgress?.ExpectedContacts != 1 || !ReferenceEquals(expandedInvocationProgress?.Command, invocation.Command))
         {
             throw new InvalidDataException("Hosted Renzokuken trigger does not identify its active widget, resource and next contact.");
         }
-        if (expandedPresentedOccurrences.Count != (timed.Contacts == 0 ? 0 : 1))
+        if (expandedInvocationProgress?.Occurrences.Count != (timed.Contacts == 0 ? 0 : 1))
         {
             throw new InvalidDataException("The prior hosted Renzokuken trigger has not published its required contact.");
         }
@@ -422,8 +418,8 @@ public sealed partial class BattleSession
         if (expandedHostedEvent is not { Renzokuken: { } owner } hostedEvent || !ReferenceEquals(owner, receipt.EventOwner) ||
             !ReferenceEquals(services.Renzokuken?.Owner, owner) || !ReferenceEquals(process.PendingRenzokukenFinisher, receipt) ||
             expandedHostedActionToken is not long token || token != frameToken || !process.IsActionComplete(token) || !process.IsControlPrefixRetired ||
-            CurrentExpandedHostedInvocation?.Header.Command != 5 || expandedHostedNextOperation >= expandedHostedOperations.Length ||
-            expandedHostedOperations[expandedHostedNextOperation] is not ExpandedHostedInvocation { Header.Command: 250 } invocation ||
+            CurrentExpandedHostedInvocation?.Header.Command != 5 || expandedOperationCursor.Next >= expandedOperationCursor.Operations.Length ||
+            expandedOperationCursor.Operations[expandedOperationCursor.Next] is not ExpandedHostedInvocation { Header.Command: 250 } invocation ||
             invocation.HeaderReference != receipt.Header || owner.Finisher is not byte finisher)
         {
             throw new InvalidDataException("Native Renzokuken formula does not own the pending command250 after its retired command5.");
@@ -439,34 +435,29 @@ public sealed partial class BattleSession
         candidate.preparingExpandedHostedAction = true;
         candidate.expandedHostedEvent = hostedEvent;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.expandedHostedOperations = expandedHostedOperations;
-        candidate.expandedHostedNextOperation = expandedHostedNextOperation;
+        candidate.expandedOperationCursor = expandedOperationCursor with { Current = null };
         candidate.producingExpandedAiCallback = true;
         ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
         candidate.producingExpandedAiInvocation = reservation;
         ImmutableArray<ExpandedBattleContact> contacts = candidate.ResolveExpandedHostedRenzokukenFinisher(invocation, finisher);
-        candidate.expandedHostedOperations = candidate.expandedHostedOperations.SetItem(candidate.expandedHostedNextOperation,
+        candidate.expandedOperationCursor.Operations = candidate.expandedOperationCursor.Operations.SetItem(candidate.expandedOperationCursor.Next,
             invocation with { Contacts = contacts, EnemyDraw = candidate.TakePendingHostedEnemyDraw(), Reservation = reservation });
         candidate.FlushEncounterCounterCommands();
         if (candidate.encounterCounterCommands.Count != 0)
         {
             throw new InvalidDataException("Hosted Renzokuken finisher left captured counters unpublished.");
         }
-        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
         BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
         candidate.ValidateExpandedHostedInvocations(planned);
         HostedRenzokukenFinisherReplacement replacement = new(receipt, packets, invocation.FirstContact, contacts.Select(contact => contact.Packet).ToImmutableArray());
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, renzokukenFinisher: replacement);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = RestoreSnapshot(before, customHandlers, proof);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        preflight.ValidatePreparedExpandedPresentation(candidate);
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, proof));
         process.ValidatePreparedDispatch(dispatch);
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        TakeExpandedActionPresentation(candidate);
+        publication.Publish();
+        PublishStagedHostedOperations(candidate);
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);

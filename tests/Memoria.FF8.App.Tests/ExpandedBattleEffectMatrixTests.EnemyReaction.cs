@@ -118,7 +118,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Contains(battle.QueuedActions, command => command.ActorId == attacker.Id && command.TargetId == enemy.Id && command.Ability == BattleAbility.Attack);
 
             BattleActionPresentation? reaction = null;
-            NativeBattleEffectPresentation? presentation = null;
+            ExpandedBattlePresentationProcess? presentation = null;
             HashSet<string>? recipientsAtContact = null;
             int reactionEventStart = 0;
             for (int frame = 0; frame < 320 && battle.Outcome == BattleOutcome.Active; frame++)
@@ -158,7 +158,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
                 if (reaction is not null)
                 {
-                    if (battle.ExpandedEffect is { Graphics.OriginalEffect: { } identity } live)
+                    if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live)
                     {
                         presentation ??= live;
                         Assert.Same(presentation, live);
@@ -179,7 +179,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                         BattleEvent[] contacts = events.Where(entry => entry.Kind == "EffectContact" && entry.Ability == BattleAbility.EnemyAbility).ToArray();
                         AssertEnemyContacts(battle, reaction, contacts, recipientsAtContact);
                         Assert.All(contacts, contact => Assert.Equal(reaction.NativeSequence, contact.NativeSequence));
-                        Assert.True(presentation is null || presentation.Complete);
+                        Assert.True(presentation is null || presentation.ActiveActionToken is null);
                         return new(presentation is null ? "logical" : "native", $"c0m{enemy.ModelId:D3} {enemy.Id}, callback 2, command {reaction.NativeQueuedCommand}/{reaction.ActionId}, sequence {reaction.NativeSequence}, after Attack by {attacker.Id}, {contacts.Length} contact(s)", presentation is null ? "native-presentation" : null);
                     }
                 }

@@ -36,7 +36,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         ExpandedBattlePresentationProcess process = new(session, resources);
         session.AttachExpandedPresentationProcess(process);
         Assert.Null(process.ActiveActionToken);
-        Assert.Null(Field("expandedModelRoster").GetValue(session));
+        Assert.Null(Field("expandedInvocationProgress").GetValue(session));
         BattleCombatant party = Actor(session, "ally-10");
         BattleCombatant enemy = Actor(session, "enemy-13");
         party.NativeCombatantFlags = 0x11;

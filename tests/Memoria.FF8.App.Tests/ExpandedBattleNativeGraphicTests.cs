@@ -11,7 +11,11 @@ public sealed class ExpandedBattleNativeGraphicTests
     [InlineData(164, 248)]
     public void Installed_original_ai_graphic_completes_on_the_attached_process(ushort formation, ushort effectId)
     {
-        string directory = TestResources.GameDirectory;
+        RunInstalledAiGraphic(TestResources.GameDirectory, formation, effectId);
+    }
+
+    internal static void RunInstalledAiGraphic(string directory, ushort formation, ushort effectId)
+    {
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
         using GameWorld world = new(session, directory);

@@ -196,7 +196,7 @@ public sealed partial class BattleSession
     private void PublishExpandedHostedDuelCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate,
         ExpandedBattlePresentationProcess process, ExpandedHostedEvent hostedEvent, HostedDuelCandidateProof? proof = null)
     {
-        foreach (ExpandedHostedInvocation invocation in candidate.expandedHostedOperations.OfType<ExpandedHostedInvocation>())
+        foreach (ExpandedHostedInvocation invocation in candidate.expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>())
         {
             if (invocation.Header.Command is 11 or 239)
             {
@@ -204,21 +204,17 @@ public sealed partial class BattleSession
                 _ = NativeBattleEffectResourceResolver.MaterializeSelected(selected, nativeEffectResourceResolver);
             }
         }
-        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
         BattleModelRoster roster = process.PlannedModelRoster;
         BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
         candidate.ValidateExpandedHostedInvocations(admittedRoster);
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, duelSelection: proof?.Selection);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = RestoreSnapshot(before, customHandlers, proof);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        preflight.ValidatePreparedExpandedPresentation(candidate);
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, proof));
         process.ValidatePreparedDispatch(dispatch);
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        TakeExpandedActionPresentation(candidate);
+        publication.Publish();
+        PublishStagedHostedOperations(candidate);
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);

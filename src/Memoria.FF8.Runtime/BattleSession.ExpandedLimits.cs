@@ -21,11 +21,6 @@ public sealed partial class BattleSession
             ((action.Statuses1 & 0x10000) == 0 || action is { KernelSection: 19, AttackType: 2, Power: 0, HitCount: 1, Statuses0: 0, Statuses1: 0x10000 } && (flags & 0x70) == 0x50);
     }
 
-    private bool CanPresentExpandedLimit(BattleNativeAction action, int recipients)
-    {
-        return action.HitCount == 1 && recipients == 1 && definition.NativeEffectCatalog.Any(binding => binding.Effect == action.MagicId && binding.Entry == NativeBattleLaserEye71Profile.Entry);
-    }
-
     private static BattleActionDefinition ExpandedLimitDefinition(BattleCombatant actor, BattleNativeAction native)
     {
         if (actor.NativeLimit?.Command == 14 && IsExpandedShotAction(native))

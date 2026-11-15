@@ -43,7 +43,6 @@ public sealed class ExpandedBattleProcessResourcesTests
             Assert.Equal(world.BattleResources.ReadEnemyNativeInformation246(actor.ModelId), actor.Information246);
         });
 
-        Assert.IsType<ExpandedBattlePresentationHost>(logical.ExpandedPresentationHost);
         ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(logical.ExpandedPresentationProcess);
         BattleSession presentation = ReadField<BattleSession>(process, "presentation");
         BattleDefinition selected = presentation.ReadDefinition();
@@ -137,7 +136,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         // This fixture isolates entry resources from the authored encounter's AI execution.
         entry = entry with { Combatants = entry.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null }).ToArray() };
         BattleSession logical = new(entry, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationHost host = new(game, assets);
+        ExpandedBattlePresentationResources host = new(game, assets);
         ExpandedBattlePresentationProcess process = host.CreateProcess(logical);
         BattleDefinition selected = ReadField<BattleSession>(process, "presentation").ReadDefinition();
         BattleModelRoster roster = AssertBindings(logical, process, selected);

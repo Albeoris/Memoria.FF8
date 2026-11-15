@@ -155,7 +155,7 @@ public sealed class ExpandedBattleGuardianTests
         Assert.Equal(learnedBoost ? (byte)76 : (byte)100, ReadField<NativeBattleActionScratch>(battle, "nativeActionScratch").GuardianBoostPercent);
         Assert.Null(battle.NativeGuardianBoost);
         Assert.Null(process.PendingGuardianBoost);
-        Assert.Null(battle.ExpandedEffect);
+        Assert.Null(process.ActiveActionToken);
         Assert.All(process.Graphics.ActorModels.Party.Entries, entry => Assert.Equal(2, entry.State.Flags0 & 6));
 
         if (!learnedBoost)
@@ -221,7 +221,7 @@ public sealed class ExpandedBattleGuardianTests
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         object? hostedEvent = typeof(BattleSession).GetField("expandedHostedEvent", privateInstance)!.GetValue(battle);
         object? completion = hostedEvent?.GetType().GetProperty("CompletionToken")?.GetValue(hostedEvent);
-        object? operation = typeof(BattleSession).GetField("expandedHostedCurrentOperation", privateInstance)!.GetValue(battle);
+        object? operation = ReadHostedOperationIndex(battle, privateInstance);
         return $"Shiva did not complete. Frame={battle.Frame} graphics={graphics.Callback} outcome={battle.Outcome} charge=[{charge}] logical={battle.ActiveAction?.Ability}/{battle.ActiveAction?.Phase} queue={battle.QueuedActions.Count} operation={operation} completion={completion}/{process.PendingCompletion?.Token}. Token={process.ActiveActionToken} boost={battle.NativeGuardianBoost?.Phase}/{battle.NativeGuardianBoost?.Remaining} pendingBoost={process.PendingGuardianBoost?.Percent} sawWidget={sawWidget} header={action.ActiveHeader?.Ordinal} cursor={action.ActiveContact?.Ordinal} packets={action.ActionCount}/{action.ContactCount} delivered={delivered}. Descriptors=[{descriptors}] tasks=[{tasks}] effect={graphics.OriginalEffect?.RequestedEffect}/{graphics.OriginalEffect?.ReturnedDescriptor} sawModule={sawModule} models=[{models}] modelLoads={graphics.ModelLoadCount} effects={graphics.Effects.PublishedCount} modules={graphics.ModuleEffects.PublishedCount} camera={process.Camera.Mask}.";
     }
 
@@ -260,4 +260,11 @@ public sealed class ExpandedBattleGuardianTests
     {
         return Assert.IsType<T>(owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner));
     }
+
+    private static object? ReadHostedOperationIndex(BattleSession battle, System.Reflection.BindingFlags flags)
+    {
+        object cursor = typeof(BattleSession).GetField("expandedOperationCursor", flags)!.GetValue(battle)!;
+        return cursor.GetType().GetProperty("Current")!.GetValue(cursor);
+    }
+
 }

@@ -6,14 +6,15 @@ public sealed partial class BattleSession
 {
     private void PublishExpandedHostedRecompute(ExpandedBattlePresentationProcess process, BattleModelRoster roster, long token, ExpandedHostedInvocation invocation, Func<BattleSession, ExpandedHostedInvocation> resolve, NativeBattleTriggerReceipt? trigger = null, HostedGuardianBoostRequest? guardian = null)
     {
-        if (expandedHostedEvent is not { LogicallyComplete: false } hostedEvent || expandedHostedCurrentOperation is not int current || !ReferenceEquals(CurrentExpandedHostedInvocation, invocation) || invocation.HeaderReference is null)
+        if (expandedHostedEvent is not { LogicallyComplete: false } hostedEvent || expandedOperationCursor.Current is not int current || !ReferenceEquals(CurrentExpandedHostedInvocation, invocation) || invocation.HeaderReference is null)
         {
             throw new InvalidDataException("Hosted recompute requires its current admitted invocation and logical event.");
         }
 
-        ImmutableArray<ExpandedHostedOperation> originalOperations = expandedHostedOperations;
-        int next = expandedHostedNextOperation;
-        int acknowledged = expandedPresentedOccurrences.Count;
+        ImmutableArray<ExpandedHostedOperation> originalOperations = expandedOperationCursor.Operations;
+        int next = expandedOperationCursor.Next;
+        ExpandedInvocationProgress progress = expandedInvocationProgress ?? throw new InvalidDataException("Hosted recompute has no published contact owner.");
+        int acknowledged = progress.Occurrences.Count;
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         HostedRenzokukenCandidateProof? renzokuken = hostedEvent.Renzokuken is not null && invocation.Header.Command == 5 && trigger is not null
@@ -32,7 +33,7 @@ public sealed partial class BattleSession
         ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
         candidate.producingExpandedAiInvocation = reservation;
         // Deferred counters must wait for the resolved source, even though the child already owns its preliminary packets.
-        candidate.expandedHostedOperations = [invocation with { Contacts = default, Reservation = reservation }];
+        candidate.expandedOperationCursor.Operations = [invocation with { Contacts = default, Reservation = reservation }];
         ExpandedHostedInvocation resolved = resolve(candidate);
         if (!ReferenceEquals(resolved.Command, invocation.Command) || resolved.Header != invocation.Header ||
             resolved.HeaderReference != invocation.HeaderReference || resolved.FirstContact != invocation.FirstContact ||
@@ -41,44 +42,39 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted recompute must resolve the complete existing invocation without changing its owners.");
         }
-        candidate.expandedHostedOperations = candidate.expandedHostedOperations.SetItem(0, resolved with { Reservation = reservation });
+        candidate.expandedOperationCursor.Operations = candidate.expandedOperationCursor.Operations.SetItem(0, resolved with { Reservation = reservation });
         candidate.FlushEncounterCounterCommands();
         if (candidate.encounterCounterCommands.Count != 0)
         {
             throw new InvalidDataException("Hosted recompute did not produce all of its captured counters.");
         }
 
-        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
         BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
         candidate.ValidateExpandedHostedInvocations(planned);
-        ImmutableArray<ExpandedHostedOperation> suffix = candidate.expandedHostedOperations.RemoveAt(0);
+        ImmutableArray<ExpandedHostedOperation> suffix = candidate.expandedOperationCursor.Operations.RemoveAt(0);
         ImmutableArray<HostedDispatchHeader> headers = suffix.OfType<ExpandedHostedInvocation>().Select(write => new HostedDispatchHeader(write.Header, write.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
         PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian, allocations, form);
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
         ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, replacement.ReplacementPackets.Roster);
 
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = RestoreSnapshot(before, customHandlers, renzokuken);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        preflight.ValidatePreparedExpandedPresentation(candidate);
-        if (expandedHostedOperations != originalOperations || expandedHostedCurrentOperation != current || expandedHostedNextOperation != next ||
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, renzokuken));
+        if (expandedOperationCursor.Operations != originalOperations || expandedOperationCursor.Current != current || expandedOperationCursor.Next != next ||
             !ReferenceEquals(expandedHostedEvent, hostedEvent) || expandedHostedActionToken != token ||
-            expandedPresentedOccurrences.Count != (renzokuken is null ? 0 : acknowledged))
+            !ReferenceEquals(expandedInvocationProgress, progress) || progress.Occurrences.Count != (renzokuken is null ? 0 : acknowledged))
         {
             throw new InvalidOperationException("The hosted recompute source changed before publication.");
         }
         process.ValidatePreparedRecomputedContacts(replacement);
 
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        expandedHostedOperations = updated;
-        expandedContactBridge = bridge;
-        expandedModelContacts = resolved.Contacts;
-        expandedEffectEnemyDraw = resolved.EnemyDraw;
+        publication.Publish();
+        expandedOperationCursor.Operations = updated;
+        progress.Bridge = bridge;
+        progress.EnemyDraw = resolved.EnemyDraw;
         if (renzokuken is not null)
         {
-            expandedPresentedOccurrences.Clear();
+            progress.Occurrences.Clear();
         }
         process.CommitRecomputedContacts(replacement);
         PublishHostedGuardianFormAudio(form);

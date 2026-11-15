@@ -98,7 +98,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 else if (effect.Effect == 248)
                 {
                     firstBlockerStage = "original-reserve-execution";
-                    RunInstalledExpandedReserveGraphics(directory, field, game, assets);
+                    ExpandedBattleNativeGraphicTests.RunInstalledAiGraphic(directory, 164, effect.Effect);
                     (status, detail) = ("native-original-slots", "The expanded party triggered the native reserve cinematic in formation 164, with the scene's authored enemy slots.");
                 }
                 else if (effect.Effect == OchuDrawEffect)
@@ -372,7 +372,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         int before = battle.Events.Count;
         hud.Attack();
         Assert.True(caster.IsBusy);
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         NativeBattleQuake38Resources? quakeResources = null;
         bool observedBinding = false;
         bool hasOverlay = false;
@@ -380,7 +380,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         for (int frame = 0; frame < 2048 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedEffect is { } live)
+            if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
             {
                 presentation ??= live;
                 Assert.Same(presentation, live);
@@ -392,13 +392,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                     quakeResources ??= identity.Binding.Quake38Resources;
                     observedBinding = true;
                 }
-                hasOverlay |= live.Overlay is { LastCommands.IsEmpty: false };
-                hasCameraShake |= live.ViewTranslationY != 0;
+                hasOverlay |= live.PreparedPresentation?.Primitives is { LastCommands.IsEmpty: false };
+                hasCameraShake |= live.Camera.ViewTranslationScratch?.Y.GetValueOrDefault() != 0;
             }
         }
 
         Assert.False(caster.IsBusy);
-        Assert.Null(battle.ExpandedEffect);
+        Assert.Null(battle.ExpandedPresentationProcess?.ActiveActionToken);
         Assert.Equal(InitialStock - 1, Stock());
         BattleEvent[] castEvents = battle.Events.Skip(before).Where(entry => entry.ActorId == caster.Id).ToArray();
         Assert.Single(castEvents, entry => entry.Kind == "Windup" && entry.Ability == action.Ability);
@@ -465,7 +465,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             return ("logical", detail);
         }
         Assert.True(observedBinding);
-        Assert.True(presentation.Complete);
+        Assert.True(presentation.ActiveActionToken is null);
         if (effect.Effect == 38 && !hasOverlay)
         {
             Assert.True(hasCameraShake, "Quake's original no-ground callback must publish camera shake.");
@@ -483,14 +483,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         using GameWorld world = StartBattle(directory, field, 79);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         string[] allies = battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).Order().ToArray();
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         for (int turn = 0; turn < 24; turn++)
         {
             world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             for (int frame = 0; frame < 30; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.ExpandedEffect is { Graphics.OriginalEffect: { } identity } live && identity.RequestedEffect == effect.Effect)
+                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live && identity.RequestedEffect == effect.Effect)
                 {
                     presentation ??= live;
                     Assert.Same(presentation, live);
@@ -506,7 +506,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
                 Assert.Equal(allies, contacts.Select(entry => entry.TargetId).Order());
                 Assert.All(contacts, contact => Assert.True(contact.Amount > 0));
                 Assert.Single(battle.Events, entry => entry.ActorId == caster && entry.Kind == "Windup" && entry.Ability == BattleAbility.EnemyAbility && entry.Message.EndsWith(action.Name + ".", StringComparison.Ordinal));
-                Assert.True(presentation is null || presentation.Complete);
+                Assert.True(presentation is null || presentation.ActiveActionToken is null);
                 return (presentation is null ? "logical" : "native", $"Original Oilboyle AI {action.Command}/{action.ActionId} {action.Name}, {caster}, {contacts.Length} recipient(s)");
             }
         }
@@ -530,17 +530,17 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         int countBefore = caster.MagicStocks.FirstOrDefault(stock => stock.Id == fire.Id)?.Count ?? 0;
         int before = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = source.Id, Ability = BattleAbility.Draw, ActionId = fire.Id });
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            presentation ??= battle.ExpandedEffect;
+            presentation ??= battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live ? live : null;
         }
 
         Assert.False(caster.IsBusy);
         Assert.NotNull(presentation);
         Assert.Equal(effect, presentation.Graphics.OriginalEffect?.RequestedEffect);
-        Assert.True(presentation.Complete);
+        Assert.True(presentation.ActiveActionToken is null);
         BattleEvent[] events = battle.Events.Skip(before).Where(entry => entry.ActorId == caster.Id && entry.TargetId == source.Id).ToArray();
         Assert.Single(events, entry => entry.Kind == "EffectContact" && entry.Amount == 0);
         int amount = Assert.Single(events, entry => entry.Kind == "Draw").Amount;
@@ -583,6 +583,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             NativeCharacterVital[] records = vitals.Records.Select(record => record with
             {
                 MemberFlags = (ushort)(record.MemberFlags | 1),
+                BonusSources = null,
                 HitPointBonus = 2400,
                 HitPoints = new(1200, 1200),
                 Status = 0

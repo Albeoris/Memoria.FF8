@@ -65,15 +65,13 @@ public sealed class MixedEnemyProvenanceTests
         GameWorld.ValidateBattleDefinition(current, rebound);
         GameWorld.ValidateBattleDefinition(current, world.CreateEncounterBattle(164, restoredDefinition: rebound));
 
-        using GameAssets game = new(TestResources.GameDirectory);
         // This fixture renders the authored placements without starting their original AI callbacks.
         BattleDefinition display = rebound with
         {
             Combatants = rebound.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null }).ToArray()
         };
         BattleSession battle = new(display, BattleAtbMode.TurnBased);
-        GameWorld.AttachExpandedEffects(battle, game, assets);
-        ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(battle.ExpandedPresentationHost!.ReadSceneFrame(battle));
+        ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(new ExpandedBattleSceneFrameBuilder(assets).ReadSceneFrame(battle));
         BattleScenePresentation scene = new(assets, display, true);
         _ = scene.Render(battle, 640, 448);
         var positions = (Dictionary<string, Vector3>)typeof(BattleScenePresentation).GetField("positions", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(scene)!;
@@ -115,8 +113,8 @@ public sealed class MixedEnemyProvenanceTests
     public void MixedResultUsesPrototypeAndDonorRewardsAndConfirmsOnce()
     {
         string directory = TestResources.GameDirectory;
-        using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
         NativeEconomy economy = game.ReadNewGameEconomy();
         const int formation = 605;

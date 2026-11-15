@@ -150,7 +150,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         hud.Attack();
         Assert.Contains(battle.QueuedActions, action => action.ActorId == caster.Id && action.TargetId == ochu.Id && action.Ability == BattleAbility.Magic && action.ActionId == fire.Id);
 
-        for (int frame = 0; frame < 320 && (battle.ExpandedEffect is not null || !battle.QueuedActions.Any(IsOchuDraw)); frame++)
+        for (int frame = 0; frame < 320 && (battle.ExpandedPresentationProcess?.ActiveActionToken is not null || !battle.QueuedActions.Any(IsOchuDraw)); frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }

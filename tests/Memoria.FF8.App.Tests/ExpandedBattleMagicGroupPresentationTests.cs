@@ -29,7 +29,8 @@ public sealed class ExpandedBattleMagicGroupPresentationTests
         Assert.True(caster.IsReady);
         Assert.Null(battle.ActiveAction);
         caster.NativeStatus1 |= status;
-        string[] targets = new[] { "enemy-10", "enemy-7", "enemy-9" }[..count];
+        string[] targets = battle.Combatants.Where(actor => !actor.IsPlayer && BattleSession.IsValidSelectedActionTarget(caster, fire, actor)).Reverse().Take(count).Select(actor => actor.Id).ToArray();
+        Assert.Equal(count, targets.Length);
         if (reflect)
         {
             battle.Combatants.Single(actor => actor.Id == targets[0]).NativeStatus1 |= 0x80;
@@ -37,22 +38,20 @@ public sealed class ExpandedBattleMagicGroupPresentationTests
         int before = battle.Events.Count;
         battle.QueueAction(caster.Id, targets[0], BattleAbility.Magic, fire.Id, magicTargets: targets);
 
-        List<NativeBattleEffectPresentation> presentations = [];
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        HashSet<long> presentations = [];
         for (int frame = 0; frame < 2048 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedEffect is { } effect && !presentations.Contains(effect))
+            if (process is { ActiveActionToken: long token, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } effect } && presentations.Add(token))
             {
-                Assert.Equal(fire.NativeAction!.MagicId, effect.Graphics.OriginalEffect?.RequestedEffect);
-                Assert.Throws<NotSupportedException>(() => battle.Capture());
-                presentations.Add(effect);
+                Assert.Equal(fire.NativeAction!.MagicId, effect.RequestedEffect);
             }
         }
 
         Assert.False(caster.IsBusy);
-        Assert.Null(battle.ExpandedEffect);
+        Assert.Null(process.ActiveActionToken);
         Assert.Equal(count + (reflect ? 1 : 0), presentations.Count);
-        Assert.All(presentations, effect => Assert.True(effect.Complete));
         BattleEvent[] events = battle.Events.Skip(before).Where(entry => entry.ActorId == caster.Id).ToArray();
         string?[] recipients = events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId).ToArray();
         if (reflect)

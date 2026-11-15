@@ -72,11 +72,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(action.Command, queued.NativeQueuedCommand);
         Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
 
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         for (int frame = 0; frame < 1000 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedEffect is { } live)
+            if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
             {
                 presentation ??= live;
                 Assert.Same(presentation, live);
@@ -110,7 +110,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.True(target.IsActive);
             Assert.Single(battle.EnemyDefeats, entry => entry.AllocationId == target.Id && entry.NativeCommand == action.Command);
         }
-        Assert.True(presentation is null || presentation.Complete);
+        Assert.True(presentation is null || presentation.ActiveActionToken is null);
         return (presentation is null ? "logical" : "native", $"Equipped {action.Name} used the original command {action.Command}/{action.ActionId} and completed with {expected.Length} roster contact(s).");
     }
 

@@ -14,9 +14,9 @@ public sealed partial class BattleSession
         if (expandedHostedActionToken is not long token || token != request.Token || process.ActiveActionToken != token ||
             CurrentExpandedHostedInvocation is not { PendingGuardian: true } invocation ||
             invocation.Header is not { Command: 254 } || invocation.HeaderReference != request.Header ||
-            invocation.Header.Source != request.Caster || invocation.Contacts.Length != expandedExpectedContacts ||
-            expandedPresentedOccurrences.Count != 0 || expandedModelRoster?.Contains(request.Caster) != true ||
-            !ReferenceEquals(expandedEffectCommand, invocation.Command) || nativeReactionOrder is null)
+            invocation.Header.Source != request.Caster || invocation.Contacts.Length != expandedInvocationProgress?.ExpectedContacts ||
+            expandedInvocationProgress?.Occurrences.Count != 0 || expandedInvocationProgress?.Roster?.Contains(request.Caster) != true ||
+            !ReferenceEquals(expandedInvocationProgress?.Command, invocation.Command) || nativeReactionOrder is null)
         {
             throw new InvalidDataException("Hosted Boost requires its active Guardian Force invocation and unacknowledged preliminary contacts.");
         }

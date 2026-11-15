@@ -99,7 +99,8 @@ public sealed class NativeBattleAiDrawTests
             NativeGlobalMessages = messages,
             NativeMessageSpeed = 0
         }, BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.ActiveAction is { ActorId: "enemy-10", NativeAiCallbackStage: 1 }, "The enemy Draw turn must start its first admitted invocation.");
         BattleSnapshot pending = battle.Capture();
         Assert.Equal(new BattlePendingEnemyDraw("enemy-10", 1, (byte)removed), pending.PendingEnemyDraw);
         string firstRecipient = group ? "ally-0" : "ally-9";
@@ -167,7 +168,8 @@ public sealed class NativeBattleAiDrawTests
             UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [spell, draw],
             NativeGlobalMessages = messages, NativeMessageSpeed = 0
         }, BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.ActiveAction is { ActorId: "enemy-10", NativeAiCallbackStage: 1 }, "The enemy Draw turn must start its first admitted invocation.");
         BattleSnapshot snapshot = battle.Capture();
         if (queuedCount == 0)
         {

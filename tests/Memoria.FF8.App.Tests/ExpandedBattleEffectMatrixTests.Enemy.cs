@@ -140,7 +140,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         int before = battle.Events.Count;
         bool dispatched = false;
         BattleActionPresentation? cast = null;
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         HashSet<string>? recipientsAtFirstContact = null;
         string[]? resolvedRecipientsAtFirstContact = null;
         int observationWindows = effect.Effect == 158 ? 360 : effect.Effect is 153 or 154 ? 300 : extendOriginalTurns ? 240 : battle.Mode == BattleAtbMode.Normal ? 120 : 24;
@@ -179,7 +179,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     before = battle.Events.Count;
                     continue;
                 }
-                if (battle.ExpandedEffect is { Graphics.OriginalEffect: { } identity } live)
+                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live)
                 {
                     presentation ??= live;
                     Assert.Same(presentation, live);
@@ -213,7 +213,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 }
                 Assert.NotNull(recipientsAtFirstContact);
                 AssertEnemyContacts(battle, cast, contacts, recipientsAtFirstContact, resolvedRecipientsAtFirstContact);
-                Assert.True(presentation is null || presentation.Complete);
+                Assert.True(presentation is null || presentation.ActiveActionToken is null);
                 BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.Id == cast.ActorId);
                 int band = battle.GetCombatantDefinition(actor.Id).NativeAi!.LevelBand;
                 string? setupDetail = references?.Describe() ?? preparation?.Describe();

@@ -240,10 +240,17 @@ public sealed class NativeBattleHostedActionAdmissionTests
         SetGraphics(session, graphics with { EntryReady = ready });
         Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
         Field("hostedBattlePresentation").SetValue(session, true);
+        NativeBattleGraphicsResource allyResource = new([0, 0]);
+        NativeBattleGraphicsResource enemyResource = new([0, 0]);
         Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
         {
-            [Ally] = new(Ally, graphics.ActorModels.Get(Ally), new([0, 0])),
-            [Enemy] = new(Enemy, graphics.ActorModels.Get(Enemy), new([0, 0]))
+            [Ally] = new(Ally, graphics.ActorModels.Get(Ally), allyResource),
+            [Enemy] = new(Enemy, graphics.ActorModels.Get(Enemy), enemyResource)
+        });
+        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
+        Field("definition").SetValue(session, session.ReadDefinition() with
+        {
+            NativeGraphics = new(rules, [new("ally", 1, allyResource), new("enemy", 16, enemyResource)], [])
         });
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess());
         return session;

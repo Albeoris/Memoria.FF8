@@ -190,15 +190,14 @@ public sealed partial class BattleSession
         return graphics with { ActorModels = models, NativeBindings = graphics.NativeBindings.RestoreUnboundVisibility(presentation.UnboundVisibility) };
     }
 
-    private bool expandedGuardianFormSkipRequested;
 
     internal bool CanSkipAttachedGuardianFormFinisher => hostedBattlePresentation && HostedActiveActionToken is not null && NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
 
     internal bool SkippingAttachedGuardianFormFinisher => hostedBattlePresentation && NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
-    public bool CanSkipGuardianFormFinisher => expandedPresentationProcess?.CanSkipAttachedGuardianFormFinisher == true || CanSkipOrdinaryGuardianAnimation || !expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
+    public bool CanSkipGuardianFormFinisher => expandedPresentationProcess?.CanSkipAttachedGuardianFormFinisher == true || CanSkipOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
 
-    private bool SkippingGuardianFormPresentation => expandedPresentationProcess?.SkippingAttachedGuardianFormFinisher == true || SkippingOrdinaryGuardianAnimation || expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
+    private bool SkippingGuardianFormPresentation => expandedPresentationProcess?.SkippingAttachedGuardianFormFinisher == true || SkippingOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
     public bool GuardianAnimationSkipPending => SkippingGuardianFormPresentation;
 
@@ -227,12 +226,6 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        if (!expandedGuardianFormSkipRequested && expandedEffect?.CanSkipGuardianFormFinisher == true)
-        {
-            expandedGuardianFormSkipRequested = true;
-            SettleGuardianFormSkipBoost();
-            return true;
-        }
         if (!CanSkipGuardianFormFinisher)
         {
             return false;
@@ -249,7 +242,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        bool enabled = UsesExpandedRoster && !hostedBattlePresentation ? expandedGuardianBoostInputEnabled : (NativeGraphics?.UiServices?.Flags942 & 1) != 0;
+        bool enabled = (NativeGraphics?.UiServices?.Flags942 & 1) != 0;
         NativeBattleGuardianBoostStep completed = NativeBattleGuardianBoostSkip.Complete(widget, enabled, nativeBattleUiRandom);
         nativeGuardianBoost = completed.Widget;
         nativeBattleUiRandom = completed.Random;
@@ -258,10 +251,6 @@ public sealed partial class BattleSession
             if (hostedBattlePresentation)
             {
                 PublishHostedGuardianBoostRequest(percent);
-            }
-            else if (expandedGuardianSummonTargets is not null)
-            {
-                CommitExpandedGuardianSummon(percent);
             }
             else
             {

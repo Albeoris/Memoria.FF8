@@ -96,7 +96,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
             if (storedAttacker is null)
             {
-                if (battle.ExpandedEffect is not null)
+                if (battle.ExpandedPresentationProcess?.ActiveActionToken is not null)
                 {
                     return;
                 }

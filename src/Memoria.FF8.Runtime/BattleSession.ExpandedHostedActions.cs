@@ -28,15 +28,26 @@ public sealed partial class BattleSession
         internal HostedRenzokukenOwner? Renzokuken { get; init; }
     }
 
+    private sealed class ExpandedInvocationProgress(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
+    {
+        internal BattleActionPresentation Command => invocation.Command;
+        internal int ExpectedContacts => invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts ? invocation.Contacts.Length : 0;
+        internal BattleModelRoster Roster { get; } = roster;
+        internal NativeBattleEffectContactBridge<string>? Bridge { get; set; } = bridge;
+        internal HashSet<int> Occurrences { get; } = [];
+        internal BattlePendingEnemyDraw? EnemyDraw = invocation.EnemyDraw;
+    }
+
+    private ExpandedInvocationProgress? expandedInvocationProgress;
     private bool preparingExpandedHostedAction;
-    private ImmutableArray<ExpandedHostedOperation> expandedHostedOperations = [];
-    private int expandedHostedNextOperation;
-    private int? expandedHostedCurrentOperation;
+    private record struct ExpandedOperationCursor(ImmutableArray<ExpandedHostedOperation> Operations, int Next = 0, int? Current = null);
+
+    private ExpandedOperationCursor expandedOperationCursor = new([]);
     private long? expandedHostedActionToken;
     private ExpandedHostedEvent? expandedHostedEvent;
     private bool OwnsExpandedHostedInvocation => expandedPresentationProcess is not null || preparingExpandedHostedAction;
-    private ExpandedHostedInvocation? CurrentExpandedHostedInvocation => expandedHostedCurrentOperation is int current ? (ExpandedHostedInvocation)expandedHostedOperations[current] : null;
-    private bool HasStagedExpandedHostedOperations => !expandedHostedOperations.IsEmpty;
+    private ExpandedHostedInvocation? CurrentExpandedHostedInvocation => expandedOperationCursor.Current is int current ? (ExpandedHostedInvocation)expandedOperationCursor.Operations[current] : null;
+    private bool HasStagedExpandedHostedOperations => !expandedOperationCursor.Operations.IsEmpty;
 
     private void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
     {
@@ -88,17 +99,17 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted Guardian Force requires preliminary contacts and its original command254 header.");
         }
         ExpandedHostedInvocation invocation = new(command, header, contacts, enemyDraw, disposition) { PendingGunblade = pendingGunblade, PendingGuardian = pendingGuardian };
-        for (int index = 0; index < expandedHostedOperations.Length; index++)
+        for (int index = 0; index < expandedOperationCursor.Operations.Length; index++)
         {
-            if (expandedHostedOperations[index] is ExpandedHostedInvocation reserved && ReferenceEquals(reserved.Command, command) && reserved.Header == header && reserved.Contacts.IsDefault)
+            if (expandedOperationCursor.Operations[index] is ExpandedHostedInvocation reserved && ReferenceEquals(reserved.Command, command) && reserved.Header == header && reserved.Contacts.IsDefault)
             {
-                expandedHostedOperations = expandedHostedOperations.SetItem(index, invocation with { Reservation = reserved.Reservation });
+                expandedOperationCursor.Operations = expandedOperationCursor.Operations.SetItem(index, invocation with { Reservation = reserved.Reservation });
                 return;
             }
         }
         if (!producingExpandedAiCallback)
         {
-            expandedHostedOperations = expandedHostedOperations.Add(invocation);
+            expandedOperationCursor.Operations = expandedOperationCursor.Operations.Add(invocation);
             return;
         }
         throw new InvalidDataException("The AI command has no reserved position in its hosted event.");
@@ -110,13 +121,13 @@ public sealed partial class BattleSession
         {
             // The parent header precedes any commands emitted by an immediate stage4 counter.
             producingExpandedAiInvocation = new(header.Source, command);
-            expandedHostedOperations = expandedHostedOperations.Add(new ExpandedHostedInvocation(command, header, default, null, ReadExpandedHostedContactDisposition(command, header)) { Reservation = producingExpandedAiInvocation });
+            expandedOperationCursor.Operations = expandedOperationCursor.Operations.Add(new ExpandedHostedInvocation(command, header, default, null, ReadExpandedHostedContactDisposition(command, header)) { Reservation = producingExpandedAiInvocation });
         }
     }
 
     private bool IsStagedExpandedAiInvocation(ExpandedAiInvocationReservation reservation)
     {
-        return expandedHostedOperations.OfType<ExpandedHostedInvocation>().Any(invocation => ReferenceEquals(invocation.Reservation, reservation) &&
+        return expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().Any(invocation => ReferenceEquals(invocation.Reservation, reservation) &&
             invocation.Header.Source == reservation.Source && ReferenceEquals(invocation.Command, reservation.Command) && !invocation.Contacts.IsDefault);
     }
 
@@ -172,7 +183,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted invocation roster differs from the logical allocations.");
         }
-        foreach (ExpandedHostedInvocation invocation in expandedHostedOperations.Skip(expandedHostedCurrentOperation ?? expandedHostedNextOperation).OfType<ExpandedHostedInvocation>())
+        foreach (ExpandedHostedInvocation invocation in expandedOperationCursor.Operations.Skip(expandedOperationCursor.Current ?? expandedOperationCursor.Next).OfType<ExpandedHostedInvocation>())
         {
             BattleCombatant actor = GetActor(invocation.Command.ActorId);
             _ = GetActor(invocation.Command.TargetId);
@@ -192,13 +203,7 @@ public sealed partial class BattleSession
 
     private void BindExpandedHostedContactTracking(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
     {
-        expandedContactBridge = bridge;
-        expandedModelContacts = invocation.Contacts;
-        expandedModelRoster = roster;
-        expandedEffectCommand = invocation.Command;
-        expandedEffectEnemyDraw = invocation.EnemyDraw;
-        expandedExpectedContacts = invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts ? invocation.Contacts.Length : 0;
-        expandedPresentedOccurrences.Clear();
+        expandedInvocationProgress = new(invocation, roster, bridge);
     }
 
     private void ApplyExpandedHostedFrameReceipts(NativeBattleModelLifecycleServices services, long? actionToken)
@@ -208,11 +213,11 @@ public sealed partial class BattleSession
             switch (receipt)
             {
                 case NativeBattlePresentationContactReceived contact:
-                    if (actionToken is null || actionToken != expandedHostedActionToken || expandedEffectCommand is not { } command)
+                    if (actionToken is null || actionToken != expandedHostedActionToken || expandedInvocationProgress is not { } progress)
                     {
                         throw new InvalidDataException("Hosted contact arrived without its active logical action.");
                     }
-                    if (expandedContactBridge is null)
+                    if (progress.Bridge is not { } contactBridge)
                     {
                         throw new InvalidDataException("A hosted control invocation published an unexpected contact.");
                     }
@@ -227,19 +232,22 @@ public sealed partial class BattleSession
                         {
                             throw new InvalidDataException("Hosted graphics context requires its exact contact occurrence.");
                         }
-                        (int ordinal, _) = expandedContactBridge.ResolveOccurrence(contact.Packet);
-                        if (!expandedPresentedOccurrences.Add(ordinal))
+                        (int ordinal, _) = contactBridge.ResolveOccurrence(contact.Packet);
+                        if (!progress.Occurrences.Add(ordinal))
                         {
                             throw new InvalidDataException("Hosted graphics repeated a contact context occurrence.");
                         }
                         break;
                     }
-                    AcknowledgeExpandedEffectContact(command, contact.Packet);
-                    BattleModelRoster roster = expandedModelRoster!;
-                    PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
-                    if (contact.Packet.Secondary is { } secondary)
+                    BattleActionPresentation command = progress.Command;
+                    NativeBattleContactHalf? secondary = ReadExpandedSecondaryContact(command, contact.Packet);
+                    (int impact, string recipient) = contactBridge.ResolveOccurrence(contact.Packet);
+                    PublishExpandedEffectContact(progress, impact, recipient, contact.Packet.Primary);
+                    PublishExpandedReadyContact(progress.Roster, contact.Packet.Primary, command.ActorId);
+                    if (secondary is not null)
                     {
-                        PublishExpandedReadyContact(roster, secondary, command.ActorId);
+                        PublishExpandedImpact(command, command.ActorId, secondary, "SecondaryEffectContact", deferredImpact: true);
+                        PublishExpandedReadyContact(progress.Roster, secondary, command.ActorId);
                     }
                     break;
                 case NativeBattlePresentationSoundCommitted sound:

@@ -56,20 +56,20 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         for (int callback = 0; callback < 720; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedEffect is { } effect)
+            if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } effect)
             {
                 Assert.Equal((ushort)20, effect.Graphics.OriginalEffect!.Binding.Effect);
                 Assert.Equal((byte)93, effect.Graphics.ActorModels.Get(new BattleEnemyActorModel(new(reserve.Id))).ModelId4);
                 invocation = true;
                 presentation.Descriptor |= effect.Graphics.Descriptors.Queue.Any(slot => effect.Graphics.Descriptors.Packets[slot].Command == 113);
-                presentation.Overlay |= effect.Overlay?.LastCommands.Length > 0;
-                if (scene is not null && !presentation.RenderedTint && effect.StageColor.Depth != 0 && effect.CinematicCamera is { FocalLength: > 0 })
+                presentation.Overlay |= effect.PreparedPresentation?.Primitives.LastCommands.Length > 0;
+                if (scene is not null && !presentation.RenderedTint && NativeBattleStageColor.ReadUniform(effect.Stage.Groups, 15).Depth != 0 && effect.PreparedPresentation?.Camera is { FocalLength: > 0 })
                 {
                     Assert.NotEmpty(scene.Render(battle, 640, 448));
                     presentation.RenderedTint = true;
                 }
             }
-            if (invocation && !reserve.Suspended && battle.ExpandedEffect is null)
+            if (invocation && !reserve.Suspended && battle.ExpandedPresentationProcess?.ActiveActionToken is null)
             {
                 return true;
             }

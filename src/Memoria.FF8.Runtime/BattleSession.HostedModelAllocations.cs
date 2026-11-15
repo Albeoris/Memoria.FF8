@@ -38,13 +38,13 @@ public sealed partial class BattleSession
         }
     }
 
-    private ImmutableArray<HostedModelLoadAdmission> PrepareExpandedModelLoadAdmissions(IExpandedBattlePresentationHost? host)
+    private ImmutableArray<HostedModelLoadAdmission> PrepareExpandedModelLoadAdmissions(ExpandedBattlePresentationProcess process)
     {
         var unloadChecks = new List<(HostedDispatchControl.LoadEnemy Load, ImmutableHashSet<BattleModelOwner> LaterOwners)>();
         HashSet<BattleModelOwner> laterOwners = [];
-        for (int i = expandedHostedOperations.Length - 1; i >= 0; i--)
+        for (int i = expandedOperationCursor.Operations.Length - 1; i >= 0; i--)
         {
-            switch (expandedHostedOperations[i])
+            switch (expandedOperationCursor.Operations[i])
             {
                 case ExpandedHostedInvocation invocation:
                     laterOwners.Add(invocation.Header.Source);
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("A staged model load requires its exact native allocation and original scene prototype.");
             }
-            NativeBattleGraphicsBinding binding = (host ?? throw new InvalidOperationException("Hosted model allocation requires its attached resource provider.")).PrepareModelBinding(this, load.Owner, NativeBattleSlots.Decode(load.Slot.Offset));
+            NativeBattleGraphicsBinding binding = process.PrepareModelBinding(this, load.Owner, NativeBattleSlots.Decode(load.Slot.Offset));
             if (binding.ActorId != actor.Id || binding.InitialPosition is null || binding.ModelId != checked((byte)(actor.ModelId + 16)) ||
                 binding.Resource.AnimationFrames.IsDefaultOrEmpty || binding.Resource.ModelLoadSources is not { IsDefaultOrEmpty: false })
             {

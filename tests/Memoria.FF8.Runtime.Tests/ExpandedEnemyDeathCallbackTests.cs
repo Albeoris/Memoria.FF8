@@ -120,7 +120,7 @@ public sealed class ExpandedEnemyDeathCallbackTests
         BattleSession battle = CreateBattle([2, 220, 200, 0, 0, 0, 4, 0, 14, 220, 1, 22, 0]);
         BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-0");
         battle.QueueAttack("party-10", enemy.Id);
-        Until(battle, () => battle.Events.Any(entry => entry.Kind == "Defeated"));
+        Until(battle, () => enemy.IsAlive && battle.Events.Any(entry => entry.Kind == "Defeated"));
 
         Assert.True(enemy.IsAlive);
         Assert.Equal(enemy.MaximumHp, enemy.CurrentHp);
@@ -141,7 +141,7 @@ public sealed class ExpandedEnemyDeathCallbackTests
         BattleCombatant enemy = battle.Combatants.Single(actor => actor.Id == "enemy-0");
         BattleCombatant killer = battle.Combatants.Single(actor => actor.Id == "party-10");
         battle.QueueAttack(killer.Id, enemy.Id);
-        Until(battle, () => !killer.IsBusy && battle.EnemyDefeats.Count == 1);
+        Until(battle, () => !killer.IsBusy && enemy.IsAlive && battle.EnemyDefeats.Count == 1);
         BattleEnemyDefeat first = Assert.Single(battle.EnemyDefeats);
         BattleStock item = Assert.Single(battle.NativeRewardItems);
         Assert.Equal(4, first.Level);
@@ -200,12 +200,18 @@ public sealed class ExpandedEnemyDeathCallbackTests
         messages[11] = " 0123456789";
         messages[88] = " Level ";
         messages[89] = "raised";
-        return new(new()
+        BattleSession battle = new(new()
         {
             UsesExpandedRoster = true, Combatants = [.. allies, enemy, .. otherEnemies], NativeActions = rewardsAndLevelCommand ? [retaliation, levelUp] : [retaliation], NativeSeed = 0,
             ExpandedEnemyLevels = rewardsAndLevelCommand ? ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Empty.Add(36, profile) : null, NativeGlobalMessages = messages, NativeMessageSpeed = 0,
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeFieldBattleMode = 0x200
         }, BattleAtbMode.TurnBased);
+        battle.Tick();
+        if (readyEnemy)
+        {
+            battle.Combatants.Single(actor => actor.Id == enemy.Id).Atb = BattleSession.AtbMaximum;
+        }
+        return battle;
     }
 
     private static BattleNativeAction Action(byte command, ushort id, byte attackType, byte power, byte attackFlags)

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         {
             StopTurnAdvance();
         }
-        expandedHostedOperations = expandedHostedOperations.Add(new ExpandedHostedDescriptor(control));
+        expandedOperationCursor.Operations = expandedOperationCursor.Operations.Add(new ExpandedHostedDescriptor(control));
     }
 
     private void StageExpandedHostedModelControl(ushort command, BattleCombatant actor)
@@ -31,9 +31,9 @@ public sealed partial class BattleSession
     {
         var headers = ImmutableArray.CreateBuilder<HostedDispatchHeader>();
         int firstUnpublished = -1;
-        for (int i = 0; i < expandedHostedOperations.Length; i++)
+        for (int i = 0; i < expandedOperationCursor.Operations.Length; i++)
         {
-            if (expandedHostedOperations[i] is ExpandedHostedInvocation { HeaderReference: null } invocation)
+            if (expandedOperationCursor.Operations[i] is ExpandedHostedInvocation { HeaderReference: null } invocation)
             {
                 if (firstUnpublished < 0)
                 {
@@ -45,13 +45,13 @@ public sealed partial class BattleSession
         var before = ImmutableArray.CreateBuilder<HostedDispatchControl>();
         var after = ImmutableArray.CreateBuilder<HostedDispatchControl>();
         int? current = null;
-        int next = expandedHostedNextOperation;
+        int next = expandedOperationCursor.Next;
         bool completionBeforeAction = false;
         if (!acknowledgeOnly)
         {
-            for (; next < expandedHostedOperations.Length; next++)
+            for (; next < expandedOperationCursor.Operations.Length; next++)
             {
-                switch (expandedHostedOperations[next])
+                switch (expandedOperationCursor.Operations[next])
                 {
                     case ExpandedHostedInvocation when current.HasValue || completionBeforeAction:
                         goto PrefixReady;
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         }
     PrefixReady:
         bool dispatchAppended = current is int selected && selected == firstUnpublished;
-        BattleActionHeaderReference? reference = current is int index ? ((ExpandedHostedInvocation)expandedHostedOperations[index]).HeaderReference : null;
+        BattleActionHeaderReference? reference = current is int index ? ((ExpandedHostedInvocation)expandedOperationCursor.Operations[index]).HeaderReference : null;
         if (current.HasValue && reference is null && !dispatchAppended)
         {
             throw new InvalidDataException("Hosted action lost its retained header before dispatch.");
@@ -80,11 +80,11 @@ public sealed partial class BattleSession
         HostedDispatchControls? controls = acknowledgeOnly ? null : new(before.ToImmutable(), after.ToImmutable());
         PreparedHostedDispatch dispatch = process.PrepareDispatch(headers.ToImmutable(), headerReference: reference, dispatchAppended: dispatchAppended,
             acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations, duelSelection: duelSelection, renzokukenFinisher: renzokukenFinisher, guardianForm: guardianForm);
-        ImmutableArray<ExpandedHostedOperation> operations = expandedHostedOperations;
+        ImmutableArray<ExpandedHostedOperation> operations = expandedOperationCursor.Operations;
         int appended = 0;
-        for (int i = 0; i < expandedHostedOperations.Length; i++)
+        for (int i = 0; i < expandedOperationCursor.Operations.Length; i++)
         {
-            if (expandedHostedOperations[i] is ExpandedHostedInvocation { HeaderReference: null } invocation)
+            if (expandedOperationCursor.Operations[i] is ExpandedHostedInvocation { HeaderReference: null } invocation)
             {
                 BattleActionHeaderReference header = dispatch.AppendedHeaders[appended++];
                 operations = operations.SetItem(i, invocation with
@@ -102,9 +102,8 @@ public sealed partial class BattleSession
 
     private void BindExpandedHostedPrefix(ExpandedHostedPrefix prefix, BattleModelRoster roster)
     {
-        expandedHostedOperations = prefix.Operations;
-        expandedHostedNextOperation = prefix.Next;
-        expandedHostedCurrentOperation = prefix.Current;
+        expandedOperationCursor = new(prefix.Operations, prefix.Next, prefix.Current);
+        expandedInvocationProgress = null;
         if (CurrentExpandedHostedInvocation is { } action)
         {
             BindExpandedHostedContactTracking(action, roster, prefix.Bridge);
@@ -147,7 +146,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (expandedHostedNextOperation == expandedHostedOperations.Length)
+        if (expandedOperationCursor.Next == expandedOperationCursor.Operations.Length)
         {
             if (hostedEvent.DuelPoll is { } poll && ReferenceEquals(process.PendingDuelSelection?.Frame.Poll, poll))
             {
@@ -177,11 +176,9 @@ public sealed partial class BattleSession
         {
             ActiveAction = null;
         }
-        expandedHostedOperations = [];
-        expandedHostedNextOperation = 0;
-        expandedHostedCurrentOperation = null;
+        expandedOperationCursor = new([]);
         expandedHostedActionToken = null;
         expandedHostedEvent = null;
-        ReleaseExpandedActionPresentation();
+        expandedInvocationProgress = null;
     }
 }

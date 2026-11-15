@@ -73,8 +73,8 @@ public sealed partial class BattleSession
         if (expandedHostedActionToken is not long token || process.ActiveActionToken != token ||
             CurrentExpandedHostedInvocation is not { PendingGunblade: true, Contacts: [var previous] } invocation ||
             receipt is not { ContactIndex: 1, TotalContacts: 1 } || receipt.Actor != invocation.Header.Source ||
-            invocation.Header.Command is not (1 or 12 or 28) || expandedExpectedContacts != 1 || expandedPresentedOccurrences.Count != 0 ||
-            expandedModelRoster?.Contains(receipt.Actor) != true || !ReferenceEquals(expandedEffectCommand, invocation.Command) ||
+            invocation.Header.Command is not (1 or 12 or 28) || expandedInvocationProgress?.ExpectedContacts != 1 || expandedInvocationProgress?.Occurrences.Count != 0 ||
+            expandedInvocationProgress?.Roster?.Contains(receipt.Actor) != true || !ReferenceEquals(expandedInvocationProgress?.Command, invocation.Command) ||
             nativeReactionOrder is null)
         {
             throw new InvalidDataException("Hosted Gunblade receipt does not replace its unacknowledged ordinary placeholder.");

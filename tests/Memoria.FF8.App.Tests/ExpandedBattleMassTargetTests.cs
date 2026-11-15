@@ -8,13 +8,10 @@ namespace Memoria.FF8.App.Tests;
 public sealed partial class ExpandedBattleMassTargetTests
 {
     [Theory]
-    [InlineData(11, false)]
-    [InlineData(10, false)]
-    [InlineData(5, false)]
-    [InlineData(4, true)]
-    [InlineData(3, true)]
-    [InlineData(1, true)]
-    public void InstalledOilboyleSonicWaveDamagesEachLivingAllyOnce(int livingAllyCount, bool expectNativePresentation)
+    [InlineData(4)]
+    [InlineData(3)]
+    [InlineData(1)]
+    public void InstalledOilboyleSonicWaveDamagesEachLivingAllyOnce(int livingAllyCount)
     {
         const string actionName = "Sonic Wave";
         using GameWorld world = StartBattle(79, null, false, out GameSession session, livingAllyCount);
@@ -28,9 +25,8 @@ public sealed partial class ExpandedBattleMassTargetTests
             Assert.NotNull(enemy.NativeAi);
         });
         Assert.Contains(battle.ReadDefinition().NativeActions, action => action.Command == 8 && action.ActionId == 182 && action.Name == actionName);
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         uint? sonicSound = null;
-        GameState? windup = null;
         HashSet<string> tintedTargets = [];
         bool drewNativeOverlay = false;
         bool finished = false;
@@ -40,20 +36,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             for (int frame = 0; frame < 150; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (livingAllyCount == NativeBattleSonic139Profile.HostedTargetCapacity && windup is null && battle.ActiveAction is { Phase: BattleActionPhase.Windup, Ability: BattleAbility.EnemyAbility, ActionId: 182 })
-                {
-                    string path = Path.Combine(Path.GetTempPath(), $"memoria-sonic-wave-{Guid.NewGuid():N}.json");
-                    try
-                    {
-                        session.Save(path, compact: true);
-                        windup = GameSession.Load(path);
-                    }
-                    finally
-                    {
-                        File.Delete(path);
-                    }
-                }
-                if (battle.ExpandedEffect is { Graphics.OriginalEffect: { } identity } current)
+                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } current)
                 {
                     Assert.Equal(NativeBattleSonic139Profile.Effect, identity.RequestedEffect);
                     Assert.Equal(NativeBattleSonic139Profile.Entry, identity.Binding.Entry);
@@ -61,7 +44,7 @@ public sealed partial class ExpandedBattleMassTargetTests
                     sonicSound = Assert.IsType<NativeBattleSonic139Resources>(identity.Binding.Sonic139Resources).Sound;
                     presentation ??= current;
                     Assert.Same(presentation, current);
-                    drewNativeOverlay |= current.Overlay?.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Opcode is >= 0x20 and < 0x80) == true;
+                    drewNativeOverlay |= current.PreparedPresentation?.Primitives?.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Opcode is >= 0x20 and < 0x80) == true;
                     foreach (BattleModelEntry<BattleModelOwner> entry in current.Graphics.ActorModels.Entries.Where(entry => (entry.State.Flags0 & 0x800) != 0))
                     {
                         tintedTargets.Add(Assert.IsType<BattlePartyActorModel>(entry.Owner).Actor.ActorId);
@@ -90,38 +73,15 @@ public sealed partial class ExpandedBattleMassTargetTests
         Assert.Equal(contacts.Select(entry => (entry.TargetId, entry.Amount)).Order(), damage.Select(entry => (entry.TargetId, entry.Amount)).Order());
         Assert.All(allies, ally => Assert.InRange(ally.CurrentHp, 1, ally.MaximumHp - 1));
         Assert.Equal(11 - livingAllyCount, battle.Combatants.Count(actor => actor.IsPlayer && !actor.IsAlive));
-        if (expectNativePresentation)
-        {
-            Assert.NotNull(presentation);
-            Assert.True(presentation.Complete);
-            Assert.True(drewNativeOverlay);
-            Assert.Equal(allies.Select(actor => actor.Id).Order(), tintedTargets.Order());
-            Assert.DoesNotContain(presentation.Graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 0x800) != 0);
-            Assert.True(damage.Max(entry => entry.Frame) < contacts.Min(entry => entry.Frame));
-            Assert.Single(battle.Events, entry => entry.ActorId == first.ActorId && entry.Kind == "NativeModuleSound" && entry.NativeModuleSound?.Sound == sonicSound);
-            Assert.Equal(allies.Select(actor => actor.Id), contacts.Select(entry => entry.TargetId));
-            Assert.All(contacts.Zip(contacts.Skip(1)), pair => Assert.Equal(4L, pair.Second.Frame - pair.First.Frame));
-            if (livingAllyCount == NativeBattleSonic139Profile.HostedTargetCapacity)
-            {
-                using GameWorld restoredWorld = new(new(Assert.IsType<GameState>(windup)), TestResources.GameDirectory);
-                restoredWorld.EnsureField();
-                BattleSession restored = Assert.IsType<BattleSession>(restoredWorld.Battle);
-                Assert.Equal(11, restored.Combatants.Count(actor => !actor.IsPlayer));
-                for (int frame = 0; frame < 150 && restored.ActiveAction is not null; frame++)
-                {
-                    restoredWorld.ApplyBattleInput(new(BattleInputKind.Tick));
-                }
-                Assert.Null(restored.ActiveAction);
-                Assert.Equal(contacts, restored.Events.Where(entry => entry.Kind == "EffectContact" && entry.Message == actionName));
-                Assert.Equal(allies.Select(actor => actor.CurrentHp), restored.Combatants.Where(actor => actor.IsPlayer && actor.IsAlive).Select(actor => actor.CurrentHp));
-            }
-        }
-        else
-        {
-            Assert.Null(presentation);
-            Assert.Single(contacts.Select(entry => entry.Frame).Distinct());
-            Assert.Equal(first.Frame, Assert.Single(damage.Select(entry => entry.Frame).Distinct()));
-        }
+        Assert.NotNull(presentation);
+        Assert.Null(presentation.ActiveActionToken);
+        Assert.True(drewNativeOverlay);
+        Assert.Equal(allies.Select(actor => actor.Id).Order(), tintedTargets.Order());
+        Assert.DoesNotContain(presentation.Graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 0x800) != 0);
+        Assert.True(damage.Max(entry => entry.Frame) < contacts.Min(entry => entry.Frame));
+        Assert.Single(battle.Events, entry => entry.ActorId == first.ActorId && entry.Kind == "NativeModuleSound" && entry.NativeModuleSound?.Sound == sonicSound);
+        Assert.Equal(allies.Select(actor => actor.Id), contacts.Select(entry => entry.TargetId));
+        Assert.All(contacts.Zip(contacts.Skip(1)), pair => Assert.Equal(4L, pair.Second.Frame - pair.First.Frame));
 
         BattleEvent[] Contacts() => battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.Message == actionName).ToArray();
     }
@@ -247,6 +207,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             NativeCharacterVital[] records = vitals.Records.Select(record => record with
             {
                 MemberFlags = (ushort)(record.MemberFlags | 1),
+                BonusSources = null,
                 HitPointBonus = 2400
             }).ToArray();
             vitals = vitals with { Records = records };

@@ -41,13 +41,21 @@ public sealed partial class ExpandedBattlePresentationProcess
     private bool advancing;
     private bool canonicalHandoff;
 
-    public ExpandedBattlePresentationProcess(BattleSession logicalOwner, BattleDefinition presentationResources)
+    private readonly Func<BattleSession, BattleModelOwner, BattleRosterSlot, NativeBattleGraphicsBinding>? prepareModelBinding;
+
+    public ExpandedBattlePresentationProcess(BattleSession logicalOwner, BattleDefinition presentationResources, Func<BattleSession, BattleModelOwner, BattleRosterSlot, NativeBattleGraphicsBinding>? prepareModelBinding = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
+        this.prepareModelBinding = prepareModelBinding;
         ArgumentNullException.ThrowIfNull(presentationResources);
         this.logicalOwner = logicalOwner;
         presentation = BattleSession.CreateHostedBattlePresentation(logicalOwner, presentationResources);
         presentation.ValidateHostedPresentationRandomOwner(logicalOwner);
+    }
+
+    internal NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner actor, BattleRosterSlot slot)
+    {
+        return (prepareModelBinding ?? throw new NotSupportedException("The presentation process has no installed model resource provider."))(owner, actor, slot);
     }
 
     public NativeBattleGraphicsState Graphics => presentation.NativeGraphics!;
@@ -56,6 +64,7 @@ public sealed partial class ExpandedBattlePresentationProcess
     public NativeBattleStageState Stage => presentation.NativeStage!;
     public NativeExamTimerState? Timer => presentation.NativeExamTimer;
     public bool EntryReady => Graphics.EntryReady;
+    public bool HasActiveAction => ActiveActionToken is not null;
     public NativeBattlePreparedPresentation? PreparedPresentation => presentation.PreparedPresentation;
     public NativeBattleEffectPresentationStep LastStep { get; private set; } = new([], []);
 

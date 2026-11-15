@@ -232,7 +232,7 @@ public sealed class ExpandedAiCallbackEventTests
         Field(logical, "preparingExpandedHostedAction").SetValue(logical, true);
         NativeBattleContactPacket contact = new(new(recipient, 0, 0, 0, 0, 0, 0), null);
         Invoke(logical, "StageExpandedHostedInvocation", command, new NativeBattleActionHeaderPreparation(owner, 237, 0, -1, 0, 188, null), ImmutableArray.Create(new ExpandedBattleContact(Enemy, contact)), null);
-        Field(logical, "expandedHostedCurrentOperation").SetValue(logical, 0);
+        SetHostedOperationIndex(logical, BindingFlags.Instance | BindingFlags.NonPublic, 0);
         Field(logical, "expandedHostedActionToken").SetValue(logical, token);
         FieldInfo eventField = Field(logical, "expandedHostedEvent");
         eventField.SetValue(logical, Activator.CreateInstance(eventField.FieldType, [command, command, 0x47DE70u, null, false, owner]));
@@ -444,4 +444,13 @@ public sealed class ExpandedAiCallbackEventTests
     private static FieldInfo Field(object owner, string name) => owner.GetType().GetField(name, PrivateInstance)!;
 
     private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
+
+    private static void SetHostedOperationIndex(BattleSession battle, BindingFlags flags, int index)
+    {
+        FieldInfo field = typeof(BattleSession).GetField("expandedOperationCursor", flags)!;
+        object cursor = field.GetValue(battle)!;
+        cursor.GetType().GetProperty("Current")!.SetValue(cursor, index);
+        field.SetValue(battle, cursor);
+    }
+
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -9,44 +9,44 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     public void Installed_Doom_expiration_dispatches_effect_nine_once_per_recipient()
     {
         string directory = TestResources.GameDirectory;
-        (string status, string detail) = RunExpandedDoomExpiration(directory, PrepareField(directory));
+        using GameAssets game = new(directory);
+        (string status, string detail) = RunExpandedDoomExpiration(directory, PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         Assert.Equal("native", status);
         Assert.Contains("246/43", detail);
     }
 
     private static (string Status, string Detail) RunExpandedDoomExpiration(string directory, GameState field)
     {
-        GameSession original = null!;
-        using GameWorld entry = StartBattle(directory, field, 0, captureSession: session => original = session);
-        GameState state = original.PrepareSnapshot();
-        BattleSnapshot snapshot = Assert.IsType<BattleSnapshot>(state.Battle);
-        string[] recipients = ["party-0", "party-10"];
-        var actors = snapshot.Combatants.Select(actor =>
+        GameSession session = new(field with { GlobalRandom = new(917) });
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory);
+        ExpandedBattleInstalledEntry.Prepare(world, session, current => ExpandedBattleEntryAdmissionTests.SelectFourAllies(world, current));
+        BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        for (int frame = 0; frame < 900 && (!process.EntryReady || battle.QueuedActions.Count != 0 || battle.ActiveAction is not null); frame++)
         {
-            if (!recipients.Contains(actor.Id))
+            foreach (BattleCombatant actor in battle.Combatants)
             {
-                return actor;
+                actor.Atb = 0;
             }
-            NativeBattleStatusSnapshot status = actor.NativeStatus!;
-            status.Timers[10] = 2;
-            return actor with { NativeStatus = status with { Battle = status.Battle | 0x400 } };
-        }).ToArray();
-        string checkpoint = TestResources.ArtifactFile($"{Guid.NewGuid():N}.battle.json");
-        File.WriteAllText(checkpoint, JsonSerializer.Serialize(state with { Battle = snapshot with { Combatants = actors } }));
-        GameSession resumed = new(GameSession.Load(checkpoint));
-        using GameWorld world = new(resumed, directory);
-        world.EnsureField();
-        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.All(battle.Capture().Combatants.Where(actor => recipients.Contains(actor.Id)), actor => Assert.Equal(2, actor.NativeStatus!.Timers[10]));
-        int before = battle.Events.Count;
-        world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
-        List<string> casts = [];
-        NativeBattleEffectPresentation? effect = null;
-        for (int frame = 0; frame < 600 && casts.Count <= recipients.Length; frame++)
+            battle.Tick();
+        }
+        Assert.True(process.EntryReady);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Null(battle.ActiveAction);
+        string[] recipients = ["party-0", "party-3"];
+        foreach (BattleCombatant actor in battle.Combatants.Where(actor => recipients.Contains(actor.Id)))
         {
-            if (battle.ExpandedEffect is { } live && live != effect)
+            actor.NativeStatus1 |= 0x400;
+            actor.NativeStatusTimers[10] = 0;
+        }
+        int before = battle.Events.Count;
+        List<string> casts = [];
+        HashSet<long> observed = [];
+        for (int frame = 0; frame < 1800 && casts.Count <= recipients.Length; frame++)
+        {
+            if (battle.ExpandedPresentationProcess is { ActiveActionToken: long token, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live && observed.Add(token))
             {
-                effect = live;
                 BattleActionPresentation command = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
                 Assert.Equal((byte)246, command.NativeQueuedCommand);
                 Assert.Equal(43, command.ActionId);
@@ -55,14 +55,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.False(battle.Combatants.Single(actor => actor.Id == command.ActorId).IsAlive);
                 casts.Add(command.ActorId);
             }
-            if (casts.Count == recipients.Length && battle.ExpandedEffect is null)
+            if (casts.Count == recipients.Length && battle.ExpandedPresentationProcess?.ActiveActionToken is null)
             {
                 break;
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.Equal(recipients, casts);
-        Assert.Null(battle.ExpandedEffect);
+        Assert.Null(battle.ExpandedPresentationProcess?.ActiveActionToken);
         BattleEvent[] events = battle.Events.Skip(before).ToArray();
         foreach (string recipient in recipients)
         {

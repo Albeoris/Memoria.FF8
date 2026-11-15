@@ -77,7 +77,7 @@ public sealed class NativeBattleHostedCinematicContextTests
 
     private static object[] ReadOperations(BattleSession candidate)
     {
-        var operations = (System.Collections.IEnumerable)typeof(BattleSession).GetField("expandedHostedOperations", Private)!.GetValue(candidate)!;
+        var operations = (System.Collections.IEnumerable)ReadHostedOperations(candidate, Private);
         return operations.Cast<object>().ToArray();
     }
 
@@ -93,4 +93,11 @@ public sealed class NativeBattleHostedCinematicContextTests
         };
         typeof(BattleSession).GetMethod("StageExpandedHostedInvocationCore", Private)!.Invoke(candidate, [command, header, ImmutableArray.Create(new ExpandedBattleContact("enemy", contact)), null, false, false]);
     }
+
+    private static object ReadHostedOperations(BattleSession battle, BindingFlags flags)
+    {
+        object cursor = typeof(BattleSession).GetField("expandedOperationCursor", flags)!.GetValue(battle)!;
+        return cursor.GetType().GetProperty("Operations")!.GetValue(cursor)!;
+    }
+
 }

@@ -37,7 +37,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         }
 
         Assert.False(caster.IsBusy);
-        Assert.Null(battle.ExpandedEffect);
+        Assert.Null(battle.ExpandedPresentationProcess?.ActiveActionToken);
         Assert.Equal(InitialStock - 1, Assert.Single(caster.MagicStocks, stock => stock.Id == scan.Id).Count);
         Assert.Equal(targetHp, target.CurrentHp);
         BattleEvent notification = Assert.Single(battle.Events, entry => entry.Kind == "Scan" && entry.ActorId == caster.Id);

@@ -50,10 +50,4 @@ internal static class ExpandedBattleActionRules
         return (ability, action.Command) is (BattleAbility.Magic, 2) or (BattleAbility.Item, 4) &&
             action.TargetFlags is byte flags && (flags & 0x30) != 0x30 && ((flags & 1) == 0 || action.AttackType is 5 or 6) && SupportsContacts(action);
     }
-
-    public static bool HasNativeSpellPresentation(BattleNativeAction action, int recipientCount)
-    {
-        return action is { MagicId: 1, HitCount: > 0 } || action.HitCount == 1 && (action.MagicId == 38 || recipientCount < NativeBattleSlots.Count &&
-            (action.ActionId is >= 1 and <= 9 or >= 21 and <= 27 || action.MagicId == 39));
-    }
 }

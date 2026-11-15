@@ -50,9 +50,8 @@ public sealed partial class BattleSession
             candidate.expandedHostedEvent = hostedEvent;
         }
         candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.expandedHostedOperations = expandedHostedOperations;
-        candidate.expandedHostedNextOperation = expandedHostedNextOperation;
-        int beforeAftercare = expandedHostedOperations.Length;
+        candidate.expandedOperationCursor = expandedOperationCursor with { Current = null };
+        int beforeAftercare = expandedOperationCursor.Operations.Length;
         BattleCombatant actor = candidate.GetActor(receipt.ActorId);
         if (retainCommittedMirror)
         {
@@ -64,7 +63,7 @@ public sealed partial class BattleSession
             candidate.PrepareExpandedHostedAftercare(actor, hostedEvent.Command);
         }
 
-        bool hasAftercare = candidate.expandedHostedOperations.Length != beforeAftercare;
+        bool hasAftercare = candidate.expandedOperationCursor.Operations.Length != beforeAftercare;
         PreparedHostedCompletionAck ack = process.PrepareCompletionAck(receipt.Token, resetCounts: !hasAftercare);
         ExpandedHostedEvent nextEvent = hostedEvent with { CompletionToken = null };
         if (hasAftercare)
@@ -91,26 +90,22 @@ public sealed partial class BattleSession
             candidate.CompleteExpandedHostedRenzokuken(hostedEvent);
             candidate.CompleteActionPresentation(hostedEvent.ActivePresentation, "Expanded action completed.");
             nextEvent = nextEvent with { LogicallyComplete = true };
-            if (candidate.expandedHostedNextOperation < candidate.expandedHostedOperations.Length || !process.IsControlPrefixRetired)
+            if (candidate.expandedOperationCursor.Next < candidate.expandedOperationCursor.Operations.Length || !process.IsControlPrefixRetired)
             {
                 candidate.ActiveAction = hostedEvent.ActivePresentation;
             }
         }
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, ack,
-            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedHostedNextOperation == candidate.expandedHostedOperations.Length, guardianForm: form);
+            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedOperationCursor.Next == candidate.expandedOperationCursor.Operations.Length, guardianForm: form);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };
 
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = RestoreSnapshot(seed, customHandlers, proof);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        preflight.ValidatePreparedExpandedPresentation(candidate);
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(seed, customHandlers, proof));
         process.ValidatePreparedDispatch(dispatch);
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        TakeExpandedActionPresentation(candidate);
+        publication.Publish();
+        PublishStagedHostedOperations(candidate);
         expandedHostedEvent = nextEvent;
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);

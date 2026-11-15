@@ -271,27 +271,12 @@ internal sealed partial class BattleScenePresentation
         ExpandedBattleSceneFrame? expandedFrame = null;
         if (session.UsesExpandedRoster)
         {
-            expandedFrame = session.ExpandedPresentationHost is { } host
-                ? host.ReadSceneFrame(session) ?? throw new InvalidDataException("Expanded battle presentation host did not supply its scene frame.")
-                : previewSceneFrames!.ReadSceneFrame(session);
+            expandedFrame = previewSceneFrames!.ReadSceneFrame(session);
             foreach ((string id, NativeBattleVector position) in expandedFrame.Positions)
             {
                 positions[id] = ExpandedBattleSceneFrameBuilder.ScenePosition(position);
             }
             selectedCamera = ReadExpandedCamera(expandedFrame.Camera, expandedFrame.Projection);
-        }
-        if (session.ExpandedEffect is { Projection: { } effectProjection } hostedEffect)
-        {
-            NativeBattleCameraPose basePose = hostedEffect.CinematicCamera ?? hostedEffect.InitialHostCameraPose
-                ?? throw new InvalidDataException("Expanded battle effect lacks its held host camera pose.");
-            selectedCamera = ReadExpandedCamera(basePose, effectProjection);
-        }
-        if (selectedCamera is { } baseCamera && session.ExpandedEffect is { CinematicCamera: null, ViewTranslationY: not 0 } effectCamera)
-        {
-            Vector3 forward = Vector3.Normalize(baseCamera.Target - baseCamera.Eye);
-            Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
-            Vector3 shift = Vector3.Cross(right, forward) * (effectCamera.ViewTranslationY / 100f);
-            selectedCamera = baseCamera with { Eye = baseCamera.Eye + shift, Target = baseCamera.Target + shift };
         }
         renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];
@@ -308,7 +293,7 @@ internal sealed partial class BattleScenePresentation
         }
         foreach (BattleCombatant actor in session.Combatants)
         {
-            if (!actor.IsActive || actor.Hidden || session.IsExpandedEffectReplacingModel(actor.Id))
+            if (!actor.IsActive || actor.Hidden)
             {
                 continue;
             }
@@ -353,11 +338,8 @@ internal sealed partial class BattleScenePresentation
         }
         NativeBattlePreparedPrimitiveFrame? overlay = session.ExpandedEscapeScreenFade is byte fade
             ? NativeBattleOutcomeCallbacks.PrepareFade501D10(fade, assets.ReadNativePrimitiveTables())
-            : session.ExpandedEffect?.Overlay;
-        NativeBattleEffectPresentation? expanded = session.ExpandedEffect;
-        NativeBattleStageColor color = expanded?.StageColor ?? default;
-        NativeBattleSummonColors? stageColorRules = color.Depth == 0 ? null : expanded!.StageColorRules;
-        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: overlay, effectTextures: expanded?.Memory.Textures, effectTextureSource: assets.EffectTextureSource, drawStage: expanded?.HidesHostStage != true, stageColor: color, stageColorRules: stageColorRules);
+            : null;
+        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."), effect: overlay, effectTextureSource: assets.EffectTextureSource);
         return pixels;
     }
 

@@ -632,7 +632,7 @@ internal sealed partial class GameWorld : IDisposable
                 EndDiagnosticBattle();
                 snapshotPreparation.Dispose();
             }
-            else if (diagnosticAllocationFaulted || battle?.ExpandedEffect is not null)
+            else if (diagnosticAllocationFaulted || battle?.ExpandedPresentationProcess is { HasActiveAction: true })
             {
                 session.AbandonSnapshotPreparation(snapshotPreparation);
             }

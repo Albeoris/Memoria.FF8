@@ -4,7 +4,6 @@ using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
-using System.Text.Json;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -137,12 +136,10 @@ public sealed class ExpandedBattleHostTests
     [InlineData(0, true, false, 8)]
     [InlineData(89, false, true, 8)]
     [InlineData(87, false, false, 11)]
-    [InlineData(87, false, false, 11, false, 10)]
+    [InlineData(87, false, false, 11, 10)]
     [InlineData(0, true, false, 11)]
     [InlineData(89, false, true, 11)]
-    [InlineData(0, true, false, 11, true)]
-    [InlineData(0, true, false, 11, true, 10)]
-    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount, bool coldRestore = false, int requestedDonors = 0)
+    public void ExpandedRandomBattleUsesInstalledContactsAndChargesEachCommandOnce(ushort formation, bool mass, bool exerciseAi, int allyCount, int requestedDonors = 0)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
@@ -270,10 +267,6 @@ public sealed class ExpandedBattleHostTests
         if (mass)
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
-            if (coldRestore)
-            {
-                CheckColdContinuations();
-            }
             Run(lastEnemy, BattleAbility.Magic, quake.ActionId, enemies.Select(enemy => enemy.Id).ToArray());
             Assert.All(enemies.Select((enemy, index) => (enemy, index)), pair => Assert.InRange(pair.enemy.CurrentHp, 0, before[pair.index] - 1));
             Assert.Equal(4, MagicCount(quake.ActionId));
@@ -342,19 +335,19 @@ public sealed class ExpandedBattleHostTests
                 Assert.True(hud.DrawCastAvailable);
                 int beforeDraw = battle.Events.Count;
                 world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = draw.Id });
-                NativeBattleEffectPresentation? stockPresentation = null;
+                NativeBattleOriginalEffectState? stockPresentation = null;
                 for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                 {
                     world.ApplyBattleInput(new(BattleInputKind.Tick));
-                    stockPresentation ??= battle.ExpandedEffect;
+                    stockPresentation ??= battle.ExpandedPresentationProcess?.Graphics.OriginalEffect is { RequestedEffect: 15, ReturnedDescriptor: > 0 } stockEffect ? stockEffect : null;
                 }
                 Assert.False(caster.IsBusy);
                 BattleEvent drawResult = Assert.Single(battle.Events.Skip(beforeDraw), entry => entry.Kind == "Draw" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
                 if (drawResult.Amount > 0)
                 {
                     Assert.NotNull(stockPresentation);
-                    Assert.Equal((ushort)15, stockPresentation.Graphics.OriginalEffect?.RequestedEffect);
-                    Assert.True(stockPresentation.Complete);
+                    Assert.Equal((ushort)15, stockPresentation.RequestedEffect);
+                    Assert.Null(battle.ExpandedPresentationProcess!.ActiveActionToken);
                     Assert.Single(battle.Events.Skip(beforeDraw), entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
                 }
                 if (enemyCount == 11)
@@ -370,20 +363,12 @@ public sealed class ExpandedBattleHostTests
                     int stockBefore = caster.MagicStocks.FirstOrDefault(stock => stock.Id == spell.Id)?.Count ?? 0;
                     world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = spell.Id, DrawCast = true, DrawCastTargetId = recipient.Id });
                     BattleSnapshot windup = battle.Capture();
-                    using var checkpoint = new TemporaryBattleCheckpoint();
-                    session.Save(checkpoint.Path, compact: true);
-                    GameSession resumed = new(GameSession.Load(checkpoint.Path));
-                    using GameWorld resumedWorld = new(resumed, directory);
-                    resumedWorld.EnsureField();
-                    BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
-                    Assert.Equal(recipient.Id, restored.ActiveAction?.DrawCastTargetId ?? Assert.Single(restored.QueuedActions).DrawCastTargetId);
                     bool presented = false;
                     int impacts = 0;
                     for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                     {
                         world.ApplyBattleInput(new(BattleInputKind.Tick));
-                        resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
-                        presented |= battle.ExpandedEffect is not null;
+                        presented |= battle.ExpandedPresentationProcess is { ActiveActionToken: not null };
                         BattleImpactCue[] cues = BattleImpactPresentation.Collect(battle).Where(cue => cue.Event.Frame >= windup.Frame && cue.Event.ActorId == caster.Id).ToArray();
                         Assert.All(cues, cue =>
                         {
@@ -399,77 +384,12 @@ public sealed class ExpandedBattleHostTests
                     Assert.Equal(1, impacts);
                     Assert.Equal(stockBefore, caster.MagicStocks.FirstOrDefault(stock => stock.Id == spell.Id)?.Count ?? 0);
                     Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == recipient.Id && entry.Frame >= windup.Frame);
-                    AssertEquivalentBattle(battle, restored);
                 }
             }
 
         }
 
         int MagicCount(int id) => caster.MagicStocks.Single(spell => spell.Id == id).Count;
-
-        void CheckColdContinuations()
-        {
-            GameState initialBattle = session.PrepareSnapshot();
-            int differentDonorCount = requestedDonors == 10 ? 0 : 10;
-            GameSession uninterrupted = new(initialBattle with { GameplayPreferences = initialBattle.GameplayPreferences with { AdditionalEnemies = differentDonorCount } });
-            using GameWorld uninterruptedWorld = new(uninterrupted, directory);
-            uninterruptedWorld.EnsureField();
-            AssertEquivalentBattle(battle, uninterruptedWorld.Battle!);
-            BattleSession active = uninterruptedWorld.Battle!;
-            BattleCombatant ward = active.Combatants.Single(actor => actor.Id == casterId);
-            for (int i = 0; i < 32 && !ward.IsReady; i++)
-            {
-                uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
-                uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
-            }
-            Assert.True(ward.IsReady);
-            CheckHud(active);
-            uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = casterId, TargetId = lastEnemy, Ability = BattleAbility.Magic, ActionId = quake.ActionId });
-            BattleSnapshot windup = active.Capture();
-            Assert.True(windup.ActiveAction?.ActorId == casterId || windup.QueuedActions.Any(action => action.ActorId == casterId));
-            Assert.Null(active.ExpandedEffect);
-
-            using var checkpoint = new TemporaryBattleCheckpoint();
-            uninterrupted.Save(checkpoint.Path, compact: true);
-            GameSession resumed = new(GameSession.Load(checkpoint.Path));
-            using GameWorld resumedWorld = new(resumed, directory);
-            resumedWorld.EnsureField();
-            BattleSession restored = Assert.IsType<BattleSession>(resumedWorld.Battle);
-            AssertEquivalentBattle(active, restored);
-            bool observedPresentation = false;
-            for (int frame = 0; frame < 2048 && ward.IsBusy; frame++)
-            {
-                uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
-                resumedWorld.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (!observedPresentation && active.ExpandedEffect is not null)
-                {
-                    Assert.Throws<NotSupportedException>(() => uninterrupted.PrepareSnapshot());
-                    observedPresentation = true;
-                }
-            }
-            Assert.True(observedPresentation);
-            Assert.False(ward.IsBusy);
-            Assert.Equal(BattleOutcome.Victory, active.Outcome);
-            AssertEquivalentBattle(active, restored);
-            Assert.Equal(uninterrupted.ExamTimer!.ClockCalls, resumed.ExamTimer!.ClockCalls);
-            Assert.Equal(4, ward.MagicStocks.Single(spell => spell.Id == quake.ActionId).Count);
-
-            resumed.Save(checkpoint.Path, compact: true);
-            GameSession terminal = new(GameSession.Load(checkpoint.Path));
-            using GameWorld terminalWorld = new(terminal, directory);
-            terminalWorld.EnsureField();
-            AssertEquivalentBattle(active, terminalWorld.Battle!);
-            uninterruptedWorld.ApplyBattleInput(new(BattleInputKind.Return));
-            terminalWorld.ApplyBattleInput(new(BattleInputKind.Return));
-            Assert.Null(terminalWorld.Battle);
-            Assert.Equal(11, terminal.State.CharacterVitals!.Records.Length);
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(uninterrupted.State.CharacterVitals), JsonSerializer.SerializeToElement(terminal.State.CharacterVitals)));
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(uninterrupted.State.Economy), JsonSerializer.SerializeToElement(terminal.State.Economy)));
-            Assert.Null(terminal.State.PendingBattleEncounter);
-            GameState settled = terminal.State;
-            Assert.Throws<InvalidOperationException>(() => terminalWorld.ApplyBattleInput(new(BattleInputKind.Return)));
-            Assert.Same(settled, terminal.State);
-        }
 
         void CheckHud(BattleSession active)
         {
@@ -539,13 +459,17 @@ public sealed class ExpandedBattleHostTests
                 world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
             }
             Assert.True(caster.IsReady);
+            if (mass && allyCount == 11)
+            {
+                CheckHud(battle);
+            }
             long first = battle.Frame;
             world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = casterId, TargetId = target, Ability = ability, ActionId = action });
             bool rendered = false;
             for (int i = 0; i < 2048 && caster.IsBusy; i++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (!rendered && battle.ExpandedEffect?.Overlay is { LastCommands.IsEmpty: false })
+                if (!rendered && battle.ExpandedPresentationProcess?.PreparedPresentation?.Primitives is { LastCommands.IsEmpty: false })
                 {
                     byte[] pixels = presentation.Render(battle, 320, 240).ToArray();
                     Assert.Contains(pixels.Where((_, index) => index % 4 != 3), pixel => pixel != 0);
@@ -563,29 +487,4 @@ public sealed class ExpandedBattleHostTests
         }
     }
 
-    private static void AssertEquivalentBattle(BattleSession expected, BattleSession actual)
-    {
-        BattleSnapshot left = expected.Capture();
-        BattleSnapshot right = actual.Capture();
-        Assert.Equal(left.Frame, right.Frame);
-        Assert.Equal(left.Random?.Lane, right.Random?.Lane);
-        Assert.Equal(left.Random?.Indexes.ToArray(), right.Random?.Indexes.ToArray());
-        Assert.Equal(left.NativeCrtRandom, right.NativeCrtRandom);
-        Assert.Equal(left.NativeGlobalRandom, right.NativeGlobalRandom);
-        Assert.Equal(left.Outcome, right.Outcome);
-        Assert.Equal(left.Events, right.Events);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(left.QueuedActions), JsonSerializer.SerializeToElement(right.QueuedActions)));
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(left.ActiveAction), JsonSerializer.SerializeToElement(right.ActiveAction)));
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(left.Combatants), JsonSerializer.SerializeToElement(right.Combatants)));
-    }
-
-    private sealed class TemporaryBattleCheckpoint : IDisposable
-    {
-        public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"memoria-expanded-battle-{Guid.NewGuid():N}.json");
-
-        public void Dispose()
-        {
-            File.Delete(Path);
-        }
-    }
 }

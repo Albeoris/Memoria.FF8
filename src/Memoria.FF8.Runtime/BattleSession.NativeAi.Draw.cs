@@ -5,7 +5,6 @@ public sealed record BattlePendingEnemyDraw(string ActorId, byte SpellId, byte Q
 public sealed partial class BattleSession
 {
     private BattlePendingEnemyDraw? pendingEnemyDraw;
-    private BattlePendingEnemyDraw? expandedEffectEnemyDraw;
 
     private void DrawNativeAiSpell(BattleCombatant actor, bool reportStock)
     {

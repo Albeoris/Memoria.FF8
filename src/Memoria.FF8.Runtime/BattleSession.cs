@@ -255,10 +255,6 @@ public sealed partial class BattleSession
             return;
         }
         DispatchTurnBasedFrame();
-        if (expandedGuardianFormSkipRequested)
-        {
-            AdvanceSkippedGuardianFormPresentation(TimeSpan.FromMilliseconds(8));
-        }
     }
 
     private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false } || HasPendingExpandedDoom;
@@ -267,7 +263,7 @@ public sealed partial class BattleSession
 
     private bool ExpandedTimedLimitOwnsInput => nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0 || nativeDuelProcesses.Count != 0;
 
-    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && !HasPendingExpandedTerminal && deferredExpandedTerminalOutcome is null && expandedGuardianFormEntry is null && !HasExpandedHostedGuardianFormEntry && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
+    private bool CanExplicitlyAdvanceTurn => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedEscape && !HasPendingExpandedTerminal && deferredExpandedTerminalOutcome is null && !HasExpandedHostedGuardianFormEntry && NativeEntryReady && !HasGuardianForceTimeBoundary && nativeScriptState.WaitCounters.Length == 0 && !NativeScriptAllocationPaused && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || nativeBattleClock.Active != 0) && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput);
 
     private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && !HasPendingExpandedTerminal && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && BattleClockUi?.PauseDE9 != true && (nativeBattleClock is null || !HasGraphicsClockOwner || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
 
@@ -291,10 +287,6 @@ public sealed partial class BattleSession
         {
             DispatchGuardianFormTransitions();
             CompleteBattleIfNeeded();
-            return;
-        }
-        if (AdvanceExpandedGuardianFormEntry())
-        {
             return;
         }
         bool advancingExpandedEscape = HasPendingExpandedEscape;
@@ -354,7 +346,7 @@ public sealed partial class BattleSession
         {
             throw new ArgumentOutOfRangeException(nameof(maxFrames));
         }
-        if (expandedEffect is not null || expandedHostedEvent is not null || !CanExplicitlyAdvanceTurn)
+        if (expandedHostedEvent is not null || !CanExplicitlyAdvanceTurn)
         {
             return 0;
         }
@@ -376,7 +368,7 @@ public sealed partial class BattleSession
         {
             candidate.expandedTurnClockObservation = ExpandedClockUi ?? throw new InvalidDataException("Hosted turn advance requires its initialized UI services.");
         }
-        candidate.retainExpandedDoomForHost = HasExpandedDoomPresentation;
+
         candidate.StopTurnAdvance();
         return BoundedBattleAdvance.Run<BattleSession, int>(candidate, maxFrames,
             (next, count) =>
@@ -471,10 +463,6 @@ public sealed partial class BattleSession
     public BattleSnapshot Capture()
     {
         RequireEncounterDamagePublicationBoundary();
-        if (ExpandedEffect is not null)
-        {
-            throw new NotSupportedException("Wait until the current expanded battle effect finishes before saving.");
-        }
         return NativeBattleStorageSnapshots.Capture(CaptureState());
     }
 
@@ -669,7 +657,7 @@ public sealed partial class BattleSession
             return becameReady;
         }
         // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
-        bool clockAdmitted = UsesRealTimeBattleClock && expandedEffect?.IsGuardianSummon != true && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasPolledNativeBattleClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
+        bool clockAdmitted = UsesRealTimeBattleClock && (!UsesExpandedRoster || !ExpandedTimedLimitOwnsInput) && (HasPolledNativeBattleClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
         if (clockAdmitted)
         {
             AdvanceBattleTime(becameReady, !HasPolledNativeBattleClock);
@@ -1133,17 +1121,13 @@ public sealed partial class BattleSession
     {
         ReconcileExpandedShot();
         ReconcileExpandedDuel();
-        if (expandedEffect is null && expandedHostedEvent is null && ActiveAction is { NativeHeader: null } active && (!CanRetainBattleActionActor(byId[active.ActorId], active.NativePlayerReaction, active.NativeAiCallbackStage, active.TargetRequest) || active.Phase == BattleActionPhase.Windup && active.MagicCasts.IsDefaultOrEmpty && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.TargetRequest, active.NativeGraphic, active.NativeLimitCallback)))
+        if (expandedHostedEvent is null && ActiveAction is { NativeHeader: null } active && (!CanRetainBattleActionActor(byId[active.ActorId], active.NativePlayerReaction, active.NativeAiCallbackStage, active.TargetRequest) || active.Phase == BattleActionPhase.Windup && active.MagicCasts.IsDefaultOrEmpty && !CanRetainTargets(active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.TargetRequest, active.NativeGraphic, active.NativeLimitCallback)))
         {
             if (!UsesExpandedRoster)
             {
                 ObserveNativeUnknownStackCallback(0x485460, "active action cancellation");
             }
             RefundCancelledNativeItem(active);
-            if (UsesExpandedRoster)
-            {
-                ReleaseExpandedActionPresentation();
-            }
             CompleteExpandedHostedActionPause();
             if (!UsesExpandedRoster)
             {
@@ -1192,7 +1176,7 @@ public sealed partial class BattleSession
                 ActiveAction?.ExpandedAiCallback is { Stage: 3 } callback && callback.Actor == TargetActorReference(actor) ||
                 actions.Any(command => command.ExpandedAiCallback is { Stage: 3 } request && request.Actor == TargetActorReference(actor)));
             bool enteringForm = HasExpandedHostedGuardianFormEntry && GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Entering };
-            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || expandedGuardianFormEntry?.ActorId == actor.Id || enteringForm || busyAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
+            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || enteringForm || busyAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
         }
 
         bool CanRetainTargets(string actorId, string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, BattleTargetRequest request, BattleNativeGraphicCommand? graphic, NativeLimitCallback? callback)
@@ -1229,7 +1213,7 @@ public sealed partial class BattleSession
             return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeader is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeader is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)) ||
-            UsesExpandedRoster && (expandedEffect is not null || expandedHostedEvent is not null || HasExpandedAiDescriptors || actions.Any(command => command.ExpandedAiCallback is not null) || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
+            UsesExpandedRoster && (expandedHostedEvent is not null || HasExpandedAiDescriptors || actions.Any(command => command.ExpandedAiCallback is not null) || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
         {
             return BattleOutcome.Active;
         }
@@ -1340,10 +1324,7 @@ public sealed partial class BattleSession
 
     private void FinalizeBattleOutcome(BattleOutcome outcome)
     {
-        if (UsesExpandedRoster)
-        {
-            ReleaseExpandedActionPresentation();
-        }
+        expandedInvocationProgress = null;
         if (guardianForms is not null)
         {
             foreach (string actorId in guardianForms.Keys.ToArray())

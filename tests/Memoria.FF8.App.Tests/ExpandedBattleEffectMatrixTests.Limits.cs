@@ -57,7 +57,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(command.TargetRequest.Selection);
         Assert.Equal(limit.Command, command.NativeQueuedCommand);
         Assert.Equal(limit.ActionId, command.NativeAction!.ActionId);
-        NativeBattleEffectPresentation? presentation = null;
+        ExpandedBattlePresentationProcess? presentation = null;
         if (limit.KernelSection == 19 && limit.ActionId == 1 || command.NativeAction.HitCount > 1 || command.NativeAction.AttackType == 25 || eject)
         {
             BattleSnapshot queued = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
@@ -74,7 +74,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             for (int frame = 0; frame < 1000 && caster.IsBusy; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.ExpandedEffect is { } live)
+                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
                 {
                     presentation = live;
                     Assert.Equal(limit.MagicId, live.Graphics.OriginalEffect!.RequestedEffect);
@@ -137,7 +137,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.DoesNotContain(battle.EnemyDefeats, entry => entry.AllocationId == target.Id);
             }
         }
-        Assert.True(presentation is null || presentation.Complete);
+        Assert.True(presentation is null || presentation.ActiveActionToken is null);
         return (presentation is null ? "logical" : "native", $"{limit.Name} used its installed Limit row for {contacts.Length} recipient(s).");
     }
 }

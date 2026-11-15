@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             return callback.Stage == 1;
         }
         return action.NativeAiCallbackStage == 1 || action.NativeAiCallbackStage is null &&
-            action.NativePlayerReaction is null && action.NativeQueuedCommand is not (0 or 247);
+            action.NativePlayerReaction is null && action.NativeQueuedCommand is not (0 or 246 or 247);
     }
 
     private void CompleteExpandedHostedEventGauge(BattleActionPresentation action)

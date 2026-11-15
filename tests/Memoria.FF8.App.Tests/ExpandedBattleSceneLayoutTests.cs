@@ -21,17 +21,12 @@ public sealed class ExpandedBattleSceneLayoutTests
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EXPANDED_SCENE_OUTPUT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(output), "Set MEMORIA_FF8_EXPANDED_SCENE_OUTPUT for the optional scene renders.");
         string directory = TestResources.GameDirectory;
-        using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         foreach (int formation in new[] { 7, 40, 62 })
         {
             BattleEncounter encounter = assets.LoadEncounter(formation);
             BattleDefinition definition = CreateDefinitionForEncounter(assets, partyCount, enemyCount, encounter);
             BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-            if (partyCount > 3)
-            {
-                GameWorld.AttachExpandedEffects(battle, game, assets);
-            }
             BattleScenePresentation scene = new(assets, definition, useEncounter: true);
             const int width = 1280;
             const int height = 720;
@@ -50,12 +45,12 @@ public sealed class ExpandedBattleSceneLayoutTests
             Assert.Equal(0, battle.Frame);
             if (partyCount == 3)
             {
-                Assert.Null(battle.ExpandedPresentationHost);
+                Assert.Null(battle.ExpandedPresentationProcess);
                 BattleStageCamera authored = assets.LoadStage(encounter.StageId).IntroductionCameras[encounter.PrimaryCamera & 0xF7];
                 Assert.Equal(BattleCamera.FromNative(authored), scene.Camera);
                 continue;
             }
-            ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(battle.ExpandedPresentationHost!.ReadSceneFrame(battle));
+            ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(new ExpandedBattleSceneFrameBuilder(assets).ReadSceneFrame(battle));
             Assert.Equal(frame.Projection.OffsetY!.Value / 240f, scene.Camera.VerticalCenter);
             Assert.Equal(frame.Projection.OffsetX!.Value / 320f, scene.Camera.HorizontalCenter);
             Assert.Equal(2 * MathF.Atan(120f / frame.Projection.FocalLength!.Value), scene.Camera.FieldOfView);

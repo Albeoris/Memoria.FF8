@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, int PublishedCount, NativeBattleDeferredContactKind DeferredContact, BattleModelOwner? Reflector, bool RepeatAborted);
+    private sealed record NativeContactPlanResult(ImmutableArray<NativeBattleContactPacket> Contacts, int PublishedCount, BattleCombatant? Reflector, bool RepeatAborted);
     private NativeBattleActionProductionContext? nativeProductionContext;
 
     private static BattleNativeAction NativeFailedInvocationControl(BattleNativeAction native)
@@ -58,12 +59,18 @@ public sealed partial class BattleSession
             BattleCombatant[] targets = ResolveBattleTargets(command.TargetRequest);
             plan[hit] = ResolveNativeCover(actor, command, native, targets);
         }
+        NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
+        NativeContactPlanResult result = ExecuteNativeContactPlan(actor, command, action, native, plan, deferred != NativeBattleDeferredContactKind.None, context);
+        return new(result.Contacts, result.PublishedCount, deferred, result.Reflector is { } reflector ? CreatePresentationModelOwner(reflector) : null, result.RepeatAborted);
+    }
+
+    private NativeContactPlanResult ExecuteNativeContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary, NativeBattleActionProductionContext? context = null)
+    {
         foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.Slot is not null))
         {
             recipient.NativeRemainingHits = plan.Count(hit => hit.Targets.Contains(recipient));
         }
-        NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
-        ValidateEncounterContactCapacity(plan, native, deferred != NativeBattleDeferredContactKind.None);
+        ValidateEncounterContactCapacity(plan, native, preliminary);
         ImmutableArray<NativeBattleContactPacket>.Builder contacts = ImmutableArray.CreateBuilder<NativeBattleContactPacket>();
         BattleCombatant? firstReflector = null;
         int publishedCount = 0;
@@ -84,7 +91,8 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant recipient in targets)
                 {
-                    if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || !recipient.IsPlayer))
+                    bool deathCallbackSelf = recipient == actor && command.NativeAiCallbackStage == 3 && command.TargetRequest.DeathCallbackSelf == TargetActorReference(recipient);
+                    if (UsesExpandedRoster && !recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathCallbackSelf && (!allowKo || !recipient.IsPlayer))
                     {
                         aborted = true;
                         break;
@@ -109,11 +117,11 @@ public sealed partial class BattleSession
                     BattleActionPresentation? previousAction = resolvingNativeAction;
                     bool previousSuppression = suppressNativeImmediateCounter;
                     resolvingNativeAction = resolved;
-                    suppressNativeImmediateCounter |= deferred != NativeBattleDeferredContactKind.None && native.Command != 238 || native.Command is 237 or 241;
+                    suppressNativeImmediateCounter |= preliminary && native.Command != 238 || native.Command is 237 or 241;
                     try
                     {
                         SetEncounterContactPosition(contacts.Count);
-                        contacts.Add(ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, coverSource, deferred != NativeBattleDeferredContactKind.None));
+                        contacts.Add(ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native, coverSource, preliminary));
                     }
                     finally
                     {
@@ -128,7 +136,7 @@ public sealed partial class BattleSession
                 encounterHitTransaction = null;
             }
         }
-        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : CreatePresentationModelOwner(firstReflector), aborted);
+        return new(contacts.ToImmutable(), publishedCount, firstReflector, aborted);
     }
 
     private static bool HasNativeAffinityAction(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)

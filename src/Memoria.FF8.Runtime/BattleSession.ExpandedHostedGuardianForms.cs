@@ -100,10 +100,9 @@ public sealed partial class BattleSession
         candidate.Log("GuardianFormActive", owner.ActorId, owner.ActorId, owner.GuardianForceId, "GF form entrance completed.");
         PreparedHostedDispatch dispatch = process.PrepareDispatch([], completion: new(callback, owner.Actor, owner.ActorId));
         ExpandedHostedEvent hosted = new(entry, entry, callback, dispatch.Completion!.Request.Token, CompletionOwner: owner.Actor);
-        BattleSnapshot prepared = candidate.CaptureState();
-        CreateExpandedHostedFormCandidate(before).CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        PreparedActionPublication publication = new(this, candidate, CreateExpandedHostedFormCandidate(before));
         process.ValidatePreparedDispatch(dispatch);
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        publication.Publish();
         expandedPartyPresentation = candidate.expandedPartyPresentation;
         expandedHostedEvent = hosted;
         process.CommitDispatch(dispatch);
@@ -126,13 +125,12 @@ public sealed partial class BattleSession
 
     private void PublishExpandedHostedFormCandidate(ExpandedBattlePresentationProcess process, BattleSnapshot before, BattleSession candidate, PreparedHostedGuardianFormChange? visual)
     {
-        BattleSnapshot prepared = candidate.CaptureState();
-        CreateExpandedHostedFormCandidate(before).CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        PreparedActionPublication publication = new(this, candidate, CreateExpandedHostedFormCandidate(before));
         if (visual is not null)
         {
             process.ValidatePreparedGuardianFormChange(visual);
         }
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        publication.Publish();
         expandedPartyPresentation = candidate.expandedPartyPresentation;
         if (visual is not null)
         {

@@ -4,36 +4,59 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void PrepareAndPublishExpandedAction(BattleActionPresentation command)
+    private sealed class PreparedActionPublication
     {
-        BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = Restore(before, customHandlers);
-        ExpandedBattlePresentationProcess? process = expandedPresentationProcess;
-        candidate.preparingExpandedHostedAction = process is not null;
-        candidate.stagingExpandedHostedGuardianForms = process is not null;
-        candidate.expandedPresentationHost = process is null ? expandedPresentationHost : null;
-        candidate.expandedPartyPresentation = expandedPartyPresentation;
-        candidate.nativeAffinityAction = nativeAffinityAction;
-        try
+        private readonly BattleSession owner;
+        private readonly BattleSession candidate;
+        private readonly BattleSnapshot state;
+        private readonly long frame;
+        private readonly BattleActionPresentation? action;
+        private readonly ExpandedHostedEvent? hostedEvent;
+        private bool published;
+
+        internal PreparedActionPublication(BattleSession owner, BattleSession candidate, BattleSession preflight)
         {
-            candidate.CommitExpandedAction(command);
-            candidate.PrepareQueuedExpandedMagicEffects();
-            PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, command, process);
+            this.owner = owner;
+            this.candidate = candidate;
+            frame = owner.Frame;
+            action = owner.ActiveAction;
+            hostedEvent = owner.expandedHostedEvent;
+            state = candidate.CaptureState();
+            preflight.expandedPartyPresentation = owner.expandedPartyPresentation;
+            preflight.CopyCandidateState(candidate, state, preparedExpandedAction: true);
         }
-        catch
+
+        internal void Publish()
         {
-            candidate.ReleaseExpandedActionPresentation();
-            throw;
+            if (published || owner.Frame != frame || !ReferenceEquals(owner.ActiveAction, action) || !ReferenceEquals(owner.expandedHostedEvent, hostedEvent))
+            {
+                throw new InvalidOperationException("The prepared action was already published or its logical owner changed.");
+            }
+            owner.CopyCandidateState(candidate, state, preparedExpandedAction: true);
+            published = true;
         }
     }
 
-    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, ExpandedBattlePresentationProcess? process, BattleModelOwner? capturedCompletionOwner = null)
+    private void PrepareAndPublishExpandedAction(BattleActionPresentation command)
+    {
+        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Action preparation requires its attached presentation process.");
+        BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CaptureState());
+        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
+        BattleSession candidate = Restore(before, customHandlers);
+        candidate.preparingExpandedHostedAction = true;
+        candidate.stagingExpandedHostedGuardianForms = true;
+        candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.nativeAffinityAction = nativeAffinityAction;
+        candidate.CommitExpandedAction(command);
+        PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, command, process);
+    }
+
+    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, ExpandedBattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null)
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
-        if (process is not null && (candidate.HasStagedExpandedHostedOperations || command.ExpandedAiCallback is not null))
+        if (candidate.HasStagedExpandedHostedOperations || command.ExpandedAiCallback is not null)
         {
             BattleModelRoster roster = process.PlannedModelRoster;
             uint callback = UsesNativeOrdinaryCompletion(command) ? 0x47DE70u : 0x47DDA0u;
@@ -41,7 +64,7 @@ public sealed partial class BattleSession
             candidate.StageExpandedHostedCompletion(command, callback, completionOwner, capturedCompletionOwner is not null);
             // Routed ordinary counters can publish only after their source mirror and its actual completion are staged.
             candidate.FlushEncounterCounterCommands();
-            ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+            ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
             BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
             candidate.ValidateExpandedHostedInvocations(admittedRoster);
             ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form);
@@ -49,150 +72,34 @@ public sealed partial class BattleSession
             candidate.BindExpandedHostedPrefix(prefix, admission.Packets.Roster);
             hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token, CompletionOwner: completionOwner);
         }
-        BattleSnapshot prepared = candidate.CaptureState();
-        BattleSession preflight = Restore(before, customHandlers);
-        preflight.expandedPartyPresentation = expandedPartyPresentation;
-        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        preflight.ValidatePreparedExpandedPresentation(candidate);
+        PreparedActionPublication publication = new(this, candidate, Restore(before, customHandlers));
         if (admission is not null)
         {
-            process!.ValidatePreparedDispatch(admission);
+            process.ValidatePreparedDispatch(admission);
         }
         else if (form is not null)
         {
-            process!.ValidatePreparedGuardianFormChange(form);
+            process.ValidatePreparedGuardianFormChange(form);
         }
-        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-        TakeExpandedActionPresentation(candidate);
+        publication.Publish();
+        PublishStagedHostedOperations(candidate);
         if (admission is not null)
         {
             expandedHostedEvent = hostedEvent;
             expandedHostedActionToken = admission.Action?.Invocation.Token;
-            process!.CommitDispatch(admission);
+            process.CommitDispatch(admission);
         }
         else if (form is not null)
         {
-            process!.CommitGuardianFormChange(form);
+            process.CommitGuardianFormChange(form);
         }
         PublishHostedGuardianFormAudio(form);
     }
 
-    private void ValidatePreparedExpandedPresentation(BattleSession candidate)
+    private void PublishStagedHostedOperations(BattleSession candidate)
     {
-        if (candidate.expandedEffectCommand is { } command)
-        {
-            _ = GetActor(command.ActorId);
-            _ = GetActor(command.TargetId);
-        }
-        if (candidate.expandedMagicPresentation is { } queue)
-        {
-            foreach (ExpandedMagicCastPresentation presentation in queue)
-            {
-                _ = GetActor(presentation.Cast.ActorId);
-                _ = GetActor(presentation.Cast.TargetId);
-                foreach (ExpandedBattleContact contact in presentation.Contacts)
-                {
-                    _ = GetActor(contact.RecipientId);
-                }
-            }
-        }
-        foreach (ExpandedBattleContact contact in candidate.expandedModelContacts)
-        {
-            _ = GetActor(contact.RecipientId);
-        }
-        if (candidate.expandedGuardianFormEntry is { } entry &&
-            (!byId.ContainsKey(entry.ActorId) || GetGuardianForm(entry.ActorId)?.InvocationId != entry.InvocationId))
-        {
-            throw new InvalidDataException("Prepared expanded GF entrance lacks its published actor or invocation.");
-        }
-        if (candidate.expandedGuardianSummonTargets is { } targets)
-        {
-            foreach (BattleCombatant target in targets)
-            {
-                if (!byId.ContainsKey(target.Id) || !ReferenceEquals(candidate.GetActor(target.Id), target))
-                {
-                    throw new InvalidDataException("Prepared expanded summon has an invalid target owner.");
-                }
-            }
-        }
-        if (candidate.nativeGuardianBoost is { } boost)
-        {
-            boost.Validate();
-            if (candidate.expandedEffect?.IsGuardianSummon != true || candidate.expandedGuardianSummonTargets is not { Length: > 0 } ||
-                candidate.expandedEffectCommand is not { NativeAction: { Command: 254 } action } summon ||
-                ActiveAction is not { Phase: BattleActionPhase.Recovery, NativeAction: { Command: 254 } active } ||
-                active.ActionId != action.ActionId || boost.ActionId != action.ActionId || ActiveAction.ActorId != summon.ActorId ||
-                !GetActor(summon.ActorId).IsPlayer || nativeBattleUiRandom is null)
-            {
-                throw new InvalidDataException("Prepared expanded Boost lacks its hosted GF action, targets or UI random owner.");
-            }
-        }
-    }
-
-    private void PrepareQueuedExpandedMagicEffects()
-    {
-        if (expandedMagicPresentation is null)
-        {
-            return;
-        }
-        foreach (ExpandedMagicCastPresentation presentation in expandedMagicPresentation.Where(cast => cast.UsesNativeEffect))
-        {
-            BattleActionPresentation cast = presentation.Cast;
-            presentation.PreparedEffect = CreateExpandedEffect(GetActor(cast.ActorId), cast, cast.NativeAction!, cast.NativeSequence ?? 1, presentation.Contacts);
-        }
-    }
-
-    private void TakeExpandedActionPresentation(BattleSession candidate)
-    {
-        expandedEffect = candidate.expandedEffect;
-        expandedHostedOperations = candidate.expandedHostedOperations;
-        expandedHostedNextOperation = candidate.expandedHostedNextOperation;
-        expandedHostedCurrentOperation = candidate.expandedHostedCurrentOperation;
-        expandedEffectCommand = candidate.expandedEffectCommand;
-        expandedContactBridge = candidate.expandedContactBridge;
-        expandedExpectedContacts = candidate.expandedExpectedContacts;
-        expandedModelContacts = candidate.expandedModelContacts;
-        expandedModelRoster = candidate.expandedModelRoster;
-        expandedPresentedOccurrences.Clear();
-        expandedPresentedOccurrences.UnionWith(candidate.expandedPresentedOccurrences);
-        expandedEffectEnemyDraw = candidate.expandedEffectEnemyDraw;
-        expandedMagicPresentation = candidate.expandedMagicPresentation;
-        expandedMagicCompletionMessage = candidate.expandedMagicCompletionMessage;
-        expandedGuardianFormEntry = candidate.expandedGuardianFormEntry;
-        expandedGuardianSummonTargets = candidate.expandedGuardianSummonTargets?.Select(actor => GetActor(actor.Id)).ToArray();
-        expandedGuardianBoostInputEnabled = candidate.expandedGuardianBoostInputEnabled;
-        expandedGuardianFormSkipRequested = candidate.expandedGuardianFormSkipRequested;
+        expandedOperationCursor = candidate.expandedOperationCursor;
+        expandedInvocationProgress = candidate.expandedInvocationProgress;
         nativeAffinityAction = candidate.nativeAffinityAction;
-        nativeGuardianBoost = candidate.nativeGuardianBoost;
-
-        candidate.expandedEffect = null;
-        candidate.expandedEffectCommand = null;
-        candidate.expandedContactBridge = null;
-        candidate.expandedExpectedContacts = 0;
-        candidate.expandedModelContacts = [];
-        candidate.expandedModelRoster = null;
-        candidate.expandedPresentedOccurrences.Clear();
-        candidate.expandedEffectEnemyDraw = null;
-        candidate.expandedMagicPresentation = null;
-        candidate.expandedGuardianFormEntry = null;
-        candidate.expandedGuardianSummonTargets = null;
-    }
-
-    private void ReleaseExpandedActionPresentation()
-    {
-        ReleaseExpandedEffect();
-        if (expandedMagicPresentation is { } queue)
-        {
-            foreach (ExpandedMagicCastPresentation presentation in queue)
-            {
-                presentation.PreparedEffect?.Dispose();
-            }
-            expandedMagicPresentation = null;
-        }
-        expandedGuardianFormEntry?.Effect.Dispose();
-        expandedGuardianFormEntry = null;
-        expandedGuardianSummonTargets = null;
-        expandedGuardianBoostInputEnabled = false;
-        expandedEffectEnemyDraw = null;
     }
 }
