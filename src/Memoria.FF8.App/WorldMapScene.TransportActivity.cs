@@ -53,8 +53,25 @@ internal sealed partial class WorldMapScene
             }
             return null;
         }
-        //54E9B0 cannot start a draw point when the actual548CD0 broad result
-        //is nonnegative. Unknown or absent contacts retain that separate boundary.
-        return transportContactPublication is { } publication && publication.Frame == state.Frame && publication.BroadContact >= 0 ? false : null;
+        if (transportContactPublication is not { } publication || publication.Frame != state.Frame)
+        {
+            return null;
+        }
+        //54E9B0 only calls54F920 with broad contact-1. A missed boarding
+        //action still leaves559240's reset value when that lookup finds no point.
+        if (publication.BroadContact != -1)
+        {
+            return false;
+        }
+        NativeWorldGroundCacheState cache = state.NativeFootRuntime!.GroundCache ?? throw new InvalidDataException("Completed foot controls require their accepted ground owner.");
+        byte storyByte266 = salary.WorldEntryMemory?.StoryByte266 ?? throw new InvalidDataException("World draw-point lookup requires field byte266.");
+        foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
+        {
+            if (assets.FindNativeDrawPoint(alternative.CurrentGround, storyByte266) >= 0)
+            {
+                return null;
+            }
+        }
+        return false;
     }
 }
