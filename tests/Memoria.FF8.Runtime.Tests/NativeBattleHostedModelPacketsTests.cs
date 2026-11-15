@@ -1,11 +1,37 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedModelPacketsTests
 {
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Linked_mask_reuses_known_prefix_and_rewrites_only_changed_link_bytes(bool changePrefix)
+    {
+        NativeBattleGeometryPrimitive triangle = Triangle(0x80);
+        ImmutableArray<NativeBattleGfPacketByteState> original = triangle.PhysicalWriteMask!.Value;
+        ImmutableArray<NativeBattleGfPacketByteState> input = changePrefix
+            ? original.SetItem(0, NativeBattleGfPacketByteState.Unknown).SetItem(2, NativeBattleGfPacketByteState.Untouched)
+            : original;
+        NativeBattleCommonPacketStore store = NativeBattleCommonPacketArena.CreateLinkedPrimitiveStore(0, triangle with { PhysicalWriteMask = input }, 0x123456);
+        Assert.Equal(original.ToArray(), store.Mask.ToArray());
+        Assert.Equal(new byte[] { 0x56, 0x34, 0x12, (byte)(triangle.Words[0] >> 24) }, store.Data.Take(4).ToArray());
+        if (changePrefix)
+        {
+            Assert.NotSame(ImmutableCollectionsMarshal.AsArray(input), ImmutableCollectionsMarshal.AsArray(store.Mask));
+            Assert.Equal(NativeBattleGfPacketByteState.Unknown, input[0]);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, input[2]);
+        }
+        else
+        {
+            Assert.Same(ImmutableCollectionsMarshal.AsArray(input), ImmutableCollectionsMarshal.AsArray(store.Mask));
+        }
+    }
 
     [Theory]
     [InlineData("off_B6D094", "hosted-model-094", (byte)1, 147456)]

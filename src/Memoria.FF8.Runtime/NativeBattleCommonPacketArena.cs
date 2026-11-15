@@ -62,9 +62,12 @@ public static class NativeBattleCommonPacketArena
             data[0] = (byte)link;
             data[1] = (byte)(link >> 8);
             data[2] = (byte)(link >> 16);
-            NativeBattleGfPacketByteState[] finalMask = mask.ToArray();
-            KnownLinkMask.AsSpan().CopyTo(finalMask);
-            mask = ImmutableCollectionsMarshal.AsImmutableArray(finalMask);
+            if (mask[0] != NativeBattleGfPacketByteState.Known || mask[1] != NativeBattleGfPacketByteState.Known || mask[2] != NativeBattleGfPacketByteState.Known)
+            {
+                NativeBattleGfPacketByteState[] finalMask = mask.ToArray();
+                KnownLinkMask.AsSpan().CopyTo(finalMask);
+                mask = ImmutableCollectionsMarshal.AsImmutableArray(finalMask);
+            }
         }
         return new(address, ImmutableCollectionsMarshal.AsImmutableArray(data), mask);
     }
