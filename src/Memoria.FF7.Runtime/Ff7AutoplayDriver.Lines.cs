@@ -144,6 +144,10 @@ public sealed partial class Ff7AutoplayDriver
 
     private bool AllowsPlannedMove(Ff7Actor from, Ff7NativeMoveResult move)
     {
+        if (spatialBoundaryGeneration == session.FieldGeneration && !AllowsSpatialMove(from, move.Actor, spatialBoundaryTriangles, admittedSpatialTriangle))
+        {
+            return false;
+        }
         if (!session.Host.Process.MapJumpDisabled && !AllowsGatewayMove(session.Field.Triggers.Gateways, from, move.Actor, admittedGateways))
         {
             return false;

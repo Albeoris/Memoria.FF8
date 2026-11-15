@@ -11,6 +11,8 @@ internal static class NativeAutoPlaySpatialTests
     public static void Run()
     {
         CheckPhysicalGuard();
+        CheckSpatialBoundaries();
+        CheckSpatialRouteGuidance();
         CheckTransitionCompletion();
         CheckGatewaySourceProgress();
         CheckLegacyVisitGuard();
@@ -26,6 +28,50 @@ internal static class NativeAutoPlaySpatialTests
         Check(!Ff7AutoPlayPolicy.IsSpatialTransitionCompletion(active with { DestinationField = null, SpatialDestinations = [10, 11] }, 12), "An unrelated native destination falsely completed a frontier with multiple destinations.");
         Check(!Ff7AutoPlayPolicy.IsSpatialTransitionCompletion(active with { DestinationField = null }, 11), "A spatial frontier without a proved destination claimed an arbitrary native transition.");
         Check(!Ff7AutoPlayPolicy.IsSpatialTransitionCompletion(active with { Kind = Ff7AutoPlayTargetKind.ActorTalk }, 10), "An actor interaction acquired autonomous transition ownership.");
+    }
+
+    private static void CheckSpatialBoundaries()
+    {
+        Ff7AutoPlayTarget planned = new("automatic:2:triangle:42", 2, -1, Ff7AutoPlayTargetKind.AutonomousSpatial, "native-predicate", false, Vector3.Zero, Triangle: 42, ChangesField: true) { TriangleOnly = true };
+        Ff7AutoPlayTarget other = planned with { Id = "automatic:3:triangle:26", Entity = 3, Triangle = 26 };
+        Ff7AutoPlayTarget coordinatePredicate = planned with { Id = "automatic:4:triangle:12", Entity = 4, Triangle = 12, TriangleOnly = false };
+        Ff7AutoPlayTarget ordinary = planned with { Id = "actor:5:script:1", Entity = 5, Script = 1, Kind = Ff7AutoPlayTargetKind.ActorTalk, Triangle = 13 };
+        HashSet<int> boundaries = Ff7AutoplayDriver.ReadSpatialBoundaryTriangles([planned, other, coordinatePredicate, ordinary]);
+        Check(boundaries.SetEquals([26, 42]), "Spatial move guards treated coordinate-dependent regions or ordinary interactions as whole native triangle boundaries.");
+        Ff7Actor sourceActor = new() { Entity = 0, Slot = 0, Model = 0, Triangle = 0 };
+        Check(Ff7AutoplayDriver.AllowsSpatialMove(sourceActor, sourceActor with { Triangle = 42 }, boundaries, 42), "The selected native automatic triangle was forbidden during its ordinary physical approach.");
+        Check(!Ff7AutoplayDriver.AllowsSpatialMove(sourceActor, sourceActor with { Triangle = 26 }, boundaries, 42), "A physical approach crossed another active automatic transition triangle.");
+        Check(!Ff7AutoplayDriver.AllowsSpatialMove(sourceActor, sourceActor with { Triangle = 42 }, boundaries, null), "An ordinary interaction admitted an unrelated native automatic transition triangle.");
+        Check(Ff7AutoplayDriver.AllowsSpatialMove(sourceActor, sourceActor with { Triangle = 12 }, boundaries, null), "A coordinate-dependent native predicate blocked the entire sampled triangle.");
+        Check(Ff7AutoplayDriver.AllowsSpatialMove(sourceActor with { Triangle = 26 }, sourceActor, boundaries, null), "A preexisting native automatic triangle prevented physical escape to ordinary geometry.");
+        Check(!Ff7AutoplayDriver.AllowsSpatialMove(sourceActor with { Triangle = 26 }, sourceActor with { Triangle = 42 }, boundaries, null), "Escaping a preexisting automatic triangle authorized another unselected transition.");
+
+        string original = Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("physical-geometry", boundaries);
+        Check(original == Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("physical-geometry", Ff7AutoplayDriver.ReadSpatialBoundaryTriangles([other, planned, planned])), "Boundary ordering or duplicate native owners changed physical availability.");
+        Check(original != Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("physical-geometry", Ff7AutoplayDriver.ReadSpatialBoundaryTriangles([planned])), "Disabling an automatic transition retained stale physical route absence.");
+        Check(original != Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("physical-geometry", Ff7AutoplayDriver.ReadSpatialBoundaryTriangles([planned, other, coordinatePredicate with { TriangleOnly = true }])), "Enabling another proved native triangle boundary retained stale physical route absence.");
+    }
+
+    private static void CheckSpatialRouteGuidance()
+    {
+        PcWalkmeshTriangle[] mesh = Enumerable.Range(0, 43).Select(index => new PcWalkmeshTriangle(index, Vector3.Zero, Vector3.UnitX, Vector3.UnitY, -1, -1, -1)).ToArray();
+        mesh[0] = mesh[0] with { AdjacentAB = 26, AdjacentBC = 1 };
+        mesh[26] = mesh[26] with { AdjacentAB = 0, AdjacentBC = 42 };
+        mesh[1] = mesh[1] with { AdjacentAB = 0, AdjacentBC = 2 };
+        mesh[2] = mesh[2] with { AdjacentAB = 1, AdjacentBC = 42 };
+        mesh[42] = mesh[42] with { AdjacentAB = 26, AdjacentBC = 2 };
+        byte[] blocked = new byte[6];
+        var ordinary = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 42);
+        Check(ordinary.Previous[0] == 26 && ordinary.Distance[0] == 2, "The authored route fixture did not prefer its shorter unplanned automatic region.");
+        var planned = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 42, new HashSet<int> { 26, 42 }, 42);
+        Check(planned.Previous[0] == 1 && planned.Previous[1] == 2 && planned.Previous[2] == 42 && planned.Distance[0] == 3 && planned.Previous[26] == -1, "Native route guidance failed to choose ordinary geometry around an unselected automatic transition triangle.");
+        var escape = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 26, 0, new HashSet<int> { 26, 42 });
+        Check(escape.Previous[26] == 0 && escape.Distance[26] == 1, "Native route guidance could not escape a preexisting automatic transition triangle.");
+        var unselected = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 42, new HashSet<int> { 26, 42 });
+        Check(unselected.Previous[0] == -1, "An ordinary target's route guidance entered an unselected automatic destination.");
+        blocked[0] = 1 << 2;
+        var absent = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 42, new HashSet<int> { 26, 42 }, 42);
+        Check(absent.Previous[0] == -1, "Spatial route guidance bypassed native blocking when its safe alternative closed.");
     }
 
     private static void CheckPhysicalGuard()
@@ -135,7 +181,7 @@ internal static class NativeAutoPlaySpatialTests
         long initialGeneration = session.FieldGeneration;
         short initialStory = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
         string initialProgress = JsonSerializer.Serialize(session.Progress);
-        for (int cycle = 0; cycle < 256 && !observed.Events.Any(target => target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial); cycle++)
+        for (int cycle = 0; cycle < 256 && (!observed.CanAcceptInput || !observed.Events.Any(target => target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial)); cycle++)
         {
             session.SetInput(0, 0);
             session.AdvanceTick(advanceClock: false);
@@ -152,12 +198,25 @@ internal static class NativeAutoPlaySpatialTests
         string before = JsonSerializer.Serialize(session.Capture());
         Ff7AutoPlayTarget[] spatial = observed.Events.Where(target => target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial).ToArray();
         Check(spatial.Length > 0, "Native automatic map-change predicates did not expose any physical spatial frontier.");
+        Check(observed.CanAcceptInput, "The native spatial fixture did not reach ordinary physical input admission within its bounded initialization.");
+        Check(spatial.Any(target => target.TriangleOnly), "The native triangle fixture did not retain a proved triangle-only predicate for transition admission.");
         Check(spatial.Select(target => target.Id).Distinct(StringComparer.Ordinal).Count() == spatial.Length, "Autonomous spatial samples share an unstable target identity.");
         foreach (Ff7AutoPlayTarget target in spatial)
         {
             CheckTarget(session, target);
             Check(discovery.FindTarget(target.Id) == target, "An autonomous spatial frontier could not be resolved by stable identity.");
         }
+        Ff7AutoplayDriver driver = new(session);
+        driver.ConfigureSpatialBoundaries(observed.Events);
+        string physical = driver.ReadPhysicalAvailabilityFingerprint(spatial[0]);
+        driver.ConfigureSpatialBoundaries(observed.Events, spatial[0]);
+        Check(physical == driver.ReadPhysicalAvailabilityFingerprint(spatial[0]), "Selecting a spatial frontier invalidated physical absence without a native boundary change.");
+        if (spatial.Any(target => target.TriangleOnly))
+        {
+            driver.ConfigureSpatialBoundaries([]);
+            Check(physical != driver.ReadPhysicalAvailabilityFingerprint(spatial[0]), "The live physical guard ignored changed native automatic transition availability.");
+        }
+        CheckOriginalProposal(session, driver, observed, spatial);
         Check(JsonSerializer.Serialize(observed) == JsonSerializer.Serialize(discovery.Observe()), "Autonomous spatial discovery was not deterministic.");
         Check(before == JsonSerializer.Serialize(session.Capture()), "Autonomous spatial discovery changed native script PCs, inputs, progress or RNG.");
         using MemoryStream serialized = new();
@@ -166,6 +225,36 @@ internal static class NativeAutoPlaySpatialTests
         using Ff7Session cold = Ff7Session.Restore(installation, CombinedSessionCodec.Read(serialized).Ff7!);
         Check(JsonSerializer.Serialize(observed) == JsonSerializer.Serialize(new Ff7AutoPlayDiscovery(cold).Observe()), "Cold restoration changed autonomous spatial frontier geometry, conditions or identities.");
         Check(source.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Autonomous spatial discovery changed its external standalone source.");
+    }
+
+    private static void CheckOriginalProposal(Ff7Session session, Ff7AutoplayDriver driver, Ff7AutoPlayObservation observed, Ff7AutoPlayTarget[] spatial)
+    {
+        Ff7AutoPlayTarget selected = spatial.FirstOrDefault(target => target.Triangle == 42 && target.TriangleOnly) ?? spatial.First(target => target.TriangleOnly);
+        driver.ConfigureSpatialBoundaries(observed.Events, selected);
+        HashSet<int> boundaries = Ff7AutoplayDriver.ReadSpatialBoundaryTriangles(observed.Events);
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        var routes = Ff7AutoplayDriver.ReadApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, selected.Triangle!.Value, boundaries, selected.Triangle);
+        bool hasRoute = routes.Previous[player.Triangle] >= 0;
+        bool unavailable = false;
+        try
+        {
+            Ff7AutoplayInput input = driver.ChooseTargetInput(selected, () => driver.Approach(selected.Position, selected.Triangle));
+            Check(hasRoute, "An original spatial approach bypassed a proved absence of an admitted native triangle route.");
+            if (input.Horizontal != 0 || input.Vertical != 0)
+            {
+                Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
+                int direction = input.Vertical < 0 ? input.Horizontal < 0 ? 32 : input.Horizontal > 0 ? 224 : 0 : input.Vertical > 0 ? input.Horizontal < 0 ? 96 : input.Horizontal > 0 ? 160 : 128 : input.Horizontal < 0 ? 64 : 192;
+                int rotation = (input.Held & 8) != 0 ? 224 : (input.Held & 4) != 0 ? 32 : 0;
+                Ff7NativeMoveResult preview = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction + session.Field.Triggers.ControlDirection + rotation)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+                Check(preview.Moved && Ff7AutoplayDriver.AllowsSpatialMove(controlled, preview.Actor, boundaries, selected.Triangle), "The original native proposal entered an unselected automatic transition triangle or failed native movement admission.");
+            }
+        }
+        catch (Ff7AutoPlayNavigationUnavailableException absence) when (!hasRoute)
+        {
+            unavailable = true;
+            Check(absence.DestinationTriangle == selected.Triangle && absence.Destination == selected.Position, "Original spatial route absence lost its selected native destination proof.");
+        }
+        Check(hasRoute || unavailable, "An original spatial target without a safe triangle route omitted its explicit navigation boundary.");
     }
 
     internal static void CheckTarget(Ff7Session session, Ff7AutoPlayTarget target)

@@ -98,6 +98,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return nativeInput;
         }
         Ff7AutoPlayObservation observation = ObservePlanner();
+        driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         Dictionary<string, string> validatedPhysicalGuards = new(StringComparer.Ordinal);
         foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId).ToArray())
@@ -194,6 +195,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return default;
         }
         int? selectedLineOwner = selectedTarget.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? selectedTarget.Entity : null;
+        driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
         driver.AvoidLinePush(observation.Events.Where(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && target.ChangesField && target.Entity != selectedLineOwner && !(selectedTarget.Kind == Ff7AutoPlayTargetKind.Gateway && selectedTarget.DestinationField == target.DestinationField)).Select(target => target.Entity).Distinct().ToArray());
         if (DetectMovementCycle(current))
         {

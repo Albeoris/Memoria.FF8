@@ -20,9 +20,9 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         if (target.Kind is Ff7AutoPlayTargetKind.ActorTalk or Ff7AutoPlayTargetKind.ActorContact)
         {
             string actor = ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.GetActor(target.Entity), blockingEntities, session.Host.Process.Actors, session.Host.Process.MapJumpDisabled, session.Field.Triggers.Gateways);
-            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{actor}|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}")));
+            return WithSpatialBoundaryFingerprint(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{actor}|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}"))));
         }
-        return ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled, blockingEntities, session.Host.Process.Actors);
+        return WithSpatialBoundaryFingerprint(ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled, blockingEntities, session.Host.Process.Actors));
     }
 
     internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways, bool mapJumpDisabled = false, IReadOnlyList<int>? blockingEntities = null, IReadOnlyList<Ff7Actor>? actors = null)
@@ -255,26 +255,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             finalTarget = target;
         }
         finalApproach |= player.Triangle == destination;
-        int[] previous = Enumerable.Repeat(-1, mesh.Count).ToArray();
-        int[] routeDistance = Enumerable.Repeat(int.MaxValue, mesh.Count).ToArray();
-        Queue<int> queue = new();
-        previous[destination] = destination;
-        routeDistance[destination] = 0;
-        queue.Enqueue(destination);
-        while (queue.TryDequeue(out int current))
-        {
-            PcWalkmeshTriangle triangle = mesh[current];
-            foreach (int adjacent in new int[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
-            {
-                if (adjacent < 0 || previous[adjacent] >= 0 || (session.Host.Process.BlockedTriangles[adjacent >> 3] & (1 << (adjacent & 7))) != 0)
-                {
-                    continue;
-                }
-                previous[adjacent] = current;
-                routeDistance[adjacent] = routeDistance[current] + 1;
-                queue.Enqueue(adjacent);
-            }
-        }
+        var (previous, routeDistance) = ReadApproachRoutes(mesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle);
         int next = previous[player.Triangle];
         if (next < 0 && !finalApproach)
         {
@@ -352,5 +333,34 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             }
         }
         return TryObstacleEscape(controlled, target, waypoint, destination, next, routeDistance, blockedForward, blockers.ToArray(), movement, out Ff7AutoplayInput escape) ? escape with { Run = run } : result with { Run = run };
+    }
+
+    internal static (int[] Previous, int[] Distance) ReadApproachRoutes(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, int source, int destination, IReadOnlySet<int>? spatialBoundaries = null, int? admittedSpatialTriangle = null)
+    {
+        int[] previous = Enumerable.Repeat(-1, mesh.Count).ToArray();
+        int[] distance = Enumerable.Repeat(int.MaxValue, mesh.Count).ToArray();
+        if (spatialBoundaries?.Contains(destination) == true && destination != source && destination != admittedSpatialTriangle)
+        {
+            return (previous, distance);
+        }
+        Queue<int> queue = new();
+        previous[destination] = destination;
+        distance[destination] = 0;
+        queue.Enqueue(destination);
+        while (queue.TryDequeue(out int current))
+        {
+            PcWalkmeshTriangle triangle = mesh[current];
+            foreach (int adjacent in new int[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
+            {
+                if (adjacent < 0 || previous[adjacent] >= 0 || (blockedTriangles[adjacent >> 3] & (1 << (adjacent & 7))) != 0 || spatialBoundaries?.Contains(adjacent) == true && adjacent != source && adjacent != admittedSpatialTriangle)
+                {
+                    continue;
+                }
+                previous[adjacent] = current;
+                distance[adjacent] = distance[current] + 1;
+                queue.Enqueue(adjacent);
+            }
+        }
+        return (previous, distance);
     }
 }

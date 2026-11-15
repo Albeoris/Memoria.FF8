@@ -13,6 +13,7 @@ internal static class NativeSpatialInputTests
         QueryWithoutTransitionStops();
         BoundedWaitAndLoop();
         ByteAliasesRetainSourceDependencies();
+        TrianglePredicateTaint();
         Console.WriteLine("PASS native read-only autonomous spatial demands");
     }
 
@@ -21,11 +22,11 @@ internal static class NativeSpatialInputTests
         foreach (byte[] query in new byte[][] { [0xB9, 6, 1, 7], [0xC1, 0x66, 0x66, 1, 17, 19, 21, 7] })
         {
             (_, FieldMachine machine, _) = Create([.. query, 0x16, 0x60, 7, 0, 24, 0, 4, 4, 0x01, 1, 0x44, 0], Transition(99));
-            Check(machine.ReadCurrentSpatialDemands(1, Samples).Demands.Single().SampleId == 20, "A direct actor triangle or position query lost its native selector or sample.");
+            Check(machine.ReadCurrentSpatialDemands(1, Samples).Demands.Single() is { SampleId: 20, TriangleOnly: true }, "A direct actor triangle or position query lost its native selector or sample.");
         }
         (_, FieldMachine coordinates, _) = Create([0xB8, 0x66, 1, 17, 19, 0x16, 0x60, 19, 0, 5, 0, 0, 4, 0x01, 1, 0x44, 0], Transition(99));
         FieldSpatialSample[] positions = [new(1, new(-3, 5, 0, 0)), new(2, new(5, -3, 0, 0))];
-        Check(coordinates.ReadCurrentSpatialDemands(1, positions).Demands.Single().SampleId == 1, "Packed signed XY query results changed native coordinate comparison semantics.");
+        Check(coordinates.ReadCurrentSpatialDemands(1, positions).Demands.Single() is { SampleId: 1, TriangleOnly: false }, "Packed signed XY query results changed native coordinate comparison semantics.");
     }
 
     private static void GuardAndNativePartyRequest()
@@ -38,7 +39,7 @@ internal static class NativeSpatialInputTests
         string before = JsonSerializer.Serialize(machine.Capture());
         FieldSpatialObservation observed = machine.ReadCurrentSpatialDemands(1, Samples);
         FieldSpatialDemand demand = observed.Demands.Single();
-        Check(demand is { Entity: 0, ProgramCounter: 25, TargetEntity: 1, TargetScript: 4, SampleId: 20 } && demand.DestinationFields.SequenceEqual([99]), "Native spatial predicates or party child resolution selected the wrong request or sample.");
+        Check(demand is { Entity: 0, ProgramCounter: 25, TargetEntity: 1, TargetScript: 4, SampleId: 20 } && demand.DestinationFields.SequenceEqual([99]) && demand.TriangleOnly, "Native spatial predicates or party child resolution selected the wrong request or sample.");
         Check(host.Calls == 0 && before == JsonSerializer.Serialize(machine.Capture()), "Spatial projection mutated the authoritative VM, inputs, variables, host or RNG.");
         FieldMachine cold = FieldMachine.Restore(program, machine.Capture(), host);
         Check(JsonSerializer.Serialize(observed) == JsonSerializer.Serialize(cold.ReadCurrentSpatialDemands(1, Samples)), "Cold restoration changed spatial demands or their source fingerprint.");
@@ -91,6 +92,29 @@ internal static class NativeSpatialInputTests
         (_, FieldMachine machine, _) = Create(main, Transition(99));
         FieldSpatialObservation result = machine.ReadCurrentSpatialDemands(1, Samples);
         Check(result.Demands.Length == 2 && result.Reads.Contains(new(FieldBank.MapByte, 8, false)) && !result.Reads.Contains(new(FieldBank.MapByte, 7, false)), "A byte own-store hid an unmodified source byte in an aliased WORD predicate.");
+    }
+
+    private static void TrianglePredicateTaint()
+    {
+        byte[] query = [0x75, 0x66, 0x66, 0, 17, 19, 21, 7];
+        FieldSpatialSample[] positions = [new(1, new(30, 31, 32, 26))];
+        foreach (byte coordinate in new byte[] { 17, 19, 21 })
+        {
+            (_, FieldMachine machine, _) = Create([.. query, 0x16, 0x60, coordinate, 0, 24, 0, 4, 4, 0x06, 0, 0x44, 0], Transition(99));
+            Check(!machine.ReadCurrentSpatialDemands(1, positions).Demands.Single().TriangleOnly, "A coordinate predicate was classified as triangle-only.");
+        }
+        (_, FieldMachine copied, _) = Create([.. query, 0x81, 0x26, 30, 7, 0, 0x86, 0x20, 30, 1, 0, 0x16, 0x20, 30, 0, 24, 0, 4, 4, 0x06, 0, 0x44, 0], Transition(99));
+        Check(copied.ReadCurrentSpatialDemands(1, Samples).Demands.Single().TriangleOnly, "A copied triangle predicate lost its provenance through a canonical bank alias or arithmetic.");
+        (_, FieldMachine replacedCoordinate, _) = Create([.. query, 0x81, 0x66, 17, 7, 0, 0x16, 0x60, 17, 0, 24, 0, 4, 4, 0x06, 0, 0x44, 0], Transition(99));
+        Check(replacedCoordinate.ReadCurrentSpatialDemands(1, Samples).Demands.Single().TriangleOnly, "An overwritten coordinate output retained stale coordinate taint.");
+        (_, FieldMachine literal, _) = Create([.. query, 0x81, 0x60, 7, 26, 0, 0x16, 0x60, 7, 0, 24, 0, 4, 4, 0x06, 0, 0x44, 0], Transition(99));
+        Check(literal.ReadCurrentSpatialDemands(1, Samples).Demands.All(demand => !demand.TriangleOnly), "A literal overwrite retained stale triangle taint.");
+        (_, FieldMachine partial, _) = Create([.. query, 0x80, 0x50, 8, 0, 0x16, 0x60, 7, 0, 24, 0, 4, 4, 0x06, 0, 0x44, 0], Transition(99));
+        Check(!partial.ReadCurrentSpatialDemands(1, Samples).Demands.Single().TriangleOnly, "A partially overwritten WORD alias was treated as a proved scalar predicate.");
+        (_, FieldMachine byteAlias, _) = Create([.. query, 0x14, 0x50, 7, 24, 4, 4, 0x06, 0, 0x44, 0], Transition(99));
+        Check(!byteAlias.ReadCurrentSpatialDemands(1, Samples).Demands.Single().TriangleOnly, "A partial WORD read was treated as a proved scalar predicate.");
+        (_, FieldMachine unused, _) = Create([.. query, 0x06, 0, 0x44, 0], Transition(99));
+        Check(unused.ReadCurrentSpatialDemands(1, Samples).Demands.All(demand => !demand.TriangleOnly), "Unused triangle output invented a triangle predicate.");
     }
 
     private static (FieldProgram Program, FieldMachine Machine, RejectHost Host) Create(byte[] main, byte[] child)

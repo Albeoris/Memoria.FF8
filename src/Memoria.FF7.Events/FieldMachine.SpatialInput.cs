@@ -4,7 +4,10 @@ using System.Text;
 namespace Memoria.FF7.Events;
 
 public sealed record FieldSpatialSample(int Id, FieldActorPosition Position);
-public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int TargetEntity, int TargetScript, int SampleId, int[] DestinationFields, bool ChangesStory, string Fingerprint, FieldVariableRead[] Reads, FieldHostRead[] HostReads);
+public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int TargetEntity, int TargetScript, int SampleId, int[] DestinationFields, bool ChangesStory, string Fingerprint, FieldVariableRead[] Reads, FieldHostRead[] HostReads)
+{
+    public bool TriangleOnly { get; init; }
+}
 public sealed record FieldSpatialObservation(FieldSpatialDemand[] Demands, FieldVariableRead[] Reads, string Fingerprint);
 
 public sealed partial class FieldVariables
@@ -36,6 +39,17 @@ public sealed partial class FieldVariables
 
 public sealed partial class FieldMachine
 {
+    [Flags]
+    private enum SpatialTaint
+    {
+        None = 0,
+        Coordinates = 1,
+        Triangle = 2,
+        Unknown = 4
+    }
+
+    private readonly record struct SpatialScalarTaint(SpatialTaint Taint, int Scalar, int Width);
+
     private sealed class SpatialInspectionQueryException : Exception
     {
     }
@@ -82,6 +96,12 @@ public sealed partial class FieldMachine
             HashSet<FieldVariableRead> instructionReads = [];
             HashSet<FieldVariableRead> instructionWrites = [];
             bool sampled = false;
+            Dictionary<FieldVariableRead, SpatialScalarTaint> taints = [];
+            SpatialTaint instructionTaint = SpatialTaint.None;
+            SpatialTaint predicateTaint = SpatialTaint.None;
+            FieldActorQueryKind? queryKind = null;
+            int queryWrites = 0;
+            int scalar = 0;
             detached.inspection = new()
             {
                 StopAtHost = true,
@@ -96,12 +116,43 @@ public sealed partial class FieldMachine
                         throw new SpatialInspectionQueryException();
                     }
                     sampled = true;
+                    queryKind = query.Query;
                     int value = query.Query == FieldActorQueryKind.Triangle ? sample.Position.Triangle : (ushort)sample.Position.X | (sample.Position.Y << 16);
                     return new(true, value, sample.Position);
                 }
             };
-            detached.Variables.ReadObserved = read => instructionReads.UnionWith(detached.Variables.SpatialSourceBytes(read));
-            detached.Variables.WriteObserved = write => instructionWrites.UnionWith(detached.Variables.SpatialSourceBytes(write));
+            detached.Variables.ReadObserved = read =>
+            {
+                FieldVariableRead[] bytes = detached.Variables.SpatialSourceBytes(read).ToArray();
+                instructionReads.UnionWith(bytes);
+                SpatialScalarTaint[] values = bytes.Select(value => taints.GetValueOrDefault(value)).ToArray();
+                SpatialTaint consumed = values.Aggregate(SpatialTaint.None, (result, value) => result | value.Taint);
+                if (consumed != SpatialTaint.None && (values.Any(value => value.Width != bytes.Length) || values.Select(value => value.Scalar).Distinct().Count() != 1))
+                {
+                    consumed |= SpatialTaint.Unknown;
+                }
+                instructionTaint |= consumed;
+            };
+            detached.Variables.WriteObserved = write =>
+            {
+                FieldVariableRead[] bytes = detached.Variables.SpatialSourceBytes(write).ToArray();
+                instructionWrites.UnionWith(bytes);
+                SpatialTaint result = instructionTaint;
+                if (queryKind is FieldActorQueryKind kind)
+                {
+                    result = kind == FieldActorQueryKind.Triangle || kind == FieldActorQueryKind.Position && queryWrites == 3 ? SpatialTaint.Triangle : SpatialTaint.Coordinates;
+                    if (!write.Word || bytes.Length != 2 || instructionTaint != SpatialTaint.None)
+                    {
+                        result |= SpatialTaint.Unknown;
+                    }
+                    queryWrites++;
+                }
+                SpatialScalarTaint value = new(result, ++scalar, bytes.Length);
+                foreach (FieldVariableRead address in bytes)
+                {
+                    taints[address] = value;
+                }
+            };
             HashSet<int> visited = [];
             for (int step = 0; step < instructionBudget; step++)
             {
@@ -113,6 +164,9 @@ public sealed partial class FieldMachine
                 }
                 instructionReads.Clear();
                 instructionWrites.Clear();
+                instructionTaint = SpatialTaint.None;
+                queryKind = null;
+                queryWrites = 0;
                 try
                 {
                     byte opcode = program.Read(pc);
@@ -135,6 +189,10 @@ public sealed partial class FieldMachine
                         break;
                     }
                     detached.Execute(entity);
+                    if (opcode is >= 0x14 and <= 0x19)
+                    {
+                        predicateTaint |= instructionTaint;
+                    }
                     // Stores own their result; only preceding source reads can define their dependencies.
                     dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read) && !instructionWrites.Contains(read)));
                     written.UnionWith(instructionWrites);
@@ -183,7 +241,7 @@ public sealed partial class FieldMachine
                 FieldVariableRead[] reads = dependencies.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
                 string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, script, reads)}";
                 string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
-                demands.Add(new(entity, pc, target, script, sample!.Id, child.DestinationFields, child.ChangesStory, fingerprint, reads, child.HostReads));
+                demands.Add(new(entity, pc, target, script, sample!.Id, child.DestinationFields, child.ChangesStory, fingerprint, reads, child.HostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle });
             }
         }
     }
