@@ -194,7 +194,7 @@ public sealed partial class BattleSession
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100), BattleTextIdentity.Global(100));
             }
             RefundCancelledNativeItem(command);
-            CompleteActionPresentation(command, "Expanded action cancelled.");
+            CompleteExpandedProducedCommand(command, "Expanded action cancelled.");
             return;
         }
         if (!hosted && graphicAction is not null && recipients.Length == 0)
@@ -334,7 +334,7 @@ public sealed partial class BattleSession
             if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !(command is { NativeQueuedCommand: 2, NativeAiCallbackStage: not null } && ExpandedBattleActionRules.SupportsEnemyMagicCure(reflected)))
             {
                 RefundCancelledNativeItem(command);
-                CompleteActionPresentation(command, "The expanded host has no supported reflected spell record.");
+                CompleteExpandedProducedCommand(command, "The expanded host has no supported reflected spell record.");
                 return;
             }
         }
@@ -348,7 +348,8 @@ public sealed partial class BattleSession
             CanPresentExpandedEnemyEffect(actor, command, native, firstHitRecipientCount));
 
         bool independentSupport = IsExpandedIndependentSupport(native, command.NativePlayerReaction);
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0, Command = stockDraw is not null || native.Command is 0 or 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
+        byte? eventLane = producingExpandedAiCallback ? nativeActionScratch.EventLane : actor.IsPlayer && !independentSupport ? (byte)2 : (byte)0;
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = eventLane, Command = stockDraw is not null || native.Command is 0 or 248 or 253 ? native.Command : command.NativeQueuedCommand ?? native.Command, Action = native.ActionId };
         if (command.Ability == BattleAbility.GuardianForce)
         {
             // TODO(TD-009): A logical-only host has no summon presentation callback to own Boost.
@@ -361,9 +362,13 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderPreparation? reflectedHeader = null;
         (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)? phoenixRevival = null;
         bool phoenixPinion = command is { Ability: BattleAbility.Item, ActionId: 31, IndependentGuardian.Action: not null };
+        ReserveExpandedAiInvocation(resolved, hostedHeader);
         resolvingNativeAction = formulaCommand;
         expandedRecoverSourceHp = native.AttackType == 25 ? actor.CurrentHp : null;
-        BeginNativeReactionBatch();
+        if (!producingExpandedAiCallback)
+        {
+            BeginNativeReactionBatch();
+        }
         nativeActionCommitDepth++;
         try
         {
@@ -466,7 +471,10 @@ public sealed partial class BattleSession
             {
                 StageExpandedHostedInvocation(reflectedCommand, reflectedHeader!, reflectedContacts, contacts.IsEmpty ? hostedDraw : null);
             }
-            ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+            if (!producingExpandedAiCallback)
+            {
+                ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+            }
             return;
         }
         if (command.Ability == BattleAbility.Attack)
@@ -502,6 +510,14 @@ public sealed partial class BattleSession
         }
         BeginExpandedEffect(actor, resolved, presentationAction, presentationSequence, contacts);
         ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+    }
+
+    private void CompleteExpandedProducedCommand(BattleActionPresentation command, string message)
+    {
+        if (!producingExpandedAiCallback)
+        {
+            CompleteActionPresentation(command, message);
+        }
     }
 
     private void PublishExpandedEffectStep(BattleActionPresentation command, NativeBattleEffectPresentationStep step)
@@ -681,6 +697,7 @@ public sealed partial class BattleSession
         resolvingNativeAction = command;
         nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
         NativeBattleActionHeaderPreparation? hostedHeader = OwnsExpandedHostedInvocation ? BuildExpandedActionHeaderPreparation(command, reflected) : null;
+        ReserveExpandedAiInvocation(command, hostedHeader);
         bool presentsNativeEffect = hostedHeader is not null || expandedPresentationHost is not null && ExpandedBattleActionRules.HasNativeSpellPresentation(reflected, reflectionPlan[0].Length);
         try
         {

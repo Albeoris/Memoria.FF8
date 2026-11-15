@@ -65,7 +65,7 @@ public sealed partial class BattleSession
             {
                 return (graphics, phase, false);
             }
-            events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B440 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
+            PublishNativeStopAllSounds("Native46B440 stops all32 sound-effect voices.");
             actor = NativeBattleGuardianInvocation.HideSource(actor);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };
             if (casterSlot is byte copyCaster && copyCaster != 2 &&

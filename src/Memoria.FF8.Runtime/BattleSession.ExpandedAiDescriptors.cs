@@ -17,6 +17,7 @@ public sealed partial class BattleSession
 
     private void QueueExpandedAiDescriptor(BattleCombatant actor, BattleExpandedAiDescriptor operation)
     {
+        RequireExpandedAiLifecycleOperation(operation.Kind.ToString());
         if (!UsesOriginalEnemySlots)
         {
             throw new NotSupportedException("Expanded AI graphics ordering requires original enemy slots.");

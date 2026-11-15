@@ -322,17 +322,25 @@ public sealed partial class BattleSession
             ? BattleTargetReplacement.UseCurrentBattlePolicy
             : BattleTargetReplacement.None;
         var request = new BattleTargetRequest(selection, deathSelf is not null ? BattleTargetEligibility.DeathCallback : eligibility, allowsKnockedOutAllies, replacement, deathSelf);
-        actor.Atb = 0;
-        actor.IsBusy = true;
         actor.PreviousAiTarget = captured.PreviousTarget;
         string targetId = captured.PreviousTarget is BattlePreviousTarget.Actor first ? first.Reference.ActorId : actor.Id;
-        actions.Enqueue(new(actor.Id, targetId, request, BattleAbility.EnemyAbility, actionId)
+        BattleAttackCommand packet = new(actor.Id, targetId, request, BattleAbility.EnemyAbility, actionId)
         {
             NativeQueuedCommand = command,
             NativeAction = native,
             NativeGraphic = graphic,
             NativeAiCallbackStage = nativeAiCallbackStage,
             NativeSequence = sequence
-        });
+        };
+        if (producingExpandedAiCallback)
+        {
+            ProduceExpandedAiCallbackCommand(packet);
+        }
+        else
+        {
+            actor.Atb = 0;
+            actor.IsBusy = true;
+            actions.Enqueue(packet);
+        }
     }
 }

@@ -145,7 +145,7 @@ public sealed partial class BattleSession
     {
         expandedGuardianFormEntry = null;
         entry.Effect.Dispose();
-        events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "GF presentation releases its sound voices.") { NativeStopAllSounds = true });
+        PublishNativeStopAllSounds("GF presentation releases its sound voices.");
     }
 
     public bool CanSelectExpandedGuardianForce(string actorId, int guardianForceId)

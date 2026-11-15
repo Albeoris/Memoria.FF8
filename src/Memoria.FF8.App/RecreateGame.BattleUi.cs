@@ -146,6 +146,7 @@ internal sealed partial class RecreateGame
         }
         active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
         active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
+        active.PublishNativeGuardianBoostMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeGraphicsPresentation(elapsed);
         battlePresentationUpdated = true;
         presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);

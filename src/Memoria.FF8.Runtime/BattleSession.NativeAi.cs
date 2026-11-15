@@ -41,7 +41,7 @@ public sealed partial class BattleSession
         {
             if (UsesExpandedRoster)
             {
-                RunExpandedNativeAi(actor, 0);
+                QueueExpandedAiCallback(actor, 0);
             }
             else
             {
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
         Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");
         if (UsesExpandedRoster)
         {
-            RunExpandedNativeAi(actor, 0);
+            QueueExpandedAiCallback(actor, 0);
         }
         else
         {
@@ -127,6 +127,7 @@ public sealed partial class BattleSession
                     case 1:
                     case 24:
                     case 26:
+                        RequireExpandedAiLifecycleOperation("text");
                         int text = ReadAiByte(code, ref pc);
                         QueueNativeText(actor, program, text, opcode);
                         break;
@@ -176,6 +177,7 @@ public sealed partial class BattleSession
                         preparedId = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 8:
+                        RequireExpandedAiLifecycleOperation("death sequence");
                         if (UsesExpandedRoster)
                         {
                             CompleteExpandedEnemyDeath(actor);
@@ -258,11 +260,13 @@ public sealed partial class BattleSession
                         _ = ReadAiByte(code, ref pc);
                         break;
                     case 27:
+                        RequireExpandedAiLifecycleOperation("entrance");
                         int entranceIndex = ReadAiByte(code, ref pc) + NativeBattleSlots.AllyCount;
                         byte entranceSequence = checked((byte)ReadAiByte(code, ref pc));
                         QueueNativeEnemyEntrance(actor, FindNativeActor(entranceIndex), entranceSequence);
                         break;
                     case 29:
+                        RequireExpandedAiLifecycleOperation("removal");
                         int removal = ReadAiByte(code, ref pc);
                         if (HasExpandedAiDescriptors)
                         {
@@ -319,6 +323,7 @@ public sealed partial class BattleSession
                         pc = checked(pc + displacement);
                         break;
                     case 34:
+                        RequireExpandedAiLifecycleOperation("delayed text");
                         int delayedText = ReadAiByte(code, ref pc);
                         int textDelay = ReadAiByte(code, ref pc);
                         QueueNativeText(actor, program, delayedText, opcode, textDelay);
@@ -374,6 +379,7 @@ public sealed partial class BattleSession
                         DrawNativeAiSpell(actor, true);
                         break;
                     case 44:
+                        RequireExpandedAiLifecycleOperation("participant deactivation");
                         StopTurnAdvance();
                         actor.NativeStatus0 |= 1;
                         actor.IsActive = false;
@@ -417,6 +423,7 @@ public sealed partial class BattleSession
                         UnlockNativeTutorial(127);
                         break;
                     case 53:
+                        RequireExpandedAiLifecycleOperation("activation");
                         int activationIndex = ReadAiByte(code, ref pc);
                         if (HasExpandedAiDescriptors)
                         {
@@ -499,6 +506,7 @@ public sealed partial class BattleSession
 
     private void QueueAiEnemyAllocation(BattleCombatant actor, int sceneSlot, int physicalIndex, bool activate)
     {
+        RequireExpandedAiLifecycleOperation("allocation");
         if (HasExpandedAiDescriptors)
         {
             QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Allocate, sceneSlot, physicalIndex, activate));

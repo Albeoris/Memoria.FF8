@@ -117,11 +117,7 @@ public sealed class NativeBattleHostedContactReplacementTests
         SetGraphics(session, graphics with { EntryReady = true });
         Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
         Field("hostedBattlePresentation").SetValue(session, true);
-        Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
-        {
-            [Ally] = new(Ally, graphics.ActorModels.Get(Ally), new([0, 0])),
-            [Enemy] = new(Enemy, graphics.ActorModels.Get(Enemy), new([0, 0]))
-        });
+        NativeBattleHostedTestFixture.InstallModelBindings(session, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
         return session;
     }
 

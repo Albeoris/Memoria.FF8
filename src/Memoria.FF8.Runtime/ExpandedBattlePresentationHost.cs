@@ -8,6 +8,11 @@ public interface IExpandedBattlePresentationHost
 {
     ExpandedBattleSceneFrame? ReadSceneFrame(BattleSession owner);
 
+    NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner modelOwner)
+    {
+        throw new NotSupportedException("The expanded battle host does not provide installed model bindings.");
+    }
+
     NativeBattleEffectPresentation PrepareEffect(BattleSession owner, BattleCombatant caster, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? mode);
 }
 

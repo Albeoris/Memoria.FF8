@@ -46,6 +46,32 @@ public sealed class NativeBattleHostedAudioReceiptsTests
     }
 
     [Fact]
+    public void HostedStopAllKeepsItsPositionBetweenSoundReceiptsWithoutChangingSoundState()
+    {
+        const string message = "Native46B440 stops all32 sound-effect voices.";
+        MethodInfo stop = typeof(BattleSession).GetMethod("PublishNativeStopAllSounds", PrivateInstance)!;
+        NativeBattleModelLifecycleServices services = new([]);
+        BattleSession hosted = Fixture(hosted: true, foreign: true, services);
+        PublishSound.Invoke(hosted, [new NativeBattleModuleSound(123, 0, null), "ally", null]);
+        NativeGlobalSoundProcess beforeStop = hosted.NativeGlobalSoundProcess!;
+
+        stop.Invoke(hosted, [message]);
+        Assert.Same(beforeStop, hosted.NativeGlobalSoundProcess);
+        PublishSound.Invoke(hosted, [new NativeBattleModuleSound(124, 0, null), "enemy", null]);
+        Assert.Collection(services.ReadOrderedReceipts(),
+            item => Assert.Equal("ally", Assert.IsType<NativeBattlePresentationSoundCommitted>(item).ActorId),
+            item => Assert.Equal(new NativeBattlePresentationStopAllSoundsRequested(message), item),
+            item => Assert.Equal("enemy", Assert.IsType<NativeBattlePresentationSoundCommitted>(item).ActorId));
+        Assert.Empty(hosted.Events);
+
+        BattleSession native = Fixture(hosted: false, foreign: false);
+        NativeGlobalSoundProcess beforeNative = native.NativeGlobalSoundProcess!;
+        stop.Invoke(native, [message]);
+        Assert.Same(beforeNative, native.NativeGlobalSoundProcess);
+        Assert.Equal(new BattleEvent(native.Frame, "NativeSoundStopAll", null, null, 0, message) { NativeStopAllSounds = true }, Assert.Single(native.Events));
+    }
+
+    [Fact]
     public void HostedAudioOutsideAFrameRejectsBeforeChangingSoundMusicOrOutput()
     {
         BattleSession session = Fixture(hosted: true, foreign: true);
@@ -115,7 +141,7 @@ public sealed class NativeBattleHostedAudioReceiptsTests
         Field("hostedBattlePresentation").SetValue(session, hosted);
         if (foreign)
         {
-            Field("presentationForeignActors").SetValue(session, new Dictionary<int, NativeBattleForeignActor>());
+            Field("presentationForeignActors").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         }
         Field("hostedFrameServices").SetValue(session, services);
         return session;

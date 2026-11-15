@@ -257,8 +257,12 @@ public sealed record ExpandedEnemyLevel(int MaximumHp, ImmutableArray<int> BaseS
 public sealed record ExpandedEnemyLevelProfile(ImmutableArray<ExpandedEnemyLevel> Levels, ImmutableArray<ImmutableArray<NativeBattleDrawSlot>> DrawBands);
 
 public sealed record BattleNativeEventOwner(string ActorId, BattleActionHeaderReference SourceHeader);
+internal sealed record BattleExpandedAiCallbackRequest(BattleActorReference Actor, byte Stage);
+
 public sealed record BattleAttackCommand(string ActorId, string TargetId, [property: JsonIgnore] BattleTargetRequest TargetRequest, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false)
 {
+    [JsonIgnore]
+    internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleExpandedAiDescriptor? ExpandedAiDescriptor { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
@@ -293,6 +297,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, [property: JsonIgnore] BattleTargetRequest TargetRequest, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false)
 {
+    [JsonIgnore]
+    internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }

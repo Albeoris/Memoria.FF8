@@ -143,7 +143,7 @@ public sealed partial class BattleSession
                     NativeCamera = NativeBattleEffect66CameraCapture.Capture(Camera());
                     return current;
                 case NativeBattleEffect66StopSound46B450 stop when stop.Voice == -1 && stop.Mode == 0:
-                    events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, string.Empty) { NativeStopAllSounds = true });
+                    PublishNativeStopAllSounds(string.Empty);
                     return current;
                 case NativeBattleEffect66DrawBody176 body:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect66Frame bodyFrame) = DrawNativeEffect66Body(graphics, current, body.TemporaryAddress, resources, inputs, body.PilotIdentity);

@@ -21,12 +21,7 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
         ImmutableDictionary<string, NativeBattleVector> positions = sceneFrames.ReadPositions(owner);
         ImmutableArray<BattleModelOwner> actors = roster.Owners.ToImmutableArray();
         var combatants = owner.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
-        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(binding =>
-        {
-            BattleCombatant actor = combatants[ActorId(binding)];
-            byte modelId = checked((byte)(binding.Side == BattleSide.Allies ? actor.ModelId : actor.ModelId + 16));
-            return new NativeBattleGraphicsBinding(actor.Id, modelId, GetResource(owner, actor, null)) { InitialPosition = positions[actor.Id] };
-        }).ToImmutableArray();
+        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(modelOwner => PrepareModelBinding(owner, modelOwner, combatants[ActorId(modelOwner)], positions)).ToImmutableArray();
         ImmutableArray<string> loadOrder = actors.OrderBy(actor => actor.Side == BattleSide.Allies).Select(ActorId).ToImmutableArray();
         NativeBattleGraphicsDefinition graphics = new(rules, bindings, loadOrder)
         {
@@ -36,6 +31,29 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
             PcUiIcons = assets.ReadNativePcUiIcons().Binding
         };
         return new(owner, definition with { NativeGraphics = graphics });
+    }
+
+    public NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner modelOwner)
+    {
+        string actorId = ActorId(modelOwner);
+        BattleCombatant actor = owner.Combatants.SingleOrDefault(candidate => candidate.Id == actorId)
+            ?? throw new InvalidDataException("The requested model owner does not belong to the supplied battle.");
+        return PrepareModelBinding(owner, modelOwner, actor);
+    }
+
+    private NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner modelOwner, BattleCombatant actor, ImmutableDictionary<string, NativeBattleVector>? positions = null)
+    {
+        if (actor.Slot is null || actor.IsPlayer != (modelOwner.Side == BattleSide.Allies) || owner.ReadPresentationModelOwner(actor.Id) != modelOwner)
+        {
+            throw new InvalidDataException("An installed model binding requires the current allocated actor and matching model owner.");
+        }
+        positions ??= sceneFrames.ReadPositions(owner);
+        if (!positions.TryGetValue(actor.Id, out NativeBattleVector position))
+        {
+            throw new InvalidDataException("The requested model owner has no installed battle placement.");
+        }
+        byte modelId = checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16));
+        return new(actor.Id, modelId, GetResource(owner, actor, null)) { InitialPosition = position };
     }
 
     public NativeBattleEffectPresentation PrepareEffect(BattleSession owner, BattleCombatant caster, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? formMode)

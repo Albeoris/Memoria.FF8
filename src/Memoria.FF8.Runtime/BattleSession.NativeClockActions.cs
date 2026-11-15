@@ -30,6 +30,10 @@ public sealed partial class BattleSession
 
     internal static bool UsesNativeOrdinaryCompletion(BattleActionPresentation action)
     {
+        if (action.ExpandedAiCallback is { } callback)
+        {
+            return callback.Stage == 1;
+        }
         return action.NativeAiCallbackStage == 1 || action.NativeAiCallbackStage is null &&
             action.NativePlayerReaction is null && action.NativeQueuedCommand is not (0 or 247);
     }

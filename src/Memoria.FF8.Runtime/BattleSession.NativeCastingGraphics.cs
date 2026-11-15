@@ -133,7 +133,7 @@ public sealed partial class BattleSession
         (ushort next, bool stop) = NativeBattleEffectSoundWatchdog.Advance(counter);
         if (stop)
         {
-            events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B440 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
+            PublishNativeStopAllSounds("Native46B440 stops all32 sound-effect voices.");
         }
         return next;
     }

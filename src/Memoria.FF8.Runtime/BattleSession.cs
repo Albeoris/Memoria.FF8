@@ -665,7 +665,7 @@ public sealed partial class BattleSession
                 enemy.Atb = 0;
                 if (UsesExpandedRoster)
                 {
-                    RunExpandedNativeAi(enemy, 1);
+                    QueueExpandedAiCallback(enemy, 1);
                 }
                 else
                 {
@@ -714,6 +714,11 @@ public sealed partial class BattleSession
             }
             while (TryTakeQueuedCommand(out BattleAttackCommand command))
             {
+                if (command.ExpandedAiCallback is { } expandedCallback)
+                {
+                    DispatchExpandedAiCallback(command, expandedCallback);
+                    return;
+                }
                 if (command.ExpandedAiDescriptor is { } descriptor)
                 {
                     DispatchExpandedAiDescriptor(command, descriptor);
@@ -1120,6 +1125,14 @@ public sealed partial class BattleSession
                 actions.Enqueue(command);
                 continue;
             }
+            if (command.ExpandedAiCallback is { } callback)
+            {
+                if (CanDispatchExpandedAiCallback(ValidateExpandedAiCallback(command, callback), callback))
+                {
+                    actions.Enqueue(command);
+                }
+                continue;
+            }
             BattleCombatant actor = byId[command.ActorId];
             if (CanRetainBattleActionActor(actor, command.NativePlayerReaction, command.NativeAiCallbackStage, command.TargetRequest) && (!command.MagicCasts.IsDefaultOrEmpty || command.NativeRenzokuken is not null || UsesExpandedRoster && (command.NativeDuel is not null || command.SmartAttack is not null || RequiresExpandedCompelledReplacement(actor, command)) || CanRetainTargets(command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.TargetRequest, command.NativeGraphic, command.NativeLimitCallback)))
             {
@@ -1136,7 +1149,9 @@ public sealed partial class BattleSession
         {
             bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
             bool retainedSupport = ActiveAction is { } support && support.ActorId == actor.Id && IsNativeSupportInvocation(support.NativePlayerReaction) || actions.Any(command => command.ActorId == actor.Id && IsNativeSupportInvocation(command.NativePlayerReaction));
-            bool retainedDeathAction = UsesExpandedRoster && HasExpandedEnemyDeathAction(actor);
+            bool retainedDeathAction = UsesExpandedRoster && (HasExpandedEnemyDeathAction(actor) ||
+                ActiveAction?.ExpandedAiCallback is { Stage: 3 } callback && callback.Actor == TargetActorReference(actor) ||
+                actions.Any(command => command.ExpandedAiCallback is { Stage: 3 } request && request.Actor == TargetActorReference(actor)));
             actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || expandedGuardianFormEntry?.ActorId == actor.Id || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
         }
 
@@ -1174,7 +1189,7 @@ public sealed partial class BattleSession
             return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeader is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeader is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)) ||
-            UsesExpandedRoster && (expandedEffect is not null || expandedHostedEvent is not null || HasExpandedAiDescriptors || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
+            UsesExpandedRoster && (expandedEffect is not null || expandedHostedEvent is not null || HasExpandedAiDescriptors || actions.Any(command => command.ExpandedAiCallback is not null) || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
         {
             return BattleOutcome.Active;
         }
@@ -1648,6 +1663,17 @@ public sealed partial class BattleSession
         ValidateNativeCommandBindings(busy);
         foreach (BattleAttackCommand command in snapshot.QueuedActions)
         {
+            if (command.ExpandedAiCallback is { } callback)
+            {
+                BattleCombatant owner = ValidateExpandedAiCallback(command, callback);
+                if (!CanDispatchExpandedAiCallback(owner, callback))
+                {
+                    throw new InvalidDataException("Queued expanded AI callback has no current eligible actor.");
+                }
+                busy.Add(owner.Id);
+                actions.Enqueue(command);
+                continue;
+            }
             if (command.ExpandedAiDescriptor is not null)
             {
                 ValidateExpandedAiDescriptor(command);
@@ -1677,7 +1703,11 @@ public sealed partial class BattleSession
             ValidateNativeActionInventory(byId[command.ActorId], command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             actions.Enqueue(command);
         }
-        if (snapshot.ActiveAction is { } action)
+        if (snapshot.ActiveAction is { ExpandedAiCallback: { } activeCallback } callbackAction)
+        {
+            busy.Add(ValidateExpandedAiCallbackPresentation(callbackAction, activeCallback).Id);
+        }
+        else if (snapshot.ActiveAction is { } action)
         {
             ValidateGuardianFormPresentation(action);
             ValidateNativeEventOwner(action.ActorId, action.NativeHeader, action.NativeEventOwner, action.NativeAiCallbackStage, action.NativeAction);

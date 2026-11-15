@@ -138,11 +138,12 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
-            ui = ui.AdvancePublication();
-            NativeGraphics = graphics with { UiServices = ui };
+            ui = ui.AdvancePublication().ApplySelect4A8C50();
+            NativeGraphics = graphics with { UiServices = ui with { HeldButtons16 = hostedGuardianBoostMappedButtons } };
             if (!ui.PauseDE9 && (ui.Flags942 & 0x40) != 0)
             {
                 AdvanceNativeTriggerWidget();
+                AdvanceNativeGuardianBoost();
             }
             clockPoll?.Invoke(NativeGraphics!.UiServices!, postCore);
         }

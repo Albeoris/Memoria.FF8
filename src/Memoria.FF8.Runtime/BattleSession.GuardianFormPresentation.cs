@@ -308,7 +308,7 @@ public sealed partial class BattleSession
             (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data), identity: NativeBattleSharedEffectTexture.File);
             NativeEffectMemory = memory with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null, Active = 0, Cinematic = null, Textures = textures };
         }
-        events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "GF presentation releases its sound voices.") { NativeStopAllSounds = true });
+        PublishNativeStopAllSounds("GF presentation releases its sound voices.");
         return graphics with { OriginalEffect = graphics.OriginalEffect is { Binding.Effect: 201 } effect ? effect with { ReturnedDescriptor = 0, Pools = [] } : graphics.OriginalEffect, PrimitiveFrame = graphics.PrimitiveFrame is { } primitive ? primitive with { Pending = NativeBattleLogicalOrdering.Clear(), LastCommands = [] } : null };
     }
 

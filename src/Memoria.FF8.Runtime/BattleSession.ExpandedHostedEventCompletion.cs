@@ -35,7 +35,8 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted completion captured a different logical action from its validated live event.");
         }
         BattleCombatant liveActor = GetActor(receipt.ActorId);
-        bool retainCommittedMirror = !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
+        bool retainCommittedMirror = hostedEvent.ActivePresentation.ExpandedAiCallback is null &&
+            !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
         BattleSnapshot seed = NativeBattleStorageSnapshots.Capture(retainCommittedMirror ? before with { ActiveAction = null } : before);
         HostedEventCompletionCandidateProof proof = new(seed, hostedEvent, receipt);
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
@@ -102,7 +103,8 @@ public sealed partial class BattleSession
         deferringExpandedImpacts = true;
         try
         {
-            if ((NativeSavedStatusBits(actor) & 1) == 0 && (original.NativeQueuedCommand ?? original.NativeAction?.Command) is 28 or 243)
+            byte? actionCommand = original.ExpandedAiCallback is not null ? nativeActionScratch.Command : original.NativeQueuedCommand ?? original.NativeAction?.Command;
+            if ((NativeSavedStatusBits(actor) & 1) == 0 && actionCommand is 28 or 243)
             {
                 StageExpandedHostedAftercare(actor, 6);
             }

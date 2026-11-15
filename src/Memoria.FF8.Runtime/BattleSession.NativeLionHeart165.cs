@@ -79,7 +79,7 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleLionHeart165Silence:
-                    events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B450 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
+                    PublishNativeStopAllSounds("Native46B450 stops all32 sound-effect voices.");
                     return current;
                 case NativeBattleLionHeart165BindActor:
                     BattleModelOwner actor = current.Parameters.Source;

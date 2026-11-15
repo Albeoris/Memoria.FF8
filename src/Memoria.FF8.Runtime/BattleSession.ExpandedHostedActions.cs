@@ -59,7 +59,31 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted ordinary Gunblade requires one preliminary contact and its original command.");
         }
-        expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, contacts, enemyDraw, disposition) { PendingGunblade = pendingGunblade });
+        ExpandedHostedInvocation invocation = new(command, header, contacts, enemyDraw, disposition) { PendingGunblade = pendingGunblade };
+        if (!producingExpandedAiCallback)
+        {
+            expandedHostedInvocations = expandedHostedInvocations.Add(invocation);
+            return;
+        }
+        for (int index = 0; index < expandedHostedInvocations.Length; index++)
+        {
+            ExpandedHostedInvocation reserved = expandedHostedInvocations[index];
+            if (ReferenceEquals(reserved.Command, command) && reserved.Header == header && reserved.Contacts.IsDefault)
+            {
+                expandedHostedInvocations = expandedHostedInvocations.SetItem(index, invocation);
+                return;
+            }
+        }
+        throw new InvalidDataException("The AI command has no reserved position in its hosted event.");
+    }
+
+    private void ReserveExpandedAiInvocation(BattleActionPresentation command, NativeBattleActionHeaderPreparation? header)
+    {
+        if (producingExpandedAiCallback && header is not null)
+        {
+            // The parent header precedes any commands emitted by an immediate stage4 counter.
+            expandedHostedInvocations = expandedHostedInvocations.Add(new(command, header, default, null, ReadExpandedHostedContactDisposition(command, header)));
+        }
     }
 
     private static ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
@@ -92,7 +116,7 @@ public sealed partial class BattleSession
         {
             BattleCombatant actor = GetActor(invocation.Command.ActorId);
             _ = GetActor(invocation.Command.TargetId);
-            if (invocation.Header.Source != RequirePresentationModelOwner(roster, actor))
+            if (invocation.Header.Source != RequirePresentationModelOwner(roster, actor) || invocation.Contacts.IsDefault)
             {
                 throw new InvalidDataException("Hosted invocation header does not identify its canonical caster.");
             }
@@ -219,6 +243,9 @@ public sealed partial class BattleSession
                     break;
                 case NativeBattlePresentationSoundCommitted sound:
                     events.Add(new BattleEvent(Frame, sound.Sequence is null ? "NativeModuleSound" : "NativeSequenceSound", sound.ActorId, null, 0, string.Empty) { NativeModuleSound = sound.Sound, NativeSound = sound.Sequence });
+                    break;
+                case NativeBattlePresentationStopAllSoundsRequested stopAll:
+                    events.Add(new BattleEvent(Frame, "NativeSoundStopAll", null, null, 0, stopAll.Message) { NativeStopAllSounds = true });
                     break;
                 case NativeBattlePresentationMusicCommandCommitted music:
                     events.Add(new BattleEvent(Frame, "NativeMusicCommand", null, null, 0, $"Native501B60 consumed singleton command{music.Command.Command}.") { NativeMusicCommand = music.Command });

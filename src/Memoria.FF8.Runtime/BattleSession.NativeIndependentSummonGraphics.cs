@@ -56,7 +56,7 @@ public sealed partial class BattleSession
                     return (graphics, phase, false);
                 }
             }
-            events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "Native46B440 stops all32 sound-effect voices.") { NativeStopAllSounds = true });
+            PublishNativeStopAllSounds("Native46B440 stops all32 sound-effect voices.");
             if (originalSlot2 is not null && hiddenParty.Contains(originalSlot2))
             {
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(originalSlot2);

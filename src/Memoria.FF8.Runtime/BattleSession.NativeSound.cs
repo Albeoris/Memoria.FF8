@@ -29,6 +29,16 @@ public sealed partial class BattleSession
         events.Add(new BattleEvent(Frame, sequence is null ? "NativeModuleSound" : "NativeSequenceSound", actorId, null, 0, string.Empty) { NativeModuleSound = committed, NativeSound = sequence });
     }
 
+    private void PublishNativeStopAllSounds(string message)
+    {
+        if (hostedBattlePresentation)
+        {
+            RequireHostedAudioFrameServices().EmitStopAllSounds(message);
+            return;
+        }
+        events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, message) { NativeStopAllSounds = true });
+    }
+
     private NativeBattleModelLifecycleServices RequireHostedAudioFrameServices()
     {
         return hostedFrameServices ?? throw new InvalidOperationException("Hosted native audio requires an active presentation frame.");

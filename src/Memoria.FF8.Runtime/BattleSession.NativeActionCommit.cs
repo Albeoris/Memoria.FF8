@@ -109,13 +109,9 @@ public sealed partial class BattleSession
                         RunExpandedAngeloReaction(actor, stage);
                     }
                 }
-                else if (stage == 3)
-                {
-                    RunExpandedEnemyDeathAi(actor);
-                }
                 else
                 {
-                    RunExpandedNativeAi(actor, stage);
+                    QueueExpandedAiCallback(actor, stage);
                 }
             }
         }

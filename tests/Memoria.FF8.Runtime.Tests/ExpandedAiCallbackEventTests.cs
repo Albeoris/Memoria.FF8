@@ -1,0 +1,225 @@
+using System.Collections.Immutable;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+
+namespace Memoria.FF8.Runtime.Tests;
+
+public sealed class ExpandedAiCallbackEventTests
+{
+    private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+    private const string Enemy = "enemy";
+
+    [Fact]
+    public void Queued_init_commits_hits_before_the_next_predicate_and_keeps_one_event_owner()
+    {
+        byte[] init = [4, 200, 7, 100, 6, 2, 0, 200, 1, 0x10, 0x27, 3, 0, 15, 96, 77, 7, 101, 6, 0];
+        var (logical, child, process) = Fixture(Program(init: init), actions: [FixedHit(100), FixedHit(101)]);
+        BattleCombatant actor = Actor(logical, Enemy);
+        BattleAttackCommand initRequest = Assert.Single(logical.QueuedActions);
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(Enemy), 0), initRequest.ExpandedAiCallback);
+        Assert.Equal(10000, actor.CurrentHp);
+        Assert.Equal(0u, logical.Capture().NativeAiVariables![0]);
+        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+
+        Dispatch(logical);
+
+        Assert.Equal(9998, actor.CurrentHp);
+        Assert.Equal(77u, logical.Capture().NativeAiVariables![0]);
+        Assert.Empty(logical.QueuedActions);
+        Assert.Equal(initRequest.ExpandedAiCallback, logical.ActiveAction!.ExpandedAiCallback);
+        Assert.Equal(new ushort[] { 100, 101 }, child.NativeActionPackets.PublishedHeaders().Select(header => header.Slot.Action));
+        Assert.Equal(2, child.NativeActionPackets.ContactCount);
+        Assert.Equal((ushort)104, child.NativeGraphics.Descriptors.Packets[Assert.Single(child.NativeGraphics.Descriptors.Queue)].Command);
+        Assert.NotNull(process.ActiveActionToken);
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(logical.Capture()));
+    }
+
+    [Fact]
+    public void Empty_init_and_turn_own_real_completion_and_stage_three_observes_cleared_ko_only_inline()
+    {
+        byte[] death = [2, 4, 200, 3, 0, 0, 3, 0, 15, 96, 42, 0];
+        var (logical, child, process) = Fixture(Program(death: death));
+        BattleCombatant actor = Actor(logical, Enemy);
+        Dispatch(logical);
+        CompleteEmpty(logical, child, process, 0x47DDA0);
+        Assert.Equal((byte)0, actor.AiTurnCount);
+        Queue(logical, actor, 1);
+        Dispatch(logical);
+        Assert.Equal((byte)1, actor.AiTurnCount);
+        CompleteEmpty(logical, child, process, 0x47DE70);
+
+        actor.CurrentHp = 0;
+        actor.NativeStatus0 |= 1;
+        Queue(logical, actor, 3);
+        Assert.Equal(1, actor.NativeStatus0 & 1);
+        Assert.Equal(0u, logical.Capture().NativeAiVariables![0]);
+        Dispatch(logical);
+        Assert.Equal(42u, logical.Capture().NativeAiVariables![0]);
+        Assert.Equal(1, actor.NativeStatus0 & 1);
+        Assert.True(actor.IsBusy);
+        CompleteEmpty(logical, child, process, 0x47DDA0);
+        Assert.False(actor.IsBusy);
+        Assert.Equal(3, logical.Events.Count(entry => entry.Kind == "ActionComplete"));
+    }
+
+    [Fact]
+    public void Immediate_counter_follows_the_parent_header_and_keeps_the_whole_turn_reaction_order()
+    {
+        byte[] turn = [4, 38, 7, 100, 6, 4, 39, 7, 101, 6, 0];
+        byte[] immediate = [4, 0, 7, 102, 6, 0];
+        BattleCombatantDefinition first = Combatant("first", 22, Program(immediate: immediate));
+        BattleCombatantDefinition second = Combatant("second", 23, Program());
+        var (logical, child, process) = Fixture(Program(turn: turn), [first, second], [FixedHit(100), FixedHit(101), FixedHit(102)]);
+        while (logical.QueuedActions.Count > 0)
+        {
+            Dispatch(logical);
+            CompleteEmpty(logical, child, process, 0x47DDA0);
+        }
+        int allyHp = Actor(logical, "ally").CurrentHp;
+        Queue(logical, Actor(logical, Enemy), 1);
+
+        Dispatch(logical);
+
+        Assert.Equal(new ushort[] { 100, 102, 101 }, child.NativeActionPackets.PublishedHeaders().Select(header => header.Slot.Action));
+        Assert.Equal((byte)2, logical.Capture().NativeReactionOrder);
+        Assert.Equal((byte)0, Actor(logical, "first").NativePendingReaction.Order);
+        Assert.Equal((byte)1, Actor(logical, "second").NativePendingReaction.Order);
+        Assert.Equal(9999, Actor(logical, "first").CurrentHp);
+        Assert.Equal(9999, Actor(logical, "second").CurrentHp);
+        Assert.Equal(allyHp - 1, Actor(logical, "ally").CurrentHp);
+        Assert.Empty(logical.QueuedActions);
+        Assert.Equal((byte)1, logical.ActiveAction!.ExpandedAiCallback!.Stage);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_later_command_or_lifecycle_rejection_leaves_the_live_callback_and_formula_state_unchanged(bool lifecycle)
+    {
+        byte[] second = lifecycle ? [59, 1, 4] : [7, 101, 6];
+        byte[] init = [4, 200, 7, 100, 6, 2, 2, 1, 0, 0, 0, 3, 0, 15, 96, 77, .. second, 0];
+        var (logical, child, process) = Fixture(Program(init: init), actions: [FixedHit(100)]);
+        BattleSnapshot before = logical.Capture();
+        BattleAttackCommand head = Assert.Single(logical.QueuedActions);
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleActionPacketsState packets = child.NativeActionPackets;
+
+        TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Dispatch(logical));
+
+        Assert.IsType<NotSupportedException>(failure.InnerException);
+        Assert.Same(head, Assert.Single(logical.QueuedActions));
+        Assert.Same(graphics, child.NativeGraphics);
+        Assert.Same(packets, child.NativeActionPackets);
+        Assert.Null(process.ActiveActionToken);
+        Assert.Null(logical.ActiveAction);
+        Assert.Equal(10000, Actor(logical, Enemy).CurrentHp);
+        Assert.Equal(before.Random, logical.Capture().Random);
+        Assert.Equal(before.NativeReactionOrder, logical.Capture().NativeReactionOrder);
+        Assert.Equal(0u, logical.Capture().NativeAiVariables![0]);
+    }
+
+    private static NativeBattleAiDefinition Program(byte[]? init = null, byte[]? turn = null, byte[]? death = null, byte[]? immediate = null)
+    {
+        return new([init ?? [0], turn ?? [0], [0], death ?? [0], immediate ?? [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
+    }
+
+    private static BattleCombatantDefinition Combatant(string id, int model, NativeBattleAiDefinition program)
+    {
+        return new() { Id = id, Name = id, ModelId = model, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeAi = program, NativeCombatantFlags = 0x11, NativeStatusResistances = new byte[40] };
+    }
+
+    private static BattleNativeAction FixedHit(ushort action)
+    {
+        return new(8, action, 3, action)
+        {
+            Name = "Fixed hit", MagicId = 0, AttackType = 35, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 0,
+            DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0,
+            Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [.. new byte[20]], SupplementalRecord = []
+        };
+    }
+
+    private static (BattleSession Logical, BattleSession Child, ExpandedBattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null)
+    {
+        BattleDefinition definition = new()
+        {
+            UsesExpandedRoster = true,
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            NativeFieldBattleRules = 0,
+            NativeGlobalRandom = new(123),
+            NativeActions = actions ?? [],
+            Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, Combatant(Enemy, 21, program), .. (enemies ?? [])]
+        };
+        BattleSession logical = new(definition, BattleAtbMode.TurnBased);
+        BattleSession child = new(definition, BattleAtbMode.TurnBased);
+        var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
+        var bindings = logical.Combatants.ToImmutableDictionary(actor => logical.ReadPresentationModelOwner(actor.Id), actor =>
+            new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.ModelId + (actor.IsPlayer ? 0 : 16))), new([0, 0])));
+        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
+        Field(child, "definition").SetValue(child, definition with { NativeGraphics = new(rules, roster.Owners.Select(owner => bindings[owner]).ToImmutableArray(), []) });
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(0) { ModelId4 = bindings[owner].ModelId });
+        NativeBattleModelCpuResources cpu = (NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 }).WithPresentationRoster(roster, aliases);
+        NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster);
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleModelDatSource modelData = NativeBattleEnemyOwnedHeapTests.Source(80);
+        int textureOffset = modelData.Section(10);
+        NativeBattleEffectHeapAllocation material = new("model.dat", modelData.Bytes.Slice(textureOffset, modelData.Bytes.Length - textureOffset));
+        foreach (BattleEnemyModelOwner owner in roster.Enemies)
+        {
+            NativeBattleGraphicsBinding binding = bindings[owner];
+            NativeBattleModelTextureCacheLoad loaded = cache.LoadEnemy(binding.ModelId, material, owner);
+            cache = loaded.Cache;
+            int row = loaded.ResourceIndex;
+            cpu = cpu with { Rows = cpu.Rows.SetItem(row, cpu.Rows[row] with { LinkedPhysicalIndex36 = 255 }) };
+            (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, modelData with { ModelId = binding.ModelId }, row, null, false);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, graphics.ActorModels.Get(owner) with { ActiveResourceRow100 = row, OriginalResourceRow104 = row }) };
+        }
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(child, cpu);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelTextureCache))!.SetValue(child, cache);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(child, staging);
+        SetGraphics(child, graphics with { EntryReady = true, EntryLifecycle = 4 });
+        Field(child, "hostedBattlePresentation").SetValue(child, true);
+        FieldInfo entry = Field(child, "hostedEntryDescriptors");
+        entry.SetValue(child, Activator.CreateInstance(entry.FieldType));
+        var process = (ExpandedBattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
+        Field(process, "logicalOwner").SetValue(process, logical);
+        Field(process, "presentation").SetValue(process, child);
+        Field(logical, "expandedPresentationProcess").SetValue(logical, process);
+        return (logical, child, process);
+    }
+
+    private static void CompleteEmpty(BattleSession logical, BattleSession child, ExpandedBattlePresentationProcess process, uint callback)
+    {
+        Assert.Null(process.ActiveActionToken);
+        var graphics = child.NativeGraphics!;
+        NativeBattleDescriptorPacket packet = graphics.Descriptors.Packets[Assert.Single(graphics.Descriptors.Queue)];
+        Assert.Equal((ushort)10, packet.Command);
+        Assert.Equal(callback, packet.Argument);
+        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+        Field(child, "hostedFrameServices").SetValue(child, services);
+        try
+        {
+            SetGraphics(child, (NativeBattleGraphicsState)Invoke(child, "AdvanceNativeDescriptors", graphics)!);
+        }
+        finally
+        {
+            Field(child, "hostedFrameServices").SetValue(child, null);
+        }
+        NativeBattlePresentationCompletionRequested receipt = Assert.IsType<NativeBattlePresentationCompletionRequested>(Assert.Single(services.ReadOrderedReceipts()));
+        Assert.Same(receipt, process.PendingCompletion);
+        Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
+        Assert.True(process.IsCompletionAcknowledged(receipt.Token));
+        Assert.Null(logical.ActiveAction);
+    }
+
+    private static void Queue(BattleSession session, BattleCombatant actor, int stage) => Invoke(session, "QueueExpandedAiCallback", actor, stage);
+
+    private static void Dispatch(BattleSession session) => Invoke(session, "DispatchAction");
+
+    private static BattleCombatant Actor(BattleSession session, string id) => session.Combatants.Single(actor => actor.Id == id);
+
+    private static object? Invoke(BattleSession session, string method, params object?[] args) => typeof(BattleSession).GetMethod(method, PrivateInstance)!.Invoke(session, args);
+
+    private static FieldInfo Field(object owner, string name) => owner.GetType().GetField(name, PrivateInstance)!;
+
+    private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
+}

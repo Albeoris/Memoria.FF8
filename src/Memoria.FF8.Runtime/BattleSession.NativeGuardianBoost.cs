@@ -4,11 +4,20 @@ public sealed partial class BattleSession
 {
     private NativeBattleGuardianBoost? nativeGuardianBoost;
     private bool expandedGuardianBoostInputEnabled;
-    public NativeBattleGuardianBoost? NativeGuardianBoost => nativeGuardianBoost;
+    public NativeBattleGuardianBoost? NativeGuardianBoost => expandedPresentationProcess is { } process ? process.GuardianBoost : nativeGuardianBoost;
 
     public bool PressNativeGuardianBoost()
     {
-        if (Outcome != BattleOutcome.Active || nativeGuardianBoost is not { Enabled: true, Phase: 4, PendingPress: false } boost)
+        if (Outcome != BattleOutcome.Active)
+        {
+            return false;
+        }
+        return expandedPresentationProcess is { } process ? process.PressGuardianBoost() : PressGuardianBoostWidget();
+    }
+
+    private bool PressGuardianBoostWidget()
+    {
+        if (nativeGuardianBoost is not { Enabled: true, Phase: 4, PendingPress: false } boost)
         {
             return false;
         }
@@ -18,7 +27,12 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState RegisterNativeGuardianBoost(NativeBattleGraphicsState graphics, ushort actionId)
     {
-        nativeGuardianBoost = CreateNativeGuardianBoost(actionId);
+        NativeBattleGuardianBoost widget = CreateNativeGuardianBoost(actionId);
+        if (hostedBattlePresentation)
+        {
+            BindHostedGuardianBoostWidget(actionId);
+        }
+        nativeGuardianBoost = widget;
         //4B9AD0 overwrites the single callback6 registration, including an earlier trigger callback.
         return graphics with { TriggerWidget = null };
     }
@@ -45,7 +59,8 @@ public sealed partial class BattleSession
 
     private void AdvanceNativeGuardianBoost()
     {
-        if (nativeGuardianBoost is null || NativeGraphics?.UiServices is not { } ui)
+        NativeBattleGuardianBoost? widget = hostedBattlePresentation ? HostedGuardianBoost : nativeGuardianBoost;
+        if (widget is null || NativeGraphics?.UiServices is not { } ui)
         {
             return;
         }
@@ -57,9 +72,13 @@ public sealed partial class BattleSession
     {
         NativeBattleGuardianBoost widget = nativeGuardianBoost ?? throw new InvalidOperationException("Native Boost callback has no registered widget owner.");
         NativeBattleGuardianBoostStep step = NativeBattleGuardianBoostRules.Advance(widget, frame, inputEnabled, widget.PendingPress, nativeBattleUiRandom);
+        if (hostedBattlePresentation && step.RecomputePercent is byte hostedPercent)
+        {
+            PublishHostedGuardianBoostRequest(hostedPercent);
+        }
         nativeBattleUiRandom = step.Random;
         nativeGuardianBoost = step.Unregister ? null : step.Widget with { PendingPress = false };
-        if (step.RecomputePercent is byte percent)
+        if (!hostedBattlePresentation && step.RecomputePercent is byte percent)
         {
             if (expandedGuardianSummonTargets is not null)
             {
@@ -118,7 +137,7 @@ public sealed partial class BattleSession
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed));
         }
-        if (NativeGraphics is not null || nativeGuardianBoost is not { } widget)
+        if (expandedPresentationProcess is not null || NativeGraphics is not null || nativeGuardianBoost is not { } widget)
         {
             return;
         }

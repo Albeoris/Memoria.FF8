@@ -16,40 +16,52 @@ public sealed partial class BattleSession
         {
             candidate.CommitExpandedAction(command);
             candidate.PrepareQueuedExpandedMagicEffects();
-            PreparedHostedDispatch? admission = null;
-            ExpandedHostedEvent? hostedEvent = null;
-            if (process is not null && !candidate.expandedHostedInvocations.IsEmpty)
-            {
-                BattleModelRoster roster = process.Graphics.ActorModels.Roster;
-                candidate.ValidateExpandedHostedInvocations(roster);
-                uint callback = UsesNativeOrdinaryCompletion(command) ? 0x47DE70u : 0x47DDA0u;
-                admission = candidate.PrepareExpandedHostedEventSegment(process, roster, command, callback);
-                ExpandedHostedInvocation first = candidate.expandedHostedInvocations[0];
-                candidate.BindExpandedHostedContactTracking(first, roster, PrepareExpandedHostedContactBridge(first, roster));
-                hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token);
-            }
-            BattleSnapshot prepared = candidate.CaptureState();
-            BattleSession preflight = Restore(before, customHandlers);
-            preflight.expandedPartyPresentation = expandedPartyPresentation;
-            preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-            preflight.ValidatePreparedExpandedPresentation(candidate);
-            if (admission is not null)
-            {
-                process!.ValidatePreparedDispatch(admission);
-            }
-            CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
-            TakeExpandedActionPresentation(candidate);
-            if (admission is not null)
-            {
-                expandedHostedEvent = hostedEvent;
-                expandedHostedActionToken = admission.Action!.Invocation.Token;
-                process!.CommitDispatch(admission);
-            }
+            PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, command, process);
         }
         catch
         {
             candidate.ReleaseExpandedActionPresentation();
             throw;
+        }
+    }
+
+    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, ExpandedBattlePresentationProcess? process)
+    {
+        PreparedHostedDispatch? admission = null;
+        ExpandedHostedEvent? hostedEvent = null;
+        if (process is not null && (!candidate.expandedHostedInvocations.IsEmpty || command.ExpandedAiCallback is not null))
+        {
+            BattleModelRoster roster = process.Graphics.ActorModels.Roster;
+            candidate.ValidateExpandedHostedInvocations(roster);
+            uint callback = UsesNativeOrdinaryCompletion(command) ? 0x47DE70u : 0x47DDA0u;
+            if (candidate.expandedHostedInvocations.IsEmpty)
+            {
+                admission = process.PrepareDispatch([], completion: candidate.ReadExpandedHostedCompletion(roster, command, callback));
+            }
+            else
+            {
+                admission = candidate.PrepareExpandedHostedEventSegment(process, roster, command, callback);
+                ExpandedHostedInvocation first = candidate.expandedHostedInvocations[0];
+                candidate.BindExpandedHostedContactTracking(first, roster, PrepareExpandedHostedContactBridge(first, roster));
+            }
+            hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token);
+        }
+        BattleSnapshot prepared = candidate.CaptureState();
+        BattleSession preflight = Restore(before, customHandlers);
+        preflight.expandedPartyPresentation = expandedPartyPresentation;
+        preflight.CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        preflight.ValidatePreparedExpandedPresentation(candidate);
+        if (admission is not null)
+        {
+            process!.ValidatePreparedDispatch(admission);
+        }
+        CopyCandidateState(candidate, prepared, preparedExpandedAction: true);
+        TakeExpandedActionPresentation(candidate);
+        if (admission is not null)
+        {
+            expandedHostedEvent = hostedEvent;
+            expandedHostedActionToken = admission.Action?.Invocation.Token;
+            process!.CommitDispatch(admission);
         }
     }
 

@@ -134,6 +134,11 @@ public sealed partial class BattleSession
     {
         while (actions.TryPeek(out BattleAttackCommand? queued))
         {
+            if (queued.ExpandedAiCallback is not null)
+            {
+                command = queued;
+                return true;
+            }
             BattleAttackCommand? prepared = queued;
             if (UsesExpandedRoster && RequiresExpandedCompelledReplacement(GetActor(queued.ActorId), queued))
             {
