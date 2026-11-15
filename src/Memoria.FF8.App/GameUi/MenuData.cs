@@ -144,6 +144,7 @@ public sealed class MenuItem
     public int MaximumQuantity { get; set; } = 100;
     public bool CanSell { get; set; } = true;
     public Dictionary<string, int> RecoveryTargetScores { get; set; } = new(StringComparer.Ordinal);
+    public UiImageSource? BookCover { get; init; }
     public Memoria.FF8.Runtime.NativeMagazinePage[] NativeMagazinePages { get; set; } = [];
     public Dictionary<byte, string> NativeMagazinePageUnavailableReasons { get; set; } = [];
     public bool NativeFieldUseSupported { get; set; }

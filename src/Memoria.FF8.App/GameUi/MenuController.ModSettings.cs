@@ -6,7 +6,17 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private string? modSettingsPackageId;
+    private BehaviorModSetting[] modSettingsOriginal = [];
     private BehaviorModSetting[] modSettingsDraft = [];
+    private IGrouping<string, int>[] modSettingsCategories = [];
+    private readonly HashSet<string> modSettingsExpanded = new(StringComparer.Ordinal);
+    private float modSettingsScrollOffset;
+    private ModSettingsEditor? modSettingsEditor;
+
+    private static bool IsMemoriaSettingsPackage(ModPackage package)
+    {
+        return IsBundledMemoriaMod(package) && package.Id.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase);
+    }
 
     private bool HasSelectedModSettings => selectedModId is not null && modService?.ReadBehaviorSettings(selectedModId).Count > 0;
 
@@ -15,18 +25,20 @@ public sealed partial class MenuController
         return modSettingsPackageId is null ? null : modService?.GetBehaviorSettingLockReason(modSettingsPackageId, setting.Behavior, setting.Parameter);
     }
 
-    private string? ModSettingsLockReason => modSettingsDraft.Select(ModSettingLockReason).FirstOrDefault(reason => reason is not null);
-
     private void RegisterModSettingsScreen()
     {
         string? packageName = modService?.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Package.Name;
         Register(new MenuScreenDefinition
         {
             Id = "mod-settings",
-            Title = packageName is null ? SystemText("mods.settings.title", "Mods · Settings") : FormatSystemText("mods.settings.package-title", "Mods · {0} · Settings", packageName),
+            Title = packageName is null ? SystemText("mods.settings.screen-title", "Mods · Settings") : FormatSystemText("mods.settings.package-title", "Mods · {0} · Settings", packageName),
             Help = SystemText("mods.settings.help", "Adjust the draft, then choose Save. Cancel discards your changes."),
-            Entries = _ => ModSettingsEntries(),
-            BuildContent = (_, root) => root.Children.Add(BuildModSettingsEditor())
+            Entries = _ => ModSettingsRows().Select(row => row.Entry).ToArray(),
+            BuildContent = (_, root) =>
+            {
+                modSettingsEditor = new ModSettingsEditor(this);
+                root.Children.Add(modSettingsEditor);
+            }
         });
     }
 
@@ -38,81 +50,120 @@ public sealed partial class MenuController
     private string ModSettingDescription(BehaviorModSetting setting)
     {
         string description = SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}.description", setting.Description);
+        if (setting.Control == "toggle")
+        {
+            return description;
+        }
         string bounds = FormatSystemText("mods.settings.range", "Range: {0}{3}–{1}{3} · Step: {2}{3}", setting.Min, setting.Max, setting.Step, setting.Unit);
         return string.IsNullOrWhiteSpace(description) ? bounds : description + "\n" + bounds;
     }
 
-    private IReadOnlyList<MenuEntry> ModSettingsEntries()
+    private IReadOnlyList<ModSettingsRow> ModSettingsRows()
     {
-        List<MenuEntry> entries = modSettingsDraft.Select((setting, index) => new MenuEntry("mod-setting-" + index, ModSettingLabel(setting), ModSettingLockReason(setting) ?? ModSettingDescription(setting), Action: new("mod-settings-value"), Enabled: ModSettingLockReason(setting) is null)).ToList();
-        entries.Add(new("save", SystemText("mods.settings.save", "Save"), ModSettingsLockReason ?? "", Action: new("mod-settings-save"), Enabled: ModSettingsLockReason is null));
-        entries.Add(new("cancel", SystemText("mods.settings.cancel", "Cancel"), "", Action: new("menu-back")));
-        return entries;
+        List<ModSettingsRow> rows = [];
+        for (int index = 0; index < modSettingsCategories.Length; index++)
+        {
+            IGrouping<string, int> category = modSettingsCategories[index];
+            if (category.Key.Length > 0)
+            {
+                bool expanded = modSettingsExpanded.Contains(category.Key);
+                string label = SystemText("mods.settings.category." + category.Key.ToLowerInvariant(), category.Key);
+                string help = expanded ? SystemText("mods.settings.collapse", "Collapse") : SystemText("mods.settings.expand", "Expand");
+                rows.Add(new(new("mod-settings-category-" + index, label, help, Action: new("mod-settings-category", category.Key))));
+                if (!expanded)
+                {
+                    continue;
+                }
+            }
+            foreach (int settingIndex in category)
+            {
+                BehaviorModSetting setting = modSettingsDraft[settingIndex];
+                string? lockReason = ModSettingLockReason(setting);
+                string description = ModSettingDescription(setting);
+                string help = lockReason is null ? description : string.IsNullOrWhiteSpace(description) ? lockReason : lockReason + "\n" + description;
+                rows.Add(new(new("mod-setting-" + settingIndex, ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), settingIndex, category.Key.Length > 0));
+            }
+        }
+        bool canSave = modSettingsDraft.Any(setting => ModSettingLockReason(setting) is null);
+        rows.Add(new(new("save", SystemText("mods.settings.save", "Save"), "", Action: new("mod-settings-save"), Enabled: canSave)));
+        rows.Add(new(new("cancel", SystemText("mods.settings.cancel", "Cancel"), "", Action: new("menu-back"))));
+        return rows;
     }
 
-    private UiElement BuildModSettingsEditor()
+    private void FocusModSettingsRow(bool focused, int index)
     {
-        float[] rows = [1, .. Enumerable.Repeat(1.5f, modSettingsDraft.Length), 0.8f, 0.8f, 1.2f];
-        UiGrid grid = Grid(rows, [1]);
-        Place(grid, Header(), 0);
-        for (int index = 0; index < modSettingsDraft.Length; index++)
+        if (focused && ScreenId == "mod-settings" && SelectedIndex != index)
         {
-            int selected = index;
-            BehaviorModSetting setting = modSettingsDraft[index];
-            bool locked = ModSettingLockReason(setting) is not null;
-            UiNumericSlider slider = new()
-            {
-                Id = "mod-setting-" + index,
-                Text = ModSettingLabel(setting),
-                Max = setting.Max,
-                Min = setting.Min,
-                Step = setting.Step,
-                Value = setting.Value,
-                ValueFormat = "0'" + setting.Unit.Replace("'", "''", StringComparison.Ordinal) + "'",
-                Enabled = !locked,
-                ReadOnly = locked,
-                FontSize = 24 * TextScale,
-                PointerSize = 20 * TextScale,
-                ValueWidth = 72 * TextScale,
-                LabelWidthRatio = 0.52f,
-                FocusChanged = focused => SelectConfigRow(focused, selected),
-                ValueChanged = value =>
+            _selections[ScreenId] = index;
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
+    }
+
+    private void ChangeModSettingsDraft(int index, int value)
+    {
+        BehaviorModSetting setting = modSettingsDraft[index];
+        if (ModSettingLockReason(setting) is null)
+        {
+            modSettingsDraft[index] = setting with { Value = Math.Clamp(value, setting.Min, setting.Max) };
+        }
+    }
+
+    private bool NavigateModSettings(MenuInput input)
+    {
+        UiView view = BuildView();
+        ModSettingsEditor editor = modSettingsEditor!;
+        switch (input)
+        {
+            case MenuInput.Up:
+            case MenuInput.Down:
+            case MenuInput.Tab:
+            case MenuInput.ReverseTab:
+                UiElement[] controls = editor.NavigationControls.Where(control => control.Enabled && !control.Bounds.IsEmpty).ToArray();
+                if (controls.Length > 0)
                 {
-                    if (ModSettingLockReason(setting) is not null)
-                    {
-                        return;
-                    }
-                    modSettingsDraft[selected] = setting with { Value = (int)Math.Clamp(value, setting.Min, setting.Max) };
-                    _view = null;
+                    int index = Array.IndexOf(controls, view.FocusedElement);
+                    int direction = input is MenuInput.Up or MenuInput.ReverseTab ? -1 : 1;
+                    int next = index < 0 ? direction < 0 ? controls.Length - 1 : 0 : index + direction;
+                    next = input is MenuInput.Tab or MenuInput.ReverseTab ? (next + controls.Length) % controls.Length : Math.Clamp(next, 0, controls.Length - 1);
+                    view.Focus(controls[next]);
                 }
-            };
-            UiGrid option = Grid([1, 1], [1]);
-            Place(option, slider, 0);
-            UiLabel description = Label(ModSettingDescription(setting), 16, UiTextFlow.Wrap);
-            description.Id = "mod-setting-description-" + index;
-            Place(option, description, 1);
-            Place(grid, Panel(null, option), index + 1);
+                break;
+            case MenuInput.PageUp:
+            case MenuInput.PageDown:
+                editor.Page(view, input == MenuInput.PageUp ? -1 : 1);
+                break;
+            case MenuInput.Left:
+            case MenuInput.Right:
+                UiKey directionKey = input == MenuInput.Left ? UiKey.Left : UiKey.Right;
+                if (SelectedEntry is { Action: { Kind: "mod-settings-category" } category } entry && view.FocusedElement?.Id == entry.Id)
+                {
+                    if (modSettingsExpanded.Contains(category.SubjectId) != (input == MenuInput.Right))
+                    {
+                        Activate(SelectedIndex);
+                    }
+                }
+                else
+                {
+                    view.Key(directionKey);
+                }
+                break;
+            case MenuInput.Confirm:
+                view.Key(UiKey.Confirm);
+                break;
+            case MenuInput.Cancel:
+                Back();
+                break;
         }
-        for (int index = modSettingsDraft.Length; index < modSettingsDraft.Length + 2; index++)
+        return true;
+    }
+
+    private void HandleModSettingsWheel(int x, int y, int delta)
+    {
+        var point = BuildView().ToDesignPoint(x, y);
+        if (modSettingsEditor?.Scroll is { } scroll && scroll.Bounds.Contains(point.X, point.Y))
         {
-            int selected = index;
-            MenuEntry entry = Entries[index];
-            UiButton button = new()
-            {
-                Id = entry.Id,
-                Text = entry.Label,
-                Enabled = entry.Enabled,
-                FontSize = 24 * TextScale,
-                PointerSize = 20 * TextScale,
-                FocusChanged = focused => SelectConfigRow(focused, selected),
-                Click = () => Activate(selected)
-            };
-            Place(grid, Panel(null, button), index + 1);
+            scroll.ScrollBy(-delta / 120f * 45 * TextScale);
         }
-        UiLabel help = Label(ModSettingsLockReason ?? CurrentScreen.Help, 16, UiTextFlow.Wrap);
-        help.Id = "mod-settings-help";
-        Place(grid, Panel(null, help), rows.Length - 1);
-        return grid;
     }
 
     private bool ExecuteModSettingsAction(MenuAction action)
@@ -121,14 +172,35 @@ public sealed partial class MenuController
         {
             return true;
         }
+        if (action.Kind == "mod-settings-category")
+        {
+            if (ScreenId == "mod-settings")
+            {
+                string? selectedId = SelectedEntry?.Id;
+                if (!modSettingsExpanded.Add(action.SubjectId))
+                {
+                    modSettingsExpanded.Remove(action.SubjectId);
+                }
+                List<ModSettingsRow> rows = ModSettingsRows().ToList();
+                int selected = rows.FindIndex(row => row.Entry.Id == selectedId);
+                _selections[ScreenId] = selected >= 0 ? selected : rows.FindIndex(row => row.Entry.Action?.SubjectId == action.SubjectId);
+                _view = null;
+            }
+            return true;
+        }
         if (action.Kind == "mod-settings-open")
         {
-            if (selectedModId is not null && modService is not null)
+            string? packageId = action.SubjectId.Length > 0 ? action.SubjectId : selectedModId;
+            if (packageId is not null && modService is not null)
             {
-                modSettingsPackageId = selectedModId;
-                modSettingsDraft = modService.ReadBehaviorSettings(selectedModId).ToArray();
+                modSettingsOriginal = modService.ReadBehaviorSettings(packageId).ToArray();
+                modSettingsDraft = (BehaviorModSetting[])modSettingsOriginal.Clone();
                 if (modSettingsDraft.Length > 0)
                 {
+                    modSettingsPackageId = packageId;
+                    modSettingsCategories = Enumerable.Range(0, modSettingsDraft.Length).GroupBy(index => modSettingsDraft[index].Category, StringComparer.Ordinal).ToArray();
+                    modSettingsExpanded.Clear();
+                    modSettingsScrollOffset = 0;
                     RegisterModSettingsScreen();
                     Push("mod-settings");
                 }
@@ -143,15 +215,14 @@ public sealed partial class MenuController
         {
             return true;
         }
-        if (ModSettingsLockReason is { } lockReason)
+        if (modSettingsDraft.All(setting => ModSettingLockReason(setting) is not null))
         {
-            Message = lockReason;
-            _view = null;
             return true;
         }
-        foreach (BehaviorModSetting setting in modSettingsDraft)
+        BehaviorModSetting[] changes = modSettingsDraft.Where((setting, index) => setting.Value != modSettingsOriginal[index].Value && ModSettingLockReason(setting) is null).ToArray();
+        if (changes.Length > 0)
         {
-            ModOperationResult result = modService.SetBehaviorSetting(modSettingsPackageId, setting.Behavior, setting.Parameter, setting.Value);
+            ModOperationResult result = modService.SetBehaviorSettings(modSettingsPackageId, changes);
             if (!result.Success)
             {
                 Message = result.Error ?? SystemText("mods.settings.save-failed", "The mod settings could not be saved.");
@@ -162,4 +233,6 @@ public sealed partial class MenuController
         Back();
         return true;
     }
+
+    private sealed record ModSettingsRow(MenuEntry Entry, int? SettingIndex = null, bool Indented = false);
 }

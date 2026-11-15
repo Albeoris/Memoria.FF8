@@ -5,10 +5,14 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     internal bool IsModSearchEditing => IsOpen && ScreenId is "mods-search" or "mods-catalog-search";
-    internal bool IsModManager => IsOpen && ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads";
+    internal bool IsModManager => IsOpen && ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mod-settings";
 
     private bool NavigateModManager(MenuInput input)
     {
+        if (ScreenId == "mod-settings")
+        {
+            return NavigateModSettings(input);
+        }
         if (IsModSearchEditing && (input == MenuInput.Cancel || input == MenuInput.Confirm && CurrentControlDevice == ControlDevice.Keyboard))
         {
             Back();

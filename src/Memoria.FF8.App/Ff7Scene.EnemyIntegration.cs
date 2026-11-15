@@ -19,6 +19,7 @@ internal sealed partial class Ff7Scene
 
     private void AttachEnemyIntegration()
     {
+        bool initialLoad = enemyIntegrationMods is null;
         if (enemyIntegrationMods is null)
         {
             enemyIntegrationMods = new ModRuntime(ApplicationInstallation.DataDirectory, format => format == ModFormat.Memoria, candidate =>
@@ -29,10 +30,19 @@ internal sealed partial class Ff7Scene
                 }
                 return new(true, Diagnostics: diagnostics, Commit: () => enemyExtensionCatalog = prepared);
             }, modsDirectory: enemyIntegrationModsDirectory);
-            enemyIntegrationMods.PreparePending(true);
-            enemyIntegrationMods.CommitPending();
         }
+        UpdateEnemyIntegrationBridge(initialLoad);
         ApplyEnemyIntegration();
+    }
+
+    private void UpdateEnemyIntegrationBridge(bool initialLoad = false)
+    {
+        Ff7EnemyIntegrationContext integration = envelope.EnemyIntegration ?? new();
+        ModRuntime? mods = enemyIntegrationMods;
+        if (mods is not null && (mods.SetFf7BridgeEnemyIntegration(integration.EnteredFromFf8 && integration.Preference == Ff7EnemyIntegrationPreference.Automatic) || initialLoad) && mods.PreparePending(true))
+        {
+            mods.CommitPending();
+        }
     }
 
     private void ApplyEnemyIntegration()
@@ -94,6 +104,7 @@ internal sealed partial class Ff7Scene
             throw new InvalidDataException("Unknown FFVII enemy integration preference.");
         }
         envelope = envelope with { EnemyIntegration = (envelope.EnemyIntegration ?? new()) with { Preference = preference } };
+        UpdateEnemyIntegrationBridge();
         ApplyEnemyIntegration();
         return true;
     }

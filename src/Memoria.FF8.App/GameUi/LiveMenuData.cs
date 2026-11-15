@@ -55,8 +55,29 @@ public static class LiveMenuData
             }
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
-                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Icon = catalog?.ItemIcon(item.ItemId), Name = catalog?.ItemName(item.ItemId) ?? Format("fallback.item.name", "Item {0}", item.ItemId), Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [], Description = catalog?.ItemDescription(item.ItemId) ?? Text("projection.item.effect-unavailable", "Item effect unavailable; using, discarding and refining are unsupported."), NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.CanLearnBlueMagic(state.LimitProgress) && state.CharacterVitals?.DreamEnabled == false), NativeFieldBattleUse = catalog?.FieldItem(item.ItemId)?.SupportsBattleUse == true, NativeFieldNameConfirmation = catalog?.FieldItem(item.ItemId)?.Type is 12 or 13, NativeFieldNameSubject = catalog?.FieldItem(item.ItemId)?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null }, NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId) is { } targetItem && (targetItem.SupportsGuardianForceUse || targetItem.Type == 11), NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18, NativeFieldInventoryTarget = catalog?.FieldItem(item.ItemId) is { } inventoryItem && (inventoryItem.SupportsInventoryUse || inventoryItem.SupportsRestUse) });
-                result.Items[^1].RecoveryTargetScores = catalog?.ItemRecoveryTargetScores(state, item.ItemId) ?? new(StringComparer.Ordinal);
+                bool canUseInMenu = state.Scene is SceneKind.Field or SceneKind.WorldMap;
+                UiImageSource? bookCover = canUseInMenu ? catalog?.ItemBookCover(item.ItemId) : null;
+                NativeFieldItem? definition = catalog?.FieldItem(item.ItemId);
+                result.Items.Add(new MenuItem
+                {
+                    Id = $"item-{item.ItemId}",
+                    Icon = bookCover.HasValue ? catalog?.BookIcon(item.ItemId) : catalog?.ItemIcon(item.ItemId),
+                    Name = catalog?.ItemName(item.ItemId) ?? Format("fallback.item.name", "Item {0}", item.ItemId),
+                    Quantity = item.Count,
+                    BookCover = bookCover,
+                    NativeMagazinePages = canUseInMenu ? catalog?.MagazinePages(item.ItemId) ?? [] : [],
+                    NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [],
+                    Description = catalog?.ItemDescription(item.ItemId) ?? Text("projection.item.effect-unavailable", "Item effect unavailable; using, discarding and refining are unsupported."),
+                    NativeFieldUseSupported = canUseInMenu && definition is not null && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.CanLearnBlueMagic(state.LimitProgress) && state.CharacterVitals?.DreamEnabled == false),
+                    NativeFieldBattleUse = definition?.SupportsBattleUse == true,
+                    NativeFieldNameConfirmation = definition?.Type is 12 or 13,
+                    NativeFieldNameSubject = definition?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null },
+                    NativeFieldTargetsGuardianForce = definition is not null && (definition.SupportsGuardianForceUse || definition.Type == 11),
+                    NativeFieldQuistisOnly = definition?.SupportsBlueMagicUse == true,
+                    NativeFieldForgetsAbility = definition?.Type == 18,
+                    NativeFieldInventoryTarget = definition is not null && (definition.SupportsInventoryUse || definition.SupportsRestUse),
+                    RecoveryTargetScores = catalog?.ItemRecoveryTargetScores(state, item.ItemId) ?? new(StringComparer.Ordinal)
+                });
             }
         }
         if (state.Scene is SceneKind.Field or SceneKind.WorldMap && state.CharacterVitals is not null && result.Items.Any(item => item.NativeFieldUseSupported))

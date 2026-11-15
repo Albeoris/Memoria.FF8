@@ -32,7 +32,7 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsJunctionDashboard ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsBookOpen ? 0 : IsJunctionDashboard ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
         anchored.Children.Add(IsJunctionDashboard ? BuildJunctionDashboard() : PresentationProvider.Compose(this));
@@ -44,7 +44,8 @@ public sealed partial class MenuController
         {
             anchored.Children.Add(tutorialMessage);
         }
-        _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor || ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
+        bool useModViewport = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mod-settings";
+        _view = new UiView(root) { ViewportMode = IsBookOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = useModViewport ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         if (IsJunctionDashboard)
         {
@@ -59,6 +60,12 @@ public sealed partial class MenuController
             ApplyJunctionInteractionScope(dashboardView);
             FocusJunctionDashboard(dashboardView);
             return dashboardView;
+        }
+        if (ScreenId == "mod-settings" && modSettingsEditor is { } editor)
+        {
+            UiElement? selected = editor.NavigationControls.FirstOrDefault(element => element.Enabled && element.Id == SelectedEntry?.Id);
+            _view.Focus(selected ?? editor.NavigationControls.FirstOrDefault(element => element.Enabled));
+            return _view;
         }
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;

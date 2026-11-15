@@ -1,6 +1,7 @@
 using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Resources;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -8,11 +9,11 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Draws retained controls, system text and the original menu pointer.</summary>
-internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory, ResourceService? resources = null) : IUiCanvas, IControllerButtonCanvas, IBattleMessageCanvas, IDisposable
+internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory, ResourceService? resources = null, Func<int, ModFile?>? findBookArtwork = null) : IUiCanvas, IControllerButtonCanvas, IBattleMessageCanvas, IDisposable
 {
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;
-    private readonly MenuArtworkProvider artwork = new(gameDirectory, resources);
+    private readonly MenuArtworkProvider artwork = new(gameDirectory, resources, findBookArtwork);
     private readonly Dictionary<UiImageSource, Texture2D> images = [];
     private string? cardFontFamily;
     private readonly UiTextOverflow textOverflow = new();

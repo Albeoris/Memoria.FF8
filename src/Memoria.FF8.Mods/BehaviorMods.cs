@@ -6,6 +6,7 @@ namespace Memoria.FF8.Mods;
 
 public sealed record BehaviorModSetting(string Behavior, string Parameter, string Label, int Min, int Max, int DefaultValue, int Value)
 {
+    public string Category { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public string Control { get; init; } = "slider";
     public string Unit { get; init; } = "%";
@@ -17,6 +18,7 @@ public sealed class BehaviorMods
 {
     public const string PayloadPath = "gameplay/behaviors.json";
     public const string ConfigurationPath = "config.json";
+    internal const string MemoriaSettingsFile = "memoria-settings.json";
     public const int HardcoreVitalityReductionPercent = 50;
     public const int HardcoreSpiritReductionPercent = 25;
     public const string VitalityReductionParameter = "VitalityReductionPercent";
@@ -57,7 +59,8 @@ public sealed class BehaviorMods
         Dictionary<string, (ModFile Owner, int Value)> selected = new(StringComparer.Ordinal);
         (ModFile Owner, string Key)? statusName = null;
         HashSet<string> inactivePackages = catalog.Packages.Where(package => package.Status != ModEffectiveStatus.Active).Select(package => package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (IGrouping<string, ModFile> package in catalog.Files.Where(file => file.Format == ModFormat.Memoria && !inactivePackages.Contains(file.PackageId) && (IsPayloadPath(file.RelativePath) || file.RelativePath.Equals(ConfigurationPath, StringComparison.OrdinalIgnoreCase))).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
+        bool bundledMeltdown = catalog.Packages.Any(package => package.IsBundled && package.Id.Equals(ModRuntime.MeltdownPackageId, StringComparison.OrdinalIgnoreCase));
+        foreach (IGrouping<string, ModFile> package in catalog.Files.Where(file => file.Format == ModFormat.Memoria && !inactivePackages.Contains(file.PackageId) && (IsPayloadPath(file.RelativePath) || file.RelativePath.Equals(ConfigurationPath, StringComparison.OrdinalIgnoreCase) || file.RelativePath.Equals(MemoriaSettingsFile, StringComparison.OrdinalIgnoreCase))).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
         {
             ModFile? payload = null;
             try
@@ -76,6 +79,10 @@ public sealed class BehaviorMods
                 List<BehaviorModSetting> settings = ParsePayload(payload.ReadBytes(), out Dictionary<string, LocalizedTextReference> statusNames);
                 string? statusNameKey = SelectStatusName(statusNames, sourceLanguage);
                 ApplyConfiguration(settings, configurations.SingleOrDefault()?.ReadBytes());
+                if (bundledMeltdown && package.Key.Equals(ModRuntime.MeltdownPackageId, StringComparison.OrdinalIgnoreCase))
+                {
+                    ApplyOverrides(settings, ModRuntime.ReadMemoriaMeltdownSettings(package.SingleOrDefault(file => file.RelativePath.Equals(MemoriaSettingsFile, StringComparison.OrdinalIgnoreCase))));
+                }
                 if (statusNameKey is not null)
                 {
                     if (statusName is { } existingName)
@@ -113,16 +120,25 @@ public sealed class BehaviorMods
         return errors.Count == 0;
     }
 
-    internal static IReadOnlyList<BehaviorModSetting> ReadSettings(byte[] payload, byte[]? configuration)
+    internal static IReadOnlyList<BehaviorModSetting> ReadSettings(byte[] payload, byte[]? configuration, IReadOnlyDictionary<string, int>? overrides = null)
     {
         List<BehaviorModSetting> settings = ParsePayload(payload, out _);
         ApplyConfiguration(settings, configuration);
+        ApplyOverrides(settings, overrides);
         return settings;
     }
 
     private static void ApplyConfiguration(List<BehaviorModSetting> settings, byte[]? configuration)
     {
-        Dictionary<string, int> configured = configuration is null ? new(StringComparer.Ordinal) : ParseConfiguration(configuration);
+        ApplyOverrides(settings, configuration is null ? null : ParseConfiguration(configuration));
+    }
+
+    private static void ApplyOverrides(List<BehaviorModSetting> settings, IReadOnlyDictionary<string, int>? configured)
+    {
+        if (configured is null)
+        {
+            return;
+        }
         foreach ((string parameter, int value) in configured)
         {
             int index = settings.FindIndex(setting => setting.Parameter == parameter);

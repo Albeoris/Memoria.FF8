@@ -118,7 +118,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
             lock (gate)
             {
                 ModServiceView view = ModServiceView.Create(catalog, installedPackages, autoEnable, reloadRequested || pending is not null, diagnostics, updateOutcome, changedPackageIds);
-                return view with { Packages = Array.AsReadOnly(view.Packages.Select(package => IsRequiredHardcorePackage(package.Package.Id) ? package with { CanToggle = false } : package).ToArray()) };
+                view = view with { Packages = Array.AsReadOnly(view.Packages.Select(package => RequiredPackageReason(package.Package.Id) is not null ? package with { CanToggle = false } : package).ToArray()) };
+                return GroupMemoriaComponents(view);
             }
         }
     }
@@ -201,6 +202,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
             try
             {
+                if (IsMemoriaComponent(package) && MemoriaComponentPreference(ReadMemoriaSettings(), package.Id) is not null)
+                {
+                    string component = MemoriaComponents.First(item => package.Id.Equals(ComponentPackageId(item.Id), StringComparison.OrdinalIgnoreCase)).Id;
+                    return SaveMemoriaSettings([(ComponentBehavior, component, enabled ? 1 : 0)]);
+                }
                 ValidatePreferenceTarget(package);
                 string preferencePath = PreferencePath(package);
                 ValidatePreferencePath(preferencePath);
@@ -513,7 +519,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private ModCatalogSnapshot Discover(out bool nextAutoEnable, out string identity)
     {
+        memoriaSettingsView = null;
         nextAutoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
+        MemoriaSettings memoriaSettings = ReadMemoriaSettings();
         List<ModPackage> packages = [];
         List<ModFile> files = [];
         List<ModDiagnostic> notices = [];
@@ -521,7 +529,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             notices.Add(new("watcher-error", error));
         }
-        List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), string.Join(";", localizationOrder ?? [])];
+        List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), forceFf7EnemyIntegration.ToString(), string.Join(";", localizationOrder ?? [])];
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
@@ -580,7 +588,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         throw new PackagePriorityException(id, exception.Message);
                     }
                 }
-                bool requested = IsRequiredHardcorePackage(id) || (explicitEnabled ?? nextAutoEnable);
+                if (bundledRoot is not null)
+                {
+                    explicitEnabled = MemoriaComponentPreference(memoriaSettings, id) ?? explicitEnabled;
+                }
+                bool requested = RequiredPackageReason(id) is not null || (explicitEnabled ?? nextAutoEnable);
                 bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
                 bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase));
                 bool compatible = isCompatible(format) || localizationOnly;
@@ -596,6 +608,14 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
                 List<(string Root, string Physical, string Relative)> selectedFiles = [];
+                if (bundledRoot is not null && id.Equals(MeltdownPackageId, StringComparison.OrdinalIgnoreCase))
+                {
+                    normalizedPaths.Add(BehaviorMods.MemoriaSettingsFile, modsRoot);
+                    if (memoriaSettings.Meltdown.Count > 0)
+                    {
+                        selectedFiles.Add((modsRoot, MemoriaSettingsPath, BehaviorMods.MemoriaSettingsFile));
+                    }
+                }
                 foreach ((string packageRoot, string physical, string relative) in packageFiles)
                 {
                     if (relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(relative).StartsWith("~$", StringComparison.Ordinal) || relative.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) || relative.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
@@ -757,6 +777,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void RequestRefreshCore(DateTime time)
     {
+        memoriaSettingsView = null;
         deferredDiscovery = null;
         localizationChangeEpoch++;
         if (!reloadRequested)
@@ -843,10 +864,15 @@ public sealed partial class ModRuntime : IModService, IDisposable
         try
         {
             autoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
+            MemoriaSettings memoriaSettings = ReadMemoriaSettings();
             installedPackages = Array.AsReadOnly(installedPackages.Select(package =>
             {
                 bool? enabled = ReadPackageEnabled(package);
-                return package with { ExplicitEnabled = enabled, RequestedEnabled = IsRequiredHardcorePackage(package.Id) || (enabled ?? autoEnable) };
+                if (IsMemoriaComponent(package))
+                {
+                    enabled = MemoriaComponentPreference(memoriaSettings, package.Id) ?? enabled;
+                }
+                return package with { ExplicitEnabled = enabled, RequestedEnabled = RequiredPackageReason(package.Id) is not null || (enabled ?? autoEnable) };
             }).ToArray());
         }
         catch (Exception exception) when (IsFileError(exception))

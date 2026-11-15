@@ -1,6 +1,7 @@
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
@@ -53,7 +54,7 @@ internal sealed partial class RecreateGame
     {
         newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = DefaultChocoboWorldMode };
         session.Restore(ChocoboWorldSettings.Migrate(session.State, resourceHost!.Resources.Source.Edition));
-        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory, resourceHost?.Resources);
+        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory, resourceHost?.Resources, FindInventoryBookArtwork);
         if (!File.Exists(UiPreferencesPath))
         {
             uiPreferences.Save(UiPreferencesPath);
@@ -270,6 +271,7 @@ internal sealed partial class RecreateGame
         {
             using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
             liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
+            liveMenuCatalog.FindBookArtwork = FindInventoryBookArtwork;
             liveMenuCatalog.InterfaceLanguage = () => resourceHost?.Mods.LocalizationPrimaryTarget ?? resourceHost?.Resources.ResourceLanguage;
             nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
         }
@@ -785,7 +787,7 @@ internal sealed partial class RecreateGame
                     keyboard.SuppressHeldUiInput();
                 }
             }
-            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" && wheelDelta != 0)
+            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" or "mod-settings" && wheelDelta != 0)
             {
                 gameMenus.HandleModsWheel(mouse.X, mouse.Y, wheelDelta);
             }
@@ -926,12 +928,17 @@ internal sealed partial class RecreateGame
         }
     }
 
+    private ModFile? FindInventoryBookArtwork(int itemId) => resourceHost is { } host ? InventoryBookArtwork.Find(host.Mods.Catalog, itemId) : null;
+
     private void DrawGameUi(Rectangle bounds)
     {
         SynchronizeMenuPresentation();
         if (gameMenus?.IsOpen == true && uiCanvas is not null)
         {
-            batch.Draw(pixel, bounds, Color.Black);
+            if (!gameMenus.IsBookOpen)
+            {
+                batch.Draw(pixel, bounds, Color.Black);
+            }
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas, gameMenus.CreateTheme());

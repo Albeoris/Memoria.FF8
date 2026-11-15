@@ -36,7 +36,11 @@ public sealed partial class MenuController
         RegisterModSettingsScreen();
         modSubscription?.Dispose();
         modService = service;
-        modSubscription = service.Subscribe(_ => RestoreModSelection());
+        modSubscription = service.Subscribe(_ =>
+        {
+            _liveData = null;
+            RestoreModSelection();
+        });
         Register(new MenuScreenDefinition { Id = "mods-create", Title = "Mods · Create Mods", Help = "An initialized gameplay editor is required.", Entries = _ => [new("unavailable", SystemText("ui.connectmods.entry.label.gf.abilities.unavailable.in.this.preview", "GF Abilities unavailable in this preview"), SystemText("ui.connectmods.entry.help.open.the.tool.from.the.running.game", "Open the tool from the running game."), Enabled: false)] });
         Register(new MenuScreenDefinition { Id = "gf-mod-review", Title = "Mods · GF changes review", Help = "No gameplay editor is connected.", Entries = _ => [] });
         Register(new MenuScreenDefinition
@@ -94,6 +98,10 @@ public sealed partial class MenuController
             new("policy", SystemText("ui.modactions.entry.label.automatically.enable.new.mods", "Automatically enable new mods"), SystemText("ui.modactions.entry.help.explicit.choices.are.kept.turning.off.preserves.existing", "Explicit choices are kept. Turning off preserves existing packages."), Action: new("mod-auto")),
             new("controls", SystemText("ui.modactions.entry.label.controls", "Controls"), SystemText("ui.modactions.entry.help.view.configured.bindings", "View configured bindings."), Destination: "config-controls")
         ];
+        if (SelectedModView is { } selected && IsMemoriaSettingsPackage(selected.Package))
+        {
+            actions.RemoveAt(0);
+        }
         if (HasModReview)
         {
             actions.Insert(2, new("gf-review", SystemText("ui.modactions.entry.label.review.gf.changes", "Review GF changes"), SystemText("ui.modactions.entry.help.review.the.pending.gameplay.proposal", "Review the pending gameplay proposal."), Destination: "gf-mod-review"));
@@ -138,7 +146,7 @@ public sealed partial class MenuController
             entries.Insert(1, new("catalog-tab", "Catalog", "Browse the saved catalog.", Destination: "mods-catalog"));
             entries.Insert(2, new("downloads-tab", "Downloads", "Review pending downloads and installations.", Destination: "mods-downloads"));
         }
-        entries.AddRange(FilteredModViews().Select(view => new MenuEntry(view.Package.Id, view.Package.Name, ModStatusText(view), Action: new("mod-toggle", view.Package.Id))));
+        entries.AddRange(FilteredModViews().Select(view => new MenuEntry(view.Package.Id, view.Package.Name, ModStatusText(view), Action: new(IsMemoriaSettingsPackage(view.Package) ? "mod-settings-open" : "mod-toggle", view.Package.Id))));
         if (HasModReview)
         {
             entries.Add(new("gf-review", SystemText("ui.modentries.entry.label.review.gf.changes.pending", "Review GF changes · Pending"), SystemText("ui.modentries.entry.help.review.pending.gameplay.consequences", "Review pending gameplay consequences."), Destination: "gf-mod-review"));
@@ -195,6 +203,11 @@ public sealed partial class MenuController
 
     internal void HandleModsWheel(int x, int y, int delta)
     {
+        if (ScreenId == "mod-settings")
+        {
+            HandleModSettingsWheel(x, y, delta);
+            return;
+        }
         var point = BuildView().ToDesignPoint(x, y);
         if (!modTableBounds.Contains(point.X, point.Y))
         {
@@ -247,7 +260,14 @@ public sealed partial class MenuController
         {
             details.Add(view.Package.Name);
             details.Add(view.Package.Format.ToString());
-            details.Add(FormatSystemText("ui.moddetails.details.enabled.in.settings.template", "Enabled in settings: {0}", (view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off"))));
+            if (IsMemoriaSettingsPackage(view.Package))
+            {
+                details.Add(SystemText("mods.settings.configure-components", "Open Settings to configure Memoria components."));
+            }
+            else
+            {
+                details.Add(FormatSystemText("ui.moddetails.details.enabled.in.settings.template", "Enabled in settings: {0}", view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off")));
+            }
             details.Add(FormatSystemText("ui.moddetails.details.in.use.template", "In use: {0}", ModStatusText(view)));
             if (view.Package.IsBundled && view.Package.Id.Equals(GameplayTuningPolicy.ExtendedRosterPackageId, StringComparison.OrdinalIgnoreCase))
             {

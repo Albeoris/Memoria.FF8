@@ -32,7 +32,7 @@ public static class MenuCatalog
         Add("junction-ability-choice", "Junction · Select Ability", "Choose a learned passive ability from the junctioned GFs.", true, c => PassiveChoices(c), c => [c.FormatSystemText("ui.register.details.selected.ability.slot", "Selected ability slot: {0}", c.AbilitySlot + 1)], MenuLayout.Junction);
 
         Add("item", "Item", "Use and arrange inventory.", true, c => [Link(c, "item-use", c.SystemText("ui.register.entry.help.use", "Use"), c.SystemText("ui.register.entry.help.choose.an.item.and.character.target", "Choose an item and character target.")), Link(c, "item-rearrange", c.SystemText("ui.register.entry.help.rearrange", "Rearrange"), c.SystemText("ui.register.entry.help.exchange.two.inventory.positions", "Exchange two inventory positions.")), Action(c, "sort", c.SystemText("ui.register.entry.help.sort", "Sort"), c.SystemText("ui.register.entry.help.sort.inventory.in.the.original.item.order", "Sort inventory in the original item order."), "item-sort")], InventoryDetails, main: true);
-        Add("item-use", "Item · Use", "Select an item.", true, c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", i.NativeMagazinePages.Length > 0 ? i.NativeMagazinePageUnavailableReasons.GetValueOrDefault(i.NativeMagazinePages[0].PageId) ?? i.Description : i.Description, i.NativeFieldBattleUse ? null : i.NativeMagazinePages.Length > 0 ? "magazine" : "item-target", new MenuAction(i.NativeFieldBattleUse ? "item-battle" : "select-item", i.Id), c.IsDemo || (i.NativeMagazinePages.Length > 0 ? !i.NativeMagazinePageUnavailableReasons.ContainsKey(i.NativeMagazinePages[0].PageId) : i.NativeFieldUseSupported))).ToArray(), InventoryDetails);
+        Add("item-use", "Item · Use", "Select an item.", true, c => c.Data.Items.Select(item => ItemUseEntry(c, item)).ToArray(), InventoryDetails);
         Add("item-target", "Item · Target", "Select the target character.", true, c => Targets(c, "item-use"), c => [c.FormatSystemText("ui.register.details.item", "Item: {0}", c.Item?.Name ?? c.SystemText("ui.register.value.unavailable", "Unavailable")), c.FormatSystemText("ui.register.details.quantity", "Quantity: {0}", c.Item?.Quantity.ToString() ?? "?"), c.Item?.Description ?? c.SystemText("ui.register.details.no.item.projection", "No item projection."), .. CharacterDetails(c)]);
         Add("item-forget", "Item · Forget Ability", "Choose the selected GF's ability to forget.", true, c => c.GuardianForce?.LearningChoices.Select(choice => Action(c, choice.Id, choice.Name, c.SystemText("ui.register.entry.help.use.one.amnesia.greens.to.forget.this.ability", "Use one Amnesia Greens to forget this ability."), "item-use", target: $"item-target-{c.GuardianForce.NativeId + 16}", value: choice.Id)).ToArray() ?? [], c => [c.FormatSystemText("ui.register.details.item", "Item: {0}", c.Item?.Name), c.FormatSystemText("ui.register.details.gf", "GF: {0}", c.GuardianForce?.Name)]);
         Add("item-rearrange", "Item · Rearrange", "Choose the item to move.", true, c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", c.SystemText("ui.register.entry.help.choose.its.destination.position.next", "Choose its destination position next."), "item-position", new MenuAction("select-item", i.Id))).ToArray(), InventoryDetails);
@@ -223,6 +223,22 @@ public static class MenuCatalog
         var ch = c.Character;
         return ch == null ? [c.SystemText("status.stats.unavailable", "Character stats unavailable."), .. Boundary(c)] : new[] { "HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck" }.Select(stat => $"{c.StatText(stat),-5} {(ch.Stats.TryGetValue(stat, out var value) ? value.ToString() : "?")}    {ch.Junctions.GetValueOrDefault(stat, "--")}").Concat(Boundary(c)).ToArray();
     }
+    private static MenuEntry ItemUseEntry(MenuController controller, MenuItem item)
+    {
+        string label = $"{item.Name}   {item.Quantity}";
+        MenuAction select = new("select-item", item.Id);
+        if (item.BookCover.HasValue)
+        {
+            return new MenuEntry(item.Id, label, item.Description, "book", select, item.Quantity > 0);
+        }
+        bool magazine = item.NativeMagazinePages.Length > 0;
+        string? reason = magazine ? item.NativeMagazinePageUnavailableReasons.GetValueOrDefault(item.NativeMagazinePages[0].PageId) : null;
+        bool enabled = controller.IsDemo || (magazine ? !item.NativeMagazinePageUnavailableReasons.ContainsKey(item.NativeMagazinePages[0].PageId) : item.NativeFieldUseSupported);
+        string? destination = item.NativeFieldBattleUse ? null : magazine ? "magazine" : "item-target";
+        MenuAction action = item.NativeFieldBattleUse ? new MenuAction("item-battle", item.Id) : select;
+        return new MenuEntry(item.Id, label, reason ?? item.Description, destination, action, enabled);
+    }
+
     private static IReadOnlyList<string> InventoryDetails(MenuController c) => [c.FormatSystemText("ui.inventorydetails.details.inventory.entries", "Inventory entries: {0}", c.Data.Items.Count), c.FormatSystemText("ui.inventorydetails.details.selected.item", "Selected item: {0}", c.SelectedEntry?.Label ?? c.Item?.Name ?? c.SystemText("ui.inventorydetails.value.unavailable", "Unavailable")), c.Item?.Description ?? c.SystemText("ui.inventorydetails.details.item.descriptions.unavailable", "Item descriptions unavailable."), c.FormatSystemText("ui.inventorydetails.details.gil", "Gil {0}", MenuController.Number(c.Data.Currency)), .. Boundary(c)];
     private static IReadOnlyList<string> MagicDetails(MenuController c) => [c.FormatSystemText("ui.magicdetails.details.character", "Character: {0}", c.Character?.Name ?? c.SystemText("ui.magicdetails.value.unavailable", "Unavailable")), c.FormatSystemText("ui.magicdetails.details.stock.entries", "Stock entries: {0}", CharacterMagic(c).Count()), c.SystemText("ui.magicdetails.details.max.stock.100.in.the.explicit.fixture", "Max stock: 100 in the explicit fixture"), c.Magic?.Description ?? c.SystemText("ui.magicdetails.details.magic.descriptions.unavailable", "Magic descriptions unavailable."), .. Boundary(c)];
     private static IReadOnlyList<string> GfDetails(MenuController c)

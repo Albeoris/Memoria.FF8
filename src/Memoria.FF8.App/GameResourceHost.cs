@@ -1,5 +1,6 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
@@ -325,9 +326,29 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.Equals(BehaviorMods.PayloadPath, StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        if (InventoryBookArtwork.Find(catalog, InventoryBookArtwork.GirlNextDoorItemId) is { } bookArtwork)
+        {
+            try
+            {
+                ModImageDecoder.Decode(bookArtwork);
+                usable.Add(bookArtwork.PackageId);
+            }
+            catch (ModTextureLoadException exception)
+            {
+                return new ModPreparationResult(false, Diagnostics: [new ModDiagnostic("Memoria.InvalidBookArtwork", exception.Message, bookArtwork.PackageId, bookArtwork.RelativePath)]);
+            }
+        }
         if (gameplayPolicy.ExtendedRosterEnabled)
         {
             usable.Add(GameplayTuningPolicy.ExtendedRosterPackageId);
+        }
+        if (gameplayPolicy.LevelBasedStatBonusesEnabled)
+        {
+            usable.Add(GameplayTuningPolicy.LevelBasedStatBonusesPackageId);
+        }
+        if (catalog.Files.Any(file => file.PackageId.Equals(ModRuntime.Ff7EnemyIntegrationPackageId, StringComparison.OrdinalIgnoreCase) && file.RelativePath.StartsWith(Ff7EnemyExtensionMods.PayloadDirectory, StringComparison.OrdinalIgnoreCase) && file.RelativePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
+        {
+            usable.Add(ModRuntime.Ff7EnemyIntegrationPackageId);
         }
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog, (source as SelectedModelResourceSource)?.ModelSourceDescriptor);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))

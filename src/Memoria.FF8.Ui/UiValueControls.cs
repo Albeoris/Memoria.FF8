@@ -8,6 +8,10 @@ public sealed class UiToggle : UiElement
     }
 
     public string Text { get; set; } = string.Empty;
+    public string OnText { get; set; } = "On";
+    public string OffText { get; set; } = "Off";
+    public float FontSize { get; set; }
+    public float ValueWidth { get; set; } = 60;
     public bool Value { get; set; }
     public Action<bool>? ValueChanged { get; set; }
 
@@ -19,8 +23,9 @@ public sealed class UiToggle : UiElement
         }
 
         UiColor color = Enabled ? theme.Foreground : theme.Muted;
-        canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 22, Bounds.Y, Math.Max(0, Bounds.Width - 94), Bounds.Height), color, UiAlignment.Center);
-        canvas.Text(Value ? "On" : "Off", theme.FontSize, new UiRect(Bounds.Right - 65, Bounds.Y, 60, Bounds.Height), color, UiAlignment.Center);
+        float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
+        canvas.Text(Text, fontSize, new UiRect(Bounds.X + 22, Bounds.Y, Math.Max(0, Bounds.Width - ValueWidth - 34), Bounds.Height), color, UiAlignment.Center, UiTextFlow.SingleLine);
+        canvas.Text(Value ? OnText : OffText, fontSize, new UiRect(Bounds.Right - ValueWidth - 5, Bounds.Y, ValueWidth, Bounds.Height), color, UiAlignment.Center, UiTextFlow.SingleLine);
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)

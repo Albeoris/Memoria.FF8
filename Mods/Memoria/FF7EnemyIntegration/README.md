@@ -2,9 +2,9 @@
 
 This bundled Memoria package enriches original Final Fantasy VII encounters for parties travelling from Final Fantasy VIII. Its content belongs to FFVII and binds to native enemy IDs, independently of translated names, models, and formation placements.
 
-The campaign preference is Automatic, Enabled, or Disabled. Automatic activates after entry from FFVIII; an ordinary FFVII campaign starts inactive. An explicit choice takes precedence. Changes apply at an encounter boundary, preserving the active encounter's captured profiles and outcomes.
+The campaign preference is Automatic, Enabled, or Disabled. Automatic requires and locks the built-in component after entry from FFVIII. An ordinary FFVII campaign starts inactive in Automatic mode. Explicit Enable uses the setting saved for the component, and explicit Disable turns the behavior off for the campaign. Changes apply at an encounter boundary, preserving the active encounter's captured profiles and outcomes.
 
-Open the FFVII menu and choose **Mods** to change this campaign preference or inspect the installed packages. Package installation, package enablement and the campaign's encounter activation are separate states.
+Open the FFVII menu and choose **Mods** to change the campaign preference. To set the component preference, open **Installed packages > Memoria > FFVII**.
 
 The package supplies 352 English Scan descriptions written as short pieces of world and creature prose. Names and combat measurements belong to their separate inspection fields; the prose does not repeat a resistance table. Related encounter variants may share a description. The descriptions are authored English content, without a localization layer.
 

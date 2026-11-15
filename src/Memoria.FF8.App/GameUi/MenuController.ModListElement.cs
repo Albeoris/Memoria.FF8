@@ -206,7 +206,7 @@ public sealed partial class MenuController
                 inspector = menus.modTableBounds;
                 controls["commands"].Visible = false;
             }
-            controls["mod-selected-toggle"].Visible = showInspector && packages.Length > 0;
+            controls["mod-selected-toggle"].Visible = showInspector && packages.Length > 0 && !SelectedHasComponentSettings;
             controls["mod-diagnostics"].Visible = showInspector;
             controls["mod-settings"].Visible = showInspector && menus.HasSelectedModSettings;
             controls["mod-selected-toggle"].Enabled = packages.ElementAtOrDefault(selected) is { CanToggle: true } selectedPackage && menus.modService?.GetPackageLockReason(selectedPackage.Package.Id) is null;
@@ -214,7 +214,7 @@ public sealed partial class MenuController
             {
                 ((UiButton)controls["mod-selected-toggle"]).Text = package.Package.RequestedEnabled ? menus.SystemText("ui.arrange.text.disable", "Disable") : menus.SystemText("ui.arrange.text.enable", "Enable");
             }
-            float actionWidth = Math.Min(130 * unit, inspector.Width);
+            float actionWidth = SelectedHasComponentSettings ? 0 : Math.Min(130 * unit, inspector.Width);
             Place("mod-selected-toggle", inspector.X, inspector.Bottom - control * 2 - gap, actionWidth, control);
             Place("mod-diagnostics", inspector.X, inspector.Bottom - control, inspector.Width, control);
             Place("mod-settings", inspector.X + actionWidth + gap, inspector.Bottom - control * 2 - gap, Math.Max(0, inspector.Width - actionWidth - gap), control);
@@ -253,9 +253,11 @@ public sealed partial class MenuController
             float hintX = controls["mod-auto"].Bounds.Right + 8;
             if (controls["mod-auto"].Visible && !hasLibraryActivity)
             {
-                canvas.Text(menus.modService?.GetPackageLockReason(menus.selectedModId ?? "") ?? menus.FormatSystemText("ui.drawself.canvas.explicit.choices.are.kept.template", "Explicit choices are kept \u00B7 {0} {1} \u00B7 {2} Details", menus.CurrentBindingText(ControlAction.Confirm), (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")), menus.CurrentBindingText(ControlAction.Card)), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+                canvas.Text(menus.modService?.GetPackageLockReason(menus.selectedModId ?? "") ?? menus.FormatSystemText("ui.drawself.canvas.explicit.choices.are.kept.template", "Explicit choices are kept \u00B7 {0} {1} \u00B7 {2} Details", menus.CurrentBindingText(ControlAction.Confirm), SelectedHasComponentSettings ? menus.SystemText("mods.settings.title", "Settings") : SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable"), menus.CurrentBindingText(ControlAction.Card)), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             }
         }
+
+        private bool SelectedHasComponentSettings => packages.ElementAtOrDefault(selected) is { } view && IsMemoriaSettingsPackage(view.Package);
 
         private bool SelectedRequestedEnabled => packages.ElementAtOrDefault(selected)?.Package.RequestedEnabled == true;
 
@@ -288,7 +290,9 @@ public sealed partial class MenuController
                         canvas.Fill(row, IsFocused ? new UiColor(79, 107, 139) : new UiColor(48, 66, 88));
                     }
                     canvas.Fill(new UiRect(row.X, row.Bottom - 1, row.Width, 1), new UiColor(52, 69, 91));
-                    Text(view.Package.RequestedEnabled ? "☑" : "☐", row.X + 8, row.Y, check - 8, row.Height, view.CanToggle ? theme.Foreground : theme.Muted, 20);
+                    bool hasComponentSettings = IsMemoriaSettingsPackage(view.Package);
+                    string control = hasComponentSettings ? "…" : view.Package.RequestedEnabled ? "☑" : "☐";
+                    Text(control, row.X + 8, row.Y, check - 8, row.Height, hasComponentSettings || view.CanToggle ? theme.Foreground : theme.Muted, 20);
                     float nameLeft = row.X + check;
                     float nameInset = 0;
                     if (IsBundledMemoriaMod(view.Package))
@@ -334,7 +338,7 @@ public sealed partial class MenuController
                 }
                 if (key == UiKey.Confirm)
                 {
-                    owner.menus.Execute(new("mod-selected-toggle"));
+                    owner.menus.Execute(new(owner.SelectedHasComponentSettings ? "mod-settings-open" : "mod-selected-toggle"));
                     return true;
                 }
                 return false;
@@ -357,7 +361,7 @@ public sealed partial class MenuController
                 owner.menus.modFocusedControlId = "commands";
                 if (x < Bounds.X + 38 * owner.unit)
                 {
-                    owner.menus.Execute(new("mod-selected-toggle"));
+                    owner.menus.Execute(new(owner.SelectedHasComponentSettings ? "mod-settings-open" : "mod-selected-toggle"));
                 }
                 owner.menus._view = null;
             }

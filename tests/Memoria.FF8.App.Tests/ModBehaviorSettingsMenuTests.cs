@@ -122,6 +122,73 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.Equal("mods", menu.ScreenId);
     }
 
+    [Fact]
+    public void MemoriaCategoriesCollapseAndScrollWhileUnlockedChangesSave()
+    {
+        WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
+        WriteBundled("Girl Next Door/mod.ini", "enabled=0");
+        foreach (string component in new[] { "Depixelation", "Reorientation", "EdeaMirrors", "Extended FFVIII Roster", "Level-Based Stat Bonuses", "Girl Next Door", "FF7EnemyIntegration" })
+        {
+            WriteBundled(component + "/README.md", component);
+        }
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        runtime.SetHardcoreMode(true);
+        runtime.SetFf7BridgeEnemyIntegration(true);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        MenuController menu = Menu(runtime, ModRuntime.MemoriaPackageId);
+        Assert.False(Element(menu, "mod-selected-toggle").Visible);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("mod-settings", menu.ScreenId);
+        Assert.Equal(new[] { "Field", "Battle", "Party", "Items", "FFVII", "Save", "Cancel" }, menu.Entries.Select(entry => entry.Label));
+
+        menu.Navigate(MenuInput.Down);
+        menu.Navigate(MenuInput.Confirm);
+        string lockedSliderId = Assert.Single(menu.Entries, entry => entry.Label == "Vitality reduction").Id;
+        Assert.False(Element(menu, lockedSliderId).Enabled);
+        Assert.Contains("Hardcore", Assert.IsType<UiLabel>(Element(menu, "mod-setting-description-" + lockedSliderId["mod-setting-".Length..])).Text);
+        Assert.True(Element(menu, "save").Enabled);
+        menu.Navigate(MenuInput.Left);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id == lockedSliderId);
+
+        UiView pointerView = menu.BuildView();
+        pointerView.Resize(1280, 768);
+        UiElement itemsCategory = Descendants(pointerView.Root).Single(element => element.Id == "mod-settings-category-3");
+        pointerView.Pointer(itemsCategory.Bounds.X + 10, itemsCategory.Bounds.Y + 10, pressed: true);
+        string bookId = Assert.Single(menu.Entries, entry => entry.Label == "Girl Next Door").Id;
+        menu.Navigate(MenuInput.Down);
+        Assert.Equal(bookId, menu.SelectedEntry?.Id);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.True(Assert.IsType<UiToggle>(Element(menu, bookId)).Value);
+        Assert.Equal(0, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Girl Next Door").Value);
+
+        foreach (string category in new[] { "Field", "Battle", "Party", "FFVII" })
+        {
+            menu.Execute(new("mod-settings-category", category));
+        }
+        UiView view = menu.BuildView();
+        view.Resize(1280, 768);
+        Assert.IsType<UiToggle>(view.FocusedElement);
+        UiScrollPanel scroll = Assert.IsType<UiScrollPanel>(Descendants(view.Root).Single(element => element.Id == "mod-settings-options"));
+        Assert.True(scroll.MaximumOffset > 0);
+        UiRect saveBounds = Descendants(view.Root).Single(element => element.Id == "save").Bounds;
+        Assert.True(saveBounds.Y >= scroll.Bounds.Bottom && saveBounds.Bottom <= 768);
+        int wheelX = (int)(scroll.Bounds.X + 5);
+        int wheelY = (int)(scroll.Bounds.Y + 5);
+        menu.HandleModsWheel(wheelX, wheelY, -12000);
+        Assert.Equal(scroll.MaximumOffset, scroll.Offset);
+        menu.HandleModsWheel(wheelX, wheelY, 12000);
+        Assert.Equal(0, scroll.Offset);
+        menu.Navigate(MenuInput.PageDown);
+        Assert.True(scroll.Offset > 0);
+        Assert.False(scroll.Bounds.Intersect(view.FocusedElement!.Bounds).IsEmpty);
+        Assert.Equal(saveBounds, Descendants(view.Root).Single(element => element.Id == "save").Bounds);
+
+        menu.Execute(new("mod-settings-save"));
+        Assert.Equal("mods", menu.ScreenId);
+        Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Girl Next Door").Value);
+    }
+
     [Theory]
     [InlineData(1280, 720)]
     [InlineData(2048, 1080)]
@@ -228,12 +295,19 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         return runtime;
     }
 
-    private static MenuController Menu(IModService service)
+    private void WriteBundled(string relativePath, string content)
+    {
+        string path = Path.Combine(root, "BundledMods", "Memoria", relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+    }
+
+    private static MenuController Menu(IModService service, string packageId = PackageId)
     {
         MenuController menu = new();
         menu.ConnectMods(service);
         menu.Open("mods");
-        menu.SelectEntry("mods", PackageId);
+        menu.SelectEntry("mods", packageId);
         return menu;
     }
 

@@ -23,7 +23,8 @@ public enum UiImageKind
     CharacterPortraitGrayscale,
     HostArtwork,
     ChocoboPortrait,
-    GrieverPortrait
+    GrieverPortrait,
+    BookCover
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

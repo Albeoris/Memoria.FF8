@@ -26,16 +26,16 @@ public sealed partial class ModRuntime
     {
         lock (gate)
         {
-            if (!IsRequiredHardcorePackage(packageId))
-            {
-                return null;
-            }
-            return packageId.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) ? HardcoreMeltdownLockReason : HardcoreStatBonusesLockReason;
+            return RequiredPackageReason(packageId);
         }
     }
 
     public string? GetBehaviorSettingLockReason(string packageId, string behavior, string parameter)
     {
+        if (packageId.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase))
+        {
+            return GetPackageLockReason(behavior == ComponentBehavior ? ComponentPackageId(parameter) : MeltdownPackageId);
+        }
         return GetPackageLockReason(packageId);
     }
 

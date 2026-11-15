@@ -1,5 +1,6 @@
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Memoria.FF8.Resources;
@@ -7,7 +8,7 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Loads original artwork on demand; menu panels remain procedural.</summary>
-internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService? resources = null)
+internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService? resources = null, Func<int, ModFile?>? findBookArtwork = null)
 {
     private NativeMenuArtwork? portraits;
     private CardArtwork? cards;
@@ -27,7 +28,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
 
     internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.TripleTriadCapture or UiImageKind.TripleTriadOutcome or UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
 
-    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.CharacterPortraitGrayscale or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.ChocoboPortrait or UiImageKind.GrieverPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton;
+    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.CharacterPortraitGrayscale or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.ChocoboPortrait or UiImageKind.GrieverPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton or UiImageKind.BookCover;
 
     public PixelImage? ReadControllerButton(int nativeIconId)
     {
@@ -97,6 +98,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory, resources)).Read(source.Id),
             UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetImage(source.Id),
             UiImageKind.MagazineButton => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetButtonImage(source.Id),
+            UiImageKind.BookCover => ModImageDecoder.Decode(findBookArtwork?.Invoke(source.Id) ?? throw new NotSupportedException($"Book artwork is unavailable for inventory item {source.Id}.")).Image,
             _ => throw new NotSupportedException($"Unsupported menu artwork kind {source.Kind}.")
         };
     }

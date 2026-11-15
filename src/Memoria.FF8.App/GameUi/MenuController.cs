@@ -44,6 +44,7 @@ public sealed partial class MenuController
         RegisterNamingScreens();
         RegisterChocoboWorldScreens();
         RegisterMagazineScreens();
+        RegisterBookScreen();
         RegisterJunctionDashboard();
     }
 
@@ -273,6 +274,14 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (IsBookOpen)
+        {
+            if (input == MenuInput.Cancel)
+            {
+                Back();
+            }
+            return;
+        }
         if (TryNavigateMagazine(input))
         {
             return;
@@ -307,11 +316,6 @@ public sealed partial class MenuController
             return;
         }
         var entries = Entries;
-        if (ScreenId == "mod-settings" && input is MenuInput.Left or MenuInput.Right)
-        {
-            BuildView().Key(input == MenuInput.Left ? UiKey.Left : UiKey.Right);
-            return;
-        }
         if (IsConfigSettingsScreen && input is MenuInput.PageUp or MenuInput.PageDown or MenuInput.PageLeft or MenuInput.PageRight)
         {
             Select(Math.Clamp(SelectedIndex + (input is MenuInput.PageUp or MenuInput.PageLeft ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
@@ -604,7 +608,7 @@ public sealed partial class MenuController
         {
             selectedFontId = SelectedEntry.Id;
         }
-        if (ScreenId == "mods" && SelectedEntry?.Action is { Kind: "mod-toggle" } modAction)
+        if (ScreenId == "mods" && SelectedEntry?.Action is { Kind: "mod-toggle" or "mod-settings-open" } modAction)
         {
             selectedModId = modAction.SubjectId;
             modSelectedOrdinal = Math.Max(0, Array.FindIndex(FilteredModViews(), view => view.Package.Id.Equals(selectedModId, StringComparison.OrdinalIgnoreCase)));
