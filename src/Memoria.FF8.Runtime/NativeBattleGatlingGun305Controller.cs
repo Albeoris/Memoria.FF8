@@ -8,7 +8,7 @@ public static partial class NativeBattleGatlingGun305Controller
     {
         RequireBinding(frame);
         resources.Validate();
-        int first = FirstContact(frame, inputs);
+        BattleContactCursor first = FirstContact(frame, inputs);
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Gatling Gun requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Gatling Gun requires its current texture queue.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
@@ -17,7 +17,7 @@ public static partial class NativeBattleGatlingGun305Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int mainSlot) = children.Append(MainCallback);
         children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(12, 0));
-        NativeBattleGatlingGun305State state = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.Recipient).WriteDword(CasterGlobal, Parameters(frame).Source).ClearSlotHeads();
+        NativeBattleGatlingGun305State state = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(TargetGlobal, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases).ClearSlotHeads();
         textures = textures.Register5099A0(resources.Camera);
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Gatling Gun requires its current resource arena."), tim);
         return frame with { State = state, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures } };

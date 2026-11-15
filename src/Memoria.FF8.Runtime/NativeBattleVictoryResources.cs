@@ -38,7 +38,7 @@ public static class NativeBattleVictoryResources
             {
                 throw new NotSupportedException("Native5022C0 requires its existing resource-header owner.");
             }
-            state = state with { Locals = state.Locals.SetItem(7, state.Default2), Default2 = 1 };
+            state = state.WriteScriptWord(7, alternate: false, NativeBattleScriptValue.Scalar(state.Default2)) with { Default2 = 1 };
         }
         model = model with { Flags2 = (ushort)((model.Flags2 ?? throw new NotSupportedException("Native5022C0 requires model WORD2.")) | 8), ActiveResourceRow100 = null, ActiveStagedResourceRow100 = row, LinkedStagedResourceRow = linkedRow, SequenceState = state };
         return (model with { ActiveAnimationDirectory = directory, ActiveAnimationBank = null }, next);

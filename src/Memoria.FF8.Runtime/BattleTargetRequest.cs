@@ -14,7 +14,9 @@ public enum BattleTargetEligibility
     SavedStatus,
     DrawnMagic,
     CompelledAction,
-    DeathCallback
+    DeathCallback,
+    Living,
+    AiAvailable
 }
 
 public enum BattleTargetReplacement
@@ -45,6 +47,7 @@ public sealed record BattleTargetRequest
     public bool AllowsKnockedOutAllies { get; }
     public BattleTargetReplacement Replacement { get; }
     public BattleActorReference? DeathCallbackSelf { get; }
+    internal NativeBattleTargetRequestAdapter.OriginalWordProjection? OriginalProjection { get; init; }
 
     public static BattleTargetRequest None { get; } = new(new BattleTargetSelection.None(), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
 }

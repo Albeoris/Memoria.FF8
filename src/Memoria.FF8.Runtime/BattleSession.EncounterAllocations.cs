@@ -178,7 +178,7 @@ public sealed partial class BattleSession
     {
         BattleEncounterAllocationState batch = encounterAllocation!;
         BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
-        nativeLastAllocatedIndex = actor.EncodeNativeSlot();
+        RecordLastNativeAllocation(actor);
         nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)actor.SceneSlot!.Value), true, true) };
         graphics = QueueNativePlannedModelDescriptor(graphics, 102, actor, checked((ushort)(actor.ModelId + 16)));
         return QueueNativeDescriptor(graphics, 113, 0x48AD10);

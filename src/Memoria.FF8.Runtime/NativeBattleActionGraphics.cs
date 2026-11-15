@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>50BF90's copied globals; header and contact storage remain in their canonical physical arenas.</summary>
-public sealed record NativeBattleActionGraphicsState([property: JsonRequired] BattleActionHeaderReference Header, [property: JsonRequired] BattleModelOwner Actor, [property: JsonRequired] BattleContactCursor FirstContact, [property: JsonRequired] BattleModelTargets TargetActors, [property: JsonRequired] BattleModelTargets CoverActors, [property: JsonRequired] BattleModelOwner? CoverSource, [property: JsonRequired] BattleModelOwner? FirstTarget, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
+public sealed record NativeBattleActionGraphicsState([property: JsonRequired] BattleActionHeaderReference Header, [property: JsonRequired] BattleModelOwner Actor, [property: JsonRequired] BattleContactCursor FirstContact, [property: JsonRequired] BattleModelTargets TargetActors, [property: JsonRequired] BattleModelTargets CoverActors, [property: JsonIgnore] BattleRetainedModelReference? CoverSourceBinding, [property: JsonIgnore] BattleRetainedModelReference? FirstTargetBinding, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
 {
     [JsonRequired]
     public bool? UseActionCamera { get; init; }
@@ -120,15 +120,15 @@ public static class NativeBattleActionGraphics
         int groups = first.ReadRepeatModeMinusOne() + 1;
         HashSet<BattleModelOwner> targets = [];
         HashSet<BattleModelOwner> covers = [];
-        BattleModelOwner? coverSource = previous?.CoverSource;
-        BattleModelOwner? firstTarget = previous?.FirstTarget;
+        BattleRetainedModelReference? coverSource = previous?.CoverSourceBinding;
+        BattleRetainedModelReference? firstTarget = previous?.FirstTargetBinding;
         byte flags = 0;
         for (int group = 0; group < groups; group++)
         {
             ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts(header.Advance(group));
             if (group == 0 && !contacts.IsEmpty)
             {
-                firstTarget = contacts[0].Primary.Recipient;
+                firstTarget = BattleRetainedModelReference.Capture(contacts[0].Primary.Recipient, packets.ModelAliases);
             }
             foreach (NativeBattleContactPacket contact in contacts)
             {
@@ -137,7 +137,7 @@ public static class NativeBattleActionGraphics
                 if (half.CoverSource is { } source)
                 {
                     covers.Add(source);
-                    coverSource = source;
+                    coverSource = BattleRetainedModelReference.Capture(source, packets.ModelAliases);
                 }
                 if ((half.Flags2 & 0x30) == 0x30)
                 {
@@ -145,11 +145,6 @@ public static class NativeBattleActionGraphics
                 }
             }
         }
-        if (coverSource is not null && !packets.Roster.Contains(coverSource) || firstTarget is not null && !packets.Roster.Contains(firstTarget))
-        {
-            throw new InvalidDataException("Native50BF90 cannot retain a retired model owner.");
-        }
-
         BattleModelTargets targetActors = BattleModelTargets.From(packets.Roster.Owners.Where(targets.Contains));
         BattleModelTargets coverActors = BattleModelTargets.From(packets.Roster.Owners.Where(covers.Contains));
         NativeBattleActionServiceSelection selection = SelectService(first);

@@ -27,7 +27,7 @@ internal static partial class CrossoverNativeRenzokukenEntry
 
         NativeBattleRenzokuken160State Core(NativeBattleRenzokuken160Frame current) => variant == 141 ? NativeBattleRenzokukenVariantController.ReadState(current).Core : current.Memory.Renzokuken160!;
 
-        NativeBattleGraphicsModel ReadModel(byte actor) => actor == 0 ? caster : throw new InvalidDataException("Renzokuken queried an unbound graphics actor.");
+        NativeBattleGraphicsModel ReadModel(BattleModelOwner actor) => actor == source.SourceOwner ? caster : throw new InvalidDataException("Renzokuken queried an unbound graphics actor.");
 
         NativeBattleRenzokuken160ChildStep AdvanceChild(NativeBattleRenzokuken160Frame current, NativeBattleEffectTaskPool pool, int slot)
         {
@@ -38,7 +38,7 @@ internal static partial class CrossoverNativeRenzokukenEntry
             }
             NativeBattleRenzokuken160Inputs inputs = new(0, segments, ReadModel, Execute)
             {
-                ReadBoneCount = actor => ReadModel(actor).Index == 0 ? pose.BoneCount : throw new InvalidDataException("Renzokuken queried an unbound skeleton."),
+                ReadBoneCount = actor => actor == source.SourceOwner ? pose.BoneCount : throw new InvalidDataException("Renzokuken queried an unbound skeleton."),
                 ReadBone = (actor, bone, fraction) => NativeBattlePoseMatrices.ReadBone(ReadModel(actor), pose, checked((byte)bone), fraction),
                 ReadWeaponTip = actor => NativeBattleRenzokuken160Controller.ReadWeaponTip5FFEE0(ReadModel(actor), resource)
             };

@@ -71,17 +71,17 @@ internal sealed partial class CrossoverGuestHostActions
         ImmutableArray<CrossoverNativeMagicTarget> stream = contacts.Select(contact =>
         {
             int slot = contact.HitDescription.PreparedContact!.Invocation.TargetSlot;
-            byte index = targets.Single(target => target.HostSlot == slot).Contact.ActorIndex;
-            return new CrossoverNativeMagicTarget(slot, NativeContact(contact, index));
+            BattleModelOwner owner = targets.Single(target => target.HostSlot == slot).Contact.Recipient;
+            return new CrossoverNativeMagicTarget(slot, NativeContact(contact, owner));
         }).ToImmutableArray();
-        return fireProgram.Begin(source with { Index = 0 }, stream[0].HostSlot, encounter.CrtRandom, stream[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original), sourceTextures: selectedContinuation?.Source.Effect.Frame.Memory.Textures, sourceMemory: selectedContinuation?.Source.Effect.Frame.Memory) with { Targets = targets, Contacts = stream };
+        return fireProgram.Begin(source, stream[0].HostSlot, encounter.CrtRandom, stream[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original), sourceTextures: selectedContinuation?.Source.Effect.Frame.Memory.Textures, sourceMemory: selectedContinuation?.Source.Effect.Frame.Memory, targets: targets, contacts: stream);
 
-        NativeBattleContactHalf NativeContact(Ff7BattleGuestCompositeContact contact, byte index)
+        NativeBattleContactHalf NativeContact(Ff7BattleGuestCompositeContact contact, BattleModelOwner owner)
         {
             Ff7BattleGuestPreparedContact preparedContact = contact.HitDescription.PreparedContact!;
             byte flags = PreparedContactFlags(original, preparedContact);
-            NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, preparedContact.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0, original.AttackType, 255);
-            return NativeBattleContactHalf.FromScratch(index, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(preparedContact.Receipt.Target.Statuses & 1), Math.Abs(preparedContact.Receipt.Damage.Damage), 0);
+            NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, preparedContact.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0, original.AttackType, false);
+            return NativeBattleContactHalf.FromScratch(owner, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(preparedContact.Receipt.Target.Statuses & 1), Math.Abs(preparedContact.Receipt.Damage.Damage), 0);
         }
     }
 

@@ -7,14 +7,15 @@ public sealed partial class BattleSession
 {
     private void QueueNativeGraphicCommand(BattleCombatant actor, byte magicId, byte sequence, ushort targetMask)
     {
-        actor.NativePreviousTargetMask = targetMask;
+        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(targetMask);
         //487DF0 LABEL375's non-Magic/non-Item branch reads EnemyAttack[id1] bit80 even for252.
         if ((NativeGraphicsTargetFlags() & 0x80) != 0)
         {
             targetMask |= 0x4000;
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
-        BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.EnemyAbility, 1) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = 252, NativeSequence = sequence, NativeTargetMask = targetMask, NativeGraphic = new(magicId) };
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(targetMask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        BattleAttackCommand command = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, 1) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = 252, NativeSequence = sequence, NativeGraphic = new(magicId) };
         EnqueueNativePacket(actor, command, $"native graphics252/1 effect{magicId}");
     }
 

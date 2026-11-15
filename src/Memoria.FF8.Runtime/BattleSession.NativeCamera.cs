@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         }
         ushort roll = NextNativeGlobalRandom();
         byte selector = definition.NativeStageCameraSelectors[definition.EncounterId == 33 ? 0 : roll & 1];
-        NativeCamera = NativeCamera! with { Variables = NativeCamera.Variables.SetItem(0, selector), ControlCursor = 0, ControlResource = null, ControlStagingSource = null };
+        NativeCamera = NativeCamera!.SetActionSelector(selector) with { ControlCursor = 0, ControlResource = null, ControlStagingSource = null };
     }
 
     internal void StartNativeCamera(NativeBattleCameraBank bank, byte selector)
@@ -541,17 +541,17 @@ public sealed partial class BattleSession
         NativeCamera = snapshot.NativeCamera;
     }
 
-    private int ReadNativeCameraExternal(byte variable)
+    private NativeBattleScriptValue ReadNativeCameraExternal(byte variable)
     {
         if (variable == 35)
         {
             NativeBattleStageVariant137State variants = NativeStage?.Extended?.Stage137.Variants ?? throw new NotSupportedException("Native50E4E0 requires its retained stage variant index.");
-            return variants.SelectCamera50E4E0();
+            return NativeBattleScriptValue.Scalar(variants.SelectCamera50E4E0());
         }
         if (variable == 23)
         {
             BattleActionHeaderReference active = nativeActionPackets.ActiveHeader ?? throw new NotSupportedException("Native50A6D0 requires its active104 action header.");
-            return nativeActionPackets.ReadHeader(active).RepeatModeMinusOne ?? throw new NotSupportedException("Native50A6D0 requires its retained repeat mode.");
+            return NativeBattleScriptValue.Scalar(nativeActionPackets.ReadHeader(active).RepeatModeMinusOne ?? throw new NotSupportedException("Native50A6D0 requires its retained repeat mode."));
         }
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Native camera participant queries require the actual loaded model bank.");
         return NativeBattleCameraGraphics.ReadVariable(graphics, variable);

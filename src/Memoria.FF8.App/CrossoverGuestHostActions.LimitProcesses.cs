@@ -190,41 +190,28 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     private void CaptureProcessParticipants(int target)
     {
-        List<CrossoverNativeMagicParticipant> bindings = [];
-        if (target != ActorSlot)
-        {
-            bindings.Add(new(target, 3));
-        }
-        foreach (int slot in ReadSceneParticipants())
-        {
-            if (slot == ActorSlot || bindings.Any(binding => binding.HostSlot == slot))
-            {
-                continue;
-            }
-            int index = Enumerable.Range(1, 6).FirstOrDefault(index => bindings.All(binding => binding.ActorIndex != index));
-            if (index == 0)
-            {
-                break;
-            }
-            bindings.Add(new(slot, index));
-        }
-        processParticipantBindings = bindings.ToImmutableArray();
+        processParticipantBindings = CrossoverNativeMagicParticipant.Bind(new[] { target }.Concat(ReadSceneParticipants()).Where(slot => slot != ActorSlot), ReadPresentationOwner);
     }
 
     private ImmutableArray<CrossoverNativeMagicParticipant> ProcessParticipantBindings => ProcessActive ? processParticipantBindings : [];
 
-    private byte ProcessActorIndex(int slot)
+    private BattleModelOwner ReadProcessParticipantOwner(int slot)
     {
         if (slot == ActorSlot)
         {
-            return 0;
+            return ReadPresentationOwner(slot);
         }
-        return checked((byte)(processParticipantBindings.SingleOrDefault(binding => binding.HostSlot == slot)?.ActorIndex ?? throw new NotSupportedException("The retained native process has no free physical model record for this host actor.")));
+        return processParticipantBindings.SingleOrDefault(binding => binding.HostSlot == slot)?.Owner ?? throw new NotSupportedException("The retained native process has no binding for this host actor.");
     }
 
-    private ImmutableArray<CrossoverNativeMagicTarget> BindPresentationTargets(IReadOnlyList<int> slots, Func<int, byte, NativeBattleContactHalf> createContact)
+    private ImmutableArray<CrossoverNativeMagicTarget> BindPresentationTargets(IReadOnlyList<int> slots, Func<int, BattleModelOwner, NativeBattleContactHalf> createContact)
     {
-        return !ProcessActive ? CrossoverNativeMagicTarget.Bind(ActorSlot, slots, createContact) : slots.Select(slot => new CrossoverNativeMagicTarget(slot, createContact(slot, ProcessActorIndex(slot)))).ToImmutableArray();
+        if (slots.Count == 0 || slots.Distinct().Count() != slots.Count)
+        {
+            throw new InvalidDataException("The native action requires a nonempty set of distinct host recipients.");
+        }
+        Func<int, BattleModelOwner> readOwner = ProcessActive ? ReadProcessParticipantOwner : ReadPresentationOwner;
+        return slots.Select(slot => new CrossoverNativeMagicTarget(slot, createContact(slot, readOwner(slot)))).ToImmutableArray();
     }
 
     private void SelectProcessAction(byte command, ushort id)
@@ -814,8 +801,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             BattleNativeAction action = NativeAbility(ability);
             var source = host.VisualPlacement(ActorSlot);
             CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
-            NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ProcessActorIndex(targetSlot), 0, 1, 0, 0, 0, 0);
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, targetSlot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
+            NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ReadProcessParticipantOwner(targetSlot), 0, 1, 0, 0, 0, 0);
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model, targetSlot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
             return fireProgram.TryPreflight(state, () => ReadAbilityAnchor(placement, targetSlot), () => ReadAbilityTransform(placement, targetSlot), CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix), readForeignGeometry is null && encounter.GuestAt(targetSlot) is null ? null : () => ReadAbilityForeign(placement, targetSlot), out string? reason, readGroupForeign: readForeignGeometry is null ? null : slot => ReadAbilityForeign(placement, slot)) ? null : reason;
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or InvalidOperationException or ArgumentException or OverflowException)
@@ -832,8 +819,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             throw new InvalidOperationException("The native presentation-only phase has no ready source owner.");
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ProcessActorIndex(target.Slot), 0, 1, 0, 0, 0, 0);
-        CrossoverNativeMagicPresentationState presentation = fireProgram.Begin(visual.Model with { Index = 0 }, target.Slot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
+        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ReadProcessParticipantOwner(target.Slot), 0, 1, 0, 0, 0, 0);
+        CrossoverNativeMagicPresentationState presentation = fireProgram.Begin(visual.Model, target.Slot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
         processBackground = null;
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), new(0, 0, 0), 0), null, presentation, false);

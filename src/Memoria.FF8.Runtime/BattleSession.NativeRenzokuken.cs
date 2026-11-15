@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeRenzokukenInvocation(byte CrisisLevel);
-public sealed record BattleNativeRenzokukenState(ushort MagicId, ushort TargetMask, byte? FinisherActionId, BattleNativeRenzokukenInputState Input)
+public sealed record BattleNativeRenzokukenState(ushort MagicId, BattleTargetRequest TargetRequest, byte? FinisherActionId, BattleNativeRenzokukenInputState Input)
 {
     public int PoseFrames { get; init; }
     public byte UiPhase { get; init; }
@@ -86,16 +86,16 @@ public sealed partial class BattleSession
                 }
             }
             OnNativePlayerCommandSubmitted(actor, 5);
-            actions.Enqueue(new(actor.Id, target.Id, BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(crisis) });
+            actions.Enqueue(new(actor.Id, target.Id, SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living), BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(crisis) });
             actor.Atb = 0;
             actor.IsBusy = true;
             Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: Renzokuken queued.");
             return;
         }
         byte targetFlags = actor.NativeLimit!.InvocationChoices.Single().TargetFlags;
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(targetFlags, target.EncodeNativeSlot());
+        BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, targetFlags);
         OnNativePlayerCommandSubmitted(actor, 5);
-        BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeTargetMask = mask, NativeRenzokuken = new(crisis) };
+        BattleAttackCommand command = new(actor.Id, target.Id, request, BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(crisis) };
         EnqueueNativePacket(actor, command, actor.NativeLimit.InvocationChoices.Single().Name, playerInput: true);
     }
 
@@ -104,7 +104,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(queued.ActorId);
         byte crisis = queued.NativeRenzokuken!.CrisisLevel;
         BattleCombatant selectedTarget = GetActor(queued.TargetId);
-        BattleCombatant? target = UsesExpandedRoster ? IsExpandedRenzokukenTarget(selectedTarget) ? selectedTarget : null : ResolveNativeActionMask(queued.NativeTargetMask).FirstOrDefault();
+        BattleCombatant? target = UsesExpandedRoster ? IsExpandedRenzokukenTarget(selectedTarget) ? selectedTarget : null : ResolveBattleTargets(queued.TargetRequest).FirstOrDefault();
         if (target is null || !CanNativeBattleActorAct(actor))
         {
             actor.IsBusy = false;
@@ -130,19 +130,19 @@ public sealed partial class BattleSession
             Log("Renzokuken", actor.Id, target.Id, resource.Timeline.InputThresholds.Length, $"{actor.Name}: Renzokuken.");
             return;
         }
-        ushort mask = checked((ushort)(1 << target.EncodeNativeSlot()));
-        ushort finisherTargets = mask;
+        BattleTargetRequest contact = new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        BattleTargetRequest finisherTargets = contact;
         if (finisher is byte selected)
         {
             BattleNativeAction action = FindInstalledNativeAction(249, selected);
-            ushort computed = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
-            finisherTargets = (computed & 0x8000) != 0 ? computed : mask;
+            BattleTargetRequest computed = CreateAutomaticTargetRequest(action.TargetFlags!.Value);
+            finisherTargets = (action.TargetFlags.Value & 0x30) is 0 or 0x20 ? computed : contact;
             nativeActionScratch = nativeActionScratch with { FinisherActionIndexE2E = selected };
         }
-        BattleActionPresentation original = new(actor.Id, target.Id, BattleActionPhase.Windup, 1, BattleAbility.LimitBreak, finisher is null ? 0xFFFD : 0xFFFE) { NativeQueuedCommand = 5, NativeTargetMask = mask, NativeSequence = 21, NativeRenzokuken = queued.NativeRenzokuken };
+        BattleActionPresentation original = new(actor.Id, target.Id, BattleActionPhase.Windup, 1, contact, BattleAbility.LimitBreak, finisher is null ? 0xFFFD : 0xFFFE) { NativeQueuedCommand = 5, NativeSequence = 21, NativeRenzokuken = queued.NativeRenzokuken };
         nativeActionScratch = nativeActionScratch with { FinisherPendingE03 = finisher is not null };
         BeginNativeTimedAction(original, magicId, finisher, finisherTargets);
-        nativeRenzokukenProcesses.Add(actor.Id, new(magicId, mask, finisher, new()));
+        nativeRenzokukenProcesses.Add(actor.Id, new(magicId, contact, finisher, new()));
         Log("Renzokuken", actor.Id, target.Id, resource.Timeline.InputThresholds.Length, $"{actor.Name}: Renzokuken.");
     }
 
@@ -189,7 +189,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                ResolveNativeTimedContact(state.TargetMask, physical, contact.TriggerTiming, contact.Index == contact.Total && state.FinisherActionId is null);
+                ResolveNativeTimedContact(state.TargetRequest, physical, contact.TriggerTiming, contact.Index == contact.Total && state.FinisherActionId is null);
             }
         }
         if (state.Input.Phase == 8 && state.PoseFrames >= resource.Timeline.TotalPoseFrames)
@@ -238,9 +238,9 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Saved Renzokuken input contradicts its original actor or resource.");
         }
         _ = RequireNativeRenzokukenOptions();
-        if (UsesExpandedRoster && state.TargetMask != 0)
+        if (state.TargetRequest is null || UsesExpandedRoster && state.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors.Length: 1 })
         {
-            throw new InvalidDataException("Saved expanded Renzokuken cannot retain a physical target mask.");
+            throw new InvalidDataException("Saved Renzokuken requires its invocation target selection.");
         }
         if (state.FinisherActionId is byte finisher)
         {
@@ -276,7 +276,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Saved expanded Renzokuken disagrees with its installed target selectors or equipped finishers.");
         }
         int pending = NativeGraphics?.PendingTrigger is { } receipt && receipt.Actor == CreatePresentationModelOwner(GetActor(actorId)) && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
-        if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts + pending != process.Input.ContactIndex || timed.Command.NativeTargetMask != process.TargetMask)
+        if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts + pending != process.Input.ContactIndex || timed.Command.TargetRequest != process.TargetRequest)
         {
             throw new InvalidDataException("Saved Renzokuken contact count or target differs from its durable transaction.");
         }

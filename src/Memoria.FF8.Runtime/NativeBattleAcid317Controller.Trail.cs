@@ -6,9 +6,9 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleAcid317Controller
 {
-    private static NativeBattleAcid317Frame StartTrail(NativeBattleAcid317Frame frame, NativeBattleVector source, NativeBattleVector destination, short tag, short progress, short increment, short scale, int angle, bool capturePresentation = false)
+    private static NativeBattleAcid317Frame StartTrail(NativeBattleAcid317Frame frame, NativeBattleVector source, NativeBattleVector destination, BattleModelOwner owner, short progress, short increment, short scale, int angle, NativeBattleAcid317Inputs inputs)
     {
-        (frame, uint head) = AllocatePoint(frame, source, tag, capturePresentation);
+        (frame, uint head) = AllocatePoint(frame, source, null, inputs.CapturePresentation, owner, inputs.Packets.ModelAliases.EncodeOperand(owner, 2));
         if (head == 0)
         {
             return frame;
@@ -18,7 +18,8 @@ public static partial class NativeBattleAcid317Controller
         {
             return PointWord(frame, head + 6, -1);
         }
-        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[68]).WriteWord(12, 0).WriteWord(14, 1).WriteDword(0x10, head).WriteDword(0x14, head).WriteWord(0x18, unchecked((ushort)source.X)).WriteWord(0x1A, unchecked((ushort)source.Y)).WriteWord(0x1C, unchecked((ushort)source.Z)).WriteWord(0x1E, unchecked((ushort)progress)).WriteWord(0x20, unchecked((ushort)destination.X)).WriteWord(0x22, unchecked((ushort)destination.Y)).WriteWord(0x24, unchecked((ushort)destination.Z)).WriteWord(0x26, unchecked((ushort)increment)).WriteWord(0x48, unchecked((ushort)tag)).WriteWord(0x4A, unchecked((ushort)angle)).WriteWord(0x4C, unchecked((ushort)scale));
+        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[68]).WriteWord(12, 0).WriteWord(14, 1).WriteDword(0x10, head).WriteDword(0x14, head).WriteWord(0x18, unchecked((ushort)source.X)).WriteWord(0x1A, unchecked((ushort)source.Y)).WriteWord(0x1C, unchecked((ushort)source.Z)).WriteWord(0x1E, unchecked((ushort)progress)).WriteWord(0x20, unchecked((ushort)destination.X)).WriteWord(0x22, unchecked((ushort)destination.Y)).WriteWord(0x24, unchecked((ushort)destination.Z)).WriteWord(0x26, unchecked((ushort)increment)).WriteWord(0x4A, unchecked((ushort)angle)).WriteWord(0x4C, unchecked((ushort)scale));
+        task.WriteExecutionReference(0x48, 2, new BattleExecutionReference.Model(owner), inputs.Packets.ModelAliases.EncodeOperand(owner, 2));
         NativeBattleActionMatrix basis;
         if (source == destination)
         {
@@ -38,15 +39,23 @@ public static partial class NativeBattleAcid317Controller
         return WriteArena(frame, head + 12, BitConverter.GetBytes(frame.State.ReadDword(0x25054DC)));
     }
 
-    private static (NativeBattleAcid317Frame Frame, uint Address) AllocatePoint(NativeBattleAcid317Frame frame, NativeBattleVector position, short tag, bool capturePresentation)
+    private static (NativeBattleAcid317Frame Frame, uint Address) AllocatePoint(NativeBattleAcid317Frame frame, NativeBattleVector position, short? tag, bool capturePresentation, BattleModelOwner? owner = null, ImmutableArray<byte>? encoded = null)
     {
         for (int index = 0; index < PointCount; index++)
         {
             uint address = Working(frame) + PointsOffset + (uint)(index * PointStride);
-            if (PointSigned(frame, address + 6) == -1)
+            if (!Arena(frame).TryReadExecutionReference<BattleExecutionReference.Model>(Offset(address + 6, 2), 2, out _) && PointSigned(frame, address + 6) == -1)
             {
                 frame = PointVector(frame, address, position);
-                frame = PointWord(PointWord(PointWord(frame, address + 6, tag), address + 14, 10), address + 0x20, 2048);
+                if (owner is null)
+                {
+                    frame = PointWord(frame, address + 6, tag ?? throw new InvalidDataException("An Acid trail point requires its scalar tag."));
+                }
+                else
+                {
+                    Arena(frame).WriteExecutionReference(Offset(address + 6, 2), 2, new BattleExecutionReference.Model(owner), encoded);
+                }
+                frame = PointWord(PointWord(frame, address + 14, 10), address + 0x20, 2048);
                 if (capturePresentation)
                 {
                     NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena ?? throw new NotSupportedException("Acid point birth requires its current native arena."), Working(frame) + PointsOffset, index);
@@ -82,8 +91,9 @@ public static partial class NativeBattleAcid317Controller
                 NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(basis, radial);
                 point = new(unchecked((short)(point.X + rotated.X)), unchecked((short)(point.Y + rotated.Y)), unchecked((short)(point.Z + rotated.Z)));
                 frame = Write(frame, address, Read(frame, address).WriteWord(0x4A, unchecked((ushort)(task.ReadWord(0x4A) + 256))));
-                if (progress >= 4096 && Signed(task, 0x48) >= 0)
+                if (progress >= 4096)
                 {
+                    _ = task.ReadExecutionReference<BattleExecutionReference.Model>(0x48, 2);
                     (frame, uint child) = Append(frame, 3, 0x660D40);
                     if (child != 0)
                     {

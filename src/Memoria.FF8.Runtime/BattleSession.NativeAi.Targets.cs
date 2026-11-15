@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             case 208:
                 return 0xA007;
             case 209:
-                return NativeAiIndexMask(nativeLastAllocatedIndex);
+                return nativeLastAllocatedTarget is NativeBattleTargetRequestAdapter.OriginalPreviousOperand original ? NativeAiIndexMask(original.Operand) : (ushort)0;
             case >= 220 and <= 227:
                 return NativeAiIndexMask(unchecked((int)actor.AiVariables[selector - 220]));
             default:

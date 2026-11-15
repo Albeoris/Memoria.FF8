@@ -11,7 +11,7 @@ public static partial class NativeBattleGatlingGun150Controller
         {
             return (frame, 0);
         }
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         NativeBattleGatlingGun150PointStep point = inputs.ReadBone502170(frame, caster, 0xF0, 0);
         frame = point.Frame with { State = point.Frame.State.WriteView(CasterPointGlobal, point.Point8, 8) };
         int age = Signed(Read(frame, address), 12);
@@ -33,7 +33,7 @@ public static partial class NativeBattleGatlingGun150Controller
         }
         if (age == 1)
         {
-            int targetActor = checked((int)frame.State.ReadDword(FirstTargetGlobal));
+            BattleModelOwner targetActor = frame.State.ReadModel(FirstTargetGlobal);
             NativeBattleGatlingGun150PointStep target = inputs.ReadAnchor571400(frame, targetActor);
             frame = target.Frame;
             int x = Word(frame, CasterPointGlobal);
@@ -49,7 +49,7 @@ public static partial class NativeBattleGatlingGun150Controller
         }
         if (age == 11)
         {
-            int targetActor = checked((int)frame.State.ReadDword(FirstTargetGlobal));
+            BattleModelOwner targetActor = frame.State.ReadModel(FirstTargetGlobal);
             NativeBattleGatlingGun150PointStep target = inputs.ReadAnchor571400(frame, targetActor);
             frame = target.Frame;
             NativeBattleEffectLocalBounds bounds = inputs.ReadModel(frame, targetActor).GeometryBounds52 ?? throw new NotSupportedException("Gatling Gun requires its actual target bounds.");

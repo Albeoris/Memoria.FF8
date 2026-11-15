@@ -14,16 +14,20 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native Draw requires its saved known magic bank; migrate the unknown owner explicitly.");
         }
+        BattleTargetRequest request = SelectBattleTarget(source);
         if (cast)
         {
             BattleActionDefinition spell = FindAction(BattleAbility.Magic, selection);
-            ValidatePlayerDrawCastTarget(actor, spell, castTargetId);
+            BattleCombatant recipient = ValidatePlayerDrawCastTarget(actor, spell, castTargetId);
+            request = spell.NativeAction?.TargetFlags is byte flags
+                ? CreatePlayerTargetRequest(actor, recipient, flags)
+                : SelectBattleTarget(recipient, IsNativeRevive(spell), BattleTargetEligibility.DrawnMagic);
             if (UsesExpandedRoster)
             {
                 RequireExpandedAction(spell);
             }
         }
-        BattleAttackCommand queued = new(actorId, sourceId, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId, SmartAttack = pendingSmartAttack };
+        BattleAttackCommand queued = new(actorId, sourceId, request, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId, SmartAttack = pendingSmartAttack };
         OnNativePlayerCommandSubmitted(actor, 6);
         if (UsesExpandedRoster)
         {
@@ -69,7 +73,6 @@ public sealed partial class BattleSession
         int quantity = 0;
         int added = 0;
         BattleNativeAction? native = null;
-        ushort mask = 0;
         if (command.ActionId >= 64)
         {
             int id = command.ActionId - 64;
@@ -102,21 +105,17 @@ public sealed partial class BattleSession
             }
             if (command.DrawCast && !failed)
             {
-                BattleCombatant recipient = GetActor(command.DrawCastTargetId ?? throw new InvalidDataException("Draw Cast lacks its selected recipient."));
+                _ = GetActor(command.DrawCastTargetId ?? throw new InvalidDataException("Draw Cast lacks its selected recipient."));
                 if (nativeKnownMagic is not null || spell.NativeAction is not null)
                 {
                     DiscoverNativeMagic(command.ActionId);
                 }
                 native = spell.NativeAction;
-                if (native is not null && !UsesExpandedRoster)
-                {
-                    mask = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new InvalidDataException("Draw spell lacks its original target flags."), recipient.EncodeNativeSlot());
-                }
             }
         }
         BattleNativeDrawContext result = new(checked((byte)command.ActionId), checked((byte)quantity), checked((byte)added), failed);
         RecordOriginalStockDraw(actor, command, result);
-        return command with { NativeDraw = result, NativeAction = native, NativeTargetMask = mask };
+        return command with { NativeDraw = result, NativeAction = native, TargetRequest = command.DrawCast && !failed ? command.TargetRequest : BattleTargetRequest.None };
     }
 
     public int PreviewDrawQuantity(BattleCombatant actor, BattleCombatant source, int selection, int random)
@@ -237,7 +236,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ValidateNativeDrawPacket(BattleAbility ability, int selection, bool cast, string? recipient, BattleNativeDrawContext? result, bool dispatched, BattleNativeAction? native, ushort targetMask)
+    private void ValidateNativeDrawPacket(BattleAbility ability, int selection, bool cast, string? recipient, BattleNativeDrawContext? result, bool dispatched, BattleNativeAction? native, BattleTargetRequest request)
     {
         if (ability != BattleAbility.Draw)
         {
@@ -253,17 +252,17 @@ public sealed partial class BattleSession
         }
         if (recipient is not null)
         {
-            BattleCombatant target = GetActor(recipient);
+            _ = GetActor(recipient);
             BattleNativeAction? installed = FindAction(BattleAbility.Magic, selection).NativeAction;
             bool hasEffect = dispatched && result is { Failed: false };
-            if (hasEffect && installed is not null && (native is null || !UsesExpandedRoster && target.IsActive && targetMask != NativeBattleLimitRules.PlayerTargetMask(installed.TargetFlags ?? throw new InvalidDataException("Draw spell lacks target flags."), target.EncodeNativeSlot())) || !hasEffect && native is not null || UsesExpandedRoster && targetMask != 0)
+            if (hasEffect && installed is not null && (native is null || request.Selection is BattleTargetSelection.None) || !hasEffect && native is not null)
             {
                 throw new InvalidDataException("Saved Draw Cast effect disagrees with its prepared native spell and separate recipient.");
             }
         }
-        else if (native is not null || targetMask != 0)
+        else if (native is not null || dispatched && request.Selection is not BattleTargetSelection.None)
         {
-            throw new InvalidDataException("Stock Draw has no spell damage metadata or spell recipient mask.");
+            throw new InvalidDataException("Stock Draw has no spell damage metadata or spell recipient selection.");
         }
         if (result is not null && (result.Selection != selection || result.Quantity > Math.Min(100, 9 + definition.Tuning.DrawBonus) || result.Added > result.Quantity || cast && result.Added != 0 || selection >= 64 && (result.Quantity != 0 || result.Added != 0) || selection < 64 && result.Failed != (result.Quantity == 0)))
         {

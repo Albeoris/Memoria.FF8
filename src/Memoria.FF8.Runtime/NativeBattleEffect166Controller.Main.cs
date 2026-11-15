@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect166Controller
 {
     public static NativeBattleEffect166Step AdvanceMain5E4F60(NativeBattleEffect166Frame frame, uint address, NativeBattleEffect166Resources resources, NativeBattleEffect166Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadWorld(frame, caster).ReadMatrix(), inputs.ReadCurrentBoneMatrix32(frame, caster, 37).ReadMatrix());
         NativeBattleVector offset = Vector(NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(CenterOffsetAddress, 8)));
         NativeBattleVector anchor = NativeBattleGfMatrices.RotateShort56C4F0(composed, offset);
@@ -97,29 +97,39 @@ public static partial class NativeBattleEffect166Controller
         }
         if (age == 44 || age == 54)
         {
-            for (int actor = 0; actor < 3; actor++)
+            foreach (BattleModelOwner actor in inputs.ReadPartyOwners())
             {
                 if ((inputs.ReadModel(frame, actor).Flags0 & 2) == 0)
                 {
                     continue;
                 }
-                int contact = ContactIndex(frame, actor, inputs);
+                var contact = new BattleExecutionReference.ContactOffset(ContactIndex(frame, actor, inputs));
+                NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
                 if (age == 44)
                 {
-                    int selectedActor = actor;
-                    frame = Birth(frame, 0x5E8DA0, task => task.WriteWord(14, (ushort)selectedActor).WriteWord(0x1A, unchecked((ushort)contact)).WriteWord(0x20, (ushort)(contact >= 0 ? 500 : 250)));
+                    frame = Birth(frame, 0x5E8DA0, task => BindChild(task).WriteWord(0x20, (ushort)(contact.Offset is not null ? 500 : 250)));
                 }
                 else
                 {
                     (frame, int scale) = Random(frame, 3);
                     (frame, int displacement) = Random(frame, 1500);
                     int y = -3000 - displacement;
-                    if (contact < 0)
+                    if (contact.Offset is null)
                     {
                         y >>= 1;
                     }
-                    int selectedActor = actor;
-                    frame = Birth(frame, 0x5E8EF0, task => task.WriteWord(14, (ushort)selectedActor).WriteWord(0x18, (ushort)((scale + 1) << 12)).WriteWord(0x1A, unchecked((ushort)contact)).WriteWord(0x20, unchecked((ushort)y)));
+                    frame = Birth(frame, 0x5E8EF0, task => BindChild(task, (ushort)((scale + 1) << 12)).WriteWord(0x20, unchecked((ushort)y)));
+                }
+
+                NativeBattleModulePoolTask BindChild(NativeBattleModulePoolTask task, ushort? scale = null)
+                {
+                    task.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+                    if (scale is ushort value)
+                    {
+                        task = task.WriteWord(0x18, value);
+                    }
+                    task.WriteExecutionReference(0x1A, 2, contact, contact.EncodeOriginalWord());
+                    return task;
                 }
             }
         }
@@ -171,14 +181,14 @@ public static partial class NativeBattleEffect166Controller
         return (frame with { Random = random }, value % modulus);
     }
 
-    private static int ContactIndex(NativeBattleEffect166Frame frame, int actor, NativeBattleEffect166Inputs inputs)
+    private static int? ContactIndex(NativeBattleEffect166Frame frame, BattleModelOwner actor, NativeBattleEffect166Inputs inputs)
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(frame.Effect.Parameters!.Header);
         int count = header.ReadContactCount();
         if (count == 0)
         {
-            return -1;
+            return null;
         }
         BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < count; index++)
@@ -188,6 +198,6 @@ public static partial class NativeBattleEffect166Controller
                 return index;
             }
         }
-        return -1;
+        return null;
     }
 }

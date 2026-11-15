@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gravija214 requires its actual process memory.");
         NativeBattleGravija214Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gravija214 requires its actual CRT stream."), (memory.Gravija214 ?? throw new NotSupportedException("Gravija214 requires its retained executable storage."))) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gravija214 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gravija214 requires its original arithmetic constants.");
-        NativeBattleGravija214Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), Anchor, _ => nativeActionPackets, Execute) { ReadOrderingTable = _ => OrderingTable(), CapturePresentation = true };
+        NativeBattleGravija214Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), Anchor, _ => nativeActionPackets, Execute) { ReadOrderingTable = _ => OrderingTable(), CapturePresentation = true };
         frame = initialize ? NativeBattleGravija214Controller.Initialize(frame, resources, inputs) : NativeBattleGravija214Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -34,7 +34,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Gravija214 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Gravija214 requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gravija214 requires its actual current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gravija214 requires its actual current actor skeleton.");
 
         void Publish(NativeBattleGravija214Frame current)
         {
@@ -56,9 +56,8 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleGravija214PointStep Bone(NativeBattleGravija214Frame current, uint pointer, int selector, int distance)
+        NativeBattleGravija214PointStep Bone(NativeBattleGravija214Frame current, BattleModelOwner actor, int selector, int distance)
         {
-            int actor = Actor(pointer);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
@@ -70,24 +69,15 @@ public sealed partial class BattleSession
             return new(current, Point(new(unchecked((short)registers.Mac[0]!.Value), unchecked((short)registers.Mac[1]!.Value), unchecked((short)registers.Mac[2]!.Value))));
         }
 
-        int Actor(uint pointer)
+        NativeBattleGravija214PointStep Anchor(NativeBattleGravija214Frame current, BattleModelOwner actor)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Gravija requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
-
-        NativeBattleGravija214PointStep Anchor(NativeBattleGravija214Frame current, uint pointer)
-        {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point((model.Transform ?? throw new NotSupportedException("Gravija anchor requires its actual transform.")).Position28));
             }
-            NativeBattleGravija214PointStep first = Bone(current, pointer, 0xF0, 0);
-            NativeBattleGravija214PointStep second = Bone(first.Frame, pointer, 0xF1, 0);
+            NativeBattleGravija214PointStep first = Bone(current, actor, 0xF0, 0);
+            NativeBattleGravija214PointStep second = Bone(first.Frame, actor, 0xF1, 0);
             short Average(int offset) => unchecked((short)((BinaryPrimitives.ReadInt16LittleEndian(first.Point8.Read(offset, 2)) + BinaryPrimitives.ReadInt16LittleEndian(second.Point8.Read(offset, 2))) / 2));
             return new(second.Frame, Point(new(Average(0), Average(2), Average(4))));
         }
@@ -122,7 +112,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleGravija214ContactsAll506BA0 contacts:
                     Publish(current);
-                    graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
+                    graphics = ApplyNativeHeaderContacts(graphics, contacts.Header);
                     return Import(current);
                 case NativeBattleGravija214CommonTextureLoad508630 completion:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(completion.DestinationAddress, completion.CompletionAddress, (address, value) => current = current with { Effect = NativeBattleGravija214Controller.WriteCompletionByte(current.Effect, address, value) });

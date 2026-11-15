@@ -72,7 +72,7 @@ public sealed partial class BattleSession
 
     private int MagicCost(BattleCombatant actor, BattleAttackCommand command)
     {
-        int targets = Math.Max(1, command.ExpandedMagicTargets?.Length ?? command.NativeMagicTargets.Length);
+        int targets = Math.Max(1, command.MagicCasts.Length);
         return command.NativeMagicCastMode == 0 ? MagicCost(actor, targets) : Math.Min(targets, MagicCost(actor, command.NativeMagicCastMode));
     }
 
@@ -195,13 +195,13 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (command.ExpandedMagicTargets is not null)
+        if (UsesExpandedRoster && command.MagicCasts.Length > 1)
         {
             return GetAvailableMagicCasts(actor.Id, command.ActionId, reservation.ActionId) > 0 && (NativeSavedStatusBits(actor) & 0x10) == 0 && actor.Abilities.Contains(BattleAbility.Magic);
         }
         uint statuses = NativeBattleStatusBits(actor);
-        int mode = command.NativeMagicCastMode == 0 ? command.NativeMagicTargets.Length : command.NativeMagicCastMode;
-        int casts = mode >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
+        int mode = command.NativeMagicCastMode == 0 ? command.MagicCasts.Length : command.NativeMagicCastMode;
+        int casts = mode >= 3 && (statuses & 0x40000) != 0 ? 3 : command.MagicCasts.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         MagicCastQuote quote = MagicCastingService.Quote(magicVitals, row, reservation.SpellId, MagicCastContext.Battle, reservation.ActionId);
         return quote.Available >= Math.Min(MagicCost(actor, casts), reservation.Count) && (command.Ability != BattleAbility.Magic || (admitSilencedInvocation || (NativeSavedStatusBits(actor) & 0x10) == 0) && (actor.Abilities.Contains(BattleAbility.Magic) || HasRetainedReservedCommand(actor, command.Ability, command.NativeQueuedCommand)));
     }
@@ -222,6 +222,6 @@ public sealed partial class BattleSession
         ReleaseMagicReservation(command.MagicReservationId);
         BattleCombatant physicalTarget = target.IsActive && target.IsAlive && !target.Untargetable ? target : combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.IsAlive && !candidate.IsPlayer && !candidate.Untargetable) ?? target;
         byte physical = PhysicalCommand(actor);
-        return new(actor.Id, physicalTarget.Id) { NativeQueuedCommand = physical, NativeAction = physical == 12 ? FindNativeCommandAction(actor, 12, 0) : null };
+        return new(actor.Id, physicalTarget.Id, SelectBattleTarget(physicalTarget)) { NativeQueuedCommand = physical, NativeAction = physical == 12 ? FindNativeCommandAction(actor, 12, 0) : null };
     }
 }

@@ -40,7 +40,7 @@ public sealed partial class BattleSession
             graphics.ActorModels.Owners.All(candidate => graphics.NativeBindings.TryEncodeExactActor(candidate, graphics.ActorModels, out _));
     }
 
-    internal int ReadEffectPresentationSourceVariable(NativeBattleGraphicsModel source, byte variable)
+    internal NativeBattleScriptValue ReadEffectPresentationSourceVariable(NativeBattleGraphicsModel source, byte variable)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         BattleModelOwner owner = RequirePresentationSourceOwner();

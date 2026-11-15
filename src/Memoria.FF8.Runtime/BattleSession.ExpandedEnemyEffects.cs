@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         return UsesOriginalEnemySlots && definition.EncounterId == 164 && actor is { IsPlayer: false, ModelId: 71, SceneSlot: 3 } &&
             command is { Ability: BattleAbility.EnemyAbility, NativeGraphic: not null, NativeAiCallbackStage: 0 } &&
             action is { Command: 252, ActionId: 1, MagicId: 248, HitCount: 1 } &&
-            command.AiRecipients?.ActorIds is { Length: 1 } recipients && recipients[0] == actor.Id;
+            command.TargetRequest.Selection is BattleTargetSelection.Explicit { Actors: { Length: 1 } recipients } && recipients[0].ActorId == actor.Id;
     }
 
     private bool IsExpandedAuthoredDeathEffectPresentation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction action)
@@ -26,6 +26,6 @@ public sealed partial class BattleSession
         // NG-090: The authored death action schedules activation of the loaded fourth enemy.
         return UsesOriginalEnemySlots && command is { Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 3, NativeSequence: 12 } &&
             action is { Command: 8, KernelSection: 3, ActionId: 287, MagicId: 20, HitCount: 1 } &&
-            command.AiRecipients?.DeathSelfTargetId == actor.Id && FindActiveNativeActor(6) is { IsPlayer: false, Hidden: true, Suspended: true, Untargetable: true };
+            command.TargetRequest.DeathCallbackSelf?.ActorId == actor.Id && FindActiveNativeActor(6) is { IsPlayer: false, Hidden: true, Suspended: true, Untargetable: true };
     }
 }

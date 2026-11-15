@@ -168,14 +168,6 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         RequireBoundOwner(roster, action.Actor);
         RequireBoundTargets(roster, action.TargetActors);
         RequireBoundTargets(roster, action.CoverActors);
-        if (action.CoverSource is { } coverSource)
-        {
-            RequireBoundOwner(roster, coverSource);
-        }
-        if (action.FirstTarget is { } firstTarget)
-        {
-            RequireBoundOwner(roster, firstTarget);
-        }
         if (action.CameraActor is { } cameraActor)
         {
             RequireBoundOwner(roster, cameraActor);

@@ -25,14 +25,14 @@ public static partial class NativeBattleGatlingGun305Controller
         {
             frame = DrawRandom(frame, out ushort randomX);
             frame = DrawRandom(frame, out ushort randomZ);
-            NativeBattleActionMatrix world = inputs.ReadModel(checked((int)frame.State.ReadDword(TargetGlobal))).GeometryWorldMatrix ?? throw new NotSupportedException("Gatling Gun requires its target world rotation.");
+            NativeBattleActionMatrix world = inputs.ReadModel(frame.State.ReadModel(TargetGlobal)).GeometryWorldMatrix ?? throw new NotSupportedException("Gatling Gun requires its target world rotation.");
             (int vx, int vy, int vz) = NativeBattleGfMatrices.RotateLong56C600(world, (randomX & 0xFFF) - 2048, 0, -(randomZ & 0x7FF));
             (vx, vy, vz) = NativeBattleActionGeometryRules.NormalizeVector56BC50(vx, vy, vz);
             frame = DrawRandom(frame, out ushort radiusRandom);
             int radius = radiusRandom % 210 + 60;
             x = unchecked((short)(x + (unchecked(radius * vx) >> 12)));
             z = unchecked((short)(z + (unchecked(radius * vz) >> 12)));
-            yaw = unchecked((short)((inputs.ReadModel(checked((int)frame.State.ReadDword(CasterGlobal))).Rotation14 ?? throw new NotSupportedException("Gatling Gun requires its caster yaw.")) + 2048));
+            yaw = unchecked((short)((inputs.ReadModel(frame.State.ReadModel(CasterGlobal)).Rotation14 ?? throw new NotSupportedException("Gatling Gun requires its caster yaw.")) + 2048));
         }
         else
         {

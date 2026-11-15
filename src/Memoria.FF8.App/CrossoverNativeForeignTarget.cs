@@ -16,7 +16,7 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
     public bool? AtStandingPose { get; init; }
     public uint? NativeStatusFlags { get; init; }
 
-    public NativeBattleForeignActor ToActor(int index)
+    public NativeBattleForeignActor ToActor(BattleModelOwner owner)
     {
         ImmutableArray<NativeBattleForeignModelFace> faces;
         if (!Geometry.GuestFaces.IsDefaultOrEmpty)
@@ -38,10 +38,9 @@ internal sealed record CrossoverNativeForeignTarget(int HostSlot, NativeBattleMo
         NativeBattleVector anchor = Anchors.Anchor241;
         NativeBattleActionMatrix poseWorld = NativeBattleForeignPlacement.World(Transform, 0, Facing, 0);
         NativeBattleActionMatrix inversePose = NativeBattleForeignPlacement.Inverse(poseWorld);
-        return new(index, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), ReadBone)
+        return new(owner, Transform, new(anchor.X, anchor.Y, anchor.Z, checked((short)(Anchors.LocalBounds.Maximum.Y - Anchors.LocalBounds.Minimum.Y))), ReadBone)
         {
             Facing = Facing,
-            IsParty = HostSlot < 3,
             NativeModel = NativeModel,
             NativeResource = NativeResource,
             CanReact = CanReact,

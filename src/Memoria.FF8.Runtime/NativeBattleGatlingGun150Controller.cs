@@ -11,7 +11,7 @@ public static partial class NativeBattleGatlingGun150Controller
         NativeBattleEffectParameters parameters = Parameters(frame);
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, FirstTargetGlobal, inputs.Packets.ReadContact(contact).Primary.Recipient), ParametersGlobal, 0x1D99A78), CasterGlobal, parameters.Source);
+        frame = frame with { State = frame.State.WriteModel(FirstTargetGlobal, inputs.Packets.ReadContact(contact).Primary.Recipient, inputs.Packets.ModelAliases).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, parameters.Source, inputs.Packets.ModelAliases) };
         NativeBattleEffectTaskPool root = ResetPool(frame, RootDescriptor, RootBank, RootStride, RootCount);
         (root, int rootSlot) = root.Append(RootCallback);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));

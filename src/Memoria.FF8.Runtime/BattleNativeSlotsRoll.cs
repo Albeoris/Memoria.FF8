@@ -1,6 +1,9 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleNativeSlotsRoll(byte MagicId, byte Repetitions);
+public sealed record BattleNativeSlotsRoll(byte MagicId, byte Repetitions)
+{
+    public BattleTargetSelection? PreflightSelection { get; init; }
+}
 
 public static class NativeBattleSlotsRules
 {

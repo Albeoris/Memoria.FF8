@@ -41,11 +41,11 @@ public sealed partial class BattleSession
         NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Native Angelo support requires the saved learned flags at1CFE772.");
         if ((progress.AngeloFlags & 2) != 0 && (NativeSavedStatusBits(actor) & 0x100) != 0 && NextRandomByte() <= 16)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRecover, 240, 12, checked((ushort)(1 << actor.EncodeNativeSlot())));
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRecover, 240, 12, SelectBattleTarget(actor));
         }
         else if ((progress.AngeloFlags & 1) != 0 && NextRandomByte() <= 16)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRush, 240, 11, checked((ushort)(1 << attacker)));
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRush, 240, 11, new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(attacker)), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy));
         }
     }
 
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
     private void RunNativePlayerDeathSupport(BattleCombatant actor)
     {
         //494410 already admitted482F10;4877F0 stage3 retains the original actor and includes KO targets.
-        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloReverse, 240, 13, checked((ushort)((1 << actor.EncodeNativeSlot()) | 0x4000)));
+        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloReverse, 240, 13, SelectBattleTarget(actor, allowsKnockedOutAllies: true));
         SetNativeReactionActionGate(false);
     }
 }

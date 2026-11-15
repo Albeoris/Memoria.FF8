@@ -31,7 +31,7 @@ public sealed partial class BattleSession
 
         BattleSnapshot before = Capture();
         BattleCombatant liveActor = GetActor(receipt.ActorId);
-        bool retainCommittedMirror = !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.AiRecipients);
+        bool retainCommittedMirror = !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
         BattleSnapshot seed = retainCommittedMirror ? before with { ActiveAction = null } : before;
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = Restore(seed, customHandlers);
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
     private void StageExpandedHostedAftercare(BattleCombatant actor, ushort id)
     {
         BattleNativeAction native = NativePostActionEffect(id);
-        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
+        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, SelectBattleTarget(actor), BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
         BattleActionDefinition definition = new(command.Ability, id, native.Name!, BattleActionEffect.Native, 0, true) { NativeAction = native };
         NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, native);
         _ = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);

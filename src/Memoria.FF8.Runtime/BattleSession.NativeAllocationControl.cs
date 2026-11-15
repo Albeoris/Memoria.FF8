@@ -25,20 +25,37 @@ public sealed partial class BattleSession
         nativeScriptState = nativeScriptState with { AllocationControl = control with { ActionGate = false, PauseGate = false } };
     }
 
-    private void QueueNativeActivation(int index)
+    private void QueueNativeActivation(BattlePreviousTarget? target)
     {
-        if (NativeGraphics is null)
+        if (NativeGraphics is not { } graphics)
         {
-            ActivateNativeParticipant(FindNativeActor(index));
+            ActivateNativeParticipant(FindActiveActivationActor(target));
             return;
         }
-        NativeGraphics = QueueNativeDescriptor(NativeGraphics, 113, 0x487670, checked((ushort)index));
+        NativeGraphics = target switch
+        {
+            NativeBattleTargetRequestAdapter.OriginalPreviousOperand original when NativeBattleSlots.Contains(original.Operand) =>
+                QueueNativeDescriptor(graphics, 113, 0x487670, checked((ushort)original.Operand)),
+            BattlePreviousTarget.Actor captured when FindTargetActor(captured.Reference) is { } actor =>
+                QueueNativeModelDescriptor(graphics, 113, 0x487670, CreatePresentationModelOwner(actor)),
+            _ => throw new NotSupportedException("Native activation requires an allocated participant.")
+        };
+    }
+
+    private BattleCombatant FindActiveActivationActor(BattlePreviousTarget? target)
+    {
+        return target switch
+        {
+            NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => FindNativeActor(original.Operand),
+            BattlePreviousTarget.Actor captured when FindTargetActor(captured.Reference) is { IsActive: true } actor => actor,
+            _ => throw new NotSupportedException("Native activation requires an active allocated participant.")
+        };
     }
 
     private NativeBattleGraphicsState CompleteNativeAllocationStatistics(NativeBattleGraphicsState graphics)
     {
         NativeBattleAllocationControl control = nativeScriptState.AllocationControl ?? throw new InvalidDataException("Native48AD10 has no current allocation scene owner.");
-        BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == nativeLastAllocatedIndex);
+        BattleCombatant actor = ResolveLastNativeAllocation();
         if (control.SceneSlot is null || actor.SceneSlot != control.SceneSlot)
         {
             throw new InvalidDataException("Native allocation globals disagree with the current physical scene resource.");

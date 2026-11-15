@@ -31,7 +31,8 @@ public sealed partial class BattleSession
             return;
         }
         BattleCombatant actor = NativeSupportActor();
-        actions.Enqueue(new(actor.Id, targets[0].Id, BattleAbility.EnemyAbility, id)
+        BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        actions.Enqueue(new(actor.Id, targets[0].Id, request, BattleAbility.EnemyAbility, id)
         {
             NativePlayerReaction = BattleNativePlayerReaction.AutomaticGuardian,
             NativeQueuedCommand = 245,

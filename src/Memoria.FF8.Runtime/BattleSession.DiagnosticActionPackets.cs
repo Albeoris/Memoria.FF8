@@ -134,7 +134,7 @@ public sealed partial class BattleSession
             LimitCharacter = actor?.NativeLimit?.CharacterId,
             LimitCommand = actor?.NativeLimit?.Command,
             DuelOwners = nativeDuelProcesses.Count,
-            Duel = duel is null ? null : new { Phase = duel.Phase.ToString(), duel.Selection1D28DEF, duel.RemainingTimer, duel.InitialTimer, duel.TargetMask },
+            Duel = duel is null ? null : new { Phase = duel.Phase.ToString(), duel.Selection1D28DEF, duel.RemainingTimer, duel.InitialTimer, TargetMask = NativeBattleTargetRequestAdapter.ProjectOriginalWord(duel.TargetRequest, ReadOriginalTargetSlot) },
             PublishedEffect = effect is null ? null : new { effect.RequestedEffect, effect.Binding.Effect, Actor = effect.Parameters?.Source, Header = effect.Parameters?.Header, Selector80 = effect.Parameters?.Parameter80, Ready81 = effect.Parameters?.Parameter81, Variant82 = effect.Parameters?.Parameter82 },
             EnteredSelector80 = diagnosticPacketReadEffect?.Parameters?.Parameter80,
             EnteredVariant82 = diagnosticPacketReadEffect?.Parameters?.Parameter82,

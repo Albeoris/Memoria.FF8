@@ -61,7 +61,7 @@ public sealed partial class BattleSession
     {
         CompleteNativeOrdinaryCommand(actor, command);
         bool continueAffinity = CompleteNativeActionInventory(actor, command, silencedMagic);
-        if (continueAffinity && command.NativeMagicTargets.IsDefaultOrEmpty)
+        if (continueAffinity && command.MagicCasts.IsDefaultOrEmpty)
         {
             CompleteGuardianForceAffinity(actor, command);
         }

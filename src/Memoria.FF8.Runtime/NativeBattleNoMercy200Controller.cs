@@ -90,7 +90,7 @@ public static partial class NativeBattleNoMercy200Controller
             return new(frame, pool, 0);
         }
         short tick = unchecked((short)task.ReadWord(12));
-        int actor = ReadDword(frame.Staging, 0x24FBCE0);
+        BattleModelOwner actor = frame.Staging.ReadExecutionReference<BattleExecutionReference.Model>(0x24FBCE0, 4).Owner;
         if (tick == 0)
         {
             Execute(new NativeBattleNoMercy200Camera());

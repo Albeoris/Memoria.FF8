@@ -112,7 +112,7 @@ internal sealed partial class CrossoverGuestHostActions
         CrossoverNativeRenzokukenSelection next = limitSelection!.Select(kit.FinisherFlags, out CrossoverNativeRenzokukenPlan plan);
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);
-        CrossoverNativeRenzokukenProgramState program = limitProgram.Begin(visual.Model with { Index = 0 }, target.Slot, plan.Variant, plan.Finisher is not null, distance, yaw, encounter.CrtRandom, options, limitUiRandom);
+        CrossoverNativeRenzokukenProgramState program = limitProgram.Begin(visual.Model, target.Slot, ReadPresentationOwner(ActorSlot), ReadPresentationOwner(target.Slot), plan.Variant, plan.Finisher is not null, distance, yaw, encounter.CrtRandom, options, limitUiRandom);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         CrossoverNativeLimitCamera camera = CrossoverNativeLimitCamera.Capture(program.Model, limitResource.PoseSource!, placement, target.Placement.Position, host.GuestEffectTargetAnchor(target.Slot));
         limit = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, plan, program) { Camera = camera, FinisherTargets = plan.Finisher is byte selected ? AbilityTargetMask(SelectedFinisherAction(selected), target.Slot) : (ushort)0 };
@@ -176,7 +176,7 @@ internal sealed partial class CrossoverGuestHostActions
             BattleNativeAction action = SelectedFinisherAction(current.Plan.Finisher ?? throw new InvalidDataException("The native handoff has no selected child action."));
             ushort targets = current.FinisherTargets != 0 ? current.FinisherTargets : checked((ushort)(1 << current.Invocation.TargetSlot));
             selectedContinuation = new(action, targets, program, current.Placement);
-            attack.ResumeStandingFromCast(program.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick, completed: false);
+            attack.ResumeStandingFromCast(program.Model, hostTick, clock.Subticks, clock.HalfSubtick, completed: false);
             limit = null;
             return new(hit, true) { LimitPresentedContact = presented, LimitTargetCue = targetCue, Continuation = new(CrossoverGuestAbilityCatalog.Key(action.Command, action.ActionId), targets) };
         }
@@ -184,7 +184,7 @@ internal sealed partial class CrossoverGuestHostActions
         if (complete)
         {
             NativeBattleGraphicsModel final = program.Model;
-            attack.ResumeStandingFromCast(final with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
+            attack.ResumeStandingFromCast(final, hostTick, clock.Subticks, clock.HalfSubtick);
             limit = null;
         }
         else

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, BattleModelOwner? Reflector, bool RepeatAborted);
+    private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, int PublishedCount, NativeBattleDeferredContactKind DeferredContact, BattleModelOwner? Reflector, bool RepeatAborted);
     private NativeBattleActionProductionContext? nativeProductionContext;
 
     private static BattleNativeAction NativeFailedInvocationControl(BattleNativeAction native)
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
         }
         NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, formulaCommand, formulaAction, context);
-        byte count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial && !silencedMagic ? produced.PublishedCount : (byte)0;
+        int count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial && !silencedMagic ? produced.PublishedCount : 0;
         return new(header, produced.Contacts, count, produced.DeferredContact, produced.Reflector) { RepeatAborted = produced.RepeatAborted };
     }
 
@@ -55,42 +55,25 @@ public sealed partial class BattleSession
         (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan = new (BattleCombatant[], BattleModelOwner?)[native.HitCount];
         for (int hit = 0; hit < plan.Length; hit++)
         {
-            BattleCombatant[] targets;
-            if (command.NativeAction is not null)
-            {
-                targets = ResolveNativeActionMask(command.NativeTargetMask);
-            }
-            else if ((native.TargetFlags.GetValueOrDefault() & 2) != 0)
-            {
-                BattleCombatant? randomTarget = ChooseNativeRandomActionTarget(target.Side);
-                targets = randomTarget is null ? [] : [randomTarget];
-            }
-            else if (action.AllTargets)
-            {
-                targets = combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (IsNativeRevive(action) ? candidate.CurrentHp == 0 : candidate.IsAlive)).OrderBy(candidate => candidate.EncodeNativeSlot()).ToArray();
-            }
-            else
-            {
-                targets = target.IsAlive || IsNativeRevive(action) ? [target] : [];
-            }
+            BattleCombatant[] targets = ResolveBattleTargets(command.TargetRequest);
             plan[hit] = ResolveNativeCover(actor, command, native, targets);
         }
-        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7))
+        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.Slot is not null))
         {
-            recipient.NativeRemainingHits = unchecked((byte)plan.Count(hit => hit.Targets.Contains(recipient)));
+            recipient.NativeRemainingHits = plan.Count(hit => hit.Targets.Contains(recipient));
         }
         NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
         ValidateEncounterContactCapacity(plan, native, deferred != NativeBattleDeferredContactKind.None);
         ImmutableArray<NativeBattleContactPacket>.Builder contacts = ImmutableArray.CreateBuilder<NativeBattleContactPacket>();
         BattleCombatant? firstReflector = null;
-        byte publishedCount = 0;
-        bool allowKo = command.NativeAction is not null ? (command.NativeTargetMask & 0x4000) != 0 : IsNativeRevive(action);
+        int publishedCount = 0;
+        bool allowKo = command.TargetRequest.AllowsKnockedOutAllies;
         bool aborted = false;
         for (int hit = 0; hit < plan.Length && !aborted; hit++)
         {
             (BattleCombatant[] targets, BattleModelOwner? coverSource) = plan[hit];
             //The original adds the mask's population before checking first-hit admission or a later KO abort.
-            publishedCount = unchecked((byte)(publishedCount + targets.Length));
+            publishedCount = checked(publishedCount + targets.Length);
             if (targets.Length == 0 || hit == 0 && !NativeFirstHitAdmitted(actor, command, context))
             {
                 aborted = true;
@@ -101,7 +84,7 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant recipient in targets)
                 {
-                    if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || recipient.EncodeNativeSlot() >= 3))
+                    if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!allowKo || !recipient.IsPlayer))
                     {
                         aborted = true;
                         break;
@@ -138,7 +121,7 @@ public sealed partial class BattleSession
                         suppressNativeImmediateCounter = previousSuppression;
                     }
                 }
-                publishedCount = checked((byte)(publishedCount + CompleteEncounterDamageHit(contacts)));
+                publishedCount = checked(publishedCount + CompleteEncounterDamageHit(contacts));
             }
             finally
             {

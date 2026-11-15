@@ -14,6 +14,6 @@ public abstract record NativeBattleGatlingGun150Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleGatlingGun150Sound(uint Packed, uint Flags, byte Pan) : NativeBattleGatlingGun150Operation;
-public sealed record NativeBattleGatlingGun150ContactsAll(int HeaderIndex) : NativeBattleGatlingGun150Operation;
+public sealed record NativeBattleGatlingGun150ContactsAll(BattleActionHeaderReference Header) : NativeBattleGatlingGun150Operation;
 public sealed record NativeBattleGatlingGun150DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleGatlingGun150Operation;
 public sealed record NativeBattleGatlingGun150DrawSprite180(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleGatlingGun150Operation;

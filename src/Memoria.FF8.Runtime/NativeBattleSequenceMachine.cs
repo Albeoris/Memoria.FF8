@@ -166,7 +166,7 @@ public static class NativeBattleSequenceMachine
 
         void Execute()
         {
-            NativeBattleScriptExpressionState expression = new() { Accumulator = resource.SequenceSectionAddress is uint address ? unchecked((int)(address + (uint)position)) : null };
+            NativeBattleScriptExpressionState expression = new() { Accumulator = resource.SequenceSectionAddress is uint address ? NativeBattleScriptValue.Scalar(unchecked((int)(address + (uint)position))) : null };
             for (int instruction = 0; instruction < 100_000; instruction++)
             {
                 int origin = position;
@@ -249,7 +249,7 @@ public static class NativeBattleSequenceMachine
                         break;
                     case 0x9B:
                         byte variableTextureSelector = ReadByte();
-                        int variableTextureVariant = ReadVariable(ReadByte());
+                        int variableTextureVariant = ReadVariable(ReadByte()).RequireScalar();
                         (inputs.ApplyTexture ?? throw new NotSupportedException("Native9B requires its actual50C780 texture rectangle copy owner."))(variableTextureSelector, variableTextureVariant);
                         break;
                     case 0x9C:
@@ -436,17 +436,23 @@ public static class NativeBattleSequenceMachine
                 sequence = model.Sequence ?? throw new InvalidDataException("Native model selector lost its selected sequence.");
             }
 
-            int ReadVariable(byte variable)
+            NativeBattleScriptValue ReadVariable(byte variable)
             {
                 if (variable < 8)
                 {
-                    return state.Locals[variable] ?? throw new InvalidDataException($"Native sequence reads an uninitialized local WORD (model {owner}, sequence {sequence}, executing sequence {executingSequence}, position {position:X}, variable {variable}).");
+                    return state.ReadScriptWord(variable, alternatePass) ?? throw new InvalidDataException($"Native sequence reads an uninitialized local WORD (model {owner}, sequence {sequence}, executing sequence {executingSequence}, position {position:X}, variable {variable}).");
                 }
                 if (variable >= 120)
                 {
-                    return (alternatePass ? state.AlternateScratch48 : state.Scratch)[127 - variable] ?? throw new InvalidDataException("Native sequence reads an uninitialized scratch WORD.");
+                    return state.ReadScriptWord(variable, alternatePass) ?? throw new InvalidDataException("Native sequence reads an uninitialized scratch WORD.");
                 }
-                return variable switch
+                if (variable is 16 or 17 or 18 or 19 or 24 or 25 or 26 or 27 or 40 or 41 or 46 or 51 or 53 or 54)
+                {
+                    return inputs.ReadModelExternal is { } readModel
+                        ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable)
+                        : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable);
+                }
+                int value = variable switch
                 {
                     8 => flags,
                     9 => state.PoseFrame114 ?? throw new InvalidDataException("Native sequence lacks its current pose frame."),
@@ -471,39 +477,36 @@ public static class NativeBattleSequenceMachine
                     42 => RequireTransform().Scale38,
                     44 => RequireTransform().Initial20.Z,
                     55 => model.Flags0 & 4,
-                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 24 or 25 or 26 or 27 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => inputs.ReadModelExternal is { } readModel ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable) : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
                     _ => 0
                 };
+                return NativeBattleScriptValue.Scalar(value);
             }
 
-            void WriteVariable(byte variable, int value)
+            void WriteVariable(byte variable, NativeBattleScriptValue value)
             {
-                if (variable < 8)
+                if (variable < 8 || variable >= 120)
                 {
-                    state = state with { Locals = state.Locals.SetItem(variable, unchecked((short)value)) };
-                }
-                else if (variable >= 120)
-                {
-                    state = alternatePass ? state with { AlternateScratch48 = state.AlternateScratch48.SetItem(127 - variable, unchecked((short)value)) } : state with { Scratch = state.Scratch.SetItem(127 - variable, unchecked((short)value)) };
+                    state = state.WriteScriptWord(variable, alternatePass, value);
                 }
                 else
                 {
+                    int Scalar() => value.RequireScalar();
                     switch (variable)
                     {
                         case 8:
-                            flags = unchecked((ushort)value);
+                            flags = unchecked((ushort)Scalar());
                             break;
                         case 11:
-                            state = state with { Default2 = unchecked((byte)value) };
+                            state = state with { Default2 = unchecked((byte)Scalar()) };
                             break;
                         case 13:
-                            state = state with { Header36 = unchecked((short)value) };
+                            state = state with { Header36 = unchecked((short)Scalar()) };
                             break;
                         case 14:
-                            state = state with { Header38 = unchecked((short)value) };
+                            state = state with { Header38 = unchecked((short)Scalar()) };
                             break;
                         case 15:
-                            state = state with { Header40 = unchecked((short)value) };
+                            state = state with { Header40 = unchecked((short)Scalar()) };
                             break;
                         case 20:
                         case 21:
@@ -513,52 +516,52 @@ public static class NativeBattleSequenceMachine
                                 NativeBattleVector linkedPosition = linkedTransform.Position;
                                 linkedPosition = variable switch
                                 {
-                                    20 => linkedPosition with { X = unchecked((short)value) },
-                                    21 => linkedPosition with { Y = unchecked((short)value) },
-                                    _ => linkedPosition with { Z = unchecked((short)value) }
+                                    20 => linkedPosition with { X = unchecked((short)Scalar()) },
+                                    21 => linkedPosition with { Y = unchecked((short)Scalar()) },
+                                    _ => linkedPosition with { Z = unchecked((short)Scalar()) }
                                 };
                                 model = model with { LinkedTransform = linkedTransform with { Position = linkedPosition } };
                             }
                             break;
                         case 23:
-                            model = model with { Rotation14 = unchecked((short)value) };
+                            model = model with { Rotation14 = unchecked((short)Scalar()) };
                             break;
                         case 29:
-                            state = state with { Geometry4 = unchecked((byte)value) };
+                            state = state with { Geometry4 = unchecked((byte)Scalar()) };
                             break;
                         case 30:
-                            state = state with { Geometry5 = unchecked((byte)value) };
+                            state = state with { Geometry5 = unchecked((byte)Scalar()) };
                             break;
                         case 32:
-                            uint bit = 1u << (value >= 0 ? value - 1 : -1 - value);
-                            state = state with { MeshMask124 = value >= 0 ? state.MeshMask124 | bit : state.MeshMask124 & ~bit };
+                            uint bit = 1u << (Scalar() >= 0 ? Scalar() - 1 : -1 - Scalar());
+                            state = state with { MeshMask124 = Scalar() >= 0 ? state.MeshMask124 | bit : state.MeshMask124 & ~bit };
                             break;
                         case 36:
-                            model = model with { Transform = RequireTransform() with { Scale154 = unchecked((short)value) } };
+                            model = model with { Transform = RequireTransform() with { Scale154 = unchecked((short)Scalar()) } };
                             break;
                         case 37:
-                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { X = unchecked((short)value) } } };
+                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { X = unchecked((short)Scalar()) } } };
                             break;
                         case 38:
-                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { Y = unchecked((short)value) } } };
+                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { Y = unchecked((short)Scalar()) } } };
                             break;
                         case 39:
-                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { Z = unchecked((short)value) } } };
+                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { Z = unchecked((short)Scalar()) } } };
                             break;
                         case 42:
-                            model = model with { Transform = RequireTransform() with { Scale38 = unchecked((short)value) } };
+                            model = model with { Transform = RequireTransform() with { Scale38 = unchecked((short)Scalar()) } };
                             break;
                         case 43:
-                            model = model with { SequenceByte145 = unchecked((byte)value) };
+                            model = model with { SequenceByte145 = unchecked((byte)Scalar()) };
                             break;
                         case 44:
-                            model = model with { Transform = RequireTransform() with { Initial20 = RequireTransform().Initial20 with { Z = unchecked((short)value) }, Position28 = RequireTransform().Position28 with { Z = unchecked((short)value) } } };
+                            model = model with { Transform = RequireTransform() with { Initial20 = RequireTransform().Initial20 with { Z = unchecked((short)Scalar()) }, Position28 = RequireTransform().Position28 with { Z = unchecked((short)Scalar()) } } };
                             break;
                         case 33 or 45 or 48 or 49 or 50 or 52:
-                            model = (inputs.WriteModelExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original target model owner."))(model, variable, value);
+                            model = (inputs.WriteModelExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original target model owner."))(model, variable, Scalar());
                             break;
                         case 18 or 19 or 47:
-                            (inputs.WriteExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original owner."))(variable, value);
+                            (inputs.WriteExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original owner."))(variable, Scalar());
                             break;
                     }
                 }

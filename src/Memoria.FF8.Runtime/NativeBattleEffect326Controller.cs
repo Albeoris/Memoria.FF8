@@ -19,8 +19,8 @@ public static partial class NativeBattleEffect326Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect326 requires its actual current parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        int target = packets.ReadContact(header.FirstContact).Primary.Recipient;
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(0xE19668, CommonAddress + 0x30800).WriteDword(0xE1966C, CommonAddress + 0x31800).WriteDword(0xE19670, CommonAddress + 0x32800).WriteDword(0xE196B0, CommonAddress + 0x38800).WriteDword(0x24F22E4, PixelSource).WriteDword(0x24F2174, 0x1D99A78).WriteDword(0x24F2178, parameters.Source).WriteDword(0x24F0C80, unchecked((uint)target)) };
+        BattleModelOwner target = packets.ReadContact(header.FirstContact).Primary.Recipient;
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(0xE19668, CommonAddress + 0x30800).WriteDword(0xE1966C, CommonAddress + 0x31800).WriteDword(0xE19670, CommonAddress + 0x32800).WriteDword(0xE196B0, CommonAddress + 0x38800).WriteDword(0x24F22E4, PixelSource).WriteDword(0x24F2174, 0x1D99A78).WriteActor(0x24F2178, parameters.Source, packets.ModelAliases).WriteActor(0x24F0C80, target, packets.ModelAliases) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool children = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);

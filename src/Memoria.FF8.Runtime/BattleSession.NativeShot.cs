@@ -8,13 +8,11 @@ public enum BattleNativeShotPhase
     Ending
 }
 
-public sealed record BattleNativeShotState(byte ActionId, ushort TargetMask, short InitialTimer, short RemainingTimer, byte RemainingAmmo, BattleNativeShotPhase Phase)
+public sealed record BattleNativeShotState(byte ActionId, BattleTargetRequest TargetRequest, short InitialTimer, short RemainingTimer, byte RemainingAmmo, BattleNativeShotPhase Phase)
 {
     public long UiSubframeTicks { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleTimedInputUi? Ui { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string? ExpandedTargetId { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -74,16 +72,15 @@ public sealed partial class BattleSession
                 throw new InvalidOperationException("Shot requires a living enemy and its installed ammunition owner.");
             }
             QueueExpandedShot(actor, target.Id, action, NativeLimitCallback.ShotOpening);
-            nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, 0, timer, timer, ammo.Count, BattleNativeShotPhase.Opening)
+            nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living), timer, timer, ammo.Count, BattleNativeShotPhase.Opening)
             {
-                ExpandedTargetId = target.Id,
                 Ui = new(BattleTimedInputUiPhase.Opening)
             });
             return;
         }
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot());
-        QueueNativeCommand(actor, 14, action.ActionId, 0, mask, crisis, NativeLimitCallback.ShotOpening, playerInput: true);
-        nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, mask, timer, timer, ammo.Count, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) });
+        BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, flags);
+        QueueNativeShotAction(actor, action, request, NativeLimitCallback.ShotOpening);
+        nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, request, timer, timer, ammo.Count, BattleNativeShotPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) });
     }
 
     public void AdvanceNativeShotUi(int frames = 1)
@@ -157,11 +154,11 @@ public sealed partial class BattleSession
         nativeShotProcesses[actorId] = state with { RemainingAmmo = (byte)(state.RemainingAmmo - 1), Phase = BattleNativeShotPhase.AwaitingEffect };
         if (UsesExpandedRoster)
         {
-            QueueExpandedShot(actor, state.ExpandedTargetId!, action, NativeLimitCallback.ShotEffect);
+            QueueExpandedShot(actor, ReadExpandedShotTarget(state), action, NativeLimitCallback.ShotEffect);
         }
         else
         {
-            QueueNativeCommand(actor, 237, state.ActionId, 0, state.TargetMask, callback: NativeLimitCallback.ShotEffect, playerInput: true);
+            QueueNativeShotAction(actor, action, state.TargetRequest, NativeLimitCallback.ShotEffect);
         }
         return true;
     }
@@ -177,11 +174,11 @@ public sealed partial class BattleSession
         nativeShotProcesses[actorId] = state with { Phase = BattleNativeShotPhase.Ending, RemainingTimer = -1, Ui = new(BattleTimedInputUiPhase.Closing) };
         if (UsesExpandedRoster)
         {
-            QueueExpandedShot(GetActor(actorId), state.ExpandedTargetId!, ending, NativeLimitCallback.ShotEnding);
+            QueueExpandedShot(GetActor(actorId), ReadExpandedShotTarget(state), ending, NativeLimitCallback.ShotEnding);
         }
         else
         {
-            QueueNativeCommand(GetActor(actorId), 238, state.ActionId, 0, 0x80F8, callback: NativeLimitCallback.ShotEnding, playerInput: true);
+            QueueNativeShotAction(GetActor(actorId), ending, new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy), NativeLimitCallback.ShotEnding);
         }
     }
 
@@ -221,9 +218,7 @@ public sealed partial class BattleSession
     private void RestoreNativeShot(string actorId, byte crisis, BattleNativeShotState state)
     {
         BattleCombatant actor = GetActor(actorId);
-        if (UsesExpandedRoster
-            ? state.TargetMask != 0 || state.ExpandedTargetId is not string targetId || !byId.TryGetValue(targetId, out BattleCombatant? target) || target.IsPlayer
-            : state.ExpandedTargetId is not null)
+        if (state.TargetRequest is null || UsesExpandedRoster && (state.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || FindTargetActor(target) is null))
         {
             throw new InvalidDataException("Saved Shot process lacks its original host's target owner.");
         }
@@ -260,7 +255,16 @@ public sealed partial class BattleSession
 
     private void QueueExpandedShot(BattleCombatant actor, string targetId, BattleNativeAction action, NativeLimitCallback callback)
     {
-        actions.Enqueue(new(actor.Id, targetId, BattleAbility.LimitBreak, action.Command << 16 | action.ActionId)
+        BattleCombatant target = GetActor(targetId);
+        BattleTargetRequest request = SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living);
+        if (callback == NativeLimitCallback.ShotEffect)
+        {
+            BattleTargetSelection selection = (action.TargetFlags!.Value & 0x10) == 0
+                ? new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies)
+                : request.Selection;
+            request = new(selection, BattleTargetEligibility.Living, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        }
+        actions.Enqueue(new(actor.Id, targetId, request, BattleAbility.LimitBreak, action.Command << 16 | action.ActionId)
         {
             NativeAction = action,
             NativeQueuedCommand = action.Command,
@@ -271,22 +275,24 @@ public sealed partial class BattleSession
         Log("Queued", actor.Id, targetId, 0, $"{actor.Name}: {action.Name} queued.");
     }
 
-    private BattleCombatant[] ExpandedShotTargets(BattleCombatant original, BattleNativeAction shot)
+    private void QueueNativeShotAction(BattleCombatant actor, BattleNativeAction action, BattleTargetRequest request, NativeLimitCallback callback)
     {
-        if ((shot.TargetFlags!.Value & 0x10) == 0)
+        BattleCombatant target = ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? actor;
+        BattleAttackCommand command = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, action.ActionId)
         {
-            return enemies.Where(CanSelectExpandedShotTarget).ToArray();
-        }
-        if (CanSelectExpandedShotTarget(original))
-        {
-            return [original];
-        }
-        // The original single-target mask searches higher rows before lower rows when its target is gone.
-        BattleCombatant? replacement = enemies.Where(CanSelectExpandedShotTarget)
-            .OrderBy(candidate => candidate.Slot!.Value.Position < original.Slot!.Value.Position)
-            .ThenBy(candidate => Math.Abs(candidate.Slot!.Value.Position - original.Slot!.Value.Position))
-            .FirstOrDefault();
-        return replacement is null ? [] : [replacement];
+            NativeAction = action,
+            NativeLimitCallback = callback,
+            NativeQueuedCommand = action.Command,
+            NativeSequence = 0
+        };
+        EnqueueNativePacket(actor, command, action.Name ?? "Shot", playerInput: true);
+    }
+
+    private static string ReadExpandedShotTarget(BattleNativeShotState state)
+    {
+        return state.TargetRequest.Selection is BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] }
+            ? target.ActorId
+            : throw new InvalidDataException("Expanded Shot requires its selected enemy target.");
     }
 
     private void ReconcileExpandedShot()

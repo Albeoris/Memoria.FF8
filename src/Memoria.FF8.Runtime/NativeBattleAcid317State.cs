@@ -45,6 +45,14 @@ public sealed record NativeBattleAcid317State([property: JsonRequired] NativeBat
         NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
         return this;
     }
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleAcid317State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     private static int Require(uint address, int length)
     {
         if (address < BaseAddress || length < 0 || (ulong)address + (uint)length > BaseAddress + Length || address < 0x25054B4 && (ulong)address + (uint)length > 0x25054A0 || address < 0x2505520 && (ulong)address + (uint)length > 0x25054E0)

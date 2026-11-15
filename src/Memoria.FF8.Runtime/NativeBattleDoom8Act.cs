@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDoom8ActInitializeTarget(uint TaskAddress, byte Actor) : NativeBattleDoom8Operation;
+public sealed record NativeBattleDoom8ActInitializeTarget(uint TaskAddress, BattleModelOwner Actor) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8ActPlace(uint TaskAddress, short Selector) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8ActPreparation(NativeBattleDoom8Frame Frame, NativeBattleEffectArena Context92);
 public sealed record NativeBattleDoom8ActInputs(Func<NativeBattleDoom8Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleDoom8Frame, uint, NativeBattleDoom8ActPreparation> PrepareDraw, Func<NativeBattleDoom8Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleDoom8Frame> EmitNode, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute, Func<NativeBattleDoom8Frame, NativeBattleDoom8Step> AdvanceStrips, Func<int, short> ReadPlacementSelector, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors);
@@ -65,7 +65,7 @@ public static class NativeBattleDoom8Act
                 {
                     frame = Initialize(frame, address, inputs);
                     frame = Put(frame, address, Scale(Read(frame, address)));
-                    frame = inputs.Execute(frame, new NativeBattleDoom8ActInitializeTarget(address, Read(frame, address).ReadByte(0x2D)));
+                    frame = inputs.Execute(frame, new NativeBattleDoom8ActInitializeTarget(address, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
                     frame = Place(frame, address, inputs);
                     frame = AdvanceAnimation(frame, address, inputs).Frame;
                     frame = Next(frame, address);

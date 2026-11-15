@@ -43,7 +43,7 @@ public sealed partial class BattleSession
     {
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model) };
         NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
-        NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, owner, graphics.ActionGraphics?.FirstTarget,
+        NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, owner, () => graphics.ActionGraphics?.FirstTargetBinding?.Resolve(graphics.ActorModels, graphics.NativeBindings),
             index => graphics.ActorModels.Get(index).ModelId4 ?? throw new NotSupportedException("Native5015A0 requires the actual loaded model BYTE4 identity."),
             index => ReadNativeGraphicsBone(graphics, index, 241, 0),
             point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native505AB0 requires its actual5011B0 projection.")).ReadPan(point),

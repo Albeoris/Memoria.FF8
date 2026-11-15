@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -17,6 +18,8 @@ public sealed record NativeBattleSequenceState
     public ImmutableArray<short?> Locals { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public ImmutableArray<short?> Scratch { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public ImmutableArray<short?> AlternateScratch48 { get; init; } = ImmutableArray.CreateRange(new short?[8]);
+    [JsonIgnore]
+    internal ImmutableDictionary<(byte Variable, bool Alternate), NativeBattleScriptValue> ScriptWords { get; init; } = ImmutableDictionary<(byte, bool), NativeBattleScriptValue>.Empty;
     public byte? Pose { get; init; }
     public byte PoseFlags109 { get; init; }
     public byte? PoseFrame114 { get; init; }
@@ -32,7 +35,32 @@ public sealed record NativeBattleSequenceState
 
     public NativeBattleSequenceState InitializeControl5027D0(byte standing, byte pending)
     {
-        return new() { Locals = Locals, Default2 = standing, Pending3 = pending };
+        return new() { Locals = Locals, ScriptWords = ScriptWords.RemoveRange(ScriptWords.Keys.Where(key => key.Variable >= 120)), Default2 = standing, Pending3 = pending };
+    }
+
+    internal NativeBattleScriptValue? ReadScriptWord(byte variable, bool alternate)
+    {
+        var key = (variable, variable >= 120 && alternate);
+        if (ScriptWords.TryGetValue(key, out NativeBattleScriptValue value))
+        {
+            return value;
+        }
+        short? raw = variable < 8 ? Locals[variable] : (alternate ? AlternateScratch48 : Scratch)[127 - variable];
+        return raw is short word ? NativeBattleScriptValue.Scalar(word) : null;
+    }
+
+    internal NativeBattleSequenceState WriteScriptWord(byte variable, bool alternate, NativeBattleScriptValue value)
+    {
+        var key = (variable, variable >= 120 && alternate);
+        var live = value.IsScalar ? ScriptWords.Remove(key) : ScriptWords.SetItem(key, value);
+        short? raw = value.WordProjection;
+        if (variable < 8)
+        {
+            return this with { Locals = Locals.SetItem(variable, raw), ScriptWords = live };
+        }
+        return alternate
+            ? this with { AlternateScratch48 = AlternateScratch48.SetItem(127 - variable, raw), ScriptWords = live }
+            : this with { Scratch = Scratch.SetItem(127 - variable, raw), ScriptWords = live };
     }
 
     public void Validate()
@@ -68,8 +96,8 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
 {
     public NativeBattleGraphicsResource? OriginalResource { get; init; }
     public Func<ushort>? GlobalRandom { get; init; }
-    public Func<byte, int>? ReadExternal { get; init; }
-    public Func<NativeBattleGraphicsModel, byte, int>? ReadModelExternal { get; init; }
+    public Func<byte, NativeBattleScriptValue>? ReadExternal { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, NativeBattleScriptValue>? ReadModelExternal { get; init; }
     public Action<byte, int>? WriteExternal { get; init; }
     public Func<NativeBattleGraphicsModel, byte, int, NativeBattleGraphicsModel>? WriteModelExternal { get; init; }
     public Action<NativeBattleAuxiliaryProgram, bool, byte>? ScheduleSoundParticle { get; init; }

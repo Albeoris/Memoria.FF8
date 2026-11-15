@@ -302,8 +302,9 @@ public sealed partial class BattleSession
             nativeSlotsRolls.Remove(actorId);
             return;
         }
-        ushort targetMask = command == 19 && actionId != 4 ? NativeAutomaticActionTargetMask(targetFlags) : NativeBattleLimitRules.PlayerTargetMask(targetFlags, NativePlayerSelectedTarget(actor, target, targetFlags).EncodeNativeSlot());
-        QueueNativeCommand(actor, command, actionId, sequence, targetMask, crisis, playerInput: true);
+        BattleTargetRequest targets = command == 19 && actionId != 4 ? CreateAutomaticTargetRequest(targetFlags) : CreatePlayerTargetRequest(actor, target, targetFlags);
+        BattleAttackCommand queued = new(actor.Id, target.Id, targets, BattleAbility.EnemyAbility, actionId) { NativeQueuedCommand = command, NativeAction = action, NativeSequence = sequence };
+        EnqueueNativePacket(actor, queued, action.Name ?? $"native command {command}/{actionId}", playerInput: true);
         nativeLimitLevels.Remove(actorId);
     }
 

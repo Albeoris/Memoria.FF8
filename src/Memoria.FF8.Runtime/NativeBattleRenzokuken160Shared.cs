@@ -5,6 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokuken160Controller
 {
+    public static NativeBattleModuleState AppendSharedTask(NativeBattleModuleState modules, NativeBattleRenzokuken160SharedTask task, NativeBattleModelAliases aliases)
+    {
+        (modules, int slot) = modules.AppendCallback(task.Callback);
+        byte[] payload = modules.Slots[slot].Payload.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(payload, task.Counter);
+        return modules with { Slots = modules.Slots.SetItem(slot, WriteSharedModel(modules.Slots[slot], payload, task.Actor, aliases)) };
+    }
+
     internal static NativeBattleModuleTask WriteSharedModel(NativeBattleModuleTask task, byte[] payload, BattleModelOwner owner, NativeBattleModelAliases aliases)
     {
         return AttachSharedModel(task, payload, owner, aliases) with { Payload = payload.ToImmutableArray() };

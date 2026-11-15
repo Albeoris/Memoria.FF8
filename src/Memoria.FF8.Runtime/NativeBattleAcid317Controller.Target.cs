@@ -12,7 +12,7 @@ public static partial class NativeBattleAcid317Controller
             throw new NotSupportedException("Acid reached an unsupported target callback.");
         }
         int age = Signed(target, 12);
-        byte actor = checked((byte)Actor(target.ReadDword(16)));
+        BattleModelOwner actor = target.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
         if (age >= 25)
         {
             frame = inputs.Execute(frame, new NativeBattleAcid317AdvanceAct(address));
@@ -38,10 +38,10 @@ public static partial class NativeBattleAcid317Controller
             {
                 NativeBattleAcid317PointStep mouth = inputs.ReadMouth(frame);
                 frame = mouth.Frame;
-                NativeBattleAcid317AnchorStep caster = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(CasterGlobal)));
+                NativeBattleAcid317AnchorStep caster = inputs.ReadAnchor571400(frame, frame.State.ReadModel(CasterGlobal));
                 frame = caster.Frame;
                 frame = RandomBone(frame, actor, inputs, out NativeBattleVector destination);
-                frame = StartTrail(frame, mouth.Position, destination, actor, 0, 160, 150, angle, inputs.CapturePresentation);
+                frame = StartTrail(frame, mouth.Position, destination, actor, 0, 160, 150, angle, inputs);
             }
         }
         if ((uint)(age - 18) < 2)
@@ -92,7 +92,7 @@ public static partial class NativeBattleAcid317Controller
         }
         if (age == 57)
         {
-            frame = inputs.Execute(frame, new NativeBattleAcid317Contact(FirstContact(frame, inputs) + Signed(target, 14)));
+            frame = inputs.Execute(frame, new NativeBattleAcid317Contact(inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(Signed(target, 14))).Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.")));
         }
         if (age >= 73)
         {
@@ -101,7 +101,7 @@ public static partial class NativeBattleAcid317Controller
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);
     }
 
-    private static NativeBattleAcid317Frame RandomBone(NativeBattleAcid317Frame frame, int actor, NativeBattleAcid317Inputs inputs, out NativeBattleVector position)
+    private static NativeBattleAcid317Frame RandomBone(NativeBattleAcid317Frame frame, BattleModelOwner actor, NativeBattleAcid317Inputs inputs, out NativeBattleVector position)
     {
         frame = DrawRandom(frame, out ushort random);
         int count = inputs.ReadBoneCount(actor);

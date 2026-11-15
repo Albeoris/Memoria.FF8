@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             byte attackClass = actor.LastNativeAction?.AttackType ?? throw new NotSupportedException("Native Counter requires the received attack's original class byte.");
             if (attackClass == 0)
             {
-                QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, checked((ushort)(1 << attacker)));
+                QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(attacker)), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy));
             }
         }
         RunNativePlayerDamageSupport(actor);
@@ -59,22 +59,25 @@ public sealed partial class BattleSession
         int item = choices.FirstOrDefault(id => nativeItems.Any(stock => stock.ItemId == id && stock.Count != 0));
         if (item != 0)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutoPotion, 4, checked((ushort)item), checked((ushort)(1 << actor.EncodeNativeSlot())));
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutoPotion, 4, checked((ushort)item), SelectBattleTarget(actor));
         }
     }
 
-    private void QueueNativePlayerReaction(BattleCombatant actor, BattleNativePlayerReaction reaction, byte command, ushort id, ushort mask)
+    private void QueueNativePlayerReaction(BattleCombatant actor, BattleNativePlayerReaction reaction, byte command, ushort id, BattleTargetRequest request)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         ValidateNativeActionContract(native);
-        actor.NativePreviousTargetMask = mask;
+        ushort originalWord = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native player reaction requires its original previous-target operand.");
+        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(originalWord);
         if (command == 4)
         {
-            mask |= (ushort)(((native.TargetFlags.GetValueOrDefault() & 1) != 0 ? 0x4000 : 0) | ((native.TargetFlags.GetValueOrDefault() & 2) != 0 ? 0x2000 : 0));
+            byte targetFlags = native.TargetFlags.GetValueOrDefault();
+            BattleTargetSelection selection = (targetFlags & 2) != 0 ? new BattleTargetSelection.RandomOnSide(actor.Side, samplesOriginalSlots: true) : request.Selection;
+            request = new(selection, request.Eligibility, (targetFlags & 1) != 0 || request.AllowsKnockedOutAllies, BattleTargetReplacement.UseCurrentBattlePolicy);
         }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
+        BattleCombatant target = ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? actor;
         BattleAbility ability = reaction == BattleNativePlayerReaction.Counter ? BattleAbility.Attack : reaction == BattleNativePlayerReaction.AutoPotion ? BattleAbility.Item : BattleAbility.EnemyAbility;
-        BattleAttackCommand queued = new(actor.Id, target.Id, ability, id) { NativePlayerReaction = reaction, NativeQueuedCommand = command, NativeAction = native, NativeTargetMask = mask, ReservedNativeItemSlot = command == 4 ? ConsumeNativeItem(id) : null };
+        BattleAttackCommand queued = new(actor.Id, target.Id, request, ability, id) { NativePlayerReaction = reaction, NativeQueuedCommand = command, NativeAction = native, ReservedNativeItemSlot = command == 4 ? ConsumeNativeItem(id) : null };
         queued = PrepareNativeEventCommand(actor, queued);
         if (nativeProductionContext is not null && queued.NativeHeader is BattleActionHeaderReference headerIndex)
         {

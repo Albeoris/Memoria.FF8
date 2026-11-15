@@ -87,7 +87,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleGatlingGun150ContactsAll contacts:
                     Publish(current);
-                    graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
+                    graphics = ApplyNativeHeaderContacts(graphics, contacts.Header);
                     return Import(current);
                 case NativeBattleGatlingGun150DrawStatic88 draw:
                     return DrawMesh(current, draw.TemporaryAddress, draw.SourceAddress, draw.TableBaseBucket, unchecked((byte)(draw.DepthShift & 31)), draw.PilotIdentity);

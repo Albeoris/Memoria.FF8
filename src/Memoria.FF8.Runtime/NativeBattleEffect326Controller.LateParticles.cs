@@ -173,7 +173,7 @@ public static partial class NativeBattleEffect326Controller
     public static NativeBattleEffect326Frame InitializeLateBurst630810(NativeBattleEffect326Frame frame, NativeBattleEffect326Inputs inputs)
     {
         (frame, uint address) = AppendLate(frame, 0x630870);
-        int actor = unchecked((int)frame.State.ReadDword(0x24F0C80));
+        BattleModelOwner actor = frame.State.ReadActor(0x24F0C80);
         NativeBattleEffect326PointStep anchor = (inputs.ReadAnchor571400 ?? throw new NotSupportedException("Effect326 late burst requires its actual571400 target anchor."))(frame, actor, TaskView(Read(frame, address), 0x10, 8));
         frame = anchor.Frame;
         NativeBattleModulePoolTask task = CopyTask(Read(frame, address), 0x10, anchor.Point8, 8);

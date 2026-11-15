@@ -34,7 +34,7 @@ internal sealed partial class CrossoverGuestHostActions
             }
             ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(values, original);
             CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, invocation.TargetSlot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement)) with { Targets = targets };
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model, invocation.TargetSlot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), targets: targets);
             return fireProgram.TryPreflight(state, () => ReadAbilityAnchor(placement, invocation.TargetSlot), () => ReadAbilityTransform(placement, invocation.TargetSlot), CrossoverNativeSpriteRenderer.Camera(host.RenderCameraOutput, placement.Matrix), null, out string? reason,
                 readGroupForeign: slot => ReadAbilityForeign(placement, slot)) ? null : reason;
         }
@@ -61,7 +61,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             Ff7BattleGuestPreparedContact receipt = values.Single(value => value.PreparedContact!.Invocation.TargetSlot == slot).PreparedContact!;
             byte flags = PreparedContactFlags(original, receipt);
-            NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0, original.AttackType, 255);
+            NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0, original.AttackType, false);
             NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(index, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
             return contact;
         });

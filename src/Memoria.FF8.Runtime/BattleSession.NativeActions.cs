@@ -51,7 +51,7 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id, crisis);
         ValidateNativeActionContract(native);
-        actor.NativePreviousTargetMask = targetMask;
+        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(targetMask);
         ushort diagnosticSelectedTargetMask = targetMask;
         if (command is 2 or 4)
         {
@@ -61,8 +61,10 @@ public sealed partial class BattleSession
         {
             targetMask |= 0x4000;
         }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
-        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
+        BattleActorReference? selected = NativeBattleTargetRequestAdapter.ReadFirstActiveMagicAnchor(NativeBattleTargetRequestAdapter.CaptureMagicPreflight(targetMask), ReadOriginalTargetOccupant, _ => true);
+        BattleCombatant target = selected is null ? actor : FindTargetActor(selected)!;
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(targetMask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        BattleAttackCommand queued = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence };
         EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", playerInput, diagnosticSelectedTargetMask);
     }
 
@@ -71,39 +73,17 @@ public sealed partial class BattleSession
         return action.NativeAction?.AttackType is 5 or 6 || action.Effect == BattleActionEffect.Revive;
     }
 
-    private bool ActionHasValidTarget(string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort targetMask, BattleNativeGraphicCommand? graphic = null, BattleAiRecipients? aiRecipients = null)
+    private bool ActionHasValidTarget(BattleTargetRequest request, BattleNativeGraphicCommand? graphic = null)
     {
-        if (aiRecipients is not null)
+        ArgumentNullException.ThrowIfNull(request);
+        return graphic is not null || request.Selection switch
         {
-            return CurrentExpandedAiTargets(aiRecipients, native).Length != 0;
-        }
-        if (graphic is not null)
-        {
-            return true;
-        }
-        bool revive = native?.AttackType is 5 or 6 || native is null && IsRevive(ability, actionId);
-        if (native is not null)
-        {
-            if ((targetMask & 0x1FFF) == 0)
-            {
-                return true;
-            }
-            int selected = targetMask & 0x1FFF;
-            if ((targetMask & 0xA000) == 0 && combatants.Any(candidate => candidate.IsActive && !candidate.Untargetable && candidate.EncodeNativeSlot() is >= 0 and < 7 && (selected & (1 << candidate.EncodeNativeSlot())) != 0 && ((NativeSavedStatusBits(candidate) & 1) == 0 || (targetMask & 0x4000) != 0 && candidate.EncodeNativeSlot() < 3)))
-            {
-                return true;
-            }
-            if (nativeScriptState.DisableAutomaticTargetReplacement && (targetMask & 0xA000) == 0)
-            {
-                return combatants.Any(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (selected & (1 << candidate.EncodeNativeSlot())) != 0);
-            }
-            return combatants.Any(candidate => candidate.IsActive && !candidate.Untargetable && candidate.EncodeNativeSlot() is >= 0 and < 7 && (selected == 255 || (selected <= 7) == (candidate.EncodeNativeSlot() < 3)) && ((NativeSavedStatusBits(candidate) & 1) == 0 || (targetMask & 0x4000) != 0 && candidate.EncodeNativeSlot() < 3));
-        }
-        if (targetMask != 0)
-        {
-            return combatants.Any(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0 && (candidate.IsAlive || revive && candidate.IsActive));
-        }
-        return byId[targetId].IsAlive || revive;
+            BattleTargetSelection.None => true,
+            NativeBattleTargetRequestAdapter.DeferredOperands original => NativeBattleTargetRequestAdapter.IsOriginalSelectionAdmitted(
+                original, ReadOriginalTargetOccupant, reference => IsBattleTargetEligible(FindTargetActor(reference)!, request),
+                request.Replacement == BattleTargetReplacement.UseCurrentBattlePolicy && !nativeScriptState.DisableAutomaticTargetReplacement),
+            _ => ResolveBattleTargets(request, sampleRandom: false).Length != 0
+        };
     }
 
     private static void ValidateNativeActionContract(BattleNativeAction action)
@@ -162,7 +142,7 @@ public sealed partial class BattleSession
             nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(headerIndex, 1);
         }
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);
-        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = unchecked((byte)produced.PublishedTargetCount) };
+        RecordPublishedNativeTargetCount(produced.PublishedTargetCount);
         if (queueGraphics && NativeGraphics is { } graphics)
         {
             graphics = QueueNativeActionDescriptor(graphics, headerIndex);
@@ -209,48 +189,6 @@ public sealed partial class BattleSession
         BattleCombatant[] party = UsesExpandedRoster ? allies.Where(member => member.IsActive).ToArray() : allies.Where(member => member.EncodeNativeSlot() is >= 0 and < 3).ToArray();
         uint cost = checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
         return TrySpendNativeMoogleGil(cost) ? null : 53;
-    }
-
-    private BattleCombatant[] ResolveNativeActionMask(ushort targetMask)
-    {
-        NativeBattleTargetRequest request = new(targetMask);
-        if (request.SelectsRandomTarget)
-        {
-            BattleCombatant? randomTarget = ChooseNativeRandomActionTarget(request.Side);
-            request = request.WithRandomSelection(randomTarget?.Slot);
-        }
-        NativeBattlePhysicalTargets available = default;
-        foreach (BattleCombatant candidate in NativeTargetActors().Where(candidate => candidate.IsActive && !candidate.Untargetable))
-        {
-            if ((NativeSavedStatusBits(candidate) & 1) == 0 || request.IncludesKnockedOutAllies && candidate.Side == BattleSide.Allies)
-            {
-                available = available.Add(candidate.Slot!.Value);
-            }
-        }
-        (int result, bool unavailable) = NativeBattleActionTargetMask.Resolve(request, available, nativeScriptState.DisableAutomaticTargetReplacement);
-        nativeActionScratch = nativeActionScratch with { TargetUnavailableB0E = unavailable };
-        ObserveDiagnosticReflectionTargetResolution(targetMask, request.Selection, request.Modifiers, available.Bits, result);
-        NativeBattlePhysicalTargets recipients = NativeBattlePhysicalTargets.FromNativeWord(checked((ushort)result));
-        return NativeTargetActors().Where(candidate => recipients.Contains(candidate.Slot!.Value)).OrderBy(candidate => candidate.EncodeNativeSlot()).ToArray();
-    }
-
-    private BattleCombatant? ChooseNativeRandomActionTarget(BattleSide side)
-    {
-        IReadOnlyList<BattleCombatant> roster = Roster(side);
-        if (!roster.Any(candidate => HasNativeRosterSlot(candidate) && candidate.IsActive && (NativeSavedStatusBits(candidate) & 5) == 0))
-        {
-            return null;
-        }
-        // Native486DC0/486E00 reject dead physical indexes, rather than drawing uniformly over a compacted living list.
-        while (true)
-        {
-            BattleRosterSlot slot = side == BattleSide.Allies ? BattleRosterSlot.Ally(NextRandomByte() % NativeBattleSlots.AllyCount) : BattleRosterSlot.Enemy(NextRandomByte() % NativeBattleSlots.EnemyCount);
-            BattleCombatant? selected = roster.FirstOrDefault(candidate => candidate.Slot == slot && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0);
-            if (selected is not null)
-            {
-                return selected;
-            }
-        }
     }
 
     private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)

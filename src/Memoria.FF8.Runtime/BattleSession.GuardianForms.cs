@@ -58,7 +58,7 @@ public sealed partial class BattleSession
         ValidateNativeActionContract(action.NativeAction);
         BattleCombatant actor = GetActor(actorId);
         long invocation = checked(lastGuardianFormInvocation + 1);
-        BattleAttackCommand command = new(actorId, actorId, BattleAbility.GuardianForce, guardianForceId)
+        BattleAttackCommand command = new(actorId, actorId, SelectBattleTarget(actor), BattleAbility.GuardianForce, guardianForceId)
         {
             NativeQueuedCommand = NativeGraphics is null ? (byte)254 : (byte)3,
             GuardianFormInvocation = new(invocation, guardianForceId, GuardianFormInvocationMode.EntryOnly)
@@ -122,13 +122,16 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("GF form action has an unavailable actor or target.");
         }
         bool finisher = policy.Terminal;
-        ushort mask = UsesExpandedRoster ? (ushort)0 : policy.Source == BattleGuardianFormActionSource.Physical ? checked((ushort)(1 << target.EncodeNativeSlot())) : finisher ? NativeAutomaticActionTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF finisher requires original target rules.")) : NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags ?? throw new NotSupportedException("GF spell requires original target rules."), target.EncodeNativeSlot());
-        BattleAttackCommand command = new(actor.Id, target.Id, action.Ability, action.Id)
+        BattleTargetRequest request = policy.Source == BattleGuardianFormActionSource.Physical
+            ? SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living)
+            : finisher && !UsesExpandedRoster
+                ? CreateAutomaticTargetRequest(native.TargetFlags ?? throw new NotSupportedException("GF finisher requires original target rules."))
+                : CreatePlayerTargetRequest(actor, target, native.TargetFlags ?? throw new NotSupportedException("GF spell requires original target rules."));
+        BattleAttackCommand command = new(actor.Id, target.Id, request, action.Ability, action.Id)
         {
             NativeAction = !UsesExpandedRoster && finisher ? null : native,
             NativeSequence = policy.Sequence,
             NativeQueuedCommand = finisher ? (byte)254 : native.Command,
-            NativeTargetMask = mask,
             FreeNativeMagic = policy.Cost == BattleGuardianFormActionCost.Innate,
             GuardianFormAction = binding,
             GuardianFormInvocation = finisher ? new(form.InvocationId, form.GuardianForceId, GuardianFormInvocationMode.FinisherWithoutEntry) : null
@@ -206,7 +209,7 @@ public sealed partial class BattleSession
         try
         {
             nativeAffinityAction = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction;
-            CompleteGuardianForceAffinity(actor, new(actorId, actorId, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, form.GuardianForceId));
+            CompleteGuardianForceAffinity(actor, new(actorId, actorId, BattleActionPhase.Recovery, 0, SelectBattleTarget(actor), BattleAbility.GuardianForce, form.GuardianForceId));
         }
         finally
         {
@@ -524,7 +527,7 @@ public sealed partial class BattleSession
 
     private void ValidateGuardianFormPresentation(BattleActionPresentation action)
     {
-        ValidateGuardianFormCommand(new(action.ActorId, action.TargetId, action.Ability, action.ActionId)
+        ValidateGuardianFormCommand(new(action.ActorId, action.TargetId, action.TargetRequest, action.Ability, action.ActionId)
         {
             GuardianFormAction = action.GuardianFormAction,
             GuardianFormInvocation = action.GuardianFormInvocation,

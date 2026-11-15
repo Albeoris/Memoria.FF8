@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         BeginNativeReactionBatch();
         nativeTimedAction = new(command, 0);
         nativeActionCommitDepth = 1;
-        nativeRenzokukenProcesses.Add(actor.Id, new(magicId, 0, finisher, new()));
+        nativeRenzokukenProcesses.Add(actor.Id, new(magicId, command.TargetRequest, finisher, new()));
         nativeActionScratch = nativeActionScratch with { EventLane = 1, Command = 5, Action = finisher is null ? (ushort)0xFFFD : (ushort)0xFFFE, DeferredEffectsE00 = false };
         LogRenzokukenBoundary(command, "Windup", $"{actor.Name}: Renzokuken.");
         if (finisher is byte index)
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void BeginNativeTimedAction(BattleActionPresentation command, ushort magicId, byte? finisher, ushort finisherTargets)
+    private void BeginNativeTimedAction(BattleActionPresentation command, ushort magicId, byte? finisher, BattleTargetRequest finisherTargets)
     {
         if (nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions)
         {
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ResolveNativeTimedContact(ushort targetMask, BattleNativeAction native, short timing, bool finalContact)
+    private void ResolveNativeTimedContact(BattleTargetRequest request, BattleNativeAction native, short timing, bool finalContact)
     {
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidOperationException("Native contact requires its active command transaction.");
         if (nativeActionCommitDepth != 1 || native.Command == 251 && native.AttackType != 10)
@@ -154,14 +154,14 @@ public sealed partial class BattleSession
         ValidateNativeActionContract(native);
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleCombatant target = GetActor(timed.Command.TargetId);
-        BattleActionPresentation contact = timed.Command with { NativeAction = native, NativeTargetMask = targetMask, GunbladeTriggerTiming = timing, NativeMagicTargets = default };
+        BattleActionPresentation contact = timed.Command with { NativeAction = native, TargetRequest = request, GunbladeTriggerTiming = timing, MagicCasts = [] };
         bool previous = suppressNativeImmediateCounter;
         suppressNativeImmediateCounter = !finalContact;
         try
         {
             if (native.Command == 251)
             {
-                if (target.EncodeNativeSlot() is < 0 or >= 7 || targetMask != 1 << target.EncodeNativeSlot())
+                if (target.EncodeNativeSlot() is < 0 or >= 7 || request.Selection != NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())))
                 {
                     throw new InvalidDataException("Native251 contact must retain its originally selected physical recipient.");
                 }
@@ -294,7 +294,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved native timed command lacks its canonical actor, contact or reaction owners.");
         }
-        if (UsesExpandedRoster && (saved.Command is not { NativeHeader: null, NativeTargetMask: 0, NativeAction: null, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
+        if (UsesExpandedRoster && (saved.Command is not { NativeHeader: null, NativeAction: null, TargetRequest.Selection: BattleTargetSelection.Explicit { Actors.Length: 1 }, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
         {
             throw new InvalidDataException("Saved expanded Renzokuken lacks its logical command5 transaction.");
         }

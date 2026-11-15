@@ -6,14 +6,14 @@ public static partial class NativeBattleGatlingGun305Controller
 {
     private static NativeBattleGatlingGun305Frame DrawRandom(NativeBattleGatlingGun305Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
     private static NativeBattleEffectParameters Parameters(NativeBattleGatlingGun305Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Gatling Gun requires its captured action parameters.");
-    private static int FirstContact(NativeBattleGatlingGun305Frame frame, NativeBattleGatlingGun305Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleGatlingGun305Frame frame, NativeBattleGatlingGun305Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
         if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Gatling Gun requires its first captured target contact.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Gatling Gun requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContact;
     }
     private static void RequireBinding(NativeBattleGatlingGun305Frame frame)
     {
@@ -22,15 +22,6 @@ public static partial class NativeBattleGatlingGun305Controller
             throw new InvalidDataException("Gatling Gun requires its original selected entry.");
         }
     }
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Gatling Gun actor pointer leaves the native seven-model bank.");
-        }
-        return row;
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Gatling Gun actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleGatlingGun305Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleGatlingGun305Frame WithPool(NativeBattleGatlingGun305Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleGatlingGun305Frame Put(NativeBattleGatlingGun305Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));

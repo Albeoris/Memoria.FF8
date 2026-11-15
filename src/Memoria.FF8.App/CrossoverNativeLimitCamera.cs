@@ -41,7 +41,7 @@ internal sealed record CrossoverNativeLimitCamera(NativeBattleActionMatrix RootM
             owner = owner.AdvanceControl(bank, sourceBytes[animation.StreamOffset..], new()
             {
                 // Foreign targets have no FFVIII information BYTE246. The ordinary profile uses BYTE246=0, which initializes BYTE145=3.
-                ReadExternal = variable => variable == 21 ? 3 : throw new NotSupportedException($"The guest Limit camera queried source variable {variable}.")
+                ReadExternal = variable => variable == 21 ? NativeBattleScriptValue.Scalar(3) : throw new NotSupportedException($"The guest Limit camera queried source variable {variable}.")
             });
         }
         owner = owner.Tick(4, new() { TransformReference = TransformReference }).PublishProjection(4);

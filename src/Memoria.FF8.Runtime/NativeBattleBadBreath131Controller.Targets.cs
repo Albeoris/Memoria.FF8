@@ -7,7 +7,7 @@ public static partial class NativeBattleBadBreath131Controller
     public static (NativeBattleBadBreath131Frame Frame, int Result) AdvanceTarget(NativeBattleBadBreath131Frame frame, uint address, NativeBattleBadBreath131Resources resources, NativeBattleBadBreath131Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        byte actor = task.ReadByte(15);
+        BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(15, 1).Owner;
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, task.ReadRawPayloadSpan().Slice(4, 8));
         if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
@@ -62,7 +62,7 @@ public static partial class NativeBattleBadBreath131Controller
         }
         if (age == 40)
         {
-            frame = inputs.Execute(frame, new NativeBattleBadBreath131Contact(Read(frame, address).ReadByte(14)));
+            frame = inputs.Execute(frame, new NativeBattleBadBreath131Contact(inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(Read(frame, address).ReadByte(14))).Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.")));
         }
         ushort next = unchecked((ushort)(Read(frame, address).ReadWord(12) + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, next));

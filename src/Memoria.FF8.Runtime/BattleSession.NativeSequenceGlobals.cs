@@ -2,14 +2,22 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private int ReadNativeGraphicsSequenceVariable(NativeBattleGraphicsState graphics, BattleModelOwner modelIndex, byte variable)
+    private NativeBattleScriptValue ReadNativeGraphicsSequenceVariable(NativeBattleGraphicsState graphics, BattleModelOwner modelIndex, byte variable)
     {
         if (variable == 27)
         {
-            return graphics.NativeBindings.TryEncodeExactActor(modelIndex, graphics.ActorModels, out byte original)
-                ? original
-                : throw new NotSupportedException("Native sequence variable27 requires an exact original actor operand.");
+            return NativeBattleScriptValue.CaptureActor(modelIndex, graphics.ActorModels, graphics.NativeBindings);
         }
+        if (variable == 24)
+        {
+            BattleModelOwner target = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native target variable24 requires its resolved model owner.");
+            return NativeBattleScriptValue.CaptureActor(target, graphics.ActorModels, graphics.NativeBindings);
+        }
+        return NativeBattleScriptValue.Scalar(ReadNativeGraphicsSequenceScalar(graphics, modelIndex, variable));
+    }
+
+    private int ReadNativeGraphicsSequenceScalar(NativeBattleGraphicsState graphics, BattleModelOwner modelIndex, byte variable)
+    {
         if (variable == 40)
         {
             return (NativeEffectMemory ?? throw new NotSupportedException("Native read40 requires its process task pointer owner.")).ReadReturnedTask5044B0();

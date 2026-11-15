@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record CrossoverNativeRenzokukenEntryState(int HostTarget, NativeBattleRenzokuken160Frame Frame, NativeBattleActionPacketsState Packets, NativeBattleRenzokuken160Resources Resources, int Callbacks)
+internal sealed record CrossoverNativeRenzokukenEntryState(int HostTarget, BattleModelOwner SourceOwner, NativeBattleModelAliases Aliases, NativeBattleRenzokuken160Frame Frame, NativeBattleActionPacketsState Packets, NativeBattleRenzokuken160Resources Resources, int Callbacks)
 {
     public NativeBattleLogicalOrdering? Ordering { get; init; }
     public short StageDepth { get; init; }
@@ -14,23 +14,25 @@ internal sealed record CrossoverNativeRenzokukenPrelude(CrossoverNativeRenzokuke
 /// <summary>Original ordinary Renzokuken control packet, resource entry and prelude for a host-owned occurrence.</summary>
 internal static partial class CrossoverNativeRenzokukenEntry
 {
-    public static CrossoverNativeRenzokukenEntryState Begin(GameAssets game, int hostTarget, ushort variant, bool finisherPending, NativeCrtRandomState random, NativeBattleEffectTextureState? sharedTextures = null)
+    public static CrossoverNativeRenzokukenEntryState Begin(GameAssets game, int hostTarget, BattleModelOwner sourceOwner, BattleModelOwner targetOwner, ushort variant, bool finisherPending, NativeCrtRandomState random, NativeBattleEffectTextureState? sharedTextures = null)
     {
-        if (hostTarget is < 4 or > 9 || variant is not (141 or 160) || sharedTextures is { Count: not 0 })
+        if (sourceOwner.Side != BattleSide.Allies || targetOwner.Side != BattleSide.Enemies || variant is not (141 or 160) || sharedTextures is { Count: not 0 })
         {
             throw new InvalidDataException("The guest Renzokuken entry requires its ordinary native variant and one host enemy.");
         }
         NativeBattleRenzokuken160Resources resources = variant == 141 ? game.ReadNativeRenzokuken141Resources() : game.ReadNativeRenzokuken160Resources();
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]);
-        (packets, _) = packets.Prepare(new(0, 5, 21, -1, finisherPending ? (ushort)0xFFFE : (ushort)0xFFFD, variant, null));
+        BattleModelRoster roster = new([sourceOwner, targetOwner]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), sourceOwner), (NativeBattleModelSlot.Decode(3), targetOwner)]);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), aliases);
+        (packets, _) = packets.Prepare(new(sourceOwner, 5, 21, -1, finisherPending ? (ushort)0xFFFE : (ushort)0xFFFD, variant, null));
         //The original command5 control has attack type0 and does not resolve damage before its trigger windows.
-        NativeBattleContactPresentation neutral = NativeBattleContactPresentations.Complete(0, 1, 0, 0, 255);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(3, neutral.Sequence, neutral.Flags2, neutral.HitFlags3, 0, 0, 0);
-        (packets, _) = packets.AppendContact(new(contact, new(255, 0, 0, 0, 0, 0, 0)));
-        (packets, _) = packets.Publish(1);
-        packets = packets.WritePlayerRepeatMode(0, 1);
+        NativeBattleContactPresentation neutral = NativeBattleContactPresentations.Complete(0, 1, 0, 0, false);
+        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(targetOwner, neutral.Sequence, neutral.Flags2, neutral.HitFlags3, 0, 0, 0);
+        (packets, _) = packets.AppendContact(new(contact, null));
+        (packets, BattleActionHeaderReference header) = packets.Publish(1);
+        packets = packets.WritePlayerRepeatMode(header, 1);
         NativeBattleOriginalEffectState selected = NativeBattleOriginalEffects.Select(variant, game.ReadNativeEffectCatalogForEffects([variant]));
-        selected = selected with { Parameters = new(0, 0, 8, 0, 0, 0) };
+        selected = selected with { Parameters = new(sourceOwner, 0, BattleModelTargets.From([targetOwner]), header, 0, 0) };
         (NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect) = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         if (sharedTextures is not null)
         {
@@ -38,17 +40,17 @@ internal static partial class CrossoverNativeRenzokukenEntry
         }
         NativeBattleRenzokuken160Frame frame = variant == 141 ? NativeBattleRenzokukenVariantController.Enter61DE70(memory, effect, packets, resources, random) : NativeBattleRenzokuken160Controller.Enter5FF080(memory, effect, packets, resources, random);
         frame = frame with { Memory = frame.Memory with { Textures = frame.Memory.Textures!.Drain505D20(frame.Memory.Arena!).State } };
-        return new(hostTarget, frame, packets, resources, 0);
+        return new(hostTarget, sourceOwner, aliases, frame, packets, resources, 0);
     }
 
     public static CrossoverNativeRenzokukenPrelude AdvancePrelude(CrossoverNativeRenzokukenEntryState source, NativeBattleGraphicsModel caster)
     {
-        if (source.Callbacks is < 0 or >= 2 || caster is not { Index: 0, ModelId4: 0 } || (caster.Flags0 & 2) == 0)
+        if (source.Callbacks is < 0 or >= 2 || caster is not { ModelId4: 0 } || (caster.Flags0 & 2) == 0)
         {
             throw new InvalidOperationException("The source prelude requires its loaded Squall and one of the two original entry callbacks.");
         }
         ImmutableArray<NativeBattleRenzokuken160Operation>.Builder operations = ImmutableArray.CreateBuilder<NativeBattleRenzokuken160Operation>();
-        NativeBattleRenzokuken160Inputs inputs = new(0, [], actor => actor == 0 ? caster : throw new InvalidDataException("The native prelude queried an unbound actor."), Execute);
+        NativeBattleRenzokuken160Inputs inputs = new(0, [], actor => actor == source.SourceOwner ? caster : throw new InvalidDataException("The native prelude queried an unbound actor."), Execute);
         bool firstVariant = source.Resources.ActorResource.MagicId == 141;
         NativeBattleRenzokuken160Frame frame = firstVariant
             ? NativeBattleRenzokukenVariantController.Advance61F710(source.Frame, (current, pool, slot) => NativeBattleRenzokukenVariantController.AdvanceController(current, pool, slot, inputs, source.Resources, NativeBattleRenzokukenVariantProfile.Renzokuken141), BeforeParticles)

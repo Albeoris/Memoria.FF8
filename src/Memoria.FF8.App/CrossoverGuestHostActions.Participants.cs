@@ -15,24 +15,33 @@ internal sealed partial class CrossoverGuestHostActions
             return null;
         }
         CrossoverNativeMagicParticipant? participant = active.Presentation.BoundParticipants.SingleOrDefault(participant => participant.HostSlot == slot);
-        NativeBattleGraphicsModel? model = participant is null ? null : effect.Graphics.Models[participant.ActorIndex];
+        NativeBattleGraphicsModel? model = participant is null ? null : effect.Graphics.ActorModels.Get(participant.Owner);
         return model is { Color40: { } color } && (model.Flags0 & 0x800) != 0 ? new(color) : null;
     }
 
-    private NativeBattleForeignActor ReadPresentationParticipant(int slot, int index)
+    private BattleModelOwner ReadPresentationOwner(int slot)
+    {
+        CrossoverBattleParticipant participant = roster.Participants.Single(item => item.HostSlot == slot);
+        if (!host.Actors.Any(actor => actor.Actor.Slot == slot && actor.Identity == participant.Story.NativeId))
+        {
+            throw new InvalidDataException("The mixed presentation participant no longer owns its host allocation.");
+        }
+        return roster.ReadModelOwner(slot);
+    }
+
+    private NativeBattleForeignActor ReadPresentationParticipant(int slot, BattleModelOwner owner)
     {
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
         if (readForeignGeometry is not null || encounter.GuestAt(slot)?.Visual is not null)
         {
             CrossoverNativeForeignTarget foreign = ReadAbilityForeign(placement, slot);
-            return foreign.ToActor(index) with { ReadGeometry = () => foreign.Anchors };
+            return foreign.ToActor(owner) with { ReadGeometry = () => foreign.Anchors };
         }
         NativeBattleModuleAnchor anchor = ReadAbilityAnchor(placement, slot);
         NativeBattleVector impact = new(anchor.X, anchor.Y, anchor.Z);
         bool canReact = host.CanPresentGuestReaction(slot);
-        return new(index, ReadAbilityTransform(placement, slot), anchor, (selector, fraction) => CrossoverNativeForeignTarget.ReadSemanticBone(selector, fraction, impact, () => placement.ResolvePosition(host.GuestEffectTargetBone(slot, 0))))
+        return new(owner, ReadAbilityTransform(placement, slot), anchor, (selector, fraction) => CrossoverNativeForeignTarget.ReadSemanticBone(selector, fraction, impact, () => placement.ResolvePosition(host.GuestEffectTargetBone(slot, 0))))
         {
-            IsParty = slot < 3,
             CanReact = canReact,
             AtStandingPose = canReact ? host.IsGuestTargetStanding(slot) : null
         };

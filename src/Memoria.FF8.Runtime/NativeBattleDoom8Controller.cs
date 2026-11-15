@@ -13,7 +13,7 @@ public sealed record NativeBattleDoom8UpdateCaster(uint Address) : NativeBattleD
 public sealed record NativeBattleDoom8UpdateTargetBounds(uint Address) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8InitializeTarget(uint Address) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8TextureLoad(uint RootAddress, uint SourceAddress) : NativeBattleDoom8Operation;
-public sealed record NativeBattleDoom8Contact(int Index) : NativeBattleDoom8Operation;
+public sealed record NativeBattleDoom8Contact(BattleContactOccurrence Occurrence) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8QueueFile(ushort Opcode, ushort FileId, ushort Index, uint DestinationAddress, int DeclaredLength, uint CompletionCallback) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8Inputs(NativeBattleActionPacketsState Packets, Func<NativeBattleDoom8Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute, Func<NativeBattleDoom8Frame, uint, NativeBattleDoom8Step> AdvanceLeaf, uint DirectorSound);
 public sealed record NativeBattleDoom8DirectorInputs(uint SoundValue, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute);

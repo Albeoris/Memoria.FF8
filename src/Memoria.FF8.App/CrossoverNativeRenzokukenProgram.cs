@@ -24,13 +24,13 @@ internal sealed record CrossoverNativeRenzokukenProgramStep(CrossoverNativeRenzo
 /// <summary>One original Squall model, effect list and widget under the host callback.</summary>
 internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, NativeBattleGraphicsResource original, NativeBattleGraphicsRules rules)
 {
-    public CrossoverNativeRenzokukenProgramState Begin(NativeBattleGraphicsModel model, int hostTarget, ushort variant, bool finisherPending, int approachDistance, short yaw, NativeCrtRandomState random, ushort options, NativeBattleUiRandomState? uiRandom)
+    public CrossoverNativeRenzokukenProgramState Begin(NativeBattleGraphicsModel model, int hostTarget, BattleModelOwner sourceOwner, BattleModelOwner targetOwner, ushort variant, bool finisherPending, int approachDistance, short yaw, NativeCrtRandomState random, ushort options, NativeBattleUiRandomState? uiRandom)
     {
         (model, NativeBattleEffectTextureState textures) = NativeEffectActorTextures.Allocate(model, original);
         NativeBattleEffectInitializerAsset common = game.ReadNativeCommonEffectTexture();
         (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
         textures = textures.Drain505D20(NativeBattleEffectMemory.FromColdProcess().Arena).State;
-        CrossoverNativeRenzokukenEntryState effect = CrossoverNativeRenzokukenEntry.Begin(game, hostTarget, variant, finisherPending, random, textures);
+        CrossoverNativeRenzokukenEntryState effect = CrossoverNativeRenzokukenEntry.Begin(game, hostTarget, sourceOwner, targetOwner, variant, finisherPending, random, textures);
         model = model with { Rotation12 = 0, Rotation14 = yaw, Rotation16 = 0 };
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, original.PoseSource!) };
         CrossoverNativeCastState opening = CrossoverNativeCastPresentation.Begin(model, original, game.ReadNativeBattleCommandSequences(), 5);
@@ -52,7 +52,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
             }
             source = source with { Model = opening.State.Model, Opening = null, OpeningAuxiliary = null, OpeningModules = null, OpeningMotion = [], OpeningDraws = [] };
         }
-        (CrossoverNativeRenzokukenTrigger trigger, NativeBattleTriggerReceipt? timingReceipt) = source.Trigger.BeforeGraphics();
+        (CrossoverNativeRenzokukenTrigger trigger, NativeBattleTriggerReceipt? timingReceipt) = source.Trigger.BeforeGraphics(source.Effect.Packets.Roster);
         if (source.PreparedContact is not null && timingReceipt is not null)
         {
             throw new InvalidDataException("Renzokuken prepared a second timing before the prior B7 publication.");
@@ -77,7 +77,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
         ImmutableArray<NativeBattleModuleDraw> moduleDraws = [];
         if (shared is { Head: not null })
         {
-            (shared, NativeBattleRenzokuken160Frame frame, sharedOrdering, moduleDraws) = AdvanceShared(shared, effect.Frame, effect.Resources, model, resource, projection, colors);
+            (shared, NativeBattleRenzokuken160Frame frame, sharedOrdering, moduleDraws) = AdvanceShared(shared, effect.SourceOwner, effect.Aliases, effect.Frame, effect.Resources, model, resource, projection, colors);
             effect = effect with { Frame = frame, Ordering = sharedOrdering };
         }
         else if (effect.Frame.Effect.ReturnedDescriptor == 0)
@@ -126,7 +126,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
                     throw new InvalidDataException("Renzokuken published its original finisher handoff twice.");
                 }
                 handoff = task;
-                shared = AppendShared(shared ?? NativeBattleModuleState.Clear(), task);
+                shared = NativeBattleRenzokuken160Controller.AppendSharedTask(shared ?? NativeBattleModuleState.Clear(), task, effect.Aliases);
             }
         }
         NativeBattleEffectMemory memory = effect.Frame.Memory;
@@ -136,12 +136,12 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
         NativeBattleSequenceStep pose = NativeBattleSequenceMachine.Advance(model, resource, new(0, 0)
         {
             OriginalResource = original,
-            ReadExternal = variable => variable switch
+            ReadExternal = variable => NativeBattleScriptValue.Scalar(variable switch
             {
                 17 => unchecked((short)source.ApproachDistance),
                 18 or 19 => memory.ReadSequenceGlobal5044B0(variable),
                 _ => throw new NotSupportedException($"Renzokuken has no owner for source variable {variable:X2}.")
-            },
+            }),
             WriteExternal = (variable, value) => memory = memory.WriteSequenceGlobal5048E0(variable, value),
             SelectModelSequence = SelectTarget,
             ApplyCurrentContact = PublishContact
@@ -151,7 +151,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
         {
             if (cue.Kind == NativeBattleSequenceCueKind.TriggerWindow)
             {
-                trigger = trigger.Register(pose.Model, cue);
+                trigger = trigger.Register(effect.SourceOwner, effect.Packets.Roster, pose.Model, cue);
             }
             else if (cue.Kind != NativeBattleSequenceCueKind.RestoreStanding)
             {
@@ -161,7 +161,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram(GameAssets game, 
         model = pose.Model with { Flags2 = (ushort)(pose.Model.Flags2!.Value & ~4) };
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, (model.ResourceMagicId is null ? original : resource).PoseSource!) };
         effect = effect with { Frame = effect.Frame with { Memory = memory } };
-        (trigger, bool triggerSound) = trigger.AfterGraphics(rules.UiPublicationDuration ?? throw new InvalidDataException("Renzokuken lacks its original UI pulse period."));
+        (trigger, bool triggerSound) = trigger.AfterGraphics(effect.Packets.Roster, rules.UiPublicationDuration ?? throw new InvalidDataException("Renzokuken lacks its original UI pulse period."));
         return new(source with { Effect = effect, Model = model, Trigger = trigger, PublishedContacts = source.PublishedContacts + (contact is null ? 0 : 1), Returned = returned, FinisherHandoff = handoff, SharedModules = shared, FinisherReleasePhase = releasePhase, OpeningDraws = moduleDraws.Where(draw => draw.Kind != NativeBattleModuleDrawKind.Sound).ToImmutableArray(), PreparedContact = contact is null ? prepared : null, TargetSequence = targetSequence }, timingReceipt, contact, targetCue, sounds.ToImmutable(), triggerSound);
 
         NativeBattleGraphicsModel SelectTarget(NativeBattleGraphicsModel current, byte opcode, byte selector, byte sequence)

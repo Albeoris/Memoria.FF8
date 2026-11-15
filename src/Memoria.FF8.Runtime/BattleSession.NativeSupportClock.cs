@@ -80,6 +80,6 @@ public sealed partial class BattleSession
     {
         byte id = nativeSupport?.SelectedAction ?? throw new InvalidDataException("Native stage8 lacks its actual selector BYTE1D28E14.");
         ushort targets = nativeSupport.SelectedTargets ?? throw new InvalidDataException("Native stage8 lacks its actual target WORD1D28DE6.");
-        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloPeriodic, 240, id, targets);
+        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloPeriodic, 240, id, NativeBattleTargetRequestAdapter.Decode(targets, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true));
     }
 }

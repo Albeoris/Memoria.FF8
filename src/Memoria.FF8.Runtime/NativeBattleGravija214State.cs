@@ -52,6 +52,12 @@ public sealed record NativeBattleGravija214State([property: JsonRequired] Native
     public byte[] Read(uint address, int length) => IsCopy(address, length) ? CopiedSource.Read(checked((int)(address - CopiedMeshAddress)), length) : Globals.Read(Require(address, length), length);
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    internal NativeBattleGravija214State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public NativeBattleGravija214State Write(uint address, ReadOnlySpan<byte> bytes)
     {

@@ -77,7 +77,11 @@ public sealed partial class BattleSession
             BattleCombatant target = (flags & 0x30) == 0x10 ? enemies[NextRandomByte() % enemies.Length] : enemies[0];
             byte sequence = NativeBattleActionGraphics.ResolvePlayerSequence(2, 0, spellId, definition.NativeCommandSequences);
             OnNativePlayerCommandSubmitted(actor, 2);
-            actions.Enqueue(new(actor.Id, target.Id, BattleAbility.EnemyAbility, spellId)
+            BattleTargetSelection selection = (flags & 2) != 0 ? new BattleTargetSelection.RandomOnSide(BattleSide.Enemies)
+                : (flags & 0x30) == 0x10 ? new BattleTargetSelection.Explicit([TargetActorReference(target)])
+                : new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies);
+            BattleTargetRequest request = new(selection, BattleTargetEligibility.AiAvailable, false, BattleTargetReplacement.None);
+            actions.Enqueue(new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, spellId)
             {
                 NativeQueuedCommand = 2,
                 NativeAction = native,

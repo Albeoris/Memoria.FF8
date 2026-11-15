@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         {
             return command;
         }
-        BattleCombatant? target = ResolveNativeActionMask(command.NativeTargetMask).FirstOrDefault();
+        BattleCombatant? target = ResolveBattleTargets(command.TargetRequest).FirstOrDefault();
         return command with { NativeSpecial = PrepareNativeSpecialTarget(target, command.NativeAction.AttackType) };
     }
 

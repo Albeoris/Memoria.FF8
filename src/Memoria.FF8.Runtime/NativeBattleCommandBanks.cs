@@ -21,7 +21,7 @@ public sealed record NativeBattleCommandPacket([property: JsonRequired] Immutabl
 }
 public sealed record NativeBattleCommandBank([property: JsonRequired] ImmutableArray<NativeBattleCommandPacket> Packets, [property: JsonRequired] ImmutableArray<NativeBattleCommandLink> Links, [property: JsonRequired] byte Tail)
 {
-    [JsonRequired]
+    [JsonIgnore]
     public ImmutableArray<BattleAttackCommand?> LogicalCommands { get; init; } = ImmutableArray.CreateRange(new BattleAttackCommand?[22]);
 }
 
@@ -71,6 +71,11 @@ public sealed record NativeBattleCommandBanks([property: JsonRequired] Immutable
 
     public NativeBattleCommandBanks WriteCommand(NativeBattleCommandLocation location, byte subslot, byte actor, byte command, byte flags2, byte flags3, ushort action, IReadOnlyList<ushort> targets)
     {
+        return WriteProjectedCommand(location, subslot, actor, command, flags2, flags3, action, targets.Select(target => (ushort?)target).ToArray());
+    }
+
+    internal NativeBattleCommandBanks WriteProjectedCommand(NativeBattleCommandLocation location, byte subslot, byte actor, byte command, byte flags2, byte flags3, ushort action, IReadOnlyList<ushort?> targets)
+    {
         ValidateLocation(location);
         if (subslot >= 2 || actor >= 7 || targets.Count > 3)
         {
@@ -88,10 +93,19 @@ public sealed record NativeBattleCommandBanks([property: JsonRequired] Immutable
         ushort unknown = (ushort)(packet.UnknownByteMask & ~0x3F);
         for (int target = 0; target < targets.Count; target++)
         {
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6 + 2 * target), targets[target]);
-            unknown &= (ushort)~(3 << (6 + 2 * target));
+            int offset = 6 + 2 * target;
+            ushort mask = (ushort)(3 << offset);
+            if (targets[target] is ushort value)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), value);
+                unknown &= (ushort)~mask;
+            }
+            else
+            {
+                unknown |= mask;
+            }
         }
-        return this with { Banks = Banks.SetItem(location.Bank, bank with { Packets = bank.Packets.SetItem(index, new(bytes.ToImmutableArray(), unknown)) }) };
+        return this with { Banks = Banks.SetItem(location.Bank, bank with { Packets = bank.Packets.SetItem(index, new(bytes.ToImmutableArray(), unknown)), LogicalCommands = bank.LogicalCommands.SetItem(index, null) }) };
     }
 
     public (NativeBattleCommandBanks State, NativeBattleCommandLocation Location) EnqueueCallback(byte bankIndex, byte actor, ushort stage)
@@ -107,7 +121,7 @@ public sealed record NativeBattleCommandBanks([property: JsonRequired] Immutable
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), stage);
         bytes.AsSpan(6, 6).Clear();
         ushort unknown = (ushort)(packet.UnknownByteMask & ~0xFF7);
-        return (state with { Banks = state.Banks.SetItem(bankIndex, bank with { Packets = bank.Packets.SetItem(index, new(bytes.ToImmutableArray(), unknown)) }) }, location);
+        return (state with { Banks = state.Banks.SetItem(bankIndex, bank with { Packets = bank.Packets.SetItem(index, new(bytes.ToImmutableArray(), unknown)), LogicalCommands = bank.LogicalCommands.SetItem(index, null) }) }, location);
     }
 
     public NativeBattleCommandBanks BindCommand(NativeBattleCommandLocation location, byte subslot, BattleAttackCommand command)
@@ -119,6 +133,7 @@ public sealed record NativeBattleCommandBanks([property: JsonRequired] Immutable
         }
         NativeBattleCommandBank bank = Banks[location.Bank];
         int index = 2 * location.Slot + subslot;
+        ArgumentNullException.ThrowIfNull(command.TargetRequest);
         if (bank.Packets[index].ReadByte(0) == 255)
         {
             throw new InvalidDataException("Native logical command cannot bind an unused physical packet.");

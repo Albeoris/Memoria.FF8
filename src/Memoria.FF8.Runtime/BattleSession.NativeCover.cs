@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     private (BattleCombatant[] Targets, BattleModelOwner? Source) ResolveNativeCover(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, BattleCombatant[] targets)
     {
         //48E830 passes native hit count to48EB90, rather than the number of selected recipients.
-        bool all = (command.NativeTargetMask & 0x8000) != 0 && (command.NativeTargetMask & 0x2000) == 0;
+        bool all = command.TargetRequest.Selection is BattleTargetSelection.SideGroup;
         if (native.HitCount != 1 || actor.EncodeNativeSlot() < 3 || (command.NativeQueuedCommand ?? native.Command) != 8 || all || (native.AttackFlags & 3) != 0 || targets.Length == 0)
         {
             return (targets, null);

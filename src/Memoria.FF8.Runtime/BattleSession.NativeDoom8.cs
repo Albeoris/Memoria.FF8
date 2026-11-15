@@ -38,8 +38,8 @@ public sealed partial class BattleSession
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Doom requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Doom requires its current projection.");
         NativeBattleSummonColors Colors() => definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Doom requires its interpolation constants.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Doom requires its actual selected actor rig.");
-        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Doom requires its actual selected actor rig.");
+        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, int target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
 
         void Publish(NativeBattleDoom8Frame current)
         {
@@ -150,7 +150,7 @@ public sealed partial class BattleSession
                 case NativeBattleDoom8Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleDoom8UploadTim upload:
@@ -175,12 +175,12 @@ public sealed partial class BattleSession
                 case NativeBattleDoom8ModeChanged mode:
                     return NativeBattleDoom8Fronts.SpawnObservedMode(current, mode.DirectorAddress, nativeActionPackets, Colors().Normal, Execute);
                 case NativeBattleDoom8UpdateCaster caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleDoom8Controller.Read(current, caster.Address), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleDoom8Controller.Read(current, caster.Address), current.Effect.Parameters!, graphics.ActorModels.Get, PoseSource, producer => current = ObserveAnchor(current, producer));
                     return NativeBattleDoom8Controller.Write(current, caster.Address, casterTask);
                 case NativeBattleDoom8UpdateTargetBounds target:
                     NativeBattleModulePoolTask targetTask = NativeBattleDoom8Controller.Read(current, target.Address);
-                    targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
-                    int actor = targetTask.ReadByte(0x2D);
+                    targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(targetTask, graphics.ActorModels.Get, PoseSource, producer => current = ObserveAnchor(current, producer));
+                    BattleModelOwner actor = targetTask.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = PoseSource(actor);
                     targetTask = NativeBattleEffectModelHelpers.UpdateBounds8DC870(targetTask, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Doom requires its target pose."), source));
                     return NativeBattleDoom8Controller.Write(current, target.Address, targetTask);

@@ -18,6 +18,13 @@ internal sealed record CrossoverBattleRoster(int Version, Guid EncounterId, long
 {
     public const int CurrentVersion = 1;
 
+    internal BattleModelOwner ReadModelOwner(int slot)
+    {
+        CrossoverBattleActorId actor = Participants.Single(participant => participant.HostSlot == slot).Story;
+        BattleForeignPresentationKey key = new(FormattableString.Invariant($"{EncounterId:N}:{actor.Origin}:{actor.Kind}:{actor.NativeId}:{actor.Occurrence}"));
+        return actor.Kind == CrossoverBattleActorKind.Character ? new BattleForeignPartyModel(key) : new BattleForeignEnemyModel(key);
+    }
+
     public static CrossoverBattleRoster Create(Guid encounterId, Ff7BattleSnapshot host, IReadOnlyList<CrossoverBattleBinding> bindings, IReadOnlyList<CharacterAppearanceMapping> appearances)
     {
         ArgumentNullException.ThrowIfNull(host);

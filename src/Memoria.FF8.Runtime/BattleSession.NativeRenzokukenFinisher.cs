@@ -2,18 +2,18 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void PrepareNativeRenzokukenFinisher(byte index, ushort targets)
+    private void PrepareNativeRenzokukenFinisher(byte index, BattleTargetRequest targets)
     {
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidOperationException("Native250 requires its admitted Renzokuken event.");
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleNativeAction selected = FindInstalledNativeAction(249, index);
         BattleNativeAction preliminary = selected with { Command = 250, ActionId = ushort.MaxValue, SupplementalKernelIndex = index };
-        BattleActionPresentation command = timed.Command with { ActionId = ushort.MaxValue, NativeQueuedCommand = 250, NativeSequence = 0, NativeAction = preliminary, NativeTargetMask = targets, NativeHeader = null };
+        BattleActionPresentation command = timed.Command with { ActionId = ushort.MaxValue, NativeQueuedCommand = 250, NativeSequence = 0, NativeAction = preliminary, TargetRequest = targets, NativeHeader = null };
         if (nativeDispatchCommandLocation is { } location)
         {
             //48D200 command5 writes the selected finisher into this same row's second12-byte packet.
-            BattleAttackCommand packet = new(actor.Id, command.TargetId, command.Ability, command.ActionId) { NativeQueuedCommand = 250, NativeAction = preliminary, NativeTargetMask = targets };
-            nativeCommandBanks = nativeCommandBanks.WriteCommand(location, 1, checked((byte)actor.EncodeNativeSlot()), 250, index, 0, ushort.MaxValue, [targets]).BindCommand(location, 1, packet);
+            BattleAttackCommand packet = new(actor.Id, command.TargetId, targets, command.Ability, command.ActionId) { NativeQueuedCommand = 250, NativeAction = preliminary };
+            nativeCommandBanks = nativeCommandBanks.WriteProjectedCommand(location, 1, checked((byte)actor.EncodeNativeSlot()), 250, index, 0, ushort.MaxValue, ProjectNativeCommandTargets(packet)).BindCommand(location, 1, packet);
         }
         uint callback = index == 3 ? 0x48F350u : 0x48F3F0u;
         if (NativeGraphics is { } graphics)
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             ?? throw new InvalidDataException("Native finisher callback lacks its original250 header.");
         BattleCombatant actor = GetActor(RequireCanonicalGraphicsActorId(header.Source));
         BattleNativeAction native = FindInstalledNativeAction(249, index) with { ActionId = nativeActionScratch.Action ?? throw new NotSupportedException("Native finisher requires its retained AF4 action WORD.") };
-        int count = index == 3 ? native.HitCount : nativeActionScratch.LastPublishedTargetCountE05 ?? throw new NotSupportedException("Native48F3F0 requires its retained E05 target count.");
+        int count = index == 3 ? native.HitCount : nativeActionScratch.PublishedTargetCount ?? throw new NotSupportedException("Native48F3F0 requires its published target count.");
         NativeBattleContactPacket[] recipients = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(header.FirstContact.Advance(index))).ToArray();
         if (index == 3)
         {

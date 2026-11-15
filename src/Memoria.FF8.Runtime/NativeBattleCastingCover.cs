@@ -9,9 +9,9 @@ public static class NativeBattleCastingCover
             throw new NotSupportedException("Native50AFC0 cover requires a selected party recipient.");
     }
 
-    public static BattleActorModels Enter(BattleActorModels models, NativeBattleActionGraphicsState action)
+    public static BattleActorModels Enter(BattleActorModels models, NativeBattleModelBoundary boundary, NativeBattleActionGraphicsState action)
     {
-        BattleModelOwner source = Source(action);
+        BattleModelOwner source = Source(models, boundary, action);
         BattleModelOwner recipient = Recipient(models, action.TargetActors);
         NativeBattleModelTransform sourceTransform = Transform(models, source);
         NativeBattleGraphicsModel target = models.Get(recipient);
@@ -22,9 +22,9 @@ public static class NativeBattleCastingCover
         return models.Set(source, cover with { Transform = coverTransform with { Position28 = coverTransform.Position28 with { Z = unchecked((short)(sourceTransform.Initial20.Z + 800)) } } });
     }
 
-    public static BattleActorModels Complete(BattleActorModels models, NativeBattleActionGraphicsState action)
+    public static BattleActorModels Complete(BattleActorModels models, NativeBattleModelBoundary boundary, NativeBattleActionGraphicsState action)
     {
-        BattleModelOwner source = Source(action);
+        BattleModelOwner source = Source(models, boundary, action);
         BattleModelOwner recipient = Recipient(models, action.TargetActors);
         NativeBattleGraphicsModel target = models.Get(recipient);
         NativeBattleModelTransform targetTransform = Transform(models, recipient);
@@ -35,7 +35,12 @@ public static class NativeBattleCastingCover
         return models.Set(source, cover with { Transform = coverTransform with { Position28 = coverTransform.Position28 with { Z = coverTransform.Initial20.Z } } });
     }
 
-    private static BattleModelOwner Source(NativeBattleActionGraphicsState action) => !action.CoverActors.IsEmpty && action.CoverSource is { } source ? source : throw new InvalidDataException("Native50A9A0 cover requires the actual50BF90 source and nonempty cover selection.");
+    private static BattleModelOwner Source(BattleActorModels models, NativeBattleModelBoundary boundary, NativeBattleActionGraphicsState action)
+    {
+        return !action.CoverActors.IsEmpty && action.CoverSourceBinding is { } source
+            ? source.Resolve(models, boundary)
+            : throw new InvalidDataException("Native50A9A0 cover requires the actual50BF90 source and nonempty cover selection.");
+    }
 
     private static NativeBattleModelTransform Transform(BattleActorModels models, BattleModelOwner index) => models.Get(index).Transform ?? throw new NotSupportedException("Native50A9A0 cover requires the original initial/current position WORDs.");
 }

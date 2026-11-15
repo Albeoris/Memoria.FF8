@@ -8,7 +8,7 @@ public static partial class NativeBattleBadBreath131Controller
 {
     public static (NativeBattleBadBreath131Frame Frame, int Result) AdvanceMain(NativeBattleBadBreath131Frame frame, uint address, NativeBattleBadBreath131Resources resources, NativeBattleBadBreath131Inputs inputs)
     {
-        NativeBattleBadBreath131PointStep mouth = inputs.ReadBone(frame, Actor(frame.State.ReadDword(CasterGlobal)), 11, 8192);
+        NativeBattleBadBreath131PointStep mouth = inputs.ReadBone(frame, frame.State.ReadModel(CasterGlobal), 11, 8192);
         frame = mouth.Frame;
         NativeBattleModulePoolTask task = Vector(Read(frame, address), 0x2C, mouth.Position);
         frame = Write(frame, address, task);
@@ -25,14 +25,16 @@ public static partial class NativeBattleBadBreath131Controller
             int selected = Signed(task, 0x26);
             if (phase >= 25 && selected < Signed(task, 14))
             {
-                int actor = Actor(task.ReadDword(16 + selected * 4));
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + selected * 4, 4).Owner;
                 if (sweep >= Transform(inputs.ReadModel(actor)).Position28.X - 1000)
                 {
                     (frame, uint childAddress) = Append(frame, 2, TargetCallback);
                     if (childAddress != 0)
                     {
                         uint savedColor = inputs.ReadModel(actor).Color40 ?? throw new NotSupportedException("Bad Breath requires its actual saved target color.");
-                        frame = Write(frame, childAddress, Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x1C + selected)).WriteByte(15, checked((byte)actor)).WriteDword(0x18, savedColor));
+                        NativeBattleModulePoolTask pending = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x1C + selected)).WriteDword(0x18, savedColor);
+                        pending.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
+                        frame = Write(frame, childAddress, pending);
                         NativeBattleBadBreath131AnchorStep anchor = inputs.ReadAnchor(frame, actor);
                         frame = anchor.Frame;
                         short angle = unchecked((short)(Transform(inputs.ReadModel(actor)).Angle36 - 200));

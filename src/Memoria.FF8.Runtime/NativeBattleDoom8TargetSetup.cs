@@ -12,11 +12,7 @@ public static class NativeBattleDoom8TargetSetup
         {
             throw new InvalidDataException("Doom target initialization requires its actual callback.");
         }
-        int target = task.ReadByte(0x2D);
-        if ((uint)target >= 7)
-        {
-            throw new InvalidDataException("Doom target initialization exceeds its physical model rows.");
-        }
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
         NativeBattleModelTransform transform = readModel(target).Transform ?? throw new NotSupportedException("Doom target initialization requires its actual packed position.");
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Doom target initialization requires its physical temporary memory.");
         NativeBattleDoom8State state = frame.State.Write(NativeBattleDoom8State.SharedAddress, new byte[NativeBattleDoom8State.SharedLength]);

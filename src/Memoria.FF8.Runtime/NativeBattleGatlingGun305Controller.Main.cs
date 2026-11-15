@@ -6,7 +6,7 @@ public static partial class NativeBattleGatlingGun305Controller
 {
     private static (NativeBattleGatlingGun305Frame Frame, int Result) Main(NativeBattleGatlingGun305Frame frame, uint address, NativeBattleGatlingGun305Resources resources, NativeBattleGatlingGun305Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         NativeBattleGatlingGun305PointStep anchor = inputs.ReadBone502170(frame, caster, 0xF0, 0xC00);
         frame = anchor.Frame;
         short yaw = inputs.ReadModel(caster).Rotation14 ?? throw new NotSupportedException("Gatling Gun requires its caster yaw.");
@@ -20,8 +20,8 @@ public static partial class NativeBattleGatlingGun305Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 1)
         {
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun305BindCaster((byte)caster, BindingSave, 0xCEB5E8));
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun305RingSequence((byte)caster, 1));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun305BindCaster(caster, BindingSave, 0xCEB5E8));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun305RingSequence(caster, 1));
         }
         if (age >= 9 && age <= 32 && (age & 1) != 0)
         {
@@ -40,7 +40,7 @@ public static partial class NativeBattleGatlingGun305Controller
         }
         if (age == 8)
         {
-            NativeBattleGatlingGun305AnchorStep target = inputs.ReadAnchor571400(frame, checked((int)frame.State.ReadDword(TargetGlobal)));
+            NativeBattleGatlingGun305AnchorStep target = inputs.ReadAnchor571400(frame, frame.State.ReadModel(TargetGlobal));
             frame = target.Frame;
             short stepX = unchecked((short)((target.Anchor.X - x) / 6));
             short stepZ = unchecked((short)((target.Anchor.Z - z) / 6));
@@ -52,7 +52,7 @@ public static partial class NativeBattleGatlingGun305Controller
         }
         if (age == 18)
         {
-            int targetActor = checked((int)frame.State.ReadDword(TargetGlobal));
+            BattleModelOwner targetActor = frame.State.ReadModel(TargetGlobal);
             NativeBattleGatlingGun305AnchorStep target = inputs.ReadAnchor571400(frame, targetActor);
             frame = target.Frame;
             NativeBattleEffectLocalBounds bounds = inputs.ReadModel(targetActor).GeometryBounds52 ?? throw new NotSupportedException("Gatling Gun requires its target bounds.");
@@ -71,7 +71,7 @@ public static partial class NativeBattleGatlingGun305Controller
         }
         if (age == 30)
         {
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun305Contact(FirstContact(frame, inputs)));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun305Contact(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.")));
         }
         if (age == 8)
         {

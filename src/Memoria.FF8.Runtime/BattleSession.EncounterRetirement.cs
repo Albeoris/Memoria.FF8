@@ -27,9 +27,9 @@ public sealed record EncounterAllocationRetirement(int PhysicalIndex, bool Remov
             return header.Source == owner || packets.ReadHeaderContacts(reference).Any(IsContactOwner);
         }
         return activeAction?.ActorId == allocationId || activeAction?.TargetId == allocationId ||
-            activeAction?.AiRecipients?.ActorIds.Contains(allocationId) == true ||
+            activeAction?.TargetRequest.Selection is BattleTargetSelection.Explicit selected && selected.Actors.Contains(new BattleEnemyActorReference(allocationId)) ||
             activeAction?.NativeHeader is { } activeHeader && IsAcceptedHeader(activeHeader) ||
-            activeAction is not null && (activeAction.NativeTargetMask & (1 << PhysicalIndex)) != 0 ||
+            activeAction is not null && NativeBattleSlots.Contains(PhysicalIndex) && NativeBattleTargetRequestAdapter.MaySelectOriginalSlot(activeAction.TargetRequest, NativeBattleSlots.Decode(PhysicalIndex)) ||
             graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context && (context.Source == owner || context.TargetActors?.Contains(owner) == true || context.SourceTargets.Contains(owner)) ||
             graphics.PendingContacts.Any(IsContactOwner) || IsEffectOwner(graphics.OriginalEffect) || IsEffectOwner(detachedEffect);
     }

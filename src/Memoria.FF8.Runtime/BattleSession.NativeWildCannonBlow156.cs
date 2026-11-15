@@ -47,7 +47,7 @@ public sealed partial class BattleSession
 
         NativeBattleWildCannonBlow156PointStep TargetCenter(NativeBattleWildCannonBlow156Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Wild Cannon Blow requires every selected physical target position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Wild Cannon Blow requires every selected physical target position.")).ToArray());
             return new(current, Point(center));
         }
 
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleWildCannonBlow156ContactsAll contacts:
                     Publish(current);
-                    graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
+                    graphics = ApplyNativeHeaderContacts(graphics, contacts.Header);
                     return Import(current);
                 case NativeBattleWildCannonBlow156AdjustShake shake:
                     NativeCamera = Camera().AddViewTranslationY61B8D5(shake.Delta);

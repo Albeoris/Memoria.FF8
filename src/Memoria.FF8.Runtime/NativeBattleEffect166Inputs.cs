@@ -8,7 +8,7 @@ public sealed record NativeBattleEffect166Frame(NativeBattleEffectMemory Memory,
 public sealed record NativeBattleEffect166Step(NativeBattleEffect166Frame Frame, int Result);
 public sealed record NativeBattleEffect166FactoryStep(NativeBattleEffect166Frame Frame, uint Address);
 public sealed record NativeBattleEffect166PointStep(NativeBattleEffect166Frame Frame, NativeBattleEffectArena Output8);
-public sealed record NativeBattleEffect166Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect166Frame, uint> ReadFlags, Func<NativeBattleEffect166Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect166Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect166Frame, BattleModelOwner, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix32, Func<NativeBattleEffect166Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect166Frame, BattleModelOwner, byte> ReadSequenceHeaderByte0, Func<NativeBattleEffect166Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect166Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect166Frame, NativeBattleEffect166Operation, NativeBattleEffect166Frame> Execute)
+public sealed record NativeBattleEffect166Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect166Frame, uint> ReadFlags, Func<NativeBattleEffect166Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect166Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect166Frame, BattleModelOwner, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix32, Func<NativeBattleEffect166Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect166Frame, BattleModelOwner, byte> ReadSequenceHeaderByte0, Func<NativeBattleEffect166Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect166Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect166Frame, NativeBattleEffect166Operation, NativeBattleEffect166Frame> Execute, Func<IEnumerable<BattlePartyModelOwner>> ReadPartyOwners)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CapturePresentation { get; init; }
@@ -29,7 +29,7 @@ public sealed record NativeBattleEffect166Flash5712C0(int Rise, int Hold, int Fa
 public sealed record NativeBattleEffect166Stage5713E0(int Intensity, uint Color) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166Sequence505C00(BattleModelOwner Actor, byte Sequence) : NativeBattleEffect166Operation;
-public sealed record NativeBattleEffect166Contact506690(int Index) : NativeBattleEffect166Operation;
+public sealed record NativeBattleEffect166Contact506690(BattleContactOccurrence Occurrence) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal, ushort Flags = 0) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166CommonTextureLoad508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166WriteModelBytes(BattleModelOwner Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect166Operation;

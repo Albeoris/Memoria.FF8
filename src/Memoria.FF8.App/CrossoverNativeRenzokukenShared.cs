@@ -1,21 +1,11 @@
-﻿using System.Buffers.Binary;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 internal sealed partial class CrossoverNativeRenzokukenProgram
 {
-    private static NativeBattleModuleState AppendShared(NativeBattleModuleState modules, NativeBattleRenzokuken160SharedTask task)
-    {
-        (modules, int slot) = modules.AppendCallback(task.Callback);
-        byte[] bytes = modules.Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes, task.Counter);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), task.Actor);
-        return modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = bytes.ToImmutableArray() }) };
-    }
-
-    private (NativeBattleModuleState State, NativeBattleRenzokuken160Frame Frame, NativeBattleLogicalOrdering Ordering, ImmutableArray<NativeBattleModuleDraw> Draws) AdvanceShared(NativeBattleModuleState modules, NativeBattleRenzokuken160Frame frame, NativeBattleRenzokuken160Resources resources, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    private (NativeBattleModuleState State, NativeBattleRenzokuken160Frame Frame, NativeBattleLogicalOrdering Ordering, ImmutableArray<NativeBattleModuleDraw> Draws) AdvanceShared(NativeBattleModuleState modules, BattleModelOwner owner, NativeBattleModelAliases aliases, NativeBattleRenzokuken160Frame frame, NativeBattleRenzokuken160Resources resources, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
         ushort variant = resources.ActorResource.MagicId;
         NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.Renzokuken141;
@@ -31,9 +21,10 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
         {
             Resources = game.ReadNativeBattleModuleResources(),
             CrtRandom = frame.Random,
+            ModelAliases = aliases,
             ReadModelAnchor = actor => NativeBattlePoseMatrices.ReadAnchor(ReadModel(actor), pose) with { W = transform.Angle36 },
             ReadModelTransform = actor => ReadModel(actor).Transform!,
-            ReadModelBoneCount = actor => ReadModel(actor).Index == 0 ? checked((byte)pose.BoneCount) : throw new InvalidDataException("Renzokuken shared module queried a foreign skeleton."),
+            ReadModelBoneCount = actor => actor == owner ? checked((byte)pose.BoneCount) : throw new InvalidDataException("Renzokuken shared module queried a foreign skeleton."),
             ReadModelBone = (actor, bone, fraction) => NativeBattlePoseMatrices.ReadBone(ReadModel(actor), pose, bone, fraction),
             TransformModelPosition = (actor, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(ReadModel(actor), local)
         };
@@ -45,7 +36,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
         });
         return (step.State, frame with { Random = step.CrtRandomAfter!, Memory = frame.Memory with { PrimitiveProcess = primitive } }, ordering, step.Draws);
 
-        NativeBattleGraphicsModel ReadModel(int actor) => actor == 0 ? model : throw new InvalidDataException("Renzokuken shared module queried a foreign model.");
+        NativeBattleGraphicsModel ReadModel(BattleModelOwner actor) => actor == owner ? model : throw new InvalidDataException("Renzokuken shared module queried a foreign model.");
 
         void Draw(NativeBattleGfGeometryBatch batch)
         {

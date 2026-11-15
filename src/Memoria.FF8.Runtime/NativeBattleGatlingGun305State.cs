@@ -77,6 +77,14 @@ public sealed record NativeBattleGatlingGun305State([property: JsonRequired] Nat
         }
         return state;
     }
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleGatlingGun305State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this;
+    }
+
     private static int Require(uint address, int length)
     {
         if (address < BaseAddress || length < 0 || (ulong)address + (uint)length > BaseAddress + Length || address < 0x2245678 && (ulong)address + (uint)length > 0x2245658 || address < 0x2247778 && (ulong)address + (uint)length > 0x2246958 || address < 0x2257790 && (ulong)address + (uint)length > 0x2247790)

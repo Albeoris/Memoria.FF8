@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         }
         bool continueAffinity = true;
         //485610 consumes ordinary player magic after its effects; Angel Wing and Draw-cast remain free.
-        if (actor.IsPlayer && command.NativeMagicTargets.IsDefaultOrEmpty && command.Ability != BattleAbility.Draw && !command.FreeNativeMagic && (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2))
+        if (actor.IsPlayer && command.MagicCasts.IsDefaultOrEmpty && command.Ability != BattleAbility.Draw && !command.FreeNativeMagic && (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2))
         {
             int spell = command.NativeAction?.ActionId ?? command.ActionId;
             //486A10 returns FF on the last debit;485610 then skips the affinity loop.

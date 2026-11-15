@@ -117,7 +117,7 @@ public sealed partial class BattleSession
                     selector = checked((byte)(((NextNativeGlobalRandom() & 3) + (actor.CameraSequence130 ?? throw new NotSupportedException("Native506190 requires its model BYTE130 camera index.")) + 2) % 6));
                     BattleModelOwner targetIndex = graphics.ActionContext?.Target ?? throw new NotSupportedException("Native506190 requires its50D300 target.");
                     NativeBattleGraphicsModel target = graphics.ActorModels.Get(targetIndex);
-                    if (NativeBattleCameraGraphics.ReadVariable(graphics, 26) > 1 || (target.ModelId4 ?? throw new InvalidDataException("Native506190 target lacks its model ID.")) < 16 && ((target.Flags8 ?? throw new InvalidDataException("Native506190 target lacks its status DWORD8.")) & 0x41021) != 0)
+                    if (NativeBattleCameraGraphics.ReadVariable(graphics, 26).RequireScalar() > 1 || (target.ModelId4 ?? throw new InvalidDataException("Native506190 target lacks its model ID.")) < 16 && ((target.Flags8 ?? throw new InvalidDataException("Native506190 target lacks its status DWORD8.")) & 0x41021) != 0)
                     {
                         selector &= 0xFE;
                     }

@@ -17,5 +17,5 @@ public sealed record NativeBattlePendingReaction([property: JsonRequired] byte? 
 public sealed partial class BattleCombatant
 {
     internal NativeBattlePendingReaction NativePendingReaction { get; set; } = new(0, 0);
-    internal byte? NativeRemainingHits { get; set; }
+    internal int? NativeRemainingHits { get; set; }
 }

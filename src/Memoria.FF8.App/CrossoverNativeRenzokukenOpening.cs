@@ -23,6 +23,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
         {
             Resources = game.ReadNativeBattleModuleResources(),
             CrtRandom = frame.Random,
+            ModelAliases = source.Effect.Aliases,
             ReadModelAnchor = actor => NativeBattlePoseMatrices.ReadAnchor(ReadModel(actor), pose),
             ReadModelTransform = actor => ReadModel(actor).Transform!,
             ReadModelBone = (actor, bone, fraction) => NativeBattlePoseMatrices.ReadBone(ReadModel(actor), pose, bone, fraction),
@@ -31,9 +32,9 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
         modules = shared.State;
         (CrossoverNativeCastState next, ImmutableArray<NativeBattleSequenceCue> cues) = CrossoverNativeCastPresentation.AdvanceModel(cast, original, new(0, 0)
         {
-            ScheduleTextureAnimation = (program, sequence) => auxiliary = auxiliary.AppendTextureAnimation(0, sequence, program),
+            ScheduleTextureAnimation = (program, sequence) => auxiliary = auxiliary.AppendTextureAnimation(source.Effect.SourceOwner, sequence, program, source.Effect.Aliases),
             ApplyTexture = ApplyTexture,
-            ScheduleModelEffect = effect => modules = modules.AppendModelEffect(0, effect),
+            ScheduleModelEffect = effect => modules = modules.AppendModelEffect(source.Effect.SourceOwner, effect, source.Effect.Aliases),
             AdvanceTexture = (_, selector) =>
             {
                 NativeBattleTextureMotionStep step = NativeBattleTextureMotion.Advance50C950(motion, cast.Model.TextureAllocationMask, selector, true);
@@ -53,7 +54,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
             textures = textures.Drain505D20(frame.Memory.Arena).State;
         }
         frame = frame with { Memory = frame.Memory with { Textures = textures }, Random = shared.CrtRandomAfter! };
-        (CrossoverNativeRenzokukenTrigger ui, bool sound) = source.Trigger.AfterGraphics(rules.UiPublicationDuration ?? throw new InvalidDataException("Renzokuken lacks its original UI pulse period."));
+        (CrossoverNativeRenzokukenTrigger ui, bool sound) = source.Trigger.AfterGraphics(source.Effect.Packets.Roster, rules.UiPublicationDuration ?? throw new InvalidDataException("Renzokuken lacks its original UI pulse period."));
         CrossoverNativeRenzokukenProgramState state = source with
         {
             Model = next.Model,
@@ -67,7 +68,7 @@ internal sealed partial class CrossoverNativeRenzokukenProgram
         };
         return new(state, null, null, null, shared.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).Select(draw => new NativeBattleModuleSound(draw.Sound, draw.SoundFlags, draw.Anchor)).ToImmutableArray(), sound);
 
-        NativeBattleGraphicsModel ReadModel(int actor) => actor == 0 ? cast.Model : throw new InvalidDataException("Renzokuken casting queried an unbound model.");
+        NativeBattleGraphicsModel ReadModel(BattleModelOwner actor) => actor == source.Effect.SourceOwner ? cast.Model : throw new InvalidDataException("Renzokuken casting queried an unbound model.");
 
         void ApplyTexture(byte selector, int variant)
         {

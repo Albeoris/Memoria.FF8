@@ -11,13 +11,13 @@ internal sealed record CrossoverNativeRenzokukenTrigger(NativeBattleUiServices U
     public bool TriggerWindowOpen => (Options & 1) == 0 && Widget is { ClosingPhase: 0, Input: { TriggerTiming: 0, Phase: 4 or 6 } input } widget
         && NativeGunbladeAttack.TriggerSucceeded(checked((short)(input.PoseClock + input.SubframeClock - widget.Block.Timeline.InputThresholds[input.ContactIndex] + 5)));
 
-    public CrossoverNativeRenzokukenTrigger Register(NativeBattleGraphicsModel source, NativeBattleSequenceCue cue)
+    public CrossoverNativeRenzokukenTrigger Register(BattleModelOwner owner, BattleModelRoster roster, NativeBattleGraphicsModel source, NativeBattleSequenceCue cue)
     {
         if (Widget is not null || Pending is not null || Consumed != 0 || cue is not { Kind: NativeBattleSequenceCueKind.TriggerWindow, TriggerWindow: { } block } || source.ResourceMagicId is not (141 or 160) || (Options & 1) != 0 && Random is null)
         {
             throw new InvalidDataException("Renzokuken requires one original replacement AB widget and its source options.");
         }
-        NativeBattleTriggerWidget registered = NativeBattleTriggerWidget.Register(checked((byte)source.Index), block, Options, Ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = source.ResourceMagicId };
+        NativeBattleTriggerWidget registered = NativeBattleTriggerWidget.Register(owner, block, Options, Ui, roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = source.ResourceMagicId };
         NativeBattleUiServices ui = registered.Visible ? Ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : Ui.SetFlags(0, 0x1800);
         return this with { Widget = registered, Ui = ui };
     }
@@ -27,18 +27,18 @@ internal sealed record CrossoverNativeRenzokukenTrigger(NativeBattleUiServices U
         return (Options & 1) == 0 && Widget is { ClosingPhase: 0, Input.TriggerTiming: 0 } widget ? this with { Widget = widget with { PendingTrigger = true } } : this;
     }
 
-    public (CrossoverNativeRenzokukenTrigger State, NativeBattleTriggerReceipt? Receipt) BeforeGraphics()
+    public (CrossoverNativeRenzokukenTrigger State, NativeBattleTriggerReceipt? Receipt) BeforeGraphics(BattleModelRoster roster)
     {
         CrossoverNativeRenzokukenTrigger state = this;
         for (int service = 0; service < 3; service++)
         {
-            state = state.AdvanceUi();
+            state = state.AdvanceUi(roster);
         }
         if (state.Pending is not { } timing)
         {
             return (state, null);
         }
-        timing.Validate();
+        timing.Validate(roster);
         if (timing.ContactIndex != state.Consumed + 1)
         {
             throw new InvalidDataException("Renzokuken received a duplicate or unordered original trigger receipt.");
@@ -46,19 +46,19 @@ internal sealed record CrossoverNativeRenzokukenTrigger(NativeBattleUiServices U
         return (state with { Pending = null, Consumed = state.Consumed + 1 }, timing);
     }
 
-    public (CrossoverNativeRenzokukenTrigger State, bool Sound) AfterGraphics(uint duration)
+    public (CrossoverNativeRenzokukenTrigger State, bool Sound) AfterGraphics(BattleModelRoster roster, uint duration)
     {
-        return ((this with { Ui = Ui.QueuePublication(duration), PendingSound = false }).AdvanceUi(), PendingSound);
+        return ((this with { Ui = Ui.QueuePublication(duration), PendingSound = false }).AdvanceUi(roster), PendingSound);
     }
 
-    private CrossoverNativeRenzokukenTrigger AdvanceUi()
+    private CrossoverNativeRenzokukenTrigger AdvanceUi(BattleModelRoster roster)
     {
         NativeBattleUiServices ui = Ui.AdvancePublication();
         if (Widget is not { } active)
         {
             return this with { Ui = ui };
         }
-        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(active, ui.Frame33 == true, (Options & 1) != 0, Random);
+        NativeBattleTriggerWidgetStep step = NativeBattleTriggerWidgetRules.Advance(active, ui.Frame33 == true, (Options & 1) != 0, Random, roster);
         NativeBattleTriggerReceipt? pending = Pending;
         if (step.Contact is { } contact)
         {
@@ -66,7 +66,7 @@ internal sealed record CrossoverNativeRenzokukenTrigger(NativeBattleUiServices U
             {
                 throw new InvalidDataException("Renzokuken overwrote an unconsumed original trigger receipt.");
             }
-            pending = new(active.ActorIndex, contact.Index, contact.Total, contact.TriggerTiming, 32);
+            pending = new(active.Actor, contact.Index, contact.Total, contact.TriggerTiming, 32);
         }
         if (step.Unregistered && active.Visible)
         {

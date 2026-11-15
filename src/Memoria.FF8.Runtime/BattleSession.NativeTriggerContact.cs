@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             ushort control = first.Action;
             queued = control == 65534 ? (byte)250 : (byte)5;
         }
-        BattleActionPresentation contact = original with { NativeQueuedCommand = queued, NativeAction = native, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())), GunbladeTriggerTiming = timing };
+        BattleActionPresentation contact = original with { NativeQueuedCommand = queued, NativeAction = native, TargetRequest = SelectBattleTarget(recipient), GunbladeTriggerTiming = timing };
         BattleActionDefinition definition = new(contact.Ability, contact.ActionId, native.Name ?? "Gunblade", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         BattleActionPresentation? previous = resolvingNativeAction;
         nativeActionCommitDepth++;
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                 NativeBattleContactPacket prior = retained[contactIndex];
                 BattleCombatant recipient = GetActor(RequireCanonicalGraphicsActorId(prior.Primary.Recipient));
                 //4850A0 restores its invocation globals directly from header0 before48FE20; no queued presentation is consulted.
-                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeader = firstReference, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())) };
+                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, SelectBattleTarget(recipient), BattleAbility.GuardianForce, id - 64) { NativeHeader = firstReference, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence };
                 resolvingNativeAction = contact;
                 diagnosticNativeContact = ObserveDiagnosticGuardianContact(submitted, actor, recipient, firstReference, prior.Occurrence ?? throw new InvalidDataException("Native guardian contact needs its actual packet occurrence."), contactIndex, id);
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native);

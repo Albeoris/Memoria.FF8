@@ -38,8 +38,8 @@ public sealed partial class BattleSession
         if (!UsesExpandedRoster)
         {
             byte flags = FindAction(BattleAbility.GuardianForce, gf.Id).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native GF summoning requires its original target flags BYTE.");
-            ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).EncodeNativeSlot());
-            EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
+            BattleTargetRequest request = CreatePlayerTargetRequest(actor, GetActor(command.TargetId), flags);
+            EnqueueNativeGuardianScriptTask(actor, request, checked((byte)(64 + gf.Id)));
         }
         guardianForceCasts.Add(actor.Id, new(actor.Id, command, diagnosticInstantGuardianForceCharge ? (ushort)0 : ticks, ticks));
         BeginNativePresentedGuardianForce(actor, gf);
@@ -110,8 +110,8 @@ public sealed partial class BattleSession
                 return true;
             }
             byte targetFlags = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native48F2C0 GF completion requires its original target flags BYTE.");
-            ushort mask = NativeAutomaticActionTargetMask(targetFlags);
-            EnqueueNativeInputCommand(cast.Command with { NativeTargetMask = mask });
+            BattleTargetRequest request = CreateAutomaticTargetRequest(targetFlags);
+            EnqueueNativeInputCommand(cast.Command with { TargetRequest = request });
             Log("GuardianForceReady", actor.Id, cast.Command.TargetId, cast.Command.ActionId, "GF charge completed.");
         }
         else
@@ -259,12 +259,12 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
         BattleNativeAction? native = action.NativeAction;
         BattleGuardianForceVital? gf = guardianForces.GetValueOrDefault(command.ActionId);
-        if (command.NativeQueuedCommand is not (3 or 254) || bankIndex != (command.NativeQueuedCommand == 3 ? 2 : 1) || command.NativeHeader is not null || command.NativeAction is not null || !command.NativeMagicTargets.IsDefaultOrEmpty || guardianForceCasts.ContainsKey(actor.Id) || !actor.IsPlayer || !actor.EquipmentIds.Contains(command.ActionId) || gf is not { Acquired: true, HitPoints: > 0 } || !action.Available || native is null || native.Command != 254 || native.ActionId != command.ActionId + 64)
+        if (command.NativeQueuedCommand is not (3 or 254) || bankIndex != (command.NativeQueuedCommand == 3 ? 2 : 1) || command.NativeHeader is not null || command.NativeAction is not null || !command.MagicCasts.IsDefaultOrEmpty || guardianForceCasts.ContainsKey(actor.Id) || !actor.IsPlayer || !actor.EquipmentIds.Contains(command.ActionId) || gf is not { Acquired: true, HitPoints: > 0 } || !action.Available || native is null || native.Command != 254 || native.ActionId != command.ActionId + 64)
         {
             throw new InvalidDataException("Saved GF input lacks its equipped living GF and original3/FE command owner.");
         }
-        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(command.TargetId).EncodeNativeSlot()));
-        if (physical.ReadWord(4) != command.ActionId + 64 || physical.ReadByte(2) != 0 || physical.ReadByte(3) != 0 || physical.ReadWord(6) != mask)
+        ushort? originalWord = ProjectNativeCommandTargets(command).Single();
+        if (physical.ReadWord(4) != command.ActionId + 64 || physical.ReadByte(2) != 0 || physical.ReadByte(3) != 0 || originalWord is ushort targetWord && physical.ReadWord(6) != targetWord)
         {
             throw new InvalidDataException("Saved GF input contradicts its original action WORD, target WORD or flag bytes.");
         }

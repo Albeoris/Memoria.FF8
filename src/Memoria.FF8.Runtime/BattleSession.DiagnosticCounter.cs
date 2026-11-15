@@ -199,6 +199,6 @@ public sealed partial class BattleSession
         {
             return;
         }
-        observer(new(NativeHostCallbacks ?? Frame, scope.Serial, queue.Epoch, checked((byte)scope.Stage), scope.Sha, actor.Id, checked((byte)actor.EncodeNativeSlot()), queued, native.ActionId, native.MagicId, sequence, command.NativeTargetMask, selected, native.AttackFlags, header, generation));
+        observer(new(NativeHostCallbacks ?? Frame, scope.Serial, queue.Epoch, checked((byte)scope.Stage), scope.Sha, actor.Id, checked((byte)actor.EncodeNativeSlot()), queued, native.ActionId, native.MagicId, sequence, NativeBattleTargetRequestAdapter.ProjectOriginalWord(command.TargetRequest, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native counter evidence requires an original command target WORD."), selected, native.AttackFlags, header, generation));
     }
 }

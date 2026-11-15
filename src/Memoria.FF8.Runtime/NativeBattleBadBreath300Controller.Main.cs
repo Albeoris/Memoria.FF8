@@ -51,7 +51,7 @@ public static partial class NativeBattleBadBreath300Controller
             int selected = unchecked((short)task.ReadWord(0x2E));
             if (selected < unchecked((short)task.ReadWord(14)))
             {
-                int actor = Actor(task.ReadDword(0x10 + selected * 4));
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10 + selected * 4, 4).Owner;
                 if (sweep - 300 <= Transform(inputs.ReadModel(actor)).Position28.X)
                 {
                     (frame, uint childAddress) = Append(frame, 2, TargetCallback);
@@ -61,7 +61,8 @@ public static partial class NativeBattleBadBreath300Controller
                         frame = anchor.Frame;
                         NativeBattleGraphicsModel model = inputs.ReadModel(actor);
                         short y = inputs.ReadTargetCenterY?.Invoke(actor) ?? unchecked((short)(Transform(model).Position28.Y + (model.MinimumY146 ?? throw new NotSupportedException("Bad Breath requires its actual target height.")) / 2));
-                        NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x20 + selected)).WriteByte(15, (byte)actor).WriteWord(0x10, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x12, unchecked((ushort)y)).WriteWord(0x14, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)anchor.Anchor.W));
+                        NativeBattleModulePoolTask child = Read(frame, childAddress).WriteWord(12, 0).WriteByte(14, task.ReadByte(0x20 + selected)).WriteWord(0x10, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x12, unchecked((ushort)y)).WriteWord(0x14, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)anchor.Anchor.W));
+                        child.WriteExecutionReference(15, 1, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeOperand(actor, 1));
                         child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x18, NativeBattleGfAnimationWorkspace.Borrow(child, 0x18, 0x128).Initialize7016B0(resources.Target, 0x128));
                         frame = Write(frame, childAddress, child);
                     }
@@ -141,10 +142,10 @@ public static partial class NativeBattleBadBreath300Controller
 
     private static NativeBattleBadBreath300Frame React(NativeBattleBadBreath300Frame frame, byte sequence, NativeBattleBadBreath300Inputs inputs)
     {
-        for (byte actor = 0; actor < 3; actor++)
+        foreach (BattleModelOwner actor in inputs.ReadPartyOwners())
         {
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
-            if ((model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new NotSupportedException("Bad Breath requires enabled party status flags.")) & 3) == 0 && actor != Actor(frame.State.ReadDword(CasterGlobal)))
+            if ((model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new NotSupportedException("Bad Breath requires enabled party status flags.")) & 3) == 0 && actor != frame.State.ReadModel(CasterGlobal))
             {
                 frame = inputs.Execute(frame, new NativeBattleBadBreath300RingSequence(actor, sequence));
             }

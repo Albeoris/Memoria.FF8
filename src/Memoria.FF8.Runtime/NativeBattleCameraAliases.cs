@@ -48,14 +48,10 @@ public sealed record NativeBattleCameraAliases([property: JsonRequired] byte? Ac
             10 => (Target, Target1D99AAA),
             _ => throw new ArgumentOutOfRangeException(nameof(reference))
         };
-        if (owner is not null)
-        {
-            if (!models.Contains(owner))
-            {
-                throw new InvalidDataException("The retained camera observation names a retired model.");
-            }
-            return owner;
-        }
-        return boundary.DecodeLiteral(alias ?? throw new NotSupportedException("Native50D790 requires its retained actor or target BYTE."), models);
+        BattleRetainedModelReference binding = alias is byte original
+            ? new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(original))
+            : owner is not null ? new BattleRetainedModelReference.CanonicalOwner(owner)
+            : throw new NotSupportedException("Native50D790 requires its retained actor or target BYTE.");
+        return binding.Resolve(models, boundary);
     }
 }

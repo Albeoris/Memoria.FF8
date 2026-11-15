@@ -19,12 +19,22 @@ public sealed partial class BattleSession
         ushort id = checked((ushort)(command.Ability == BattleAbility.GuardianForce ? command.ActionId + 64 : command.NativeRenzokuken is not null || command.NativeDuel is not null ? 0 : command.NativeAction?.ActionId ?? command.ActionId));
         byte flags2 = command.Ability == BattleAbility.Draw ? command.DrawCast ? (byte)9 : (byte)10 : (byte)0;
         byte flags3 = command.Ability == BattleAbility.Draw ? checked((byte)GetActor(command.TargetId).EncodeNativeSlot()) : (byte)0;
-        string selected = command.DrawCast ? command.DrawCastTargetId! : command.TargetId;
-        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : checked((ushort)(1 << GetActor(selected).EncodeNativeSlot()));
-        ushort[] targets = command.NativeSlots is { } slots ? Enumerable.Repeat(mask, slots.Repetitions).ToArray() : command.NativeMagicTargets.IsDefaultOrEmpty ? [mask] : command.NativeMagicTargets.ToArray();
+        ushort?[] targets = ProjectNativeCommandTargets(command);
         (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.Allocate(bank);
-        state = state.WriteCommand(location, 0, checked((byte)actor.EncodeNativeSlot()), nativeCommand, flags2, flags3, id, targets);
+        state = state.WriteProjectedCommand(location, 0, checked((byte)actor.EncodeNativeSlot()), nativeCommand, flags2, flags3, id, targets);
         return state.BindCommand(location, 0, command);
+    }
+
+    private ushort?[] ProjectNativeCommandTargets(BattleAttackCommand command)
+    {
+        ushort? Project(BattleTargetRequest request)
+        {
+            return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot);
+        }
+
+        return command.NativeSlots is { } slots
+            ? Enumerable.Repeat(Project(command.TargetRequest), slots.Repetitions).ToArray()
+            : command.MagicCasts.IsDefaultOrEmpty ? [Project(command.TargetRequest)] : command.MagicCasts.Select(cast => Project(cast.Targets)).ToArray();
     }
 
     private bool TryTakeNativeBankCommand(out BattleAttackCommand command)
@@ -48,7 +58,7 @@ public sealed partial class BattleSession
         if (packet.ReadByte(1) == 255)
         {
             BattleCombatant actor = combatants.Single(candidate => candidate.EncodeNativeSlot() == packet.ReadByte(0));
-            command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 0) { NativeCallback = new(packet.ReadByte(0), packet.ReadWord(4)) };
+            command = new(actor.Id, actor.Id, BattleTargetRequest.None, BattleAbility.EnemyAbility, 0) { NativeCallback = new(packet.ReadByte(0), packet.ReadWord(4)) };
         }
         else
         {
@@ -84,8 +94,8 @@ public sealed partial class BattleSession
             return false;
         }
         BattleCombatant actor = GetActor(command.ActorId);
-        ushort[] targets = command.NativeMagicTargets.IsDefaultOrEmpty ? [command.NativeTargetMask] : command.NativeMagicTargets.ToArray();
-        nativeCommandBanks = nativeCommandBanks.WriteCommand(location, 1, checked((byte)actor.EncodeNativeSlot()), command.NativeQueuedCommand ?? command.NativeAction!.Command, 0, 0, checked((byte)(command.NativeAction?.ActionId ?? command.ActionId)), targets).BindCommand(location, 1, command);
+        ushort?[] targets = ProjectNativeCommandTargets(command);
+        nativeCommandBanks = nativeCommandBanks.WriteProjectedCommand(location, 1, checked((byte)actor.EncodeNativeSlot()), command.NativeQueuedCommand ?? command.NativeAction!.Command, 0, 0, checked((byte)(command.NativeAction?.ActionId ?? command.ActionId)), targets).BindCommand(location, 1, command);
         return true;
     }
 
@@ -210,9 +220,9 @@ public sealed partial class BattleSession
                     ValidateNativeGuardianInputBinding(command, physical, bankIndex);
                 }
                 ValidateGuardianFormCommand(command);
-                ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, true, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, allowNativeQueuedState: true, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand);
-                ValidateNativeMagicTargets(command.Ability, command.ActionId, command.NativeMagicTargets, command.NativeMagicCastMode);
-                ValidateNativeDrawPacket(command.Ability, command.ActionId, command.DrawCast, command.DrawCastTargetId, command.NativeDraw, false, command.NativeAction, command.NativeTargetMask);
+                ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, true, command.NativeAction, command.TargetRequest, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction, allowNativeQueuedState: true, duel: command.NativeDuel, slots: command.NativeSlots, nativeQueuedCommand: command.NativeQueuedCommand);
+                ValidateNativeMagicTargets(command.Ability, command.ActionId, command.MagicCasts, command.NativeMagicCastMode);
+                ValidateNativeDrawPacket(command.Ability, command.ActionId, command.DrawCast, command.DrawCastTargetId, command.NativeDraw, false, command.NativeAction, command.TargetRequest);
                 ValidateNativeActionInventory(GetActor(command.ActorId), command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             }
         }

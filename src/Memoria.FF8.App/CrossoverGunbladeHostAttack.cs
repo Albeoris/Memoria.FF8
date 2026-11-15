@@ -80,6 +80,9 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
 {
     private static readonly NativeBattleVector Origin = new(0, 0, 2200);
     private readonly CrossoverBattleRoster roster;
+    private readonly BattlePartyModelOwner sourceOwner;
+    private readonly BattleModelRoster sourceRoster;
+    private readonly NativeBattleModelAliases sourceAliases;
     private CrossoverFf8BattleKit kit;
     private readonly BattleModel body;
     private readonly BattleModel? weapon;
@@ -109,6 +112,9 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         this.readHostImpactAnchor = readHostImpactAnchor;
         this.readHostTargetBone = readHostTargetBone;
         ActorSlot = (roster.Guests.SingleOrDefault(guest => guest.Combat.NativeId == kit.CharacterId) ?? throw new InvalidDataException("The guest Attack kit does not belong to a bound combat actor.")).HostSlot;
+        sourceOwner = roster.ReadModelOwner(ActorSlot) as BattlePartyModelOwner ?? throw new InvalidDataException("The guest Attack requires its original party actor.");
+        sourceRoster = new([sourceOwner]);
+        sourceAliases = new(sourceRoster, [(NativeBattleModelSlot.Decode(checked((byte)ActorSlot)), sourceOwner)]);
         body = assets.LoadPlayer(kit.CharacterId);
         weapon = assets.ResolvePlayerRenderWeapon(kit.CharacterId, kit.Weapon, body);
         resource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
@@ -131,7 +137,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         }
         if (state.Presentation is { Model: { } savedModel } savedPresentation)
         {
-            if (savedModel.Index != ActorSlot || savedModel.ModelId4 != kit.CharacterId || savedModel.FileSelector128 is byte savedWeapon && savedWeapon != resource.LinkedFileSelector128 || savedModel.FileSelector129 is byte savedBody && savedBody != resource.BodyFileSelector129)
+            if (savedModel.ModelId4 != kit.CharacterId || savedModel.FileSelector128 is byte savedWeapon && savedWeapon != resource.LinkedFileSelector128 || savedModel.FileSelector129 is byte savedBody && savedBody != resource.BodyFileSelector129)
             {
                 throw new InvalidDataException("Saved guest Attack model contradicts its selected character or equipment.");
             }
@@ -177,7 +183,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
     }
     public void ResumeStandingFromCast(NativeBattleGraphicsModel model, long hostTick, long subticks, bool halfSubtick, bool completed = true)
     {
-        if (state.Invocation is not null || state.Presentation is null || model.Index != ActorSlot || model.ModelId4 != kit.CharacterId || hostTick < state.HostTick)
+        if (state.Invocation is not null || state.Presentation is null || model.ModelId4 != kit.CharacterId || hostTick < state.HostTick)
         {
             throw new InvalidDataException("The native casting source cannot replace an active Gunblade owner.");
         }
@@ -312,7 +318,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         }
         model = model with { Rotation14 = yaw, Flags2 = (ushort)(model.Flags2!.Value & ~4) };
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
-        CrossoverGunbladePresentationState presentation = CrossoverGunbladePresentation.Begin(model, resource, sequences, null);
+        CrossoverGunbladePresentationState presentation = CrossoverGunbladePresentation.Begin(sourceOwner, model, resource, sequences, null);
         NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         state = new(roster.EncounterId, invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, false, placement, presentation, global, state.Auxiliary, state.Sine, state.Cosine, distance)
         {
@@ -377,7 +383,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         byte? targetCue = null;
         NativeBattleSequenceInputs inputs = new(0, 0)
         {
-            ReadModelExternal = (_, variable) => variable switch
+            ReadModelExternal = (_, variable) => NativeBattleScriptValue.Scalar(variable switch
             {
                 17 => state.AdjustedDistance,
                 25 => !blinded && prepared is { Timing: >= 20 } ? 2 : 0,
@@ -385,7 +391,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
                 18 => sine ?? throw new InvalidDataException("The guest Attack read its sine before the native sequence initialized it."),
                 19 => cosine ?? throw new InvalidDataException("The guest Attack read its cosine before the native sequence initialized it."),
                 _ => throw new NotSupportedException($"The guest Attack profile has no native sequence variable {variable} owner.")
-            },
+            }),
             WriteExternal = (variable, value) =>
             {
                 switch (variable)
@@ -400,13 +406,13 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
                         throw new NotSupportedException($"The guest Attack profile has no writable native sequence variable {variable} owner.");
                 }
             },
-            ScheduleSoundParticle = (program, two, bone) => (auxiliary, random, _) = auxiliary.AppendSoundParticle(ActorSlot, two, bone, program, random),
+            ScheduleSoundParticle = (program, two, bone) => (auxiliary, random, _) = auxiliary.AppendSoundParticle(sourceOwner, two, bone, program, random, sourceAliases),
             PlaySound = (current, cue) =>
             {
                 NativeBattleSequenceSound source = new(checked((byte)cue.First), cue.Kind == NativeBattleSequenceCueKind.ActorSound, checked((byte)cue.Second), checked((ushort)cue.Third)) { OverrideOnContact4 = cue.OverrideSoundOnContact4 };
                 // TODO(TD-025): Supply the mixed contact's flags for the sequence's alternate miss sound.
-                NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, ActorSlot, checked((byte)invocation.TargetSlot), _ => kit.CharacterId,
-                    index => index == ActorSlot ? NativeBattlePoseMatrices.ReadBone(current, resource.PoseSource!, 241, 0) : state.EffectTarget ?? throw new InvalidDataException("The guest Attack sound lost its selected host target."),
+                NativeBattleModuleSound? sound = NativeBattleSequenceAudio.Resolve505AB0(source, sourceOwner, () => roster.ReadModelOwner(invocation.TargetSlot), _ => kit.CharacterId,
+                    owner => owner == sourceOwner ? NativeBattlePoseMatrices.ReadBone(current, resource.PoseSource!, 241, 0) : state.EffectTarget ?? throw new InvalidDataException("The guest Attack sound lost its selected host target."),
                     position => readHostPan(Vector3.Transform(new(position.X, position.Y, position.Z), originToHost)), graphicsRules.ActorSounds1120, 0);
                 if (sound is not null)
                 {
@@ -444,7 +450,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
                 return (current, particle.NextOffset);
             }
         };
-        CrossoverGunbladePresentationStep? step = presentation.Complete ? null : CrossoverGunbladePresentation.Advance(presentation, resource, inputs, 0, publicationDuration, state.PendingPress, receipt => prepared = receipt);
+        CrossoverGunbladePresentationStep? step = presentation.Complete ? null : CrossoverGunbladePresentation.Advance(presentation, sourceOwner, sourceRoster, resource, inputs, 0, publicationDuration, state.PendingPress, receipt => prepared = receipt);
         presentation = step?.State ?? presentation;
         bool complete = presentation.Complete && (effects is null or { Complete: true });
         state = next with { Invocation = complete ? null : next.Invocation, PendingPress = false, Presentation = presentation, GlobalRandom = random, Auxiliary = auxiliary, Sine = sine, Cosine = cosine, PhysicalEffects = complete ? null : effects, EffectTarget = complete ? null : next.EffectTarget, PreviousParticleBone = previousParticleBone };
@@ -490,7 +496,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
 
     private NativeBattleGraphicsModel LoadStanding(ref NativeGlobalRandomState random)
     {
-        NativeBattleGraphicsModel model = new(ActorSlot, 0)
+        NativeBattleGraphicsModel model = new(0)
         {
             Transform = new(Origin, Origin, 0, 0, 4096),
             SequenceState = new() { Locals = NativeBattleSequenceState.ColdProcessLocals() },

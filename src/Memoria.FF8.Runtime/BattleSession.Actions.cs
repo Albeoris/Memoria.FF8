@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -50,7 +52,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
-        var (magicMasks, expandedMagicTargets) = PreparePlayerMagicTargets(actor, action, targetId, magicTargets);
+        ImmutableArray<BattleMagicCastInvocation> casts = PreparePlayerMagicTargets(actor, action, targetId, magicTargets);
         if (action.NativeAction is { } native)
         {
             ValidateNativeActionContract(native);
@@ -64,6 +66,7 @@ public sealed partial class BattleSession
         {
             RequireExpandedAction(action);
         }
+        BattleTargetRequest request = casts.IsDefaultOrEmpty ? BuildActionTargetRequest(actor, target, action) : casts[0].Targets;
         int? reservedItemSlot = null;
         switch (ability)
         {
@@ -89,8 +92,8 @@ public sealed partial class BattleSession
             default:
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
-        int magicMode = actor.IsPlayer && (expandedMagicTargets?.Length ?? magicMasks.Length) == 2 && (NativeBattleStatusBits(actor) & 0x60000) == 0x40000 ? 3 : 0;
-        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, ExpandedMagicTargets = expandedMagicTargets, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
+        int magicMode = actor.IsPlayer && casts.Length == 2 && (NativeBattleStatusBits(actor) & 0x60000) == 0x40000 ? 3 : 0;
+        BattleAttackCommand queued = new(actorId, targetId, request, ability, actionId, drawCast) { MagicCasts = casts, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
         if (UsesExpandedRoster && ability == BattleAbility.GuardianForce)
@@ -119,6 +122,20 @@ public sealed partial class BattleSession
         Log("Queued", actorId, targetId, 0, $"{actor.Name}: {ActionName(ability, actionId)} queued.");
     }
 
+    private BattleTargetRequest BuildActionTargetRequest(BattleCombatant actor, BattleCombatant target, BattleActionDefinition action)
+    {
+        if (action.NativeAction?.TargetFlags is byte flags)
+        {
+            return CreatePlayerTargetRequest(actor, target, flags);
+        }
+        if (!action.AllTargets)
+        {
+            return SelectBattleTarget(target, IsNativeRevive(action), BattleTargetEligibility.Living);
+        }
+        BattleTargetSide side = target.IsPlayer ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
+        return new(new BattleTargetSelection.SideGroup(side), BattleTargetEligibility.Living, IsNativeRevive(action), BattleTargetReplacement.None);
+    }
+
     private BattleActionDefinition FindAction(BattleAbility ability, int id)
     {
         return definition.ActionDefinitions.SingleOrDefault(action => action.Ability == ability && action.Id == id) ?? throw new NotSupportedException($"Battle {ability} {id} has no supported installed effect contract.");
@@ -136,7 +153,7 @@ public sealed partial class BattleSession
             ResolvePlayerDraw(actor, target, command);
             return;
         }
-        if (!command.NativeMagicTargets.IsDefaultOrEmpty)
+        if (!command.MagicCasts.IsDefaultOrEmpty)
         {
             ResolveNativeMagicGroup(actor, command);
             return;
@@ -184,6 +201,11 @@ public sealed partial class BattleSession
                 ResolveInstalledNativeAction(actor, target, command, installedAttack);
                 return;
             }
+            if (ResolveBattleTargets(command.TargetRequest).SingleOrDefault() is not { } attackTarget)
+            {
+                return;
+            }
+            target = attackTarget;
             // Original492C40/48F600 physical integer damage and mitigation.
             bool gunblade = IsGunbladeAttack(actor, command.Ability);
             int strength = EffectiveStat(actor, BattleStatId.Strength);
@@ -218,7 +240,7 @@ public sealed partial class BattleSession
             ResolveInstalledNativeAction(actor, target, command, action);
             return;
         }
-        IEnumerable<BattleCombatant> targets = action.AllTargets ? combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (action.Effect == BattleActionEffect.Revive ? !candidate.IsAlive : candidate.IsAlive)).ToArray() : [target];
+        IEnumerable<BattleCombatant> targets = ResolveBattleTargets(command.TargetRequest).Where(candidate => action.Effect == BattleActionEffect.Revive ? !candidate.IsAlive : candidate.IsAlive);
         foreach (BattleCombatant recipient in targets)
         {
             switch (action.Effect)

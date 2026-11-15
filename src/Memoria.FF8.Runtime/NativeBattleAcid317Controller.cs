@@ -16,7 +16,7 @@ public static partial class NativeBattleAcid317Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
-        NativeBattleAcid317State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattleAcid317State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -70,26 +70,27 @@ public static partial class NativeBattleAcid317Controller
             int ordinal = Task(frame, 0, slot).ReadByte(14);
             if (ordinal <= inputs.Packets.ReadHeader(Parameters(frame).Header).ReadRepeatModeMinusOne())
             {
-                int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.Recipient;
+                BattleModelOwner actor = inputs.Packets.ReadContact(FirstContact(frame, inputs).Advance(ordinal)).Primary.Recipient;
                 (frame, uint address) = Append(frame, 1, TargetCallback);
                 if (address == 0)
                 {
                     throw new NotSupportedException("Acid reached a full original target task bank.");
                 }
-                NativeBattleModulePoolTask target = Read(frame, address).WriteBytes(12, new byte[604]).WriteWord(14, (ushort)ordinal).WriteDword(16, ModelAddress(actor));
+                NativeBattleModulePoolTask target = Read(frame, address).WriteBytes(12, new byte[604]).WriteWord(14, (ushort)ordinal);
+                target.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
                 NativeBattleAcid317AnchorStep anchor = inputs.ReadAnchor571400(frame, actor);
                 frame = anchor.Frame;
                 target = target.WriteWord(0x16, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x18, unchecked((ushort)anchor.Anchor.Y)).WriteWord(0x1A, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x1C, unchecked((ushort)anchor.Anchor.W));
-                NativeBattleAcid317AnchorStep caster = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(CasterGlobal)));
+                NativeBattleAcid317AnchorStep caster = inputs.ReadAnchor571400(frame, frame.State.ReadModel(CasterGlobal));
                 frame = caster.Frame;
                 int angle = NativePrecision53.RoundInteger(Math.Atan2(anchor.Anchor.X - caster.Anchor.X, anchor.Anchor.Z - caster.Anchor.Z) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
                 target = target.WriteWord(0x14, unchecked((ushort)angle));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (0x20 - 12), 0x248).Initialize7016B0(resources.TargetAct, 0x248);
                 frame = Write(frame, address, workspace.CopyTo(target, 0x20, retainUnknown: false));
                 frame = Put(frame, 0, slot, Task(frame, 0, slot).WriteByte(14, unchecked((byte)(ordinal + 1))));
-                frame = inputs.Execute(frame, new NativeBattleAcid317SnapshotBody((byte)actor, Working(frame) + BodyCacheOffset));
+                frame = inputs.Execute(frame, new NativeBattleAcid317SnapshotBody(actor, Working(frame) + BodyCacheOffset));
             }
-            byte casterActor = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
+            BattleModelOwner casterActor = frame.State.ReadModel(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleAcid317BindCaster(casterActor, Working(frame) + BindingOffset, 0xFFE6B0));
             frame = inputs.Execute(frame, new NativeBattleAcid317RingSequence(casterActor, 3));
         }

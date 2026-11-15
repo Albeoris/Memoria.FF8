@@ -6,9 +6,9 @@ public abstract record NativeBattleGatlingGun305Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleGatlingGun305BindCaster(BattleModelOwner Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleGatlingGun305Operation;
-public sealed record NativeBattleGatlingGun305RingSequence(byte Actor, byte Sequence) : NativeBattleGatlingGun305Operation;
+public sealed record NativeBattleGatlingGun305RingSequence(BattleModelOwner Actor, byte Sequence) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305Sound(uint Value, int Pan) : NativeBattleGatlingGun305Operation;
-public sealed record NativeBattleGatlingGun305Contact(int Index) : NativeBattleGatlingGun305Operation;
+public sealed record NativeBattleGatlingGun305Contact(BattleContactOccurrence Occurrence) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305Stage(short Depth, uint ColorFlags) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305DrawStatic88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleGatlingGun305Operation;
 public sealed record NativeBattleGatlingGun305DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleGatlingGun305Operation;

@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             }
         }
         OnNativePlayerCommandSubmitted(actor, 11);
-        actions.Enqueue(new(actor.Id, target.Id, BattleAbility.LimitBreak, 11 << 16) { NativeQueuedCommand = 11, NativeDuel = new(crisis) });
+        actions.Enqueue(new(actor.Id, target.Id, SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living), BattleAbility.LimitBreak, 11 << 16) { NativeQueuedCommand = 11, NativeDuel = new(crisis) });
         actor.Atb = 0;
         actor.IsBusy = true;
         Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: Duel queued.");
@@ -50,6 +50,13 @@ public sealed partial class BattleSession
             (action is { Command: 241, ActionId: < 6 } || action is { Command: 239, ActionId: >= 6 and <= 9 });
     }
 
+    private static string ReadExpandedDuelTarget(BattleNativeDuelState state)
+    {
+        return state.TargetRequest.Selection is BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] }
+            ? target.ActorId
+            : throw new InvalidDataException("Expanded Duel requires its single bound enemy target.");
+    }
+
     private bool ValidateExpandedDuelCallback(string actorId, BattleNativeDuelState duel, NativeLimitCallback callback, string targetId, BattleNativeAction? action)
     {
         BattleNativeDuelPhase phase = callback switch
@@ -58,7 +65,7 @@ public sealed partial class BattleSession
             NativeLimitCallback.DuelEffect => BattleNativeDuelPhase.AwaitingEffect,
             _ => BattleNativeDuelPhase.Finisher
         };
-        return duel.ExpandedTargetId == targetId && duel.Phase == phase && IsExpandedDuelMove(action) &&
+        return ReadExpandedDuelTarget(duel) == targetId && duel.Phase == phase && IsExpandedDuelMove(action) &&
             action!.ActionId == NativeBattleDuelRules.ActionId(GetActor(actorId).NativeLimit!, duel.MoveSetId) &&
             action.Command == (phase == BattleNativeDuelPhase.Finisher ? 239 : 241);
     }
@@ -95,14 +102,14 @@ public sealed partial class BattleSession
         byte moveSet = NativeBattleDuelRules.InitialMoveSet(rules, crisis);
         short timer = NativeBattleDuelRules.Timer(rules, crisis);
         BattleNativeAction opening = FindInstalledNativeAction(241, NativeBattleDuelRules.ActionId(rules, moveSet));
-        nativeDuelProcesses.Add(actor.Id, new(moveSet, 0, timer, timer, BattleNativeDuelPhase.Opening) { ExpandedTargetId = target.Id, Ui = new(BattleTimedInputUiPhase.Opening) });
+        nativeDuelProcesses.Add(actor.Id, new(moveSet, SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living), timer, timer, BattleNativeDuelPhase.Opening) { Ui = new(BattleTimedInputUiPhase.Opening) });
         BeginNativeReactionBatch();
         StartExpandedDuelMove(ExpandedDuelMove(actor.Id, target.Id, opening, NativeLimitCallback.DuelOpening));
     }
 
-    private static BattleAttackCommand ExpandedDuelMove(string actorId, string targetId, BattleNativeAction move, NativeLimitCallback callback)
+    private BattleAttackCommand ExpandedDuelMove(string actorId, string targetId, BattleNativeAction move, NativeLimitCallback callback)
     {
-        return new(actorId, targetId, BattleAbility.LimitBreak, move.Command << 16 | move.ActionId)
+        return new(actorId, targetId, SelectBattleTarget(GetActor(targetId), eligibility: BattleTargetEligibility.Living), BattleAbility.LimitBreak, move.Command << 16 | move.ActionId)
         {
             NativeQueuedCommand = move.Command,
             NativeAction = move,
@@ -155,8 +162,8 @@ public sealed partial class BattleSession
     private void CompleteExpandedDuelTimeout(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        BattleCombatant target = GetActor(nativeDuelProcesses[actorId].ExpandedTargetId!);
-        BattleActionPresentation command = new(actorId, target.Id, BattleActionPhase.Recovery, 0, BattleAbility.LimitBreak, 11 << 16);
+        BattleCombatant target = GetActor(ReadExpandedDuelTarget(nativeDuelProcesses[actorId]));
+        BattleActionPresentation command = new(actorId, target.Id, BattleActionPhase.Recovery, 0, SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living), BattleAbility.LimitBreak, 11 << 16);
         ApplyExpandedDuelControl(actor, target, command, 65532, 0);
         CompleteExpandedDuelOwners(actor);
         EndNativeDuel(actorId);

@@ -109,7 +109,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("An atomic summon batch requires every template to inherit from its acting source allocation.");
             }
             BattleNativeAction control = CreateEncounterSummonControl();
-            BattleAttackCommand command = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control, NativeTargetMask = checked((ushort)(1 << actor.EncodeNativeSlot())) };
+            BattleAttackCommand command = new(actor.Id, actor.Id, SelectBattleTarget(actor), BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control };
             QueueEncounterNativeEvents(actor, decision.OwnTurn);
             EnqueueNativePacket(actor, command, "Summon");
             encounterPolicies = encounterPolicies with { PendingSummon = decision, Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
@@ -210,14 +210,15 @@ public sealed partial class BattleSession
             }
             repeats = masks.ToImmutable();
         }
-        BattleAttackCommand command = new(actor.Id, targets[0], BattleAbility.Magic, spell.NativeAction.ActionId)
+        BattleAttackCommand command = new(actor.Id, targets[0], NativeBattleTargetRequestAdapter.Decode(firstMask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.Magic, spell.NativeAction.ActionId)
         {
             NativeAiCallbackStage = 1,
             NativeQueuedCommand = 2,
             NativeSequence = mod.CastingSequence,
             NativeAction = spell.NativeAction,
-            NativeTargetMask = firstMask,
-            NativeMagicTargets = repeats
+            MagicCasts = repeats.Select(mask => new BattleMagicCastInvocation(
+                NativeBattleTargetRequestAdapter.Decode(mask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true),
+                NativeBattleTargetRequestAdapter.CaptureMagicPreflight(mask), TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
         };
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         BattleActionHeaderReference firstHeader = nativeActionPackets.NextHeader;
@@ -254,9 +255,9 @@ public sealed partial class BattleSession
         return NativeReturnDamageAction() with { ActionId = 9, Name = "Summon", PresentationOnly = true };
     }
 
-    private BattleNativeAction ValidateEncounterSummonControl(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, ushort targetMask)
+    private BattleNativeAction ValidateEncounterSummonControl(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleTargetRequest request)
     {
-        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.EncodeNativeSlot() is < 0 or >= 7 || targetMask != 1 << actor.EncodeNativeSlot())
+        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.EncodeNativeSlot() is < 0 or >= 7 || request.Selection is not BattleTargetSelection.Explicit selection || selection.Actors.Length != 1 || selection.Actors[0] != TargetActorReference(actor))
         {
             throw new InvalidDataException("Saved encounter presentation control requires its declared SummonGroup policy and exact self target.");
         }

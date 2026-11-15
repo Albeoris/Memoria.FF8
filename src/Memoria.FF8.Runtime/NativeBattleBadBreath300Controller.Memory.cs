@@ -6,14 +6,14 @@ public static partial class NativeBattleBadBreath300Controller
 {
     private static NativeBattleBadBreath300Frame DrawRandom(NativeBattleBadBreath300Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
     private static NativeBattleEffectParameters Parameters(NativeBattleBadBreath300Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Bad Breath requires its captured action parameters.");
-    private static int FirstContact(NativeBattleBadBreath300Frame frame, NativeBattleBadBreath300Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleBadBreath300Frame frame, NativeBattleBadBreath300Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
         if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new InvalidDataException("Bad Breath requires its first captured target contact.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Bad Breath requires its actual captured contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContact;
     }
     private static void RequireBinding(NativeBattleBadBreath300Frame frame)
     {
@@ -22,15 +22,6 @@ public static partial class NativeBattleBadBreath300Controller
             throw new InvalidDataException("Bad Breath requires its original selected entry.");
         }
     }
-    private static int Actor(uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row))
-        {
-            throw new InvalidDataException("Bad Breath actor pointer leaves the native seven-model bank.");
-        }
-        return row;
-    }
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Bad Breath actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleBadBreath300Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleBadBreath300Frame WithPool(NativeBattleBadBreath300Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleBadBreath300Frame Put(NativeBattleBadBreath300Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));

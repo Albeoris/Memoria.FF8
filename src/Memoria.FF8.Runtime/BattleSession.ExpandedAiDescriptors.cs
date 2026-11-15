@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Expanded AI graphics ordering requires original enemy slots.");
         }
         StopTurnAdvance();
-        actions.Enqueue(new(actor.Id, actor.Id, BattleAbility.EnemyAbility) { ExpandedAiDescriptor = operation });
+        actions.Enqueue(new(actor.Id, actor.Id, BattleTargetRequest.None, BattleAbility.EnemyAbility) { ExpandedAiDescriptor = operation });
     }
 
     private void ValidateExpandedAiDescriptor(BattleAttackCommand command)
@@ -37,8 +37,8 @@ public sealed partial class BattleSession
             BattleExpandedAiDescriptorKind.DeathRelease => operation is { Operand: 0, PhysicalIndex: 0, Activate: false } && GetActor(command.ActorId).NativeAi?.DeathSequenceReleasesAllocation == true,
             _ => false
         };
-        BattleAttackCommand expected = new(command.ActorId, command.ActorId, BattleAbility.EnemyAbility) { ExpandedAiDescriptor = operation };
-        if (!UsesOriginalEnemySlots || !valid || !command.NativeMagicTargets.IsEmpty || (command with { NativeMagicTargets = expected.NativeMagicTargets }) != expected || GetActor(command.ActorId).NativeAi is null)
+        BattleAttackCommand expected = new(command.ActorId, command.ActorId, BattleTargetRequest.None, BattleAbility.EnemyAbility) { ExpandedAiDescriptor = operation };
+        if (!UsesOriginalEnemySlots || !valid || !command.MagicCasts.IsEmpty || (command with { MagicCasts = expected.MagicCasts }) != expected || GetActor(command.ActorId).NativeAi is null)
         {
             throw new InvalidDataException("Invalid expanded AI graphics descriptor or source actor.");
         }
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                 AllocateNativeEnemy(caller, operation.Operand, operation.PhysicalIndex, operation.Activate);
                 break;
             case BattleExpandedAiDescriptorKind.Activate:
-                ActivateNativeParticipant(FindNativeActor(operation.Operand == 209 ? nativeLastAllocatedIndex : operation.Operand));
+                ActivateNativeParticipant(FindActiveActivationActor(operation.Operand == 209 ? nativeLastAllocatedTarget : new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(operation.Operand)));
                 break;
             case BattleExpandedAiDescriptorKind.DeathRelease:
                 if (caller.IsActive && (NativeSavedStatusBits(caller) & 1) != 0)

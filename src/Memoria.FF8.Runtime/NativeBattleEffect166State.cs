@@ -7,6 +7,22 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect166State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] bool ColdSourceOrigin, [property: JsonRequired] bool StaticPacketBound, [property: JsonRequired] NativeBattleEffectArena? CapturePacket24)
 {
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena> SavedActors { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena>.Empty;
+
+    internal BattleModelOwner ReadModel(uint address) => Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleEffect166State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this;
+    }
+
+    internal NativeBattleEffectArena ReadSavedActor(BattleModelOwner owner)
+    {
+        return SavedActors.TryGetValue(owner, out NativeBattleEffectArena? record) ? record : throw new InvalidDataException("Effect166 requires its saved actor fields.");
+    }
+
     public static NativeBattleEffect166State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), true, false, null);
 
     public static NativeBattleEffect166State FromUnknown()

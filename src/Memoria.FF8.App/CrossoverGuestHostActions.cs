@@ -74,7 +74,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         ValidateItemQueue();
         fire = saved?.Fire;
         NativeBattleGraphicsResource sourceResource = assets.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = kit.CharacterId, WeaponId = kit.Weapon });
-        fireProgram = new(game, sourceResource, assets, ReadSceneParticipants, ReadPresentationParticipant, ReadPresentationSceneContext, () => host.Actors.Count(actor => actor.Actor.Slot < 3), sourcePrograms: kit.Limit.Command == 5 ? game.ReadNativeRenzokukenResources() : default);
+        fireProgram = new(game, sourceResource, assets, ActorSlot, ReadPresentationOwner, ReadSceneParticipants, ReadPresentationParticipant, ReadPresentationSceneContext, () => host.Actors.Count(actor => actor.Actor.Slot < 3), sourcePrograms: kit.Limit.Command == 5 ? game.ReadNativeRenzokukenResources() : default);
         limitResource = sourceResource;
         attack.BindNativeTargetGeometry((placement, slot) => encounter.GuestAt(slot) is null ? null : ReadAbilityForeign(placement, slot));
         limitProgram = new(game, sourceResource, graphicsRules);
@@ -197,7 +197,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             return false;
         }
         CrossoverNativeMagicParticipant? target = active.Presentation.BoundParticipants.SingleOrDefault(target => target.HostSlot == slot);
-        return target is not null && (effect.Graphics.Models[target.ActorIndex].Flags0 & 0x20) != 0;
+        return target is not null && (effect.Graphics.ActorModels.Get(target.Owner).Flags0 & 0x20) != 0;
     }
 
     public Matrix4x4? ReadForeignPlacement(int hostSlot)
@@ -207,7 +207,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             return null;
         }
         CrossoverNativeMagicParticipant? target = active.Presentation.BoundParticipants.SingleOrDefault(target => target.HostSlot == hostSlot);
-        return target is null ? null : active.Placement.ResolvePresentationTransform(effect.ForeignPlacement(target.ActorIndex));
+        return target is null ? null : active.Placement.ResolvePresentationTransform(effect.ForeignPlacement(target.Owner));
     }
     public int ActorSlot => attack.ActorSlot;
     public Guid EncounterId => attack.EncounterId;
@@ -330,7 +330,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             else
             {
                 ImmutableArray<CrossoverNativeMagicTarget> targets = PresentationTargets(preparedGroup.IsEmpty ? [hit] : preparedGroup, original);
-                program = fireProgram.Begin(model with { Index = 0 }, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original)) with { Targets = targets };
+                program = fireProgram.Begin(model, target.Slot, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original), targets: targets);
             }
         }
         catch
@@ -443,7 +443,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             current = current with { Presentation = next.State, ContactPublished = current.ContactPublished || next.Contact };
             foreach (NativeBattleForeignSequenceRequest sequence in next.Sequences)
             {
-                int slot = current.Presentation.BoundParticipants.Single(target => target.ActorIndex == sequence.ActorIndex).HostSlot;
+                int slot = current.Presentation.BoundParticipants.Single(target => target.Owner == sequence.Owner).HostSlot;
                 if (sequence.Kind == NativeBattleForeignSequenceKind.Standing)
                 {
                     host.PresentGuestStanding(ActorSlot, slot);
@@ -493,7 +493,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         }
         else if (current.Presentation.Complete)
         {
-            attack.ResumeStandingFromCast(current.Presentation.Cast.Model with { Index = ActorSlot }, hostTick, clock.Subticks, clock.HalfSubtick);
+            attack.ResumeStandingFromCast(current.Presentation.Cast.Model, hostTick, clock.Subticks, clock.HalfSubtick);
             current.Presentation.Effect?.Dispose();
             fire = null;
             selectedContinuation = null;
@@ -536,7 +536,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             {
                 model = model with { Flags0 = released.Flags0, Color40 = released.Color40, Color44 = released.Color44, Alpha7 = released.Alpha7 };
             }
-            attack.ResumeStandingFromCast(model with { Index = ActorSlot }, current.HostTick, current.Subticks, current.HalfSubtick, completed: false);
+            attack.ResumeStandingFromCast(model, current.HostTick, current.Subticks, current.HalfSubtick, completed: false);
             fire = null;
         }
         if (encounter.Items?.PendingFor(ActorSlot) is { Selection: { } pending })

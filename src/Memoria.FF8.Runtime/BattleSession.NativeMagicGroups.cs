@@ -2,6 +2,26 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record BattleMagicCastInvocation
+{
+    public BattleMagicCastInvocation(BattleTargetRequest targets, BattleTargetSelection preflightSelection, BattleActorReference fallbackAnchor)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        ArgumentNullException.ThrowIfNull(fallbackAnchor);
+        if (preflightSelection is not (BattleTargetSelection.Explicit or NativeBattleTargetRequestAdapter.DeferredOperands))
+        {
+            throw new ArgumentException("Magic cast preflight requires an explicit actor or original operand selection.", nameof(preflightSelection));
+        }
+        Targets = targets;
+        PreflightSelection = preflightSelection;
+        FallbackAnchor = fallbackAnchor;
+    }
+
+    public BattleTargetRequest Targets { get; }
+    public BattleTargetSelection PreflightSelection { get; }
+    public BattleActorReference FallbackAnchor { get; }
+}
+
 public sealed partial class BattleSession
 {
     private sealed record ExpandedMagicCastPresentation(BattleActionPresentation Cast, ImmutableArray<ExpandedBattleContact> Contacts, bool UsesNativeEffect)
@@ -58,18 +78,19 @@ public sealed partial class BattleSession
         return NativeBattleMagicRepetition.PlayerCounts(NativeBattleStatusBits(actor), available, actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? 0, magicVitals?.MagicSystem.InfiniteMagic == true, UnlimitedMagic);
     }
 
-    private (ImmutableArray<ushort> Native, ImmutableArray<string>? Expanded) PreparePlayerMagicTargets(BattleCombatant actor, BattleActionDefinition action, string firstTarget, IReadOnlyList<string>? targets)
+    private ImmutableArray<BattleMagicCastInvocation> PreparePlayerMagicTargets(BattleCombatant actor, BattleActionDefinition action, string firstTarget, IReadOnlyList<string>? targets)
     {
         if (targets is null)
         {
-            return ([], null);
+            return [];
         }
         if (action.Ability != BattleAbility.Magic || action.NativeAction is not { Command: 2, TargetFlags: byte flags } || targets.Count is < 1 or > 3 || targets[0] != firstTarget ||
             !(!UsesExpandedRoster && GetNativeMagicCastCounts(actor.Id, action.Id).Contains(targets.Count) || actor.IsPlayer && GetPlayerMagicCastCounts(actor.Id, action.Id).Any(count => targets.Count <= count)))
         {
             throw new InvalidOperationException("Magic target groups require the current native Double/Triple status, sufficient stock and one installed spell.");
         }
-        ImmutableArray<ushort>.Builder masks = ImmutableArray.CreateBuilder<ushort>(targets.Count);
+        ImmutableArray<BattleMagicCastInvocation>.Builder casts = ImmutableArray.CreateBuilder<BattleMagicCastInvocation>(targets.Count);
+        BattleActorReference anchor = TargetActorReference(GetActor(firstTarget));
         foreach (string targetId in targets)
         {
             BattleCombatant target = GetActor(targetId);
@@ -77,23 +98,41 @@ public sealed partial class BattleSession
             {
                 throw new InvalidOperationException("Every selected magic target must satisfy the original spell's target contract.");
             }
-            if (!UsesExpandedRoster)
-            {
-                masks.Add(NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot()));
-            }
+            BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, flags);
+            BattleTargetSelection preflight = UsesExpandedRoster
+                ? new BattleTargetSelection.Explicit([TargetActorReference(target)])
+                : NativeBattleTargetRequestAdapter.CaptureMagicPreflight(NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot()));
+            casts.Add(new(request, preflight, UsesExpandedRoster ? TargetActorReference(target) : anchor));
         }
-        return UsesExpandedRoster ? ([], targets.Count == 1 ? null : targets.ToImmutableArray()) : (masks.MoveToImmutable(), null);
+        return UsesExpandedRoster && targets.Count == 1 ? [] : casts.MoveToImmutable();
+    }
+
+    private BattleCombatant ReadMagicPreflightAnchor(BattleMagicCastInvocation cast, bool requireActive)
+    {
+        BattleCombatant? active = cast.PreflightSelection switch
+        {
+            BattleTargetSelection.Explicit explicitActors => explicitActors.Actors.Select(FindTargetActor).FirstOrDefault(actor => actor is not null && (!requireActive || actor.IsActive)),
+            NativeBattleTargetRequestAdapter.DeferredOperands original => ReadOriginalSelectedActor(original, requireActive),
+            _ => throw new InvalidDataException("Magic cast preflight has no recognized target selection.")
+        };
+        return active ?? FindTargetActor(cast.FallbackAnchor) ?? throw new InvalidDataException("Magic cast preflight lost its fallback actor.");
+    }
+
+    private BattleCombatant? ReadOriginalSelectedActor(NativeBattleTargetRequestAdapter.DeferredOperands selection, bool activeOnly)
+    {
+        BattleActorReference? candidate = NativeBattleTargetRequestAdapter.ReadFirstActiveMagicAnchor(selection, ReadOriginalTargetOccupant, reference => FindTargetActor(reference) is { } actor && (!activeOnly || actor.IsActive));
+        return candidate is null ? null : FindTargetActor(candidate);
     }
 
     private void ResolveNativeMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
         uint statuses = EncounterMulticastStatusBits(actor);
-        int mode = command.NativeMagicCastMode == 0 ? command.NativeMagicTargets.Length : command.NativeMagicCastMode;
-        int count = mode >= 3 && (statuses & 0x40000) != 0 ? command.NativeMagicTargets.Length : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
+        int mode = command.NativeMagicCastMode == 0 ? command.MagicCasts.Length : command.NativeMagicCastMode;
+        int count = mode >= 3 && (statuses & 0x40000) != 0 ? command.MagicCasts.Length : command.MagicCasts.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         if (!actor.IsPlayer && HasEncounterPolicy(actor))
         {
-            count = Math.Min(command.NativeMagicTargets.Length, (statuses & 0x40000) != 0 ? 3 : (statuses & 0x20000) != 0 ? 2 : 1);
+            count = Math.Min(command.MagicCasts.Length, (statuses & 0x40000) != 0 ? 3 : (statuses & 0x20000) != 0 ? 2 : 1);
         }
         uint flags = count > 1 && actor.IsPlayer ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
         int costMode = command.NativeMagicCastMode != 0 && (statuses & 0x40000) != 0 ? command.NativeMagicCastMode : count;
@@ -110,13 +149,13 @@ public sealed partial class BattleSession
             {
                 break;
             }
-            ushort mask = command.NativeMagicTargets[index];
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.EncodeNativeSlot() >= 0 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? byId[command.TargetId];
+            BattleMagicCastInvocation invocation = command.MagicCasts[index];
+            BattleCombatant target = ReadMagicPreflightAnchor(invocation, requireActive: true);
             if (!target.IsAlive && (command.SmartAttack is not null || !combatants.Any(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer)))
             {
                 break;
             }
-            BattleActionPresentation cast = command with { TargetId = target.Id, NativeTargetMask = mask, NativeMagicTargets = [], NativeMagicCastMode = 0, NativeAction = action.NativeAction };
+            BattleActionPresentation cast = command with { TargetId = target.Id, TargetRequest = invocation.Targets, MagicCasts = [], NativeMagicCastMode = 0, NativeAction = action.NativeAction };
             nativeAffinityAction = null;
             //485610 submits one104 for the group; the effect consumes the following headers itself.
             if (!ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0))
@@ -145,14 +184,14 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command, ImmutableArray<string> targets)
+    private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command, ImmutableArray<BattleMagicCastInvocation> casts)
     {
         bool hosted = OwnsExpandedHostedInvocation;
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
         BattleNativeAction native = action.NativeAction!;
         uint statuses = NativeBattleStatusBits(actor);
-        int mode = command.NativeMagicCastMode == 0 ? targets.Length : command.NativeMagicCastMode;
-        int count = mode == 3 && (statuses & 0x40000) != 0 ? targets.Length : (statuses & 0x20000) != 0 ? 2 : 1;
+        int mode = command.NativeMagicCastMode == 0 ? casts.Length : command.NativeMagicCastMode;
+        int count = mode == 3 && (statuses & 0x40000) != 0 ? casts.Length : (statuses & 0x20000) != 0 ? 2 : 1;
         bool singleCost = count > 1 && MagicCost(actor, command.NativeMagicCastMode != 0 && (statuses & 0x40000) != 0 ? mode : count) == 1;
         string? reservationId = command.MagicReservationId;
         int reserved = reservationId is null ? count : magicVitals!.MagicSystem.Reservations.FirstOrDefault(reservation => reservation.ActionId == reservationId)?.Count ?? 0;
@@ -173,7 +212,8 @@ public sealed partial class BattleSession
                 {
                     break;
                 }
-                BattleCombatant selected = GetActor(targets[index]);
+                BattleMagicCastInvocation invocation = casts[index];
+                BattleCombatant selected = ReadMagicPreflightAnchor(invocation, requireActive: false);
                 if (command.SmartAttack is not null && !IsValidSelectedActionTarget(actor, action, selected))
                 {
                     break;
@@ -183,7 +223,7 @@ public sealed partial class BattleSession
                 {
                     break;
                 }
-                BattleCombatant[] recipients = ExpandedActionTargets(actor, target.Id, BattleAbility.Magic, command.ActionId, null, native);
+                BattleCombatant[] recipients = ResolveBattleTargets(invocation.Targets, sampleRandom: false);
                 if (recipients.Length == 0)
                 {
                     break;
@@ -199,7 +239,7 @@ public sealed partial class BattleSession
                     }
                 }
 
-                BattleActionPresentation cast = command with { TargetId = target.Id, ExpandedMagicTargets = null, NativeMagicCastMode = 0, NativeAction = native };
+                BattleActionPresentation cast = command with { TargetId = target.Id, TargetRequest = invocation.Targets, MagicCasts = [], NativeMagicCastMode = 0, NativeAction = native };
                 resolvingNativeAction = cast;
                 nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
                 NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(cast, native) : null;
@@ -338,37 +378,41 @@ public sealed partial class BattleSession
         return available.FirstOrDefault(candidate => candidate.Slot?.Position > position) ?? available.LastOrDefault();
     }
 
-    private void ValidateExpandedMagicTargets(string actorId, string targetId, BattleAbility ability, int actionId, ImmutableArray<ushort> nativeTargets, ImmutableArray<string>? expandedTargets, int mode)
+    private void ValidateExpandedMagicTargets(string actorId, string targetId, BattleAbility ability, int actionId, ImmutableArray<BattleMagicCastInvocation> casts, int mode)
     {
-        if (expandedTargets is not { } targets)
+        ValidateNativeMagicTargets(ability, actionId, casts, mode);
+        if (!UsesExpandedRoster || casts.IsEmpty)
         {
-            ValidateNativeMagicTargets(ability, actionId, nativeTargets, mode);
             return;
         }
-        if (!UsesExpandedRoster || !GetActor(actorId).IsPlayer || ability != BattleAbility.Magic || !nativeTargets.IsEmpty || targets.IsDefaultOrEmpty || targets.Length is < 2 or > 3 || targets[0] != targetId || mode != 0 && (mode != 3 || targets.Length != 2) ||
-            targets.Any(id => id is null || !byId.ContainsKey(id)) || FindAction(ability, actionId) is not { NativeAction.Command: 2 } action || !SupportsExpandedAction(action))
+        BattleCombatant actor = GetActor(actorId);
+        BattleActionDefinition action = FindAction(ability, actionId);
+        if (!actor.IsPlayer || casts.Length < 2 || casts[0].FallbackAnchor.ActorId != targetId || !SupportsExpandedAction(action))
         {
             throw new InvalidDataException("Saved repeated magic lacks its original spell and logical recipient order.");
         }
-        BattleCombatant actor = GetActor(actorId);
-        if (targets.Any(id => NativeBattleLimitRules.IsFixedAllyTarget(action.NativeAction.TargetFlags!.Value) ? id != actorId :
-            !CanSelectEitherTargetSide(action) && (GetActor(id).IsPlayer == actor.IsPlayer) != action.Allies))
+        foreach (BattleMagicCastInvocation cast in casts)
         {
-            throw new InvalidDataException("Saved repeated magic targets a side unavailable to its spell.");
+            if (cast.PreflightSelection is not BattleTargetSelection.Explicit { Actors: [var selected] } || cast.FallbackAnchor != selected || FindTargetActor(selected) is not { } target ||
+                (NativeBattleLimitRules.IsFixedAllyTarget(action.NativeAction!.TargetFlags!.Value) ? target.Id != actorId : !CanSelectEitherTargetSide(action) && (target.IsPlayer == actor.IsPlayer) != action.Allies))
+            {
+                throw new InvalidDataException("Saved repeated magic targets an actor or side unavailable to its spell.");
+            }
         }
     }
 
-    private void ValidateNativeMagicTargets(BattleAbility ability, int actionId, ImmutableArray<ushort> targets, int mode = 0)
+    private void ValidateNativeMagicTargets(BattleAbility ability, int actionId, ImmutableArray<BattleMagicCastInvocation> casts, int mode = 0)
     {
-        if (mode != 0 && (mode != 3 || targets.Length != 2 || ability != BattleAbility.Magic))
+        if (mode != 0 && (mode != 3 || casts.Length != 2 || ability != BattleAbility.Magic))
         {
             throw new InvalidDataException("An abbreviated Triple command requires exactly two selected magic targets.");
         }
-        if (targets.IsDefault || targets.Length > 3 || targets.Length != 0 && ability != BattleAbility.Magic || targets.Any(mask => (mask & 0x1FFF) == 0 || (mask & 0x1F80) != 0))
+        if (casts.IsDefault || casts.Length > 3 || casts.Length != 0 && ability != BattleAbility.Magic ||
+            casts.Any(cast => cast is null || cast.Targets.Selection is BattleTargetSelection.None || FindTargetActor(cast.FallbackAnchor) is null))
         {
-            throw new InvalidDataException("Native magic groups require one to three original physical target masks.");
+            throw new InvalidDataException("Native magic groups require one to three bound target requests.");
         }
-        if (targets.Length != 0 && FindAction(BattleAbility.Magic, actionId).NativeAction is not { Command: 2 })
+        if (casts.Length != 0 && FindAction(BattleAbility.Magic, actionId).NativeAction is not { Command: 2 })
         {
             throw new InvalidDataException("Native repeated magic requires its original installed command2 effect.");
         }

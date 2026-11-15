@@ -119,11 +119,11 @@ public sealed partial class BattleSession
         byte id = nativeSupport?.SelectedAction ?? throw new InvalidDataException("Native stage7 lacks its actual selector BYTE1D28E14.");
         BattleNativeAction action = FindInstalledNativeAction(245, id);
         byte flags = action.TargetFlags ?? throw new InvalidDataException("Native independent GF row lacks its original target flags.");
-        ushort mask = NativeAutomaticActionTargetMask(flags);
-        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutomaticGuardian, 245, id, mask);
+        BattleTargetRequest request = CreateAutomaticTargetRequest(flags);
+        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutomaticGuardian, 245, id, request);
         if (id == 1)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.PhoenixRevival, 0, 8, 0xC007);
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.PhoenixRevival, 0, 8, new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy));
         }
     }
 

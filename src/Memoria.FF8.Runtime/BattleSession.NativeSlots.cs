@@ -62,7 +62,8 @@ public sealed partial class BattleSession
         ValidateNativeActionContract(action);
         byte nativeSequence = NativeBattleActionGraphics.ResolvePlayerSequence(16, sequence, action.ActionId, definition.NativeCommandSequences);
         OnNativePlayerCommandSubmitted(actor, 16);
-        actions.Enqueue(new(actor.Id, target.Id, BattleAbility.LimitBreak, 16 << 16 | action.ActionId)
+        BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        actions.Enqueue(new(actor.Id, target.Id, request, BattleAbility.LimitBreak, 16 << 16 | action.ActionId)
         {
             NativeQueuedCommand = 16,
             NativeAction = action,
@@ -87,9 +88,11 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native Slots input exceeds its three physical target WORDs.");
         }
-        ushort mask = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
-        return new(actor.Id, target.Id, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeTargetMask = mask, NativeSequence = sequence, NativeSlots = roll };
+        BattleTargetRequest request = CreateAutomaticTargetRequest(action.TargetFlags!.Value, out NativeBattleTargetRequestAdapter.DeferredOperands? preflight);
+        roll = roll with { PreflightSelection = preflight };
+        ValidateNativeSlotsPreflight(roll, action);
+        BattleCombatant target = preflight is null ? ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? actor : ReadOriginalSelectedActor(preflight, activeOnly: false) ?? actor;
+        return new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeSequence = sequence, NativeSlots = roll };
     }
 
     private void ResolveNativeSlotsGroup(BattleCombatant actor, BattleActionPresentation command)
@@ -97,26 +100,36 @@ public sealed partial class BattleSession
         BattleNativeSlotsRoll slots = command.NativeSlots ?? throw new InvalidDataException("Native Slots group lacks its accepted roll.");
         BattleNativeAction native = command.NativeAction ?? throw new InvalidDataException("Native Slots group lacks its installed magic.");
         BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Slots", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
-        NativeBattleCommandLocation location = nativeDispatchCommandLocation ?? throw new InvalidDataException("Native Slots requires its selected physical command entry.");
-        NativeBattleCommandPacket packet = nativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot];
+        _ = nativeDispatchCommandLocation ?? throw new InvalidDataException("Native Slots requires its selected physical command entry.");
+        ValidateNativeSlotsPreflight(slots, native);
         for (int repeat = 0; repeat < slots.Repetitions; repeat++)
         {
-            ushort mask = SelectNativeSlotsTargetMask(native, packet.ReadWord(6 + 2 * repeat));
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (mask & (1 << candidate.EncodeNativeSlot())) != 0) ?? GetActor(command.TargetId);
+            BattleTargetRequest request = SelectNativeSlotsTargets(native, command.TargetRequest, slots.PreflightSelection);
+            BattleCombatant target = ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? GetActor(command.TargetId);
             //485610 submits one104 for the group; the effect consumes the following headers itself.
-            if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, NativeTargetMask = mask }, action, queueGraphics: repeat == 0))
+            if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, TargetRequest = request }, action, queueGraphics: repeat == 0))
             {
                 break;
             }
         }
     }
 
-    private ushort SelectNativeSlotsTargetMask(BattleNativeAction action, ushort originalMask)
+    private void ValidateNativeSlotsPreflight(BattleNativeSlotsRoll roll, BattleNativeAction action)
+    {
+        bool needsPreflight = !UsesExpandedRoster && (action.TargetFlags!.Value & 0x30) == 0x10;
+        if (needsPreflight != (roll.PreflightSelection is NativeBattleTargetRequestAdapter.DeferredOperands) ||
+            !needsPreflight && roll.PreflightSelection is not null)
+        {
+            throw new InvalidDataException("Accepted Slots requires its original single-target preflight selection.");
+        }
+    }
+
+    private BattleTargetRequest SelectNativeSlotsTargets(BattleNativeAction action, BattleTargetRequest original, BattleTargetSelection? preflight)
     {
         byte flags = action.TargetFlags!.Value;
         if ((flags & 0x30) != 0x10)
         {
-            return originalMask;
+            return original;
         }
         bool players = (flags & 0x40) == 0;
         bool healing = players && action.AttackType is 3 or 4 or 21 or 25 or 32;
@@ -124,17 +137,19 @@ public sealed partial class BattleSession
         bool damaging = !players && action.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
         if (!healing && !statuses && !damaging)
         {
-            return originalMask;
+            return original;
         }
         IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (candidate.EncodeNativeSlot() < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
+        NativeBattleTargetRequestAdapter.DeferredOperands selected = preflight as NativeBattleTargetRequestAdapter.DeferredOperands ?? throw new InvalidDataException("Accepted Slots has no original target preference.");
+        BattleCombatant? preferred = ReadOriginalSelectedActor(selected, activeOnly: true);
         BattleCombatant? target = candidates.OrderBy(candidate => damaging && ModifyNativeElement(candidate, action, 100, false) < 0 ? 1 : 0)
             .ThenBy(candidate => statuses ? NativeSlotsStatusPriority(candidate, action, !players) : 0)
             .ThenBy(candidate => healing ? candidate.CurrentHp : 0)
-            .ThenBy(candidate => (originalMask & (1 << candidate.EncodeNativeSlot())) != 0 ? 0 : 1)
+            .ThenBy(candidate => candidate == preferred ? 0 : 1)
             .ThenBy(candidate => candidate.EncodeNativeSlot())
             .FirstOrDefault();
         // A selected target must not retain the random-target modifier, which would replace it again.
-        return target is null ? originalMask : (ushort)((originalMask & 0x4000) | (1 << target.EncodeNativeSlot()));
+        return target is null ? original : new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.EncodeNativeSlot())), original.Eligibility, original.AllowsKnockedOutAllies, original.Replacement);
     }
 
     private static int NativeSlotsStatusPriority(BattleCombatant candidate, BattleNativeAction action, bool considerImmunity)

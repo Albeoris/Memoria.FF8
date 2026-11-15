@@ -24,8 +24,14 @@ public sealed partial class BattleSession
                 ObserveNativeUnknownStackCallback(0x483EB0, "forced full-gauge command");
                 //483EB0's non-script branch invokes485030 before486E00 and484D20.
                 NativeGraphics = NativeGraphics with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.EncodeNativeSlot()), 0x12) } };
-                BattleCombatant target = ChooseNativeRandomActionTarget(BattleSide.Enemies) ?? combatants.SingleOrDefault(candidate => candidate.EncodeNativeSlot() == 3) ?? throw new NotSupportedException("Native486E00's no-living-enemy mask8 requires its actual physical slot3 command binding.");
-                EnqueueNativeInputCommand(new(actor.Id, target.Id) { NativeQueuedCommand = 1, NativeTargetMask = checked((ushort)(1 << target.EncodeNativeSlot())) });
+                BattleTargetSelection selection = ChooseOriginalRandomActionTarget(BattleSide.Enemies);
+                if (selection is not NativeBattleTargetRequestAdapter.DeferredOperands original ||
+                    ReadOriginalSelectedActor(original, activeOnly: false) is not { } target)
+                {
+                    throw new NotSupportedException("Native486E00 requires its actual allocated target command binding.");
+                }
+                BattleTargetRequest forced = new(selection, BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+                EnqueueNativeInputCommand(new(actor.Id, target.Id, forced) { NativeQueuedCommand = 1 });
                 break;
             case NativeBattleGaugeRegistrationKind.DeferredScript:
                 break;

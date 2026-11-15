@@ -146,7 +146,7 @@ public sealed class NativeBattleEffectPresentation : IDisposable
     public void ReloadSourceResources() => owner.ReloadEffectPresentationSourceResources();
     internal void ReplaceHostedContacts(IEnumerable<NativeBattleContactPacket> packets) => owner.ReplaceHostedEffectContacts(packets);
     public NativeBattleEffectPresentationStep CompleteInvocation() => owner.CompleteEffectPresentationInvocation();
-    public int ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);
+    public NativeBattleScriptValue ReadSourceVariable(NativeBattleGraphicsModel source, byte variable) => owner.ReadEffectPresentationSourceVariable(source, variable);
     public void WriteSourceVariable(byte variable, int value) => owner.WriteEffectPresentationSourceVariable(variable, value);
     public NativeBattleGraphicsModel WriteSourceTargetVariable(NativeBattleGraphicsModel source, byte variable, int value) => owner.WriteEffectPresentationSourceTargetVariable(source, variable, value);
     public ushort NextGlobalRandom() => owner.NextEffectPresentationGlobalRandom();

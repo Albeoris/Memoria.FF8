@@ -105,8 +105,8 @@ internal sealed partial class CrossoverGuestHostActions
         }
         byte flags = PreparedContactFlags(original, receipt);
         byte healing = receipt.Receipt.Damage.Damage < 0 ? (byte)1 : (byte)0;
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, healing, original.AttackType, 255);
-        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(receipt.Invocation.TargetSlot == ActorSlot ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, flags, healing, original.AttackType, false);
+        NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ReadPresentationOwner(receipt.Invocation.TargetSlot), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, (ushort)(receipt.Receipt.Target.Statuses & 1), Math.Abs(receipt.Receipt.Damage.Damage), 0);
         string? reason = ProbeAbility(original, receipt.Invocation.TargetSlot, contact);
         if (reason is not null)
         {
@@ -369,17 +369,17 @@ internal sealed partial class CrossoverGuestHostActions
         }
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(host.VisualPlacement(ActorSlot).Position), host.VisualPlacement(ActorSlot).Yaw);
         bool zombie = Ff7OriginSavedStatusRules.IsZombie(host.GetOriginSavedStatuses(target));
-        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, !zombie && original.AttackType is 5 or 6 ? (byte)4 : (byte)0, !zombie && original.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32 ? (byte)1 : (byte)0, original.AttackType, 255);
-        NativeBattleContactHalf contact = preparedContact ?? NativeBattleContactHalf.FromScratch(target == ActorSlot ? (byte)0 : (byte)3, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, 0, 0);
+        NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(original.DamagePresentation, !zombie && original.AttackType is 5 or 6 ? (byte)4 : (byte)0, !zombie && original.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32 ? (byte)1 : (byte)0, original.AttackType, false);
+        NativeBattleContactHalf contact = preparedContact ?? NativeBattleContactHalf.FromScratch(ReadPresentationOwner(target), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, 0, 0);
         try
         {
             ushort mask = AbilityTargetMask(original, target);
             int[] slots = host.Actors.Where(actor => (mask & (1 << actor.Actor.Slot)) != 0).Select(actor => actor.Actor.Slot).Order().ToArray();
-            ImmutableArray<CrossoverNativeMagicTarget> targets = BindPresentationTargets(slots, (_, index) => contact with { ActorIndex = index });
+            ImmutableArray<CrossoverNativeMagicTarget> targets = BindPresentationTargets(slots, (_, index) => contact with { Recipient = index });
             ImmutableArray<CrossoverNativeMagicTarget> contacts = ((original.TargetFlags ?? throw new InvalidDataException("The original action has no target contract.")) & 2) != 0
                 ? Enumerable.Range(0, original.HitCount).Select(_ => targets.Single(selected => selected.HostSlot == target)).ToImmutableArray()
                 : Enumerable.Range(0, original.HitCount).SelectMany(_ => targets).ToImmutableArray();
-            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model with { Index = 0 }, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original)) with { Targets = targets, Contacts = contacts };
+            CrossoverNativeMagicPresentationState state = fireProgram.Begin(visual.Model, target, encounter.CrtRandom, targets[0].Contact, original, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(original), ProcessParticipantBindings, RetainedProcessState(original), targets: targets, contacts: contacts);
             return fireProgram.TryPreflight(state,
                 () => ReadAbilityAnchor(placement, target),
                 () => ReadAbilityTransform(placement, target),

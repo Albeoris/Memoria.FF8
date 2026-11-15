@@ -24,19 +24,19 @@ public sealed partial class BattleSession
         byte action = selection == 255 ? (byte)255 : NativeBattleDuelRules.ActionId(actor.NativeLimit!, selection);
         if (selection == 255 || action >= 6)
         {
-            ProduceNativeDuel483400(actor, 241, selection == 255 ? (ushort)65532 : (ushort)65530, selection == 255 ? (ushort)0 : action, state.TargetMask, null);
+            ProduceNativeDuel483400(actor, 241, selection == 255 ? (ushort)65532 : (ushort)65530, selection == 255 ? (ushort)0 : action, state.TargetRequest, null);
             if (selection != 255)
             {
                 BattleNativeAction finisher = FindInstalledNativeAction(239, action);
                 byte flags = finisher.TargetFlags ?? throw new InvalidDataException("Native48F220 requires the finisher target flags.");
-                ushort mask = (flags & 0x30) == 0x10 ? state.TargetMask : NativeAutomaticActionTargetMask(flags);
-                ProduceNativeDuel483400(actor, 239, action, finisher.MagicId, mask, NativeLimitCallback.DuelFinisher);
+                BattleTargetRequest targets = (flags & 0x30) == 0x10 ? state.TargetRequest : CreateAutomaticTargetRequest(flags);
+                ProduceNativeDuel483400(actor, 239, action, finisher.MagicId, targets, NativeLimitCallback.DuelFinisher);
             }
             nativeDuelProcesses[actorId] = nativeDuelProcesses[actorId] with { Phase = BattleNativeDuelPhase.Finisher };
             QueueNativeActionClockCompletion(0x47DE70);
             return NativeGraphics!;
         }
-        ProduceNativeDuel483400(actor, 241, action, FindInstalledNativeAction(241, action).MagicId, state.TargetMask, NativeLimitCallback.DuelEffect);
+        ProduceNativeDuel483400(actor, 241, action, FindInstalledNativeAction(241, action).MagicId, state.TargetRequest, NativeLimitCallback.DuelEffect);
         return QueueNativeDescriptor(NativeGraphics!, 10, 0x4852B0);
     }
 
@@ -81,11 +81,11 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ProduceNativeDuel483400(BattleCombatant actor, byte command, ushort actionId, ushort effect, ushort targetMask, NativeLimitCallback? callback)
+    private void ProduceNativeDuel483400(BattleCombatant actor, byte command, ushort actionId, ushort effect, BattleTargetRequest targets, NativeLimitCallback? callback)
     {
         BattleNativeAction native = command == 241 && actionId is 65530 or 65532 ? CreateNativeDuelControl241(actionId, effect) : FindInstalledNativeAction(command, actionId);
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
-        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, actionId) { NativeQueuedCommand = command, NativeAction = native, NativeTargetMask = targetMask, NativeLimitCallback = callback, NativeSequence = 0 };
+        BattleCombatant target = ResolveBattleTargets(targets, sampleRandom: false).FirstOrDefault() ?? actor;
+        BattleAttackCommand queued = new(actor.Id, target.Id, targets, BattleAbility.EnemyAbility, actionId) { NativeQueuedCommand = command, NativeAction = native, NativeLimitCallback = callback, NativeSequence = 0 };
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         nativeProductionContext = new(0, 0, false, 0x47DE70);
         try

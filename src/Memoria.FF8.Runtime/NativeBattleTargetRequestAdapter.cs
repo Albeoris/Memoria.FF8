@@ -27,11 +27,61 @@ internal static class NativeBattleTargetRequestAdapter
         internal ushort Selection { get; }
     }
 
+    internal sealed class OriginalWordProjection
+    {
+        private readonly ushort word;
+
+        internal OriginalWordProjection(ushort word)
+        {
+            this.word = word;
+        }
+
+        internal ushort WriteOriginalWord()
+        {
+            return word;
+        }
+    }
+
     internal sealed record OriginalPreviousOperand(int Operand) : BattlePreviousTarget;
 
-    internal static BattlePreviousTarget? CapturePrevious(ushort word)
+    internal static DeferredOperands EmptyOriginalSelection { get; } = new(0);
+
+    internal static BattleTargetSelection SelectOriginalSlot(BattleRosterSlot slot)
     {
-        return word == 0 ? null : new OriginalPreviousOperand(BitOperations.TrailingZeroCount((uint)word));
+        return new DeferredOperands(checked((ushort)(1 << NativeBattleSlots.Encode(slot))));
+    }
+
+    internal static BattleTargetSelection RandomizeOriginalSelection(BattleTargetSelection selection, bool samplesOriginalSlots)
+    {
+        BattleSide side = selection switch
+        {
+            DeferredOperands { Selection: <= AllyBits } or BattleTargetSelection.SideGroup { Side: BattleTargetSide.Allies } => BattleSide.Allies,
+            DeferredOperands or BattleTargetSelection.SideGroup => BattleSide.Enemies,
+            _ => throw new ArgumentException("Randomizing an original target requires decoded original selection operands.", nameof(selection))
+        };
+        return new BattleTargetSelection.RandomOnSide(side, samplesOriginalSlots);
+    }
+
+    internal static DeferredOperands CaptureMagicPreflight(ushort originalWord)
+    {
+        return new DeferredOperands((ushort)(originalWord & SelectionBits));
+    }
+
+    internal static BattleActorReference? ReadFirstActiveMagicAnchor(DeferredOperands operands, Func<BattleRosterSlot, BattleActorReference?> readOccupant, Func<BattleActorReference, bool> isActive)
+    {
+        for (int index = 0; index < NativeBattleSlots.Count; index++)
+        {
+            if ((operands.Selection & (1 << index)) != 0 && readOccupant(NativeBattleSlots.Decode(index)) is { } actor && isActive(actor))
+            {
+                return actor;
+            }
+        }
+        return null;
+    }
+
+    internal static BattlePreviousTarget CapturePrevious(ushort word)
+    {
+        return new OriginalPreviousOperand(BitOperations.TrailingZeroCount((uint)word));
     }
 
     internal static BattleActorReference ResolvePrevious(OriginalPreviousOperand target, Func<BattleRosterSlot, BattleActorReference?> readOccupant)
@@ -61,10 +111,113 @@ internal static class NativeBattleTargetRequestAdapter
         {
             decoded = new DeferredOperands(selection);
         }
-        return new(decoded, eligibility, (word & KnockedOutAllyFlag) != 0, replacement, deathCallbackSelf);
+        return new BattleTargetRequest(decoded, eligibility, (word & KnockedOutAllyFlag) != 0, replacement, deathCallbackSelf)
+        {
+            OriginalProjection = new(word)
+        };
     }
 
-    internal static (ImmutableArray<BattleActorReference> Targets, bool Unavailable) ResolveDeferred(DeferredOperands operands, Func<BattleRosterSlot, BattleActorReference?> readOccupant, Func<BattleActorReference, bool> isAvailable, bool allowReplacement)
+    internal static ushort? ProjectOriginalWord(BattleTargetRequest request, Func<BattleActorReference, BattleRosterSlot?> readSlot)
+    {
+        if (request.OriginalProjection is { } authored)
+        {
+            return authored.WriteOriginalWord();
+        }
+        int selection;
+        switch (request.Selection)
+        {
+            case BattleTargetSelection.None:
+                selection = 0;
+                break;
+            case DeferredOperands operands:
+                selection = operands.Selection;
+                break;
+            case BattleTargetSelection.SideGroup group:
+                selection = GroupFlag | (group.Side switch
+                {
+                    BattleTargetSide.Allies => AllyBits,
+                    BattleTargetSide.Enemies => AllBits & ~AllyBits,
+                    _ => byte.MaxValue
+                });
+                break;
+            case BattleTargetSelection.RandomOnSide random:
+                selection = RandomFlag | (random.Side == BattleSide.Allies ? AllyBits : AllBits & ~AllyBits);
+                break;
+            case BattleTargetSelection.Explicit exact:
+                selection = 0;
+                foreach (BattleActorReference reference in exact.Actors)
+                {
+                    if (readSlot(reference) is not { } slot)
+                    {
+                        return null;
+                    }
+                    selection |= 1 << NativeBattleSlots.Encode(slot);
+                }
+                break;
+            default:
+                throw new InvalidDataException("Battle target request has no original transport encoding.");
+        }
+        return checked((ushort)(selection | (request.AllowsKnockedOutAllies ? KnockedOutAllyFlag : 0)));
+    }
+
+    internal static ImmutableArray<BattleActorReference> ReadAuthoredTargets(DeferredOperands operands, Func<BattleRosterSlot, BattleActorReference?> readOccupant)
+    {
+        if ((operands.Selection & ~AllBits) != 0)
+        {
+            throw new NotSupportedException("A reached original target selection leaves its participant bank.");
+        }
+        var targets = ImmutableArray.CreateBuilder<BattleActorReference>();
+        for (int index = 0; index < NativeBattleSlots.Count; index++)
+        {
+            if ((operands.Selection & (1 << index)) != 0)
+            {
+                targets.Add(readOccupant(NativeBattleSlots.Decode(index)) ?? throw new NotSupportedException("A reached original target slot has no current participant."));
+            }
+        }
+        return targets.ToImmutable();
+    }
+
+    internal static bool MaySelectOriginalSlot(BattleTargetRequest request, BattleRosterSlot slot)
+    {
+        return request.Selection is DeferredOperands operands && (operands.Selection & (1 << NativeBattleSlots.Encode(slot))) != 0;
+    }
+
+    internal static bool HasNonActorSelectors(BattleTargetRequest request)
+    {
+        return request.Selection switch
+        {
+            DeferredOperands operands => (operands.Selection & ~AllBits) != 0 || request.AllowsKnockedOutAllies,
+            BattleTargetSelection.SideGroup or BattleTargetSelection.RandomOnSide => true,
+            _ => request.AllowsKnockedOutAllies
+        };
+    }
+
+    internal static bool IsOriginalSelectionAdmitted(DeferredOperands operands, Func<BattleRosterSlot, BattleActorReference?> readOccupant, Func<BattleActorReference, bool> isAvailable, bool allowReplacement)
+    {
+        if (operands.Selection == 0)
+        {
+            return true;
+        }
+        bool hasAvailableOnSide = false;
+        BattleSide side = operands.Selection <= AllyBits ? BattleSide.Allies : BattleSide.Enemies;
+        for (int index = 0; index < NativeBattleSlots.Count; index++)
+        {
+            BattleRosterSlot slot = NativeBattleSlots.Decode(index);
+            if (readOccupant(slot) is not { } actor)
+            {
+                continue;
+            }
+            bool selected = (operands.Selection & (1 << index)) != 0;
+            if (selected && (!allowReplacement || isAvailable(actor)))
+            {
+                return true;
+            }
+            hasAvailableOnSide |= slot.Side == side && isAvailable(actor);
+        }
+        return allowReplacement && hasAvailableOnSide;
+    }
+
+    internal static (ImmutableArray<BattleActorReference> Targets, bool Unavailable) ResolveDeferred(DeferredOperands operands, Func<BattleRosterSlot, BattleActorReference?> readOccupant, Func<BattleActorReference, bool> isAvailable, bool allowReplacement, Action<int, int, int>? observe = null)
     {
         ushort available = 0;
         BattleActorReference?[] occupants = new BattleActorReference?[NativeBattleSlots.Count];
@@ -78,6 +231,7 @@ internal static class NativeBattleTargetRequestAdapter
             }
         }
         (int resolved, bool unavailable) = ResolveOriginalWord(operands.Selection, available, allowReplacement);
+        observe?.Invoke(operands.Selection, available, resolved);
         if ((resolved & ~AllBits) != 0)
         {
             throw new NotSupportedException("A reached original target selection leaves its participant bank.");
@@ -91,6 +245,16 @@ internal static class NativeBattleTargetRequestAdapter
             }
         }
         return (selected.ToImmutable(), unavailable);
+    }
+
+    internal static int ResolveObservedOriginalWord(ushort input, ushort available, bool disableAutomaticReplacement)
+    {
+        int selected = input & SelectionBits;
+        if ((input & GroupFlag) != 0)
+        {
+            return available & (selected == byte.MaxValue ? AllBits : selected <= AllyBits ? AllyBits : AllBits & ~AllyBits);
+        }
+        return ResolveOriginalWord(selected, available, !disableAutomaticReplacement).Selected;
     }
 
     private static (int Selected, bool Unavailable) ResolveOriginalWord(int selected, int available, bool allowReplacement)
@@ -107,7 +271,7 @@ internal static class NativeBattleTargetRequestAdapter
         int side = available & (selected <= AllyBits ? AllyBits : AllBits & ~AllyBits);
         for (int shift = 1; shift <= 8; shift++)
         {
-            int shifted = selected << shift;
+            int shifted = unchecked((ushort)(selected << shift));
             if ((side & shifted) != 0)
             {
                 return (shifted, false);

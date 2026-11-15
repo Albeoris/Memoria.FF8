@@ -89,7 +89,7 @@ public static partial class NativeBattleEffect326Controller
                     frame = inputs.Execute(frame, new NativeBattleEffect326StageGroupFlags(checked((byte)operation.First), checked((byte)operation.Second)));
                     break;
                 case NativeBattleEffect326DirectorService.ActorAnimation:
-                    frame = inputs.Execute(frame, new NativeBattleEffect326ActorAnimation505C00(checked((int)frame.State.ReadDword(0x24F0C80)), checked((short)operation.First)));
+                    frame = inputs.Execute(frame, new NativeBattleEffect326ActorAnimation505C00(frame.State.ReadActor(0x24F0C80), checked((short)operation.First)));
                     break;
                 case NativeBattleEffect326DirectorService.Flash:
                     frame = inputs.Execute(frame, new NativeBattleEffect326Flash5712C0(operation.First, operation.Second, operation.Third, operation.Fourth) { PilotIdentity = NativeBattleEffect326Presentation.Task(inputs, 0x5712C0) });

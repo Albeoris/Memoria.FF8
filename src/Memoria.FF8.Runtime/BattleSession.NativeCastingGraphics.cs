@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             }
             if (!context.CoverActors.IsEmpty)
             {
-                graphics = graphics with { ActorModels = NativeBattleCastingCover.Enter(graphics.ActorModels, context) };
+                graphics = graphics with { ActorModels = NativeBattleCastingCover.Enter(graphics.ActorModels, graphics.NativeBindings, context) };
                 graphics = SelectNativeHeaderSequence(graphics, NativeBattleCastingCover.Recipient(graphics.ActorModels, context.TargetActors), 27);
                 return (graphics, 5, false);
             }
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
             {
                 graphics = graphics with { Flags = graphics.Flags & ~0x20000000u };
                 NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native50A9A0 requires its action camera selector owner.");
-                if (camera.Variables[0] >= 0)
+                if (camera.ReadControlWord(0).RequireScalar() >= 0)
                 {
                     NativeCamera = camera with { Mask = (ushort)(camera.Mask | 0x8000) };
                 }
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             }
             if (!context.CoverActors.IsEmpty)
             {
-                graphics = graphics with { ActorModels = NativeBattleCastingCover.Complete(graphics.ActorModels, context) };
+                graphics = graphics with { ActorModels = NativeBattleCastingCover.Complete(graphics.ActorModels, graphics.NativeBindings, context) };
             }
             return (graphics, 7, false);
         }

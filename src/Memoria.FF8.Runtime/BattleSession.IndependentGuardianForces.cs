@@ -92,8 +92,10 @@ public sealed partial class BattleSession
         {
             return command with { IndependentGuardian = invocation };
         }
-        ushort mask = command.NativeTargetMask != 0 ? command.NativeTargetMask : NativeBattleLimitRules.PlayerTargetMask(item.TargetFlags ?? throw new InvalidDataException("GF summon item lacks its original target flags."), byId[command.TargetId].EncodeNativeSlot());
-        return command with { IndependentGuardian = invocation, NativeTargetMask = mask };
+        BattleTargetRequest request = command.TargetRequest.Selection is not BattleTargetSelection.None
+            ? command.TargetRequest
+            : CreatePlayerTargetRequest(actor, byId[command.TargetId], item.TargetFlags ?? throw new InvalidDataException("GF summon item lacks its original target flags."));
+        return command with { IndependentGuardian = invocation, TargetRequest = request };
     }
 
     private BattleIndependentGuardianInvocation PrepareIndependentGuardianInvocation(BattleCombatant actor, BattleNativeAction item)
@@ -174,7 +176,7 @@ public sealed partial class BattleSession
         //485460 ->484050 follows Phoenix's damage with command0/8 and the nativeC007 party mask.
         BattleNativeAction revival = NativePhoenixRevivalAction();
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 8, "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
-        BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, NativeTargetMask = 0xC007 };
+        BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, TargetRequest = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy) };
         NativeBattleActionProductionContext previous = nativeProductionContext ?? throw new InvalidDataException("Native484050 requires its completed485610 admission context.");
         //485610 LABEL104 resets DF0's repeat BYTE before485460 calls484050; this direct0/8 is not a second Double/Triple cast.
         nativeProductionContext = previous with { RepeatMode = 0 };
@@ -231,7 +233,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleIndependentGuardianInvocation invocation = command.IndependentGuardian ?? throw new InvalidDataException("Active GF item lacks its prepared original invocation.");
-        if (UsesExpandedRoster && (!SupportsExpandedIndependentGuardianItem(item) || command.NativeTargetMask != 0))
+        if (UsesExpandedRoster && (!SupportsExpandedIndependentGuardianItem(item)))
         {
             throw new InvalidDataException("Saved expanded guardian item differs from its logical target or supported child contract.");
         }

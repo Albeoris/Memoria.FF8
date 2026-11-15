@@ -78,6 +78,14 @@ public sealed record NativeBattleBadBreath131State([property: JsonRequired] Nati
         NativeBattleBadBreath131Resources.ValidateMesh(bytes);
         return address == NativeBattleBadBreath131Profile.MeshAAddress ? this with { MeshA = bytes } : address == NativeBattleBadBreath131Profile.MeshBAddress ? this with { MeshB = bytes } : throw new InvalidDataException("Bad Breath selected an unsupported mutable mesh owner.");
     }
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+
+    internal NativeBattleBadBreath131State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
     private static int Require(uint address, int length)
     {
         bool allowed = length >= 0 && address >= BaseAddress && ((ulong)address + (uint)length <= 0x2521014 || address >= 0x2521038 && (ulong)address + (uint)length <= 0x2521044 || address >= 0x252105C && (ulong)address + (uint)length <= 0x2521064);

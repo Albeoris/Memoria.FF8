@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, covered: false);
         (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(targetOwner, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle), null));
         (nativeActionPackets, _) = nativeActionPackets.Publish(1);
-        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = 1 };
+        RecordPublishedNativeTargetCount(1);
         BeginNativeBattleActionPause();
         graphics = QueueNativeDescriptor(graphics, 112, 0);
         graphics = QueueNativeActionDescriptor(graphics, header);
@@ -45,17 +45,17 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { ActorIndex = checked((byte)actor.EncodeNativeSlot()), Command = 252, Action = 1, DeferredEffectsE00 = false };
 
         //48D200 caseFC leaves AE3=1;48E830 resolves its single target mask before48FE20.
-        BattleCombatant[] targets = ResolveNativeActionMask(command.NativeTargetMask);
-        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7))
+        BattleCombatant[] targets = ResolveBattleTargets(command.TargetRequest);
+        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.Slot is not null))
         {
-            recipient.NativeRemainingHits = targets.Contains(recipient) ? (byte)1 : (byte)0;
+            recipient.NativeRemainingHits = targets.Contains(recipient) ? 1 : 0;
         }
         bool aborted = targets.Length == 0 || !NativeFirstHitAdmitted(actor, command, context);
         if (!aborted)
         {
             foreach (BattleCombatant recipient in targets)
             {
-                if ((NativeSavedStatusBits(recipient) & 1) != 0 && ((command.NativeTargetMask & 0x4000) == 0 || recipient.EncodeNativeSlot() >= 3))
+                if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!command.TargetRequest.AllowsKnockedOutAllies || !recipient.IsPlayer))
                 {
                     aborted = true;
                     break;
@@ -76,9 +76,9 @@ public sealed partial class BattleSession
                 }
             }
         }
-        byte count = checked((byte)targets.Length);
+        int count = targets.Length;
         (nativeActionPackets, _) = nativeActionPackets.Publish(count);
-        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = count };
+        RecordPublishedNativeTargetCount(count);
         if (NativeGraphics is { } graphics)
         {
             NativeGraphics = QueueNativeActionDescriptor(graphics, headerIndex);

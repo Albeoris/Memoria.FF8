@@ -17,7 +17,7 @@ public static partial class NativeBattleBadBreath131Controller
         root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with
         {
-            State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)),
+            State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases),
             Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) },
             Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }
         };
@@ -69,7 +69,7 @@ public static partial class NativeBattleBadBreath131Controller
                 throw new NotSupportedException("Bad Breath exhausted its single main task.");
             }
             NativeBattleModulePoolTask task = Read(frame, childAddress).WriteBytes(12, new byte[40]);
-            int firstContact = FirstContact(frame, inputs);
+            BattleContactCursor firstContact = FirstContact(frame, inputs);
             int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 3)
             {
@@ -79,8 +79,9 @@ public static partial class NativeBattleBadBreath131Controller
             short meanZ = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
-                task = task.WriteDword(16 + index * 4, ModelAddress(actor)).WriteByte(0x1C + index, (byte)index);
+                BattleModelOwner actor = inputs.Packets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
+                task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                task = task.WriteByte(0x1C + index, (byte)index);
                 meanZ = unchecked((short)(meanZ + Transform(inputs.ReadModel(actor)).Position28.Z));
             }
             task = task.WriteWord(0x20, unchecked((ushort)(meanZ / count)));
@@ -88,12 +89,14 @@ public static partial class NativeBattleBadBreath131Controller
             {
                 for (int next = index + 1; next < count; next++)
                 {
-                    uint left = task.ReadDword(16 + index * 4);
-                    uint right = task.ReadDword(16 + next * 4);
-                    if (Transform(inputs.ReadModel(Actor(left))).Position28.X > Transform(inputs.ReadModel(Actor(right))).Position28.X)
+                    BattleModelOwner left = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + index * 4, 4).Owner;
+                    BattleModelOwner right = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + next * 4, 4).Owner;
+                    if (Transform(inputs.ReadModel(left)).Position28.X > Transform(inputs.ReadModel(right)).Position28.X)
                     {
                         byte old = task.ReadByte(0x1C + index);
-                        task = task.WriteDword(16 + index * 4, right).WriteDword(16 + next * 4, left).WriteByte(0x1C + index, task.ReadByte(0x1C + next)).WriteByte(0x1C + next, old);
+                        task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(right), inputs.Packets.ModelAliases.EncodeAddress(right));
+                        task.WriteExecutionReference(16 + next * 4, 4, new BattleExecutionReference.Model(left), inputs.Packets.ModelAliases.EncodeAddress(left));
+                        task = task.WriteByte(0x1C + index, task.ReadByte(0x1C + next)).WriteByte(0x1C + next, old);
                     }
                 }
             }
@@ -132,14 +135,14 @@ public static partial class NativeBattleBadBreath131Controller
     }
 
     private static NativeBattleModelTransform Transform(NativeBattleGraphicsModel model) => model.Transform ?? throw new NotSupportedException("Bad Breath requires its actual model transform.");
-    private static int FirstContact(NativeBattleBadBreath131Frame frame, NativeBattleBadBreath131Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleBadBreath131Frame frame, NativeBattleBadBreath131Inputs inputs)
     {
         BattleActionHeaderReference index = Parameters(frame).Header;
         if (inputs.Packets.ReadHeader(index).ReadContactCount() == 0)
         {
             throw new NotSupportedException("Bad Breath requires its actual captured contact header.");
         }
-        return inputs.Packets.ReadHeader(index).FirstContactIndex ?? throw new NotSupportedException("Bad Breath requires its actual contact pointer.");
+        return inputs.Packets.ReadHeader(index).FirstContact;
     }
     private static void RequireBinding(NativeBattleBadBreath131Frame frame)
     {

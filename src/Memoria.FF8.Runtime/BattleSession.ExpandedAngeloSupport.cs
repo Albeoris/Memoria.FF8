@@ -67,7 +67,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        actions.Enqueue(new(actor.Id, target.Id, BattleAbility.EnemyAbility, id)
+        actions.Enqueue(new(actor.Id, target.Id, SelectBattleTarget(target, allowsKnockedOutAllies: id == 13), BattleAbility.EnemyAbility, id)
         {
             NativePlayerReaction = reaction,
             NativeQueuedCommand = 240,

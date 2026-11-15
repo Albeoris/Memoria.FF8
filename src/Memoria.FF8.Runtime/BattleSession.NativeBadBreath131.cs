@@ -28,7 +28,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Bad Breath requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Bad Breath requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath requires its current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath requires its current actor skeleton.");
 
         void Publish(NativeBattleBadBreath131Frame current)
         {
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleBadBreath131AnchorStep Anchor(NativeBattleBadBreath131Frame current, int actor)
+        NativeBattleBadBreath131AnchorStep Anchor(NativeBattleBadBreath131Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -61,7 +61,7 @@ public sealed partial class BattleSession
             return new(current, anchor with { W = (model.Transform ?? throw new NotSupportedException("Bad Breath requires the actual actor heading.")).Angle36 });
         }
 
-        NativeBattleBadBreath131PointStep Bone(NativeBattleBadBreath131Frame current, int actor, short selector, int distance)
+        NativeBattleBadBreath131PointStep Bone(NativeBattleBadBreath131Frame current, BattleModelOwner actor, short selector, int distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), checked((byte)selector), checked((short)distance));
             current = ObserveBone(current, producer);
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
                 case NativeBattleBadBreath131Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(checked((nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header).FirstContactIndex ?? throw new InvalidDataException("Bad Breath requires its current first contact.")) + contact.Index))) });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = ImmutableArray.Create(nativeActionPackets.ReadContact(contact.Occurrence)) });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Bad Breath contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleBadBreath131DrawSprite180 sprite:

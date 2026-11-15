@@ -9,30 +9,20 @@ public sealed partial class BattleSession
 
     private void DrawNativeAiSpell(BattleCombatant actor, bool reportStock)
     {
-        //487DF0 reads the previous queued target WORD B94, rather than the interpreter's local target mask.
-        BattleCombatant source;
-        if (UsesExpandedRoster)
+        //487DF0 reads the previous queued target, which can name an original slot with a newer allocation.
+        BattlePreviousTarget? previous = actor.PreviousAiTarget;
+        if (UsesExpandedRoster && previous is null)
         {
-            if (actor.ExpandedPreviousAiTargetId is string sourceId)
-            {
-                source = GetActor(sourceId);
-            }
-            else if (actor.NativePreviousTargetMask != 0)
-            {
-                int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
-                source = FindAllocatedNativeActor(index) ?? throw new NotSupportedException($"Expanded AI Draw previous target mask has no retained native allocation at actor index {index}.");
-            }
-            else
-            {
-                actor.NativeDrawnSpell = 255;
-                return;
-            }
+            actor.NativeDrawnSpell = 255;
+            return;
         }
-        else
+        BattleActorReference sourceReference = previous switch
         {
-            int index = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.NativePreviousTargetMask);
-            source = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() == index) ?? throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target mask.");
-        }
+            BattlePreviousTarget.Actor captured => captured.Reference,
+            NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => NativeBattleTargetRequestAdapter.ResolvePrevious(original, ReadOriginalTargetOccupant),
+            _ => throw new NotSupportedException("Native AI Draw requires an allocated actor in its previous queued target.")
+        };
+        BattleCombatant source = GetActor(sourceReference.ActorId);
         NativeMagicStock[] inventory = NativeAiDrawInventory(source);
         int occupied = inventory.Count(stock => stock.SpellId != 0);
         if (occupied == 0)
@@ -148,26 +138,25 @@ public sealed partial class BattleSession
         }
         IEnumerable<BattleCombatant> roster = targetsBothSides && !random ? combatants : Roster(side);
         BattleCombatant[] targets = roster.Where(candidate => IsExpandedDrawCastTarget(candidate, (flags & 1) != 0)).ToArray();
-        BattleAiRecipients recipients;
+        ExpandedAiSelection selected;
         if ((flags & 0x30) == 0x10)
         {
             BattleCombatant[] living = targets.Where(target => target.IsAlive).ToArray();
-            recipients = living.Any(target => (NativeSavedStatusBits(target) & 5) == 0) ? PickExpandedAiTarget(living) : new([]);
-            if (random && !recipients.ActorIds.IsEmpty)
+            selected = living.Any(target => (NativeSavedStatusBits(target) & 5) == 0) ? PickExpandedAiTarget(living) : SelectExpandedAiActors([]);
+            if (random && selected.Selection is not BattleTargetSelection.None)
             {
-                recipients = new([.. targets.Select(target => target.Id)]) { RandomSide = side };
+                selected = SelectExpandedAiActors(targets, side);
             }
         }
         else
         {
-            recipients = new([.. targets.Select(target => target.Id)]) { RandomSide = random ? side : null };
+            selected = SelectExpandedAiActors(targets, random ? side : null);
         }
-        recipients = recipients with { TargetPolicy = BattleAiTargetPolicy.DrawnMagic };
         if (!ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action))
         {
             throw new NotSupportedException($"Expanded enemy Draw Cast cannot resolve installed spell {spell}.");
         }
-        EnqueueExpandedAiAction(actor, action, 11, recipients);
+        EnqueueExpandedAiAction(actor, action.Command, action.ActionId, 11, selected, action, eligibility: BattleTargetEligibility.DrawnMagic);
     }
 
     private static bool IsExpandedDrawCastTarget(BattleCombatant actor, bool canTargetKnockedOutAllies)

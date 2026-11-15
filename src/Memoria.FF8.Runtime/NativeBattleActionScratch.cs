@@ -17,6 +17,8 @@ public sealed record NativeBattleActionScratch
     public bool? FinisherPendingE03 { get; init; }
     [JsonRequired]
     public byte? LastPublishedTargetCountE05 { get; init; }
+    [JsonIgnore]
+    public int? PublishedTargetCount { get; init; }
     [JsonRequired]
     public byte? FinisherActionIndexE2E { get; init; }
     [JsonRequired]
@@ -46,6 +48,15 @@ public sealed partial class BattleSession
 {
     private NativeBattleActionScratch nativeActionScratch = new();
 
+    private void RecordPublishedNativeTargetCount(int count)
+    {
+        nativeActionScratch = nativeActionScratch with
+        {
+            PublishedTargetCount = count,
+            LastPublishedTargetCountE05 = UsesExpandedRoster && count > byte.MaxValue ? null : unchecked((byte)count)
+        };
+    }
+
     private void SetNativeActionEvent(BattleCombatant actor, byte lane)
     {
         nativeActionScratch = nativeActionScratch with { EventActorB0F = checked((byte)actor.EncodeNativeSlot()), EventLane = lane };
@@ -58,7 +69,7 @@ public sealed partial class BattleSession
             return true;
         }
         bool deferred = nativeActionScratch.DeferredEffectsE00 ?? throw new NotSupportedException("Native494410 requires its retained E00 formula/deferred-effects byte.");
-        byte remaining = recipient.NativeRemainingHits ?? throw new NotSupportedException("Native494410 requires its48EB40 remaining-hit byte.");
+        int remaining = recipient.NativeRemainingHits ?? throw new NotSupportedException("Native494410 requires its48EB40 remaining-hit byte.");
         return !deferred && remaining == 0;
     }
 

@@ -12,7 +12,7 @@ public static partial class NativeBattleBadBreath300Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Bad Breath requires its executed texture initializer pointer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Bad Breath requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Bad Breath requires its working arena."), tim);
-        frame = frame with { State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)) };
+        frame = frame with { State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int index) = root.Append(RootCallback);
         root = root.WriteSlot(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0));
@@ -63,7 +63,7 @@ public static partial class NativeBattleBadBreath300Controller
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, targets, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, targets, particles]) };
             (frame, uint address) = Append(frame, 1, MainCallback);
             NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[48]);
-            int firstContact = FirstContact(frame, inputs);
+            BattleContactCursor firstContact = FirstContact(frame, inputs);
             int count = inputs.Packets.ReadHeader(Parameters(frame).Header).ReadContactCount();
             if (count is < 1 or > 4)
             {
@@ -75,8 +75,9 @@ public static partial class NativeBattleBadBreath300Controller
             short maximum = 0x700;
             for (int index = 0; index < count; index++)
             {
-                int actor = inputs.Packets.ReadContact(firstContact + index).Primary.Recipient;
-                task = task.WriteDword(0x10 + index * 4, ModelAddress(actor)).WriteByte(0x20 + index, (byte)index);
+                BattleModelOwner actor = inputs.Packets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
+                task.WriteExecutionReference(0x10 + index * 4, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
+                task = task.WriteByte(0x20 + index, (byte)index);
                 NativeBattleBadBreath300AnchorStep read = inputs.ReadAnchor571400(frame, actor);
                 frame = read.Frame;
                 short absolute = read.Anchor.X < 0 ? unchecked((short)-read.Anchor.X) : read.Anchor.X;
@@ -89,18 +90,20 @@ public static partial class NativeBattleBadBreath300Controller
             {
                 for (int next = index + 1; next < count; next++)
                 {
-                    uint left = task.ReadDword(0x10 + index * 4);
-                    uint right = task.ReadDword(0x10 + next * 4);
-                    if (Transform(inputs.ReadModel(Actor(left))).Position28.X < Transform(inputs.ReadModel(Actor(right))).Position28.X)
+                    BattleModelOwner left = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10 + index * 4, 4).Owner;
+                    BattleModelOwner right = task.ReadExecutionReference<BattleExecutionReference.Model>(0x10 + next * 4, 4).Owner;
+                    if (Transform(inputs.ReadModel(left)).Position28.X < Transform(inputs.ReadModel(right)).Position28.X)
                     {
                         byte old = task.ReadByte(0x20 + index);
-                        task = task.WriteDword(0x10 + index * 4, right).WriteDword(0x10 + next * 4, left).WriteByte(0x20 + index, task.ReadByte(0x20 + next)).WriteByte(0x20 + next, old);
+                        task.WriteExecutionReference(0x10 + index * 4, 4, new BattleExecutionReference.Model(right), inputs.Packets.ModelAliases.EncodeAddress(right));
+                        task.WriteExecutionReference(0x10 + next * 4, 4, new BattleExecutionReference.Model(left), inputs.Packets.ModelAliases.EncodeAddress(left));
+                        task = task.WriteByte(0x20 + index, task.ReadByte(0x20 + next)).WriteByte(0x20 + next, old);
                     }
                 }
             }
             frame = Write(frame, address, task);
             frame = frame with { State = frame.State.WriteMesh(MeshAAddress, Normalize6B7CB0(frame.State.ReadMesh(MeshAAddress))).WriteMesh(MeshBAddress, Normalize6B7CB0(frame.State.ReadMesh(MeshBAddress))) };
-            byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
+            BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleBadBreath300BindCaster(caster, working + BindingOffset, 0x103DCB0));
             frame = inputs.Execute(frame, new NativeBattleBadBreath300RingSequence(caster, 1));
         }

@@ -68,7 +68,7 @@ public sealed partial class BattleSession
         spawned.BindRosterSlot(slot);
         spawned.NativeReturnDamage = 0;
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
-        nativeLastAllocatedIndex = physicalIndex;
+        RecordLastNativeAllocation(spawned);
         Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
         if (NativeGraphics is not null)
         {

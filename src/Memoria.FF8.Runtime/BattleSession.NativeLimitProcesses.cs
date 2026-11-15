@@ -33,26 +33,63 @@ public sealed partial class BattleSession
         return NativeBattleLimitRules.IsFixedAllyTarget(targetFlags) ? actor : selected;
     }
 
-    private ushort NativeAutomaticActionTargetMask(byte targetFlags)
+    private BattleTargetRequest CreatePlayerTargetRequest(BattleCombatant actor, BattleCombatant target, byte targetFlags)
     {
-        ushort modifiers = (ushort)(((targetFlags & 1) != 0 ? 0x4000 : 0) | ((targetFlags & 2) != 0 ? 0x2000 : 0));
-        ushort targets;
-        switch (targetFlags & 0x30)
+        BattleCombatant selected = NativePlayerSelectedTarget(actor, target, targetFlags);
+        if (!UsesExpandedRoster)
         {
-            case 0:
-                targets = (targetFlags & 0x40) != 0 ? (ushort)0x80F8 : (ushort)0x8007;
-                break;
-            case 0x10:
-                bool players = (targetFlags & 0x40) == 0;
-                BattleCombatant? selected = ChooseNativeRandomActionTarget(players ? BattleSide.Allies : BattleSide.Enemies);
-                targets = selected is null ? players ? (ushort)0 : (ushort)8 : (ushort)(1 << selected.EncodeNativeSlot());
-                break;
-            case 0x20:
-                targets = 0x80FF;
-                break;
-            default:
-                throw new NotSupportedException("Native automatic Limit target mode has no original483880 branch.");
+            ushort originalWord = NativeBattleLimitRules.PlayerTargetMask(targetFlags, selected.EncodeNativeSlot());
+            return NativeBattleTargetRequestAdapter.Decode(originalWord, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
         }
-        return (ushort)(targets | modifiers);
+
+        BattleTargetSide side = selected.IsPlayer ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
+        BattleTargetSelection selection = (targetFlags & 0x30) switch
+        {
+            0 => new BattleTargetSelection.SideGroup(side),
+            0x10 => new BattleTargetSelection.Explicit([TargetActorReference(selected)]),
+            0x20 => new BattleTargetSelection.SideGroup(BattleTargetSide.Both),
+            _ => throw new NotSupportedException("Original player target flags request an unresolved target mode.")
+        };
+        if ((targetFlags & 2) != 0)
+        {
+            selection = new BattleTargetSelection.RandomOnSide(selected.Side);
+        }
+        return new(selection, BattleTargetEligibility.Living, (targetFlags & 1) != 0, BattleTargetReplacement.UseCurrentBattlePolicy);
+    }
+
+    private BattleTargetRequest CreateAutomaticTargetRequest(byte targetFlags) => CreateAutomaticTargetRequest(targetFlags, out _);
+
+    private BattleTargetRequest CreateAutomaticTargetRequest(byte targetFlags, out NativeBattleTargetRequestAdapter.DeferredOperands? originalPreflight)
+    {
+        BattleSide side = (targetFlags & 0x40) == 0 ? BattleSide.Allies : BattleSide.Enemies;
+        BattleTargetSide targetSide = side == BattleSide.Allies ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
+        BattleTargetSelection selection = (targetFlags & 0x30) switch
+        {
+            0 => new BattleTargetSelection.SideGroup(targetSide),
+            0x10 => ChooseOriginalRandomActionTarget(side),
+            0x20 => new BattleTargetSelection.SideGroup(BattleTargetSide.Both),
+            _ => throw new NotSupportedException("Native automatic Limit target mode has no original483880 branch.")
+        };
+        originalPreflight = selection as NativeBattleTargetRequestAdapter.DeferredOperands;
+        bool allowsKnockedOutAllies = (targetFlags & 1) != 0;
+        if (!UsesExpandedRoster)
+        {
+            // The original automatic enemy-group operand includes bit 7 alongside its four enemy cells.
+            ushort originalWord = selection switch
+            {
+                BattleTargetSelection.SideGroup { Side: BattleTargetSide.Allies } => 0x8007,
+                BattleTargetSelection.SideGroup { Side: BattleTargetSide.Enemies } => 0x80F8,
+                BattleTargetSelection.SideGroup { Side: BattleTargetSide.Both } => 0x80FF,
+                _ => NativeBattleTargetRequestAdapter.ProjectOriginalWord(new(selection, BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), ReadOriginalTargetSlot)
+                    ?? throw new InvalidDataException("The automatic action requires its reached original target operand.")
+            };
+            originalWord |= (ushort)((allowsKnockedOutAllies ? 0x4000 : 0) | ((targetFlags & 2) != 0 ? 0x2000 : 0));
+            return NativeBattleTargetRequestAdapter.Decode(originalWord, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        }
+        if ((targetFlags & 2) != 0)
+        {
+            selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: false);
+        }
+        return new(selection, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies, BattleTargetReplacement.UseCurrentBattlePolicy);
     }
 }

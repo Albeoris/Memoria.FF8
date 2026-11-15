@@ -39,8 +39,10 @@ public static partial class NativeBattleGravija214Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleContactCursor first = Header(frame, packets).FirstContact;
-                    uint model = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
-                    frame = Write(frame, main, Read(frame, main).WriteDword(0x14 + index * 4, model));
+                    BattleModelOwner model = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                    NativeBattleModulePoolTask recipientTask = Read(frame, main);
+                    recipientTask.WriteExecutionReference(0x14 + index * 4, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
+                    frame = Write(frame, main, recipientTask);
                     NativeBattleGravija214PointStep anchor = inputs.ReadAnchor571400(frame, model);
                     frame = anchor.Frame;
                     NativeBattleModulePoolTask task = Read(frame, main);
@@ -145,7 +147,7 @@ public static partial class NativeBattleGravija214Controller
         bool included = false;
         for (int index = 0; index < Signed(Read(frame, address), 16); index++)
         {
-            NativeBattleGravija214BoundsStep bounds = Bounds69E860(frame, Read(frame, address).ReadDword(20 + index * 4), rect, minimumDepth, inputs);
+            NativeBattleGravija214BoundsStep bounds = Bounds69E860(frame, Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(20 + index * 4, 4).Owner, rect, minimumDepth, inputs);
             frame = bounds.Frame;
             rect = bounds.Rect8;
             minimumDepth = bounds.MinimumDepth;

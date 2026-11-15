@@ -63,7 +63,7 @@ public static class BattleDiagnosticReflectionLineage
             {
                 return false;
             }
-            (int result, _) = NativeBattleActionTargetMask.Resolve(new(checked((ushort)(selected | (modifiers << 13)))), NativeBattlePhysicalTargets.FromNativeWord(checked((ushort)resolution.AvailableMask)), resolution.DisableAutomaticReplacement);
+            int result = NativeBattleTargetRequestAdapter.ResolveObservedOriginalWord(checked((ushort)(selected | (modifiers << 13))), resolution.AvailableMask, resolution.DisableAutomaticReplacement);
             if (resolution.ResultMask != result || (result & ~0x7F) != 0)
             {
                 return false;

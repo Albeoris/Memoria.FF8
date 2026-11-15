@@ -23,29 +23,29 @@ public static class NativeBattleCameraGraphics
     }
 
     /// <summary>509640 queries the current action and party graphics rows.</summary>
-    public static int ReadVariable(NativeBattleGraphicsState graphics, byte variable)
+    public static NativeBattleScriptValue ReadVariable(NativeBattleGraphicsState graphics, byte variable)
     {
-        return variable switch
+        if (variable is 24 or 25)
+        {
+            NativeBattleActionGeometry context = Action();
+            BattleModelOwner owner = variable == 24 ? context.Source : context.Target ?? throw new NotSupportedException("Native camera target variable requires its resolved recipient.");
+            return NativeBattleScriptValue.CaptureActor(owner, graphics.ActorModels, graphics.NativeBindings);
+        }
+        int value = variable switch
         {
             19 => PartyModels().Count(model => (model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) & 2) == 0),
             21 => graphics.ActorModels.Get(Action().Target ?? throw new NotSupportedException("Native camera BYTE145 query requires its retained physical recipient.")).SequenceByte145 ?? throw new NotSupportedException("Native camera BYTE145 query requires its observed model byte."),
             22 => TargetFlags(graphics),
-            24 => OriginalOperand(Action().Source),
-            25 => OriginalOperand(Action().Target ?? throw new NotSupportedException("Native camera target variable requires its resolved recipient.")),
             26 => (Action().TargetActors ?? throw new NotSupportedException("Native camera target count requires its resolved target set.")).Count,
             27 => PartyModels().Count(model => (model.Flags0 & 2) != 0 && (model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) == 0),
             _ => throw new NotSupportedException($"Native camera variable{variable} requires its active command descriptor owner.")
         };
 
+        return NativeBattleScriptValue.Scalar(value);
+
         NativeBattleActionGeometry Action() => graphics.ActionContext ?? throw new NotSupportedException("Native509640 requires its current50D300 action context.");
         IEnumerable<NativeBattleGraphicsModel> PartyModels() => graphics.ActorModels.Party.Entries.Select(entry => entry.State);
 
-        byte OriginalOperand(BattleModelOwner owner)
-        {
-            return graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte original)
-                ? original
-                : throw new NotSupportedException("Native camera actor variable requires an exact original operand.");
-        }
     }
 
     private static int TargetFlags(NativeBattleGraphicsState graphics)

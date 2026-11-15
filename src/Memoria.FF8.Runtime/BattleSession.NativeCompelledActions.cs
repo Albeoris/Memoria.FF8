@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record NativeCompelledCommand(byte Command, ushort ActionId, ushort TargetMask, bool FreeMagic)
+    private sealed record NativeCompelledCommand(byte Command, ushort ActionId, BattleTargetRequest Targets, bool FreeMagic)
     {
         public BattleGuardianFormActionBinding? GuardianFormBinding { get; init; }
     }
@@ -69,17 +69,16 @@ public sealed partial class BattleSession
         {
             RefundNativeReservedItem(previousSlot, original.NativeAction?.ActionId ?? original.ActionId);
         }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 7 && (prepared.TargetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
+        BattleCombatant target = ResolveBattleTargets(prepared.Targets, sampleRandom: false).FirstOrDefault() ?? actor;
         BattleNativeAction? native = prepared.Command == 1 ? actor.NativeAttack : FindNativeCommandAction(actor, prepared.Command, prepared.ActionId);
         BattleAbility ability = prepared.GuardianFormBinding?.Source == BattleGuardianFormActionSource.Magic ? BattleAbility.Magic : prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
-        return new BattleAttackCommand(actor.Id, target.Id, ability, prepared.ActionId)
+        return new BattleAttackCommand(actor.Id, target.Id, prepared.Targets, ability, prepared.ActionId)
         {
             GuardianFormAction = prepared.GuardianFormBinding?.Action,
             NativeSequence = prepared.GuardianFormBinding?.Sequence,
             NativeLimitCallback = original.NativeLimitCallback,
             NativeAction = native,
             NativeQueuedCommand = prepared.Command,
-            NativeTargetMask = prepared.TargetMask,
             FreeNativeMagic = prepared.FreeMagic,
             ReservedNativeItemSlot = reserved
         };
@@ -98,17 +97,17 @@ public sealed partial class BattleSession
             BattleGuardianFormActionBinding binding = (battleStatus & 0x2000000) != 0 ? profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Magic) : profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Physical);
             BattleNativeAction native = GetGuardianFormActionDefinition(actor.Id, binding.Action).NativeAction!;
             ushort mask = binding.Source == BattleGuardianFormActionSource.Physical ? ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202) : NativeCompelledTargetMask(actor, native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
-            return new(native.Command, native.ActionId, mask, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
+            return new(native.Command, native.ActionId, DecodeCompelledTargets(mask), binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
         }
         if (HasNativeAngelWing(actor))
         {
             return SelectNativeAngelWingSpell(actor) is byte spell
-                ? new(2, spell, NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), true), true)
-                : new(1, 0, ResolveNativeAiTargetMask(actor, 202), false);
+                ? new(2, spell, DecodeCompelledTargets(NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), true)), true)
+                : new(1, 0, DecodeCompelledTargets(ResolveNativeAiTargetMask(actor, 202)), false);
         }
         if ((NativeSavedStatusBits(actor) & 0x20) != 0)
         {
-            return new(1, 0, ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202), false);
+            return new(1, 0, DecodeCompelledTargets(ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202)), false);
         }
         if ((battleStatus & 0x4000) == 0)
         {
@@ -118,7 +117,12 @@ public sealed partial class BattleSession
         ushort targetMask = selection.TargetFlags is byte flags
             ? NativeCompelledTargetMask(actor, flags, selection.OppositeSide)
             : ResolveNativeAiTargetMask(actor, selection.OppositeSide ? (byte)202 : (byte)201);
-        return new(selection.Command, selection.ActionId, targetMask, false);
+        return new(selection.Command, selection.ActionId, DecodeCompelledTargets(targetMask), false);
+    }
+
+    private static BattleTargetRequest DecodeCompelledTargets(ushort originalWord)
+    {
+        return NativeBattleTargetRequestAdapter.Decode(originalWord, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
     }
 
     private (byte Command, ushort ActionId, byte? TargetFlags, bool OppositeSide) SelectNativeConfuseCommand(BattleCombatant actor)
@@ -178,7 +182,7 @@ public sealed partial class BattleSession
     private bool RequiresExpandedCompelledReplacement(BattleCombatant actor, BattleAttackCommand command)
     {
         return RequiresNativeCompelledCommand(actor) && !HasNativeAngelWing(actor) && command.NativePlayerReaction is null &&
-            command.NativeLimitCallback is null && command.AiRecipients?.TargetPolicy != BattleAiTargetPolicy.Compelled &&
+            command.NativeLimitCallback is null && command.TargetRequest.Eligibility != BattleTargetEligibility.CompelledAction &&
             GetGuardianForm(actor.Id) is not { Phase: BattleGuardianFormPhase.Active };
     }
 
@@ -218,15 +222,15 @@ public sealed partial class BattleSession
         var selection = (NativeSavedStatusBits(actor) & 0x20) != 0
             ? (Command: (byte)1, ActionId: (ushort)0, TargetFlags: (byte?)null, OppositeSide: !confused)
             : SelectNativeConfuseCommand(actor);
-        BattleAiRecipients recipients = SelectExpandedCompelledRecipients(selection.TargetFlags, selection.OppositeSide);
-        if (recipients.ActorIds.IsEmpty)
+        (BattleTargetRequest request, BattleCombatant? first) = SelectExpandedCompelledTargets(selection.TargetFlags, selection.OppositeSide);
+        if (first is null)
         {
             actor.Atb = 0;
             actor.IsBusy = false;
             return null;
         }
 
-        string targetId = recipients.ActorIds[0];
+        string targetId = first.Id;
         BattleAbility ability = selection.Command switch
         {
             2 => BattleAbility.Magic,
@@ -247,7 +251,7 @@ public sealed partial class BattleSession
         {
             ValidateNativeActionContract(native);
         }
-        BattleAttackCommand command = new(actor.Id, targetId, ability, selection.ActionId) { NativeQueuedCommand = selection.Command, NativeAction = native, NativeSequence = sequence, AiRecipients = recipients };
+        BattleAttackCommand command = new(actor.Id, targetId, request, ability, selection.ActionId) { NativeQueuedCommand = selection.Command, NativeAction = native, NativeSequence = sequence };
         command = EnsureMagicReservation(actor, command);
         if (ability == BattleAbility.Item)
         {
@@ -261,7 +265,7 @@ public sealed partial class BattleSession
         return command;
     }
 
-    private BattleAiRecipients SelectExpandedCompelledRecipients(byte? targetFlags, bool oppositeSide)
+    private (BattleTargetRequest Request, BattleCombatant? First) SelectExpandedCompelledTargets(byte? targetFlags, bool oppositeSide)
     {
         byte flags = targetFlags.GetValueOrDefault();
         bool selectsBothSides = (flags & 0x30) == 0x20;
@@ -273,10 +277,25 @@ public sealed partial class BattleSession
             side = BattleSide.Enemies;
         }
         IEnumerable<BattleCombatant> roster = selectsBothSides && !randomizes ? combatants : Roster(side);
-        BattleAiRecipients selected = targetFlags is null || (flags & 0x30) == 0x10
-            ? PickExpandedAiTarget(roster.Where(IsExpandedAiTarget))
-            : new([.. roster.Where(candidate => IsExpandedCompelledTarget(candidate, flags)).Select(candidate => candidate.Id)]);
-        return selected with { TargetPolicy = BattleAiTargetPolicy.Compelled, RandomSide = randomizes ? side : null };
+        BattleCombatant? first;
+        BattleTargetSelection selection;
+        if (targetFlags is null || (flags & 0x30) == 0x10)
+        {
+            BattleCombatant[] available = roster.Where(IsExpandedAiTarget).ToArray();
+            first = available.Length == 0 ? null : available[NextRandomByte() % available.Length];
+            selection = first is null ? new BattleTargetSelection.None() : new BattleTargetSelection.Explicit([TargetActorReference(first)]);
+        }
+        else
+        {
+            first = roster.FirstOrDefault(candidate => IsExpandedCompelledTarget(candidate, flags));
+            BattleTargetSide selectedSide = selectsBothSides && !randomizes ? BattleTargetSide.Both : side == BattleSide.Allies ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
+            selection = new BattleTargetSelection.SideGroup(selectedSide);
+        }
+        if (first is not null && randomizes)
+        {
+            selection = new BattleTargetSelection.RandomOnSide(side);
+        }
+        return (new(selection, BattleTargetEligibility.CompelledAction, (flags & 1) != 0, BattleTargetReplacement.None), first);
     }
 
     private static bool IsExpandedCompelledTarget(BattleCombatant actor, byte flags)

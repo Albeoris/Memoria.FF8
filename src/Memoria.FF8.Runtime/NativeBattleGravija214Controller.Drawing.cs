@@ -95,9 +95,9 @@ public static partial class NativeBattleGravija214Controller
         return Release(frame, 72);
     }
 
-    public static NativeBattleGravija214BoundsStep Bounds69E860(NativeBattleGravija214Frame frame, uint modelAddress, NativeBattleEffectArena rect8, int minimumDepth, NativeBattleGravija214Inputs inputs)
+    public static NativeBattleGravija214BoundsStep Bounds69E860(NativeBattleGravija214Frame frame, BattleModelOwner owner, NativeBattleEffectArena rect8, int minimumDepth, NativeBattleGravija214Inputs inputs)
     {
-        NativeBattleGraphicsModel model = inputs.ReadModel(frame, modelAddress);
+        NativeBattleGraphicsModel model = inputs.ReadModel(frame, owner);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Gravija bounds require its current model transform.");
         short size = unchecked((short)(transform.Scale38 + 256));
         NativeBattleVector bottom = transform.Position28;

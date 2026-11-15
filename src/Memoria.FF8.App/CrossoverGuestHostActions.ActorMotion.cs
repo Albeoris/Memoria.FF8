@@ -11,6 +11,6 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestActorMo
             return false;
         }
         CrossoverNativeMagicParticipant? participant = active.Presentation.BoundParticipants.SingleOrDefault(participant => participant.HostSlot == slot);
-        return participant is not null && (effect.Graphics.Models[participant.ActorIndex].Flags0 & 8) != 0;
+        return participant is not null && (effect.Graphics.ActorModels.Get(participant.Owner).Flags0 & 8) != 0;
     }
 }

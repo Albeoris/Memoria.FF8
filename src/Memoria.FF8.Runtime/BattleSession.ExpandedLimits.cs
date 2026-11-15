@@ -55,7 +55,8 @@ public sealed partial class BattleSession
         }
         byte nativeSequence = NativeBattleActionGraphics.ResolvePlayerSequence(native.Command, sequence, native.ActionId, definition.NativeCommandSequences);
         OnNativePlayerCommandSubmitted(actor, native.Command);
-        actions.Enqueue(new(actor.Id, target.Id, action.Ability, action.Id)
+        BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, native.TargetFlags ?? throw new InvalidDataException("The installed command requires its target flags."));
+        actions.Enqueue(new(actor.Id, target.Id, request, action.Ability, action.Id)
         {
             NativeQueuedCommand = native.Command,
             NativeAction = native,

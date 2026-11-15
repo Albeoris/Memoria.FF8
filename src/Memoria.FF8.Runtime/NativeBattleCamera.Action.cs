@@ -8,9 +8,9 @@ public sealed partial record NativeBattleCameraState
     [JsonRequired]
     public byte? Mode { get; init; }
 
-    public NativeBattleCameraState SetActionSelector(ushort selector) => this with { Variables = Variables.SetItem(0, unchecked((short)selector)) };
+    public NativeBattleCameraState SetActionSelector(ushort selector) => WriteControlWord(0, NativeBattleScriptValue.Scalar(selector));
 
-    public NativeBattleCameraState SetSecondarySelector(ushort selector) => this with { Variables = Variables.SetItem(1, unchecked((short)selector)) };
+    public NativeBattleCameraState SetSecondarySelector(ushort selector) => WriteControlWord(1, NativeBattleScriptValue.Scalar(selector));
 
     public NativeBattleCameraState CompleteAction()
     {

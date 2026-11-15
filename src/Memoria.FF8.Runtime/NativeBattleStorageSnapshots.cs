@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -344,6 +344,16 @@ internal abstract class NativeBattleStorageContext
         {
             NativeBattleScriptedEffectMemory scripted = (NativeBattleScriptedEffectMemory)(result ?? source);
             return scripted.PresentationActors is null ? scripted : scripted with { PresentationActors = null };
+        }
+        if (source is NativeBattleCameraState && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            NativeBattleCameraState camera = (NativeBattleCameraState)(result ?? source);
+            return camera.ControlValues.IsEmpty ? camera : camera with { ControlValues = camera.ControlValues.Clear() };
+        }
+        if (source is NativeBattleSequenceState && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            NativeBattleSequenceState sequence = (NativeBattleSequenceState)(result ?? source);
+            return sequence.ScriptWords.IsEmpty ? sequence : sequence with { ScriptWords = sequence.ScriptWords.Clear() };
         }
         if (source is NativeBattleCameraAliases && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
         {

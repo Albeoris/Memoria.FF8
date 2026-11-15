@@ -74,8 +74,8 @@ public sealed partial class BattleSession
             StartExpandedDuelMove(command);
             return;
         }
-        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, command) || command.NativeGraphic is null && command.ExpandedMagicTargets is null && !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, command.NativeAction).Length == 0)
+        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.TargetRequest) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
+            !CanExecuteMagicReservation(actor, command) || command.NativeGraphic is null && command.MagicCasts.IsDefaultOrEmpty && !IsShotCallback(command.NativeLimitCallback) && ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, command.NativeAction).Length == 0)
         {
             RefundCancelledNativeItem(command);
             actor.IsBusy = false;
@@ -87,7 +87,6 @@ public sealed partial class BattleSession
         }
         ActiveAction = NativeCommandPresentation(command) with
         {
-            ExpandedMagicTargets = command.ExpandedMagicTargets,
             RemainingFrames = NativeActionWindupFrames(actor, command.NativeSequence),
             NativeSequenceFrame = NativeControlTrack(actor, command.NativeSequence) is null ? null : 0
         };
@@ -179,18 +178,18 @@ public sealed partial class BattleSession
             CompleteActionPresentation(command, "Shot control completed.");
             return;
         }
-        if (command.ExpandedMagicTargets is { } magicTargets)
+        if (!command.MagicCasts.IsDefaultOrEmpty)
         {
-            ResolveExpandedMagicGroup(actor, command, magicTargets);
+            ResolveExpandedMagicGroup(actor, command, command.MagicCasts);
             return;
         }
         BattleNativeAction? graphicAction = command.NativeGraphic is { } graphic ? NativeGraphicContactAction(actor, graphic.MagicId) : null;
-        BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.AiRecipients, graphicAction ?? command.NativeAction);
+        BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, graphicAction ?? command.NativeAction);
         bool silencedMagic = (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0;
-        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.AiRecipients) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }, admitSilencedInvocation: hosted) || graphicAction is null && recipients.Length == 0 || !hosted && silencedMagic)
+        if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.TargetRequest) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
+            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }, admitSilencedInvocation: hosted) || graphicAction is null && recipients.Length == 0 || !hosted && silencedMagic)
         {
-            if (silencedMagic && (command.FreeNativeMagic && HasNativeAngelWing(actor) || command.AiRecipients?.TargetPolicy == BattleAiTargetPolicy.Compelled) && CanNativeBattleActorAct(actor))
+            if (silencedMagic && (command.FreeNativeMagic && HasNativeAngelWing(actor) || command.TargetRequest.Eligibility == BattleTargetEligibility.CompelledAction) && CanNativeBattleActorAct(actor))
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100), BattleTextIdentity.Global(100));
             }
@@ -221,15 +220,15 @@ public sealed partial class BattleSession
             if (command.DrawCast)
             {
                 drawSpell = FindAction(BattleAbility.Magic, command.ActionId);
-                recipients = ExpandedActionTargets(actor, command.DrawCastTargetId!, BattleAbility.Magic, command.ActionId, null);
+                recipients = ResolveBattleTargets(command.TargetRequest, sampleRandom: false);
                 if (recipients.Length == 0)
                 {
                     CompleteActionPresentation(command, "Expanded Draw Cast has no supported recipient.");
                     return;
                 }
             }
-            BattleAttackCommand draw = PrepareNativeDrawCommand(actor, new(actor.Id, target.Id, BattleAbility.Draw, command.ActionId, command.DrawCast) { DrawCastTargetId = command.DrawCastTargetId });
-            command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction };
+            BattleAttackCommand draw = PrepareNativeDrawCommand(actor, new(actor.Id, target.Id, command.TargetRequest, BattleAbility.Draw, command.ActionId, command.DrawCast) { DrawCastTargetId = command.DrawCastTargetId });
+            command = command with { NativeDraw = draw.NativeDraw, NativeAction = draw.NativeAction, TargetRequest = draw.TargetRequest };
             if (draw.NativeDraw!.Failed || drawSpell is null)
             {
                 BattleNativeAction stock = NativeStockDrawAction(draw.NativeDraw);
@@ -291,11 +290,11 @@ public sealed partial class BattleSession
             }
             command = command with { NativeSpecial = special };
         }
-        if (command.Ability == BattleAbility.GuardianForce && (native.TargetFlags.GetValueOrDefault() & 2) != 0)
+        if (command.Ability == BattleAbility.GuardianForce && command.TargetRequest.Selection is BattleTargetSelection.RandomOnSide)
         {
-            BattleCombatant recipient = recipients[NextRandomByte() % recipients.Length];
+            BattleCombatant recipient = ResolveBattleTargets(command.TargetRequest).Single();
             recipients = [recipient];
-            command = command with { TargetId = recipient.Id };
+            command = command with { TargetId = recipient.Id, TargetRequest = SelectBattleTarget(recipient, command.TargetRequest.AllowsKnockedOutAllies, command.TargetRequest.Eligibility) };
         }
         if (command is { Ability: BattleAbility.GuardianForce, GuardianFormInvocation: null } && expandedPresentationHost is not null && action.NativeGuardianBoostAvailable.HasValue && nativeBattleUiRandom is not null && CanPresentExpandedGuardianSummon(native))
         {
@@ -314,11 +313,12 @@ public sealed partial class BattleSession
             formulaCommand = resolved with { NativeQueuedCommand = 0, NativeAction = native };
             formulaAction = action with { NativeAction = native };
         }
-        bool randomTarget = command.AiRecipients?.NativeSelectionMask is ushort nativeMask
-            ? ExpandedNativeTargetRequest(nativeMask, native).SelectsRandomTarget
-            : command.AiRecipients?.RandomSide is not null ||
-                command.IndependentGuardian is null && (drawSpell is not null || command.Ability is BattleAbility.Magic or BattleAbility.Item or BattleAbility.NativeCommand or BattleAbility.EnemyAbility) && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
-        BattleCombatant[][] hitPlan = PlanExpandedHits(recipients, native.HitCount, randomTarget);
+        bool randomTarget = command.Ability != BattleAbility.GuardianForce && command.TargetRequest.Selection is BattleTargetSelection.RandomOnSide;
+        BattleCombatant[][] hitPlan = new BattleCombatant[native.HitCount][];
+        for (int hit = 0; hit < hitPlan.Length; hit++)
+        {
+            hitPlan[hit] = randomTarget ? ResolveBattleTargets(command.TargetRequest) : recipients;
+        }
         if (hostedGunblade && (hitPlan.Length != 1 || hitPlan[0].Length != 1))
         {
             throw new InvalidDataException("Ordinary hosted Gunblade requires its single placeholder recipient.");
@@ -330,7 +330,7 @@ public sealed partial class BattleSession
         {
             // 487DF0 reads a magic record for the first reflected contact.
             reflected = definition.NativeActions.SingleOrDefault(action => action.Command == 247 && action.ActionId == unchecked((byte)native.ActionId) && action.CrisisLevel is null);
-            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !(command is { NativeQueuedCommand: 2, AiRecipients: not null } && ExpandedBattleActionRules.SupportsEnemyMagicCure(reflected)))
+            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !(command is { NativeQueuedCommand: 2, NativeAiCallbackStage: not null } && ExpandedBattleActionRules.SupportsEnemyMagicCure(reflected)))
             {
                 RefundCancelledNativeItem(command);
                 CompleteActionPresentation(command, "The expanded host has no supported reflected spell record.");
@@ -368,7 +368,7 @@ public sealed partial class BattleSession
         {
             if (command.NativeLimitCallback == NativeLimitCallback.ShotEffect || command.NativeSlots is not null)
             {
-                PrepareNativeLimitCommand(new(command.ActorId, command.TargetId, command.Ability, command.ActionId)
+                PrepareNativeLimitCommand(new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId)
                 {
                     NativeQueuedCommand = command.NativeQueuedCommand,
                     NativeAction = native
@@ -670,7 +670,7 @@ public sealed partial class BattleSession
         BattleCombatant redirected = opposite[NextRandomByte() % opposite.Length];
         bool randomReflection = (reflected.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleCombatant[][] reflectionPlan = PlanExpandedHits(randomReflection ? opposite : [redirected], reflected.HitCount, randomReflection);
-        BattleActionPresentation command = source with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = redirected.Id, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeSequence = 0, NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, MagicReservationId = null };
+        BattleActionPresentation command = source with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = redirected.Id, TargetRequest = SelectBattleTarget(redirected, source.TargetRequest.AllowsKnockedOutAllies), DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeSequence = 0, NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, MagicReservationId = null };
         BattleActionDefinition reflectionAction = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? action.Name, BattleActionEffect.Native, reflected.Power, actor.IsPlayer == redirected.IsPlayer) { NativeAction = reflected };
         NativeBattleActionScratch sourceScratch = nativeActionScratch;
         resolvingNativeAction = command;
@@ -713,7 +713,7 @@ public sealed partial class BattleSession
         }
         foreach (IGrouping<BattleCombatant, BattleCombatant> entry in recipientHits)
         {
-            entry.Key.NativeRemainingHits = checked((byte)entry.Count());
+            entry.Key.NativeRemainingHits = entry.Count();
         }
 
         ImmutableArray<ExpandedBattleContact>.Builder contacts = ImmutableArray.CreateBuilder<ExpandedBattleContact>(hitPlan.Sum(targets => targets.Length));
@@ -725,9 +725,8 @@ public sealed partial class BattleSession
                 foreach (BattleCombatant recipient in hitPlan[hit])
                 {
                     // Native48E830 stops the remaining pass when a previously selected target is KO.
-                    bool deathSelfContact = recipient == actor && recipient.Id == command.AiRecipients?.DeathSelfTargetId && command.NativeAiCallbackStage == 3;
-                    bool targetsKnockedOutAlly = recipient.IsPlayer && (IsNativeRevive(action) || EnemyActionTargetsKnockedOutAllies(native) ||
-                        command.AiRecipients?.NativeSelectionMask is ushort mask && ExpandedNativeTargetRequest(mask, native).IncludesKnockedOutAllies);
+                    bool deathSelfContact = recipient == actor && TargetActorReference(recipient) == command.TargetRequest.DeathCallbackSelf && command.NativeAiCallbackStage == 3;
+                    bool targetsKnockedOutAlly = recipient.IsPlayer && command.TargetRequest.AllowsKnockedOutAllies;
                     if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathSelfContact && !targetsKnockedOutAlly)
                     {
                         return (contacts.ToImmutable(), firstReflector);
@@ -802,7 +801,7 @@ public sealed partial class BattleSession
         return command.Ability switch
         {
             BattleAbility.EnemyAbility when actor.IsPlayer && command.FreeNativeMagic && SupportsExpandedAngelWingSpell(command.NativeAction) => FindAction(BattleAbility.Magic, command.ActionId),
-            BattleAbility.EnemyAbility when command.AiRecipients is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
+            BattleAbility.EnemyAbility when command.NativeAiCallbackStage is not null => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? $"Enemy ability {command.ActionId}", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.EnemyAbility when IsExpandedIndependentSupport(command.NativeAction, command.NativePlayerReaction) => new(BattleAbility.EnemyAbility, command.ActionId, command.NativeAction!.Name ?? "Automatic Support", BattleActionEffect.Native, command.NativeAction.Power, false) { NativeAction = command.NativeAction },
             BattleAbility.NativeCommand when command.NativeAction is { } ordinary => ExpandedOrdinaryCommandDefinition(actor, ordinary),
             BattleAbility.LimitBreak when command.NativeAction is { } limit => ExpandedLimitDefinition(actor, limit),
@@ -810,90 +809,30 @@ public sealed partial class BattleSession
         };
     }
 
-    private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleAiRecipients? aiRecipients, BattleNativeAction? native = null)
+    private BattleCombatant[] ExpandedActionTargets(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleTargetRequest request, BattleNativeAction? native = null)
     {
-        if (aiRecipients?.Selection == BattleAiSelection.NativeMask)
+        if (ability == BattleAbility.Draw)
         {
-            return CurrentExpandedAiTargets(aiRecipients, native);
-        }
-        if (ability == BattleAbility.EnemyAbility && IsExpandedAutomaticGuardianAction(native))
-        {
-            return ExpandedAutomaticGuardianTargets();
-        }
-        if (aiRecipients is not null)
-        {
-            if (aiRecipients.TargetPolicy != BattleAiTargetPolicy.Compelled && aiRecipients.RandomSide is null && (native?.TargetFlags.GetValueOrDefault() & 2) == 2)
+            BattleCombatant source = GetActor(targetId);
+            if (!source.IsActive || !source.IsAlive || source.Untargetable)
             {
-                return Roster(GetActor(targetId).Side).Where(IsExpandedAiTarget).ToArray();
+                return [];
             }
-            return CurrentExpandedAiTargets(aiRecipients, native);
-        }
-        BattleCombatant target = GetActor(targetId);
-        if (ability == BattleAbility.EnemyAbility && actor.GuardianFormVitals is not null && native is { Command: 8 })
-        {
-            return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
-        }
-        if (ability == BattleAbility.EnemyAbility && actor.IsPlayer && SupportsExpandedAngelWingSpell(native))
-        {
-            byte spellFlags = native!.TargetFlags!.Value;
-            if ((spellFlags & 0x30) == 0x10)
+            if (request.Selection is BattleTargetSelection.None)
             {
-                return IsExpandedAiTarget(target) && !target.IsPlayer ? [target] : [];
-            }
-            return enemies.Where(IsExpandedAiTarget).ToArray();
-        }
-        if (ability == BattleAbility.EnemyAbility && IsExpandedAngeloAction(native))
-        {
-            return IsExpandedAngeloTarget(target, native!) ? [target] : [];
-        }
-        if (ability == BattleAbility.NativeCommand && IsExpandedMiniMogAction(native))
-        {
-            // Menu A0 produces 80FF, which admits both sides after the living target filter.
-            return combatants.Where(candidate => candidate.IsAlive && !candidate.Untargetable).ToArray();
-        }
-        if (ability == BattleAbility.LimitBreak && IsExpandedShotAction(native))
-        {
-            return native!.Command is 14 or 238 ? [target] : ExpandedShotTargets(target, native);
-        }
-        if (ability is BattleAbility.Attack or BattleAbility.Draw)
-        {
-            return target.IsActive && target.IsAlive && !target.Untargetable ? [target] : [];
-        }
-        BattleActionDefinition action = ability switch
-        {
-            BattleAbility.LimitBreak when native is not null => ExpandedLimitDefinition(actor, native),
-            BattleAbility.NativeCommand when native is not null => ExpandedOrdinaryCommandDefinition(actor, native),
-            _ => FindAction(ability, actionId)
-        };
-        if (ability == BattleAbility.NativeCommand && native is not null && IsNativeLevelCommand(native) &&
-            !CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level)))
-        {
-            return [];
-        }
-        if (ability == BattleAbility.NativeCommand && native is not null && IsExpandedTargetedSpecial(native) && !CanTargetExpandedSpecial(native, target))
-        {
-            return [];
-        }
-        if (ability == BattleAbility.GuardianForce)
-        {
-            return ExpandedGuardianForceTargetGroup(action);
-        }
-        if (action.NativeAction?.TargetFlags is byte flags)
-        {
-            if ((flags & 2) != 0)
-            {
-                // The original mixed-side selection word 0x80FF picks the enemy side when randomizing.
-                BattleSide side = (flags & 0x30) == 0x20 ? BattleSide.Enemies : target.Side;
-                return ExpandedRandomTargets(side);
-            }
-            if ((flags & 0x30) == 0x20)
-            {
-                return allies.Concat(enemies).Where(candidate => !candidate.Untargetable && (candidate.IsPlayer || candidate.IsAlive) && HasValidTargetLifeState(action, candidate)).ToArray();
+                return [source];
             }
         }
-        return action.AllTargets
-            ? Roster(target.Side).Where(candidate => IsValidSelectedActionTarget(actor, action, candidate)).ToArray()
-            : IsValidSelectedActionTarget(actor, action, target) ? [target] : [];
+        BattleCombatant[] targets = ResolveBattleTargets(request, sampleRandom: false);
+        if (ability == BattleAbility.NativeCommand && native is not null && IsNativeLevelCommand(native))
+        {
+            return targets.Where(target => CanRebindExpandedEnemyLevel(target, ProjectNativeLevel(native, target.Level))).ToArray();
+        }
+        if (ability == BattleAbility.NativeCommand && native is not null && IsExpandedTargetedSpecial(native))
+        {
+            return targets.Where(target => CanTargetExpandedSpecial(native, target)).ToArray();
+        }
+        return targets;
     }
 
     private BattleCombatant[] ExpandedRandomTargets(BattleSide side)

@@ -33,12 +33,12 @@ public static partial class NativeBattleDoom8Strips
     public const uint FarVertices = 0x275CDF0;
     public const uint ColorsAddress = 0x275F3F8;
 
-    public static NativeBattleDoom8Frame InitializeTarget8C8120(NativeBattleDoom8Frame frame, uint address, byte actor, NativeBattleDoom8StripTables tables, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> execute)
+    public static NativeBattleDoom8Frame InitializeTarget8C8120(NativeBattleDoom8Frame frame, uint address, BattleModelOwner actor, NativeBattleDoom8StripTables tables, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> execute)
     {
         tables.Validate();
         RequireTask(frame, address);
         NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(frame, address);
-        if (actor >= 7 || actor != task.ReadByte(0x2D))
+        if (actor != task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner)
         {
             throw new InvalidDataException("Doom strips require the actual selected target actor.");
         }

@@ -22,16 +22,17 @@ internal sealed record CrossoverGunbladePresentationStep(CrossoverGunbladePresen
 /// <summary>Runs the original Attack sequence and any trigger callbacks on the host's presentation timeline.</summary>
 internal static class CrossoverGunbladePresentation
 {
-    public static CrossoverGunbladePresentationState Begin(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, NativeBattleUiRandomState? random)
+    public static CrossoverGunbladePresentationState Begin(BattlePartyModelOwner sourceOwner, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, ImmutableArray<byte> commandSequences, NativeBattleUiRandomState? random)
     {
-        if (model is not { Index: >= 0 and < 3, ModelId4: < 11 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || commandSequences[1] == 0 || !resource.Contains(commandSequences[1]))
+        ArgumentNullException.ThrowIfNull(sourceOwner);
+        if (model is not { ModelId4: < 11 } || (model.Flags0 & 2) == 0 || commandSequences.Length != 39 || commandSequences[1] == 0 || !resource.Contains(commandSequences[1]))
         {
             throw new InvalidDataException("Attack presentation requires a loaded FFVIII party model and its original command sequence binding.");
         }
         return new(NativeBattleGraphicsModels.SelectSequence(model, commandSequences[1]), NativeBattleUiServices.Initialize(), random);
     }
 
-    public static CrossoverGunbladePresentationStep Advance(CrossoverGunbladePresentationState state, NativeBattleGraphicsResource weapon, NativeBattleSequenceInputs services, ushort savedOptions, uint publicationDuration, bool triggerPressed, Action<NativeBattleTriggerReceipt> prepareContact)
+    public static CrossoverGunbladePresentationStep Advance(CrossoverGunbladePresentationState state, BattlePartyModelOwner sourceOwner, BattleModelRoster roster, NativeBattleGraphicsResource weapon, NativeBattleSequenceInputs services, ushort savedOptions, uint publicationDuration, bool triggerPressed, Action<NativeBattleTriggerReceipt> prepareContact)
     {
         if (state.Complete)
         {
@@ -47,8 +48,8 @@ internal static class CrossoverGunbladePresentation
         }
         if (state.PendingTrigger is { } timing)
         {
-            timing.Validate();
-            if (state.ContactTiming is not null || timing.ActorIndex != state.Model.Index || timing.ContactIndex != 1 || timing.TotalContacts != 1)
+            timing.Validate(roster);
+            if (state.ContactTiming is not null || timing.Actor != sourceOwner || timing.ContactIndex != 1 || timing.TotalContacts != 1)
             {
                 throw new InvalidDataException("Ordinary Gunblade Attack must recompute exactly one selected contact.");
             }
@@ -84,7 +85,7 @@ internal static class CrossoverGunbladePresentation
                 {
                     throw new InvalidDataException("Ordinary Gunblade Attack requires one original AB trigger block.");
                 }
-                NativeBattleTriggerWidget registered = NativeBattleTriggerWidget.Register(checked((byte)model.Index), block, savedOptions, state.Ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second };
+                NativeBattleTriggerWidget registered = NativeBattleTriggerWidget.Register(sourceOwner, block, savedOptions, state.Ui, roster) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second };
                 state = state with { Widget = registered };
             }
             if (cue.Kind == NativeBattleSequenceCueKind.RestoreStanding)
@@ -109,7 +110,7 @@ internal static class CrossoverGunbladePresentation
             {
                 return;
             }
-            NativeBattleTriggerWidgetStep next = NativeBattleTriggerWidgetRules.Advance(active, ui.Frame33 == true, (savedOptions & 1) != 0, state.UiRandom);
+            NativeBattleTriggerWidgetStep next = NativeBattleTriggerWidgetRules.Advance(active, ui.Frame33 == true, (savedOptions & 1) != 0, state.UiRandom, roster);
             state = state with { Widget = next.Unregistered ? null : next.Widget, UiRandom = next.Random, PendingTriggerSound = state.PendingTriggerSound || next.PlayTriggerSound };
             if (next.Contact is { } receipt)
             {
@@ -117,7 +118,7 @@ internal static class CrossoverGunbladePresentation
                 {
                     throw new InvalidDataException("Gunblade Attack has an unconsumed trigger receipt.");
                 }
-                state = state with { PendingTrigger = new(active.ActorIndex, receipt.Index, receipt.Total, receipt.TriggerTiming, 32) };
+                state = state with { PendingTrigger = new(active.Actor, receipt.Index, receipt.Total, receipt.TriggerTiming, 32) };
             }
         }
     }
