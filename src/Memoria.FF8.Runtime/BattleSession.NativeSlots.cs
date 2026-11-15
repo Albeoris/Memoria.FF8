@@ -43,8 +43,8 @@ public sealed partial class BattleSession
 
     private static bool SupportsExpandedSlotsAction(BattleNativeAction? action)
     {
-        // This hostile group contract requires one ejection pass, without stock or a second casting process.
-        return action is { Command: 16, KernelSection: 1, AttackType: 2, Power: 0, HitCount: 1, TargetFlags: 0x48, AttackFlags: 0x23, Statuses0: 0, Statuses1: 0x10000, StatusAttack: 254 };
+        return action is { Command: 16, KernelSection: 1, AttackType: 2, Power: 0, HitCount: 1, TargetFlags: 0x48, AttackFlags: 0x23 } &&
+            action is { Statuses0: 0, Statuses1: 0x10000, StatusAttack: 254 } or { Statuses0: 1, Statuses1: 0, StatusAttack: 255 };
     }
 
     private bool CanCastExpandedSlots(BattleNativeAction action, BattleNativeSlotsRoll roll)

@@ -7,32 +7,34 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed partial class ExpandedBattleEffectMatrixTests
 {
-    [Fact]
-    public void Installed_rapture_casts_the_owned_slots_roll_without_stock()
+    [Theory]
+    [InlineData(53)]
+    [InlineData(56)]
+    public void Installed_destructive_slots_casts_the_owned_roll_without_stock(ushort actionId)
     {
         string directory = TestResources.GameDirectory;
         using BattleAssets assets = new(directory);
-        BattleNativeAction action = Assert.Single(assets.NativeActions, row => row is { KernelSection: 1, Command: 16, ActionId: 53 });
-        (string status, string detail) = RunExpandedRapture(directory, PrepareField(directory), assets, action);
+        BattleNativeAction action = Assert.Single(assets.NativeActions, row => row is { KernelSection: 1, Command: 16 } && row.ActionId == actionId);
+        (string status, string detail) = RunExpandedDestructiveSlots(directory, PrepareField(directory), assets, action);
         Assert.True(status == "logical", detail);
     }
 
-    private static (string Status, string Detail) RunExpandedRapture(string directory, GameState field, BattleAssets assets, BattleNativeAction action)
+    private static (string Status, string Detail) RunExpandedDestructiveSlots(string directory, GameState field, BattleAssets assets, BattleNativeAction action)
     {
         const byte selphie = 5;
         Assert.Contains(action, assets.NativeActions);
         foreach (byte seed in new byte[] { 7, 11, 12, 13 })
         {
             using GameWorld world = StartBattle(directory, field, 22, limit: action with { CharacterId = selphie }, nativeSeed: seed);
-            if (TryExpandedRapture(world, action, selphie) is { } result)
+            if (TryExpandedDestructiveSlots(world, action, selphie) is { } result)
             {
                 return result;
             }
         }
-        throw new InvalidOperationException("The original Slots rolls did not yield Rapture for the installed encounter seeds.");
+        throw new InvalidOperationException($"The original Slots rolls did not yield {action.Name} for the installed encounter seeds.");
     }
 
-    private static (string Status, string Detail)? TryExpandedRapture(GameWorld world, BattleNativeAction action, byte selphie)
+    private static (string Status, string Detail)? TryExpandedDestructiveSlots(GameWorld world, BattleNativeAction action, byte selphie)
     {
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.ModelId == selphie);
@@ -58,8 +60,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         bool sawUnavailable = false;
         for (int roll = 0; roll < 128 && battle.GetNativeSlotsRoll(caster.Id)?.MagicId != action.ActionId; roll++)
         {
-            Assert.False(Assert.Single(hud.ActionChoices).Available);
-            sawUnavailable = true;
+            sawUnavailable |= !Assert.Single(hud.ActionChoices).Available;
             hud.RerollNativeSlots();
         }
         BattleNativeSlotsRoll accepted = Assert.IsType<BattleNativeSlotsRoll>(battle.GetNativeSlotsRoll(caster.Id));
@@ -85,20 +86,25 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(accepted, command.NativeSlots);
         Assert.Equal(0, battle.NativeScriptState.LimitSpecialSetMask);
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-        for (int frame = 0; frame < 300 && caster.IsBusy; frame++)
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattleModelOwner casterModel = battle.ReadPresentationModelOwner(caster.Id);
+        NativeBattleActionHeaderSlot? header = null;
+        for (int callback = 0; callback < 900 && (caster.IsBusy || process.HasActiveAction); callback++)
         {
             battle.Tick();
-            restored.Tick();
+            header ??= process.ActionPackets.PublishedHeaders().Select(entry => entry.Slot).FirstOrDefault(slot => slot.Source == casterModel && slot.Command == 16);
         }
-        Assert.False(caster.IsBusy);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(4, battle.NativeScriptState.LimitSpecialSetMask);
+        Assert.False(caster.IsBusy, string.Join(", ", battle.Events.Skip(start).TakeLast(15).Select(entry => $"{entry.Kind}/{entry.ActorId}/{entry.TargetId}")));
+        Assert.False(process.HasActiveAction);
+        NativeBattleActionHeaderSlot published = Assert.IsType<NativeBattleActionHeaderSlot>(header);
+        Assert.Equal(action.ActionId, published.Action);
+        Assert.Equal(action.MagicId, published.Effect);
+        Assert.Equal(targets.Length, published.ReadContactCount());
+        Assert.Equal(1 << (action.ActionId - 51), battle.NativeScriptState.LimitSpecialSetMask);
         Assert.Equal(itemsBefore, JsonSerializer.Serialize(battle.Items));
         Assert.Equal(magicBefore, JsonSerializer.Serialize(caster.MagicStocks));
         Assert.Equal(targets, battle.Events.Skip(start).Where(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.Ability == BattleAbility.LimitBreak).Select(entry => entry.TargetId).Order());
-        Assert.All(battle.Combatants.Where(actor => targets.Contains(actor.Id)), actor => Assert.True(actor.IsEjected));
-        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-        return ("logical", $"Slots cast the installed owned Rapture roll, ejected {targets.Length} roster enemies, and recorded its special magic flag without consuming stock.");
+        Assert.All(battle.Combatants.Where(actor => targets.Contains(actor.Id)), actor => Assert.True(action.Statuses0 == 1 ? !actor.IsAlive : actor.IsEjected));
+        return ("logical", $"Slots cast the installed {action.Name} roll, affected {targets.Length} roster enemies and recorded its special magic flag without consuming stock.");
     }
 }

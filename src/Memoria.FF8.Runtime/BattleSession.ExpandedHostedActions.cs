@@ -58,7 +58,8 @@ public sealed partial class BattleSession
         bool shot = IsShotCallback(command.NativeLimitCallback);
         bool ordinaryLimit = command is { Ability: BattleAbility.LimitBreak, NativeLimitCallback: null, NativeAction: { } native } &&
             command.NativeQueuedCommand == native.Command && command.ActionId == (native.Command << 16 | native.ActionId) &&
-            GetActor(command.ActorId).NativeLimit?.Command == native.Command && SupportsExpandedLimit(native);
+            GetActor(command.ActorId).NativeLimit?.Command == native.Command &&
+            (command.NativeSlots is { } slots ? CanCastExpandedSlots(native, slots) : SupportsExpandedLimit(native));
         if (command.GuardianFormAction is not null)
         {
             ValidateGuardianFormPresentation(command);

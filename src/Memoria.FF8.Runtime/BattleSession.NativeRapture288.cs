@@ -55,8 +55,8 @@ public sealed partial class BattleSession
                     target.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
                     target = Init(target, 24, 252, resources.First);
                     Put(1, slot, Init(target, 276, 780, resources.Second));
+                    root = root.WriteTraversalPosition(16, checked(ordinal + 1));
                 }
-                root = root.WriteTraversalPosition(16, checked(ordinal + 1));
             }
         }
         var flash = NativeBattleRapture288Geometry.Flash(unchecked((short)root.ReadWord(14)), resources.Colors);
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
                 return new(pool.WriteSlot(slot, task), phase + 1 >= 12 ? 2 : 0);
             }).Pool;
         }
-        bool released = root.ReadByte(17) != 0 && targetSurvivors == 0;
+        bool released = root.ReadByte(17) != 0 && root.ReadTraversalPosition(16) == header.ReadContactCount() && targetSurvivors == 0;
         NativeStage = (NativeStage ?? throw new NotSupportedException("Native Rapture requires its current stage.")) with { Groups = NativeStage!.Groups.Select(group => group with { ColorDepth = unchecked((short)(released ? 0 : flash.Strength)), ColorFlags = released ? 0u : flash.Color }).ToImmutableArray() };
         if (!released)
         {
