@@ -4,6 +4,11 @@ using System.Security.Cryptography;
 
 namespace Memoria.FF7.Events;
 
+public readonly record struct WorldInstruction(int Address, ushort Opcode, ushort Operand, int WordLength)
+{
+    public int NextProgramCounter => Address + WordLength;
+}
+
 public sealed class WorldProgram
 {
     private readonly ushort[] code;
@@ -40,6 +45,22 @@ public sealed class WorldProgram
     public int Find(int header) => functions.GetValueOrDefault(header);
     public int WordCount => code.Length;
     public string Identity { get; }
+
+    public WorldInstruction ReadInstruction(int address)
+    {
+        ushort opcode = Read(address);
+        bool operand = opcode is >= 0x110 and <= 0x11F or 0x200 or 0x201;
+        return new(address, opcode, operand ? Read(address + 1) : (ushort)0, operand ? 2 : 1);
+    }
+
+    public static int MeshDispatchHeader(int chunkX, int chunkZ, int eventId)
+    {
+        if (chunkX is < 0 or >= 36 || chunkZ is < 0 or >= 28 || eventId is < 0 or > 15)
+        {
+            throw new ArgumentOutOfRangeException(nameof(eventId));
+        }
+        return 0x8000 | ((chunkZ * 36 + chunkX) << 4 & 0x3FF0) | eventId;
+    }
 
     internal ushort Read(int address)
     {

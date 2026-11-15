@@ -41,13 +41,14 @@ public sealed partial class Ff7WorldRuntime
         return held;
     }
 
-    private void ApplyWorldControlOptions(ref Ff7WorldEntity player, ref int dx, ref int dz, int heading, ushort? effectiveHeld = null, int? effectiveVertical = null)
+    private void ApplyWorldControlOptions(ref Ff7WorldEntity player, ref int dx, ref int dz, int heading, ushort? effectiveHeld = null, int? effectiveVertical = null, bool autoPlayPreview = false)
     {
         ushort held = effectiveHeld ?? WorldControlHeld();
         int vertical = effectiveVertical ?? input.Vertical;
         ushort pressed = (ushort)(held & ~input.PreviousControlHeld);
         if (Resources.World == 3)
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Snow-world controls require their own native preview contract.");
             if ((pressed & 0x900) != 0)
             {
                 radarMode = radarMode == 0 ? 2 : 0;

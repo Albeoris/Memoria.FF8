@@ -149,16 +149,14 @@ public sealed partial class WorldMachine
 
     public void StartMesh(int chunkX, int chunkZ, int eventId)
     {
-        if (chunkX is < 0 or >= 36 || chunkZ is < 0 or >= 28 || eventId is < 0 or > 15)
-        {
-            throw new ArgumentOutOfRangeException(nameof(eventId));
-        }
+        int header = WorldProgram.MeshDispatchHeader(chunkX, chunkZ, eventId);
         active = system;
-        Start(system, 0x8000 | ((chunkZ * 36 + chunkX) << 4 & 0x3FF0) | eventId, 3);
+        Start(system, header, 3);
     }
 
     private void Start(Entity entity, int header, int priority)
     {
+        inspection?.Requests.Add(new(entity.Model, header, priority));
         if (entity.Pc != 0 && entity.Priority >= priority && !(entity.Priority == priority && priority == 3))
         {
             return;
@@ -228,93 +226,104 @@ public sealed partial class WorldMachine
             {
                 throw new InvalidDataException("FFVII world script exceeded its instruction budget without yielding.");
             }
-            int address = entity.Pc;
-            ushort opcode = program.Read(entity.Pc++);
-            if (opcode < 0x100)
-            {
-                Arithmetic(opcode);
-            }
-            else if (opcode < 0x200)
-            {
-                if (opcode == 0x100)
-                {
-                    stack.Clear();
-                }
-                else
-                {
-                    if (opcode is < 0x110 or > 0x11F)
-                    {
-                        throw Unsupported(opcode, address);
-                    }
-                    Push(new(opcode, program.Read(entity.Pc++)));
-                }
-            }
-            else if (opcode == 0x200 || opcode == 0x201)
-            {
-                int target = program.Read(entity.Pc++);
-                if (opcode == 0x200 || Pop() == 0)
-                {
-                    CheckPc(target);
-                    entity.Pc = target;
-                }
-            }
-            else if (opcode == 0x203)
-            {
-                if (entity.Calls.Count > 0)
-                {
-                    WorldCallSnapshot call = entity.Calls[^1];
-                    entity.Calls.RemoveAt(entity.Calls.Count - 1);
-                    entity.Pc = call.ProgramCounter;
-                    entity.Priority = call.Priority;
-                    entity.MoveCounter = call.MoveCounter;
-                }
-                else
-                {
-                    entity.Pc = 0;
-                    entity.Priority = 0;
-                    if (unloading)
-                    {
-                        if (entity == system)
-                        {
-                            foreach (Entity model in models.ToArray())
-                            {
-                                StartModel(model.Model, 1);
-                            }
-                        }
-                    }
-                    else if (entity == system)
-                    {
-                        StartSystem(2);
-                    }
-                    else
-                    {
-                        StartModel(entity.Model, 2);
-                    }
-                    return;
-                }
-            }
-            else if (opcode >= 0x204 && opcode < 0x300)
-            {
-                entity.CalledModel = unchecked((byte)Pop());
-                if (entity.CalledModel < 64)
-                {
-                    StartModel(entity.CalledModel, opcode - 0x204);
-                }
-                else
-                {
-                    entity.CalledModel = active.Model;
-                    if (!active.Disabled)
-                    {
-                        Start(active, (opcode - 0x204) & 255, Math.Clamp(opcode - 0x206, 0, 3));
-                    }
-                }
-                return;
-            }
-            else if (HostOpcode(opcode, address))
+            if (ExecuteInstruction(entity))
             {
                 return;
             }
         }
+    }
+
+    private bool ExecuteInstruction(Entity entity)
+    {
+        int address = entity.Pc;
+        WorldInstruction instruction = program.ReadInstruction(address);
+        entity.Pc = instruction.NextProgramCounter;
+        ushort opcode = instruction.Opcode;
+        if (opcode < 0x100)
+        {
+            Arithmetic(opcode);
+        }
+        else if (opcode < 0x200)
+        {
+            if (opcode == 0x100)
+            {
+                stack.Clear();
+            }
+            else
+            {
+                if (opcode is < 0x110 or > 0x11F)
+                {
+                    throw Unsupported(opcode, address);
+                }
+                Push(new(opcode, instruction.Operand));
+            }
+        }
+        else if (opcode == 0x200 || opcode == 0x201)
+        {
+            int target = instruction.Operand;
+            if (opcode == 0x200 || Pop() == 0)
+            {
+                CheckPc(target);
+                entity.Pc = target;
+            }
+        }
+        else if (opcode == 0x203)
+        {
+            if (entity.Calls.Count > 0)
+            {
+                WorldCallSnapshot call = entity.Calls[^1];
+                entity.Calls.RemoveAt(entity.Calls.Count - 1);
+                entity.Pc = call.ProgramCounter;
+                entity.Priority = call.Priority;
+                entity.MoveCounter = call.MoveCounter;
+            }
+            else
+            {
+                entity.Pc = 0;
+                entity.Priority = 0;
+                if (unloading)
+                {
+                    if (entity == system)
+                    {
+                        foreach (Entity model in models.ToArray())
+                        {
+                            StartModel(model.Model, 1);
+                        }
+                    }
+                }
+                else if (entity == system)
+                {
+                    StartSystem(2);
+                }
+                else
+                {
+                    StartModel(entity.Model, 2);
+                }
+                return true;
+            }
+        }
+        else if (opcode >= 0x204 && opcode < 0x300)
+        {
+            entity.CalledModel = unchecked((byte)Pop());
+            if (entity.CalledModel < 64)
+            {
+                StartModel(entity.CalledModel, opcode - 0x204);
+            }
+            else
+            {
+                entity.CalledModel = active.Model;
+                if (!active.Disabled)
+                {
+                    Start(active, (opcode - 0x204) & 255, Math.Clamp(opcode - 0x206, 0, 3));
+                }
+            }
+            return true;
+        }
+        else if (HostOpcode(opcode, address))
+        {
+            return true;
+        }
+        return false;
     }
 
     private void Arithmetic(ushort opcode)
@@ -390,7 +399,11 @@ public sealed partial class WorldMachine
 
     private int Pop()
     {
-        WorldStackValue operand = Take();
+        return ReadValue(Take());
+    }
+
+    private int ReadValue(WorldStackValue operand)
+    {
         if ((operand.Opcode & 3) == 3)
         {
             return host.ReadSpecial(operand.Value, active.Model, ActiveFreeModelIndex());
@@ -399,6 +412,7 @@ public sealed partial class WorldMachine
         {
             return operand.Value;
         }
+        inspection?.Reads.Add(new(operand.Opcode, operand.Value));
         (byte[] bank, int index) = Locate(operand);
         return (operand.Opcode & ~3) switch
         {

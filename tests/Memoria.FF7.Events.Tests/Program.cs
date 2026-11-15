@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--world-analysis-only", StringComparer.Ordinal))
+{
+    WorldScriptAnalysisTests.Run();
+    return 0;
+}
+
 if (args.Contains("--script-analysis-only", StringComparer.Ordinal))
 {
     NativeScriptAnalysisTests.Run();
@@ -220,6 +226,7 @@ var tests = new (string Name, Action Run)[]
     ("native party camera target operands and wait ownership", NativePartyCameraOpcodeTests.Run),
     ("native window number operands", NativeWindowNumberOpcodeTests.Run),
     ("native read-only script dependency analysis", NativeScriptAnalysisTests.Run),
+    ("native read-only world script analysis", WorldScriptAnalysisTests.Run),
     ("native read-only scripted input demands", NativeScriptedInputTests.Run),
     ("native music change operands and cold continuation", NativeMusicChangeTests.Run),
     ("native music activity query operands and cold continuation", NativeMusicPlayingQueryTests.Run),

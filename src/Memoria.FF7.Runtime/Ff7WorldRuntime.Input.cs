@@ -68,7 +68,7 @@ public sealed partial class Ff7WorldRuntime
         AdvanceWorldCameraHeading();
     }
 
-    private void AdvancePlayerInputCore()
+    private void AdvancePlayerInputCore(bool autoPlayPreview = false)
     {
         foreach (Ff7WorldEntity entity in ActiveWorldEntities().ToArray())
         {
@@ -99,11 +99,13 @@ public sealed partial class Ff7WorldRuntime
         }
         if (Resources.World == 2 && player.Model == SubmarineModel)
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Underwater submarine motion requires its own native preview contract.");
             AdvanceUnderwaterSubmarineInput(player);
             return;
         }
         if ((player.Model == 3 && viewMode == 3 || player.Model == 5 && (player.Flags & 128) != 0) && vehicle is not { DismountPhase: 2 })
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Flight motion requires its own native preview contract.");
             AdvanceHighwindInput(player);
             return;
         }
@@ -152,9 +154,10 @@ public sealed partial class Ff7WorldRuntime
                 heading -= heading >> 1;
             }
         }
-        ApplyWorldControlOptions(ref player, ref dx, ref dz, heading, held, vertical);
+        ApplyWorldControlOptions(ref player, ref dx, ref dz, heading, held, vertical, autoPlayPreview);
         if (player.Model == SubmarineModel && (pressed & 0x40) != 0 && (player.Terrain & 31) == 3)
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Submarine module transfer is a native script boundary.");
             BeginSubmarineMapTransfer(2);
         }
         if (IsWorldChocobo(player.Model) && heading != -1)
@@ -190,7 +193,7 @@ public sealed partial class Ff7WorldRuntime
         return ((collisionMasks[player.Model * 8 + z] >> x) & 1) != 0 || ((collisionMasks[other.Model * 8 + 7 - z] >> (7 - x)) & 1) != 0;
     }
 
-    private void ResolvePlayerTerrain()
+    private void ResolvePlayerTerrain(bool autoPlayPreview = false, Action<Ff7AutoPlayWorldTerrainBoundary>? observeBoundary = null)
     {
         if (mapTransfer is not null)
         {
@@ -203,20 +206,24 @@ public sealed partial class Ff7WorldRuntime
         Ff7WorldEntity player = RequireEntity(controlledModel);
         if (Resources.World == 2 && player.Model == SubmarineModel)
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Underwater submarine terrain requires its own native preview contract.");
             ResolveUnderwaterSubmarineTerrain(player);
             return;
         }
         if ((player.Model == 3 || player.Model == 5 && (player.Flags & 128) != 0) && vehicle is not { DismountPhase: 2 })
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Flight terrain requires its own native preview contract.");
             ResolveHighwindTerrain(player);
             return;
         }
         if (vehicle is { DismountPhase: 2 })
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Vehicle dismount requires its transport-state preview contract.");
             player = OffsetDismountingVehicle(player);
         }
         if (chocobo is { DismountPhase: 2 })
         {
+            RejectAutoPlayMovement(autoPlayPreview, "Chocobo dismount requires its transport-state preview contract.");
             Vector3 step = inputMath.TransformRotation(new(0, 0, 300), 0, player.Direction + player.TurnOffset + 1024, 0);
             player = OffsetWorldEntity(player with { X = input.PreviousX, Y = input.PreviousY, Z = input.PreviousZ }, (int)step.X, (int)step.Z);
         }
@@ -234,6 +241,7 @@ public sealed partial class Ff7WorldRuntime
                 input = input with { CollisionSide = result.Side, CollisionAge = 0 };
             }
             input = input with { CollisionRecovery = 0, GroundTriangle = result.Triangle ?? input.GroundTriangle };
+            RejectAutoPlayMovement(autoPlayPreview && chocoboPathControl is { InitializationRequested: true }, "Chocobo path initialization is a native execution boundary.");
             InitializeRequestedChocoboPath(result.Triangle ?? input.GroundTriangle, player);
         }
         else
@@ -255,7 +263,14 @@ public sealed partial class Ff7WorldRuntime
         {
             if (script >= 3 && input.TerrainScript != script)
             {
-                Machine.StartMesh(player.X >> 13, player.Z >> 13, script - 3);
+                if (autoPlayPreview)
+                {
+                    observeBoundary?.Invoke(new(player.X >> 13, player.Z >> 13, script - 3, script == 7));
+                }
+                else
+                {
+                    Machine.StartMesh(player.X >> 13, player.Z >> 13, script - 3);
+                }
             }
             input = input with { TerrainScript = script >= 3 ? script : 0 };
             if (script == 7)
@@ -263,7 +278,10 @@ public sealed partial class Ff7WorldRuntime
                 UpdateEntity(player with { X = input.PreviousX, Y = input.PreviousY, Z = input.PreviousZ, Flags = player.Flags & ~1 });
             }
         }
-        AdvanceWorldModelPresentation();
+        if (!autoPlayPreview)
+        {
+            AdvanceWorldModelPresentation();
+        }
     }
 
     private int ResolveFootHeight(Ff7WorldEntity player, FootCollisionResult result, bool moved, int terrain)
