@@ -44,8 +44,9 @@ internal sealed partial class Ff7ModelAppearance
             ["aaff.a"] = catalog.GetAnimation(entry.Id, 1).Id,
             ["aaga.a"] = catalog.GetAnimation(entry.Id, 2).Id
         };
-        Ff7ModelAppearance appearance = new(assets, catalog, entry.Id, "aaaa.hrc", measured.Transform, motions, retargeter, ["aaff.a", "aaga.a"])
+        Ff7ModelAppearance appearance = new(assets, catalog, entry.Id, "aaaa.hrc", measured.Transform, motions, retargeter, ["aaff.a", "aaga.a"], holdUnmappedAnimations: true)
         {
+            ExpectedSourceRig = Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy),
             calibrationDescriptorScale = float.Parse(field.Models.Models[0].Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = StandardFieldSquallProfileVersion + "/" + catalog.GetSource(entry.Id).RigId
         };
@@ -63,8 +64,9 @@ internal sealed partial class Ff7ModelAppearance
         }
         Ff7FootContactBinding closeupFeet = new(["l_foot", "l_toes", "r_foot", "r_toes"], [19, 20]);
         Ff7SemanticRetargeter closeupRetargeter = new(target, closeupDescriptor, closeup, closeupCalibration.Transform, StandardFieldSquallJoints, closeupFeet);
-        appearance.variants.Add("clgd.hrc", new(assets, catalog, entry.Id, "clgd.hrc", closeupCalibration.Transform, new Dictionary<string, string>(), closeupRetargeter)
+        appearance.variants.Add("clgd.hrc", new(assets, catalog, entry.Id, "clgd.hrc", closeupCalibration.Transform, new Dictionary<string, string>(), closeupRetargeter, holdUnmappedAnimations: true)
         {
+            ExpectedSourceRig = Ff7SemanticRetargeter.HierarchyIdentity(closeup.Hierarchy),
             calibrationDescriptorScale = float.Parse(closeupDescriptor.Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = appearance.ProfileId
         });

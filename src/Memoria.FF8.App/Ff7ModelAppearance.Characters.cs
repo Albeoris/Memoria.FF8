@@ -1,6 +1,7 @@
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Rendering;
 using FieldCharacterCatalog = Memoria.FF8.Assets.FieldCharacterCatalog;
 
 namespace Memoria.FF8;
@@ -13,6 +14,18 @@ internal sealed partial class Ff7ModelAppearance
 
     internal void ValidateNativeClip(Ff7FieldModelResources original, PcFieldAnimation clip, string? nativeName = null)
     {
+        if (ExpectedSourceRig is string expected && expected != Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy))
+        {
+            throw new InvalidDataException("The original ordered named rig does not match the selected appearance profile.");
+        }
+        if (MappingGap is { } gap)
+        {
+            for (int frame = 0; frame < clip.Frames.Count; frame++)
+            {
+                _ = Ff7FieldPoseSampler.Sample(original, clip, new(frame * 16), nativeTranslationScale ?? float.NaN);
+            }
+            throw gap;
+        }
         if (retargeter is null)
         {
             throw new NotSupportedException("Native clip coverage requires an explicit semantic retarget profile.");
@@ -46,8 +59,26 @@ internal sealed partial class Ff7ModelAppearance
             throw new NotSupportedException("Selected target source does not contain its named native character geometry.");
         }
         FieldModel target = assets.LoadFieldModelSource(entry);
-        Ff7FieldAnatomy sourceAnatomy = Ff7FieldAnatomy.Resolve(original.Hierarchy);
-        IReadOnlyList<Ff7SemanticJointBinding> bindings = anatomy.Bindings(target, original.Hierarchy);
+        FieldCharacterCatalog catalog = FieldCharacterCatalog.Create([entry], _ => target);
+        Ff7FieldAnatomy sourceAnatomy;
+        IReadOnlyList<Ff7SemanticJointBinding> bindings;
+        try
+        {
+            bindings = anatomy.Bindings(target, original.Hierarchy);
+            sourceAnatomy = Ff7FieldAnatomy.Resolve(original.Hierarchy);
+        }
+        catch (Ff7AppearanceMappingException gap)
+        {
+            System.Numerics.Matrix4x4 neutralCalibration = MatchOriginalNeutralBounds(target, descriptor, original, System.Numerics.Matrix4x4.Identity);
+            return new(assets, catalog, entry.Id, Path.GetFileName(descriptor.Hrc), neutralCalibration, new Dictionary<string, string>(), holdUnmappedAnimations: true)
+            {
+                MappingGap = gap,
+                ExpectedSourceRig = Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy),
+                nativeTranslationScale = Ff7FieldRenderer.ModelBasis(descriptor).M11,
+                calibrationDescriptorScale = float.Parse(descriptor.Scale, System.Globalization.CultureInfo.InvariantCulture),
+                ProfileId = GeneralFieldProfileVersion + "/" + character + "/" + catalog.GetSource(entry.Id).RigId
+            };
+        }
         bool hasFootMeshes = sourceAnatomy.Feet.All(name => original.Hierarchy.Bones.Where(bone => bone.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Any(bone => original.Geometry.Any(part => part.BoneIndex == bone.Index && part.Polygon.Vertices.Count > 0)));
         Ff7AppearanceCalibration calibration = CalibrateNeutralGeometry(target, descriptor, original, [anatomy.LeftLeg[^1], anatomy.RightLeg[^1]], anatomy.LeftArm[^1], anatomy.RightArm[^1], sourceAnatomy.Feet, sourceAnatomy.Hands, alignHandSides: !hasFootMeshes);
         if (!calibration.FirstHandIsLeft)
@@ -55,7 +86,6 @@ internal sealed partial class Ff7ModelAppearance
             anatomy = anatomy with { LeftArm = anatomy.RightArm, RightArm = anatomy.LeftArm, LeftLeg = anatomy.RightLeg, RightLeg = anatomy.LeftLeg };
             bindings = anatomy.Bindings(target, original.Hierarchy);
         }
-        FieldCharacterCatalog catalog = FieldCharacterCatalog.Create([entry], _ => target);
         Ff7FootContactBinding feet = new(sourceAnatomy.FootGeometryOwners(original), [anatomy.LeftLeg[^1], anatomy.RightLeg[^1]]);
         Ff7SemanticRetargeter retarget = new(target, descriptor, original, calibration.Transform, bindings, feet);
         Dictionary<string, string> native = new(StringComparer.OrdinalIgnoreCase);
@@ -73,8 +103,9 @@ internal sealed partial class Ff7ModelAppearance
                 loops.Add(walk);
             }
         }
-        return new(assets, catalog, entry.Id, Path.GetFileName(descriptor.Hrc), calibration.Transform, native, retarget, loops)
+        return new(assets, catalog, entry.Id, Path.GetFileName(descriptor.Hrc), calibration.Transform, native, retarget, loops, holdUnmappedAnimations: true)
         {
+            ExpectedSourceRig = Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy),
             calibrationDescriptorScale = float.Parse(descriptor.Scale, System.Globalization.CultureInfo.InvariantCulture),
             ProfileId = GeneralFieldProfileVersion + "/" + character + "/" + catalog.GetSource(entry.Id).RigId
         };

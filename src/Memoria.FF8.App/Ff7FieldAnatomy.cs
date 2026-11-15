@@ -2,6 +2,10 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF8;
 
+internal sealed class Ff7AppearanceMappingException(string message) : NotSupportedException(message)
+{
+}
+
 /// <summary>Source-owned anatomical semantics. Composite bodies retain an unbound target knee where the original has no corresponding articulation.</summary>
 internal sealed record Ff7FieldAnatomy(IReadOnlyDictionary<string, string> Joints, IReadOnlyList<string> Feet, IReadOnlyList<string> Hands)
 {
@@ -46,7 +50,7 @@ internal sealed record Ff7FieldAnatomy(IReadOnlyDictionary<string, string> Joint
         string[] missing = joints.Values.Where(name => !names.Contains(name)).ToArray();
         if (missing.Length > 0)
         {
-            throw new NotSupportedException("Source anatomy has no binding for " + string.Join(", ", missing) + ".");
+            throw new Ff7AppearanceMappingException("Source anatomy has no binding for " + string.Join(", ", missing) + ".");
         }
         return new(joints, [joints["l_foot"], joints["r_foot"]], [joints["l_hand"], joints["r_hand"]]);
     }

@@ -5,7 +5,10 @@ using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8;
 
-internal sealed record CharacterAnimationGap(string Resource, string Reason);
+internal sealed record CharacterAnimationGap(string Resource, string Reason)
+{
+    internal bool MappingOnly { get; init; }
+}
 internal sealed record CharacterCompatibility(int SupportedClips, int TotalClips, IReadOnlyList<CharacterAnimationGap> Missing)
 {
     internal IReadOnlyList<CharacterAnimationGap> ExcludedSources { get; init; } = [];
@@ -109,6 +112,10 @@ internal sealed class CrossoverCharacterCatalog(Ff7Installation installation, Ga
                         }
                         profile.ValidateNativeClip(clipOwner, clip, member);
                         supported++;
+                    }
+                    catch (Ff7AppearanceMappingException exception)
+                    {
+                        missing.Add(new(identity, exception.Message) { MappingOnly = true });
                     }
                     catch (Exception exception) when (CoverageError(exception))
                     {

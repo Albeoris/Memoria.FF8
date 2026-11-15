@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Memoria.FF7.Formats;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
@@ -17,13 +18,16 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
     private readonly string nativeHrc;
     private readonly Matrix4x4 targetToFf7;
     private float? calibrationDescriptorScale;
+    private float? nativeTranslationScale;
     private readonly IReadOnlyDictionary<string, string> clips;
     private readonly FieldModel geometry;
     private readonly Ff7SemanticRetargeter? retargeter;
     private readonly HashSet<string> loopingClips;
     private readonly Dictionary<string, FieldModel> loadedClips = new(StringComparer.Ordinal);
+    private readonly bool holdUnmappedAnimations;
+    private readonly ConditionalWeakTable<Ff7FieldModelResources, Dictionary<(int Entity, int Model, bool World, string SourceRig), Vector3[]>> compatiblePoses = new();
 
-    public Ff7ModelAppearance(GameAssets assets, FieldCharacterCatalog catalog, string sourceId, string nativeHrc, Matrix4x4 targetToFf7, IReadOnlyDictionary<string, string> animationBindings, Ff7SemanticRetargeter? retargeter = null, IEnumerable<string>? loopingAnimations = null)
+    public Ff7ModelAppearance(GameAssets assets, FieldCharacterCatalog catalog, string sourceId, string nativeHrc, Matrix4x4 targetToFf7, IReadOnlyDictionary<string, string> animationBindings, Ff7SemanticRetargeter? retargeter = null, IEnumerable<string>? loopingAnimations = null, bool holdUnmappedAnimations = false)
     {
         this.assets = assets ?? throw new ArgumentNullException(nameof(assets));
         this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -31,6 +35,7 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
         this.nativeHrc = nativeHrc;
         this.targetToFf7 = targetToFf7;
         this.retargeter = retargeter;
+        this.holdUnmappedAnimations = holdUnmappedAnimations;
         loopingClips = new(loopingAnimations ?? [], StringComparer.OrdinalIgnoreCase);
         clips = new Dictionary<string, string>(animationBindings, StringComparer.OrdinalIgnoreCase);
         if (!Matrix4x4.Invert(targetToFf7, out _) || !Finite(targetToFf7))
@@ -48,6 +53,8 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
 
     public bool SupportsPartVisibility => true;
     public bool SupportsVertexColorBindings => true;
+    internal Ff7AppearanceMappingException? MappingGap { get; init; }
+    internal string? ExpectedSourceRig { get; init; }
 
     public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
     {
@@ -87,38 +94,69 @@ internal sealed partial class Ff7ModelAppearance : IFf7ActorAppearance
             throw new InvalidDataException("Mapped FF7 phase lies beyond its original clip; the simulation must own looping/completion.");
         }
         retargeter?.ValidateSource(original);
+        if (holdUnmappedAnimations)
+        {
+            // A donor mapping gap never admits invalid native source animation data.
+            if (ExpectedSourceRig is null || ExpectedSourceRig != Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy))
+            {
+                throw new InvalidDataException("The original ordered named rig does not match the selected appearance profile.");
+            }
+            if (!Path.GetFileNameWithoutExtension(original.HrcName).Equals(Path.GetFileNameWithoutExtension(descriptor.Hrc), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Mapped FF7 animation resources do not belong to the selected native HRC.");
+            }
+            _ = Ff7FieldPoseSampler.Sample(original, sourceClip, actor.PosePhase, Ff7FieldRenderer.ModelBasis(descriptor).M11);
+        }
         FieldModel target = geometry;
         Vector3[] posed;
-        if (clips.TryGetValue(originalName, out string? targetIdentity))
+        var poseOwner = (actor.EntityId, actor.ModelIndex, actor.IsWorldModel, Ff7SemanticRetargeter.HierarchyIdentity(original.Hierarchy));
+        Dictionary<(int Entity, int Model, bool World, string SourceRig), Vector3[]>? actorPoses = holdUnmappedAnimations ? compatiblePoses.GetValue(original, _ => []) : null;
+        try
         {
-            if (!loadedClips.TryGetValue(targetIdentity, out FieldModel? selected))
+            if (clips.TryGetValue(originalName, out string? targetIdentity))
             {
-                ModelAnimation animation = assets.LoadFieldCharacterAnimation(catalog, sourceId, targetIdentity);
-                selected = geometry with { Animations = new[] { animation } };
-                loadedClips.Add(targetIdentity, selected);
+                if (!loadedClips.TryGetValue(targetIdentity, out FieldModel? selected))
+                {
+                    ModelAnimation animation = assets.LoadFieldCharacterAnimation(catalog, sourceId, targetIdentity);
+                    selected = geometry with { Animations = new[] { animation } };
+                    loadedClips.Add(targetIdentity, selected);
+                }
+                target = selected;
+                int targetFrames = target.Animations[0].Frames.Count;
+                bool loop = loopingClips.Contains(originalName);
+                if (actor.AnimationBlend is { } blend)
+                {
+                    float previousFrame = MapAnimationPhase(blend.PreviousFrame, sourceClip.Frames.Count, targetFrames, loop);
+                    float currentFrame = MapAnimationPhase(blend.CurrentFrame, sourceClip.Frames.Count, targetFrames, loop);
+                    posed = target.PoseInterpolated(0, previousFrame, currentFrame, blend.Fraction, loop: loop);
+                }
+                else
+                {
+                    float targetFrame = MapAnimationPhase(sourceFrame, sourceClip.Frames.Count, targetFrames, loop);
+                    posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0, loop: loop);
+                }
             }
-            target = selected;
-            int targetFrames = target.Animations[0].Frames.Count;
-            bool loop = loopingClips.Contains(originalName);
-            if (actor.AnimationBlend is { } blend)
+            else if (retargeter is not null)
             {
-                float previousFrame = MapAnimationPhase(blend.PreviousFrame, sourceClip.Frames.Count, targetFrames, loop);
-                float currentFrame = MapAnimationPhase(blend.CurrentFrame, sourceClip.Frames.Count, targetFrames, loop);
-                posed = target.PoseInterpolated(0, previousFrame, currentFrame, blend.Fraction, loop: loop);
+                posed = retargeter.Pose(original, sourceClip, actor.PosePhase);
             }
             else
             {
-                float targetFrame = MapAnimationPhase(sourceFrame, sourceClip.Frames.Count, targetFrames, loop);
-                posed = target.PoseInterpolated(0, targetFrame, targetFrame, 0, loop: loop);
+                if (!holdUnmappedAnimations)
+                {
+                    throw new NotSupportedException($"FF7 appearance motion '{originalName}' has no admitted target field animation binding or semantic retarget profile.");
+                }
+                throw MappingGap ?? new Ff7AppearanceMappingException($"FF7 appearance motion '{originalName}' has no admitted target field animation binding or semantic retarget profile.");
+            }
+            if (holdUnmappedAnimations)
+            {
+                actorPoses![poseOwner] = (Vector3[])posed.Clone();
             }
         }
-        else if (retargeter is not null)
+        catch (Ff7AppearanceMappingException) when (holdUnmappedAnimations)
         {
-            posed = retargeter.Pose(original, sourceClip, actor.PosePhase);
-        }
-        else
-        {
-            throw new NotSupportedException($"FF7 appearance motion '{originalName}' has no admitted target field animation binding or semantic retarget profile.");
+            target = geometry;
+            posed = actorPoses!.TryGetValue(poseOwner, out Vector3[]? compatible) ? (Vector3[])compatible.Clone() : geometry.Pose(0, 0);
         }
         float descriptorRatio = 1;
         if (calibrationDescriptorScale is float referenceScale)
