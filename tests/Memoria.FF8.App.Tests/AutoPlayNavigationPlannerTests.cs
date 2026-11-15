@@ -295,6 +295,35 @@ public sealed class AutoPlayNavigationPlannerTests
         Assert.Equal(before, JsonSerializer.Serialize(planner.State));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AWholeVisitObservationRetiresAnAbsentHistoricalFrontierWithoutErasingForwardCoverage(bool allowRemoteConditionRoutes)
+    {
+        AutoPlayPlanner planner = new(observationsCoverWholeVisit: true);
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition, ConditionSignature: "exit");
+        AutoPlayEvent absent = new("absent", AutoPlayEventKind.Interaction, ConditionSignature: "absent");
+        AutoPlayEvent forward = new("forward", AutoPlayEventKind.Transition, ConditionSignature: "forward", Order: 10001);
+        planner.Observe(new("source", "region"), [exit]);
+        planner.ObserveNavigation("source", "source-nav", [exit]);
+        planner.Observe(new("destination", "region"), [absent, forward]);
+        planner.ObserveNavigation("destination", "old-nav", [absent, forward]);
+        Connect(planner, "source", "exit", "destination", "source-nav", "old-nav");
+        planner.Observe(new("destination", "region"), [forward]);
+        planner.ObserveNavigation("destination", "new-nav", [forward]);
+        string before = JsonSerializer.Serialize(planner.State);
+        AutoPlayPlanner restored = new(JsonSerializer.Deserialize<AutoPlayPlannerState>(before)!, observationsCoverWholeVisit: true);
+        AutoPlayTravelGoal staleGoal = new("old-nav", "absent", "absent");
+
+        AutoPlayPlanStep plan = restored.PlanNavigation("source-nav", allowRemoteConditionRoutes: allowRemoteConditionRoutes, preferredGoal: staleGoal)!;
+
+        Assert.Equal("exit", plan.Event.Id);
+        Assert.Equal(new AutoPlayTravelGoal("old-nav", "forward", "forward"), plan.Goal);
+        Assert.Equal(1, restored.ReachableNavigationFrontierCount("source-nav"));
+        Assert.False(restored.State.Visits.Single(visit => visit.Visit.Key == "destination").Events.Single(item => item.Event.Id == "absent").Completed);
+        Assert.Equal(before, JsonSerializer.Serialize(restored.State));
+    }
+
     [Fact]
     public void AnotherActualIngressCanReachTheMainComponentWithoutCrossingDisconnectedGeometry()
     {

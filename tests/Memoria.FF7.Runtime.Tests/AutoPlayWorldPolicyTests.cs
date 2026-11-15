@@ -35,9 +35,16 @@ internal static class AutoPlayWorldPolicyTests
             return;
         }
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), source);
+        AutoPlayTravelGoal? restoredGoal = source.AutoPlay.NavigationGoal;
+        AutoPlayNavigationVisit? goalVisit = source.AutoPlay.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == restoredGoal?.NavigationKey);
+        bool absentGoal = goalVisit is not null && source.AutoPlay.Coverage.Visits.Single(visit => visit.Visit.Key == goalVisit.VisitKey).Events.SingleOrDefault(item => item.Event.Id == restoredGoal?.EventId) is { Available: false };
         byte[] before = JsonSerializer.SerializeToUtf8Bytes(session.Capture() with { AutoPlay = null });
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("A read-only world planning query attempted to write a choice checkpoint."));
         _ = policy.ChooseInput(new(session));
+        if (!source.AutoPlay.Active.Accepted && absentGoal)
+        {
+            Check(policy.State.NavigationGoal != restoredGoal, "A restored unaccepted world route continued steering toward a natively absent full-field frontier.");
+        }
         Check(before.SequenceEqual(JsonSerializer.SerializeToUtf8Bytes(session.Capture() with { AutoPlay = null })), "Rehydrating a remote world goal changed native state or RNG.");
         Check(original.SequenceEqual(File.ReadAllBytes(path)), "Rehydrating a remote world goal changed the supplied source.");
     }

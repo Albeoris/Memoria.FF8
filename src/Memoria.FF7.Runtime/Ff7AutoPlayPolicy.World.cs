@@ -133,6 +133,11 @@ public sealed partial class Ff7AutoPlayPolicy
             }
         }
         planner.RefreshUnavailable(observation.VisitId, physicalGuards);
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } && State.NavigationGoal is { EventId: string goalEvent } travelGoal && State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == travelGoal.NavigationKey) is { } goalVisit && State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == goalVisit.VisitKey)?.Events.SingleOrDefault(item => item.Event.Id == goalEvent) is { Available: false })
+        {
+            State.Active = null;
+            State.NavigationGoal = null;
+        }
         if (State.Active is null)
         {
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal);

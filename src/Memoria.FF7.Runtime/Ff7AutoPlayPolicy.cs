@@ -47,7 +47,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 return -1;
             }
             return coverage is not { Completed: true, RouteNeedsRediscovery: false } ? 0 : Math.Max(1, coverage.Conditions?.ConsumedEntries.Count ?? 1);
-        });
+        }, observationsCoverWholeVisit: true);
     }
 
     public int? ChooseDialogueSelection(Ff7Dialogue dialogue)

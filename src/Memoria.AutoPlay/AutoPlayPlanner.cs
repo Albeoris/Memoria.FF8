@@ -117,19 +117,21 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     public const int CurrentWalkingSearchRevision = 6;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
     private readonly Func<AutoPlayVisit, AutoPlayEvent, int> progressionOrder;
+    private readonly bool observationsCoverWholeVisit;
     private sealed record PlanCandidate(AutoPlayVisitCoverage<TDeferral> Visit, AutoPlayEventCoverage<TDeferral> Coverage);
 
     public AutoPlayPlannerState<TDeferral> State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true)
+    public AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder = null, bool observationsCoverWholeVisit = false) : this(state, phaseOrder, progressionOrder, normalizeLegacyRoutes: true, observationsCoverWholeVisit)
     {
     }
 
-    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes)
+    private AutoPlayPlanner(AutoPlayPlannerState<TDeferral>? state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder, Func<AutoPlayVisit, AutoPlayEvent, int>? progressionOrder, bool normalizeLegacyRoutes, bool observationsCoverWholeVisit)
     {
         State = state ?? new AutoPlayPlannerState<TDeferral>();
         this.phaseOrder = phaseOrder ?? ((_, _) => 0);
         this.progressionOrder = progressionOrder ?? ((_, _) => 0);
+        this.observationsCoverWholeVisit = observationsCoverWholeVisit;
         if (normalizeLegacyRoutes)
         {
             foreach (AutoPlayEventCoverage<TDeferral> item in State.Visits.SelectMany(visit => visit.Events))
