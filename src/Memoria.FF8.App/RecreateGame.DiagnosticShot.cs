@@ -40,12 +40,30 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Shot packet observation is bounded to its three owned dispatches per execution.");
             }
-            NativeBattleRetainedActionPackets packets = diagnosticDriverBattle!.ObserveDiagnosticActionPackets(dispatch);
-            driver.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, header, generation, packets));
+            BattleSession active = diagnosticDriverBattle!;
+            NativeBattleRetainedActionPackets packets = active.ObserveDiagnosticActionPackets(dispatch);
+            BattleDiagnosticHostedShotPackets? hosted = active.UsesExpandedRoster && dispatch.NativeTargetMask is null ? active.ObserveDiagnosticHostedShotPackets(dispatch) : null;
+            driver.ObserveDispatch(dispatch, new DiagnosticShotDispatchPackets(dispatch.Serial, dispatch.Callback, header, generation, packets) { Hosted = hosted });
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)
         {
             driver.Fail("SHOT_PACKET_PROOF_INVALID: " + exception.Message);
+        }
+    }
+
+    private void ObserveDiagnosticShotImpact(BattleEvent value)
+    {
+        if (value.Kind != "EffectContact" || value.ActorId != diagnosticDriverRecipe?.Input.ActorId || diagnosticDriver is not { Finished: false, ShotCycle: { } cycle })
+        {
+            return;
+        }
+        try
+        {
+            cycle.ObserveTypedImpact(value, diagnosticDriverBattle!.ActiveAction?.NativeQueuedCommand);
+        }
+        catch (InvalidDataException exception)
+        {
+            diagnosticDriver.Fail("SHOT_CONTACT_PROOF_INVALID: " + exception.Message);
         }
     }
 

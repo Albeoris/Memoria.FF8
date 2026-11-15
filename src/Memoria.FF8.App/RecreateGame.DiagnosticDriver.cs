@@ -68,6 +68,10 @@ internal sealed partial class RecreateGame
         diagnosticCounterPreparationRepair = null;
         SubscribeDiagnosticCounter(diagnosticDriverBattle);
         diagnosticDriverBattle.DiagnosticEffectDispatched += ObserveDiagnosticDriverDispatch;
+        if (recipe.ShotCycle is not null)
+        {
+            diagnosticDriverBattle.DiagnosticEventPublished += ObserveDiagnosticShotImpact;
+        }
         if (recipe.FreshEntry is not null)
         {
             diagnosticDriverBattle.DiagnosticInvocationReleased += ObserveDiagnosticInvocationRelease;
@@ -349,6 +353,7 @@ internal sealed partial class RecreateGame
         WriteDiagnosticFinalizationStage("candidate-published");
         diagnosticTelemetry.Dispose();
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
+        diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticShotImpact;
         diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
         diagnosticDriverBattle.DiagnosticInvocationAftercareCompleted -= ObserveDiagnosticInvocationAftercare;
         UnsubscribeDiagnosticCounter(diagnosticDriverBattle);

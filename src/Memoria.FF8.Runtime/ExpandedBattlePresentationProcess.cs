@@ -87,6 +87,11 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.ObserveDiagnosticActionPackets(dispatch);
     }
 
+    internal BattleDiagnosticHostedShotPackets ObserveDiagnosticHostedShotPackets(BattleDiagnosticEffectDispatch dispatch)
+    {
+        return presentation.ReadDiagnosticHostedShotPackets(dispatch);
+    }
+
     internal void AppendDiagnosticPresentationBlockers(List<string> blockers)
     {
         if (HasActiveAction || PendingCompletion is not null)

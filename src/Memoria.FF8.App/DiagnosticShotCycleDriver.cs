@@ -44,8 +44,23 @@ internal sealed class DiagnosticShotCycleDriver
         {
             throw new InvalidDataException("Shot dispatch requires its synchronous canonical header/contact packet proof.");
         }
-        packetProof.NormalizeTargetMask(dispatch, Receipt.Declaration, commands[index], effects[index], Receipt.ActorIndex);
+        packetProof.ValidateTransport(dispatch, Receipt.Declaration, commands[index], effects[index], Receipt.ActorIndex);
         Receipt = Receipt with { Dispatches = [.. Receipt.Dispatches, dispatch], DispatchPackets = [.. Receipt.DispatchPackets, packetProof] };
+    }
+
+    internal void ObserveTypedImpact(BattleEvent value, byte? nativeCommand)
+    {
+        if (Receipt.DispatchPackets.LastOrDefault() is not { Hosted: { } hosted } packet || Receipt.Dispatches[^1].NativeCommand != nativeCommand)
+        {
+            return;
+        }
+        int index = Receipt.TypedImpacts?.Count(impact => impact.DispatchSerial == packet.Serial) ?? 0;
+        if (hosted.ContextOnly || index >= hosted.Recipients.Length || value.TargetId != hosted.Recipients[index])
+        {
+            throw new InvalidDataException("Hosted Shot contact differs from the committed recipient order.");
+        }
+        DiagnosticShotTypedImpact impact = new(packet.Serial, hosted.Token, hosted.FirstContact + index, hosted.Recipients[index]);
+        Receipt = Receipt with { TypedImpacts = [.. Receipt.TypedImpacts ?? [], impact] };
     }
 
     internal DiagnosticShotOperation Observe(DiagnosticShotObservation observation, bool drained)

@@ -42,6 +42,33 @@ public sealed record DiagnosticShotCycleDeclaration([property: JsonRequired] byt
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticShotDispatchPackets(long Serial, long Callback, int HeaderIndex, long HeaderGeneration, NativeBattleRetainedActionPackets Packets)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticHostedShotPackets? Hosted { get; init; }
+
+    public void ValidateTransport(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotCycleDeclaration declaration, byte command, ushort effect, byte actor)
+    {
+        if (Hosted is not { } hosted)
+        {
+            _ = NormalizeTargetMask(dispatch, declaration, command, effect, actor);
+            return;
+        }
+        if (hosted.Token <= 0 || hosted.FirstContact < 0 || hosted.Recipients.IsDefault || hosted.Recipients.Any(string.IsNullOrWhiteSpace) ||
+            hosted.ContextOnly != (command == 14) || dispatch.NativeTargetMask is not null || Serial <= 0 || Callback < 0 ||
+            Serial != dispatch.Serial || Callback != dispatch.Callback || HeaderIndex != dispatch.NativeHeaderIndex || HeaderGeneration != dispatch.NativeHeaderGeneration ||
+            HeaderGeneration <= 0 || HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || Packets is null || Packets.ActiveHeaderIndex != HeaderIndex)
+        {
+            throw new InvalidDataException("Typed Shot proof requires its actual committed header, hosted token and ordered roster recipients.");
+        }
+        Packets.Validate();
+        NativeBattleRetainedActionHeaderSlot header = Packets.Headers[HeaderIndex];
+        ushort Word(int offset) => (ushort)(header.ReadOriginalByte(offset) | header.ReadOriginalByte(offset + 1) << 8);
+        if (header.ReadOriginalByte(0) != actor || header.ReadOriginalByte(1) != command || Word(4) != declaration.ExpectedHeaderAction(command) || Word(6) != effect ||
+            header.FirstContactIndex != hosted.FirstContact || header.ReadOriginalByte(16) != hosted.Recipients.Length)
+        {
+            throw new InvalidDataException("Typed Shot packet identity or exact contact extent differs from its original header.");
+        }
+    }
+
     public ushort NormalizeTargetMask(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotCycleDeclaration declaration, byte command, ushort effect, byte actor)
     {
         if (Serial <= 0 || Callback < 0 || Serial != dispatch.Serial || Callback != dispatch.Callback || HeaderIndex != dispatch.NativeHeaderIndex || HeaderGeneration != dispatch.NativeHeaderGeneration || HeaderGeneration <= 0 || HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || Packets is null || Packets.ActiveHeaderIndex != HeaderIndex)
@@ -74,6 +101,8 @@ public sealed record DiagnosticShotDispatchPackets(long Serial, long Callback, i
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticShotObservation(long Callback, int Inventory, byte LearnedFlags, BattleDiagnosticShotState? Shot);
 
+public sealed record DiagnosticShotTypedImpact(long DispatchSerial, long Token, int ContactOrdinal, string TargetId);
+
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticShotCycleReceipt(int Execution, string ActorId, string TargetId, byte ActorIndex, byte TargetIndex, DiagnosticShotCycleDeclaration Declaration, ushort FiringEffect, BattleDiagnosticLimitSelectionReceipt Selection, DiagnosticShotObservation BeforeOpening)
 {
@@ -85,6 +114,8 @@ public sealed record DiagnosticShotCycleReceipt(int Execution, string ActorId, s
     public DiagnosticShotObservation? Completed { get; init; }
     public BattleDiagnosticEffectDispatch[] Dispatches { get; init; } = [];
     public DiagnosticShotDispatchPackets[] DispatchPackets { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticShotTypedImpact[]? TypedImpacts { get; init; }
 }
 
 /// <summary>Checks one ordinary opening, one accepted shot and explicit widget cancellation without accepting arbitrary supporting effects.</summary>
@@ -129,16 +160,35 @@ public static class DiagnosticShotCycleValidation
         byte[] commands = [14, 237, 238];
         ushort[] effects = [receipt.Declaration.OpeningEffect, effect, receipt.Declaration.EndingEffect];
         HashSet<(int Header, long Generation)> headers = [];
+        List<DiagnosticShotTypedImpact> expectedTypedImpacts = [];
+        long lastHostedToken = 0;
         for (int index = 0; index < 3; index++)
         {
             BattleDiagnosticEffectDispatch dispatch = dispatches[index];
-            receipt.DispatchPackets[index].NormalizeTargetMask(dispatch, receipt.Declaration, commands[index], effects[index], receipt.ActorIndex);
+            DiagnosticShotDispatchPackets packet = receipt.DispatchPackets[index];
+            packet.ValidateTransport(dispatch, receipt.Declaration, commands[index], effects[index], receipt.ActorIndex);
+            if (packet.Hosted is { } hosted)
+            {
+                if (hosted.Token <= lastHostedToken)
+                {
+                    throw new InvalidDataException("Typed Shot reused a hosted invocation token.");
+                }
+                lastHostedToken = hosted.Token;
+                if (!hosted.ContextOnly)
+                {
+                    expectedTypedImpacts.AddRange(hosted.Recipients.Select((target, ordinal) => new DiagnosticShotTypedImpact(dispatch.Serial, hosted.Token, hosted.FirstContact + ordinal, target)));
+                }
+            }
             DiagnosticShotObservation lower = points[index == 0 ? 1 : index == 1 ? 3 : 5];
             DiagnosticShotObservation upper = points[index == 0 ? 2 : index == 1 ? 4 : 6];
             if (dispatch != receipt.Dispatches[index] || dispatch.Reflection is not null || dispatch.ActorId != receipt.ActorId || dispatch.Ability != receipt.Declaration.ExpectedDispatchAbility(commands[index]) || dispatch.ActionId != receipt.Declaration.ExpectedHeaderAction(commands[index]) || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != receipt.ActorIndex || dispatch.NativeHeaderIndex is not int header || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || !headers.Add((header, generation)) || dispatch.Callback < lower.Callback || dispatch.Callback > upper.Callback || index > 0 && (dispatch.Serial <= dispatches[index - 1].Serial || dispatch.Callback < dispatches[index - 1].Callback))
             {
                 throw new InvalidDataException("Shot cycle dispatch identity, stage or header lineage is invalid.");
             }
+        }
+        if (!expectedTypedImpacts.SequenceEqual(receipt.TypedImpacts ?? []))
+        {
+            throw new InvalidDataException("Typed Shot did not publish its prepared contact recipients in native order.");
         }
     }
 
