@@ -29,6 +29,21 @@ public static class NativeBattleModelRings
 {
     public static uint PreservedStatusMask50A000(ushort sourceFlags2) => (sourceFlags2 & 0x40) != 0 ? 0x831E0u : 0x21E35F0u;
 
+    public static NativeBattleGraphicsModel BindWorldMatrix502AB0(ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleGraphicsModel model)
+    {
+        if (model.ReadLinkedModelIndex140() is null)
+        {
+            return model;
+        }
+        int owner = NativeBattleScanModelSelection.Minimum501FF0(models.SetItem(model.Index, model), model.Index);
+        if (owner == model.Index)
+        {
+            return model;
+        }
+        NativeBattleActionMatrix matrix = models[owner].GeometryWorldMatrix ?? throw new NotSupportedException("Native502AB0 requires its ring owner's retained model matrix.");
+        return model with { GeometryWorldMatrix = matrix };
+    }
+
     public static ImmutableArray<NativeBattleGraphicsModel> Bind90(ImmutableArray<NativeBattleGraphicsModel> models, int source, byte selector)
     {
         if (selector >= 16)

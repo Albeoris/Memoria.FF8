@@ -69,14 +69,14 @@ public static class NativeBattleSequenceMachine
         NativeBattleSequenceStep Finish()
         {
             int offset = position - resource.SequenceStart(sequence);
-            state = state with { Offset46 = unchecked((ushort)offset), Callback42 = unchecked((byte)(state.Callback42 + 1)) };
-            if (state.Pending3 != 0 && (flags & 0x40) != 0 && resource.Contains(state.Pending3))
+            state = state with { Offset46 = unchecked((ushort)offset) };
+            model = model with { Sequence = sequence, SequenceFrame = checked(source.SequenceFrame + 1), ResourceFlags44 = flags, SequenceState = state };
+            if (state.Pending3 != 0 && (flags & 0x40) != 0)
             {
-                sequence = state.Pending3;
-                state = state with { Offset46 = 0, Pending3 = 0, Callback42 = 0 };
-                flags = 1;
+                model = (inputs.SchedulePendingSequence ?? throw new NotSupportedException("Native504290 requires its505C00 pending sequence scheduler."))(model, state.Pending3);
             }
-            return new(model with { Sequence = sequence, SequenceFrame = checked(source.SequenceFrame + 1), ResourceFlags44 = flags, SequenceState = state }, cues.ToImmutableArray());
+            state = model.SequenceState ?? throw new InvalidDataException("Native pending sequence scheduling lost its resource header.");
+            return new(model with { SequenceState = state with { Callback42 = unchecked((byte)(state.Callback42 + 1)) } }, cues.ToImmutableArray());
         }
 
         bool AdvancePose()

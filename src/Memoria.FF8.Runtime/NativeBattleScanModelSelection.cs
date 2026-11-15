@@ -51,21 +51,41 @@ public static class NativeBattleScanModelSelection
     public static uint Minimum501FF0(ImmutableArray<NativeBattleScanByteOwner> models, uint source)
     {
         Validate(models);
-        uint next = models[Index(source)].ReadDword(0x8C);
-        uint minimum = source;
-        HashSet<uint> visited = [source];
+        return Address(Minimum501FF0(Index(source), index =>
+        {
+            uint next = models[index].ReadDword(0x8C);
+            return next != 0 ? Index(next) : null;
+        }));
+    }
+
+    public static int Minimum501FF0(ImmutableArray<NativeBattleGraphicsModel> models, int source)
+    {
+        if (models.IsDefault || models.Length != 7)
+        {
+            throw new InvalidDataException("Native501FF0 requires its seven physical graphics models.");
+        }
+        _ = Address(source);
+        return Minimum501FF0(source, index => models[index].ReadLinkedModelIndex140());
+    }
+
+    private static int Minimum501FF0(int source, Func<int, int?> readNext)
+    {
+        int? next = readNext(source);
+        int minimum = source;
+        int visited = 1 << source;
         while (next != source)
         {
-            if (next == 0)
+            if (next is null)
             {
                 return source;
             }
-            if (!visited.Add(next))
+            if ((visited & (1 << next.Value)) != 0)
             {
-                throw new InvalidDataException("Native Scan minimum model ring does not return to its actual source.");
+                throw new InvalidDataException("Native501FF0 model ring does not return to its actual source.");
             }
-            minimum = Math.Min(minimum, next);
-            next = models[Index(next)].ReadDword(0x8C);
+            visited |= 1 << next.Value;
+            minimum = Math.Min(minimum, next.Value);
+            next = readNext(next.Value);
         }
         return minimum;
     }

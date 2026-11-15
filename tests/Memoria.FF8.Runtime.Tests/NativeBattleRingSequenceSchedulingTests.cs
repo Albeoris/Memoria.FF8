@@ -5,6 +5,72 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRingSequenceSchedulingTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Pending_completion_schedules_the_whole_ring_even_when_the_source_lacks_the_requested_sequence(bool missingSourceSequence)
+    {
+        var fixture = Fixture();
+        NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(2, 0, 6, 0, missingSourceSequence ? (byte)0 : (byte)7, 0, 0xA1, 0xA1));
+        NativeBattleGraphicsModel source = fixture.Graphics.Models[0] with { Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
+        source = source.WriteLinkedModelIndex140(3);
+        NativeBattleGraphicsModel companion = (fixture.Graphics.Models[3] with { Flags0 = 2, ModelId4 = 98, ResourceFlags44 = 0x40, Sequence = 1, SequenceState = source.SequenceState! with { Pending3 = 0 } }).WriteLinkedModelIndex140(0);
+        NativeBattleGraphicsState graphics = fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, source).SetItem(3, companion) };
+        int requests = 0;
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source, resource, new(null, null)
+        {
+            SchedulePendingSequence = (current, requested) =>
+            {
+                requests++;
+                Assert.Equal((byte)2, requested);
+                Assert.Equal((byte)0, current.SequenceState!.Callback42);
+                graphics = Schedule(fixture.Session, graphics with { Models = graphics.Models.SetItem(0, current) }, requested);
+                return graphics.Models[0];
+            }
+        });
+        Assert.Equal(1, requests);
+        Assert.Equal((byte)1, step.Model.Sequence);
+        Assert.Equal((byte)2, step.Model.SequenceState!.Pending3);
+        Assert.Equal((byte)1, step.Model.SequenceState.Callback42);
+        Assert.Equal(0, step.Model.ResourceFlags44!.Value & 0x40);
+        Assert.Equal(0, graphics.Models[3].ResourceFlags44!.Value & 0x40);
+        NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[graphics.Auxiliary.Head!.Value];
+        Assert.Equal(NativeBattleAuxiliaryKind.ModelSequence505C70, task.Kind);
+        graphics.Auxiliary.Advance(new()
+        {
+            ApplyModelRing = (_, model, requested) =>
+            {
+                foreach (int member in NativeBattleModelRings.Walk(graphics.Models, model))
+                {
+                    NativeBattleGraphicsResource selectedResource = member == 0 ? resource : resource with { SequenceSection = resource.SequenceSection.SetItem(4, 7) };
+                    graphics = graphics with { Models = graphics.Models.SetItem(member, NativeBattleSequenceSelections.SelectResource505BC0(graphics.Models[member], selectedResource, (int)requested)) };
+                }
+            }
+        });
+        Assert.Equal(missingSourceSequence ? (byte)1 : (byte)2, graphics.Models[0].Sequence);
+        Assert.Equal((byte)2, graphics.Models[3].Sequence);
+        Assert.Equal((ushort)0, graphics.Models[3].SequenceState!.Offset46);
+        Assert.Equal((byte)0, graphics.Models[3].SequenceState!.Callback42);
+    }
+
+    [Fact]
+    public void Pending_completion_without_a_ring_uses_immediate_selection_and_respects_status_admission()
+    {
+        var fixture = Fixture();
+        NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(3, 0, 8, 0, 9, 0, 10, 0, 0xA1, 0xA1, 0xA1));
+        foreach (uint status in new uint[] { 0, 0x18 })
+        {
+            NativeBattleGraphicsModel source = fixture.Graphics.Models[0] with { Flags8 = status, Sequence = 1, ResourceFlags44 = 0x40, SequenceState = new() { Pending3 = 2, Pose = 0, PoseFrame114 = 0, PoseLimit115 = 0 } };
+            NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(source, resource, new(null, null)
+            {
+                SchedulePendingSequence = (current, requested) => Schedule(fixture.Session, fixture.Graphics with { Models = fixture.Graphics.Models.SetItem(0, current) }, requested).Models[0]
+            });
+            Assert.Equal(status == 0 ? (byte)2 : (byte)1, step.Model.Sequence);
+            Assert.Equal(status == 0 ? (byte)0 : (byte)2, step.Model.SequenceState!.Pending3);
+            Assert.Equal((byte)1, step.Model.SequenceState.Callback42);
+        }
+    }
+
     [Fact]
     public void Null_ring_selects_current_resource_immediately_without_allocating_an_auxiliary_callback()
     {

@@ -77,6 +77,7 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
     public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyNextContact { get; init; }
     public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyCurrentContact { get; init; }
     public Func<NativeBattleGraphicsModel, byte, byte, byte, NativeBattleGraphicsModel>? SelectModelSequence { get; init; }
+    public Func<NativeBattleGraphicsModel, byte, NativeBattleGraphicsModel>? SchedulePendingSequence { get; init; }
     public Func<NativeBattleGraphicsModel, byte, NativeBattleGraphicsModel>? BindModelRing90 { get; init; }
     public Func<NativeBattleGraphicsModel, byte, NativeBattleGraphicsModel>? RebindActionGeometry { get; init; }
     public Func<NativeBattleGraphicsModel, byte, byte, byte, short, byte, NativeBattleGraphicsModel>? ScheduleModelMotion { get; init; }

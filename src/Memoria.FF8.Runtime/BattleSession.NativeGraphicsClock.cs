@@ -319,6 +319,12 @@ public sealed partial class BattleSession
                             models = graphics.Models;
                             return models[index];
                         },
+                        SchedulePendingSequence = (current, selected) =>
+                        {
+                            graphics = ScheduleNativeRingSequence505C00(graphics with { Models = models.SetItem(index, current) }, checked((byte)index), selected);
+                            models = graphics.Models;
+                            return models[index];
+                        },
                         ApplyNextContact = current =>
                         {
                             graphics = ApplyNativeNextSequenceContact(graphics with { Models = models.SetItem(index, current) });
@@ -378,6 +384,7 @@ public sealed partial class BattleSession
                 {
                     NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
                     model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source."), ReadNativeModelScaleVector502AB0(graphics, model)) };
+                    model = NativeBattleModelRings.BindWorldMatrix502AB0(models, model);
                 }
                 models = models.SetItem(index, model);
             }
