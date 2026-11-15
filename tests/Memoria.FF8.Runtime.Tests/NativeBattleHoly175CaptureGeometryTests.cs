@@ -69,6 +69,29 @@ public sealed class NativeBattleHoly175CaptureGeometryTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Draw(capture.Stage, [Mesh(0, false), Mesh(2, true)])), NativeBattleTestSnapshots.Json(Draw(restored, [Mesh(0, false), Mesh(2, true)])));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(8)]
+    [InlineData(15)]
+    public void Captured_stage_screen_geometry_retains_the_native_face_depth_bias(int depthNibble)
+    {
+        NativeBattleStageState stage = Stage();
+        stage = stage with { Groups = stage.Groups.SetItem(0, stage.Groups[0] with { Flags = 1 }) };
+        NativeBattleRawMesh mesh = Mesh(0, false);
+        byte[] polygon = mesh.Polygons[0].Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon, (ushort)(depthNibble << 12));
+        mesh = mesh with { Polygons = [new(false, polygon.ToImmutableArray())] };
+        NativeBattleGeometryPrimitive primitive = Assert.Single(Draw(stage, [mesh]).Packets);
+        NativeBattlePilotVisualGeometry visual = primitive.PilotGeometry!;
+        Assert.True(visual.ScreenSpace);
+        Assert.False(visual.Continuous);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(1000 + depthNibble - 8, primitive.VertexPayload4[0]);
+        for (int corner = 0; corner < 3; corner++)
+        {
+            Assert.Equal(primitive.VertexPayload4[corner], visual.SourceDepths!.Value[corner]);
+        }
+    }
     [Fact]
     public void MissingInvisibleSourceAndMalformedDirectoryDoNotInventPoseOrDirectoryDefaults()
     {

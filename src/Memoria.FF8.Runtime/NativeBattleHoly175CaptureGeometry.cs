@@ -38,6 +38,7 @@ public static class NativeBattleHoly175CaptureGeometry
             ImmutableArray<NativeBattleRawMesh> selected = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
             packets.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(selected, group.Matrices, capture, group.ColorFlags, uint.MaxValue, group.ColorDepth, draw.TableBaseBucket, draw.DepthShift, null, colors, publishProjectedScratch, pilotIdentity: new(0, 0, 0, index, 0), pilotScreenSpace: true, pilotContinuous: false));
         }
-        return new(stage with { Groups = groups.ToImmutable() }, packets.ToImmutable());
+        ImmutableArray<NativeBattleGeometryPrimitive> captured = packets.Select(packet => packet.PilotGeometry is { } visual ? packet with { PilotGeometry = visual with { SourceDepths = new(packet.VertexPayload4[0], packet.VertexPayload4[1], packet.VertexPayload4[2], packet.VertexPayload4[3]), UseSourceDepths = true } } : packet).ToImmutableArray();
+        return new(stage with { Groups = groups.ToImmutable() }, captured);
     }
 }
