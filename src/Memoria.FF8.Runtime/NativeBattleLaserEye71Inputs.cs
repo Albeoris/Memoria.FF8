@@ -9,7 +9,7 @@ public sealed record NativeBattleLaserEye71BindCaster(BattleModelOwner Actor, ui
 public sealed record NativeBattleLaserEye71Ring(byte Actor, int Sequence) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71Sound(uint Value, uint Flags, byte Pan) : NativeBattleLaserEye71Operation;
 public sealed record NativeBattleLaserEye71Contact(uint TaskAddress) : NativeBattleLaserEye71Operation;
-public sealed record NativeBattleLaserEye71Inputs(NativeBattleActionPacketsState Packets, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleLaserEye71Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleLaserEye71Frame, NativeBattleLaserEye71Operation, NativeBattleLaserEye71Frame> Execute)
+public sealed record NativeBattleLaserEye71Inputs(NativeBattleActionPacketsState Packets, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleLaserEye71Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleLaserEye71Frame, NativeBattleLaserEye71Operation, NativeBattleLaserEye71Frame> Execute)
 {
     public required Func<NativeBattleLaserEye71Frame, uint, NativeBattleLaserEye71Frame> RefreshRoot { get; init; }
     public required Func<NativeBattleLaserEye71Frame, uint, NativeBattleLaserEye71Frame> PrepareTarget { get; init; }

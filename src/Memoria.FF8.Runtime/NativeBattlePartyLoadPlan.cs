@@ -15,24 +15,22 @@ public sealed record NativeBattlePartyLoadPart(uint Callback, byte Selector, Nat
 }
 
 /// <summary>Selected file metadata and extents for one complete body/linked load; no resource bytes are retained here.</summary>
-public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex, NativeBattlePartyCpuLayout Layout, NativeBattlePartyLoadPart Body, NativeBattlePartyLoadPart? Linked)
+public sealed record NativeBattlePartyLoadPlan(byte ModelId, [property: JsonIgnore] BattlePartyModelOwner Owner, NativeBattleModelSlot? OriginalSlot, NativeBattlePartyCpuLayout Layout, NativeBattlePartyLoadPart Body, NativeBattlePartyLoadPart? Linked)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PreferResourceStorage { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BattleModelRoster? PresentationRoster { get; init; }
     [JsonIgnore]
-    public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage || PresentationRoster is not null && PhysicalIndex >= NativeBattleSlots.AllyCount;
+    public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage || OriginalSlot is null;
     [JsonIgnore]
     public int RequiredCapacity => checked(Body.CopiedLength + (Linked?.CopiedLength ?? 0));
     [JsonIgnore]
     public bool RequiresResourceStorage => RequiredCapacity > Layout.BankLength;
 
-    internal static NativeBattlePartyLoadPlan Create(byte model, byte physicalIndex, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources, BattleModelRoster? presentationRoster = null)
+    internal static NativeBattlePartyLoadPlan Create(byte model, BattlePartyModelOwner owner, NativeBattleModelSlot? originalSlot, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources)
     {
-        NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, physicalIndex, 0, linkedSelector128, bodySelector129, presentationRoster).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
-        NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), physicalIndex, 0, linkedSelector128, bodySelector129, presentationRoster).Task;
-        NativeBattlePartyLoadPlan plan = new(model, physicalIndex, layout, Part(body), linked is null ? null : Part(linked)) { PresentationRoster = presentationRoster };
+        NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, owner, originalSlot, 0, linkedSelector128, bodySelector129).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
+        NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), owner, originalSlot, 0, linkedSelector128, bodySelector129).Task;
+        NativeBattlePartyLoadPlan plan = new(model, owner, originalSlot, layout, Part(body), linked is null ? null : Part(linked));
         plan.Validate();
         return plan;
 
@@ -45,11 +43,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
 
     internal void Validate()
     {
-        PresentationRoster?.Validate();
-        bool validRow = PresentationRoster is { } roster
-            ? PhysicalIndex < roster.ActorCount && roster.Rows[PhysicalIndex]?.IsParty == true
-            : PhysicalIndex < 3;
-        if (ModelId >= 16 || !validRow || Layout is null || Body is null)
+        if (ModelId >= 16 || Owner is null || OriginalSlot is { Side: not BattleSide.Allies } || Layout is null || Body is null)
         {
             throw new InvalidDataException("Party load planning requires its physical party slot and selected body.");
         }
@@ -64,7 +58,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
 
     internal static void RequireMatchingRoster(BattleModelRoster? first, BattleModelRoster? second)
     {
-        if (first is null ? second is not null : second is null || !first.Rows.SequenceEqual(second.Rows))
+        if (first is null ? second is not null : second is null || !first.Owners.SequenceEqual(second.Owners))
         {
             throw new InvalidDataException("The party load and its resource owner require the same presentation roster.");
         }
@@ -74,7 +68,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, byte PhysicalIndex,
     {
         Validate();
         NativeBattlePartyLoadPart selected = task.Callback == Body.Callback ? Body : Linked is { } linked && task.Callback == linked.Callback ? linked : throw new InvalidDataException("The model callback does not belong to its selected party load plan.");
-        if (task.ModelId != ModelId || task.PhysicalIndex != PhysicalIndex || task.Selector != selected.Selector || task.File is { } file && file != selected.File)
+        if (task.ModelId != ModelId || task.Owner != Owner || task.OriginalSlot != OriginalSlot || task.Selector != selected.Selector || task.File is { } file && file != selected.File)
         {
             throw new InvalidDataException("The model task no longer matches its selected complete party load.");
         }

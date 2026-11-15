@@ -124,9 +124,9 @@ public static partial class NativeBattleSigh46Controller
                         {
                             packets = inputs.ReadPackets(frame);
                             header = Header(frame, Read(frame, address), packets);
-                            int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Sigh requires its actual contact pointer.")) + index);
-                            _ = packets.ReadContact(contact);
-                            frame = inputs.Execute(frame, new NativeBattleSigh46Contact506690(contact));
+                            BattleContactCursor contact = header.FirstContact.Advance(index);
+                            BattleContactOccurrence occurrence = packets.ReadContact(contact).Occurrence ?? throw new InvalidDataException("Sigh contact has no occurrence reference.");
+                            frame = inputs.Execute(frame, new NativeBattleSigh46Contact506690(occurrence));
                             index++;
                             packets = inputs.ReadPackets(frame);
                             header = Header(frame, Read(frame, address), packets);

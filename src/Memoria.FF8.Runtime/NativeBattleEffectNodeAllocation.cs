@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The normalized881700/891610/886BC0 and882080/891F90/887540 scans, with each native physical capacity supplied explicitly.</summary>
 internal static class NativeBattleEffectNodeAllocation
 {
-    internal static int? AllocateEmitter(NativeBattleEffectNodeMemory memory, int start, int physicalSlots, ref ushort scanCursor, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)
+    internal static int? AllocateEmitter(NativeBattleEffectNodeMemory memory, int start, int physicalSlots, ref ushort scanCursor, uint parentPointer, sbyte sourceIndex, int targetIndex)
     {
         int index = unchecked((short)scanCursor);
         if (index < 0 || index >= physicalSlots)
@@ -20,7 +20,7 @@ internal static class NativeBattleEffectNodeAllocation
                 memory.Byte(node + 0x6A, unchecked((byte)sourceIndex));
                 memory.Byte(node + 0x69, 1);
                 memory.Dword(node + 0x5C, parentPointer);
-                memory.Byte(node + 0x6B, unchecked((byte)targetIndex));
+                memory.WriteTraversalPosition(node + 0x6B, targetIndex);
                 memory.ContextWord(0x14, unchecked((ushort)(memory.ContextWord(0x14) + 1)));
                 memory.Link882930(node, 0);
                 result = node;
@@ -55,7 +55,7 @@ internal static class NativeBattleEffectNodeAllocation
                 memory.Dword(node + 0x1BC, memory.Pointer(emitter));
                 memory.Byte(node + 0x1D7, 1);
                 memory.Byte(node + 0x1D6, unchecked((byte)sourceIndex));
-                memory.Byte(node + 0x1D9, memory.Byte(emitter + 0x6B));
+                memory.WriteTraversalPosition(node + 0x1D9, memory.ReadTraversalPosition(emitter + 0x6B));
                 memory.ContextWord(0x16, unchecked((ushort)(memory.ContextWord(0x16) + 1)));
                 memory.Link882930(node, 1);
                 result = node;

@@ -19,7 +19,7 @@ public static class NativeBattleDoom8Fronts
         ArgumentNullException.ThrowIfNull(execute);
         packets.Validate();
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Doom mode creation requires its actual action parameters.");
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(parameters, packets, pointer, header, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte header, int target) => NativeBattleCureController.SelectActors(parameters, packets, pointer, header, target);
         if (mode == 2)
         {
             frame = NativeBattleDoom8Nodes.Append8C5810(frame, director, NativeBattleDoom8Nodes.Callback, NativeBattleDoom8Nodes.SourceAddress, 0, 45, 2, Select).Frame;
@@ -41,7 +41,7 @@ public static class NativeBattleDoom8Fronts
         return Append(frame, 5, 0x8CC2D0, 176, director, Select).Frame;
     }
 
-    public static NativeBattleDoom8FrontAppend Append8C5860(NativeBattleDoom8Frame frame, uint parent, uint callback, uint source, short workspaceLength, short argument80, short argument82, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleDoom8FrontAppend Append8C5860(NativeBattleDoom8Frame frame, uint parent, uint callback, uint source, short workspaceLength, short argument80, short argument82, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         if (frame.Effect.Binding.Effect != 8 || frame.Effect.Binding.Entry != NativeBattleDoom8Controller.Entry || callback is not (0x8C58B0 or 0x8C8050 or 0x8C8790))
         {
@@ -52,7 +52,7 @@ public static class NativeBattleDoom8Fronts
         return appended with { Frame = NativeBattleDoom8Controller.Write(appended.Frame, appended.Address, task) };
     }
 
-    private static NativeBattleDoom8FrontAppend Append(NativeBattleDoom8Frame frame, int pool, uint callback, int length, uint parent, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    private static NativeBattleDoom8FrontAppend Append(NativeBattleDoom8Frame frame, int pool, uint callback, int length, uint parent, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(pool, callback, length, parent, selectActors);
         if (appended.Address == 0)

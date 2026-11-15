@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelMotion(byte opcode, int source, int target, byte first, byte second, short fraction, byte duration, BattleModelRoster? roster = null)
+    public (NativeBattleAuxiliaryState State, bool Allocated) AppendModelMotion(byte opcode, BattleModelOwner source, BattleModelOwner target, byte first, byte second, short fraction, byte duration, NativeBattleModelAliases aliases)
     {
         Validate();
-        if (opcode is not (0x9E or 0xAD or 0xAE) || !IsAuxiliaryModelBound(source, roster) || !IsAuxiliaryModelBound(target, roster))
+        if (opcode is not (0x9E or 0xAD or 0xAE) || !aliases.Roster.Contains(source) || !aliases.Roster.Contains(target))
         {
             throw new ArgumentOutOfRangeException(nameof(opcode), "Native motion requires its actual model bank and producer opcode.");
         }
@@ -18,14 +18,14 @@ public sealed partial record NativeBattleAuxiliaryState
             return (this, false);
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(source));
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), NativeBattleGraphicsModelAddress.Encode(target));
+        uint unknown = WriteModelOperand(payload, Slots[slot].UnknownByteMask, 0, source, aliases);
+        unknown = WriteModelOperand(payload, unknown, 4, target, aliases);
         uint written;
         if (opcode == 0x9E)
         {
             BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(8), duration);
             BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(10), 0);
-            written = 0xFFF;
+            written = 0xF00;
         }
         else
         {
@@ -33,9 +33,9 @@ public sealed partial record NativeBattleAuxiliaryState
             payload[9] = opcode == 0xAD ? (byte)255 : second;
             BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(10), fraction);
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), duration);
-            written = 0xFFFF;
+            written = 0xFF00;
         }
-        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = opcode == 0x9E ? NativeBattleAuxiliaryKind.MoveToModel50F750 : NativeBattleAuxiliaryKind.AttachModel50F500, Payload = payload.ToImmutableArray(), UnknownByteMask = Slots[slot].UnknownByteMask & ~written };
+        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = opcode == 0x9E ? NativeBattleAuxiliaryKind.MoveToModel50F750 : NativeBattleAuxiliaryKind.AttachModel50F500, Payload = payload.ToImmutableArray(), UnknownByteMask = unknown & ~written, ModelOwner = source, TargetOwner = target };
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
@@ -46,7 +46,7 @@ public sealed partial record NativeBattleAuxiliaryState
 
     private static (NativeBattleAuxiliaryTask Task, bool Release) AdvanceModelMotion(NativeBattleAuxiliaryTask task, NativeBattleAuxiliaryInputs? inputs)
     {
-        uint written = task.Kind == NativeBattleAuxiliaryKind.MoveToModel50F750 ? 0xFFFu : 0xFFFFu;
+        uint written = task.Kind == NativeBattleAuxiliaryKind.MoveToModel50F750 ? 0xF00u : 0xFF00u;
         if ((task.UnknownByteMask & written) != 0)
         {
             throw new InvalidDataException("Native model motion lacks its written physical task operands.");
@@ -54,8 +54,8 @@ public sealed partial record NativeBattleAuxiliaryState
         Func<BattleModelOwner, NativeBattleGraphicsModel> read = inputs?.ReadModel ?? throw new NotSupportedException("Native model motion requires its current model bank.");
         Action<BattleModelOwner, NativeBattleGraphicsModel> write = inputs?.WriteModel ?? throw new NotSupportedException("Native model motion requires its model publication owner.");
         byte[] payload = task.Payload.ToArray();
-        int sourceIndex = MotionModel(payload, 0, inputs?.PresentationRoster);
-        int targetIndex = MotionModel(payload, 4, inputs?.PresentationRoster);
+        BattleModelOwner sourceIndex = RequireModelOperand(task.ModelOwner);
+        BattleModelOwner targetIndex = RequireModelOperand(task.TargetOwner);
         NativeBattleGraphicsModel source = read(sourceIndex);
         NativeBattleGraphicsModel target = read(targetIndex);
         bool release;
@@ -73,7 +73,7 @@ public sealed partial record NativeBattleAuxiliaryState
         }
         else
         {
-            Func<int, byte, short, NativeBattleVector> bone = inputs?.ReadBone ?? throw new NotSupportedException("Native50F500 requires its current bone matrices.");
+            Func<BattleModelOwner, byte, short, NativeBattleVector> bone = inputs?.ReadBone ?? throw new NotSupportedException("Native50F500 requires its current bone matrices.");
             short fraction = BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(10));
             byte first = payload[8];
             NativeBattleVector desired;
@@ -101,12 +101,4 @@ public sealed partial record NativeBattleAuxiliaryState
         return (task with { Payload = payload.ToImmutableArray() }, release);
     }
 
-    private static int MotionModel(byte[] payload, int offset, BattleModelRoster? roster)
-    {
-        if (!TryReadAuxiliaryModel(BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(offset)), roster, out int row))
-        {
-            throw new NotSupportedException("Native model motion pointer lies outside its seven-model bank.");
-        }
-        return row;
-    }
 }

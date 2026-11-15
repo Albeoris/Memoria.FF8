@@ -19,7 +19,7 @@ public static class NativeBattleDoom8Nodes
     public const int EmitterBytes = 10 * 108;
     public const int GeometryBytes = 40 * 672;
 
-    public static NativeBattleDoom8NodeAppend Append8C5810(NativeBattleDoom8Frame frame, uint parent, uint callback, uint source, short delay, short duration, short mode, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleDoom8NodeAppend Append8C5810(NativeBattleDoom8Frame frame, uint parent, uint callback, uint source, short delay, short duration, short mode, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, callback, 676, parent, selectActors);

@@ -30,9 +30,11 @@ public static partial class NativeBattleEffect319Controller
             }
             frame = ClearDwords701200(frame, main + 12, 0x223);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int contact = FirstContact(frame, packets);
-            uint target = ModelAddress((packets.Contacts[contact] ?? throw new NotSupportedException("Effect319 requires its current first contact.")).Primary.ActorIndex);
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x58, target));
+            BattleContactCursor contact = FirstContact(frame, packets);
+            BattleModelOwner target = packets.ReadContact(contact).Primary.Recipient;
+            NativeBattleModulePoolTask targetTask = Read(frame, main);
+            targetTask.WriteExecutionReference(0x58, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+            frame = Write(frame, main, targetTask);
             NativeBattleEffect319PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), 0x64, 8));
             frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), 0x64, anchor.Output8, 8));
             frame = NativeBattleEffect319Programme.Initialize(frame, main + 0xC4, 0xFF24F8, 0x368, resources);
@@ -69,9 +71,9 @@ public static partial class NativeBattleEffect319Controller
         return new(Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)))), 0);
     }
 
-    private static int FirstContact(NativeBattleEffect319Frame frame, NativeBattleActionPacketsState packets)
+    private static BattleContactCursor FirstContact(NativeBattleEffect319Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect319 requires its current action header.");
-        return packets.ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect319 requires its actual first contact pointer.");
+        return packets.ReadHeader(parameters.Header).FirstContact;
     }
 }

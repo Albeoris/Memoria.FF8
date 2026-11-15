@@ -50,7 +50,7 @@ public static class NativeBattleShellLifecycle
             current = current with { Memory = written.Memory with { Shell33 = owner }, Effect = written.Effect, Random = random };
             current = inputs.Execute(current, new NativeBattleShellPackets(batch));
 
-            int? AllocateEmitter(uint parent, sbyte source, sbyte target)
+            int? AllocateEmitter(uint parent, sbyte source, int target)
             {
                 ushort cursor = owner.EmitterScan;
                 int? result = NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 15, ref cursor, parent, source, target);

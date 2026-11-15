@@ -14,7 +14,7 @@ public sealed record NativeBattleDrawStock15HeadSprite(NativeBattleModulePoolTas
 public sealed record NativeBattleDrawStock15SparkleSprite(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrawStock15Ribbon(NativeBattleModulePoolTask Task) : NativeBattleDrawStock15ParticleOperation;
 public sealed record NativeBattleDrawStock15ParticleStep(NativeBattleEffectHierarchy Hierarchy, NativeCrtRandomState Random, ImmutableArray<NativeBattleDrawStock15ParticleOperation> Operations, int Result);
-public sealed record NativeBattleDrawStock15ParticleInputs(BattleModelOwner ParameterActor, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadBone241);
+public sealed record NativeBattleDrawStock15ParticleInputs(BattleModelOwner ParameterActor, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadBone241);
 
 public static partial class NativeBattleDrawStock15Particles
 {

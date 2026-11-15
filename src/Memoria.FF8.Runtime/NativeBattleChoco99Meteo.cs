@@ -66,7 +66,7 @@ public static class NativeBattleChoco99Meteo
         return new(task, packets, Complete(task));
     }
 
-    public static NativeBattleChoco99MeteoEmitterStep Advance720790(NativeBattleEffectHierarchy hierarchy, uint address, NativeBattleChoco99MeteoResources resources, Func<short, bool> modeAtLeast, NativeCrtRandomState random, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleChoco99MeteoEmitterStep Advance720790(NativeBattleEffectHierarchy hierarchy, uint address, NativeBattleChoco99MeteoResources resources, Func<short, bool> modeAtLeast, NativeCrtRandomState random, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         resources.Validate();
         NativeBattleModulePoolTask task = hierarchy.Read(address);

@@ -14,9 +14,9 @@ public sealed partial class BattleSession
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native enemy load requires its eleven physical resource rows.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native enemy load requires its retained heap cursor and row aliases.");
         NativeBattleFileStaging staging = NativeFileStaging ?? NativeBattleFileStaging.Unknown();
-        if (graphics.PresentationRoster is null && task.Phase == 0 && task.Callback == 0x507120)
+        if (cache.PresentationActors is null && task.Phase == 0 && task.Callback == 0x507120)
         {
-            int existing = Array.FindIndex(cache.Rows.ToArray(), row => row.Kind == 3 && row.ModelId == task.ModelId);
+            int existing = Array.FindIndex(cache.Rows.Take(NativeBattleModelResourceRowAddress.NativeRowCount).ToArray(), row => row.Kind == 3 && row.ModelId == task.ModelId);
             if (existing >= 0)
             {
                 NativeBattleModelTextureCacheLoad clone = cache.LoadEnemy(task.ModelId, new("unused-shared-pack", []));
@@ -26,7 +26,7 @@ public sealed partial class BattleSession
                 NativeFileStaging = staging;
                 NativeModelTextureCache = clone.Cache;
                 BindNativeEnemyModel(ref graphics, task, clone.ResourceIndex, clone.Binding);
-                NativeModelLoader = new(null) { PresentationRoster = loader.PresentationRoster };
+                NativeModelLoader = new(null);
                 return true;
             }
         }
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         }
         if (cache.PresentationRoster is not null)
         {
-            destination = cache.SelectHostedLoadAlias(task);
+            destination = cache.SelectHostedLoadAlias(task, task.Owner);
         }
         if (destination < 0)
         {
@@ -63,27 +63,27 @@ public sealed partial class BattleSession
         cache = cache with
         {
             Rows = cache.Rows.SetItem(destination, cache.Rows[destination] with { Kind = 3, ModelId = 143, TextureMask = 0, Binding = binding }),
-            PresentationActors = cache.PresentationActors?.SetItem(destination, task.PhysicalIndex)
+            PresentationActors = cache.PresentationActors?.SetItem(destination, task.Owner)
         };
-        RequireHostedModelLoadAlias(cpu, cache, destination, task.PhysicalIndex, 3, task.ModelId);
+        RequireHostedModelLoadAlias(cpu, cache, destination, task.Owner, 3, task.ModelId);
         NativeModelCpuResources = cpu;
         NativeFileStaging = staging;
         NativeModelTextureCache = cache;
         BindNativeEnemyModel(ref graphics, task, destination, binding);
-        NativeModelLoader = new(null) { PresentationRoster = loader.PresentationRoster };
+        NativeModelLoader = new(null);
         return true;
     }
 
     private void ReserveNativeEnemyResource(NativeBattleModelLoadTask task, NativeBattleModelTextureLoad upload)
     {
         NativeBattleModelTextureCache cache = NativeModelTextureCache!;
-        NativeBattleModelTextureCacheLoad load = cache.LoadEnemy(task.ModelId, task.OriginalTexturePack!, cache.PresentationRoster is null ? null : task.PhysicalIndex);
+        NativeBattleModelTextureCacheLoad load = cache.LoadEnemy(task.ModelId, task.OriginalTexturePack!, cache.PresentationRoster is null ? null : task.Owner);
         if (load.Upload is null || load.Upload.AllocatedSlots != upload.AllocatedSlots || !load.Binding.PaletteRows.SequenceEqual(upload.Binding.PaletteRows))
         {
             throw new InvalidDataException("Native507120 material allocation changed while its singleton task was executing.");
         }
         NativeBattleModelCpuResources cpu = NativeModelCpuResources!;
-        RequireHostedModelLoadAlias(cpu, load.Cache, load.ResourceIndex, task.PhysicalIndex, 3, task.ModelId);
+        RequireHostedModelLoadAlias(cpu, load.Cache, load.ResourceIndex, task.Owner, 3, task.ModelId);
         NativeBattleModelDatSource source = task.ResourceSource ?? new(task.ModelId, false, task.Selector, task.File!.FileId, task.File.Name, NativeFileStaging!.ReadDat(NativeBattleFileStaging.Address));
         byte slot = 255;
         if (source.Section(9) != source.Section(10))
@@ -107,7 +107,7 @@ public sealed partial class BattleSession
     private void CompleteNativeEnemyResource(ref NativeBattleGraphicsState graphics, NativeBattleModelResourceBind bind)
     {
         int row = bind.Task.EnemyResourceIndex ?? throw new InvalidDataException("Native507120 completion has no actually allocated resource row.");
-        RequireHostedModelLoadAlias(NativeModelCpuResources!, NativeModelTextureCache!, row, bind.Task.PhysicalIndex, 3, bind.Task.ModelId);
+        RequireHostedModelLoadAlias(NativeModelCpuResources!, NativeModelTextureCache!, row, bind.Task.Owner, 3, bind.Task.ModelId);
         if (NativeModelTextureCache!.PresentationRoster is not null)
         {
             RequireHostedModelLoadBinding(NativeModelTextureCache, bind, NativeModelTextureCache.Rows[row].Binding!);
@@ -118,7 +118,7 @@ public sealed partial class BattleSession
 
     private void BindNativeEnemyModel(ref NativeBattleGraphicsState graphics, NativeBattleModelLoadTask task, int row, NativeBattleModelTextureBinding binding)
     {
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(task.PhysicalIndex);
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(task.PhysicalIndex, model with { ActiveResourceRow100 = row, OriginalResourceRow104 = row, ActiveStagedResourceRow100 = null, TextureResourceIndex = row, BodyTextureSlots = binding, TextureAllocationMask = NativeModelTextureCache!.Rows[row].TextureMask, ResourceMagicId = null, ResourceRenzokukenTargetBank = null }) };
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(task.Owner);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(task.Owner, model with { ActiveResourceRow100 = row, OriginalResourceRow104 = row, ActiveStagedResourceRow100 = null, TextureResourceIndex = row, BodyTextureSlots = binding, TextureAllocationMask = NativeModelTextureCache!.Rows[row].TextureMask, ResourceMagicId = null, ResourceRenzokukenTargetBank = null }) };
     }
 }

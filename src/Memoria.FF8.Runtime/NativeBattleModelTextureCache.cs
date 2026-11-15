@@ -65,9 +65,9 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
 
         if (PresentationRoster is not { } roster)
         {
-            if (Rows.Length != NativeBattleModelResourceRowAddress.NativeRowCount || PresentationActors is not null)
+            if (PresentationActors is not null)
             {
-                throw new InvalidDataException("Native texture cache requires its eleven original aliases without presentation owners.");
+                throw new InvalidDataException("The original texture allocator has no per-model aliases.");
             }
             return;
         }
@@ -124,7 +124,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         }
 
         int index = FirstFree();
-        NativeBattleModelTextureCacheRow? existing = Rows.FirstOrDefault(row => row.Kind == 3 && row.ModelId == modelId);
+        NativeBattleModelTextureCacheRow? existing = Rows.Take(AllocationExtent).FirstOrDefault(row => row.Kind == 3 && row.ModelId == modelId);
         if (existing is not null)
         {
             //507740 clones the52-byte row; its material tail and allocation mask remain shared.
@@ -175,7 +175,7 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
     {
         Validate();
         int free = -1;
-        for (int index = 0; index < Rows.Length; index++)
+        for (int index = 0; index < AllocationExtent; index++)
         {
             NativeBattleModelTextureCacheRow row = Rows[index];
             if (row.Kind == kind && row.ModelId == modelId && (PresentationActors is null || PresentationActors[index] == owner))
@@ -190,9 +190,11 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return free >= 0 ? free : throw new NotSupportedException("Native5073D0 has no free physical resource row; a null native allocation is unsupported.");
     }
 
+    private int AllocationExtent => PresentationActors is null ? NativeBattleModelResourceRowAddress.NativeRowCount : Rows.Length;
+
     private int FirstFree()
     {
-        for (int index = 0; index < Rows.Length; index++)
+        for (int index = 0; index < AllocationExtent; index++)
         {
             if (Rows[index].Kind == 0)
             {

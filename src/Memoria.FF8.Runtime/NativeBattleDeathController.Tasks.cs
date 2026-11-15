@@ -65,7 +65,7 @@ public static partial class NativeBattleDeathController
                     if (Word(0x2742440) == 1)
                     {
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
-                        BattleContactCursor cursor = header.FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactCursor cursor = header.FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Death requires its reached contact occurrence.");
                         Emit(new NativeBattleDeathContact(contact));
                         Store(address, Next(Read(address)));

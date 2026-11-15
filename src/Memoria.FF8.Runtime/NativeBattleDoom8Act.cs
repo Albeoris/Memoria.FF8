@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleDoom8ActInitializeTarget(uint TaskAddress, byte Actor) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8ActPlace(uint TaskAddress, short Selector) : NativeBattleDoom8Operation;
 public sealed record NativeBattleDoom8ActPreparation(NativeBattleDoom8Frame Frame, NativeBattleEffectArena Context92);
-public sealed record NativeBattleDoom8ActInputs(Func<NativeBattleDoom8Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleDoom8Frame, uint, NativeBattleDoom8ActPreparation> PrepareDraw, Func<NativeBattleDoom8Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleDoom8Frame> EmitNode, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute, Func<NativeBattleDoom8Frame, NativeBattleDoom8Step> AdvanceStrips, Func<int, short> ReadPlacementSelector, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors);
+public sealed record NativeBattleDoom8ActInputs(Func<NativeBattleDoom8Frame, uint, NativeBattleGfAnimationSource> ReadSource, Func<NativeBattleDoom8Frame, uint, NativeBattleDoom8ActPreparation> PrepareDraw, Func<NativeBattleDoom8Frame, uint, NativeBattleEffectArena, NativeBattleGfAnimationNode, NativeBattleDoom8Frame> EmitNode, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute, Func<NativeBattleDoom8Frame, NativeBattleDoom8Step> AdvanceStrips, Func<int, short> ReadPlacementSelector, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors);
 
 public static class NativeBattleDoom8Act
 {

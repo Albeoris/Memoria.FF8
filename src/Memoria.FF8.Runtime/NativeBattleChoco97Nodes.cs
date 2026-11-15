@@ -60,7 +60,7 @@ public static class NativeBattleChoco97Nodes
         return frame with { State = frame.State with { Work = pass.State } };
     }
 
-    public static NativeBattleChoco97NodeFrame InitializeContext(NativeBattleChoco97NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
+    public static NativeBattleChoco97NodeFrame InitializeContext(NativeBattleChoco97NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
     {
         frame.State.Validate();
         NativeBattleEffectNodeCallerPolicy profile = Policy(frame.Effect, resource.Address);

@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect322Controller
     public static NativeBattleEffect322Step AdvanceMain65AE00(NativeBattleEffect322Frame frame, uint address, NativeBattleEffect322Resources resources, NativeBattleEffect322Inputs inputs)
     {
         int age = Signed(Read(frame, address), 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         if (age == 13)
         {
             NativeBattleEffect322PointStep point = inputs.Point502170(frame, caster, 24, 2048, TaskView(Read(frame, address), 0x64, 8));
@@ -51,7 +51,9 @@ public static partial class NativeBattleEffect322Controller
         {
             frame = BirthProgramme(frame, address, resources, inputs);
             frame = BirthBurst(frame, address);
-            frame = inputs.Execute(frame, new NativeBattleEffect322Contact506690(FirstContact(frame, inputs)));
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            BattleContactOccurrence contact = packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("Effect322 requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleEffect322Contact506690(contact));
         }
         if (age == 30)
         {
@@ -88,7 +90,7 @@ public static partial class NativeBattleEffect322Controller
 
     private static NativeBattleEffect322Frame InitializeControls(NativeBattleEffect322Frame frame, uint address, NativeBattleEffect322Inputs inputs)
     {
-        NativeBattleEffect322PointStep point = inputs.Point502170(frame, frame.State.ReadDword(CasterGlobal), 24, 2048, UnknownPoint());
+        NativeBattleEffect322PointStep point = inputs.Point502170(frame, frame.State.ReadModelAddress(CasterGlobal), 24, 2048, UnknownPoint());
         frame = point.Frame;
         NativeBattleEffectArena target = TaskView(Read(frame, address), 0x14, 8);
         NativeBattleVector from = Vector(point.Output8);
@@ -165,8 +167,10 @@ public static partial class NativeBattleEffect322Controller
         {
             return frame;
         }
-        uint target = Read(frame, main).ReadDword(0x10);
-        frame = Write(frame, task, Read(frame, task).WriteDword(12, target));
+        BattleModelOwner target = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(0x10, 4).Owner;
+        NativeBattleModulePoolTask programme = Read(frame, task);
+        programme.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(target), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(target));
+        frame = Write(frame, task, programme);
         NativeBattleEffect322PointStep point = inputs.Anchor571400(frame, target, TaskView(Read(frame, task), 0x10, 8));
         frame = Write(point.Frame, task, CopyTask(Read(point.Frame, task), 0x10, point.Output8, 8));
         return NativeBattleEffect322Programme.Initialize(frame, task + WorkspaceOffset, ProgrammeAddress, WorkspaceLength, resources);

@@ -26,7 +26,7 @@ public static class NativeBattleQuake38Controller
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(45, packets.ReadContact(first).Primary.Recipient).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(45, packets.ReadContact(first).Primary.Recipient).WriteContactCount(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         state.BeginCheckpoint();
         try

@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect54Controller
                 if (task.ReadByte(0x63) == 0)
                 {
                     sbyte group = unchecked((sbyte)task.ReadByte(0x2A));
-                    frame = group < Signed(task, 0x58) ? Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(group + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3)) : Write(frame, address, task.WriteWord(0x60, 15).WriteByte(0x29, 5));
+                    frame = group < Signed(task, 0x58) ? Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(group + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3)) : Write(frame, address, task.WriteWord(0x60, 15).WriteByte(0x29, 5));
                 }
                 break;
             case 5:
@@ -144,7 +144,7 @@ public static partial class NativeBattleEffect54Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect54 requires its current contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                    int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect54 requires its current contact pointer.")) + task.ReadTraversalPosition(0x2B));
                     frame = inputs.Execute(frame, new NativeBattleEffect54Contact506690(contact));
                     task = Read(frame, address);
                     frame = Write(frame, address, task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));

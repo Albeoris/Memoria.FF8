@@ -44,16 +44,16 @@ public static class NativeBattleCureController
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x8D6B30), 100);
         hierarchy = root.Hierarchy;
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78);
-        NativeBattleEffectTaskActors actors = SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        task = actors.WriteTo(task).WriteByte(0x29, 0).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task).WriteByte(0x29, 0).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int arenaOffset = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native8D6A00 requires the observed277AEC0 initializer pointer.");
         if (arenaOffset > NativeBattleEffectArena.Length - 0x20000)
@@ -90,7 +90,7 @@ public static class NativeBattleCureController
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleCureFrame current = frame;
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
@@ -129,7 +129,7 @@ public static class NativeBattleCureController
                         sbyte group = unchecked((sbyte)task.ReadByte(0x2A));
                         if (group < unchecked((short)task.ReadWord(0x58)))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(group + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(phase - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(group + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(phase - 1)));
                             state = state.Write(address, task);
                         }
                         else
@@ -213,7 +213,7 @@ public static class NativeBattleCureController
                 case 2:
                     if (unchecked((short)task.ReadWord(0x24)) >= 15)
                     {
-                        BattleContactCursor cursor = ContactIndex(parameters, inputs.Packets, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactCursor cursor = ContactIndex(parameters, inputs.Packets, unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
                         BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Cure requires its reached contact occurrence.");
                         inputs.ApplyContact?.Invoke(contact);
                         contacts.Add(contact);
@@ -244,7 +244,7 @@ public static class NativeBattleCureController
         return hierarchy.Write(address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
     }
 
-    internal static NativeBattleEffectTaskActors SelectActors(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, uint parameterAddress, sbyte group, sbyte target)
+    internal static NativeBattleEffectTaskActors SelectActors(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, uint parameterAddress, sbyte group, int target)
     {
         if (parameterAddress != 0x1D99A78)
         {
@@ -255,7 +255,7 @@ public static class NativeBattleCureController
         return new(header.Source, packets.ReadContact(contact).Primary.Recipient, packets.ModelAliases);
     }
 
-    private static BattleContactCursor ContactIndex(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, sbyte group, sbyte target)
+    private static BattleContactCursor ContactIndex(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, sbyte group, int target)
     {
         BattleActionHeaderReference header = parameters.Header.Advance(group);
         return packets.ReadHeader(header).FirstContact.Advance(target);

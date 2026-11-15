@@ -83,7 +83,7 @@ public static class NativeBattleEffect60Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                         }
                         else
                         {
@@ -170,7 +170,7 @@ public static class NativeBattleEffect60Controller
                     if (current.State.Word(0x48) == 1)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect60 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect60 requires its actual contact pointer.")) + task.ReadTraversalPosition(0x2B));
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect60Contact(contact));
                         hierarchy = Next(new(current.Effect.Pools), address);
                     }
@@ -260,7 +260,7 @@ public static class NativeBattleEffect60Controller
             }
             return NativeBattleEffect60Act.Finish(current, address);
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
     }
 
     public static NativeBattleEffect60State InitializeShared(NativeBattleEffect60State retained, NativeBattleModulePoolTask task, NativeBattleEffect60Inputs inputs)
@@ -284,7 +284,7 @@ public static class NativeBattleEffect60Controller
         return accepted;
     }
 
-    private static NativeBattleEffect60Frame SpawnStage(NativeBattleEffect60Frame frame, uint parent, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    private static NativeBattleEffect60Frame SpawnStage(NativeBattleEffect60Frame frame, uint parent, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         foreach ((uint callback, uint source, ushort delay) in new (uint, uint, ushort)[] { (NativeBattleEffect60Profile.GenericPrimaryCallback, 0x1797CC0, 6), (NativeBattleEffect60Profile.GenericSecondaryCallback, 0x179C998, 36) })
         {

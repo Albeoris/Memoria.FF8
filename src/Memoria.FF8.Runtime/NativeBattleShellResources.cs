@@ -32,6 +32,6 @@ public sealed record NativeBattleShellSound(NativeBattleModuleSound Sound) : Nat
 public sealed record NativeBattleShellContact(int Index) : NativeBattleShellOperation;
 public sealed record NativeBattleShellInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleShellFrame, NativeBattleShellOperation, NativeBattleShellFrame> Execute)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
     public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadBone { get; init; }
 }

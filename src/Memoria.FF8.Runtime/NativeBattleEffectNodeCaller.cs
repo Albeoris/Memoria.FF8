@@ -42,7 +42,7 @@ internal static class NativeBattleEffectNodeCaller
         return frame with { State = frame.State with { PassEmitterCount = 0, PassGeometryCount = 0, CopiedCamera = copiedCamera, PrivateDrawCursor = privateDrawCursor } };
     }
 
-    public static NativeBattleRecover93NodeFrame Initialize74EC00(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleRecover93NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins? dogOrigins = null)
+    public static NativeBattleRecover93NodeFrame Initialize74EC00(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleRecover93NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins? dogOrigins = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
@@ -78,7 +78,7 @@ internal static class NativeBattleEffectNodeCaller
         return initialized;
     }
 
-    public static NativeBattleRecover93NodeFrame InitializeCurrent(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, byte, NativeBattleVector?>? readForeignBone = null)
+    public static NativeBattleRecover93NodeFrame InitializeCurrent(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, Func<BattleModelOwner, byte, NativeBattleVector?>? readForeignBone = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);

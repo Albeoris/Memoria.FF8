@@ -14,16 +14,20 @@ public sealed partial class BattleSession
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess());
         NativeEffectIoResult = 0;
         LoadNativeStage500EA0();
-        foreach (NativeBattleGraphicsModel model in graphics.Models.Where(model => model.ModelId4 >= 16 && (model.Flags0 & 2) != 0))
+        foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
         {
-            QueueNativeModelResource507080(graphics, model.ModelId4!.Value, checked((byte)model.Index));
+            if (entry.State.ModelId4 is not byte modelId || modelId < 16 || (entry.State.Flags0 & 2) == 0)
+            {
+                continue;
+            }
+            QueueNativeModelResource507080(graphics, modelId, entry.Owner);
             while (NativeModelLoader!.Task is not null)
             {
                 PumpNativeFileIo482590();
                 PollNativeModelResource507070(ref graphics);
             }
-            NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(model.Index);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Index, loaded with { Alpha7 = 0 }) };
+            NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(entry.Owner);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(entry.Owner, loaded with { Alpha7 = 0 }) };
         }
         NativeBattleEffectMemory memory = NativeEffectMemory!;
         NativeEffectMemory = DrainNativeTextureUploads(memory, memory.Textures!);

@@ -12,17 +12,15 @@ public sealed partial record NativeBattleModuleState
             return new(this, false, []);
         }
         NativeBattleModuleTask task = Slots[slot];
-        uint modelAddress = U32(task.Payload, 12);
-        if (modelAddress == 0)
+        if (ModuleModelKnownNull(task, 12))
         {
             return new(this, true, []);
         }
-        int? hostedModel = inputs.PresentationRoster is null ? null : ModelIndex(modelAddress, inputs);
         (NativeBattleModuleState state, int child) = Append(NativeBattleModuleKind.Impact570860);
         byte[] payload = NativeBattleTelemetry.Materialize(1085, state.Slots[child].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         NativeBattleTelemetry.Copy(1089, task.Payload.AsSpan().Slice(4, 8), payload.AsSpan(4));
-        short rotation = (inputs.ReadModelRotation14 ?? throw new NotSupportedException("Native impact requires its current model rotationWORD14."))(hostedModel ?? ModelIndex(modelAddress, inputs));
+        short rotation = (inputs.ReadModelRotation14 ?? throw new NotSupportedException("Native impact requires its current model rotationWORD14."))(RequireModuleModelOwner(task, inputs));
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(12), rotation);
         NativeCrtRandomState random = inputs.CrtRandom ?? throw new NotSupportedException("Native impact requires its current CRT thread random owner.");
         random = random.Draw(out ushort roll);

@@ -61,8 +61,10 @@ public static partial class NativeBattleEffect318Controller
             throw new NotSupportedException("Effect318 requires its actual nonempty first-contact source.");
         }
         BattleContactCursor first = header.FirstContact;
-        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-        frame = Write(frame, main, Read(frame, main).WriteDword(0x58, target));
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+        NativeBattleModulePoolTask targetTask = Read(frame, main);
+        targetTask.WriteExecutionReference(0x58, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+        frame = Write(frame, main, targetTask);
         NativeBattleEffect318PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), 0x64, 8));
         frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), 0x64, anchor.Output8, 8).WriteDword(RecordCursorOffset, checked(main + RecordOffset)));
         frame = NativeBattleEffect318Programme.Initialize(frame, main + FirstWorkspaceOffset, FirstProgrammeAddress, FirstWorkspaceLength, resources);
@@ -76,5 +78,5 @@ public static partial class NativeBattleEffect318Controller
         return packets.ReadHeader(parameters.Header);
     }
 
-    private static int FirstContact(NativeBattleEffect318Frame frame, NativeBattleEffect318Inputs inputs) => CurrentHeader(frame, inputs.ReadPackets(frame)).FirstContactIndex ?? throw new NotSupportedException("Effect318 requires its current native contact pointer.");
+    private static BattleContactCursor FirstContact(NativeBattleEffect318Frame frame, NativeBattleEffect318Inputs inputs) => CurrentHeader(frame, inputs.ReadPackets(frame)).FirstContact;
 }

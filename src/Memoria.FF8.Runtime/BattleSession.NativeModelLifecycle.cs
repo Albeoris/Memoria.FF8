@@ -137,7 +137,7 @@ public sealed partial class BattleSession
                     },
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, owner, program, soundTwo, bone),
                     ScheduleCameraShake = (start, end, duration) => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendCameraShake50F680(start, end, duration) },
-                    ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(owner, group, graphics.PresentationRoster) },
+                    ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(owner, group, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) },
                     ScheduleModelDeformation = (current, group, velocity, angle) =>
                     {
                         graphics = ScheduleNativeModelDeformation50F250(graphics with { ActorModels = models.Set(owner, current) }, owner, group, velocity, angle);
@@ -181,7 +181,7 @@ public sealed partial class BattleSession
                     {
                         graphics = graphics with { ActorModels = models.Set(owner, current) };
                         BattleModelOwner target = opcode == 0x9E ? graphics.NativeBindings.DecodeLiteral(first, models) : (graphics.ActionContext?.Target ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
-                        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, owner, target, first, second, fraction, duration, graphics.PresentationRoster);
+                        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, owner, target, first, second, fraction, duration, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
                         graphics = graphics with { Auxiliary = auxiliary };
                         if (allocated && opcode != 0x9E)
                         {

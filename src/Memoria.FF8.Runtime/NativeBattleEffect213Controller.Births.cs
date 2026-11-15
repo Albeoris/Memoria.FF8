@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect213Controller
             }
             frame = ClearDwords701200(frame, child + 12, 5);
             main = Read(frame, parent);
-            uint model = main.ReadDword(16 + Signed(main, 0x20) * 4);
+            BattleModelOwner model = main.ReadExecutionReference<BattleExecutionReference.Model>(16 + Signed(main, 0x20) * 4, 4).Owner;
             NativeBattleEffect213PointStep selected = inputs.PoseVertex6A06C0(frame, model, ordinal, TaskView(Read(frame, child), 16, 8));
             frame = selected.Frame;
             int size = (Roll(ref frame) & 2047) + 3072;

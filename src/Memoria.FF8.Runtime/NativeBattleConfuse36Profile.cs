@@ -52,7 +52,7 @@ public sealed record NativeBattleConfuse36State([property: JsonRequired] int Sou
 public sealed record NativeBattleConfuse36Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleConfuse36State State);
 public sealed record NativeBattleConfuse36LeafStep(NativeBattleConfuse36Frame Frame, int Result);
 public sealed record NativeBattleConfuse36ControllerStep(NativeBattleConfuse36Frame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
-public sealed record NativeBattleConfuse36ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleConfuse36ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
     public Func<BattleModelOwner, byte, NativeBattleVector?>? ReadForeignBone { get; init; }

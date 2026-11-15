@@ -35,7 +35,7 @@ public static class NativeBattleRestorationLifecycle
         }
         return NativeBattleTaskOperation.CompleteStandalone<NativeBattleRestorationPresentationStep>(operation, new(result, random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), batch));
 
-        int? AllocateEmitter(uint parent, sbyte source, sbyte target)
+        int? AllocateEmitter(uint parent, sbyte source, int target)
         {
             ushort cursor = memory.State.EmitterScanCursor ?? throw new NotSupportedException("Native restoration emitter scan WORD is unknown.");
             int? node = NativeBattleEffectNodeAllocation.AllocateEmitter(memory, memory.State.Emitters!.Value, memory.Profile.EmitterBytes / 108, ref cursor, parent, source, target);

@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect285Controller
                 }
                 frame = inputs.Execute(frame, new NativeBattleEffect285CameraRoll(0));
             }
-            NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, frame.State.ReadDword(CasterGlobal));
+            NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, frame.State.ReadModelAddress(CasterGlobal));
             NativeBattleVector caster = Vector(model, 28);
             frame = BlendCameraPoint(frame, false, OffsetPoint(caster, -704, -1775, 2285), OffsetPoint(caster, 110, -2898, 2387), age * 128, inputs);
             frame = BlendCameraPoint(frame, true, OffsetPoint(caster, -1270, -17, 5028), OffsetPoint(caster, 636, 2386, 6749), age * 128, inputs);

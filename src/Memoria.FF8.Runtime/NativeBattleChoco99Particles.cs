@@ -11,7 +11,7 @@ public static class NativeBattleChoco99Particles
     public const uint TrailCallback = 0x720B90;
     public const uint RadialCallback = 0x720EA0;
 
-    public static NativeBattleChoco99ParticleEmission EmitTrail7209B0(NativeBattleEffectHierarchy hierarchy, uint parentAddress, ushort mode, NativeCrtRandomState random, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleChoco99ParticleEmission EmitTrail7209B0(NativeBattleEffectHierarchy hierarchy, uint parentAddress, ushort mode, NativeCrtRandomState random, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchyAppend appended = Append(hierarchy, parentAddress, TrailCallback, selectActors);
         hierarchy = appended.Hierarchy;
@@ -55,7 +55,7 @@ public static class NativeBattleChoco99Particles
         }
     }
 
-    public static NativeBattleChoco99ParticleEmission EmitRadial720D70(NativeBattleEffectHierarchy hierarchy, uint parentAddress, ushort mode, NativeCrtRandomState random, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleChoco99ParticleEmission EmitRadial720D70(NativeBattleEffectHierarchy hierarchy, uint parentAddress, ushort mode, NativeCrtRandomState random, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchyAppend appended = Append(hierarchy, parentAddress, RadialCallback, selectActors);
         hierarchy = appended.Hierarchy;
@@ -168,7 +168,7 @@ public static class NativeBattleChoco99Particles
         return NativeBattleChocoPresentationDepths.Capture(NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2));
     }
 
-    private static NativeBattleEffectHierarchyAppend Append(NativeBattleEffectHierarchy hierarchy, uint parentAddress, uint callback, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    private static NativeBattleEffectHierarchyAppend Append(NativeBattleEffectHierarchy hierarchy, uint parentAddress, uint callback, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         int pool = Enumerable.Range(0, hierarchy.Pools.Length).Single(index => hierarchy.Pools[index].DescriptorAddress == AuxiliaryDescriptor);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(pool, callback, 0xB0, parentAddress, selectActors);

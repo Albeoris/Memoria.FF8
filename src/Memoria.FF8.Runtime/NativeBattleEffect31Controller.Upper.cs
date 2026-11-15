@@ -44,7 +44,7 @@ public static partial class NativeBattleEffect31Controller
                     sbyte group = unchecked((sbyte)task.ReadByte(0x2A));
                     if (group < unchecked((short)task.ReadWord(0x58)))
                     {
-                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(group + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(group + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                     }
                     else
                     {
@@ -152,7 +152,7 @@ public static partial class NativeBattleEffect31Controller
                 {
                     BattleActionHeaderReference group = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     int first = inputs.ReadPackets(frame).ReadHeader(group).FirstContactIndex ?? throw new NotSupportedException("Effect31 requires the selected group's current contact pointer.");
-                    int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
+                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
                     frame = inputs.Execute(frame, new NativeBattleEffect31Contact506690(contact));
                     frame = IncrementPhase(MarkComplete(frame, address), address);
                 }

@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         {
             Resources = definition.NativeModuleResources,
             CrtRandom = nativeCrtRandom,
-            PresentationRoster = graphics.PresentationRoster,
+            ModelAliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels),
             ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index),
             ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction),
             ReadModelBoneCount = index => checked((byte)(NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native573560 requires its current model skeleton owner.")).BoneCount),
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private static NativeBattleGraphicsState ScheduleNativeModelEffect(NativeBattleGraphicsState graphics, int index, byte operand)
+    private static NativeBattleGraphicsState ScheduleNativeModelEffect(NativeBattleGraphicsState graphics, BattleModelOwner index, byte operand)
     {
         (byte effect, uint flags) = NativeBattleModuleState.SelectModelEffect(operand, graphics.Flags);
         NativeBattleCastingSequenceProvenance? source = null;
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
         {
             source = selected;
         }
-        NativeBattleModuleState modules = graphics.ModuleEffects.AppendModelEffect(index, effect, effect == 0 ? source : null, graphics.PresentationRoster);
+        NativeBattleModuleState modules = graphics.ModuleEffects.AppendModelEffect(index, effect, graphics.NativeBindings.CaptureAliases(graphics.ActorModels), effect == 0 ? source : null);
         return graphics with { ModuleEffects = modules, Flags = flags };
     }
 

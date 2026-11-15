@@ -12,7 +12,7 @@ public static partial class NativeBattleEffect345Controller
         }
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-        int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect345 requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+        int contact = checked((packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect345 requires its physical contact pointer.")) + task.ReadTraversalPosition(0x2B));
         _ = packets.ReadContact(contact);
         return contact;
     }
@@ -101,7 +101,7 @@ public static partial class NativeBattleEffect345Controller
         switch (NativePhase(task, 3))
         {
             case 0:
-                if (task.ReadByte(0x2E) == 0)
+                if (task.ReadTraversalPosition(0x2E) == 0)
                 {
                     frame = inputs.Execute(frame, new NativeBattleEffect345UploadTim505E30(NativeBattleEffect345Resources.EmbeddedTim0Address));
                     frame = inputs.Execute(frame, new NativeBattleEffect345UploadTim505E30(NativeBattleEffect345Resources.EmbeddedTim1Address));

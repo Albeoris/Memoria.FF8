@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect318Controller
         {
             if (time == 0)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect318MeshMask(frame.State.ReadDword(CasterGlobal), 0xFFFFFFF7, 0));
+                frame = inputs.Execute(frame, new NativeBattleEffect318MeshMask(frame.State.ReadModelAddress(CasterGlobal), 0xFFFFFFF7, 0));
             }
             (frame, NativeBattleVector point) = BlendPath(frame, target, caster, time * 256, inputs.Colors);
             NativeBattleVector offset = Vector(TaskView(Read(frame, address), 0x6C, 8));
@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect318Controller
 
     public static NativeBattleEffect318Frame InitializeMatrices(NativeBattleEffect318Frame frame, uint address, NativeBattleEffect318Resources resources, NativeBattleEffect318Inputs inputs)
     {
-        NativeBattleEffect318PointStep bone = inputs.Point502170(frame, frame.State.ReadDword(CasterGlobal), 29, 2048, TaskView(Read(frame, address), 0x5C, 8));
+        NativeBattleEffect318PointStep bone = inputs.Point502170(frame, frame.State.ReadModelAddress(CasterGlobal), 29, 2048, TaskView(Read(frame, address), 0x5C, 8));
         frame = Write(bone.Frame, address, CopyTask(Read(bone.Frame, address), 0x5C, bone.Output8, 8));
         NativeBattleVector caster = Vector(bone.Output8);
         NativeBattleVector target = Vector(TaskView(Read(frame, address), 0x64, 8));
@@ -165,11 +165,13 @@ public static partial class NativeBattleEffect318Controller
         frame = inputs.Execute(frame, new NativeBattleEffect318Advance534210());
         if (age == 24)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect318Contact506690(FirstContact(frame, inputs)));
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            BattleContactOccurrence contact = packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("Effect318 requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleEffect318Contact506690(contact));
         }
         if (age == 39)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect318MeshMask(frame.State.ReadDword(CasterGlobal), uint.MaxValue, 8));
+            frame = inputs.Execute(frame, new NativeBattleEffect318MeshMask(frame.State.ReadModelAddress(CasterGlobal), uint.MaxValue, 8));
             foreach ((int bone, int delay) in new[] { (22, 0), (29, 8), (33, 16), (34, 16), (35, 16) })
             {
                 frame = NativeBattleEffect318Lower.Birth65F250(frame, bone, delay, 1024, 512, inputs);

@@ -5,8 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleModuleInputs
 {
-    public Func<int, NativeBattleModelTransform>? ReadModelTransform { get; init; }
-    public Func<int, byte>? ReadModelBoneCount { get; init; }
+    public Func<BattleModelOwner, NativeBattleModelTransform>? ReadModelTransform { get; init; }
+    public Func<BattleModelOwner, byte>? ReadModelBoneCount { get; init; }
 }
 
 public sealed partial record NativeBattleModuleDraw
@@ -23,16 +23,11 @@ public sealed partial record NativeBattleModuleState
 {
     public static (byte Index, uint GraphicsFlags) SelectModelEffect(byte operand, uint graphicsFlags) => (graphicsFlags & 0x40000000) != 0 ? ((byte)1, graphicsFlags & ~0x40000000u) : (operand, graphicsFlags);
 
-    public NativeBattleModuleState AppendModelEffect(int model, byte effect)
+    public NativeBattleModuleState AppendModelEffect(BattleModelOwner model, byte effect, NativeBattleModelAliases aliases, NativeBattleCastingSequenceProvenance? presentationSource = null)
     {
-        return AppendModelEffect(model, effect, null);
-    }
-
-    public NativeBattleModuleState AppendModelEffect(int model, byte effect, NativeBattleCastingSequenceProvenance? presentationSource, BattleModelRoster? roster = null)
-    {
-        if (!HasModelRow(model, roster))
+        if (!aliases.Roster.Contains(model))
         {
-            throw new InvalidDataException("Native571840 requires its physical graphics model pointer.");
+            throw new InvalidDataException("Native571840 requires its bound model owner.");
         }
         if (effect is not (0 or 1 or 2 or 3 or 4 or 5))
         {
@@ -52,8 +47,7 @@ public sealed partial record NativeBattleModuleState
         byte[] payload = NativeBattleTelemetry.Materialize(1057, state.Slots[slot].Payload.AsSpan());
         W(payload, 0, 0);
         W(payload, 2, 0);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), ModelAddress(model));
-        return state.StoreCastingPayload(slot, payload);
+        return state with { Slots = state.Slots.SetItem(slot, WriteModuleModelOperand(state.Slots[slot], payload, 20, model, aliases, 1057)) };
     }
 
     private NativeBattleModuleCallback AdvanceCastingSeed(int slot, NativeBattleModuleInputs inputs)
@@ -70,7 +64,7 @@ public sealed partial record NativeBattleModuleState
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
         if (phase == 0)
         {
-            int model = ModelIndex(U32(task.Payload, 20), inputs);
+            BattleModelOwner model = RequireModuleModelOwner(task, inputs);
             NativeBattleModelTransform transform = (inputs.ReadModelTransform ?? throw new NotSupportedException("Native574C80 requires the original model WORD36/38."))(model);
             NativeBattleModuleAnchor anchor = (inputs.ReadModelAnchor ?? throw new NotSupportedException("Native574C80 requires its actual571400 anchor."))(model);
             WriteAnchor(payload.AsSpan(4), anchor);

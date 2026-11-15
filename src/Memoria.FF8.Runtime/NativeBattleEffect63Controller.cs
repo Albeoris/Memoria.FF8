@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect63Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect63 requires its actual action parameters.");
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleContactCursor first = packets.ReadHeader(parameters.Header).FirstContact;
-        frame = frame with { State = frame.State.WriteDword(WorkGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Source)).WriteDword(TargetGlobal, ModelAddress(packets.ReadContact(first).Primary.Recipient)) };
+        frame = frame with { State = frame.State.WriteDword(WorkGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, parameters.Source, packets.ModelAliases).WriteModelAddress(TargetGlobal, packets.ReadContact(first).Primary.Recipient, packets.ModelAliases) };
         NativeBattleEffectTaskPool root = CreatePool(frame, FixedPools[0], false);
         (root, _) = root.Append(RootCallback);
         frame = frame with { State = frame.State.DetachBank(0), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor } };
@@ -83,7 +83,6 @@ public static partial class NativeBattleEffect63Controller
         return pool;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect63 requires an actual physical model row.");
 
     private static void RequireBinding(NativeBattleEffect63Frame frame)
     {

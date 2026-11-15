@@ -5,11 +5,14 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectHierarchyTests
 {
+    private static readonly BattleModelOwner Actor = new BattleEnemyActorModel(new("caster"));
+    private static readonly BattleModelOwner Target = new BattleEnemyActorModel(new("recipient"));
+    private static readonly NativeBattleModelAliases Aliases = new(new([Actor, Target]), [(NativeBattleModelSlot.Decode(4), Actor), (NativeBattleModelSlot.Decode(6), Target)]);
     [Fact]
     public void Root_clears_only_the_requested_DWORD_prefix_and_retains_the_original_slot_suffix()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 2);
-        pool = pool.WriteSlot(0, pool.Slots[0].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 88).ToImmutableArray().AsSpan()));
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 88).ToImmutableArray().AsSpan()).WriteTraversalPosition(0x2E, 165));
         NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy([pool]).Append8DC540(0, 0x8D6B30, 45);
         Assert.Equal(0x1000u, appended.Address);
         NativeBattleModulePoolTask task = appended.Hierarchy.Read(appended.Address);
@@ -18,26 +21,30 @@ public sealed class NativeBattleEffectHierarchyTests
         Assert.Equal(0u, task.ReadDword(0x14));
         Assert.Equal(0u, task.ReadDword(0x18));
         Assert.Equal((byte)0, task.ReadByte(43));
+        Assert.Equal(0, task.ReadTraversalPosition(0x2B));
         Assert.Equal((byte)0xA5, task.ReadByte(44));
+        Assert.Equal(165, task.ReadTraversalPosition(0x2E));
+        Assert.Equal((byte)0xA5, task.ReadByte(0x2F));
+        Assert.Throws<InvalidDataException>(() => task.ReadTraversalPosition(0x2F));
         Assert.Equal((byte)0xA5, task.ReadByte(99));
         Assert.Equal((ushort)1, task.Flags);
         Assert.Null(task.Next);
     }
 
     [Fact]
-    public void Descendants_inherit_root_first_level_parameter_position_and_signed_header_contact_selectors()
+    public void Descendants_inherit_root_links_signed_header_and_full_traversal_positions()
     {
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 3)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x8D6B30, 100);
         hierarchy = root.Hierarchy;
-        NativeBattleModulePoolTask parent = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteDword(0x1C, 0x1234FEDC).WriteDword(0x20, 0x6789ABCD).WriteByte(0x2A, 0xFF).WriteByte(0x2B, 0xFE).WriteByte(0x2E, 7).WriteByte(0x2F, 8).WriteByte(0x28, 255);
+        NativeBattleModulePoolTask parent = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteDword(0x1C, 0x1234FEDC).WriteDword(0x20, 0x6789ABCD).WriteByte(0x2A, 0xFF).WriteTraversalPosition(0x2B, 300).WriteTraversalPosition(0x2E, 301).WriteTraversalPosition(0x2F, 800).WriteByte(0x28, 255);
         hierarchy = hierarchy.Write(root.Address, parent);
-        NativeBattleEffectTaskActors Select(uint parameters, sbyte group, sbyte target)
+        NativeBattleEffectTaskActors Select(uint parameters, sbyte group, int target)
         {
             Assert.Equal(0x1D99A78u, parameters);
             Assert.Equal((sbyte)-1, group);
-            Assert.Equal((sbyte)-2, target);
-            return new(4, 6);
+            Assert.Equal(300, target);
+            return new(Actor, Target, Aliases);
         }
         NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(0, 0x8D6CC0, 88, root.Address, Select);
         Assert.Equal((byte)0, child.Hierarchy.Read(root.Address).ReadByte(0x28));
@@ -50,8 +57,10 @@ public sealed class NativeBattleEffectHierarchyTests
         Assert.Equal(0x6789ABCDu, first.ReadDword(0x20));
         Assert.Equal((byte)4, first.ReadByte(0x2C));
         Assert.Equal((byte)6, first.ReadByte(0x2D));
-        Assert.Equal((byte)7, first.ReadByte(0x2E));
-        Assert.Equal((byte)8, first.ReadByte(0x2F));
+        Assert.Equal(300, first.ReadTraversalPosition(0x2B));
+        Assert.Equal(301, first.ReadTraversalPosition(0x2E));
+        Assert.Equal(800, first.ReadTraversalPosition(0x2F));
+        Assert.Throws<NotSupportedException>(() => first.ReadByte(0x2E));
         NativeBattleEffectHierarchyAppend grandchild = child.Hierarchy.Append8DC540(0, 0x8D6D80, 100, child.Address, Select);
         Assert.Equal(child.Address, grandchild.Hierarchy.Read(grandchild.Address).ReadDword(0x14));
         Assert.Equal(root.Address, grandchild.Hierarchy.Read(grandchild.Address).ReadDword(0x10));
@@ -73,8 +82,8 @@ public sealed class NativeBattleEffectHierarchyTests
             visited.Add(address);
             if (address == root.Address)
             {
-                state = state.Append8DC540(0, 0x8D6CC0, 100, address, (_, _, _) => new(0, 3)).Hierarchy;
-                state = state.Append8DC540(1, 0x8D6D80, 88, address, (_, _, _) => new(0, 3)).Hierarchy;
+                state = state.Append8DC540(0, 0x8D6CC0, 100, address, (_, _, _) => new(Actor, Target, Aliases)).Hierarchy;
+                state = state.Append8DC540(1, 0x8D6D80, 88, address, (_, _, _) => new(Actor, Target, Aliases)).Hierarchy;
                 return new(state, 0);
             }
             return new(state.Complete8DC530(address), 2);
@@ -91,6 +100,28 @@ public sealed class NativeBattleEffectHierarchyTests
         NativeBattleEffectHierarchyStep childPass = restored.Advance(1, (state, address) => new(state.Complete8DC530(address), 2));
         Assert.Equal((byte)0, childPass.Hierarchy.Read(root.Address).ReadByte(0x28));
         Assert.Equal(0, childPass.Survivors);
+    }
+
+    [Fact]
+    public void Self_parent_allocation_selects_using_the_planned_clear_prefix()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 1);
+        pool.Slots[0].WriteByte(0x2A, 4).WriteTraversalPosition(0x2B, 300).WriteTraversalPosition(0x2E, 301).WriteTraversalPosition(0x2F, 800);
+        NativeBattleEffectHierarchy hierarchy = new([pool]);
+
+        NativeBattleEffectHierarchyAppend child = hierarchy.Append8DC540(0, 0x8D6CC0, 45, pool.BankAddress, (parameters, group, target) =>
+        {
+            Assert.Equal(0u, parameters);
+            Assert.Equal(0, (int)group);
+            Assert.Equal(0, target);
+            return new(Actor, Target, Aliases);
+        });
+
+        Assert.Equal(pool.BankAddress, child.Address);
+        NativeBattleModulePoolTask task = child.Hierarchy.Read(child.Address);
+        Assert.Equal(0, task.ReadTraversalPosition(0x2B));
+        Assert.Equal(301, task.ReadTraversalPosition(0x2E));
+        Assert.Equal(800, task.ReadTraversalPosition(0x2F));
     }
 
     [Fact]

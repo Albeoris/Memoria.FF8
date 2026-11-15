@@ -128,7 +128,7 @@ internal enum NativeBattleEffectNodeOrientation2Policy
     TargetF1MinusCasterF0Look3D
 }
 
-internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, sbyte, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry)
+internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, int, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry)
 {
     public Action<NativeBattleEffectNodeBank, uint, int, byte>? MutateResource { get; init; }
     public Func<NativeBattlePilotVisualIdentity, uint, NativeBattlePilotVisualIdentity>? PilotResourceIdentity { get; init; }
@@ -149,4 +149,4 @@ internal delegate NativeBattleEffectNodeMeshInstance NativeBattleEffectNodePrepa
 
 internal delegate NativeBattleVector NativeBattleEffectNodeSpawnOrigin(ref NativeCrtRandomState random);
 
-internal delegate NativeBattleVector NativeBattleEffectNodeActorAnchor(int actor, ref NativeCrtRandomState random);
+internal delegate NativeBattleVector NativeBattleEffectNodeActorAnchor(BattleModelOwner actor, ref NativeCrtRandomState random);

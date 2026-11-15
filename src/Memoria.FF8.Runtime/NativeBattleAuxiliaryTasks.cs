@@ -30,6 +30,7 @@ public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort F
     [JsonRequired] public NativeBattleAuxiliaryProgram? Program { get; init; }
     [JsonRequired] public uint UnknownByteMask { get; init; }
     [JsonIgnore] public BattleModelOwner? ModelOwner { get; init; }
+    [JsonIgnore] public BattleModelOwner? TargetOwner { get; init; }
 }
 
 public sealed record NativeBattleAuxiliaryStep(NativeBattleAuxiliaryState State, ushort? CameraBlend)
@@ -66,7 +67,7 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             if (Slots[index].Kind == NativeBattleAuxiliaryKind.SoundParticle50F830)
             {
                 (Slots[index].Program ?? throw new InvalidDataException("Native50F830 lacks its original operand-program pointer.")).Validate();
-                if ((Slots[index].UnknownByteMask & 0x1F0FFFu) != 0)
+                if (Slots[index].ModelOwner is null || (Slots[index].UnknownByteMask & 0x100FFFu) != 0)
                 {
                     throw new InvalidDataException("Native50F830 lacks its written counter/model/operand/size fields.");
                 }
@@ -94,7 +95,7 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             else if (Slots[index].Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
             {
                 (Slots[index].Program ?? throw new InvalidDataException("Native5057D0 lacks its original deadline pointer.")).Validate();
-                if ((Slots[index].UnknownByteMask & 0xF0F) != 0)
+                if (Slots[index].ModelOwner is null || (Slots[index].UnknownByteMask & 0xF00) != 0)
                 {
                     throw new InvalidDataException("Native5057D0 lacks its model pointer, toggle, sequence and elapsed WORD.");
                 }

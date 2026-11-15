@@ -14,14 +14,14 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendModelDeformation50F250(int model, byte group, byte bone, NativeBattleVector velocity, short angle, uint color, BattleModelRoster? roster = null)
+    public NativeBattleAuxiliaryState AppendModelDeformation50F250(BattleModelOwner model, byte group, byte bone, NativeBattleVector velocity, short angle, uint color, NativeBattleModelAliases aliases)
     {
         Validate();
         if (!Slots.Any(task => (task.Flags & 1) == 0))
         {
             return this;
         }
-        NativeBattleAuxiliaryState state = AppendModelGroupFade50F0B0(model, group, roster);
+        NativeBattleAuxiliaryState state = AppendModelGroupFade50F0B0(model, group, aliases);
         int slot = state.Tail!.Value;
         NativeBattleAuxiliaryTask task = state.Slots[slot];
         byte[] payload = task.Payload.ToArray();
@@ -31,14 +31,14 @@ public sealed partial record NativeBattleAuxiliaryState
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(12), velocity.Z);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), color);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(20), angle);
-        task = task with { Kind = NativeBattleAuxiliaryKind.ModelDeformation50F2E0, Payload = payload.ToImmutableArray(), UnknownByteMask = task.UnknownByteMask & ~0x3F3F7Fu | 0xC000u };
+        task = task with { Kind = NativeBattleAuxiliaryKind.ModelDeformation50F2E0, Payload = payload.ToImmutableArray(), UnknownByteMask = task.UnknownByteMask & ~0x3F3F70u | 0xC000u };
         return state with { Slots = state.Slots.SetItem(slot, task) };
     }
 }
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState ScheduleNativeModelDeformation50F250(NativeBattleGraphicsState graphics, int index, byte group, NativeBattleVector velocity, short angle)
+    private NativeBattleGraphicsState ScheduleNativeModelDeformation50F250(NativeBattleGraphicsState graphics, BattleModelOwner index, byte group, NativeBattleVector velocity, short angle)
     {
         if (!graphics.Auxiliary.Slots.Any(task => (task.Flags & 1) == 0))
         {
@@ -59,20 +59,17 @@ public sealed partial class BattleSession
             bone = Math.Min(bone, candidate);
         }
         uint color = NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Native50F250 requires its retained process color DWORD.");
-        return graphics with { Auxiliary = graphics.Auxiliary.AppendModelDeformation50F250(index, group, unchecked((byte)bone), velocity, angle, color, graphics.PresentationRoster) };
+        return graphics with { Auxiliary = graphics.Auxiliary.AppendModelDeformation50F250(index, group, unchecked((byte)bone), velocity, angle, color, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) };
     }
 
     private NativeBattleAuxiliaryTask AdvanceNativeModelDeformation50F2E0(ref NativeBattleGraphicsState graphics, NativeBattleAuxiliaryTask task)
     {
-        if ((task.UnknownByteMask & 0x3F3F7F) != 0)
+        if ((task.UnknownByteMask & 0x3F3F70) != 0)
         {
             throw new InvalidDataException("Native50F2E0 lacks its actual model/group/bone/velocity/color/angle fields.");
         }
         byte[] payload = task.Payload.ToArray();
-        if (!NativeBattleGraphicsModelAddress.TryDecode(BinaryPrimitives.ReadUInt32LittleEndian(payload), out int index, graphics.Models.Length) || graphics.PresentationRoster is { } roster && roster.Rows[index] is null)
-        {
-            throw new InvalidDataException("Native50F2E0 model pointer does not identify a bound row in its graphics bank.");
-        }
+        BattleModelOwner index = task.ModelOwner ?? throw new InvalidDataException("Native deformation has no active model owner.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native50F2E0 requires its original decoded body skeleton.");

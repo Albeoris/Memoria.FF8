@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect63Controller
             frame = NativeBattleEffect63Programme.Initialize(frame, main + 0x100, FirstProgrammeAddress, 0xE8, resources);
             frame = NativeBattleEffect63Programme.Initialize(frame, main + 0x1E8, SecondProgrammeAddress, 0x6A0, resources);
             frame = NativeBattleEffect63Programme.Initialize(frame, main + 0x888, ThirdProgrammeAddress, 0x580, resources);
-            NativeBattleEffect63PointStep anchor = inputs.Anchor571400(frame, frame.State.ReadDword(TargetGlobal), TaskView(Read(frame, main), 0x10, 8));
+            NativeBattleEffect63PointStep anchor = inputs.Anchor571400(frame, frame.State.ReadModelAddress(TargetGlobal), TaskView(Read(frame, main), 0x10, 8));
             frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), 0x10, anchor.Output8, 8));
         }
         bool initialized = Read(frame, address).ReadByte(14) != 0;

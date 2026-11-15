@@ -41,13 +41,13 @@ public static partial class NativeBattleWendigoController
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Wendigo requires its actual first contact.");
-        byte maximum = unchecked((byte)(header.ReadContactCount() - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(header.ReadContactCount());
         if (maximum < header.ReadRepeatModeMinusOne())
         {
             maximum = header.ReadRepeatModeMinusOne();
         }
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, 0, 0);
-        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78)).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteByte(0x2F, maximum);
+        NativeBattleModulePoolTask task = actors.WriteTo(hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78)).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == ModuleBase(shoot))?.ArenaOffset ?? throw new NotSupportedException("Native Wendigo requires its executed initializer file pointer.");
         if ((parameters.Flags79 & 1) == 0)

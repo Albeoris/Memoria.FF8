@@ -130,7 +130,7 @@ public sealed partial class BattleSession
             }
             // Resource-owned bytes have separate storage, but retain their native placement.
             // Observe that placement here; do not use it to select the resource's backing owner.
-            uint value = pointer is null ? 0 : pointer.TryPhysicalAddress() ?? (pointer.Bank < 3 ? checked(pointer.EffectiveLayout.BaseAddress + (uint)pointer.EffectiveLayout.BankLength * pointer.Bank + (uint)pointer.Offset) : pointer.NativePlacementAddress);
+            uint value = pointer is null ? 0 : pointer.TryPhysicalAddress() ?? (pointer.Bank < 3 ? checked(pointer.EffectiveLayout.BaseAddress + (uint)pointer.EffectiveLayout.BankLength * (uint)pointer.Bank + (uint)pointer.Offset) : pointer.NativePlacementAddress);
             return ByteOf(value, offset - field);
         }
         if (address >= NativeBattleModelResourceRowAddress.HostedBase && NativeBattleModelResourceRowAddress.TryResolveField(address, 1, out _, out _, NativeBattleModelResourceRowAddress.MaximumRowCount))

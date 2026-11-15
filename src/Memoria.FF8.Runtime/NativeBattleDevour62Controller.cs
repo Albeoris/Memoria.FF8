@@ -78,7 +78,7 @@ public static class NativeBattleDevour62Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                         }
                         else
                         {
@@ -180,7 +180,7 @@ public static class NativeBattleDevour62Controller
                     case 2:
                         if (Word(task, 0x24) >= 83)
                         {
-                            BattleContactCursor cursor = Header(task).FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2B)));
+                            BattleContactCursor cursor = Header(task).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                             BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Devour requires its reached contact occurrence.");
                             Execute(new NativeBattleDevour62Contact(contact));
                             hierarchy = Done(hierarchy, address);
@@ -385,7 +385,7 @@ public static class NativeBattleDevour62Controller
             BattleContactCursor first = inputs.Packets.ReadHeader(header).FirstContact;
             return unchecked((short)inputs.Packets.ReadContact(first).Primary.Amount6);
         }
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
     }
 
     private static NativeBattleDevour62Frame With(NativeBattleDevour62Frame frame, NativeBattleEffectHierarchy hierarchy) => frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };

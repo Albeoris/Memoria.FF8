@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendModelGroupFade50F0B0(int model, byte group, BattleModelRoster? roster = null)
+    public NativeBattleAuxiliaryState AppendModelGroupFade50F0B0(BattleModelOwner model, byte group, NativeBattleModelAliases aliases)
     {
         Validate();
-        if (!IsAuxiliaryModelBound(model, roster))
+        if (!aliases.Roster.Contains(model))
         {
             throw new ArgumentOutOfRangeException(nameof(model));
         }
@@ -18,11 +18,11 @@ public sealed partial record NativeBattleAuxiliaryState
             throw new InvalidOperationException("Native50F0B0 exhausted its shared sixteen-slot auxiliary pool.");
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(model));
+        uint operandKnownness = WriteModelOperand(payload, Slots[slot].UnknownByteMask, 0, model, aliases);
         payload[4] = group;
         payload[6] = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), 255);
-        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.ModelGroupFade50F0E0, Payload = payload.ToImmutableArray(), UnknownByteMask = Slots[slot].UnknownByteMask & ~0xF005Fu };
+        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.ModelGroupFade50F0E0, Payload = payload.ToImmutableArray(), ModelOwner = model, TargetOwner = null, UnknownByteMask = operandKnownness & ~0xF0050u };
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
@@ -33,12 +33,12 @@ public sealed partial record NativeBattleAuxiliaryState
 
     private static (NativeBattleAuxiliaryTask Task, bool Release) AdvanceModelGroupFade50F0E0(NativeBattleAuxiliaryTask task, NativeBattleAuxiliaryInputs? inputs)
     {
-        if ((task.UnknownByteMask & 0xF005F) != 0)
+        if ((task.UnknownByteMask & 0xF0050) != 0)
         {
             throw new InvalidDataException("Native50F0E0 lacks its actual model/group/phase/color operands.");
         }
         byte[] payload = task.Payload.ToArray();
-        int model = MotionModel(payload, 0, inputs?.PresentationRoster);
+        BattleModelOwner model = RequireModelOperand(task.ModelOwner);
         uint unknown = task.UnknownByteMask;
         if (payload[6] == 0)
         {

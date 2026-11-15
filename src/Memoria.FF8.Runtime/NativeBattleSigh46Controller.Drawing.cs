@@ -14,7 +14,7 @@ public static partial class NativeBattleSigh46Controller
         switch (Phase(frame, address))
         {
             case 0:
-                NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadByte(0x2C));
+                NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner);
                 NativeBattleVector position = (model.Transform ?? throw new NotSupportedException("Sigh requires its current actor position.")).Position28;
                 short yaw = model.Rotation14 ?? throw new NotSupportedException("Sigh requires its actual actor rotation WORD14.");
                 NativeBattleActionMatrix rotation = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), yaw);

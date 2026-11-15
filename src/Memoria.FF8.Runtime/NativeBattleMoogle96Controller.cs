@@ -39,13 +39,13 @@ public static class NativeBattleMoogle96Controller
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
-        byte lastTarget = unchecked((byte)(root.ReadWord(0x5A) - 1));
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0xC, ActionParameters).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(contact).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        int lastTarget = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (lastTarget < root.ReadWord(0x58))
         {
             lastTarget = unchecked((byte)root.ReadWord(0x58));
         }
-        root = root.WriteByte(0x2F, lastTarget);
+        root = root.WriteTraversalPosition(0x2F, lastTarget);
         hierarchy = hierarchy.Write(appended.Address, root);
         int textureOffset = TextureOffset(effect);
         uint next = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)textureOffset + 0x2000);

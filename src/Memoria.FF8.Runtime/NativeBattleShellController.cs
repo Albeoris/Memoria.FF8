@@ -41,10 +41,10 @@ public static class NativeBattleShellController
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = Math.Max(unchecked((byte)(targets - 1)), groups);
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        int maximum = Math.Max(NativeBattleEffectRootTask.LastContactPosition(targets), groups);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {

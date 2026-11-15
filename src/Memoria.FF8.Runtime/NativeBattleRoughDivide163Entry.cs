@@ -20,13 +20,13 @@ public static partial class NativeBattleRoughDivide163Controller
                 staging = staging.Write(region.Address, region.Data.AsSpan());
             }
         }
-        NativeBattleActionHeaderSlot header = packets.Headers[parameters.Header];
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23CE278) ?? throw new NotSupportedException("Native5F5B80 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23CE278, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
-        staging = WriteDword(staging, 0x23CA1A0, recipient);
-        staging = WriteDword(staging, 0x23CE274, parameters.Source);
+        staging = staging.WriteExecutionReference(0x23CA1A0, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 4));
+        staging = staging.WriteExecutionReference(0x23CE274, 4, new BattleExecutionReference.Model(parameters.Source), packets.ModelAliases.EncodeOperand(parameters.Source, 4));
         staging = WriteDword(staging, 0x23CE580, 0x20DFAB8);
         for (uint address = 0x23CA1D8; address < 0x23CAB38; address += 24)
         {

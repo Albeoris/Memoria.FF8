@@ -17,7 +17,7 @@ public static partial class NativeBattleMagmaBreath48Controller
         {
             throw new NotSupportedException("Magma Breath placement mode2 requires its observed prior stack vector.");
         }
-        int actor = Signed(task, 0x52);
+        BattleModelOwner actor = NativeBattleEffectNodeContext.Read(task).Source;
         NativeBattleMagmaBreath48PointStep first = inputs.ReadBone502170(frame, actor, 0x15, 0);
         frame = first.Frame;
         frame = WriteMouth(frame, address, 0x1F4, first.Point8, false);

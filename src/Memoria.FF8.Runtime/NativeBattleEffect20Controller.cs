@@ -77,7 +77,7 @@ public static class NativeBattleEffect20Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                         }
                         else
                         {
@@ -171,7 +171,7 @@ public static class NativeBattleEffect20Controller
                     if (Word(task, 0x24) >= 30)
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect20 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                        int contact = checked((inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect20 requires its actual contact pointer.")) + task.ReadTraversalPosition(0x2B));
                         current = inputs.Execute(With(current, hierarchy), new NativeBattleEffect20Contact(contact));
                         hierarchy = new(current.Effect.Pools);
                         hierarchy = hierarchy.Write(address, hierarchy.Read(address).WriteByte(0x26, (byte)(hierarchy.Read(address).ReadByte(0x26) | 1)));
@@ -318,7 +318,7 @@ public static class NativeBattleEffect20Controller
             return NativeBattleEffect20Particles.Finish(current, address);
         }
 
-        NativeBattleEffectTaskActors Select(uint parameter, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, parameter, group, target);
+        NativeBattleEffectTaskActors Select(uint parameter, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, parameter, group, target);
     }
 
     private static NativeBattleEffect20Frame With(NativeBattleEffect20Frame frame, NativeBattleEffectHierarchy hierarchy) => frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };

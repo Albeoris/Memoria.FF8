@@ -43,7 +43,7 @@ public static partial class NativeBattleEffect345Controller
                 frame = NativeBattleEffect345Body.ApplyColor70C6B0(frame, address, resources, inputs);
                 break;
             case 4:
-                if (task.ReadByte(0x2E) == task.ReadByte(0x2F))
+                if (task.ReadTraversalPosition(0x2E) == task.ReadTraversalPosition(0x2F))
                 {
                     (frame, _) = AppendHierarchy(frame, 4, 0x70D0E0, 112, address, inputs);
                 }
@@ -72,7 +72,7 @@ public static partial class NativeBattleEffect345Controller
         frame = Write(frame, address, task);
         uint target = Dword345(ReadBytes(frame, 0x15297A0, 4), 0);
         frame = WriteBytes(frame, checked(target + 0x20), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((ushort)0)), 2);
-        if (task.ReadByte(0x2E) == 0)
+        if (task.ReadTraversalPosition(0x2E) == 0)
         {
             frame = inputs.SelectOwnedModel8DD190(frame, address, 5).Frame;
             frame = NativeBattleEffect345Body.InitializeAppearance70C810(frame, address, resources, inputs);
@@ -114,7 +114,7 @@ public static partial class NativeBattleEffect345Controller
         NativeBattleEffect345OwnedModelStep advanced = inputs.AdvanceOwnedModel8DD220(frame, address);
         frame = advanced.Frame;
         task = Read(frame, address);
-        bool final = task.ReadByte(0x2E) == task.ReadByte(0x2F);
+        bool final = task.ReadTraversalPosition(0x2E) == task.ReadTraversalPosition(0x2F);
         if (final ? unchecked((short)advanced.Result) == 1 : Signed(task, 0x136) >= 11)
         {
             frame = IncrementPhase(frame, address);

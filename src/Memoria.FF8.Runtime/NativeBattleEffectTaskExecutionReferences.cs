@@ -45,6 +45,24 @@ internal sealed partial class NativeBattleTaskBody
 
 public sealed partial record NativeBattleModulePoolTask
 {
+    internal int ReadContactCount(int offset) => ReadExecutionReference<BattleExecutionReference.ContactCount>(offset, 2).Value;
+
+    internal NativeBattleModulePoolTask WriteContactCount(int offset, int count)
+    {
+        BattleExecutionReference.ContactCount reference = new(count);
+        WriteExecutionReference(offset, 2, reference, reference.EncodeOriginalWord());
+        return this;
+    }
+
+    internal int ReadTraversalPosition(int offset) => ReadExecutionReference<BattleExecutionReference.TraversalPosition>(offset, 1).Value;
+
+    internal NativeBattleModulePoolTask WriteTraversalPosition(int offset, int position)
+    {
+        BattleExecutionReference.TraversalPosition reference = new(position);
+        WriteExecutionReference(offset, 1, reference, reference.EncodeOriginalByte());
+        return this;
+    }
+
     internal void WriteExecutionReference(int offset, int width, BattleExecutionReference reference, ImmutableArray<byte>? nativeBytes = null)
     {
         ExecutionReferenceEncoding.Validate(width, nativeBytes);

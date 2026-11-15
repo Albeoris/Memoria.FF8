@@ -44,7 +44,7 @@ public static partial class NativeBattleEffect83Controller
                 {
                     if (unchecked((sbyte)task.ReadByte(0x2A)) < Signed(task, 0x58))
                     {
-                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3));
+                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3));
                     }
                     else
                     {
@@ -107,7 +107,7 @@ public static partial class NativeBattleEffect83Controller
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect83 requires its actual first contact pointer.");
-                    int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
+                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
                     if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)
                     {
                         throw new InvalidDataException("Effect83 contact selector leaves its physical contact arena.");

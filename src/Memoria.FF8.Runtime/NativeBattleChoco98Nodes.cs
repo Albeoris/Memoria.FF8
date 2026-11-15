@@ -35,7 +35,7 @@ public static class NativeBattleChoco98Nodes
         return frame with { State = frame.State with { Work = result.State } };
     }
 
-    public static NativeBattleChoco98NodeFrame InitializeContext(NativeBattleChoco98NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
+    public static NativeBattleChoco98NodeFrame InitializeContext(NativeBattleChoco98NodeFrame frame, uint address, NativeBattleChoco97NodeResource resource, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, NativeBattleEffectNodeDogOrigins origins)
     {
         if (resource.Address != StaticAddress || new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30) != StaticAddress)
         {

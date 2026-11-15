@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect319Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 2)
         {
-            NativeBattleEffect319PointStep point = inputs.Point502170(frame, frame.State.ReadDword(CasterGlobal), 13, 2048, TaskView(Read(frame, address), 0x5C, 8));
+            NativeBattleEffect319PointStep point = inputs.Point502170(frame, frame.State.ReadModelAddress(CasterGlobal), 13, 2048, TaskView(Read(frame, address), 0x5C, 8));
             frame = Write(point.Frame, address, CopyTask(Read(point.Frame, address), 0x5C, point.Output8, 8));
             NativeBattleVector mouth = Vector(point.Output8);
             NativeBattleVector target = Vector(TaskView(Read(frame, address), 0x64, 8));
@@ -31,7 +31,7 @@ public static partial class NativeBattleEffect319Controller
         {
             if (age == 2)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect319MeshMask(frame.State.ReadDword(CasterGlobal), 0xFFFFFFFD, 0));
+                frame = inputs.Execute(frame, new NativeBattleEffect319MeshMask(frame.State.ReadModelAddress(CasterGlobal), 0xFFFFFFFD, 0));
             }
             NativeBattleModulePoolTask task = Read(frame, address);
             short fraction = (short)(((age - 2) << 12) / 6);
@@ -83,11 +83,13 @@ public static partial class NativeBattleEffect319Controller
         }
         if (age == 12)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect319Contact506690(FirstContact(frame, inputs.ReadPackets(frame))));
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            BattleContactOccurrence contact = packets.ReadContact(FirstContact(frame, packets)).Occurrence ?? throw new InvalidDataException("Effect319 requires its reached contact occurrence.");
+            frame = inputs.Execute(frame, new NativeBattleEffect319Contact506690(contact));
         }
         if (age == 27)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect319MeshMask(frame.State.ReadDword(CasterGlobal), uint.MaxValue, 2));
+            frame = inputs.Execute(frame, new NativeBattleEffect319MeshMask(frame.State.ReadModelAddress(CasterGlobal), uint.MaxValue, 2));
             foreach ((int bone, int delay) in new (int, int)[] { (10, 0), (13, 8), (23, 16), (24, 16), (25, 16) })
             {
                 frame = NativeBattleEffect319Lower.Birth65E4B0(frame, bone, delay, 1024, 512, inputs);

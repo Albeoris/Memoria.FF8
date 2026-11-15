@@ -21,9 +21,9 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
             }
             if (record[0x37] == 1)
             {
-                for (int target = 0; target < unchecked((short)memory.ContextWord(0x1C)); target++)
+                for (int target = 0; target < memory.Context.Recipients.Length; target++)
                 {
-                    inputs.AllocateEmitter(0, unchecked((sbyte)index), unchecked((sbyte)target));
+                    inputs.AllocateEmitter(0, unchecked((sbyte)index), target);
                 }
             }
             else

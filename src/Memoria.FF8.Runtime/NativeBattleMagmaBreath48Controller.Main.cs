@@ -109,9 +109,9 @@ public static partial class NativeBattleMagmaBreath48Controller
                 if (Signed(task, 0x24) >= 55)
                 {
                     NativeBattleActionHeaderSlot header = Header(frame, task, inputs.Packets);
-                    int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Magma Breath requires its physical contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
-                    _ = inputs.Packets.ReadContact(contact);
-                    frame = inputs.Execute(frame, new NativeBattleMagmaBreath48Contact506690(contact));
+                    BattleContactCursor contact = header.FirstContact.Advance(task.ReadTraversalPosition(0x2B));
+                    BattleContactOccurrence occurrence = inputs.Packets.ReadContact(contact).Occurrence ?? throw new InvalidDataException("Magma Breath contact has no occurrence reference.");
+                    frame = inputs.Execute(frame, new NativeBattleMagmaBreath48Contact506690(occurrence));
                     frame = Done(frame, address);
                 }
                 break;

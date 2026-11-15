@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect213Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = Signed(task, 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         NativeBattleEffect213PointStep anchor = inputs.Point502170(frame, caster, 29, 1024, TaskView(task, 0x34, 8));
         frame = Write(anchor.Frame, address, CopyTask(Read(anchor.Frame, address), 0x34, anchor.Output8, 8));
         if (age == 8)
@@ -146,8 +146,8 @@ public static partial class NativeBattleEffect213Controller
         int current = Signed(task, 0x20);
         int next = Signed(task, 0x22);
         NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
-        NativeBattleEffect213PointStep a = inputs.Point502170(frame, task.ReadDword(16 + current * 4), 0xF1, 0, retained);
-        NativeBattleEffect213PointStep b = inputs.Point502170(a.Frame, task.ReadDword(16 + next * 4), 0xF1, 0, retained);
+        NativeBattleEffect213PointStep a = inputs.Point502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16 + current * 4, 4).Owner, 0xF1, 0, retained);
+        NativeBattleEffect213PointStep b = inputs.Point502170(a.Frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16 + next * 4, 4).Owner, 0xF1, 0, retained);
         frame = b.Frame;
         NativeBattleVector from = Vector(a.Output8);
         NativeBattleVector to = Vector(b.Output8);
@@ -159,11 +159,13 @@ public static partial class NativeBattleEffect213Controller
             if (fraction >= 4096)
             {
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect213 requires its actual contact header.");
-                int first = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect213 requires its actual contact pointer.");
-                frame = inputs.Execute(frame, new NativeBattleEffect213Contact506690(first + task.ReadByte(0x1C + current)));
+                NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+                BattleContactCursor cursor = packets.ReadHeader(parameters.Header).FirstContact.Advance(task.ReadByte(0x1C + current));
+                BattleContactOccurrence contact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect213 requires its reached contact occurrence.");
+                frame = inputs.Execute(frame, new NativeBattleEffect213Contact506690(contact));
                 if (current != next)
                 {
-                    NativeBattleEffect213CountStep count = inputs.CountVertices69EE80(frame, task.ReadDword(16 + next * 4));
+                    NativeBattleEffect213CountStep count = inputs.CountVertices69EE80(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16 + next * 4, 4).Owner);
                     frame = count.Frame;
                     task = Read(frame, address).WriteWord(0x2C, unchecked((ushort)count.Count));
                 }

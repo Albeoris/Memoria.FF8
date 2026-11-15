@@ -55,12 +55,12 @@ public sealed partial class BattleSession
     private void QueueNativeGraphicsDeath(BattleCombatant actor)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        int index = graphics.ActorIds.IndexOf(actor.Id);
-        if (index < 0)
+        BattleModelOwner owner = RequirePresentationModelOwner(graphics.ActorModels.Roster, actor);
+        if (!graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte operand))
         {
-            throw new InvalidDataException("Native106 death descriptor has no bound graphical allocation.");
+            throw new InvalidDataException("Native106 death requires an original descriptor operand for its bound actor.");
         }
-        NativeGraphics = QueueNativeDescriptor(graphics, 106, 0, checked((ushort)index));
+        NativeGraphics = QueueNativeDescriptor(graphics, 106, 0, operand);
         actor.NativeStatus0 |= 1;
         actor.NativeCombatantFlags &= ~0xCu;
         actor.Atb = 0;
@@ -75,12 +75,12 @@ public sealed partial class BattleSession
     private void QueueNativeGraphicsRemoval(BattleCombatant actor)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        int index = graphics.ActorIds.IndexOf(actor.Id);
-        if (index < 0)
+        BattleModelOwner owner = RequirePresentationModelOwner(graphics.ActorModels.Roster, actor);
+        if (!graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte operand))
         {
-            throw new InvalidDataException("Native105 removal descriptor has no bound graphical allocation.");
+            throw new InvalidDataException("Native105 removal requires an original descriptor operand for its bound actor.");
         }
-        NativeGraphics = QueueNativeDescriptor(graphics, 105, 0, checked((ushort)index));
+        NativeGraphics = QueueNativeDescriptor(graphics, 105, 0, operand);
     }
 
     private NativeBattleGraphicsState RequireNativeGraphics() => NativeGraphics ?? throw new NotSupportedException("Native graphical descriptors require their explicitly initialized seven-row resource bank.");
@@ -439,7 +439,7 @@ public sealed partial class BattleSession
             model = NativeBattleGraphicsModels.StartService(model, 7);
             NativeBattleVector position = model.Transform?.Position28 ?? throw new NotSupportedException("Native ejection sound requires its current model positionWORD28.");
             NativeBattleModuleAnchor anchor = new(position.X, position.Y, position.Z, 0);
-            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015, graphics.PresentationRoster) };
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) };
             PublishNativeModuleSound(0x0D, 8, anchor, RequireCanonicalGraphicsActorId(index));
             PublishNativeModuleSound(0x0E, 16, anchor, RequireCanonicalGraphicsActorId(index));
         }
@@ -456,7 +456,7 @@ public sealed partial class BattleSession
         if (!plan.Secondary && (half.Flags2 & 0x30) != 0)
         {
             byte resourceId = (half.Flags2 & 0x30) switch { 0x10 => 39, 0x20 => 40, _ => 38 };
-            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, RequireNativeModuleResource(resourceId), 0x100000u | resourceId, graphics.PresentationRoster) };
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, RequireNativeModuleResource(resourceId), 0x100000u | resourceId, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) };
         }
         if (!plan.Secondary && (graphics.Flags & 0x10) == 0 && (half.HitFlags & 8) != 0)
         {

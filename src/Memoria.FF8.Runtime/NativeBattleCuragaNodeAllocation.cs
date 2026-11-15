@@ -5,7 +5,7 @@ public sealed record NativeBattleCuragaNodeAllocation(NativeBattleCuragaFrame Fr
 /// <summary>881700/882080's exact scan/clear/link allocators and8817F0's signed emitter lifetime.</summary>
 public static class NativeBattleCuragaNodes
 {
-    public static NativeBattleCuragaNodeAllocation AllocateEmitter881700(NativeBattleCuragaFrame frame, uint contextTask, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)
+    public static NativeBattleCuragaNodeAllocation AllocateEmitter881700(NativeBattleCuragaFrame frame, uint contextTask, uint parentPointer, sbyte sourceIndex, int targetIndex)
     {
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         int? node = AllocateEmitter(memory, parentPointer, sourceIndex, targetIndex);
@@ -38,7 +38,7 @@ public static class NativeBattleCuragaNodes
         NativeBattleEffectNodeLifecycle.AdvanceEmitterLifetime(memory, node);
     }
 
-    internal static int? AllocateEmitter(NativeBattleCuragaNodeMemory memory, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)
+    internal static int? AllocateEmitter(NativeBattleCuragaNodeMemory memory, uint parentPointer, sbyte sourceIndex, int targetIndex)
     {
         int start = memory.State.Auxiliary25F8 ?? throw new NotSupportedException("Native881700 requires87DE10's emitter pool.");
         ushort cursor = memory.State.Counter26D76C0 ?? throw new NotSupportedException("Native881700 requires the actual26D76C0 scan cursor.");

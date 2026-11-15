@@ -94,7 +94,7 @@ public static class NativeBattleDrinkMagic37Controller
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
                             state = state.Write(address, task);
                         }
                         else
@@ -195,7 +195,7 @@ public static class NativeBattleDrinkMagic37Controller
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         BattleContactCursor first = inputs.Packets.ReadHeader(header).FirstContact;
-                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first.Advance(unchecked((sbyte)task.ReadByte(0x2B))));
+                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first.Advance(task.ReadTraversalPosition(0x2B)));
                         state = Execute(state, new NativeBattleDrinkMagic37Contact(contact.Occurrence ?? throw new InvalidDataException("Drink Magic requires its reached contact occurrence.")));
                         task = state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1));
                         state = state.Write(address, task);
@@ -225,7 +225,7 @@ public static class NativeBattleDrinkMagic37Controller
             return new(current.Effect.Pools);
         }
 
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target)
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target)
         {
             return NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         }
@@ -234,16 +234,16 @@ public static class NativeBattleDrinkMagic37Controller
     internal static NativeBattleModulePoolTask InitializeRoot(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets)
     {
         task = task.WriteDword(0x0C, 0x1D99A78);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        return actors.WriteTargetTo(actors.WriteSourceTo(task).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        return actors.WriteTargetTo(actors.WriteSourceTo(task).WriteByte(0x29, 0)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
     }
 
     private static NativeBattleEffectHierarchy Next(NativeBattleEffectHierarchy hierarchy, uint address)

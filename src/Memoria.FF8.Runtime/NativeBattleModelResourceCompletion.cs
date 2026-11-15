@@ -15,7 +15,7 @@ public sealed record NativeBattleModelCpuResourceRow(ImmutableDictionary<int, Na
     public NativeBattleModelCpuReference Require(int field) => Fields.TryGetValue(field, out NativeBattleModelCpuReference? value) && value is not null ? value : throw new NotSupportedException($"Native resource row DWORD{field} has no observed CPU-bank reference.");
     public NativeBattleModelCpuResourceRow Set(int field, NativeBattleModelCpuReference? value) => this with { Fields = Fields.SetItem(field, value) };
 }
-public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, ImmutableArray<byte> Bytes, int HeaderPointerField)
+public sealed record NativeBattleModelAnimationCopy(int? DestinationOffset, ImmutableArray<byte> Bytes, int HeaderPointerField)
 {
     private readonly NativeBattleModelResourceSegment content = new(0, Bytes, 0, Bytes.Length);
 
@@ -46,7 +46,7 @@ public sealed record NativeBattleModelAnimationCopy(int DestinationOffset, Immut
         return content.Data.Span.Slice(offset, length).ToArray();
     }
 
-    internal NativeBattleModelAnimationCopy(int destinationOffset, ImmutableArray<byte> source, int sourceOffset, int length, int headerPointerField) : this(destinationOffset, [], headerPointerField)
+    internal NativeBattleModelAnimationCopy(int? destinationOffset, ImmutableArray<byte> source, int sourceOffset, int length, int headerPointerField) : this(destinationOffset, [], headerPointerField)
     {
         content = new(0, source, sourceOffset, length);
     }
@@ -77,24 +77,53 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     public byte? EnemyLinkedSlots { get; init; }
     public int? LastModel142Row { get; init; }
     public NativeBattleModelCpuBank Palettes { get; init; } = NativeBattleModelCpuBank.Unknown();
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableDictionary<int, NativeBattleModelCpuBank>? PresentationPalettes { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableDictionary<BattlePartyModelOwner, NativeBattleModelCpuBank>? PresentationPalettes { get; init; }
     public NativeBattleModelCpuBank AnimationFrames { get; init; } = NativeBattleModelCpuBank.Unknown();
     public ImmutableDictionary<int, int?> AnimationPointers { get; init; } = ImmutableDictionary<int, int?>.Empty;
-    /// <summary>Current auxiliary sections retain their source slices independently of the legacy diagnostic guest image.</summary>
     public ImmutableDictionary<int, NativeBattleModelAnimationCopy> AnimationSources { get; init; } = ImmutableDictionary<int, NativeBattleModelAnimationCopy>.Empty;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableDictionary<(BattlePartyModelOwner Owner, int Field), NativeBattleModelAnimationCopy> OwnedAnimationSources { get; init; } = ImmutableDictionary<(BattlePartyModelOwner, int), NativeBattleModelAnimationCopy>.Empty;
     public ushort? ScratchMaximum { get; init; }
 
-    internal NativeBattleModelCpuResources BindAnimation(int physicalIndex, NativeBattleModelAnimationCopy animation)
+    internal NativeBattleModelCpuResources BindPartyOwner(BattlePartyModelOwner owner, NativeBattleModelSlot? slot)
     {
-        RequireAnimationSourceOwners();
-        if (animation is null)
+        NativeBattleModelCpuBanks cpu = Cpu.BindPartyOwner(owner, slot);
+        if (ReferenceEquals(cpu, Cpu))
         {
-            throw new InvalidDataException("Native auxiliary animation binding requires its section owner.");
+            return this;
         }
+        return this with
+        {
+            Cpu = cpu,
+            PresentationPalettes = PresentationPalettes?.RemoveRange(PresentationPalettes.Keys.Where(candidate => !cpu.PartyBankOwners.ContainsKey(candidate))),
+            OwnedAnimationSources = OwnedAnimationSources.RemoveRange(OwnedAnimationSources.Keys.Where(key => !cpu.PartyBankOwners.ContainsKey(key.Owner)))
+        };
+    }
+
+    internal NativeBattleModelCpuResources BindAnimation(BattlePartyModelOwner owner, NativeBattleModelSlot? slot, NativeBattleModelAnimationCopy animation)
+    {
         animation.Validate();
-        _ = Cpu.PartyBankIndex(physicalIndex);
-        return this with { AnimationSources = AnimationSources.SetItem(physicalIndex * 32 + animation.HeaderPointerField, animation) };
+        _ = Cpu.PartyBankIndex(owner);
+        if (slot is { Side: not BattleSide.Allies })
+        {
+            throw new InvalidDataException("Party animation uses an original party header.");
+        }
+        return this with
+        {
+            OwnedAnimationSources = OwnedAnimationSources.SetItem((owner, animation.HeaderPointerField), animation),
+            AnimationSources = slot is { } original ? AnimationSources.SetItem(original.Offset * 32 + animation.HeaderPointerField, animation) : AnimationSources
+        };
+    }
+
+    internal byte[] ReadAnimationSection(BattlePartyModelOwner owner, int field, int offset, int length)
+    {
+        _ = Cpu.PartyBankIndex(owner);
+        if (!OwnedAnimationSources.TryGetValue((owner, field), out NativeBattleModelAnimationCopy? source) || source.Length == 0)
+        {
+            throw new NotSupportedException("The bound model has no active auxiliary animation section.");
+        }
+        return source.Read(offset, length);
     }
 
     internal byte[] ReadAnimationHeader(int header, int offset, int length)
@@ -122,11 +151,11 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         return Unknown() with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty, Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
     }
 
-    public NativeBattleModelCpuResources WithPresentationRoster(BattleModelRoster roster)
+    public NativeBattleModelCpuResources WithPresentationRoster(BattleModelRoster roster, NativeBattleModelAliases aliases)
     {
         ArgumentNullException.ThrowIfNull(roster);
         Validate();
-        NativeBattleModelCpuBanks cpu = Cpu.WithPresentationRoster(roster);
+        NativeBattleModelCpuBanks cpu = Cpu.WithPresentationRoster(roster, aliases);
         int capacity = NativeBattleModelResourceRowAddress.CapacityForRoster(roster);
         if (Rows.Length >= capacity)
         {
@@ -144,7 +173,7 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
 
     internal static bool HasResourceRowExtent(NativeBattleModelCpuBanks cpu, ImmutableArray<NativeBattleModelCpuResourceRow> rows)
     {
-        return !rows.IsDefault && (cpu.PresentationRoster is null ? rows.Length == NativeBattleModelResourceRowAddress.NativeRowCount : rows.Length >= NativeBattleModelResourceRowAddress.NativeRowCount);
+        return !rows.IsDefault && rows.Length >= NativeBattleModelResourceRowAddress.NativeRowCount;
     }
 
     /// <summary>Invalidated resource rows retain physical bytes, but no derived extent belongs to the next load.</summary>
@@ -177,13 +206,13 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         }
         if (PresentationPalettes is { } palettes)
         {
-            if (Cpu.PresentationRoster is not { } roster)
+            if (Cpu.PresentationRoster is null)
             {
                 throw new InvalidDataException("Hosted saved palette slots require their presentation roster.");
             }
-            foreach ((int actorRow, NativeBattleModelCpuBank bank) in palettes)
+            foreach ((BattlePartyModelOwner owner, NativeBattleModelCpuBank bank) in palettes)
             {
-                _ = RequirePartyPaletteSlot(roster, actorRow);
+                _ = Cpu.PartyBankIndex(owner);
                 if (bank is null || bank.Capacity != NativeBattleModelCpuBank.Length || bank.HasResourceStorage)
                 {
                     throw new InvalidDataException("Hosted saved palettes require the original sparse palette-bank layout.");
@@ -194,14 +223,18 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         RequireAnimationSourceOwners();
         foreach ((int header, NativeBattleModelAnimationCopy source) in AnimationSources)
         {
-            if (header < 0 || header % 32 != source.HeaderPointerField)
+            if (header is < 0 or >= 96 || header % 32 != source.HeaderPointerField)
             {
                 throw new InvalidDataException("Native auxiliary animation source requires its body or linked header field.");
             }
-            int row = header / 32;
-            if (row >= NativeBattleSlots.AllyCount)
+            source.Validate();
+        }
+        foreach (((BattlePartyModelOwner owner, int field), NativeBattleModelAnimationCopy source) in OwnedAnimationSources)
+        {
+            _ = Cpu.PartyBankIndex(owner);
+            if (field != source.HeaderPointerField)
             {
-                _ = Cpu.PartyBankIndex(row);
+                throw new InvalidDataException("Owned auxiliary animation differs from its bound header field.");
             }
             source.Validate();
         }
@@ -241,49 +274,27 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
         return this with { Palettes = CopySavedPalettes(load, Palettes, out _) };
     }
 
-    public NativeBattleModelCpuResources SavePalettes507400(NativeBattleModelTextureLoad load, int actorRow)
+    public NativeBattleModelCpuResources SavePalettes507400(NativeBattleModelTextureLoad load, BattleModelOwner owner)
     {
-        BattleModelRoster roster = Cpu.PresentationRoster ?? throw new InvalidDataException("Hosted saved palette writes require their presentation roster.");
-        if (!RequirePaletteActor(roster, actorRow).IsParty)
+        if (owner is not BattlePartyModelOwner party)
         {
             return this;
         }
-        NativeBattleModelCpuBank prior = PresentationPalettes?.GetValueOrDefault(actorRow) ?? Palettes;
+        _ = Cpu.PartyBankIndex(party);
+        NativeBattleModelCpuBank prior = PresentationPalettes?.GetValueOrDefault(party) ?? Palettes;
         NativeBattleModelCpuBank updated = CopySavedPalettes(load, prior, out bool copied);
-        return !copied ? this : this with { PresentationPalettes = (PresentationPalettes ?? ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty).SetItem(actorRow, updated) };
+        return !copied ? this : this with { PresentationPalettes = (PresentationPalettes ?? ImmutableDictionary<BattlePartyModelOwner, NativeBattleModelCpuBank>.Empty).SetItem(party, updated) };
     }
 
-    public byte[] ReadPartyStatusPalette(int actorRow)
+    public byte[] ReadPartyStatusPalette(BattleModelOwner owner)
     {
-        if (Cpu.PresentationRoster is { } roster)
+        if (owner is not BattlePartyModelOwner party)
         {
-            int slot = RequirePartyPaletteSlot(roster, actorRow);
-            NativeBattleModelCpuBank bank = PresentationPalettes?.GetValueOrDefault(actorRow) ?? Palettes;
-            return bank.Read(slot * 1024, 1024);
+            throw new InvalidDataException("Saved party palettes require a bound party owner.");
         }
-        if ((uint)actorRow >= NativeBattleSlots.AllyCount)
-        {
-            throw new InvalidDataException("Native saved palette reads require the physical party row.");
-        }
-        return Palettes.Read(actorRow * 1024, 1024);
-    }
-
-    private static int RequirePartyPaletteSlot(BattleModelRoster roster, int actorRow)
-    {
-        if (!RequirePaletteActor(roster, actorRow).IsParty)
-        {
-            throw new InvalidDataException("Saved party palettes require a bound party actor.");
-        }
-        return actorRow < NativeBattleSlots.AllyCount ? actorRow : 0;
-    }
-
-    private static BattleModelOwner RequirePaletteActor(BattleModelRoster roster, int actorRow)
-    {
-        if ((uint)actorRow >= roster.ActorCount || roster.Rows[actorRow] is not { } actor)
-        {
-            throw new InvalidDataException("Saved palette access requires a bound presentation actor.");
-        }
-        return actor;
+        int bank = Cpu.PartyBankIndex(party);
+        int textureSlot = NativeBattlePresentationCpuBanks.IsExtension(bank) ? 0 : bank;
+        return (PresentationPalettes?.GetValueOrDefault(party) ?? Palettes).Read(textureSlot * 1024, 1024);
     }
 
     private static NativeBattleModelCpuBank CopySavedPalettes(NativeBattleModelTextureLoad load, NativeBattleModelCpuBank palettes, out bool copied)
@@ -319,21 +330,17 @@ public static class NativeBattleModelResourceCopies
         RequireInactiveBanks(previous, promoted, graphics);
     }
 
-    internal static void RequirePlannedTransition(NativeBattleModelCpuResources previous, byte bank, NativeBattleGraphicsState graphics)
+    internal static void RequirePlannedTransition(NativeBattleModelCpuResources previous, BattlePartyModelOwner owner, NativeBattleGraphicsState graphics)
     {
-        if (!CanUseResourceStorage(previous, bank, graphics))
+        if (!CanUseResourceStorage(previous, owner, graphics))
         {
             throw new NotSupportedException("Promoting a guest model bank to logical resources requires an unloaded model and no active resource consumers.");
         }
     }
 
-    internal static bool CanUseResourceStorage(NativeBattleModelCpuResources previous, byte bank, NativeBattleGraphicsState graphics)
+    internal static bool CanUseResourceStorage(NativeBattleModelCpuResources previous, BattlePartyModelOwner owner, NativeBattleGraphicsState graphics)
     {
-        if (previous.Cpu.PresentationRoster is { } roster)
-        {
-            NativeBattlePartyLoadPlan.RequireMatchingRoster(roster, graphics.PresentationRoster);
-        }
-        int selected = previous.Cpu.PartyBankIndex(bank);
+        int selected = previous.Cpu.PartyBankIndex(owner);
         return CanPromoteBanks(previous, previous.Cpu.GetBank(selected).HasResourceStorage ? [] : [selected], graphics);
     }
 
@@ -351,11 +358,12 @@ public static class NativeBattleModelResourceCopies
         {
             return true;
         }
-        return graphics.OriginalEffect is null && graphics.Effects.PublishedCount == 0 && graphics.ModuleEffects.PublishedCount == 0 && !graphics.Models.Any(UsesLoadedBank);
+        return graphics.OriginalEffect is null && graphics.Effects.PublishedCount == 0 && graphics.ModuleEffects.PublishedCount == 0 && !graphics.ActorModels.Entries.Any(UsesLoadedBank);
 
-        bool UsesLoadedBank(NativeBattleGraphicsModel model)
+        bool UsesLoadedBank(BattleModelEntry<BattleModelOwner> entry)
         {
-            return (model.Flags0 & 2) != 0 && (promoted.Contains(model.Index) || model.ActiveStagedResourceRow100 is not null || model.LinkedStagedResourceRow is not null || UsesRow(model.ActiveResourceRow100) || UsesRow(model.OriginalResourceRow104) || UsesRow(model.TextureResourceIndex) || UsesRow(model.LinkedTextureResourceIndex));
+            NativeBattleGraphicsModel model = entry.State;
+            return (model.Flags0 & 2) != 0 && (entry.Owner is BattlePartyModelOwner party && previous.Cpu.PartyBankOwners.TryGetValue(party, out int bank) && promoted.Contains(bank) || model.ActiveStagedResourceRow100 is not null || model.LinkedStagedResourceRow is not null || UsesRow(model.ActiveResourceRow100) || UsesRow(model.OriginalResourceRow104) || UsesRow(model.TextureResourceIndex) || UsesRow(model.LinkedTextureResourceIndex));
         }
 
         bool UsesRow(int? index)
@@ -373,9 +381,13 @@ public static class NativeBattleModelResourceCopies
         cpu.Validate();
         NativeBattleModelLoadTask task = bind.Task;
         NativeBattleModelDatSource source = bind.PreparedDat;
-        NativeBattlePartyLoadPlan.RequireMatchingRoster(cpu.PresentationRoster, bind.PartyPlan?.PresentationRoster);
-        byte actorBank = checked((byte)cpu.PartyBankIndex(task.PhysicalIndex));
-        byte bank = actorBank;
+        if (task.Owner is not BattlePartyModelOwner party)
+        {
+            throw new InvalidDataException("Party resource completion requires its party owner.");
+        }
+        _ = bind.PartyPlan?.Part(task);
+        int actorBank = cpu.PartyBankIndex(party);
+        int bank = actorBank;
         NativeBattleModelCpuResourceRow body = rows[bodyRow];
         int origin;
         int firstSection;
@@ -402,7 +414,7 @@ public static class NativeBattleModelResourceCopies
             int animationSection = special ? 9 : 6;
             int start = source.Section(animationSection);
             int end = source.Section(animationSection + 1);
-            animation = new(task.PhysicalIndex * 0x3020 + 0x20, source.Bytes, start, end - start, 8);
+            animation = new(task.OriginalSlot is { } bodySlot ? bodySlot.Offset * 0x3020 + 0x20 : null, source.Bytes, start, end - start, 8);
             scratch = ReadScratchCandidate(source);
             rows = rows.SetItem(bodyRow, body);
         }
@@ -420,11 +432,11 @@ public static class NativeBattleModelResourceCopies
             linked = Section(linked, 16, 1);
             linked = Section(linked, 20, 2);
             body = Section(body, 24, 3);
-            body = Section(body, 40, 4) with { LinkedPhysicalIndex36 = task.PhysicalIndex };
+            body = Section(body, 40, 4) with { LinkedPhysicalIndex36 = task.OriginalSlot?.Offset };
             rows = rows.SetItem(row, linked).SetItem(bodyRow, body);
             int start = source.Section(7);
             int end = source.Section(8);
-            animation = new(task.PhysicalIndex * 0x3020 + 0x2020, source.Bytes, start, end - start, 24);
+            animation = new(task.OriginalSlot is { } linkedSlot ? linkedSlot.Offset * 0x3020 + 0x2020 : null, source.Bytes, start, end - start, 24);
             scratch = ReadScratchCandidate(source);
         }
         else if (task.Callback == 0x507E20)
@@ -436,7 +448,7 @@ public static class NativeBattleModelResourceCopies
             firstSection = 0;
             endSection = 3;
             body = Section(body, 24, 1);
-            body = Section(body, 40, 2) with { LinkedPhysicalIndex36 = task.PhysicalIndex };
+            body = Section(body, 40, 2) with { LinkedPhysicalIndex36 = task.OriginalSlot?.Offset };
             rows = rows.SetItem(bodyRow, body);
         }
         else

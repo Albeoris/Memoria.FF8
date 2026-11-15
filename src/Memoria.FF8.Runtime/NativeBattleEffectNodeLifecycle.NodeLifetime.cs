@@ -11,7 +11,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         {
             if (source[0x28 + index] == 1)
             {
-                inputs.AllocateEmitter(memory.Pointer(node), unchecked((sbyte)source[0x2C + index]), unchecked((sbyte)memory.Byte(node + 0x1D9)));
+                inputs.AllocateEmitter(memory.Pointer(node), unchecked((sbyte)source[0x2C + index]), memory.ReadTraversalPosition(node + 0x1D9));
             }
         }
     }
@@ -36,7 +36,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         }
         if (complete && source[0x30] == 1)
         {
-            inputs.AllocateEmitter(memory.Pointer(node), unchecked((sbyte)source[0x31]), unchecked((sbyte)memory.Byte(node + 0x1D9)));
+            inputs.AllocateEmitter(memory.Pointer(node), unchecked((sbyte)source[0x31]), memory.ReadTraversalPosition(node + 0x1D9));
         }
         return complete;
     }

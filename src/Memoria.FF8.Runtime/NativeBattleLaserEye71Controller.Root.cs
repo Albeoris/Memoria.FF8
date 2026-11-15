@@ -64,7 +64,7 @@ public static partial class NativeBattleLaserEye71Controller
                 {
                     if (unchecked((sbyte)task.ReadByte(0x2A)) < Signed(task, 0x58))
                     {
-                        return Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                        return Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                     }
                     frame = Write(frame, address, task.WriteWord(0x60, 15));
                     return NextPhase(frame, address);

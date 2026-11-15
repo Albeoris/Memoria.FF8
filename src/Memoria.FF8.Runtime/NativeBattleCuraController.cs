@@ -46,7 +46,7 @@ public static class NativeBattleCuraController
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor firstContact = header.FirstContact;
         byte target = packets.ReadContact(firstContact).Primary.Recipient;
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, target).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, target).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -77,7 +77,7 @@ public static class NativeBattleCuraController
         NativeBattleCuraFrame current = frame;
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);

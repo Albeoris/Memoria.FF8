@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect60Act
 {
-    public static NativeBattleEffect60LeafStep Advance(NativeBattleEffect60Frame frame, uint address, NativeBattleEffect60Resources resources, NativeBattleEffect60Inputs inputs, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleEffect60LeafStep Advance(NativeBattleEffect60Frame frame, uint address, NativeBattleEffect60Resources resources, NativeBattleEffect60Inputs inputs, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         bool primary = task.Callback == NativeBattleEffect60Profile.ActPrimaryCallback;
@@ -134,7 +134,7 @@ public static class NativeBattleEffect60Act
         return frame;
     }
 
-    public static NativeBattleEffect60Frame Append(NativeBattleEffect60Frame frame, uint parent, uint callback, uint source, int size, short selector, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors, out uint address)
+    public static NativeBattleEffect60Frame Append(NativeBattleEffect60Frame frame, uint parent, uint callback, uint source, int size, short selector, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors, out uint address)
     {
         NativeBattleEffectHierarchyAppend append = new NativeBattleEffectHierarchy(frame.Effect.Pools).Append8DC540(4, callback, 396, parent, selectActors);
         address = append.Address;

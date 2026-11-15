@@ -53,7 +53,7 @@ public static class NativeBattleAngelWing84Scene
                 frame = inputs.Execute(frame, new NativeBattleAngelWing84CameraControl());
                 hierarchy = new(frame.Effect.Pools);
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native78DE00 requires its original action parameters.");
-                NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target);
+                NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Controller.Packets, pointer, group, target);
                 hierarchy = hierarchy.Append8DC540(5, 0x78DE40, 100, address, Select).Hierarchy;
                 hierarchy = Next(hierarchy, address);
                 break;

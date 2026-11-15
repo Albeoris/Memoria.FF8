@@ -61,14 +61,14 @@ public static class NativeBattleRinoa86Controller
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         byte target = packets.ReadContact(first).Primary.Recipient;
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteWord(90, targets).WriteWord(88, groups).WriteByte(47, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25B4CC8)?.ArenaOffset ?? throw new NotSupportedException("Native77F250 requires its retained mag085 initializer pointer.");
         if (source > NativeBattleEffectArena.Length - 114688)

@@ -36,7 +36,7 @@ public static partial class NativeBattleDoubleController
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Double lost its50AFC0 parameters.");
         ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEnhancementRootInputs sharedInputs = new(inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, (childFrame, childAddress, childRandom) =>
         {
             current = new(childFrame.Memory, childFrame.Effect, new(childFrame.DrawCursor));

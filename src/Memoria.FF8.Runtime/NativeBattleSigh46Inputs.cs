@@ -16,7 +16,7 @@ public abstract record NativeBattleSigh46Operation
 public sealed record NativeBattleSigh46UpdateCaster8DC740(uint TaskAddress) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46UpdateTargetBounds8DC610_8DC870(uint TaskAddress) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleSigh46Operation;
-public sealed record NativeBattleSigh46Contact506690(int ContactIndex) : NativeBattleSigh46Operation;
+public sealed record NativeBattleSigh46Contact506690(BattleContactOccurrence Occurrence) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46StageColorDepth(int Group, short Depth) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46StageRgb(int Group, byte R, byte G, byte B) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46CommonTextureLoad508630(uint DestinationAddress, uint CompletionAddress) : NativeBattleSigh46Operation;

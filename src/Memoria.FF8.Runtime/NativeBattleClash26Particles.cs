@@ -62,7 +62,7 @@ public static partial class NativeBattleClash26Controller
                             uint dust = Append(address, 0x889250, 0x70, 3);
                             Write(dust, Read(dust).WriteWord(0x68, (ushort)(2 * index)).WriteWord(0x6E, (ushort)((Rand() & 0x3FF) + 0x600)));
                         }
-                        if (task.ReadByte(0x2B) == 0)
+                        if (task.ReadTraversalPosition(0x2B) == 0)
                         {
                             uint flash = Append(address, 0x888F80, 0x3C, 5);
                             Write(flash, Read(flash).WriteDword(0x30, 0x1610774));
@@ -82,7 +82,7 @@ public static partial class NativeBattleClash26Controller
                     throw new InvalidDataException("Native8887F0 signed phase exceeds its four original callbacks.");
             }
             task = Read(address);
-            if (task.ReadByte(0x2B) == 0)
+            if (task.ReadTraversalPosition(0x2B) == 0)
             {
                 ushort tick = task.ReadWord(0x24);
                 if (tick == 4)

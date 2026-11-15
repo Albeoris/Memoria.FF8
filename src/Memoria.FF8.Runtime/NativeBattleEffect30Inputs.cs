@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect30Stage(short Depth, bool ClearRgb) : Nat
 public sealed record NativeBattleEffect30Contact(uint TaskAddress) : NativeBattleEffect30Operation;
 public sealed record NativeBattleEffect30Sound(uint Value, uint Flags, byte Pan) : NativeBattleEffect30Operation;
 
-public sealed record NativeBattleEffect30Inputs(NativeBattleActionPacketsState Packets, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleEffect30Frame, NativeBattleEffect30Operation, NativeBattleEffect30Frame> Execute)
+public sealed record NativeBattleEffect30Inputs(NativeBattleActionPacketsState Packets, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32> ReadCamera, Func<NativeBattleEffect30Frame, NativeBattleEffect30Operation, NativeBattleEffect30Frame> Execute)
 {
     public required Func<NativeBattleEffect30Frame, uint, NativeBattleEffect30Frame> RefreshRoot { get; init; }
     public required Func<NativeBattleEffect30Frame, uint, NativeBattleEffect30Frame> PrepareTarget { get; init; }
@@ -18,7 +18,7 @@ public sealed record NativeBattleEffect30Inputs(NativeBattleActionPacketsState P
     public required Func<NativeBattleEffect30Frame, uint, NativeBattleEffect30TaskStep> AdvanceParticles96 { get; init; }
 }
 
-public sealed record NativeBattleEffect30LowerInputs(Func<NativeBattleEffect30Frame, BattleModelOwner, byte, short, NativeBattleEffect30PointStep> ReadBone502170, Func<NativeBattleEffect30Frame, byte, NativeBattlePackedMatrix32> ReadActorBasis, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleEffect30MatrixStep> LookBasis8DDA50, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32> ReadCamera, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleEffect30Frame, NativeBattleGfGeometryBatch, NativeBattleEffect30Frame> DeliverPrivate, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors)
+public sealed record NativeBattleEffect30LowerInputs(Func<NativeBattleEffect30Frame, BattleModelOwner, byte, short, NativeBattleEffect30PointStep> ReadBone502170, Func<NativeBattleEffect30Frame, byte, NativeBattlePackedMatrix32> ReadActorBasis, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32, NativeBattleVector, NativeBattleVector, NativeBattleEffect30MatrixStep> LookBasis8DDA50, Func<NativeBattleEffect30Frame, NativeBattlePackedMatrix32> ReadCamera, Func<uint, sbyte, int, NativeBattleEffectTaskActors> SelectActors, Func<NativeBattleEffect30Frame, NativeBattleGfGeometryBatch, NativeBattleEffect30Frame> DeliverPrivate, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors)
 {
     public bool CapturePresentation { get; init; }
 }

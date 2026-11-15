@@ -23,7 +23,7 @@ public static class NativeBattleEffect318Lower
             throw new InvalidDataException("The selected bone task requires its current available pool slot.");
         }
         NativeBattleModulePoolTask task = Read(frame, address);
-        uint caster = frame.State.ReadDword(0x2505424);
+        BattleModelOwner caster = frame.State.ReadModelAddress(0x2505424);
         task = inputs.ResolveBoneRecordReference is { } resolve ? task.WriteResourcePointer(12, resolve(frame, caster, boneIndex)) : task.WriteDword(12, inputs.ResolveBoneRecord(frame, caster, boneIndex));
         task = task.WriteWord(16, unchecked((ushort)delay)).WriteWord(24, unchecked((ushort)stepXY)).WriteWord(20, unchecked((ushort)stepZ)).WriteWord(18, 0).WriteWord(22, 0);
         return Write(frame, address, task);

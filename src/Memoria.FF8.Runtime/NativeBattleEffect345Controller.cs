@@ -36,16 +36,16 @@ public static partial class NativeBattleEffect345Controller
         (frame, uint address) = AppendHierarchy(frame, 0, RootCallback, 100, 0, inputs);
         NativeBattleModulePoolTask task = Read(frame, address).WriteDword(12, 0x1D99A78);
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(Parameters(frame), packets, task.ReadDword(12), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(Parameters(frame), packets, task.ReadDword(12), unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(Parameters(frame).Header);
-        byte count = header.ReadContactCount();
+        int count = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(count - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(count);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        frame = Write(frame, address, actors.WriteTo(task).WriteByte(0x29, 0).WriteWord(0x5A, count).WriteWord(0x58, groups).WriteByte(0x2F, maximum));
+        frame = Write(frame, address, actors.WriteTo(task).WriteByte(0x29, 0).WriteContactCount(0x5A, count).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum));
         if ((Parameters(frame).Flags79 & 1) == 0)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect345RegisterCamera5099A0(NativeBattleEffect345Resources.CameraAddress));

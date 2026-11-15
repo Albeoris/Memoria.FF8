@@ -15,7 +15,7 @@ public sealed partial record NativeBattleModuleState
         NativeBattleModuleTask task = Slots[slot];
         byte[] payload = NativeBattleTelemetry.Materialize(1072, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
-        int model = ModelIndex(U32(task.Payload, 20), inputs);
+        BattleModelOwner model = RequireModuleModelOwner(task, inputs);
         NativeBattleModelTransform transform = (inputs.ReadModelTransform ?? throw new NotSupportedException("Native5742A0 requires the original model WORD36/38."))(model);
         NativeCrtRandomState crt = inputs.CrtRandom ?? throw new NotSupportedException("Native5742A0 requires the existing CRT random owner.");
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();

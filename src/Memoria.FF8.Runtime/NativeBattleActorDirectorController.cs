@@ -19,16 +19,16 @@ public static class NativeBattleActorDirectorController
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(0, profile.Callback(0x8AB290), 100);
         NativeBattleModulePoolTask task = append.Hierarchy.Read(append.Address);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        task = actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = append.Hierarchy.Write(append.Address, task);
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("The actor director requires its executed initializer pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 0x10000)
@@ -114,7 +114,7 @@ public static class NativeBattleActorDirectorController
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            state = state.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                            state = state.Write(address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                         }
                         else
                         {
@@ -180,7 +180,7 @@ public static class NativeBattleActorDirectorController
                             {
                                 BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                                 BattleContactCursor first = inputs.Packets.ReadHeader(header).FirstContact;
-                                NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(unchecked((sbyte)task.ReadByte(0x2B))));
+                                NativeBattleContactPacket packet = inputs.Packets.ReadContact(first.Advance(task.ReadTraversalPosition(0x2B)));
                                 Emit(ref state, new NativeBattleActorDirectorContact(packet.Occurrence ?? throw new InvalidDataException("The actor director requires its reached contact occurrence.")));
                                 state = Next(state, address);
                             }

@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect323Controller
     public static NativeBattleEffect323Step AdvanceMain659DD0(NativeBattleEffect323Frame frame, uint address, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
     {
         int age = Signed(Read(frame, address), 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         if (age == 11)
         {
             NativeBattleEffect323PointStep point = inputs.Point502170(frame, caster, 24, 2048, TaskView(Read(frame, address), 0xA4, 8));
@@ -164,7 +164,7 @@ public static partial class NativeBattleEffect323Controller
         {
             throw new NotSupportedException("Effect323 requires its native nonnegative recipient cursor.");
         }
-        uint target = task.ReadDword(0x20 + next * 4);
+        BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + next * 4, 4).Owner;
         if (Vector(sampled).X >= ModelX(frame, target, inputs))
         {
             return frame;
@@ -173,7 +173,9 @@ public static partial class NativeBattleEffect323Controller
         frame = NativeBattleEffect323Lower.AllMatchingContacts65A5F0(frame, target, inputs);
         if (programme != 0)
         {
-            frame = Write(frame, programme, Read(frame, programme).WriteDword(12, target));
+            NativeBattleModulePoolTask programmeTask = Read(frame, programme);
+            programmeTask.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(target), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(target));
+            frame = Write(frame, programme, programmeTask);
             NativeBattleEffect323PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, programme), 0x10, 8));
             frame = Write(anchor.Frame, programme, CopyTask(Read(anchor.Frame, programme), 0x10, anchor.Output8, 8));
             frame = NativeBattleEffect323Programme.Initialize(frame, programme + WorkspaceOffset, ProgrammeAddress, WorkspaceLength, resources);

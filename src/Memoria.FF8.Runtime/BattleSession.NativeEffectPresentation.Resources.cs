@@ -4,13 +4,13 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState InitializeEffectPresentationSourceResources(NativeBattleGraphicsState graphics, NativeBattleGraphicsResource resource, bool preserveSelectedProgram = false)
     {
-        if (graphics.PresentationRoster is not null)
+        if (NativeModelTextureCache?.PresentationActors is not null)
         {
             if (resource.ModelLoadSources is not { IsEmpty: false })
             {
                 return graphics;
             }
-            graphics = LoadHostedPresentationModel(graphics, presentationSourceOwner, resource);
+            graphics = LoadHostedPresentationModel(graphics, RequirePresentationSourceOwner(), resource);
             DrainHostedPresentationModelResources();
             return graphics;
         }
@@ -21,27 +21,27 @@ public sealed partial class BattleSession
         NativeModelCpuResources ??= NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 0 };
         NativeModelTextureCache ??= NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess());
         NativeEffectIoResult = 0;
-        NativeBattleGraphicsModel source = graphics.ActorModels.Get(presentationSourceOwner);
+        NativeBattleGraphicsModel source = graphics.ActorModels.Get(RequirePresentationSourceOwner());
         byte model = source.ModelId4 ?? throw new NotSupportedException("Native presentation resource loading requires its source model identity.");
         if (model >= 16)
         {
             throw new NotSupportedException("Native presentation source loading requires an original party body and linked resource catalog.");
         }
         NativeBattleGraphicsModel loading = source with { Flags0 = (ushort)(source.Flags0 & ~2), FileSelector128 = source.FileSelector128 ?? resource.LinkedFileSelector128, FileSelector129 = source.FileSelector129 ?? resource.BodyFileSelector129, ActiveResourceRow100 = null, OriginalResourceRow104 = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, TextureResourceIndex = null, LinkedTextureResourceIndex = null, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, ActiveAnimationDirectory = null, ActiveAnimationBank = null };
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceOwner, loading) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequirePresentationSourceOwner(), loading) };
         Load(model);
         Load(checked((ushort)(0x1000 + model)));
-        loading = graphics.ActorModels.Get(presentationSourceOwner);
+        loading = graphics.ActorModels.Get(RequirePresentationSourceOwner());
         loading = loading with { Flags0 = source.Flags0, OriginalResourceRow104 = loading.ActiveResourceRow100 };
         if (preserveSelectedProgram && source.ResourceMagicId is not null)
         {
             loading = loading with { ResourceMagicId = source.ResourceMagicId, ResourceRenzokukenTargetBank = source.ResourceRenzokukenTargetBank, ActiveAnimationDirectory = source.ActiveAnimationDirectory, ActiveAnimationBank = source.ActiveAnimationBank };
         }
-        return graphics with { ActorModels = graphics.ActorModels.Set(presentationSourceOwner, loading) };
+        return graphics with { ActorModels = graphics.ActorModels.Set(RequirePresentationSourceOwner(), loading) };
 
         void Load(ushort request)
         {
-            QueueNativeModelResource507080(graphics, request, checked((byte)presentationSourceOwner));
+            QueueNativeModelResource507080(graphics, request, RequirePresentationSourceOwner());
             while (NativeModelLoader!.Task is not null)
             {
                 PumpNativeFileIo482590();
@@ -52,14 +52,14 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState InitializeHostedPresentationModelResources(NativeBattleGraphicsState graphics, bool loadStage)
     {
-        BattleModelRoster roster = graphics.PresentationRoster ?? throw new InvalidDataException("Hosted model loading requires its explicit presentation roster.");
+        BattleModelRoster roster = nativeActionPackets.Roster;
         InitializeHostedPresentationModelOwners(roster);
         if (loadStage)
         {
             LoadNativeStage500EA0();
         }
         bool loaded = loadStage;
-        foreach (int index in Enumerable.Range(0, roster.ActorCount).Where(index => roster.Rows[index] is not null).OrderBy(index => graphics.ActorModels.Get(index).ModelId4 == 143))
+        foreach (BattleModelOwner index in graphics.ActorModels.Owners.OrderBy(index => graphics.ActorModels.Get(index).ModelId4 == 143))
         {
             if (ReadHostedPresentationModelResource(index) is { ModelLoadSources.IsEmpty: false } resource)
             {
@@ -74,7 +74,7 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState LoadHostedPresentationModel(NativeBattleGraphicsState graphics, int index, NativeBattleGraphicsResource resource)
+    private NativeBattleGraphicsState LoadHostedPresentationModel(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleGraphicsResource resource)
     {
         NativeBattleGraphicsModel original = graphics.ActorModels.Get(index);
         byte model = original.ModelId4 ?? throw new NotSupportedException("Hosted model resource loading requires its actual model byte.");
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
 
         void Load(ushort request)
         {
-            QueueNativeModelResource507080(graphics, request, checked((byte)index));
+            QueueNativeModelResource507080(graphics, request, index);
             while (NativeModelLoader!.Task is not null)
             {
                 PumpNativeFileIo482590();

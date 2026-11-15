@@ -16,14 +16,14 @@ public static class NativeBattleMightyGuardController
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        hierarchy = hierarchy.Write(root.Address, actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum));
+        hierarchy = hierarchy.Write(root.Address, actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum));
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Mighty Guard requires its executed texture initializer pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 2 * profile.DrawBankBytes)
         {
@@ -294,14 +294,14 @@ public static class NativeBattleMightyGuardController
         {
             return task;
         }
-        if (unchecked((sbyte)task.ReadByte(0x2B)) < unchecked((short)task.ReadWord(0x5A)) - 1)
+        if (unchecked((sbyte)task.ReadByte(0x2B)) < task.ReadContactCount(0x5A) - 1)
         {
             return task.WriteByte(0x2B, unchecked((byte)(task.ReadByte(0x2B) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
         }
         return task.WriteWord(0x60, profile.RootWait).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
     }
 
-    public static NativeBattleMightyGuardFrame InitializeContext(NativeBattleMightyGuardFrame frame, uint address, NativeBattleMightyGuardResources resources, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, Func<int, NativeBattleEffectActorGeometry?>? readForeignTarget = null)
+    public static NativeBattleMightyGuardFrame InitializeContext(NativeBattleMightyGuardFrame frame, uint address, NativeBattleMightyGuardResources resources, NativeBattleActionPacketsState packets, Func<BattleModelOwner, NativeBattleGraphicsModel> readModel, Func<BattleModelOwner, NativeBattlePoseSource> readPoseSource, Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? readForeignTarget = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleNodeInitialization<NativeBattleMightyGuardState> initialization = frame.State.PrepareSource(resources);

@@ -10,16 +10,16 @@ public abstract record NativeBattleShot194Operation
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 public sealed record NativeBattleShot194Bind(BattleModelOwner Actor) : NativeBattleShot194Operation;
-public sealed record NativeBattleShot194Sequence(byte Actor, ushort Sequence) : NativeBattleShot194Operation;
+public sealed record NativeBattleShot194Sequence(BattleModelOwner Actor, ushort Sequence) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Stage(int Intensity) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Contact : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Sound(uint Descriptor, int Channel, int Volume) : NativeBattleShot194Operation;
-public sealed record NativeBattleShot194Echo(byte Actor, NativeBattleBodyBoneMatrices Bones, int Geometry) : NativeBattleShot194Operation;
+public sealed record NativeBattleShot194Echo(BattleModelOwner Actor, NativeBattleBodyBoneMatrices Bones, int Geometry) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Sprite(uint Address, ushort Phase, NativeBattleVector Position, short Scale, int Depth, ushort Flags, NativeBattleActionMatrix? World = null) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194ReloadCommon(uint CompletionAddress) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Quad(NativeBattleVector Position, short Scale, uint Color) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Mesh(uint Address, NativeBattleActionMatrix World, uint Flags, int? Fade, int? UOffset = null, bool Billboard = false, int Depth = 0) : NativeBattleShot194Operation;
-public sealed record NativeBattleShot194Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleShot194Anchor> ReadMuzzle, Func<BattleModelOwner, int> BoneCount, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone, Func<int, short> ModelScale, Func<BattleModelOwner, NativeBattleVector> ReadCenter, Func<BattleModelOwner, NativeBattleBodyBoneMatrices> ReadBones, Func<NativeBattleShot194Frame, NativeBattleShot194Operation, NativeBattleShot194Frame> Execute);
+public sealed record NativeBattleShot194Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleShot194Anchor> ReadMuzzle, Func<BattleModelOwner, int> BoneCount, Func<BattleModelOwner, int, int, NativeBattleVector> ReadBone, Func<BattleModelOwner, short> ModelScale, Func<BattleModelOwner, NativeBattleVector> ReadCenter, Func<BattleModelOwner, NativeBattleBodyBoneMatrices> ReadBones, Func<NativeBattleShot194Frame, NativeBattleShot194Operation, NativeBattleShot194Frame> Execute);
 
 /// <summary>5B4C60/5B4C90/5B7080 and Flame Shot's original three physical callback pools.</summary>
 public static class NativeBattleShot194
@@ -58,6 +58,10 @@ public static class NativeBattleShot194
         {
             state = frame.Memory.Shot194 ?? throw new NotSupportedException("Native repeated Shot requires its actual retained module globals.");
             state.Validate();
+            if (state.Source is not { } source || !packets.Roster.Contains(source))
+            {
+                throw new InvalidDataException("Native repeated Shot requires its bound opening model owner.");
+            }
             pools = frame.Effect.Pools.ToArray();
             RequirePools(pools);
             if (mode == 1)
@@ -72,7 +76,9 @@ public static class NativeBattleShot194
                     (pools[1], int shot) = pools[1].Append(0x5B4DF0);
                     NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
                     BattleContactCursor first = header.FirstContact;
-                    Put(1, shot, pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3)).WriteWord(26, packets.ReadContact(first).Primary.Recipient));
+                    NativeBattleModulePoolTask shotTask = pools[1].Slots[shot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)(state.ShotSerial % 100))).WriteWord(24, (ushort)(state.SequenceCursor + 3));
+                    BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+                    Put(1, shot, NativeBattleShotTaskTarget.Write(shotTask, target, packets.ModelAliases));
                     state = state with { ShotSerial = unchecked(state.ShotSerial + 1), SequenceCursor = state.SequenceCursor < 2 ? state.SequenceCursor + 1 : 0 };
                 }
             }
@@ -88,6 +94,7 @@ public static class NativeBattleShot194
         RequirePools(pools);
         NativeBattleShot194State state = frame.Memory.Shot194 ?? throw new NotSupportedException("Native Flame Shot lost its retained module globals.");
         state.Validate();
+        BattleModelOwner source = state.Source ?? throw new InvalidDataException("Native Shot requires its opening model owner.");
         bool paused = (inputs.GraphicsFlags & 0x201) != 0;
         NativeBattlePilotVisualIdentity drawingIdentity = default;
         NativeBattleModulePoolTask drawingTask = null!;
@@ -177,8 +184,8 @@ public static class NativeBattleShot194
             }
             if (S(task, 12) == 0)
             {
-                Execute(new NativeBattleShot194Bind(state.Actor));
-                Execute(new NativeBattleShot194Sequence(state.Actor, 1));
+                Execute(new NativeBattleShot194Bind(source));
+                Execute(new NativeBattleShot194Sequence(source, 1));
                 Append(2, 0x5B6D40, child => child.WriteWord(12, 0).WriteWord(14, 8).WriteWord(24, 2048));
                 Append(2, 0x5B6D90, child => child.WriteWord(12, 0));
                 state = state with { StopClock = 999999, EchoActive = Enumerable.Repeat(false, 5).ToImmutableArray() };
@@ -201,7 +208,7 @@ public static class NativeBattleShot194
             }
             if (S(task, 12) == 0)
             {
-                Execute(new NativeBattleShot194Sequence(state.Actor, 2));
+                Execute(new NativeBattleShot194Sequence(source, 2));
                 Append(2, 0x5B6BF0, child => child.WriteWord(12, 0).WriteWord(14, 8).WriteWord(24, 2048));
                 state = state with { StopClock = state.Clock };
             }
@@ -243,7 +250,7 @@ public static class NativeBattleShot194
         int Echoes(ref NativeBattleModulePoolTask task)
         {
             int counter = S(task, 12);
-            NativeBattleBodyBoneMatrices current = inputs.ReadBones(state.Actor);
+            NativeBattleBodyBoneMatrices current = inputs.ReadBones(source);
             state = state with { Echoes = state.Echoes.SetItem(counter % 5, current), EchoActive = state.EchoActive.SetItem(counter % 5, true) };
             int history = counter > 0 ? (counter - 1) % 5 : 0;
             int total = counter < state.StopClock ? 5 : unchecked(state.StopClock - counter + 5);
@@ -254,7 +261,7 @@ public static class NativeBattleShot194
                 {
                     break;
                 }
-                Execute(new NativeBattleShot194Echo(state.Actor, snapshot ?? throw new InvalidDataException("Native active Shot echo lost its retained bone bytes."), geometry));
+                Execute(new NativeBattleShot194Echo(source, snapshot ?? throw new InvalidDataException("Native active Shot echo lost its retained bone bytes."), geometry));
                 history = history > 0 ? history - 1 : 4;
             }
             if (paused)
@@ -278,7 +285,7 @@ public static class NativeBattleShot194
                 {
                     return 0;
                 }
-                Execute(new NativeBattleShot194Sequence(state.Actor, task.ReadWord(24)));
+                Execute(new NativeBattleShot194Sequence(source, task.ReadWord(24)));
                 state = state with { Control = state.Control | 4 };
             }
             if (phase == 15)
@@ -289,16 +296,16 @@ public static class NativeBattleShot194
             int serial = S(task, 14);
             if (phase == 0)
             {
-                state = state with { Anchors = state.Anchors.SetItem(serial, inputs.ReadMuzzle(state.Actor)) };
+                state = state with { Anchors = state.Anchors.SetItem(serial, inputs.ReadMuzzle(source)) };
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(frame.Effect.Parameters!.Header);
-                int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Flame Shot requires its physical contact pointer.");
+                BattleContactCursor first = header.FirstContact;
                 int count = header.ReadContactCount();
                 short x = 0;
                 short y = 0;
                 short z = 0;
                 for (int target = 0; target < count; target++)
                 {
-                    NativeBattleVector center = inputs.ReadCenter(inputs.Packets.ReadContact(first + target).Primary.Recipient);
+                    NativeBattleVector center = inputs.ReadCenter(inputs.Packets.ReadContact(first.Advance(target)).Primary.Recipient);
                     x = unchecked((short)(x + center.X));
                     y = unchecked((short)(y + center.Y));
                     z = unchecked((short)(z + center.Z));

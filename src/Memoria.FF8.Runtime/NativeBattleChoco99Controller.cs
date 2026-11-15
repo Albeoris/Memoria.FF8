@@ -42,13 +42,13 @@ public static class NativeBattleChoco99Controller
         root.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(header.Source), packets.ModelAliases.EncodeOperand(header.Source, 1));
         BattleModelOwner recipient = packets.ReadContact(contact).Primary.Recipient;
         root.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 1));
-        root = root.WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
-        byte last = unchecked((byte)(root.ReadWord(0x5A) - 1));
+        root = root.WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        int last = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (last < root.ReadWord(0x58))
         {
             last = unchecked((byte)root.ReadWord(0x58));
         }
-        hierarchy = hierarchy.Write(appended.Address, root.WriteByte(0x2F, last));
+        hierarchy = hierarchy.Write(appended.Address, root.WriteTraversalPosition(0x2F, last));
         int textureOffset = TextureOffset(effect);
         if ((effect.Parameters.Flags79 & 1) == 0)
         {
@@ -98,7 +98,7 @@ public static class NativeBattleChoco99Controller
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Choco99 lost its actual action parameters.");
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         hierarchy.Validate();
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, header, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte header, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, header, target);
         NativeBattleEffectHierarchyStep roots = hierarchy.Advance(0, (current, address) =>
         {
             hierarchy = current;
@@ -135,7 +135,7 @@ public static class NativeBattleChoco99Controller
                 case 4:
                     if (task.ReadByte(0x63) == 0)
                     {
-                        Store(address, unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3) : Next(task));
+                        Store(address, unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58) ? task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3) : Next(task));
                     }
                     break;
                 case 6:

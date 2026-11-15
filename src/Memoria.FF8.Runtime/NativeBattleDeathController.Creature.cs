@@ -15,7 +15,7 @@ public static partial class NativeBattleDeathController
                 case 0:
                     task = task.WriteDword(0x4C, Dword(0x27423F8)).WriteDword(0x50, Dword(0x27423FC)).WriteWord(0x3E, Word(0x2742442)).WriteDword(0x60, address + 0x114).WriteDword(0x114, 4096).WriteDword(0x118, 4096).WriteDword(0x11C, 4096);
                     Word(0x2742858, 0);
-                    if (task.ReadByte(0x2E) == 0)
+                    if (task.ReadTraversalPosition(0x2E) == 0)
                     {
                         Select(5);
                         current = NativeBattleDeathModelDark.Initialize(current, address, task, resources);
@@ -62,7 +62,7 @@ public static partial class NativeBattleDeathController
                         Word(0x2742440, 1);
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A))));
                         BattleContactCursor first = header.FirstContact;
-                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first.Advance(unchecked((sbyte)task.ReadByte(0x2B))));
+                        NativeBattleContactPacket contact = inputs.Packets.ReadContact(first.Advance(task.ReadTraversalPosition(0x2B)));
                         if ((contact.Primary.HitFlags & 4) == 0)
                         {
                             SpawnActors(address, 0x18069C4, 0);
@@ -70,7 +70,7 @@ public static partial class NativeBattleDeathController
                         }
                     }
                     bool ended = Once();
-                    if (task.ReadByte(0x2E) == task.ReadByte(0x2F) ? ended : S(task, 0x136) >= 11)
+                    if (task.ReadTraversalPosition(0x2E) == task.ReadTraversalPosition(0x2F) ? ended : S(task, 0x136) >= 11)
                     {
                         task = Next(task);
                     }
@@ -87,7 +87,7 @@ public static partial class NativeBattleDeathController
                     break;
                 case 4:
                     Store(address, task);
-                    if (task.ReadByte(0x2E) == task.ReadByte(0x2F))
+                    if (task.ReadTraversalPosition(0x2E) == task.ReadTraversalPosition(0x2F))
                     {
                         Append(5, 0x8BDF40, 0x70, address);
                     }

@@ -20,7 +20,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         memory.Byte(node + 0x68, source[0x11]);
         uint parentPointer = memory.Dword(node + 0x5C);
         sbyte orientation = unchecked((sbyte)source[0x1C]);
-        int target = unchecked((sbyte)memory.Byte(node + 0x6B));
+        int target = memory.ReadTraversalPosition(node + 0x6B);
         switch (orientation)
         {
             case 0:
@@ -30,13 +30,15 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
             case 2:
                 if (orientation == 2 && inputs.Orientation2Policy == NativeBattleEffectNodeOrientation2Policy.TargetF1MinusCasterF0Look3D)
                 {
-                    short Component(int offset) => unchecked((short)(unchecked((int)(memory.ContextDword(0xD4 + target * 16 + offset) - memory.ContextDword(0x1F4 + offset))) / 65536));
-                    NativeBattleVector direction = new(Component(0), Component(4), Component(8));
+                    NativeBattleEffectNodeVector anchor = memory.Context.ReadRecipient(target).BoneF1;
+                    short Component(uint value, int offset) => unchecked((short)(unchecked((int)(value - memory.ContextDword(0x1F4 + offset))) / 65536));
+                    NativeBattleVector direction = new(Component(anchor.X, 0), Component(anchor.Y, 4), Component(anchor.Z, 8));
                     (inputs.LookBasis8DDA50 ?? throw new NotSupportedException("Native emitter orientation2 requires its reached stateful look-basis service."))(memory, node + 0x2C, direction, new(0, 4096, 0));
                     break;
                 }
-                int dx = unchecked((int)(memory.ContextDword(0x1C4) - memory.ContextDword(0x54 + target * 16)));
-                int dz = unchecked((int)(memory.ContextDword(0x1CC) - memory.ContextDword(0x5C + target * 16)));
+                NativeBattleEffectNodeVector heading = memory.Context.ReadRecipient(target).Heading;
+                int dx = unchecked((int)(memory.ContextDword(0x1C4) - heading.X));
+                int dz = unchecked((int)(memory.ContextDword(0x1CC) - heading.Z));
                 if (orientation == 2)
                 {
                     dx = unchecked(-dx);
@@ -49,7 +51,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 Copy(memory.Offset(parentPointer) + 0x8C, node + 0x2C, 32);
                 break;
             case 4:
-                short rotation = inputs.ReadModel(unchecked((short)memory.ContextWord(0x1E))).Rotation14 ?? throw new NotSupportedException("Native882990 orientation4 requires the actual caster model WORD14.");
+                short rotation = inputs.ReadModel(memory.Context.Source).Rotation14 ?? throw new NotSupportedException("Native882990 orientation4 requires the actual caster model WORD14.");
                 WriteMatrix(node + 0x2C, NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), rotation));
                 break;
         }
@@ -77,18 +79,18 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         int selector = unchecked((sbyte)source[0x25]);
         if (!target && selector == 2 && inputs.ActorAnchor is not null)
         {
-            NativeBattleVector point = inputs.ActorAnchor(unchecked((short)memory.ContextWord(0x1E)), ref random);
+            NativeBattleVector point = inputs.ActorAnchor(memory.Context.Source, ref random);
             memory.Dword(node + 0x4C, unchecked((uint)(point.X << 16)));
             memory.Dword(node + 0x50, unchecked((uint)(point.Y << 16)));
             memory.Dword(node + 0x54, unchecked((uint)(point.Z << 16)));
         }
         else if (selector is >= 0 and <= 3)
         {
-            int offset = target ? 0x94 + unchecked((sbyte)memory.Byte(node + 0x6B)) * 16 + selector * 0x40 : 0x1D4 + selector * 16;
-            for (int component = 0; component < 4; component++)
-            {
-                memory.Dword(node + 0x4C + component * 4, memory.ContextDword(offset + component * 4));
-            }
+            NativeBattleEffectNodeVector anchor = target ? memory.Context.ReadRecipient(memory.ReadTraversalPosition(node + 0x6B)).ReadAnchor(selector) : memory.ReadSourceAnchor(selector);
+            memory.Dword(node + 0x4C, anchor.X);
+            memory.Dword(node + 0x50, anchor.Y);
+            memory.Dword(node + 0x54, anchor.Z);
+            memory.WriteAnchorPadding(node + 0x58, anchor);
         }
         AddRotatedSourceOffset(node, source, target);
     }

@@ -57,13 +57,13 @@ public static partial class NativeBattleSiren95Controller
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(0x0C, ActionParameters);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, ActionParameters, unchecked((sbyte)root.ReadByte(0x2A)), unchecked((sbyte)root.ReadByte(0x2B)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        root = actors.WriteTo(root).WriteByte(0x29, 0).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
-        byte last = unchecked((byte)(root.ReadWord(0x5A) - 1));
+        root = actors.WriteTo(root).WriteByte(0x29, 0).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        int last = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(0x5A));
         if (last < root.ReadWord(0x58))
         {
             last = unchecked((byte)root.ReadWord(0x58));
         }
-        hierarchy = hierarchy.Write(appended.Address, root.WriteByte(0x2F, last));
+        hierarchy = hierarchy.Write(appended.Address, root.WriteTraversalPosition(0x2F, last));
         uint tim = state.ReadDword(0x257F8A0);
         state = state.WriteDword(0x258BFA4, tim).WriteDword(0x258A024, unchecked(tim + 0xC00)).WriteDword(0x258BFA0, unchecked(tim + 0xC00)).WriteDword(0x258FB74, unchecked(tim + 0x1800)).WriteDword(0x258A020, unchecked(tim + 0x1800));
         return frame with { Memory = frame.Memory with { Siren95 = state }, Effect = frame.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = MainDescriptor } };

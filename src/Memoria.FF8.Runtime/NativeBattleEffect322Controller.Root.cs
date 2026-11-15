@@ -24,9 +24,12 @@ public static partial class NativeBattleEffect322Controller
             if (main != 0)
             {
                 frame = ClearDwords701200(frame, main + 12, 0x1C);
-                int first = FirstContact(frame, inputs);
-                uint target = ModelAddress(inputs.ReadPackets(frame).ReadContact(first).Primary.Recipient);
-                frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
+                NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+                BattleContactCursor first = FirstContact(frame, inputs);
+                BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+                NativeBattleModulePoolTask targetTask = Read(frame, main);
+                targetTask.WriteExecutionReference(0x10, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+                frame = Write(frame, main, targetTask);
                 NativeBattleEffect322PointStep point = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), 0x14, 8));
                 frame = Write(point.Frame, main, CopyTask(Read(point.Frame, main), 0x14, point.Output8, 8));
             }
@@ -56,9 +59,9 @@ public static partial class NativeBattleEffect322Controller
         return new(Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);
     }
 
-    private static int FirstContact(NativeBattleEffect322Frame frame, NativeBattleEffect322Inputs inputs)
+    private static BattleContactCursor FirstContact(NativeBattleEffect322Frame frame, NativeBattleEffect322Inputs inputs)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect322 requires its current action header.");
-        return inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect322 requires its native first contact pointer.");
+        return inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContact;
     }
 }

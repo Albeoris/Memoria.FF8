@@ -5,8 +5,8 @@ namespace Memoria.FF8.Runtime;
 public abstract record NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163ComposeActor : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163BindActor : NativeBattleRoughDivide163Operation;
-public sealed record NativeBattleRoughDivide163Sequence(byte Actor, int Sequence) : NativeBattleRoughDivide163Operation;
-public sealed record NativeBattleRoughDivide163SetPosition(byte Actor, NativeBattleModuleAnchor Position) : NativeBattleRoughDivide163Operation;
+public sealed record NativeBattleRoughDivide163Sequence(BattleModelOwner Actor, int Sequence) : NativeBattleRoughDivide163Operation;
+public sealed record NativeBattleRoughDivide163SetPosition(BattleModelOwner Actor, NativeBattleModuleAnchor Position) : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163Sound(uint Descriptor) : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163Stage(int Intensity) : NativeBattleRoughDivide163Operation;
 public sealed record NativeBattleRoughDivide163Contacts : NativeBattleRoughDivide163Operation;
@@ -16,9 +16,9 @@ public sealed record NativeBattleRoughDivide163Frame(NativeBattleEffectMemory Me
     public BattleModelOwner FirstRecipient => Effect.EntryFirstRecipient ?? throw new InvalidDataException("Native Rough Divide requires its actual first recipient.");
 }
 public sealed record NativeBattleRoughDivide163ChildStep(NativeBattleRoughDivide163Frame Frame, NativeBattleEffectTaskPool Pool, int Result);
-public sealed record NativeBattleRoughDivide163Inputs(uint GraphicsFlags, Func<byte, NativeBattleModuleAnchor> ReadActorPosition, Func<BattleModelOwner, byte, short, NativeBattleModuleAnchor> ReadBone, Func<NativeBattleRoughDivide163Frame, NativeBattleRoughDivide163Operation, NativeBattleRoughDivide163Frame> Execute)
+public sealed record NativeBattleRoughDivide163Inputs(uint GraphicsFlags, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadActorPosition, Func<BattleModelOwner, byte, short, NativeBattleModuleAnchor> ReadBone, Func<NativeBattleRoughDivide163Frame, NativeBattleRoughDivide163Operation, NativeBattleRoughDivide163Frame> Execute)
 {
-    public NativeBattleModuleAnchor ReadBone241(byte actor) => ReadBone(actor, 241, 0);
+    public NativeBattleModuleAnchor ReadBone241(BattleModelOwner actor) => ReadBone(actor, 241, 0);
 }
 
 public static partial class NativeBattleRoughDivide163Controller
@@ -211,7 +211,7 @@ public static partial class NativeBattleRoughDivide163Controller
         {
             frame = inputs.Execute(frame, operation);
         }
-        void Sequence(byte target, int sequence)
+        void Sequence(BattleModelOwner target, int sequence)
         {
             Execute(new NativeBattleRoughDivide163Sequence(target, sequence));
         }

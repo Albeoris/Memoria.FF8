@@ -35,8 +35,8 @@ public static partial class NativeBattleDeathController
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        byte maximum = Math.Max(unchecked((byte)(header.ReadContactCount() - 1)), header.ReadRepeatModeMinusOne());
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteWord(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteByte(0x2F, maximum);
+        int maximum = Math.Max(NativeBattleEffectRootTask.LastContactPosition(header.ReadContactCount()), header.ReadRepeatModeMinusOne());
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(appended.Address, root);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -79,7 +79,7 @@ public static partial class NativeBattleDeathController
             throw new InvalidDataException("Native Death director setup requires its actual module and callback.");
         }
         ushort delay = 1;
-        if (task.ReadByte(0x2E) == 0)
+        if (task.ReadTraversalPosition(0x2E) == 0)
         {
             NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Native Death requires its reaper TIM queue.");
             (textures, _) = textures.EnqueueTim505E30(resources.FirstTim);
@@ -227,7 +227,7 @@ public static partial class NativeBattleDeathController
             hierarchy = appended.Hierarchy;
             return appended.Address;
         }
-        private NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(current.Effect.Parameters!, inputs.Packets, pointer, group, target);
+        private NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(current.Effect.Parameters!, inputs.Packets, pointer, group, target);
         private void Emit(NativeBattleDeathOperation operation)
         {
             current = inputs.Execute(current with { Effect = current.Effect with { Pools = hierarchy.Pools } }, operation);

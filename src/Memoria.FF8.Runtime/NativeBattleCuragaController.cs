@@ -23,7 +23,7 @@ public sealed record NativeBattleCuragaState([property: JsonRequired] int Source
     public ushort? PassCount26D82DA { get; init; }
 }
 public sealed record NativeBattleCuragaFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCuragaState State);
-public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleCuragaControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
     public Func<NativeBattleCuragaFrame, int, NativeBattleCuragaFrame>? ApplyContact { get; init; }
     public Func<NativeBattleCuragaFrame, int, byte, NativeBattleCuragaFrame>? ObserveBoneAnchor { get; init; }
@@ -59,14 +59,14 @@ public static class NativeBattleCuragaController
             NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Native87DB10 requires its header's actual contact pointer.");
             byte target = packets.ReadContact(firstContact).Primary.Recipient;
-            byte targets = header.ReadContactCount();
+            int targets = header.ReadContactCount();
             byte groups = header.ReadRepeatModeMinusOne();
-            byte maximum = unchecked((byte)(targets - 1));
+            int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
             if (maximum < groups)
             {
                 maximum = groups;
             }
-            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+            task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2C, header.Source).WriteByte(0x2D, target).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         }
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Native87DB10 requires the actual26D75BC initializer pointer, including texture-skip entries.");
@@ -99,7 +99,7 @@ public static class NativeBattleCuragaController
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
         {
             NativeBattleModulePoolTask task = state.Read(address);
@@ -146,7 +146,7 @@ public static class NativeBattleCuragaController
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < unchecked((short)task.ReadWord(0x58)))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
                         }
                         else
                         {
@@ -252,7 +252,7 @@ public static class NativeBattleCuragaController
                     {
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                         int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native882F00 requires its selected group's contact pointer.");
-                        int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
+                        int contact = checked(first + task.ReadTraversalPosition(0x2B));
                         if (inputs.ApplyContact is { } applyContact)
                         {
                             current = applyContact(current, contact);
@@ -298,16 +298,16 @@ public static class NativeBattleCuragaController
     internal static NativeBattleModulePoolTask InitializeXPotionRoot817410(NativeBattleModulePoolTask task, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets)
     {
         task = task.WriteDword(0x0C, 0x1D99A78);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, task.ReadDword(0x0C), unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        return actors.WriteTargetTo(actors.WriteSourceTo(task).WriteByte(0x29, 0)).WriteWord(0x5A, targets).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        return actors.WriteTargetTo(actors.WriteSourceTo(task).WriteByte(0x29, 0)).WriteContactCount(0x5A, targets).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
     }
 
     private static void RequireResources(NativeBattleCuragaFamilyProfile profile, NativeBattleCuragaResources resources)

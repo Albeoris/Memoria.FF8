@@ -331,7 +331,23 @@ internal abstract class NativeBattleStorageContext
         if (source is NativeBattleAuxiliaryTask && this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
         {
             NativeBattleAuxiliaryTask task = (NativeBattleAuxiliaryTask)(result ?? source);
-            return task.ModelOwner is null ? task : task with { ModelOwner = null };
+            return task.ModelOwner is null && task.TargetOwner is null ? task : task with { ModelOwner = null, TargetOwner = null };
+        }
+        if (this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.NewBattle })
+        {
+            switch (result ?? source)
+            {
+                case NativeBattleModuleTask task:
+                    return task.ModelOwner is null ? task : task with { ModelOwner = null };
+                case NativeBattleModelLoader loader:
+                    return loader.Task is null && loader.PartyPlan is null ? loader : loader with { Task = null, PartyPlan = null };
+                case NativeBattleModelCpuBanks banks:
+                    return banks with { PartyBankOwners = banks.PartyBankOwners.Clear(), PresentationRoster = null };
+                case NativeBattleModelCpuResources cpu:
+                    return cpu with { PresentationPalettes = null, OwnedAnimationSources = cpu.OwnedAnimationSources.Clear() };
+                case NativeBattleModelTextureCache cache:
+                    return cache with { PresentationActors = null, PresentationRoster = null };
+            }
         }
         return result ?? source;
     }

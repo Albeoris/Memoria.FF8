@@ -86,9 +86,9 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleGraphicsState ScheduleNativeTextureAnimation(NativeBattleGraphicsState graphics, int index, NativeBattleAuxiliaryProgram program, byte sequence)
+    private NativeBattleGraphicsState ScheduleNativeTextureAnimation(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleAuxiliaryProgram program, byte sequence)
     {
-        return graphics with { Auxiliary = graphics.Auxiliary.AppendTextureAnimation(index, sequence, program, graphics.PresentationRoster) };
+        return graphics with { Auxiliary = graphics.Auxiliary.AppendTextureAnimation(index, sequence, program, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) };
     }
 
     private void ApplyNativeTextureMotion(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte selector, int variant)

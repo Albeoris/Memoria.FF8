@@ -25,9 +25,8 @@ public static class NativeBattleEffect323Lower
         }
     }
 
-    public static NativeBattleEffect323Frame AllMatchingContacts65A5F0(NativeBattleEffect323Frame frame, uint model, NativeBattleEffect323Inputs inputs)
+    public static NativeBattleEffect323Frame AllMatchingContacts65A5F0(NativeBattleEffect323Frame frame, BattleModelOwner actor, NativeBattleEffect323Inputs inputs)
     {
-        int actor = NativeBattleGraphicsModelAddress.Decode(model);
         int relative = 0;
         while (true)
         {
@@ -38,12 +37,11 @@ public static class NativeBattleEffect323Lower
             {
                 return frame;
             }
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("The contact walk requires its current first row.");
-            int index = checked(first + relative);
-            NativeBattleContactPacket contact = packets.Contacts[index] ?? throw new NotSupportedException("The contact walk requires its current row.");
+            NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact.Advance(relative));
             if (contact.Primary.Recipient == actor)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect323Contact506690(index));
+                BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Effect323 requires its reached contact occurrence.");
+                frame = inputs.Execute(frame, new NativeBattleEffect323Contact506690(occurrence));
             }
             relative++;
         }

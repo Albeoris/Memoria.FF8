@@ -5,12 +5,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public NativeBattleAuxiliaryState AppendTextureAnimation(int model, byte sequence, NativeBattleAuxiliaryProgram program, BattleModelRoster? roster = null)
+    public NativeBattleAuxiliaryState AppendTextureAnimation(BattleModelOwner model, byte sequence, NativeBattleAuxiliaryProgram program, NativeBattleModelAliases aliases)
     {
         Validate();
         program.Validate();
         _ = SkipSoundParticleProgram(program.Source, program.Offset);
-        if (!IsAuxiliaryModelBound(model, roster))
+        if (!aliases.Roster.Contains(model))
         {
             throw new ArgumentOutOfRangeException(nameof(model));
         }
@@ -20,11 +20,11 @@ public sealed partial record NativeBattleAuxiliaryState
             throw new InvalidOperationException("Native9F dereferences506C10's allocation; all sixteen physical auxiliary slots are occupied.");
         }
         byte[] payload = Slots[slot].Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, NativeBattleGraphicsModelAddress.Encode(model));
+        uint operandKnownness = WriteModelOperand(payload, Slots[slot].UnknownByteMask, 0, model, aliases);
         payload[8] = 1;
         payload[9] = sequence;
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(10), 0);
-        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.TextureAnimation5057D0, Payload = payload.ToImmutableArray(), Program = program, UnknownByteMask = Slots[slot].UnknownByteMask & ~0xF0Fu | 0xF0u };
+        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.TextureAnimation5057D0, Payload = payload.ToImmutableArray(), Program = program, ModelOwner = model, TargetOwner = null, UnknownByteMask = operandKnownness & ~0xF00u | 0xF0u };
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
@@ -37,11 +37,7 @@ public sealed partial record NativeBattleAuxiliaryState
     {
         NativeBattleAuxiliaryProgram program = task.Program ?? throw new InvalidDataException("Native5057D0 lacks its original deadline list.");
         program.Validate();
-        uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        if (!TryReadAuxiliaryModel(address, inputs?.PresentationRoster, out int model))
-        {
-            throw new InvalidDataException("Native5057D0's retained graphics model pointer is invalid.");
-        }
+        BattleModelOwner model = RequireModelOperand(task.ModelOwner);
         byte deadline = program.Source[program.Offset];
         if (deadline != 255)
         {

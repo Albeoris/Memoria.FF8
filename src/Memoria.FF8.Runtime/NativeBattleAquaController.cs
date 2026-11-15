@@ -19,16 +19,16 @@ public static class NativeBattleAquaController
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, profile.Callback(0x808970), 100);
         NativeBattleModulePoolTask task = root.Hierarchy.Read(root.Address);
-        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), unchecked((sbyte)task.ReadByte(0x2B)));
+        NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)task.ReadByte(0x2A)), task.ReadTraversalPosition(0x2B));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        byte contacts = header.ReadContactCount();
+        int contacts = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(contacts - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(contacts);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        task = actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78)).WriteByte(0x29, 0).WriteWord(0x5A, contacts).WriteWord(0x58, groups).WriteByte(0x2F, maximum);
+        task = actors.WriteTo(task.WriteDword(0x0C, 0x1D99A78)).WriteByte(0x29, 0).WriteContactCount(0x5A, contacts).WriteWord(0x58, groups).WriteTraversalPosition(0x2F, maximum);
         hierarchy = root.Hierarchy.Write(root.Address, task);
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("The Aqua entry requires its executed initializer resource pointer.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 0x18000)
@@ -95,7 +95,7 @@ public static class NativeBattleAquaController
                     {
                         if (unchecked((sbyte)task.ReadByte(0x2A)) < Word(task, 0x58))
                         {
-                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+                            task = task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
                             state = state.Write(address, task);
                         }
                         else

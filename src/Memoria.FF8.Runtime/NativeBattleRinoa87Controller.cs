@@ -4,9 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRinoa87Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleRinoa87State State);
 public sealed record NativeBattleRinoa87LeafStep(NativeBattleRinoa87Frame Frame, int Result);
-public sealed record NativeBattleRinoa87Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87LeafStep> AdvanceLeaf, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> BeginTextureRelease)
+public sealed record NativeBattleRinoa87Inputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87LeafStep> AdvanceLeaf, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> BeginTextureRelease)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignActorGeometry { get; init; }
 }
 public sealed record NativeBattleRinoa87TargetInputs(NativeBattleRinoa87Inputs Controller, Func<NativeBattleRinoa87Frame, uint, NativeBattleRinoa87Frame> InitializeScene, Func<NativeBattleRinoa87Frame, ushort> ReadContactReady, Func<NativeBattleRinoa87Frame, ushort> ReadSceneComplete, Func<NativeBattleRinoa87Frame, int, NativeBattleRinoa87Frame> ApplyContact);
 
@@ -32,14 +32,14 @@ public static class NativeBattleRinoa87Controller
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         byte target = packets.ReadContact(first).Primary.Recipient;
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteWord(90, targets).WriteWord(88, groups).WriteByte(47, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25ACEB0)?.ArenaOffset ?? throw new NotSupportedException("Native773870 requires its retained mag086 initializer pointer.");
         if (source > NativeBattleEffectArena.Length - 81920)

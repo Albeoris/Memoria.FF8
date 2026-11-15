@@ -25,11 +25,11 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         if (useRetainedModelOwners)
         {
-            NativeModelCpuResources = (NativeModelCpuResources ?? throw new InvalidDataException("Hosted entry lacks its initialized model CPU owner.")).WithPresentationRoster(roster);
+            NativeModelCpuResources = (NativeModelCpuResources ?? throw new InvalidDataException("Hosted entry lacks its initialized model CPU owner.")).WithPresentationRoster(roster, nativeActionPackets.ModelAliases);
             NativeModelTextureCache = (NativeModelTextureCache ?? throw new InvalidDataException("Hosted entry lacks its initialized model texture cache.")).WithPresentationRoster(roster);
             return;
         }
-        NativeModelCpuResources = (NativeBattleModelCpuResources.FromColdProcess(HostedPresentationExecutableHash) with { EnemyCursor = 0, ScratchMaximum = 0, EnemyLinkedSlots = 0 }).WithPresentationRoster(roster);
+        NativeModelCpuResources = (NativeBattleModelCpuResources.FromColdProcess(HostedPresentationExecutableHash) with { EnemyCursor = 0, ScratchMaximum = 0, EnemyLinkedSlots = 0 }).WithPresentationRoster(roster, nativeActionPackets.ModelAliases);
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeBattleModelTextureCache.FromColdProcess()).WithPresentationRoster(roster);
         NativeEffectIoResult = 0;
     }

@@ -24,7 +24,7 @@ public static partial class NativeBattleEffect54Lower
             frame = Relocate80D880(frame, source, resources);
         }
         NativeBattleModulePoolTask parent = Read(frame, task.ReadDword(0x10));
-        short count = unchecked((short)parent.ReadWord(0x5A));
+        int count = parent.ReadContactCount(0x5A);
         Store16(ref frame, context + 0x1C, unchecked((ushort)count));
         Store16(ref frame, context + 0x1E, task.ReadByte(0x2C));
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);

@@ -26,7 +26,7 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
             {
                 return physical;
             }
-            return cpu.Bank < 3 ? checked(cpu.EffectiveLayout.BaseAddress + (uint)cpu.EffectiveLayout.BankLength * cpu.Bank + (uint)cpu.Offset) : cpu.NativePlacementAddress;
+            return cpu.Bank < 3 ? checked(cpu.EffectiveLayout.BaseAddress + (uint)cpu.EffectiveLayout.BankLength * (uint)cpu.Bank + (uint)cpu.Offset) : cpu.NativePlacementAddress;
         }
     }
 
@@ -62,7 +62,7 @@ public sealed record NativeBattleResourcePointer(NativeBattleModelCpuReference? 
         {
             return cpu.IsPresentationResource;
         }
-        return cpu.Bank <= 4 && (cpu.Offset >= 0 || cpu.EnemyResourceId is not null) && cpu.EnemyResourceId is not < 0 &&
+        return cpu.Bank is >= 0 and <= 4 && (cpu.Offset >= 0 || cpu.EnemyResourceId is not null) && cpu.EnemyResourceId is not < 0 &&
             (cpu.EnemyResourceId is null || cpu.Bank == 3 && (long)NativeBattleModelCpuResources.EnemyAddress + cpu.Offset is >= 0 and <= uint.MaxValue) &&
             (!cpu.ResourceOnly || cpu.Bank < 3) && (cpu.Bank >= 3 || cpu.ResourceOnly || cpu.Offset <= cpu.EffectiveLayout.BankLength);
     }

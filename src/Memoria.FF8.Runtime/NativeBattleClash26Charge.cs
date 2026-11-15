@@ -82,7 +82,7 @@ public static partial class NativeBattleClash26Controller
                         Execute(new NativeBattleClash26Model(model));
                         NativeBattleEffectParameters parameters = Frame.Effect.Parameters!;
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact.Advance(unchecked((sbyte)task.ReadByte(0x2B)));
+                        BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                         BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Clash requires its reached contact occurrence.");
                         Execute(new NativeBattleClash26Contact(contact));
                         task = Next(task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 1)));

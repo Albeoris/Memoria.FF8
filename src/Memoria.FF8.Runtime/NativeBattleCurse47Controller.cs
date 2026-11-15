@@ -119,7 +119,7 @@ public static class NativeBattleCurse47Controller
                 {
                     if (unchecked((sbyte)task.ReadByte(0x2A)) < unchecked((short)task.ReadWord(0x58)))
                     {
-                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3));
+                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3));
                     }
                     else
                     {
@@ -212,7 +212,7 @@ public static class NativeBattleCurse47Controller
                     NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Curse target requires its captured action parameters.");
                     BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     int first = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Curse requires its actual contact pointer.");
-                    int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
+                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
                     if ((uint)contact >= NativeBattleActionPacketsState.ContactCapacity)
                     {
                         throw new InvalidDataException("Curse contact leaves its actual captured arena.");

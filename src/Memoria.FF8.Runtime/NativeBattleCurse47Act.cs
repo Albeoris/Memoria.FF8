@@ -143,7 +143,7 @@ public static class NativeBattleCurse47Act
         }
         return null;
     }
-    private static Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> Selector(NativeBattleCurse47Frame frame, NativeBattleActionPacketsState packets)
+    private static Func<uint, sbyte, int, NativeBattleEffectTaskActors> Selector(NativeBattleCurse47Frame frame, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Curse ACT birth requires its actual captured action selectors.");
         return (pointer, header, target) => NativeBattleCureController.SelectActors(parameters, packets, pointer, header, target);

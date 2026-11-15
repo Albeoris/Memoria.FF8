@@ -8,15 +8,19 @@ public sealed record NativeBattleShot197Resources(NativeBattleEffectHeapAllocati
 public sealed record NativeBattleShot197Anchor(NativeBattleVector Position, NativeBattleVector Direction, NativeBattleActionMatrix Rotation);
 
 /// <summary>Armor Shot's retained module globals; task links remain in their physical508300 pools.</summary>
-public sealed record NativeBattleShot197State([property: JsonRequired] byte Actor, [property: JsonRequired] int Control, [property: JsonRequired] int SequenceCursor, [property: JsonRequired] int ShotSerial, [property: JsonRequired] int ImpactSerial, [property: JsonRequired] int LaneSerial, [property: JsonRequired] int Clock, [property: JsonRequired] int StopClock, [property: JsonRequired] ImmutableArray<NativeBattleShot197Anchor?> Anchors, [property: JsonRequired] ImmutableArray<byte> ParticleStorage, [property: JsonRequired] ImmutableArray<byte> TrailLanes, [property: JsonRequired] ImmutableArray<NativeBattleBodyBoneMatrices?> Echoes, [property: JsonRequired] ImmutableArray<bool> EchoActive)
+public sealed record NativeBattleShot197State([property: JsonRequired] int Control, [property: JsonRequired] int SequenceCursor, [property: JsonRequired] int ShotSerial, [property: JsonRequired] int ImpactSerial, [property: JsonRequired] int LaneSerial, [property: JsonRequired] int Clock, [property: JsonRequired] int StopClock, [property: JsonRequired] ImmutableArray<NativeBattleShot197Anchor?> Anchors, [property: JsonRequired] ImmutableArray<byte> ParticleStorage, [property: JsonRequired] ImmutableArray<byte> TrailLanes, [property: JsonRequired] ImmutableArray<NativeBattleBodyBoneMatrices?> Echoes, [property: JsonRequired] ImmutableArray<bool> EchoActive)
 {
+    [JsonIgnore]
+    internal BattleModelOwner? Source { get; init; }
+
     public static NativeBattleShot197State FromColdProcess()
     {
-        return new(0, 0, 0, 0, 0, 0, 0, 0, Enumerable.Repeat<NativeBattleShot197Anchor?>(null, 100).ToImmutableArray(), new byte[7360].ToImmutableArray(), new byte[1856].ToImmutableArray(), Enumerable.Repeat<NativeBattleBodyBoneMatrices?>(null, 5).ToImmutableArray(), Enumerable.Repeat(false, 5).ToImmutableArray());
+        return new(0, 0, 0, 0, 0, 0, 0, Enumerable.Repeat<NativeBattleShot197Anchor?>(null, 100).ToImmutableArray(), new byte[7360].ToImmutableArray(), new byte[1856].ToImmutableArray(), Enumerable.Repeat<NativeBattleBodyBoneMatrices?>(null, 5).ToImmutableArray(), Enumerable.Repeat(false, 5).ToImmutableArray());
     }
 
-    public NativeBattleShot197State Enter(byte actor)
+    public NativeBattleShot197State Enter(BattleModelOwner actor)
     {
+        ArgumentNullException.ThrowIfNull(actor);
         Validate();
         byte[] particles = ParticleStorage.ToArray();
         foreach ((int first, int count, int stride) in new[] { (0, 150, 24), (3632, 150, 24) })
@@ -26,14 +30,14 @@ public sealed record NativeBattleShot197State([property: JsonRequired] byte Acto
                 BinaryPrimitives.WriteInt32LittleEndian(particles.AsSpan(first + slot * stride), 0);
             }
         }
-        return this with { Actor = actor, Control = 0, SequenceCursor = 0, ShotSerial = 0, ImpactSerial = 0, LaneSerial = 0, Clock = 0, ParticleStorage = particles.ToImmutableArray() };
+        return this with { Source = actor, Control = 0, SequenceCursor = 0, ShotSerial = 0, ImpactSerial = 0, LaneSerial = 0, Clock = 0, ParticleStorage = particles.ToImmutableArray() };
     }
 
     public void Validate()
     {
-        if (Actor >= 7 || SequenceCursor is < 0 or > 2 || Anchors.IsDefault || Anchors.Length != 100 || ParticleStorage.IsDefault || ParticleStorage.Length != 7360 || TrailLanes.IsDefault || TrailLanes.Length != 1856 || Echoes.IsDefault || Echoes.Length != 5 || EchoActive.IsDefault || EchoActive.Length != 5 || Enumerable.Range(0, 5).Any(index => EchoActive[index] && Echoes[index] is null))
+        if (SequenceCursor is < 0 or > 2 || Anchors.IsDefault || Anchors.Length != 100 || ParticleStorage.IsDefault || ParticleStorage.Length != 7360 || TrailLanes.IsDefault || TrailLanes.Length != 1856 || Echoes.IsDefault || Echoes.Length != 5 || EchoActive.IsDefault || EchoActive.Length != 5 || Enumerable.Range(0, 5).Any(index => EchoActive[index] && Echoes[index] is null))
         {
-            throw new InvalidDataException("Native Armor Shot requires its actual actor, anchor, impact and echo storage.");
+            throw new InvalidDataException("Native Armor Shot requires its actual anchor, impact and echo storage.");
         }
         foreach (NativeBattleBodyBoneMatrices? echo in Echoes)
         {

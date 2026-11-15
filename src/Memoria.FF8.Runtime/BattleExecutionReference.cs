@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal abstract record BattleExecutionReference
+internal abstract partial record BattleExecutionReference
 {
     private BattleExecutionReference()
     {
@@ -33,6 +33,38 @@ internal abstract record BattleExecutionReference
     internal sealed record Header(BattleActionHeaderReference Reference) : BattleExecutionReference;
     internal sealed record Cursor(BattleContactCursor Reference) : BattleExecutionReference;
     internal sealed record Occurrence(BattleContactOccurrence Reference) : BattleExecutionReference;
+
+    internal sealed record ContactCount : BattleExecutionReference
+    {
+        internal ContactCount(int value)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            Value = value;
+        }
+
+        internal int Value { get; }
+
+        internal ImmutableArray<byte>? EncodeOriginalWord()
+        {
+            return Value <= ushort.MaxValue ? [(byte)(Value & 0xFF), (byte)(Value >> 8)] : null;
+        }
+    }
+
+    internal sealed record TraversalPosition : BattleExecutionReference
+    {
+        internal TraversalPosition(int value)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            Value = value;
+        }
+
+        internal int Value { get; }
+
+        internal ImmutableArray<byte>? EncodeOriginalByte()
+        {
+            return Value <= byte.MaxValue ? [(byte)Value] : null;
+        }
+    }
 
     internal sealed record ContactOffset : BattleExecutionReference
     {

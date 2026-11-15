@@ -53,14 +53,14 @@ public static class NativeBattleAngelWing84Controller
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         byte target = packets.ReadContact(first).Primary.Recipient;
-        byte targets = header.ReadContactCount();
+        int targets = header.ReadContactCount();
         byte groups = header.ReadRepeatModeMinusOne();
-        byte maximum = unchecked((byte)(targets - 1));
+        int maximum = NativeBattleEffectRootTask.LastContactPosition(targets);
         if (maximum < groups)
         {
             maximum = groups;
         }
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteWord(90, targets).WriteWord(88, groups).WriteByte(47, maximum);
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(41, 0).WriteByte(44, header.Source).WriteByte(45, target).WriteContactCount(90, targets).WriteWord(88, groups).WriteTraversalPosition(47, maximum);
         hierarchy = hierarchy.Write(root.Address, task);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x25C2350)?.ArenaOffset ?? throw new NotSupportedException("Native78D7B0 requires its retained mag083 initializer pointer.");
         if (source > NativeBattleEffectArena.Length - 98304)
@@ -88,7 +88,7 @@ public static class NativeBattleAngelWing84Controller
         inputs.Camera.Validate();
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         NativeBattleAngelWing84Frame current = frame with { State = frame.State with { CopiedCamera = inputs.Camera } };
-        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
+        NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep advanced = new NativeBattleEffectHierarchy(current.Effect.Pools).Advance(0, (hierarchy, address) =>
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -133,7 +133,7 @@ public static class NativeBattleAngelWing84Controller
                         }
                         else
                         {
-                            hierarchy = hierarchy.Write(address, task.WriteByte(42, unchecked((byte)(task.ReadByte(42) + 1))).WriteByte(46, unchecked((byte)(task.ReadByte(46) + 1))).WriteByte(41, unchecked((byte)(task.ReadByte(41) - 1))));
+                            hierarchy = hierarchy.Write(address, task.WriteByte(42, unchecked((byte)(task.ReadByte(42) + 1))).WriteTraversalPosition(46, checked(task.ReadTraversalPosition(46) + 1)).WriteByte(41, unchecked((byte)(task.ReadByte(41) - 1))));
                         }
                     }
                     break;
@@ -212,7 +212,7 @@ public static class NativeBattleAngelWing84Controller
                 frame = inputs.InitializeScene(frame, address);
                 hierarchy = new(frame.Effect.Pools);
                 NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
-                NativeBattleEffectTaskActors Select(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(parameters, controller.Packets, pointer, group, target);
+                NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, controller.Packets, pointer, group, target);
                 hierarchy = hierarchy.Append8DC540(2, 0x78DCE0, 72, address, Select).Hierarchy;
                 hierarchy = Next(hierarchy, address);
                 break;
@@ -221,7 +221,7 @@ public static class NativeBattleAngelWing84Controller
                 {
                     BattleActionHeaderReference header = frame.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
                     int first = controller.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native797540 requires its selected group's actual contact pointer.");
-                    int contact = checked(first + unchecked((sbyte)task.ReadByte(43)));
+                    int contact = checked(first + task.ReadTraversalPosition(43));
                     frame = inputs.ApplyContact(frame, contact);
                     hierarchy = Next(new(frame.Effect.Pools), address);
                 }

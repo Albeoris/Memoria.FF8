@@ -20,7 +20,7 @@ public static class NativeBattleRecoveryContext
         NativeBattleEffectMemory memory = frame.Memory.WithRecoveryExecutable(executable.Publish());
         return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Pools } });
 
-        NativeBattleVector? ReadForeignBone(int index, byte selector)
+        NativeBattleVector? ReadForeignBone(BattleModelOwner index, byte selector)
         {
             if (inputs.ReadForeignTarget?.Invoke(index) is not { } foreign)
             {

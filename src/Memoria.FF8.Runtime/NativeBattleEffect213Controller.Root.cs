@@ -78,14 +78,16 @@ public static partial class NativeBattleEffect213Controller
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(14, (ushort)count);
         for (int index = 0; index < count; index++)
         {
-            task = task.WriteByte(0x1C + index, (byte)index).WriteDword(16 + index * 4, ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient));
+            task = task.WriteByte(0x1C + index, (byte)index);
+            BattleModelOwner recipient = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            task.WriteExecutionReference(16 + index * 4, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeAddress(recipient));
         }
         for (int outer = 0; outer < count - 1; outer++)
         {
             for (int inner = outer + 1; inner < count; inner++)
             {
-                uint a = task.ReadDword(16 + outer * 4);
-                uint b = task.ReadDword(16 + inner * 4);
+                BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + outer * 4, 4).Owner;
+                BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(16 + inner * 4, 4).Owner;
                 short xA = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, a).Read(0x1C, 2));
                 short xB = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, b).Read(0x1C, 2));
                 if (xA >= xB)
@@ -93,12 +95,14 @@ public static partial class NativeBattleEffect213Controller
                     continue;
                 }
                 byte original = task.ReadByte(0x1C + outer);
-                task = task.WriteDword(16 + outer * 4, b).WriteDword(16 + inner * 4, a).WriteByte(0x1C + outer, task.ReadByte(0x1C + inner)).WriteByte(0x1C + inner, original);
+                task.WriteExecutionReference(16 + outer * 4, 4, new BattleExecutionReference.Model(b), packets.ModelAliases.EncodeAddress(b));
+                task.WriteExecutionReference(16 + inner * 4, 4, new BattleExecutionReference.Model(a), packets.ModelAliases.EncodeAddress(a));
+                task = task.WriteByte(0x1C + outer, task.ReadByte(0x1C + inner)).WriteByte(0x1C + inner, original);
             }
         }
         task = task.WriteWord(0x22, count > 1 ? (ushort)1 : (ushort)0).WriteWord(0x26, unchecked((ushort)((count << 12) / 40)));
         frame = Write(frame, address, task);
-        NativeBattleEffect213CountStep counted = inputs.CountVertices69EE80(frame, task.ReadDword(16));
+        NativeBattleEffect213CountStep counted = inputs.CountVertices69EE80(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner);
         return Write(counted.Frame, address, Read(counted.Frame, address).WriteWord(0x2C, unchecked((ushort)counted.Count)));
     }
 }

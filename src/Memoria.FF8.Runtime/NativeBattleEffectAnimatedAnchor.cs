@@ -8,7 +8,7 @@ public sealed record NativeBattleAnimatedAnchorPosition(int X, int Y, int Z);
 /// <summary>Normalized8822A0/8921B0/887760's two channel-selected anchors, rotated S16 offsets and unchecked Q12-to-Q16 interpolation.</summary>
 public static class NativeBattleEffectAnimatedAnchor
 {
-    public static NativeBattleAnimatedAnchorPosition Evaluate(NativeBattleAnimatedAnchorChannels channels, int targetIndex, NativeBattleActionMatrix matrix, Func<int, uint> readContext)
+    internal static NativeBattleAnimatedAnchorPosition Evaluate(NativeBattleAnimatedAnchorChannels channels, NativeBattleActionMatrix matrix, Func<int, NativeBattleEffectNodeVector> readSource, Func<int, NativeBattleEffectNodeVector> readTarget)
     {
         NativeBattleVector first = Anchor(channels.StartActor, channels.StartAnchor, channels.StartOffset);
         NativeBattleVector second = Anchor(channels.EndActor, channels.EndAnchor, channels.EndOffset);
@@ -21,11 +21,11 @@ public static class NativeBattleEffectAnimatedAnchor
             {
                 throw new NotSupportedException("Native animated anchor requires its observed prior stack VECTOR for an out-of-range selector.");
             }
-            int context = actor == 1 ? 0x1D4 + selector * 16 : 0x94 + targetIndex * 16 + selector * 0x40;
             NativeBattleVector rotated = NativeBattleCuragaMatrices.RotateVector45DF80(matrix, offset);
-            short x = unchecked((short)((int)readContext(context) / 65536));
-            short y = unchecked((short)((int)readContext(context + 4) / 65536));
-            short z = unchecked((short)((int)readContext(context + 8) / 65536));
+            NativeBattleEffectNodeVector point = actor == 1 ? readSource(selector) : readTarget(selector);
+            short x = unchecked((short)((int)point.X / 65536));
+            short y = unchecked((short)((int)point.Y / 65536));
+            short z = unchecked((short)((int)point.Z / 65536));
             return new(unchecked((short)(x + rotated.X)), unchecked((short)(y + rotated.Y)), unchecked((short)(z + rotated.Z)));
         }
     }
@@ -60,7 +60,8 @@ public static class NativeBattleEffectAnimatedAnchor
             rotation.Add(unchecked((short)memory.Word(node + 0x2C + index * 2)));
         }
         NativeBattleActionMatrix matrix = new(rotation.ToImmutable(), 0, 0, 0, 4096);
-        NativeBattleAnimatedAnchorPosition position = Evaluate(channels, unchecked((sbyte)memory.Byte(node + 0x6B)), matrix, memory.ContextDword);
+        int target = memory.ReadTraversalPosition(node + 0x6B);
+        NativeBattleAnimatedAnchorPosition position = Evaluate(channels, matrix, memory.ReadSourceAnchor, selector => memory.Context.ReadRecipient(target).ReadAnchor(selector));
         memory.Dword(node + 0x4C, unchecked((uint)position.X));
         memory.Dword(node + 0x50, unchecked((uint)position.Y));
         memory.Dword(node + 0x54, unchecked((uint)position.Z));

@@ -15,7 +15,7 @@ public sealed record NativeBattleAuxiliaryProgram([property: JsonRequired] Immut
     }
 }
 
-public sealed record NativeBattleAuxiliaryEmission(int Model, byte Bone, byte Size, bool Particle, ushort? Sound, NativeBattleVector? SoundAnchor, byte? Pan);
+public sealed record NativeBattleAuxiliaryEmission(BattleModelOwner Model, byte Bone, byte Size, bool Particle, ushort? Sound, NativeBattleVector? SoundAnchor, byte? Pan);
 public sealed record NativeBattleAuxiliaryInputs
 {
     public Action<NativeBattleAuxiliaryKind, BattleModelOwner, uint>? ApplyModelRing { get; init; }
@@ -28,25 +28,24 @@ public sealed record NativeBattleAuxiliaryInputs
     public Action<BattleModelOwner, NativeBattleGraphicsModel>? WriteModel { get; init; }
     public Action<short>? WriteCameraTranslationY { get; init; }
     public Action<short>? WriteStageColorDepth { get; init; }
-    public Action<int, byte, byte, uint>? DrawModelGroup50F190 { get; init; }
+    public Action<BattleModelOwner, byte, byte, uint>? DrawModelGroup50F190 { get; init; }
     public Func<NativeBattleAuxiliaryTask, NativeBattleAuxiliaryTask>? AdvanceModelDeformation50F2E0 { get; init; }
-    public Action<int, byte, byte>? ApplyTexture { get; init; }
-    public Action<int>? RestoreTextureBlink { get; init; }
+    public Action<BattleModelOwner, byte, byte>? ApplyTexture { get; init; }
+    public Action<BattleModelOwner>? RestoreTextureBlink { get; init; }
     public Func<byte, uint, (byte Phase, bool Completed)>? AdvanceMusicLoad501A70 { get; init; }
     public Action<ushort, uint>? RequestFile5084B0 { get; init; }
     public Func<int>? ReadEffectIoResult508470 { get; init; }
     public Action<uint>? EnqueueTexture505E30 { get; init; }
     public Action<uint, byte>? WriteCompletionByte { get; init; }
-    public BattleModelRoster? PresentationRoster { get; init; }
 }
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    public (NativeBattleAuxiliaryState State, NativeGlobalRandomState Random, bool Allocated) AppendSoundParticle(int model, bool soundTwo, byte bone, NativeBattleAuxiliaryProgram program, NativeGlobalRandomState random, BattleModelRoster? roster = null)
+    public (NativeBattleAuxiliaryState State, NativeGlobalRandomState Random, bool Allocated) AppendSoundParticle(BattleModelOwner model, bool soundTwo, byte bone, NativeBattleAuxiliaryProgram program, NativeGlobalRandomState random, NativeBattleModelAliases aliases)
     {
         Validate();
         program.Validate();
-        if (!IsAuxiliaryModelBound(model, roster))
+        if (!aliases.Roster.Contains(model))
         {
             throw new ArgumentOutOfRangeException(nameof(model));
         }
@@ -61,9 +60,9 @@ public sealed partial record NativeBattleAuxiliaryState
         BinaryPrimitives.WriteUInt32LittleEndian(payload, soundTwo ? 1u : 0);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), bone);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), 0);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), NativeBattleGraphicsModelAddress.Encode(model));
+        uint operandKnownness = WriteModelOperand(payload, Slots[slot].UnknownByteMask, 16, model, aliases);
         payload[20] = (byte)((roll & 7) + 9);
-        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.SoundParticle50F830, Payload = payload.ToImmutableArray(), Program = program, UnknownByteMask = Slots[slot].UnknownByteMask & ~0x1F0FFFu | 0xF000u };
+        NativeBattleAuxiliaryTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = NativeBattleAuxiliaryKind.SoundParticle50F830, Payload = payload.ToImmutableArray(), Program = program, ModelOwner = model, TargetOwner = null, UnknownByteMask = operandKnownness & ~0x100FFFu | 0xF000u };
         ImmutableArray<NativeBattleAuxiliaryTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
@@ -97,11 +96,7 @@ public sealed partial record NativeBattleAuxiliaryState
         {
             return (task, false, null);
         }
-        uint address = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(16));
-        if (!TryReadAuxiliaryModel(address, inputs?.PresentationRoster, out int model))
-        {
-            throw new InvalidDataException("Native50F830 retained model pointer is invalid.");
-        }
+        BattleModelOwner model = RequireModelOperand(task.ModelOwner);
         byte bone = checked((byte)BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(4)));
         ushort? sound = null;
         NativeBattleVector? anchor = null;

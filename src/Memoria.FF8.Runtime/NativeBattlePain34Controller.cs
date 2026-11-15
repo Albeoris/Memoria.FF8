@@ -3,9 +3,9 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePain34LeafStep(NativeBattlePain34Frame Frame, bool Complete);
-public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, int, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
+public sealed record NativeBattlePain34Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPose, Func<NativeBattlePain34Frame, uint, NativeBattlePain34LeafStep> AdvancePlayer, Func<NativeBattlePain34Frame, BattleContactOccurrence, NativeBattlePain34Frame> Contact, Action<uint> PlaySound)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
 }
 
 public static class NativeBattlePain34Controller
@@ -36,9 +36,9 @@ public static class NativeBattlePain34Controller
         NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78);
         NativeBattleEffectTaskActors actors = NativeBattleCureController.SelectActors(parameters, packets, 0x1D99A78, unchecked((sbyte)root.ReadByte(42)), unchecked((sbyte)root.ReadByte(43)));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
-        root = actors.WriteTo(root).WriteByte(41, 0).WriteWord(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
-        byte last = unchecked((byte)(root.ReadWord(90) - 1));
-        root = root.WriteByte(47, last < unchecked((short)root.ReadWord(88)) ? root.ReadByte(88) : last);
+        root = actors.WriteTo(root).WriteByte(41, 0).WriteContactCount(90, header.ReadContactCount()).WriteWord(88, header.ReadRepeatModeMinusOne());
+        int last = NativeBattleEffectRootTask.LastContactPosition(root.ReadContactCount(90));
+        root = root.WriteTraversalPosition(47, last < unchecked((short)root.ReadWord(88)) ? root.ReadByte(88) : last);
         return frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Write(appended.Address, root).Pools, ReturnedDescriptor = Descriptor } };
     }
 
@@ -149,7 +149,7 @@ public static class NativeBattlePain34Controller
         void Emitter(uint address)
         {
             NativeBattleModulePoolTask task = hierarchy.Read(address);
-            int actor = task.ReadByte(45);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(45, 1).Owner;
             if (inputs.ReadForeign?.Invoke(actor) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
@@ -182,9 +182,10 @@ public static class NativeBattlePain34Controller
                     {
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(42)));
                         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex);
-                        int contact = checked((header.FirstContactIndex ?? throw new NotSupportedException("Native Pain requires its current contact pointer.")) + unchecked((sbyte)task.ReadByte(43)));
+                        BattleContactCursor contact = header.FirstContact.Advance(unchecked((sbyte)task.ReadByte(43)));
+                        BattleContactOccurrence occurrence = inputs.Packets.ReadContact(contact).Occurrence ?? throw new InvalidDataException("Pain contact has no occurrence reference.");
                         Sync();
-                        Accept(inputs.Contact(frame, contact));
+                        Accept(inputs.Contact(frame, occurrence));
                         task = hierarchy.Read(address);
                         Store(address, Next(task.WriteByte(38, (byte)(task.ReadByte(38) | 1))));
                     }

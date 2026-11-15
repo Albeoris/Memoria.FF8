@@ -16,7 +16,7 @@ public abstract record NativeBattleMagmaBreath48Operation
 public sealed record NativeBattleMagmaBreath48UpdateCaster8DC740(uint TaskAddress) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48UpdateTargetBounds8DC610_8DC870(uint TaskAddress) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleMagmaBreath48Operation;
-public sealed record NativeBattleMagmaBreath48Contact506690(int ContactIndex) : NativeBattleMagmaBreath48Operation;
+public sealed record NativeBattleMagmaBreath48Contact506690(BattleContactOccurrence Occurrence) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48StageColorDepth(int Group, short Depth) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48StageRgb(int Group, byte R, byte G, byte B) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48DrawMesh88(uint TemporaryAddress, uint SourceAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleMagmaBreath48Operation;

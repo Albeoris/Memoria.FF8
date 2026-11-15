@@ -14,13 +14,16 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
     private readonly NativeBattleOriginalEffectState effect;
     private readonly uint taskAddress;
     private readonly NativeBattleModulePoolTask originalTask;
+    private readonly BattleExecutionReference.NodeContext? originalNodeContext;
     private readonly int first;
     private readonly int length;
     // Temporal borrows preserve constructor-time reads; only touched bytes enter the private publication journal.
     private NativeBattleReadWindow original;
     private readonly NativeBattleReadWindow originalContext;
+    private Dictionary<int, BattleExecutionReference.TraversalPosition> originalTraversalPositions;
     private readonly Dictionary<int, NodeByte> cells = new();
     private readonly HashSet<int> dirtyCells = new();
+    private readonly Dictionary<int, BattleExecutionReference.TraversalPosition> traversalPositions = new();
     private readonly record struct NodeByte(byte Value, bool Known, bool StoreValue);
     private bool disposed;
     private readonly Dictionary<int, byte> contextBytes = new();
@@ -42,6 +45,8 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         {
             throw new InvalidDataException("Native effect node context requires its original676-byte task.");
         }
+        originalNodeContext = originalTask.BorrowPayloadArena(12, originalTask.PayloadLength).EnumerateExecutionReferences()
+            .FirstOrDefault(pair => pair.Key == NativeBattleEffectNodeContext.ReferenceOffset - 12 && pair.Value.Width == 4).Value?.Reference as BattleExecutionReference.NodeContext;
         if (emitterBytes <= 0 || geometryBytes <= 0 || second != first + emitterBytes || first < 0 || second > NativeBattleEffectArena.Length - geometryBytes)
         {
             throw new InvalidDataException("Native effect node auxiliary ranges contradict their original contiguous allocations.");
@@ -49,6 +54,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native effect nodes require the571870 arena.");
         arena.Validate();
         length = checked(emitterBytes + geometryBytes);
+        originalTraversalPositions = CaptureTraversalPositions(arena);
         original = arena.OpenReadWindow(first, length);
         try
         {
@@ -80,6 +86,100 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
 
     internal ushort Word(int offset) => unchecked((ushort)ReadScalar(offset, 2));
     internal uint Dword(int offset) => ReadScalar(offset, 4);
+    internal BattleExecutionReference.NodeContext Context
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return originalNodeContext ?? throw new InvalidDataException("Effect node task has no captured context reference.");
+        }
+    }
+
+    internal int ReadTraversalPosition(int offset)
+    {
+        Require(offset, 1);
+        if (traversalPositions.TryGetValue(offset, out BattleExecutionReference.TraversalPosition? written))
+        {
+            return written.Value;
+        }
+        if (cells.ContainsKey(offset))
+        {
+            throw new InvalidDataException("Effect node traversal position was overwritten by a byte store.");
+        }
+        return originalTraversalPositions.TryGetValue(offset, out BattleExecutionReference.TraversalPosition? captured)
+            ? captured.Value
+            : throw new InvalidDataException("Effect node traversal position has no captured owner.");
+    }
+
+    private Dictionary<int, BattleExecutionReference.TraversalPosition> CaptureTraversalPositions(NativeBattleEffectArena arena)
+    {
+        bool routed = arena.TryEffectiveRoute(first, length, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset);
+        IEnumerable<KeyValuePair<int, BattleExecutionReferenceEntry>> entries = routed ? transaction!.EnumerateExecutionReferences() : arena.EnumerateCommittedExecutionReferences();
+        int start = routed ? routedOffset : first;
+        Dictionary<int, BattleExecutionReference.TraversalPosition> positions = new();
+        foreach ((int offset, BattleExecutionReferenceEntry entry) in NativeBattleEffectArena.ProjectExecutionReferences(entries, start, length))
+        {
+            if (entry.Width == 1 && entry.Reference is BattleExecutionReference.TraversalPosition position)
+            {
+                positions.Add(checked(first + offset), position);
+            }
+        }
+        return positions;
+    }
+
+    internal void WriteTraversalPosition(int offset, int value)
+    {
+        Require(offset, 1);
+        BattleExecutionReference.TraversalPosition position = new(value);
+        if (position.EncodeOriginalByte() is { } bytes)
+        {
+            Store(offset, new(bytes[0], true, true));
+        }
+        else
+        {
+            Store(offset, Cell(offset) with { Known = false, StoreValue = true });
+        }
+        traversalPositions[offset] = position;
+    }
+
+    internal NativeBattleEffectNodeVector ReadSourceAnchor(int selector)
+    {
+        if ((uint)selector > 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(selector));
+        }
+        int offset = 0x1D4 + selector * 16;
+        uint x = ContextDword(offset);
+        uint y = ContextDword(offset + 4);
+        uint z = ContextDword(offset + 8);
+        Span<byte> data = stackalloc byte[4];
+        Span<bool> known = stackalloc bool[4];
+        ReadContextBytes(offset + 12, data, known);
+        return new(x, y, z, BinaryPrimitives.ReadUInt32LittleEndian(data), KnownBytes(known));
+    }
+
+    internal void WriteAnchorPadding(int offset, NativeBattleEffectNodeVector anchor)
+    {
+        Require(offset, 4);
+        for (int index = 0; index < 4; index++)
+        {
+            Store(offset + index, new(unchecked((byte)(anchor.Padding >> (8 * index))), anchor.IsPaddingByteKnown(index), true));
+        }
+    }
+
+    internal static byte KnownBytes(ReadOnlySpan<bool> known)
+    {
+        byte mask = 0;
+        for (int index = 0; index < known.Length; index++)
+        {
+            if (known[index])
+            {
+                mask |= (byte)(1 << index);
+            }
+        }
+        return mask;
+    }
+
     internal ushort ContextWord(int offset) => unchecked((ushort)ReadContext(offset, 2));
     internal uint ContextDword(int offset) => ReadContext(offset, 4);
     internal void ContextWord(int offset, ushort value) => WriteContext(offset, value, 2);
@@ -87,19 +187,25 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
 
     private uint ReadContext(int offset, int width)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        int address = checked(ContextOffset + offset);
         Span<byte> data = stackalloc byte[4];
         Span<bool> known = stackalloc bool[4];
-        originalContext.ReadWithKnownness(address - 12, data[..width], known[..width]);
-        for (int index = 0; index < width; index++)
+        ReadContextBytes(offset, data[..width], known[..width]);
+        return width == 2 ? BinaryPrimitives.ReadUInt16LittleEndian(data) : BinaryPrimitives.ReadUInt32LittleEndian(data);
+    }
+
+    private void ReadContextBytes(int offset, Span<byte> data, Span<bool> known)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        int address = checked(ContextOffset + offset);
+        originalContext.ReadWithKnownness(address - 12, data, known);
+        for (int index = 0; index < data.Length; index++)
         {
             if (contextBytes.TryGetValue(address + index, out byte value))
             {
                 data[index] = value;
+                known[index] = true;
             }
         }
-        return width == 2 ? BinaryPrimitives.ReadUInt16LittleEndian(data) : BinaryPrimitives.ReadUInt32LittleEndian(data);
     }
 
     private void WriteContext(int offset, uint value, int width)
@@ -444,6 +550,13 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
                     publication.MarkUnknown(offset, 1);
                 }
             }
+            foreach ((int offset, BattleExecutionReference.TraversalPosition position) in traversalPositions)
+            {
+                if (dirtyCells.Contains(offset))
+                {
+                    publication.WriteExecutionReference(offset, 1, position, position.EncodeOriginalByte());
+                }
+            }
             arena = publication.Freeze();
             dirtyCells.Clear();
         }
@@ -499,6 +612,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
 
     private void Store(int offset, NodeByte value)
     {
+        traversalPositions.Remove(offset);
         cells[offset] = value;
         dirtyCells.Add(offset);
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, 1);

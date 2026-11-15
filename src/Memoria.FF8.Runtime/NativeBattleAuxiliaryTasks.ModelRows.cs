@@ -2,17 +2,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleAuxiliaryState
 {
-    private static bool IsAuxiliaryModelBound(int model, BattleModelRoster? roster)
+    private static uint WriteModelOperand(byte[] payload, uint unknown, int offset, BattleModelOwner owner, NativeBattleModelAliases aliases)
     {
-        roster?.Validate();
-        return (uint)model < (uint)(roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) &&
-            (roster is null || roster.Rows[model] is not null);
+        uint mask = 15u << offset;
+        if (aliases.EncodeAddress(owner) is not { } encoded)
+        {
+            return unknown | mask;
+        }
+        encoded.AsSpan().CopyTo(payload.AsSpan(offset, 4));
+        return unknown & ~mask;
     }
 
-    private static bool TryReadAuxiliaryModel(uint address, BattleModelRoster? roster, out int model)
+    private static BattleModelOwner RequireModelOperand(BattleModelOwner? owner)
     {
-        roster?.Validate();
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out model, roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) &&
-            (roster is null || roster.Rows[model] is not null);
+        return owner ?? throw new InvalidDataException("The active auxiliary task has no model owner.");
     }
 }

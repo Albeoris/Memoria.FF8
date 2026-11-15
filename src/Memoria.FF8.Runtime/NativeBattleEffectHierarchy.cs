@@ -83,7 +83,7 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
         return this;
     }
 
-    public NativeBattleEffectHierarchyAppend Append8DC540(int poolIndex, uint callback, int requestedBytes, uint parentAddress = 0, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors>? selectActors = null)
+    public NativeBattleEffectHierarchyAppend Append8DC540(int poolIndex, uint callback, int requestedBytes, uint parentAddress = 0, Func<uint, sbyte, int, NativeBattleEffectTaskActors>? selectActors = null)
     {
         Validate();
         NativeBattleEffectTaskPool pool = Pools[poolIndex];
@@ -109,9 +109,9 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
         uint parentField1C = 0;
         uint parentField20 = 0;
         byte headerOffset = 0;
-        byte targetOffset = 0;
-        byte field2E = 0;
-        byte field2F = 0;
+        int targetOffset = 0;
+        int field2E = 0;
+        int field2F = 0;
         byte parentChildren = 0;
         NativeBattleEffectTaskActors? actors = null;
         if (parentAddress != 0)
@@ -122,6 +122,10 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
             {
                 //An inactive parent alias can be the selected allocation itself; preserve the native clear prefix.
                 return ReferenceEquals(parent, candidate) && offset < 12 + clearBytes ? (byte)0 : parent.ReadByte(offset);
+            }
+            int ReadParentTraversalPosition(int offset)
+            {
+                return ReferenceEquals(parent, candidate) && offset < 12 + clearBytes ? 0 : parent.ReadTraversalPosition(offset);
             }
             uint ReadParentDword(int offset)
             {
@@ -138,22 +142,22 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
             parentField1C = ReadParentDword(0x1C);
             parentField20 = ReadParentDword(0x20);
             headerOffset = ReadParentByte(0x2A);
-            targetOffset = ReadParentByte(0x2B);
-            field2E = ReadParentByte(0x2E);
-            field2F = ReadParentByte(0x2F);
+            targetOffset = ReadParentTraversalPosition(0x2B);
+            field2E = ReadParentTraversalPosition(0x2E);
+            field2F = ReadParentTraversalPosition(0x2F);
             parentChildren = ReadParentByte(0x28);
             //Selection observes the unpublished allocation prefix, before shared bank mutation.
-            actors = (selectActors ?? throw new NotSupportedException("Native8DC540 requires its parameter/header/contact owner."))(parameterAddress, unchecked((sbyte)headerOffset), unchecked((sbyte)targetOffset));
+            actors = (selectActors ?? throw new NotSupportedException("Native8DC540 requires its parameter/header/contact owner."))(parameterAddress, unchecked((sbyte)headerOffset), targetOffset);
         }
         //Reserve the whole local operation before any store when borrowing an outer journal.
         NativeBattleTaskBankOwner bank = pool.RequireOwner();
         if (bank.HasCheckpoint)
         {
-            bank.Storage.ReserveCheckpointCapacity(checked(clearBytes + 96), checked(bank.Storage.ResourcePointerCount + 16));
+            bank.Storage.ReserveCheckpointCapacity(checked(clearBytes + 96), checked(bank.Storage.ResourcePointerCount + bank.Storage.ExecutionReferenceCount + 16));
         }
         if (parent is not null && !ReferenceEquals(parent.RequireOwner(), bank) && parent.RequireOwner().HasCheckpoint)
         {
-            parent.RequireOwner().Storage.ReserveCheckpointCapacity(1, parent.RequireOwner().Storage.ResourcePointerCount);
+            parent.RequireOwner().Storage.ReserveCheckpointCapacity(1, checked(parent.RequireOwner().Storage.ResourcePointerCount + parent.RequireOwner().Storage.ExecutionReferenceCount));
         }
         (pool, int slot) = pool.Append(callback);
         NativeBattleEffectHierarchy hierarchy = this;
@@ -162,11 +166,23 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
         if (parentAddress == 0)
         {
             child.WriteDword(0x18, 0).WriteDword(0x14, 0).WriteDword(0x10, address);
+            if (12 + clearBytes > 0x2B)
+            {
+                child.WriteTraversalPosition(0x2B, 0);
+            }
+            if (12 + clearBytes > 0x2E)
+            {
+                child.WriteTraversalPosition(0x2E, 0);
+            }
+            if (12 + clearBytes > 0x2F)
+            {
+                child.WriteTraversalPosition(0x2F, 0);
+            }
         }
         else
         {
             child.WriteDword(0x14, firstLevel == 0 ? address : firstLevel).WriteDword(0x10, rootAddress).WriteDword(0x0C, parameterAddress).WriteDword(0x1C, parentField1C).WriteDword(0x20, parentField20).WriteDword(0x18, parentAddress);
-            child.WriteByte(0x2A, headerOffset).WriteByte(0x2B, targetOffset).WriteByte(0x2E, field2E).WriteByte(0x2F, field2F);
+            child.WriteByte(0x2A, headerOffset).WriteTraversalPosition(0x2B, targetOffset).WriteTraversalPosition(0x2E, field2E).WriteTraversalPosition(0x2F, field2F);
             actors!.WriteTo(child);
             //Reread after Append so a same-pool parent retains508360's new Next link.
             parent = hierarchy.Read(parentAddress);

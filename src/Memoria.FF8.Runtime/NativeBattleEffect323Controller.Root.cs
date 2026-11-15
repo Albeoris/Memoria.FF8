@@ -54,26 +54,31 @@ public static partial class NativeBattleEffect323Controller
         {
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleContactCursor first = CurrentHeader(frame, packets).FirstContact;
-            uint model = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x20 + index * 4, model));
+            BattleModelOwner model = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+            NativeBattleModulePoolTask task = Read(frame, main);
+            task.WriteExecutionReference(0x20 + index * 4, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
+            frame = Write(frame, main, task);
         }
         for (int left = 0; left < count - 1; left++)
         {
             for (int right = left + 1; right < count; right++)
             {
                 NativeBattleModulePoolTask task = Read(frame, main);
-                uint a = task.ReadDword(0x20 + left * 4);
-                uint b = task.ReadDword(0x20 + right * 4);
+                BattleModelOwner a = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + left * 4, 4).Owner;
+                BattleModelOwner b = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20 + right * 4, 4).Owner;
                 if (ModelX(frame, a, inputs) < ModelX(frame, b, inputs))
                 {
-                    frame = Write(frame, main, task.WriteDword(0x20 + left * 4, b).WriteDword(0x20 + right * 4, a));
+                    NativeBattleModelAliases aliases = inputs.ReadPackets(frame).ModelAliases;
+                    task.WriteExecutionReference(0x20 + left * 4, 4, new BattleExecutionReference.Model(b), aliases.EncodeAddress(b));
+                    task.WriteExecutionReference(0x20 + right * 4, 4, new BattleExecutionReference.Model(a), aliases.EncodeAddress(a));
+                    frame = Write(frame, main, task);
                 }
             }
         }
         frame = Write(frame, main, Read(frame, main).WriteWord(0x12, unchecked((ushort)-1000)).WriteWord(0x14, 1000).WriteWord(0x16, 0).WriteWord(0x18, 0));
         for (int index = 0; index < count; index++)
         {
-            uint target = Read(frame, main).ReadDword(0x20 + index * 4);
+            BattleModelOwner target = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(0x20 + index * 4, 4).Owner;
             int offset = 0x2C + index * 8;
             NativeBattleEffect323PointStep anchor = inputs.Anchor571400(frame, target, TaskView(Read(frame, main), offset, 8));
             frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), offset, anchor.Output8, 8));
@@ -104,7 +109,7 @@ public static partial class NativeBattleEffect323Controller
         }
     }
 
-    private static short ModelX(NativeBattleEffect323Frame frame, uint model, NativeBattleEffect323Inputs inputs) => BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, model).Read(0x1C, 2));
+    private static short ModelX(NativeBattleEffect323Frame frame, BattleModelOwner model, NativeBattleEffect323Inputs inputs) => BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, model).Read(0x1C, 2));
 
     private static NativeBattleActionHeaderSlot CurrentHeader(NativeBattleEffect323Frame frame, NativeBattleActionPacketsState packets)
     {

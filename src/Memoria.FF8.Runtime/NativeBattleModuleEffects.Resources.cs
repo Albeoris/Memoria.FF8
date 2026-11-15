@@ -8,10 +8,10 @@ public sealed record NativeBattleModuleAnchor(short X, short Y, short Z, short W
 public sealed partial record NativeBattleModuleInputs
 {
     public ImmutableArray<NativeBattleModuleResource> Resources { get; init; } = [];
-    public Func<int, NativeBattleModuleAnchor>? ReadModelAnchor { get; init; }
-    public Func<int, short>? ReadModelRotation14 { get; init; }
-    public Func<int, byte, short, NativeBattleVector>? ReadModelBone { get; init; }
-    public Func<int, NativeBattleVector, NativeBattleVector>? TransformModelPosition { get; init; }
+    public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadModelAnchor { get; init; }
+    public Func<BattleModelOwner, short>? ReadModelRotation14 { get; init; }
+    public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadModelBone { get; init; }
+    public Func<BattleModelOwner, NativeBattleVector, NativeBattleVector>? TransformModelPosition { get; init; }
     public NativeCrtRandomState? CrtRandom { get; init; }
 }
 
@@ -45,9 +45,9 @@ public sealed partial record NativeBattleModuleDraw
 
 public sealed partial record NativeBattleModuleState
 {
-    public NativeBattleModuleState AppendPositionResource(int model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters, BattleModelRoster? roster = null)
+    public NativeBattleModuleState AppendPositionResource(BattleModelOwner model, NativeBattleVector local, NativeBattleModuleResource resource, uint packedParameters, NativeBattleModelAliases aliases)
     {
-        NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters, roster);
+        NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters, aliases);
         int slot = state.Tail!.Value;
         byte[] payload = NativeBattleTelemetry.Materialize(1090, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 4);
@@ -55,13 +55,12 @@ public sealed partial record NativeBattleModuleState
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6), local.Y);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(8), local.Z);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(10), 0);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), ModelAddress(model));
-        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1096, payload) }) };
+        return state with { Slots = state.Slots.SetItem(slot, WriteModuleModelOperand(state.Slots[slot] with { UnknownModelPointerBytes = state.Slots[slot].UnknownModelPointerBytes & ~0xF0u }, payload, 12, model, aliases, 1096)) };
     }
 
-    public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters, BattleModelRoster? roster = null)
+    public NativeBattleModuleState AppendModelResource(BattleModelOwner model, NativeBattleModuleResource resource, uint packedParameters, NativeBattleModelAliases aliases)
     {
-        if (!HasModelRow(model, roster) || (byte)packedParameters != resource.Id)
+        if (!aliases.Roster.Contains(model) || (byte)packedParameters != resource.Id)
         {
             throw new InvalidDataException("Native module model or packed resource index differs from its original producer.");
         }
@@ -74,17 +73,16 @@ public sealed partial record NativeBattleModuleState
         byte[] payload = NativeBattleTelemetry.Materialize(1091, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), ModelAddress(model));
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), packedParameters);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), resource.Address);
-        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1097, payload) }) };
+        return state with { Slots = state.Slots.SetItem(slot, WriteModuleModelOperand(state.Slots[slot], payload, 4, model, aliases, 1097)) };
     }
 
     private NativeBattleModuleCallback AdvancePlacement(int slot, NativeBattleModuleInputs inputs)
     {
         NativeBattleModuleTask task = Slots[slot];
         short placement = S16(task.Payload, 2);
-        int model = ModelIndex(U32(task.Payload, placement == 4 ? 12 : 4), inputs);
+        BattleModelOwner model = RequireModuleModelOwner(task, inputs);
         NativeBattleModuleAnchor anchor;
         if (placement == 1)
         {
@@ -119,10 +117,9 @@ public sealed partial record NativeBattleModuleState
         byte[] payload = NativeBattleTelemetry.Materialize(1092, state.Slots[child].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         WriteAnchor(payload.AsSpan(4), anchor);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), ModelAddress(model));
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), U32(task.Payload, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), resource.Address);
-        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = NativeBattleTelemetry.Immutable(1098, payload) }) };
+        state = state with { Slots = state.Slots.SetItem(child, WriteModuleModelOperand(state.Slots[child], payload, 12, model, RequireModuleModelAliases(inputs), 1098)) };
         return new(state, true, []);
     }
 
@@ -133,12 +130,11 @@ public sealed partial record NativeBattleModuleState
             return new(this, false, []);
         }
         NativeBattleModuleTask task = Slots[slot];
-        uint modelAddress = U32(task.Payload, 12);
-        if (modelAddress == 0)
+        if (ModuleModelKnownNull(task, 12))
         {
             return new(this, true, []);
         }
-        int model = ModelIndex(modelAddress, inputs);
+        BattleModelOwner model = RequireModuleModelOwner(task, inputs);
         short rotation = (inputs.ReadModelRotation14 ?? throw new NotSupportedException("Native defensive effect requires the current model rotationWORD14."))(model);
         NativeCrtRandomState crt = inputs.CrtRandom ?? throw new NotSupportedException("Native defensive effect requires the existing CRT thread random owner.");
         NativeCrtRandomState after = crt.Draw(out ushort roll);
@@ -197,24 +193,40 @@ public sealed partial record NativeBattleModuleState
         return resource;
     }
 
-    private static uint ModelAddress(int model)
+    private static NativeBattleModuleTask WriteModuleModelOperand(NativeBattleModuleTask task, byte[] payload, int offset, BattleModelOwner owner, NativeBattleModelAliases aliases, int telemetry)
     {
-        return NativeBattleGraphicsModelAddress.Encode(model);
-    }
-
-    private static bool HasModelRow(int model, BattleModelRoster? roster)
-    {
-        return (uint)model < (roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) && (roster is null || roster.Rows[model] is not null);
-    }
-
-    private static int ModelIndex(uint address, NativeBattleModuleInputs inputs)
-    {
-        BattleModelRoster? roster = inputs.PresentationRoster;
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int row, roster?.ActorCount ?? NativeBattleGraphicsModelAddress.NativeRowCount) || !HasModelRow(row, roster))
+        uint mask = 15u << offset;
+        uint unknown = task.UnknownModelPointerBytes;
+        if (aliases.EncodeAddress(owner) is { } encoded)
         {
-            throw new InvalidDataException("Native module payload does not identify a physical graphics model.");
+            encoded.AsSpan().CopyTo(payload.AsSpan(offset, 4));
+            unknown &= ~mask;
         }
-        return row;
+        else
+        {
+            unknown |= mask;
+        }
+        return task with { Payload = NativeBattleTelemetry.Immutable(telemetry, payload), ModelOwner = owner, UnknownModelPointerBytes = unknown };
+    }
+
+    private static NativeBattleModelAliases RequireModuleModelAliases(NativeBattleModuleInputs inputs)
+    {
+        return inputs.ModelAliases ?? throw new NotSupportedException("The module requires its selected model writer bindings.");
+    }
+
+    private static BattleModelOwner RequireModuleModelOwner(NativeBattleModuleTask task, NativeBattleModuleInputs inputs)
+    {
+        NativeBattleModelAliases aliases = RequireModuleModelAliases(inputs);
+        if (task.ModelOwner is not { } owner || !aliases.Roster.Contains(owner))
+        {
+            throw new InvalidDataException("The module task does not name a current model owner.");
+        }
+        return owner;
+    }
+
+    private static bool ModuleModelKnownNull(NativeBattleModuleTask task, int offset)
+    {
+        return task.ModelOwner is null && (task.UnknownModelPointerBytes & (15u << offset)) == 0 && U32(task.Payload, offset) == 0;
     }
 
     private static short S16(ImmutableArray<byte> payload, int offset)

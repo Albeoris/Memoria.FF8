@@ -41,7 +41,7 @@ public sealed record NativeBattlePartyCpuLayout([property: JsonRequired] string 
     };
 }
 
-public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset)
+public sealed partial record NativeBattleModelCpuReference(int Bank, int Offset)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattlePartyCpuLayout? Layout { get; init; }
@@ -56,7 +56,7 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     public int ResourceOffset { get; init; }
 
     [JsonIgnore]
-    public bool IsOwnedResource => Bank < 3 || EnemyResourceId is not null || IsPresentationResource;
+    public bool IsOwnedResource => Bank is >= 0 and < 3 || EnemyResourceId is not null || IsPresentationResource;
 
     [JsonIgnore]
     internal bool IsPresentationResource => NativeBattlePresentationCpuBanks.IsExtension(Bank) && ResourceOnly && EnemyResourceId is null && Offset >= 0;
@@ -82,11 +82,11 @@ public sealed partial record NativeBattleModelCpuReference(byte Bank, int Offset
     {
         NativeBattlePartyCpuLayout layout = EffectiveLayout;
         layout.Validate();
-        if (ResourceOnly || EnemyResourceId is not null || NativeBattlePresentationCpuBanks.IsExtension(Bank))
+        if (Bank < 0 || ResourceOnly || EnemyResourceId is not null || NativeBattlePresentationCpuBanks.IsExtension(Bank))
         {
             return null;
         }
-        return Bank < 3 ? checked(layout.BaseAddress + (uint)layout.BankLength * Bank + (uint)Offset) : SharedAddress;
+        return Bank < 3 ? checked(layout.BaseAddress + (uint)layout.BankLength * (uint)Bank + (uint)Offset) : SharedAddress;
     }
 }
 
@@ -226,11 +226,14 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattlePartyCpuLayout? Layout { get; init; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public BattleModelRoster? PresentationRoster { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<int, NativeBattleModelCpuBank>? PresentationBanks { get; init; }
+
+    [JsonIgnore]
+    public ImmutableDictionary<BattlePartyModelOwner, int> PartyBankOwners { get; init; } = ImmutableDictionary<BattlePartyModelOwner, int>.Empty;
 
     [JsonIgnore]
     public NativeBattlePartyCpuLayout EffectiveLayout => Layout ?? NativeBattlePartyCpuLayout.Classic;
@@ -254,62 +257,69 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
         {
             _ = bank.Read(0, 0);
         }
-        if (PresentationRoster is not { } roster)
+        if (PartyBankOwners.Values.Distinct().Count() != PartyBankOwners.Count ||
+            PartyBankOwners.Any(pair => pair.Value < 0 || pair.Value is 3 or 4 ||
+                NativeBattlePresentationCpuBanks.IsExtension(pair.Value) && PresentationBanks?.ContainsKey(pair.Value) != true))
         {
-            if (PresentationBanks is not null)
+            throw new InvalidDataException("Party CPU bank bindings require distinct owned resource IDs.");
+        }
+        if (PresentationBanks is { } banks)
+        {
+            foreach ((int bankId, NativeBattleModelCpuBank bank) in banks)
             {
-                throw new InvalidDataException("Hosted CPU banks require their presentation roster.");
+                ValidatePresentationBank(bankId, bank);
+                _ = bank.Read(0, 0);
             }
-            return;
-        }
-        roster.Validate();
-        if (PresentationBanks is not { } banks || banks.Count != roster.PartyRows.Count(row => row >= NativeBattleSlots.AllyCount))
-        {
-            throw new InvalidDataException("Hosted CPU banks must cover every extension party row.");
-        }
-        foreach ((int bankId, NativeBattleModelCpuBank bank) in banks)
-        {
-            ValidatePresentationBank(bankId, bank);
-            _ = bank.Read(0, 0);
         }
     }
 
-    public NativeBattleModelCpuBanks WithPresentationRoster(BattleModelRoster roster)
+    public NativeBattleModelCpuBanks WithPresentationRoster(BattleModelRoster roster, NativeBattleModelAliases aliases)
     {
         ArgumentNullException.ThrowIfNull(roster);
+        NativeBattlePartyLoadPlan.RequireMatchingRoster(roster, aliases.Roster);
         Validate();
-        roster.Validate();
         if (PresentationRoster is { } existing)
         {
-            if (!existing.Rows.SequenceEqual(roster.Rows))
+            NativeBattlePartyLoadPlan.RequireMatchingRoster(existing, roster);
+        }
+        NativeBattleModelCpuBanks result = this with { PresentationRoster = roster };
+        foreach (BattlePartyModelOwner owner in roster.Party)
+        {
+            NativeBattleModelSlot? slot = aliases.TryEncodeExact(owner, out byte operand) ? NativeBattleModelSlot.Decode(operand) : null;
+            result = result.BindPartyOwner(owner, slot);
+        }
+        return result;
+    }
+
+    internal NativeBattleModelCpuBanks BindPartyOwner(BattlePartyModelOwner owner, NativeBattleModelSlot? slot)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (slot is { Side: not BattleSide.Allies })
+        {
+            throw new InvalidDataException("A party CPU owner cannot bind an enemy native slot.");
+        }
+        if (PartyBankOwners.TryGetValue(owner, out int existing))
+        {
+            if (slot is { } original ? existing != original.Offset : !NativeBattlePresentationCpuBanks.IsExtension(existing))
             {
-                throw new InvalidDataException("The CPU banks already belong to a different presentation roster.");
+                throw new InvalidDataException("A party CPU owner cannot change its resource placement.");
             }
             return this;
         }
-        ImmutableDictionary<int, NativeBattleModelCpuBank>.Builder banks = ImmutableDictionary.CreateBuilder<int, NativeBattleModelCpuBank>();
-        foreach (int actor in roster.PartyRows.Where(row => row >= NativeBattleSlots.AllyCount))
+        if (slot is { } bound)
         {
-            banks.Add(NativeBattlePresentationCpuBanks.FromActorRow(actor), NativeBattleModelCpuBank.Unknown(EffectiveLayout.BankLength).PromoteResourceStorage());
+            ImmutableDictionary<BattlePartyModelOwner, int> owners = PartyBankOwners.RemoveRange(PartyBankOwners.Where(pair => pair.Value == bound.Offset).Select(pair => pair.Key));
+            return this with { PartyBankOwners = owners.Add(owner, bound.Offset) };
         }
-        return this with { PresentationRoster = roster, PresentationBanks = banks.ToImmutable() };
+        ImmutableDictionary<int, NativeBattleModelCpuBank> banks = PresentationBanks ?? ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty;
+        int bank = banks.IsEmpty ? NativeBattlePresentationCpuBanks.FirstResourceBank : checked(banks.Keys.Max() + 1);
+        NativeBattleModelCpuBank storage = NativeBattleModelCpuBank.Unknown(EffectiveLayout.BankLength).PromoteResourceStorage();
+        return this with { PartyBankOwners = PartyBankOwners.Add(owner, bank), PresentationBanks = banks.Add(bank, storage) };
     }
 
-    public int PartyBankIndex(int actorRow)
+    public int PartyBankIndex(BattlePartyModelOwner owner)
     {
-        if (PresentationRoster is { } roster)
-        {
-            if ((uint)actorRow >= (uint)roster.ActorCount || roster.Rows[actorRow]?.IsParty != true)
-            {
-                throw new InvalidDataException("Hosted CPU bank selection requires a bound party actor.");
-            }
-            return NativeBattlePresentationCpuBanks.FromActorRow(actorRow);
-        }
-        if ((uint)actorRow >= NativeBattleSlots.AllyCount)
-        {
-            throw new InvalidDataException("Native CPU bank selection requires an original party row.");
-        }
-        return actorRow;
+        return PartyBankOwners.TryGetValue(owner, out int bank) ? bank : throw new InvalidDataException("Party CPU storage requires a bound model owner.");
     }
 
     public NativeBattleModelCpuBank GetBank(int bankId)
@@ -345,10 +355,7 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
 
     private void ValidatePresentationBank(int bankId, NativeBattleModelCpuBank? bank)
     {
-        int actor = NativeBattlePresentationCpuBanks.ToActorRow(bankId);
-        if (!NativeBattlePresentationCpuBanks.IsExtension(bankId) || PresentationRoster is not { } roster ||
-            actor >= roster.ActorCount || roster.Rows[actor]?.IsParty != true ||
-            bank is null || bank.Capacity != EffectiveLayout.BankLength || !bank.HasResourceStorage || !bank.GuestSegments.IsEmpty)
+        if (!NativeBattlePresentationCpuBanks.IsExtension(bankId) || bank is null || bank.Capacity != EffectiveLayout.BankLength || !bank.HasResourceStorage || !bank.GuestSegments.IsEmpty)
         {
             throw new InvalidDataException("Hosted CPU bank requires a bound extension party actor and resource-only storage.");
         }

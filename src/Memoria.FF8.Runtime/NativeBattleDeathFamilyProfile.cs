@@ -119,11 +119,14 @@ public sealed class NativeBattleDeathFamilyProfile
         {
             return task;
         }
-        int selector = SingleSelectedTarget ? 0x2B : 0x2A;
-        int limit = SingleSelectedTarget ? unchecked((short)task.ReadWord(0x5A)) - 1 : unchecked((short)task.ReadWord(0x58));
-        if (unchecked((sbyte)task.ReadByte(selector)) < limit)
+        int position = SingleSelectedTarget ? task.ReadTraversalPosition(0x2B) : unchecked((sbyte)task.ReadByte(0x2A));
+        int limit = SingleSelectedTarget ? task.ReadContactCount(0x5A) - 1 : unchecked((short)task.ReadWord(0x58));
+        if (position < limit)
         {
-            return task.WriteByte(selector, unchecked((byte)(task.ReadByte(selector) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
+            task = SingleSelectedTarget
+                ? task.WriteTraversalPosition(0x2B, checked(position + 1))
+                : task.WriteByte(0x2A, unchecked((byte)(position + 1)));
+            return task.WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1)));
         }
         return task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
     }

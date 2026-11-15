@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect20Particles
 {
-    public static NativeBattleEffect20Frame Spawn(NativeBattleEffect20Frame frame, uint parentAddress, short count, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleEffect20Frame Spawn(NativeBattleEffect20Frame frame, uint parentAddress, short count, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeCrtRandomState random = frame.Random;
@@ -27,7 +27,7 @@ public static class NativeBattleEffect20Particles
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Pools }, Random = random };
     }
 
-    public static NativeBattleEffect20LeafStep AdvanceSprite(NativeBattleEffect20Frame frame, uint address, NativeBattleEffect20Inputs inputs, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleEffect20LeafStep AdvanceSprite(NativeBattleEffect20Frame frame, uint address, NativeBattleEffect20Inputs inputs, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);

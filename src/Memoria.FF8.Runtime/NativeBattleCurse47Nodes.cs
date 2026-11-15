@@ -19,7 +19,7 @@ public static class NativeBattleCurse47Nodes
     public const int EmitterBytes = 10 * 108;
     public const int GeometryBytes = 70 * 672;
 
-    public static NativeBattleCurse47NodeAppend Append82B5A0(NativeBattleCurse47Frame frame, uint parent, uint callback, uint source, short delay, short duration, short mode, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)
+    public static NativeBattleCurse47NodeAppend Append82B5A0(NativeBattleCurse47Frame frame, uint parent, uint callback, uint source, short delay, short duration, short mode, Func<uint, sbyte, int, NativeBattleEffectTaskActors> selectActors)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleEffectHierarchyAppend appended = hierarchy.Append8DC540(3, callback, 676, parent, selectActors);

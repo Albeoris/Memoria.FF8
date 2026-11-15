@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect80Controller
                 {
                     if (unchecked((sbyte)task.ReadByte(0x2A)) < Signed(task, 0x58))
                     {
-                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
+                        frame = Write(frame, address, task.WriteByte(0x2A, unchecked((byte)(task.ReadByte(0x2A) + 1))).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) - 1))));
                     }
                     else
                     {
@@ -111,7 +111,7 @@ public static partial class NativeBattleEffect80Controller
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleActionHeaderReference header = Parameters(frame).Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
                     int first = packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect80 requires its actual first contact pointer.");
-                    int contact = checked(first + unchecked((sbyte)task.ReadByte(0x2B)));
+                    int contact = checked(first + task.ReadTraversalPosition(0x2B));
                     _ = packets.ReadContact(contact);
                     frame = inputs.Execute(frame, new NativeBattleEffect80Contact506690(contact));
                     frame = NextPhase(frame, address);

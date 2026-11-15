@@ -4,7 +4,7 @@ public sealed record NativeBattleRoughDivide163Trail(NativeBattleGfGeometryBatch
 
 public static partial class NativeBattleRoughDivide163Controller
 {
-    public static NativeBattleRoughDivide163ChildStep Advance5F5FE0(NativeBattleRoughDivide163Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRoughDivide163Inputs inputs, Func<byte, NativeBattleRenzokuken160WeaponTip> readWeaponTip, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors)
+    public static NativeBattleRoughDivide163ChildStep Advance5F5FE0(NativeBattleRoughDivide163Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRoughDivide163Inputs inputs, Func<BattleModelOwner, NativeBattleRenzokuken160WeaponTip> readWeaponTip, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         short counter = Word(task, 12);

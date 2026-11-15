@@ -9,7 +9,7 @@ public static partial class NativeBattleEffect63Controller
     {
         int age = Signed(Read(frame, address), 12);
         frame = inputs.Execute(frame, new NativeBattleEffect63Stage5713E0(StageStrength(age), 0));
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         NativeBattleEffect63PointStep first = inputs.Point6E7710(frame, caster, NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(FirstPointAddress, 8)), UnknownPoint());
         NativeBattleEffect63PointStep second = inputs.Point6E7710(first.Frame, caster, NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(SecondPointAddress, 8)), UnknownPoint());
         frame = second.Frame;
@@ -57,7 +57,7 @@ public static partial class NativeBattleEffect63Controller
             {
                 frame = BirthSprites(frame, anchor);
             }
-            NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, frame.State.ReadDword(TargetGlobal));
+            NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, frame.State.ReadModelAddress(TargetGlobal));
             int x = midpoint.X - BinaryPrimitives.ReadInt16LittleEndian(model.Read(0x1C, 2));
             int z = BinaryPrimitives.ReadInt16LittleEndian(model.Read(0x20, 2)) - midpoint.Z;
             (NativeBattleActionMatrix matrix, int length) = NativeBattleFunguarLaser277.Basis50CBA0(x, 0, z);
@@ -75,7 +75,9 @@ public static partial class NativeBattleEffect63Controller
         if (age == 54)
         {
             NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect63 requires its current action header.");
-            int firstContact = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContactIndex ?? throw new NotSupportedException("Effect63 requires its current first contact.");
+            NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+            BattleContactCursor cursor = packets.ReadHeader(parameters.Header).FirstContact;
+            BattleContactOccurrence firstContact = packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Effect63 requires its reached contact occurrence.");
             frame = inputs.Execute(frame, new NativeBattleEffect63Contact506690(firstContact));
         }
         if (age >= 64)

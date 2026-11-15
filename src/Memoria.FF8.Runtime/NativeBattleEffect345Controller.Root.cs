@@ -38,8 +38,8 @@ public static partial class NativeBattleEffect345Controller
             case 4:
                 if (task.ReadByte(0x63) == 0)
                 {
-                    sbyte target = unchecked((sbyte)task.ReadByte(0x2B));
-                    frame = target < Signed(task, 0x5A) - 1 ? Write(frame, address, task.WriteByte(0x2B, unchecked((byte)(target + 1))).WriteByte(0x2E, unchecked((byte)(task.ReadByte(0x2E) + 1))).WriteByte(0x29, 3)) : IncrementPhase(frame, address);
+                    int target = task.ReadTraversalPosition(0x2B);
+                    frame = target < task.ReadContactCount(0x5A) - 1 ? Write(frame, address, task.WriteTraversalPosition(0x2B, checked(target + 1)).WriteTraversalPosition(0x2E, checked(task.ReadTraversalPosition(0x2E) + 1)).WriteByte(0x29, 3)) : IncrementPhase(frame, address);
                 }
                 break;
             case 6:

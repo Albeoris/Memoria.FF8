@@ -5,7 +5,7 @@ public sealed record NativeBattleRestorationNodeAllocation(NativeBattleRestorati
 /// <summary>891610/891F90 and886BC0/887540 use the shared original allocator with their own40/100 and50/140 physical slots.</summary>
 public static class NativeBattleRestorationNodes
 {
-    public static NativeBattleRestorationNodeAllocation AllocateEmitter(NativeBattleRestorationFrame frame, uint contextTask, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)
+    public static NativeBattleRestorationNodeAllocation AllocateEmitter(NativeBattleRestorationFrame frame, uint contextTask, uint parentPointer, sbyte sourceIndex, int targetIndex)
     {
         using NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
         ushort cursor = memory.State.EmitterScanCursor ?? throw new NotSupportedException("Native restoration emitter allocation requires its actual scan WORD.");
