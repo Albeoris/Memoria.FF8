@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-source-resume-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldSourceResumeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--chocobo-camera-only", StringComparer.Ordinal))
 {
     NativeChocoboCameraTests.Run();

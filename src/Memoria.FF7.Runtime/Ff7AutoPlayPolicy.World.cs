@@ -78,6 +78,12 @@ public sealed partial class Ff7AutoPlayPolicy
                     return default;
                 }
             }
+            else if (field.Generation != session.FieldGeneration)
+            {
+                State.Status = "A different native event interrupted the planned contact";
+                State.Active = null;
+                Publish();
+            }
             else
             {
                 State.Status = "Waiting for the native field-to-world source owner";
