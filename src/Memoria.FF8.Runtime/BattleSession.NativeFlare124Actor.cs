@@ -28,6 +28,7 @@ public sealed partial class BattleSession
             }
         }
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
+        NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, owner);
         NativeBattleActionMatrix view = projection.View!;
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Flare requires its original target skeleton.");
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Flare requires its target world matrix.");
@@ -81,7 +82,7 @@ public sealed partial class BattleSession
                     NativeFileStaging = NativeFileStaging!.Write(workAddress + (uint)offset, drawn.Vertices.AsSpan().Slice(offset, 8));
                 }
             }
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, drawn.Packets);
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, BindNativeModelMaterial(drawn.Packets, material));
             NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }

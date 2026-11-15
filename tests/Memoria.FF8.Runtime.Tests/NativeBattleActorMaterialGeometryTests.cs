@@ -22,7 +22,7 @@ public sealed class NativeBattleActorMaterialGeometryTests
             LinkedGeometry = [weapon],
             LinkedGeometryUsesBodySkeleton = sharedSkeleton
         };
-        NativeBattleGraphicsModel model = new(0, 0)
+        NativeBattleGraphicsModel model = new(0)
         {
             BodyTextureSlots = new(ImmutableArray.CreateRange(new byte?[16]).SetItem(0, 1)),
             LinkedTextureSlots = new(ImmutableArray.CreateRange(new byte?[16]).SetItem(0, 2))
@@ -59,7 +59,7 @@ public sealed class NativeBattleActorMaterialGeometryTests
     public void AuthoredPaletteRowsWithoutAnUploadStillFail()
     {
         NativeBattleGraphicsResource resource = new([]) { Geometry = [Mesh(230, 5)], LinkedGeometry = [] };
-        NativeBattleGraphicsModel model = new(0, 0) { BodyTextureSlots = new(ImmutableArray.CreateRange(new byte?[16])) };
+        NativeBattleGraphicsModel model = new(0) { BodyTextureSlots = new(ImmutableArray.CreateRange(new byte?[16])) };
         Assert.Throws<NotSupportedException>(() => NativeBattleActorMaterialGeometry.PrepareBody(resource, model));
     }
 
