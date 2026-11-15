@@ -70,7 +70,7 @@ public sealed partial class BattleSession
     public void ConfigureDiagnosticScheduling(bool holdEnemyCommands, bool instantGuardianForceCharge = false, string? readinessActorId = null)
     {
         // Construction queues participant initialization before scheduling can be configured.
-        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any(command => command.NativeCallback?.Stage != 0) || guardianForceCasts.Count != 0)
+        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Any(action => action.ExpandedAiCallback?.Stage != 0) || nativeCommandBanks.BoundCommands.Any(command => command.NativeCallback?.Stage != 0) || guardianForceCasts.Count != 0)
         {
             throw new InvalidOperationException("Diagnostic scheduling must be declared before the first battle callback or command.");
         }
@@ -171,18 +171,19 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticEffectDispatch(NativeBattleGraphicsState graphics, NativeBattleOriginalEffectState effect)
     {
-        diagnosticDispatchSerial++;
-        if (DiagnosticEffectDispatched is not { } observer)
+        BattleSession owner = hostedDiagnosticOwner ?? this;
+        owner.diagnosticDispatchSerial++;
+        if (owner.DiagnosticEffectDispatched is not { } observer)
         {
             return;
         }
         string? actorId = effect.Parameters is { } parameters ? ReadGraphicsPresentationId(parameters.Source) : graphics.ActionActorId;
-        BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
+        BattleActionPresentation? action = owner.resolvingNativeAction ?? owner.ActiveAction;
         if (action?.ActorId != actorId)
         {
             action = null;
         }
-        BattleAttackCommand? bound = action is null ? nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect) : null;
+        BattleAttackCommand? bound = action is null ? owner.nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect) : null;
         BattleAbility? ability = action?.Ability ?? bound?.Ability;
         int? actionId = action?.NativeAction?.ActionId ?? action?.ActionId ?? bound?.NativeAction?.ActionId ?? bound?.ActionId;
         byte? nativeCommand = action?.NativeAction?.Command ?? bound?.NativeAction?.Command;
@@ -191,15 +192,20 @@ public sealed partial class BattleSession
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(entered.Header);
             actionId = header.Action;
             nativeCommand = header.Command;
-            if (actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
+            if (actorId is not null && owner.byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
             {
                 ability = ResolveDiagnosticHeaderAbility(selectedActor.IsPlayer, ability, selectedActor.NativeLimit?.Command, nativeCommand.Value);
             }
         }
-        BattleAttackCommand? callbackBound = bound ?? nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect);
+        BattleAttackCommand? callbackBound = bound ?? owner.nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect);
         byte? callbackStage = action?.NativeAiCallbackStage ?? callbackBound?.NativeAiCallbackStage;
-        string? scriptSha256 = callbackStage is byte stage && actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
-        BattleDiagnosticEffectDispatch dispatch = new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = OriginalDiagnosticTargets(effect.Parameters), NativeActorIndex = OriginalDiagnosticSource(effect.Parameters), NativeHeaderIndex = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header) };
+        string? scriptSha256 = callbackStage is byte stage && actorId is not null && owner.byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
+        BattleDiagnosticEffectDispatch dispatch = new(owner.diagnosticDispatchSerial, owner.NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = OriginalDiagnosticTargets(effect.Parameters), NativeActorIndex = OriginalDiagnosticSource(effect.Parameters), NativeHeaderIndex = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header) };
+        if (hostedDiagnosticOwner is not null)
+        {
+            observer(dispatch);
+            return;
+        }
         PublishDiagnosticEnteredEffect(observer, CompleteDiagnosticReflection(dispatch), effect);
     }
 
@@ -233,12 +239,6 @@ public sealed partial class BattleSession
     /// <summary>Conservative normal-owner drain observation, without serialization or owner mutation.</summary>
     public IReadOnlyList<string> ObserveDiagnosticDrainBlockers()
     {
-        NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Diagnostic drain requires normal native graphical owners.");
-        NativeBattleFileIoState files = NativeFileIo ?? throw new NotSupportedException("Diagnostic drain requires the actual file completion owner.");
-        if (files.ActiveCount is null)
-        {
-            throw new NotSupportedException("Diagnostic drain cannot infer an unknown file scheduler count.");
-        }
         List<string> blockers = [];
         if (ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any())
         {
@@ -247,6 +247,25 @@ public sealed partial class BattleSession
         if (nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
         {
             blockers.Add("timed-input-or-mandatory-reaction");
+        }
+        if (expandedPresentationProcess is { } hosted)
+        {
+            hosted.AppendDiagnosticPresentationBlockers(blockers);
+        }
+        else
+        {
+            AppendDiagnosticGraphicsBlockers(blockers);
+        }
+        return blockers;
+    }
+
+    internal void AppendDiagnosticGraphicsBlockers(List<string> blockers)
+    {
+        NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Diagnostic drain requires normal native graphical owners.");
+        NativeBattleFileIoState files = NativeFileIo ?? throw new NotSupportedException("Diagnostic drain requires the actual file completion owner.");
+        if (files.ActiveCount is null)
+        {
+            throw new NotSupportedException("Diagnostic drain cannot infer an unknown file scheduler count.");
         }
         if (!graphics.PendingContacts.IsEmpty || graphics.Descriptors.Queue.Length != 0 || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0))
         {
@@ -260,6 +279,5 @@ public sealed partial class BattleSession
         {
             blockers.Add("file-camera-sound-or-effect-resource");
         }
-        return blockers;
     }
 }

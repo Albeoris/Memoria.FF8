@@ -229,7 +229,7 @@ internal sealed partial class GameWorld
         }
     }
 
-    private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies, bool originalSlots = false, IReadOnlyList<BattleEnemyPlacement>? originalPlacements = null)
+    private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies, bool originalSlots = false, IReadOnlyList<BattleEnemyPlacement>? originalPlacements = null, bool diagnosticRoster = false)
     {
         List<BattleEnemyPlacement> placements = originalSlots ? [.. originalPlacements ?? encounter.Slots] : encounter.Enemies.Select((enemy, index) => enemy with { Slot = index }).ToList();
         if (originalSlots && (placements.Any(enemy => (uint)enemy.Slot >= ExpandedBattleFormation.OriginalEnemyPrototypeCount) ||
@@ -246,7 +246,9 @@ internal sealed partial class GameWorld
         }
         Dictionary<int, BattleEnemyPlacement[]> donors = addedEnemies.Count == 0
             ? []
-            : BuildAdditionalEnemyDonorPool(encounter).ToDictionary(donor => donor.Formation, donor => donor.Enemies);
+            : diagnosticRoster
+                ? addedEnemies.Values.Select(source => source.Formation).Distinct().ToDictionary(formation => formation, formation => EligibleAdditionalEnemyPlacements(BattleResources.LoadEncounter(formation), encounter.Id))
+                : BuildAdditionalEnemyDonorPool(encounter).ToDictionary(donor => donor.Formation, donor => donor.Enemies);
         foreach ((int slot, BattleEnemyRosterSource source) in addedEnemies)
         {
             if (source is null)
@@ -264,6 +266,10 @@ internal sealed partial class GameWorld
             }
             BattleEnemyPlacement enemy = eligible.SingleOrDefault(candidate => candidate.Slot == source.SceneSlot)
                 ?? throw new InvalidDataException("The added enemy no longer has an eligible independent installed placement.");
+            if (diagnosticRoster && placements.Any(candidate => candidate.Enabled && candidate.ModelId == enemy.ModelId))
+            {
+                throw new InvalidDataException("Diagnostic roster donors must have distinct models and exclude the required enemy's model.");
+            }
             placements.Add(enemy with { Slot = slot });
         }
         return placements.ToArray();

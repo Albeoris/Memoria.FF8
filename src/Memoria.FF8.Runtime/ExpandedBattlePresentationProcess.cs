@@ -82,6 +82,15 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal NativeBattlePresentationCompletionRequested? PendingCompletion => presentation.PendingHostedCompletion;
     internal ushort? TriggerOptions => presentation.HostedTriggerOptions;
 
+    internal void AppendDiagnosticPresentationBlockers(List<string> blockers)
+    {
+        if (HasActiveAction || PendingCompletion is not null)
+        {
+            blockers.Add("hosted-action-or-completion");
+        }
+        presentation.AppendDiagnosticGraphicsBlockers(blockers);
+    }
+
     internal void RequireLogicalOwner(BattleSession owner)
     {
         if (!ReferenceEquals(logicalOwner, owner))

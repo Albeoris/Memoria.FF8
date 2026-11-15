@@ -21,6 +21,7 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     public bool InstantGuardianForceCharge { get; init; } = true;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public DiagnosticBattlePrelude? Prelude { get; init; }
+    public DiagnosticBattleRoster? Roster { get; init; }
 
     internal void Validate()
     {
@@ -30,6 +31,7 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
             throw new NotSupportedException("Timed Limit, Slots and fresh-entry diagnostics require ordinary initial admission without a preparation prelude.");
         }
         Fixture?.Validate();
+        Roster?.Validate();
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
@@ -61,7 +63,11 @@ internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string Ini
     public DiagnosticBattlePreludeReceipt? Prelude { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Memoria.FF8.BattleEffects.DiagnosticSlotsSource? SlotsSource { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticBattleRosterMember[]? RosterMembers { get; init; }
 }
+
+internal sealed record DiagnosticBattleRosterMember(string Actor, int Model, bool Party, int? SceneSlot);
 
 internal sealed record DiagnosticEntryPreparationReceipt(long NativeCallbacks, double Milliseconds, string Scope);
 
@@ -157,7 +163,12 @@ internal sealed partial class GameWorld
         long started = Stopwatch.GetTimestamp();
         NativeBattleRetainedMemory retained = session.CurrentNativeBattleMemory ?? throw new NotSupportedException("Diagnostic initialization requires installed cold-process retained memory.");
         string executable = retained.ColdExecutableSha256 ?? throw new NotSupportedException("Diagnostic initialization requires an authenticated executable identity.");
-        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(session.State.CharacterVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null, request.Fixture.Characters.Any(character => character.Weapon.HasValue) ? assets.ReadNativeWeaponShopDefinitions() : null);
+        NativeCharacterVitals initialVitals = session.State.CharacterVitals;
+        if (request.Roster is not null)
+        {
+            initialVitals = PrepareDiagnosticRosterVitals(initialVitals);
+        }
+        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(initialVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null, request.Fixture.Characters.Any(character => character.Weapon.HasValue) ? assets.ReadNativeWeaponShopDefinitions() : null);
         DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture, NativeItemOrderAliases.From(session.State));
         DiagnosticLimitPreparationResult? limits = request.Fixture?.Limits is { } limitRecipe ? PrepareDiagnosticLimits(session.State.LimitProgress ?? throw new NotSupportedException("Diagnostic Limit preparation requires the actual initialized saved progress owner."), limitRecipe) : null;
         DiagnosticPocketStationPreparationResult? pocketStation = request.Fixture?.PocketStation is { } pocketRecipe ? PrepareDiagnosticPocketStation(session.State.PocketStation ?? throw new NotSupportedException("Diagnostic PocketStation preparation requires its initialized saved owner."), pocketRecipe) : null;
@@ -166,9 +177,15 @@ internal sealed partial class GameWorld
         diagnosticBattle = new(request, Guid.NewGuid());
         try
         {
-            if (characters is not null)
+            NativeCharacterVitals preparedVitals = characters?.Vitals ?? initialVitals;
+            if (request.Roster is not null)
             {
-                session.SetCharacterVitals(characters.Vitals);
+                byte[] party = [.. preparedVitals.GetBattlePartyRows(3).Concat(Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row)).Distinct()];
+                preparedVitals = preparedVitals.WithBattleParty(party, NativeCharacterVitals.ExtendedRecordCount);
+            }
+            if (characters is not null || request.Roster is not null)
+            {
+                session.SetCharacterVitals(preparedVitals);
             }
             if (inventory is not null)
             {
@@ -192,6 +209,10 @@ internal sealed partial class GameWorld
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
             DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? []] };
+            if (request.Roster is not null)
+            {
+                DiagnosticReceipt = DiagnosticReceipt with { RosterMembers = battle.Combatants.Where(actor => actor.IsActive || actor.IsPlayer).Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray() };
+            }
             DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge, FreshEntryHost = request.Driver?.FreshEntry is null ? null : DiagnosticFreshEntryHost.Capture(assets.GameDirectory, request.Driver.FreshEntry, retained.EffectMemory?.ExecutionStack, diagnosticBattle.InstanceId, battle.DiagnosticLifecycleId) };
             if (request.Driver?.SlotsAdmission is not null)
             {

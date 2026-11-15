@@ -146,6 +146,7 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Battle entry requires the edition's retained party CPU allocation; migrate this save explicitly.");
         }
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
+        DiagnosticBattleRoster? diagnosticRoster = restoredDefinition is null ? diagnosticBattle?.Request.Roster : null;
         _ = BattleResources.LoadStage(encounter.StageId);
         BattleEncounterRosterAdmission rosterAdmission = restoredDefinition?.EncounterRosterAdmission ?? BattleEncounterRosterAdmission.Unrestricted;
         HashSet<int> reserveSlots = [];
@@ -167,12 +168,17 @@ internal sealed partial class GameWorld
         }
         else if (restoredDefinition is null && effectPreviewRequest is null)
         {
-            selectedParty = rosterAdmission.UsesPrimaryPartyOnly ? nativeParty : entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
+            selectedParty = diagnosticRoster is not null ? entryVitals.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount) :
+                rosterAdmission.UsesPrimaryPartyOnly ? nativeParty : entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
         }
         byte[]? expandedParty = selectedParty is not null && !selectedParty.SequenceEqual(nativeParty) ? selectedParty : null;
         int allyCount = expandedParty?.Length ?? nativeParty.Length;
         ImmutableSortedDictionary<int, BattleEnemyRosterSource>? addedEnemySources = restoredDefinition?.AddedEnemySources;
-        if (restoredDefinition is null && effectPreviewRequest is null && rosterAdmission.AllowsAdditionalEnemies)
+        if (diagnosticRoster is not null)
+        {
+            addedEnemySources = diagnosticRoster.Donors.Select((source, ordinal) => KeyValuePair.Create(ExpandedBattleFormation.OriginalEnemyPrototypeCount + ordinal, source)).ToImmutableSortedDictionary();
+        }
+        else if (restoredDefinition is null && effectPreviewRequest is null && rosterAdmission.AllowsAdditionalEnemies)
         {
             int requested = Math.Max(defaultAdditionalEnemyCount, session.State.GameplayPreferences.GetEffectiveAdditionalEnemies(allyCount));
             if (requested > 0)
@@ -189,10 +195,10 @@ internal sealed partial class GameWorld
         BattleEnemyPlacement[]? expandedEnemies = null;
         if (expanded && useOriginalEnemySlots)
         {
-            expandedEnemies = OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots);
+            expandedEnemies = diagnosticRoster is null ? OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots) : SelectDiagnosticRosterOriginals(encounter, diagnosticRoster);
             if (addedEnemySources is { Count: > 0 })
             {
-                expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: expandedEnemies);
+                expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: expandedEnemies, diagnosticRoster: diagnosticRoster is not null);
             }
         }
         else if (expanded)

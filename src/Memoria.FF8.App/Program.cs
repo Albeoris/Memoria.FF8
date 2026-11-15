@@ -116,6 +116,7 @@ internal static partial class Program
             string mediaTools = MediaToolsInstallation.ResolveDirectoryAsync(options.MediaToolsDirectory, Console.Error.WriteLine).GetAwaiter().GetResult();
             mediaTools = MediaToolsInstallation.PrepareForStartup(mediaTools, message => PortableMessageBox.Confirm(message, "Memoria â€” optional FFmpeg installation"), Console.Error.WriteLine, mediaDestination);
             options = options with { MediaToolsDirectory = mediaTools };
+            using IDisposable? backgroundWindow = DiagnosticBackgroundWindow.FromEnvironment(options);
             using var game = new RecreateGame(options, session, playerSession: true);
             game.RunWithErrorCapture();
             return 0;

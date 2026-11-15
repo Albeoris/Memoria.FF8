@@ -7,6 +7,7 @@ internal sealed record NativeBattleModelEntryFacts(string ActorId, bool IsParty,
 public sealed partial class BattleSession
 {
     private readonly bool hostedBattlePresentation;
+    private readonly BattleSession? hostedDiagnosticOwner;
     private readonly ImmutableDictionary<BattleModelOwner, NativeBattleModelEntryFacts> hostedEntryFacts = ImmutableDictionary<BattleModelOwner, NativeBattleModelEntryFacts>.Empty;
     private readonly BattleModelRoster? hostedEntryRoster;
     private readonly NativeBattleModelAliases? hostedEntryAliases;
@@ -47,6 +48,7 @@ public sealed partial class BattleSession
         }
 
         hostedBattlePresentation = true;
+        hostedDiagnosticOwner = logicalOwner;
         presentationCameraMode = NativeBattleEffectCameraMode.NativeCinematic;
         // Hosted presentation derives ribbon runs directly from projected geometry.
         presentationRibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns;
