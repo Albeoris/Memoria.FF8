@@ -574,6 +574,10 @@ internal sealed partial class RecreateGame
 
     private bool UpdateGameUi(TimeSpan elapsed, InputFrame input, bool hostOnly = false)
     {
+        if (!hostOnly && SynchronizeNativeSaveMenu())
+        {
+            return true;
+        }
         if (!hostOnly && UpdateNativeTutorialUi(elapsed, input))
         {
             return true;
