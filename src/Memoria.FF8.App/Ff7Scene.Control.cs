@@ -30,7 +30,7 @@ internal sealed partial class Ff7Scene
         StepDiagnostic(ticks, readKeys, true);
     }
 
-    public void StepAutoPlay(int ticks)
+    public void StepAutoPlay(int ticks, bool stopAtTransition = false)
     {
         if (!AutoPlayRunning || AutoPlayPaused)
         {
@@ -38,10 +38,10 @@ internal sealed partial class Ff7Scene
         }
         // Control-step requests intentionally stop simulation between bounded batches.
         autoPlay?.ResetIdleDeadline();
-        StepDiagnostic(ticks, () => new KeyboardState(), false);
+        StepDiagnostic(ticks, () => new KeyboardState(), false, stopAtTransition);
     }
 
-    private void StepDiagnostic(int ticks, Func<KeyboardState> readKeys, bool resetIdleDeadline)
+    private void StepDiagnostic(int ticks, Func<KeyboardState> readKeys, bool resetIdleDeadline, bool stopAtTransition = false)
     {
         if (ticks is < 1 or > 900)
         {
@@ -51,9 +51,16 @@ internal sealed partial class Ff7Scene
         {
             autoPlay?.ResetIdleDeadline();
         }
+        var sourceSession = Session;
+        long? sourceGeneration = sourceSession?.FieldGeneration;
+        var sourceWorld = sourceSession?.World;
         for (int tick = 0; tick < ticks; tick++)
         {
             Update(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / 30d))), readKeys(), default, default, inputActive: true);
+            if (stopAtTransition && (!ReferenceEquals(Session, sourceSession) || Session?.FieldGeneration != sourceGeneration || !ReferenceEquals(Session?.World, sourceWorld)))
+            {
+                break;
+            }
             if (!resetIdleDeadline && (!AutoPlayRunning || AutoPlayPaused || Error is not null))
             {
                 break;

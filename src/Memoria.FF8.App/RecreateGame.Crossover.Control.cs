@@ -36,7 +36,11 @@ internal sealed partial class RecreateGame
                 {
                     throw new InvalidOperationException("FFVII automatic stepping requires its active world and --control-step.");
                 }
-                ff7Scene!.StepAutoPlay(Math.Clamp(request.Frames, 1, 900));
+                if (!string.IsNullOrEmpty(request.Name) && !string.Equals(request.Name, "transition", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException("An automatic step name must be empty or transition.");
+                }
+                ff7Scene!.StepAutoPlay(Math.Clamp(request.Frames, 1, 900), stopAtTransition: !string.IsNullOrEmpty(request.Name));
                 return new { ff7Scene.AutoPlayStatus, ff7Scene.AutoPlayRunning, ff7Scene.AutoPlayPaused, Error = ff7Scene.Error ?? ff7Scene.AutoPlayError };
             case "world-open":
                 OpenCrossoverSetup();

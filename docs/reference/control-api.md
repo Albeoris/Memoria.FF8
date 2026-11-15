@@ -38,7 +38,7 @@ Request property names are case-insensitive, command names are case-insensitive,
 | `Action` | `PlayerAction` payload for `action` and headless `run`. |
 | `Frames` | 900; wait budget for `advance`, action repetition count for headless `run`. |
 | `Path` | Optional explicit save/capture path; relative paths resolve against the host working directory. |
-| `Name`, `Selection` | Optional current-prompt presentation draft. |
+| `Name`, `Selection` | Optional current-prompt presentation draft; `Name` also carries command-specific options. |
 | `Debug` | Typed scene presentation override. |
 | `Compact` | false; omit large trace arrays while retaining counts. |
 | `Ui` | Typed menu request. |
@@ -62,6 +62,16 @@ Request property names are case-insensitive, command names are case-insensitive,
 `advance` does not auto-answer dialogue or skip a movie. An ordinary field Wait stops at the next trigger or its frame budget; it can stop early when control becomes playable. `WaitWhilePlayable:true` requests continued playable waits, still stopping at a changed trigger or observed script input boundary. Headless `run` also stops on a rejected action, field/scene change, confirmable dialogue, transition, battle, tutorial or fault. Its result reports the last action result, not an aggregate of every iteration.
 
 Windowed `action`/`advance` is refused while a normal UI overlay owns input. Use `ui-input` for that overlay. A native tutorial accepts only its current Wait/Confirm/Cancel contract. A script fault prevents further simulation; inspect/save it or restart from a safe snapshot. Rendering faults are reported separately.
+
+## FFVII autoplay stepping
+
+With FFVII active, `world-autoplay` with `Name:"start"` starts its current autoplay policy. Under `--control-step`, `world-autoplay-step` advances that policy through the normal scene owners; `Frames` is clamped to 1..900. It requires running, unpaused autoplay and returns its status, running/paused flags and error.
+
+Leave `Name` empty for the complete frame budget, or use `Name:"transition"` to stop after the first field-generation, world-allocation or session change. The transition mode returns before the next scene update, allowing observation or a save at the new boundary without choosing player input manually. It does not change the autoplay goal, mark completion or alter native state directly.
+
+```json
+{"Id":"bounded-autoplay","Command":"world-autoplay-step","Name":"transition","Frames":900}
+```
 
 ```json
 {"Id":"010-move","Command":"action","Action":{"Kind":"Move","Horizontal":1,"Vertical":0,"Frames":15}}
