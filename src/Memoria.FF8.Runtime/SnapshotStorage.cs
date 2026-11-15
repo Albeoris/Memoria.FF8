@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -38,13 +39,13 @@ public sealed record SaveSummary(SceneKind Scene, int FieldId, string FieldName,
         {
             return [];
         }
-        return CapturePartyPortraits(vitals.Records, vitals.CombatParty, vitals.AdditionalCombatParty, vitals.ExtendedRosterEnabled, vitals.DreamEnabled, state.GameplayPreferences.BattleAllyCount, state.WorldControls?.EventFlags104 ?? 0, state.Variables);
+        return CapturePartyPortraits(vitals.Records, vitals.CombatParty, vitals.AdditionalCombatParty, vitals.AdditionalCombatPartyMinimumCapacities, vitals.ExtendedRosterEnabled, vitals.DreamEnabled, state.GameplayPreferences.BattleAllyCount, state.WorldControls?.EventFlags104 ?? 0, state.Variables);
     }
 
-    internal static int[] CapturePartyPortraits(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, bool extendedRosterEnabled, bool dreamEnabled, int savedCapacity, uint eventFlags, IReadOnlyDictionary<int, int> variables)
+    internal static int[] CapturePartyPortraits(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, ImmutableSortedDictionary<byte, byte>? minimumCapacities, bool extendedRosterEnabled, bool dreamEnabled, int savedCapacity, uint eventFlags, IReadOnlyDictionary<int, int> variables)
     {
         int capacity = BattlePartySelectionPolicy.ResolveSavedCapacity(dreamEnabled, savedCapacity, eventFlags, variables);
-        return NativeCharacterVitals.GetBattlePartyRows(records, combatParty, additionalCombatParty, extendedRosterEnabled, dreamEnabled, capacity).Select(row => (int)records[row].CharacterId).ToArray();
+        return NativeCharacterVitals.GetBattlePartyRows(records, combatParty, additionalCombatParty, minimumCapacities, extendedRosterEnabled, dreamEnabled, capacity).Select(row => (int)records[row].CharacterId).ToArray();
     }
 }
 

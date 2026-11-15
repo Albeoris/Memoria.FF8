@@ -31,7 +31,11 @@ public static partial class BattleResultProjection
         }
         else if (result.UsesExpandedRoster && result.Party.Length >= nativeRows.Length)
         {
-            party = sourceVitals.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount).Take(result.Party.Length).ToArray();
+            byte[] reportedRows = result.Party.Select(member => member.Row).ToArray();
+            if (ExpandedBattlePartyRows.IsSelectedParty(sourceVitals, reportedRows))
+            {
+                party = reportedRows;
+            }
         }
         if (!party.SequenceEqual(result.Party.Select(member => member.Row)))
         {

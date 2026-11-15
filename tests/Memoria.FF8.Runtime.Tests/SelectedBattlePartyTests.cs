@@ -93,6 +93,25 @@ public sealed class SelectedBattlePartyTests
     }
 
     [Fact]
+    public void Removing_a_visible_ally_does_not_promote_a_dormant_choice_until_capacity_increases()
+    {
+        NativeCharacterVitals source = MagicSystemFixture.Create();
+        NativeCharacterVitals selected = source.WithBattleParty([0, 1, 2, 3, 4], 5);
+        Assert.Equal(new byte[] { 0, 1, 2, 3 }, selected.GetBattlePartyRows(4));
+
+        NativeCharacterVitals edited = selected.WithBattleParty([0, 1, 2], 4);
+        Assert.Equal(new byte[] { 4 }, edited.AdditionalCombatParty);
+        Assert.Equal(new byte[] { 0, 1, 2 }, edited.GetBattlePartyRows(4));
+        Assert.Equal(new byte[] { 0, 1, 2, 4 }, edited.GetBattlePartyRows(5));
+
+        GameplaySaveCharacters saved = GameplaySaveCharacters.Capture(edited);
+        NativeCharacterVitals restored = JsonSerializer.Deserialize<GameplaySaveCharacters>(JsonSerializer.Serialize(saved))!.Restore(source);
+        Assert.Equal(edited.GetBattlePartyRows(4), restored.GetBattlePartyRows(4));
+        Assert.Equal(edited.GetBattlePartyRows(5), restored.GetBattlePartyRows(5));
+        Assert.Equal(new byte[] { 0, 1, 2, 4 }, restored.WithBattleParty([0, 1, 2, 4], 4).GetBattlePartyRows(4));
+    }
+
+    [Fact]
     public void Native_holes_and_dormant_choices_can_keep_more_than_eight_distinct_saved_rows()
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Create().WithExtendedRoster(true) with

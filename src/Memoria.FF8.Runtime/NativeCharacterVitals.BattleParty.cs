@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -9,15 +10,19 @@ public sealed partial record NativeCharacterVitals
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? AdditionalCombatParty { get; init; }
 
+    // An explicit edit at a reduced capacity can leave vacancies without erasing higher-capacity selections.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<byte, byte>? AdditionalCombatPartyMinimumCapacities { get; init; }
+
     public byte[] GetBattlePartyRows(int capacity, bool allowAdditionalMembers = true)
     {
-        return GetBattlePartyRows(Records, CombatParty, AdditionalCombatParty, ExtendedRosterEnabled, DreamEnabled, capacity, allowAdditionalMembers);
+        return GetBattlePartyRows(Records, CombatParty, AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, ExtendedRosterEnabled, DreamEnabled, capacity, allowAdditionalMembers);
     }
 
-    internal static byte[] GetBattlePartyRows(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, bool extendedRosterEnabled, bool dreamEnabled, int capacity, bool allowAdditionalMembers = true)
+    internal static byte[] GetBattlePartyRows(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, ImmutableSortedDictionary<byte, byte>? minimumCapacities, bool extendedRosterEnabled, bool dreamEnabled, int capacity, bool allowAdditionalMembers = true)
     {
         ValidateBattlePartyCapacity(capacity);
-        if (!IsValidAdditionalCombatParty(additionalCombatParty, records.Length))
+        if (!IsValidAdditionalCombatParty(additionalCombatParty, minimumCapacities, records.Length))
         {
             throw new InvalidDataException("Saved additional battle party rows are invalid.");
         }
@@ -27,7 +32,7 @@ public sealed partial record NativeCharacterVitals
             return nativeRows;
         }
 
-        return [.. nativeRows, .. additionalCombatParty.Where(row => !nativeRows.Contains(row) && IsRosterMember(records, row, extendedRosterEnabled, dreamEnabled)).Take(capacity - nativeRows.Length)];
+        return [.. nativeRows, .. additionalCombatParty.Where(row => (minimumCapacities?.GetValueOrDefault(row) ?? 0) <= capacity && !nativeRows.Contains(row) && IsRosterMember(records, row, extendedRosterEnabled, dreamEnabled)).Take(capacity - nativeRows.Length)];
     }
 
     public NativeCharacterVitals WithBattleParty(IReadOnlyList<byte> rows, int capacity)
@@ -48,21 +53,41 @@ public sealed partial record NativeCharacterVitals
         }
 
         byte[]? additionalRows = AdditionalCombatParty;
+        ImmutableSortedDictionary<byte, byte>? minimumCapacities = AdditionalCombatPartyMinimumCapacities;
         if (!DreamEnabled)
         {
             byte[] previousRows = GetBattlePartyRows(capacity);
-            byte[] dormantRows = AdditionalCombatParty?.Where(row => !previousRows.Contains(row) && !rows.Contains(row)).ToArray() ?? [];
-            byte[] retainedRows = [.. rows.Skip(NativeCombatPartySize), .. dormantRows];
-            additionalRows = retainedRows.Length > 0 ? retainedRows : null;
+            List<byte> retainedRows = [.. rows.Skip(NativeCombatPartySize)];
+            ImmutableSortedDictionary<byte, byte>.Builder retainedCapacities = ImmutableSortedDictionary.CreateBuilder<byte, byte>();
+            foreach (byte row in AdditionalCombatParty ?? [])
+            {
+                if (previousRows.Contains(row) || rows.Contains(row))
+                {
+                    continue;
+                }
+                int minimum = minimumCapacities?.GetValueOrDefault(row) ?? 0;
+                if (capacity is > NativeCombatPartySize and < ExtendedRecordCount && IsRosterMember(row))
+                {
+                    minimum = Math.Max(minimum, capacity + 1);
+                }
+                retainedRows.Add(row);
+                if (minimum > 0)
+                {
+                    retainedCapacities.Add(row, (byte)minimum);
+                }
+            }
+            additionalRows = retainedRows.Count > 0 ? retainedRows.ToArray() : null;
+            minimumCapacities = retainedCapacities.Count > 0 ? retainedCapacities.ToImmutable() : null;
         }
 
-        NativeCharacterVitals selected = this with { CombatParty = nativeRows, AdditionalCombatParty = additionalRows };
+        NativeCharacterVitals selected = this with { CombatParty = nativeRows, AdditionalCombatParty = additionalRows, AdditionalCombatPartyMinimumCapacities = minimumCapacities };
         return selected.RebuildSelectedRows(rows);
     }
 
-    internal static bool IsValidAdditionalCombatParty(byte[]? rows, int recordCount)
+    internal static bool IsValidAdditionalCombatParty(byte[]? rows, ImmutableSortedDictionary<byte, byte>? minimumCapacities, int recordCount)
     {
-        return rows is null || rows.Length <= recordCount && rows.All(row => row < recordCount) && rows.Distinct().Count() == rows.Length;
+        return (rows is null || rows.Length <= recordCount && rows.All(row => row < recordCount) && rows.Distinct().Count() == rows.Length) &&
+            (minimumCapacities is null || rows is not null && minimumCapacities.All(choice => rows.Contains(choice.Key) && choice.Value is > NativeCombatPartySize and <= ExtendedRecordCount));
     }
 
     private static void ValidateBattlePartyCapacity(int capacity)

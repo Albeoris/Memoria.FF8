@@ -9,6 +9,11 @@ public sealed partial class MenuController
             return;
         }
         _selections[screenId] = 0;
+        if (screenId == "switch-party-target" && ExchangeId == EmptySwitchSlotId && Data.PartyCapacity > 3)
+        {
+            _selections[screenId] = Math.Max(0, Entries.ToList().FindIndex(entry => entry.Enabled));
+            return;
+        }
         if (screenId is not ("item-target" or "magic-target"))
         {
             return;

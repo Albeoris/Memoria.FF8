@@ -183,11 +183,12 @@ public static class MenuCatalog
 
     private static IReadOnlyList<MenuEntry> SwitchSources(MenuController c)
     {
-        string help = c.SystemText("ui.register.entry.help.select.the.other.member.next", "Select the other member next.");
+        string help = c.SwitchPartyRestrictionHelp is { Length: > 0 } restriction ? restriction : c.SystemText("ui.register.entry.help.select.the.other.member.next", "Select the other member next.");
         List<MenuEntry> entries = c.Data.Characters.Select(ch => new MenuEntry(ch.Id, $"{ch.Name} {(ch.InParty ? "[Party]" : "[Reserve]")}", help, "switch-party-target", new MenuAction("select-exchange", ch.Id), c.IsDemo || c.Data.PartyCapacity == 3 || c.Data.SupportedActions.Any(action => action.StartsWith($"party-switch:{ch.Id}:", StringComparison.Ordinal)))).ToList();
         if (c.Data.SupportedActions.Contains("party-switch-empty-slot"))
         {
-            entries.Add(new(MenuController.EmptySwitchSlotId, c.SwitchEmptySlotLabel, help, "switch-party-target", new MenuAction("select-exchange", MenuController.EmptySwitchSlotId)));
+            string vacancyHelp = c.Data.SupportedActions.Contains("party-switch-add-slot") ? c.SystemText("party.switch.add-help", "Choose a reserve member for the open party slot.") : help;
+            entries.Add(new(MenuController.EmptySwitchSlotId, c.SwitchEmptySlotLabel, vacancyHelp, "switch-party-target", new MenuAction("select-exchange", MenuController.EmptySwitchSlotId)));
         }
         return entries;
     }
@@ -210,13 +211,54 @@ public static class MenuCatalog
         {
             return c.Data.GuardianForces.Select(gf => Action(c, gf.Id, c.FormatSystemText("ui.targets.entry.label.hp", "{0}   HP {1} / {2}", gf.Name, MenuController.Number(gf.CurrentHp), MenuController.Number(gf.MaximumHp)), c.SystemText("ui.targets.entry.help.use.the.selected.item.on.this.gf", "Use the selected item on this GF."), kind, target: $"item-target-{gf.NativeId + 16}")).ToArray();
         }
-        List<MenuEntry> entries = c.Data.Characters.Where(ch => kind != "item-use" || c.IsDemo || ch.NativeFieldItemTargetAllowed && (c.Item?.NativeFieldQuistisOnly != true || ch.NativeId == 3)).Select(ch => new MenuEntry(ch.Id, c.FormatSystemText("ui.targets.entry.label.hp.alternate", "{0}   HP {1}", ch.Name, MenuController.Hp(ch)), c.SystemText("ui.targets.entry.help.request.this.action.on.the.selected.target", "Request this action on the selected target."), Action: new MenuAction(kind, TargetId: ch.Id), Enabled: (kind != "junction-exchange" || ch.Id != c.ExchangeId && (c.IsDemo || c.Data.SupportedActions.Contains(kind))) && (c.IsDemo || (kind != "magic-use" || ch.CurrentHp is not null) && (kind != "party-switch" || c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{ch.Id}"))))).ToList();
+        string help = TargetHelp();
+        List<MenuEntry> entries = c.Data.Characters.Where(ch => kind != "item-use" || c.IsDemo || ch.NativeFieldItemTargetAllowed && (c.Item?.NativeFieldQuistisOnly != true || ch.NativeId == 3)).Select(ch => new MenuEntry(ch.Id, c.FormatSystemText("ui.targets.entry.label.hp.alternate", "{0}   HP {1}", ch.Name, MenuController.Hp(ch)), help, Action: new MenuAction(kind, TargetId: ch.Id), Enabled: CanTarget(ch))).ToList();
         if (kind == "party-switch" && (c.Data.PartyCapacity <= 3 || c.ExchangeId != MenuController.EmptySwitchSlotId) && c.Data.SupportedActions.Contains("party-switch-empty-slot"))
         {
             string id = MenuController.EmptySwitchSlotId;
-            entries.Add(new(id, c.SwitchEmptySlotLabel, c.SystemText("ui.targets.entry.help.request.this.action.on.the.selected.target", "Request this action on the selected target."), Action: new MenuAction(kind, TargetId: id), Enabled: c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{id}")));
+            entries.Add(new(id, c.SwitchEmptySlotLabel, help, Action: new MenuAction(kind, TargetId: id), Enabled: c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{id}")));
+        }
+        if (kind == "party-switch" && c.CanStartSwitchAddMode)
+        {
+            entries.Add(new(MenuController.SwitchAddModeId, c.SwitchAddLabel, c.SystemText("party.switch.add-help", "Choose a reserve member for the open party slot."), Action: new MenuAction("select-exchange", MenuController.EmptySwitchSlotId)));
         }
         return entries;
+
+        bool CanTarget(MenuCharacter character)
+        {
+            if (kind == "junction-exchange")
+            {
+                return character.Id != c.ExchangeId && (c.IsDemo || c.Data.SupportedActions.Contains(kind));
+            }
+            if (c.IsDemo)
+            {
+                return true;
+            }
+            if (kind == "party-switch")
+            {
+                if (c.Data.PartyCapacity > 3 && c.ExchangeId == MenuController.EmptySwitchSlotId && character.InParty == c.Data.SupportedActions.Contains("party-switch-add-slot"))
+                {
+                    return false;
+                }
+                return c.Data.SupportedActions.Contains($"party-switch:{c.ExchangeId}:{character.Id}");
+            }
+            return kind != "magic-use" || character.CurrentHp is not null;
+        }
+
+        string TargetHelp()
+        {
+            if (kind == "party-switch" && c.SwitchPartyRestrictionHelp is { Length: > 0 } restriction)
+            {
+                return restriction;
+            }
+            if (kind == "party-switch" && c.Data.PartyCapacity > 3 && c.ExchangeId == MenuController.EmptySwitchSlotId)
+            {
+                return c.Data.SupportedActions.Contains("party-switch-add-slot")
+                    ? c.SystemText("party.switch.add-help", "Choose a reserve member for the open party slot.")
+                    : c.SystemText("party.switch.remove-help", "Choose a member to remove from the party.");
+            }
+            return c.SystemText("ui.targets.entry.help.request.this.action.on.the.selected.target", "Request this action on the selected target.");
+        }
     }
     private static IReadOnlyList<string> CharacterDetails(MenuController c)
     {

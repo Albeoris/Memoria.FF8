@@ -31,6 +31,7 @@ public sealed class MixedBattleEscapeRewardsTests
             ]
         }, BattleAtbMode.TurnBased);
 
+        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
         BattleCombatant first = battle.Combatants.Single(actor => actor.Id == "native-allocation-1");
         BattleCombatant second = battle.Combatants.Single(actor => actor.Id == "native-allocation-2");
         first.CurrentHp = 75;
@@ -39,7 +40,7 @@ public sealed class MixedBattleEscapeRewardsTests
 
         BattleEnemyRemainingExperience[] receipts = battle.CaptureEscapeRemainingExperience();
         Assert.Equal(new BattleEnemyRemainingExperience[] { new(0, 5, 100, 100, 3), new(1, 5, 100, 75, 4), new(1, 5, 100, 50, 5), new(8, 5, 100, 90, null) }, receipts);
-        BattleSession restoredBattle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restoredBattle = BattleSession.Restore(battle.Capture());
         Assert.Equal(receipts, restoredBattle.CaptureEscapeRemainingExperience());
 
         NativeCharacterVitals vitals = MagicSystemFixture.Create() with { AdditionalCombatParty = [3] };

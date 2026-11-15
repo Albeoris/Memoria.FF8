@@ -139,6 +139,141 @@ public sealed class NativePartySwitchTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WorldSwitchAddsFourthAllyFromAnOpenExchangeAndKeepsSelectionThroughNormalSave(bool pointer)
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameSession session = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(assets, true), directory, sharedAssets: assets));
+        using GameWorld world = new(session, directory, sharedAssets: assets);
+        world.EnsureField();
+
+        NativeCharacterVitals original = session.State.CharacterVitals!.DeepCopy();
+        byte[] primary = [5, 0, 4];
+        for (int row = 0; row < 6; row++)
+        {
+            original.Records[row] = original.Records[row] with { MemberFlags = (ushort)(row == 0 ? 7 : 1) };
+        }
+        NativeCharacterVitals initial = (original with { CombatParty = primary }).Rest();
+        if (pointer)
+        {
+            initial = initial.WithBattleParty([.. primary, 1, 2], 5).WithBattleParty(primary, 4);
+        }
+        session.SetCharacterVitals(initial);
+        session.SetWorldControls(session.WorldControls! with { Menu209 = 2 });
+        MenuController menu = new(() =>
+        {
+            MenuData data = LiveMenuData.Build(session.State);
+            data.Settings["Battle roster size"] = world.EffectiveBattleAllyCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            data.SupportedActions.Add("config:Battle roster size");
+            return data;
+        }, action =>
+        {
+            if (action.Kind == "config")
+            {
+                Assert.Equal("Battle roster size", action.SubjectId);
+                UiPreferences preferences = new UiPreferences().WithSetting(action.SubjectId, action.Value);
+                world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = preferences.BattleAllyCount });
+                return;
+            }
+            PlayerActionResult result = world.Apply(NativePartySwitchMenuProjection.PlayerAction(action));
+            Assert.True(result.Accepted, result.Detail);
+        });
+        menu.Open("config-combat");
+        menu.SelectEntry("config-combat", "Battle roster size");
+        menu.Navigate(MenuInput.Right);
+        Assert.Equal(4, session.State.GameplayPreferences.BattleAllyCount);
+
+        menu.Open("switch");
+        menu.Navigate(MenuInput.Confirm);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("switch-party-target", menu.ScreenId);
+        Assert.Equal(4, menu.Data.PartyCapacity);
+        Assert.Equal(primary, session.State.CharacterVitals!.GetBattlePartyRows(4));
+        if (pointer)
+        {
+            Click(MenuController.SwitchAddModeId);
+            Click("character-1");
+        }
+        else
+        {
+            for (int step = 0; step < primary.Length; step++)
+            {
+                menu.Navigate(MenuInput.Down);
+            }
+            Assert.Equal(MenuController.SwitchAddModeId, menu.SelectedEntry!.Id);
+            menu.Navigate(MenuInput.Confirm);
+            Assert.Equal("character-1", menu.SelectedEntry!.Id);
+            menu.Navigate(MenuInput.Confirm);
+        }
+
+        byte[] selected = [.. primary, 1];
+        Assert.Equal(primary, session.State.CharacterVitals!.CombatParty);
+        Assert.Equal(selected, session.State.CharacterVitals.GetBattlePartyRows(4));
+        Assert.Equal(selected.Select(row => $"character-{row}"), menu.Data.Characters.Where(character => character.InParty).Select(character => character.Id));
+        string savePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ff8");
+        try
+        {
+            _ = world.WriteGameplaySave(savePath);
+            GameState restored = PlayerStateLoader.Load(savePath, directory, sharedAssets: assets);
+            Assert.Equal(SceneKind.WorldMap, restored.Scene);
+            Assert.Equal(session.State.Variables, restored.Variables);
+            Assert.Equal(session.State.Economy!.Items, restored.Economy!.Items);
+            Assert.Equal(4, restored.GameplayPreferences.BattleAllyCount);
+            Assert.Equal(primary, restored.CharacterVitals!.CombatParty);
+            Assert.Equal(selected, restored.CharacterVitals.GetBattlePartyRows(4));
+            Assert.Equal(pointer ? [.. selected, 2] : selected, restored.CharacterVitals.GetBattlePartyRows(5));
+            using GameWorld resumed = new(new GameSession(restored), directory, sharedAssets: assets);
+            resumed.EnsureField();
+            BattleDefinition battle = resumed.CreateEncounterBattle(87, nativeSeed: 4);
+            Assert.True(battle.UsesExpandedRoster);
+            Assert.Equal(selected.Select(row => (int?)row), battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId));
+        }
+        finally
+        {
+            File.Delete(savePath);
+        }
+
+        void Click(string id)
+        {
+            UiView view = menu.BuildView();
+            UiButton button = Assert.Single(Descendants(view.Root).OfType<UiButton>(), element => element.Id == id);
+            Assert.True(button.Enabled && button.Bounds.Width > 0 && button.Bounds.Height > 0);
+            view.Pointer(button.Bounds.X + button.Bounds.Width / 2, button.Bounds.Y + button.Bounds.Height / 2, true);
+        }
+
+        static IEnumerable<UiElement> Descendants(UiElement root)
+        {
+            yield return root;
+            foreach (UiElement child in root.Children.SelectMany(Descendants))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    [Fact]
+    public void StorySquadMenuExplainsItsThreeSlotsAndPreservesTheAdditionalSelection()
+    {
+        NativeCharacterVitals party = CreateParty().WithBattleParty([0, 1, 2, 3], 4);
+        GameState state = new()
+        {
+            Scene = SceneKind.Field,
+            CharacterVitals = party,
+            WorldControls = NativeWorldControlState.CreateNewGame() with { Menu209 = 2 },
+            EventMemory = NativeEventMemory.Empty.Write(256, 2, NativeScalarValue.Exact(850)),
+            GameplayPreferences = new() { BattleAllyCount = 4 }
+        };
+        MenuController menu = new(() => LiveMenuData.Build(state));
+        menu.Open("switch-party");
+        Assert.Equal(3, menu.Data.PartyCapacity);
+        Assert.Contains("story squad", menu.SelectedEntry!.Help);
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id is MenuController.SwitchAddModeId || entry.Id == MenuController.EmptySwitchSlotId);
+        Assert.Equal(new byte[] { 0, 1, 2, 3 }, party.GetBattlePartyRows(4));
+    }
+
     [Fact]
     public void FieldPublicationPreservesForcedFieldCellsAndUsesSelectedMenuOrder()
     {

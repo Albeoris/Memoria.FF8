@@ -163,7 +163,7 @@ internal sealed partial class GameWorld
         if (restoredDefinition is { UsesExpandedRoster: true })
         {
             selectedParty = ExpandedBattlePartyRows.ReadBoundRows(restoredDefinition, entryVitals);
-            entryVitals = entryVitals with { AdditionalCombatParty = restoredDefinition.MagicVitals!.AdditionalCombatParty };
+            entryVitals = entryVitals with { AdditionalCombatParty = restoredDefinition.MagicVitals!.AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities = restoredDefinition.MagicVitals.AdditionalCombatPartyMinimumCapacities };
         }
         else if (restoredDefinition is null && effectPreviewRequest is null)
         {

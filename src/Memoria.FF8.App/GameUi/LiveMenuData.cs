@@ -36,6 +36,7 @@ public static class LiveMenuData
         MenuData result = new()
         {
             PartyCapacity = BattlePartySelectionPolicy.ResolveCapacity(state, Math.Max(3, state.GameplayPreferences.BattleAllyCount)),
+            PartyRestriction = state.GameplayPreferences.BattleAllyCount > 3 ? BattlePartySelectionPolicy.GetRestriction(state) : BattlePartySelectionRestriction.None,
             SharedMagicStock = state.CharacterVitals?.MagicSystem.SharedMagicStock == true,
             PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
             Location = catalog?.LocationName(state, placeId) ?? Text("common.unavailable", "Unavailable"),

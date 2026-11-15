@@ -103,7 +103,7 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, valid character records or combat slots.");
         }
-        if (!IsValidAdditionalCombatParty(AdditionalCombatParty, Records.Length))
+        if (!IsValidAdditionalCombatParty(AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, Records.Length))
         {
             throw new InvalidDataException("Saved additional battle party rows are invalid.");
         }

@@ -120,7 +120,7 @@ public sealed partial record NativeCharacterVitals
         }
         if (Records.Length == NativeRecordCount)
         {
-            return AdditionalCombatParty is null ? this : this with { AdditionalCombatParty = null };
+            return AdditionalCombatParty is null ? this : this with { AdditionalCombatParty = null, AdditionalCombatPartyMinimumCapacities = null };
         }
         if (MagicSystem.Reservations.Length != 0)
         {
@@ -136,6 +136,7 @@ public sealed partial record NativeCharacterVitals
             Records = Records[..NativeRecordCount],
             CombatParty = DreamEnabled ? CombatParty : RemoveModOnlyPartyMembers(CombatParty),
             AdditionalCombatParty = null,
+            AdditionalCombatPartyMinimumCapacities = null,
             ExtendedRosterEnabled = false,
             ExtendedRosterPartyBeforeDream = null,
             JunctionPartyBackup = backup,

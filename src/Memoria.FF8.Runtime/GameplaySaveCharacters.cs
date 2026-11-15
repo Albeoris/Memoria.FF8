@@ -12,6 +12,8 @@ public sealed record GameplaySaveCharacters
     public required byte[] CombatParty { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? AdditionalCombatParty { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<byte, byte>? AdditionalCombatPartyMinimumCapacities { get; init; }
     [JsonRequired]
     public required bool DreamEnabled { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -41,6 +43,7 @@ public sealed record GameplaySaveCharacters
             Records = source.Records.Select(record => record.WithBonusSources(record.Growth.Sources)).ToArray(),
             CombatParty = source.CombatParty,
             AdditionalCombatParty = source.AdditionalCombatParty,
+            AdditionalCombatPartyMinimumCapacities = source.AdditionalCombatPartyMinimumCapacities,
             DreamEnabled = source.DreamEnabled,
             ExtendedRosterEnabled = source.ExtendedRosterEnabled,
             ExtendedRosterPartyBeforeDream = source.ExtendedRosterPartyBeforeDream,
@@ -69,6 +72,7 @@ public sealed record GameplaySaveCharacters
             Records = detached.Records.Select(record => record.WithBonusSources(record.Growth.Sources)).ToArray(),
             CombatParty = detached.CombatParty,
             AdditionalCombatParty = detached.AdditionalCombatParty,
+            AdditionalCombatPartyMinimumCapacities = detached.AdditionalCombatPartyMinimumCapacities,
             DreamEnabled = detached.DreamEnabled,
             ExtendedRosterEnabled = detached.ExtendedRosterEnabled,
             ExtendedRosterPartyBeforeDream = detached.ExtendedRosterPartyBeforeDream,
@@ -90,7 +94,7 @@ public sealed record GameplaySaveCharacters
         {
             throw new InvalidDataException("Gameplay characters require valid character records, party slots, sixteen GFs and complete dream/junction state.");
         }
-        if (!NativeCharacterVitals.IsValidAdditionalCombatParty(AdditionalCombatParty, Records.Length))
+        if (!NativeCharacterVitals.IsValidAdditionalCombatParty(AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, Records.Length))
         {
             throw new InvalidDataException("Saved additional battle party rows are invalid.");
         }

@@ -29,8 +29,7 @@ public static class ExpandedBattlePartyRows
             throw new InvalidDataException("Expanded battle lost its original party order.");
         }
 
-        if (vitals.AdditionalCombatParty is not null &&
-            !vitals.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount).Take(rows.Count).SequenceEqual(rows))
+        if (vitals.AdditionalCombatParty is not null && !IsSelectedParty(vitals, rows))
         {
             throw new InvalidDataException("Expanded battle disagrees with the canonical additional party selection.");
         }
@@ -39,13 +38,29 @@ public static class ExpandedBattlePartyRows
             !selection.Where(row => !nativeRows.Contains(row)).Take(rows.Count - nativeRows.Length).SequenceEqual(rows.Skip(nativeRows.Length)))
         {
             // Ineligible saved choices may be skipped at admission, while a recovered legacy choice may be dormant today.
-            if (!frozen.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount).Take(rows.Count).SequenceEqual(rows))
+            if (!IsSelectedParty(frozen, rows))
             {
                 throw new InvalidDataException("Expanded battle disagrees with its frozen additional party selection.");
             }
         }
 
         return rows.ToArray();
+    }
+
+    internal static bool IsSelectedParty(NativeCharacterVitals vitals, IReadOnlyList<byte> rows)
+    {
+        if (vitals.AdditionalCombatPartyMinimumCapacities is null)
+        {
+            return vitals.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount).Take(rows.Count).SequenceEqual(rows);
+        }
+        for (int capacity = Math.Max(NativeBattleSlots.AllyCount, rows.Count); capacity <= NativeCharacterVitals.ExtendedRecordCount; capacity++)
+        {
+            if (vitals.GetBattlePartyRows(capacity).SequenceEqual(rows))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static NativeCharacterVitals RecoverSelection(NativeCharacterVitals vitals, IReadOnlyList<byte> boundRows)
@@ -57,7 +72,7 @@ public static class ExpandedBattlePartyRows
         }
 
         byte[] additional = boundRows.Skip(nativeCount).ToArray();
-        if (!NativeCharacterVitals.IsValidAdditionalCombatParty(additional, vitals.Records.Length))
+        if (!NativeCharacterVitals.IsValidAdditionalCombatParty(additional, null, vitals.Records.Length))
         {
             throw new InvalidDataException("Saved expanded battle cannot recover its additional party selection.");
         }

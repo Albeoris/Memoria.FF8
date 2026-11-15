@@ -49,14 +49,18 @@ public static class BattlePartySelectionPolicy
 
     public static int ResolveCapacity(GameState state, int configuredCapacity, bool fixedCountSelection = false)
     {
+        ValidateCapacity(configuredCapacity);
+        return GetRestriction(state, fixedCountSelection) == BattlePartySelectionRestriction.None ? configuredCapacity : NativeBattleSlots.AllyCount;
+    }
+
+    public static BattlePartySelectionRestriction GetRestriction(GameState state, bool fixedCountSelection = false)
+    {
         if (state.CharacterVitals is not { } vitals)
         {
-            ValidateCapacity(configuredCapacity);
-            return configuredCapacity;
+            return BattlePartySelectionRestriction.None;
         }
-
         int? storyProgress = state.Variables.TryGetValue(StoryProgressAddress, out int value) ? value : null;
-        return ResolveCapacity(vitals, configuredCapacity, state.WorldControls, storyProgress, fixedCountSelection);
+        return GetRestriction(vitals, state.WorldControls, storyProgress, fixedCountSelection);
     }
 
     internal static int ResolveSavedCapacity(bool dreamEnabled, int savedCapacity, uint eventFlags, IReadOnlyDictionary<int, int> variables)

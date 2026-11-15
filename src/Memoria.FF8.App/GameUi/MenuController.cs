@@ -975,6 +975,10 @@ public sealed partial class MenuController
                 return;
             case "select-exchange":
                 _exchangeId = action.SubjectId;
+                if (ScreenId == "switch-party-target" && _exchangeId == EmptySwitchSlotId)
+                {
+                    InitializeScreenCursor(ScreenId);
+                }
                 return;
             case "select-slot":
                 _junctionSlot = action.SubjectId;

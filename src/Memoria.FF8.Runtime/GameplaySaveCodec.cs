@@ -50,7 +50,7 @@ public static class GameplaySaveCodec
         {
             variables = NativeWorldEntryMemory.ProjectVariables(bytes, variables);
         }
-        int[] portraits = SaveSummary.CapturePartyPortraits(characters.Records, characters.CombatParty, characters.AdditionalCombatParty, characters.ExtendedRosterEnabled, characters.DreamEnabled, progression.Rules.Preferences.BattleAllyCount, story.Controls?.EventFlags ?? 0, variables);
+        int[] portraits = SaveSummary.CapturePartyPortraits(characters.Records, characters.CombatParty, characters.AdditionalCombatParty, characters.AdditionalCombatPartyMinimumCapacities, characters.ExtendedRosterEnabled, characters.DreamEnabled, progression.Rules.Preferences.BattleAllyCount, story.Controls?.EventFlags ?? 0, variables);
         return new(document.Resume.Kind == GameplaySaveResumeKind.World ? SceneKind.WorldMap : SceneKind.Field, document.Resume.FieldId, "", progression.Clocks.Playtime, portraits, progression.SceneFacts?.PlaceId, document.Resume.World?.X, document.Resume.World?.Z) { SavedLocalAt = document.SavedLocalAt };
     }
 
