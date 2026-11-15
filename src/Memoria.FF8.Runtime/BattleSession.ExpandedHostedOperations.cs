@@ -20,13 +20,13 @@ public sealed partial class BattleSession
         StageExpandedHostedControl(new HostedDispatchControl.Model(command, ReadPresentationModelOwner(actor.Id)));
     }
 
-    private void StageExpandedHostedCompletion(BattleModelRoster roster, BattleActionPresentation command, uint callback)
+    private void StageExpandedHostedCompletion(BattleActionPresentation command, uint callback, BattleModelOwner owner, bool capturedBeforeAi)
     {
-        StageExpandedHostedControl(new HostedDispatchControl.Complete(ReadExpandedHostedCompletion(roster, command, callback)));
+        StageExpandedHostedControl(new HostedDispatchControl.Complete(new(callback, owner, command.ActorId, capturedBeforeAi)));
     }
 
     private ExpandedHostedPrefix PrepareExpandedHostedPrefix(ExpandedBattlePresentationProcess process,
-        PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false)
+        PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default)
     {
         var headers = ImmutableArray.CreateBuilder<HostedDispatchHeader>();
         int firstUnpublished = -1;
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
         }
         HostedDispatchControls? controls = acknowledgeOnly ? null : new(before.ToImmutable(), after.ToImmutable());
         PreparedHostedDispatch dispatch = process.PrepareDispatch(headers.ToImmutable(), headerReference: reference, dispatchAppended: dispatchAppended,
-            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true);
+            acknowledgment: acknowledgment, controls: controls, publishEventHeaders: true, allocations: allocations);
         ImmutableArray<ExpandedHostedOperation> operations = expandedHostedOperations;
         int appended = 0;
         for (int i = 0; i < expandedHostedOperations.Length; i++)
@@ -146,11 +146,11 @@ public sealed partial class BattleSession
             return;
         }
 
-        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
+
         ExpandedHostedPrefix prefix = PrepareExpandedHostedPrefix(process);
         PreparedHostedDispatch next = prefix.Dispatch;
         process.ValidatePreparedDispatch(next);
-        BindExpandedHostedPrefix(prefix, roster);
+        BindExpandedHostedPrefix(prefix, next.Packets.Roster);
         expandedHostedEvent = hostedEvent with { CompletionToken = next.Completion?.Request.Token, Callback = next.Completion?.Request.Callback ?? hostedEvent.Callback };
         expandedHostedActionToken = next.Action?.Invocation.Token;
         process.CommitDispatch(next);

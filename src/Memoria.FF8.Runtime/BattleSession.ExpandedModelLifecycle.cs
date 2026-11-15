@@ -2,21 +2,60 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private BattleModelRoster RequireExpandedLifecycleRoster()
+    private BattleCombatant RequireEmittingHostedActor(NativeBattleModelLifecycleServices services, NativeBattleModelLifecycleReceipt receipt)
     {
-        return expandedPresentationProcess?.Graphics.ActorModels.Roster ?? throw new InvalidOperationException("Expanded model lifecycle requires its attached presentation roster.");
+        if (!UsesExpandedRoster || !services.Facts.TryGetValue(receipt.Owner, out NativeBattleModelActorFacts? facts) ||
+            !StringComparer.Ordinal.Equals(facts.ActorId, receipt.ActorId) || !byId.TryGetValue(receipt.ActorId, out BattleCombatant? actor) ||
+            CreatePresentationModelOwner(actor) != receipt.Owner)
+        {
+            throw new InvalidDataException("Expanded model lifecycle receipt does not match its emitting frame and allocation identity.");
+        }
+        return actor;
+    }
+
+    private void AcknowledgeHostedNativeActivation(NativeBattleModelLifecycleServices services, NativeBattleModelParticipantActivated receipt)
+    {
+        BattleCombatant actor = RequireEmittingHostedActor(services, receipt);
+        if (receipt.OriginalSlot is { } slot)
+        {
+            actor = (slot.Side == actor.Side ? FindAllocatedNativeActor(slot.Offset) : null)
+                ?? throw new InvalidDataException("Hosted native activation lost its current logical slot allocation.");
+        }
+        StopTurnAdvance();
+        actor.NativeCombatantFlags &= ~0xC2u;
+        QueueExpandedAiCallback(actor, 0);
+        Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");
+    }
+
+    private void ApplyHostedAllocationStatistics(NativeBattleModelLifecycleServices services, NativeBattleAllocationStatisticsRequested receipt)
+    {
+        BattleCombatant actor = RequireEmittingHostedActor(services, receipt);
+        if (services.Allocation is not { } allocation || allocation.Owner != receipt.Owner || allocation.SceneSlot != receipt.SceneSlot ||
+            nativeScriptState.AllocationControl?.SceneSlot != receipt.SceneSlot || !ReferenceEquals(ResolveLastNativeAllocation(), actor))
+        {
+            throw new InvalidDataException("Hosted allocation statistics do not match the current native allocation globals.");
+        }
+        InitializeNativeAllocatedStatistics(actor);
     }
 
     private void AcknowledgeExpandedModelRelease(BattleModelRoster roster, NativeBattleModelParticipantReleased receipt)
     {
-        BattleCombatant actor = RequireExpandedLifecycleActor(roster, receipt);
+        ApplyExpandedModelRelease(RequireExpandedLifecycleActor(roster, receipt));
+    }
+
+    private static void ApplyExpandedModelRelease(BattleCombatant actor)
+    {
         actor.NativeCombatantFlags = (actor.NativeCombatantFlags | 0x40) & ~1u;
         actor.NativeStatus0 |= 1;
     }
 
     private void AcknowledgeExpandedModelSuspension(BattleModelRoster roster, NativeBattleModelParticipantSuspended receipt)
     {
-        BattleCombatant actor = RequireExpandedLifecycleActor(roster, receipt);
+        ApplyExpandedModelSuspension(RequireExpandedLifecycleActor(roster, receipt), receipt);
+    }
+
+    private void ApplyExpandedModelSuspension(BattleCombatant actor, NativeBattleModelParticipantSuspended receipt)
+    {
         actor.NativeCombatantFlags |= 0x40;
         actor.NativeStatus0 |= 1;
         ObserveEncounterNativeTerminal(actor, receipt.Sequence, receipt.ActiveHeader, receipt.Owner);

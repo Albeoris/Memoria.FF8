@@ -8,7 +8,7 @@ public interface IExpandedBattlePresentationHost
 {
     ExpandedBattleSceneFrame? ReadSceneFrame(BattleSession owner);
 
-    NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner modelOwner)
+    NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner modelOwner, BattleRosterSlot slot)
     {
         throw new NotSupportedException("The expanded battle host does not provide installed model bindings.");
     }

@@ -51,8 +51,9 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted battle frames require their initialized graphics process and roster.");
         }
-        BattleModelRoster roster = logicalOwner.ReadBattlePresentationRoster();
-        NativeBattleModelLifecycleServices services = logicalOwner.CaptureModelLifecycleServices(roster);
+        HostedModelRegistry? registry = hostedModelRegistry;
+        BattleModelRoster roster = HostedPlannedModelRoster;
+        NativeBattleModelLifecycleServices services = logicalOwner.CaptureHostedModelLifecycleServices(roster, registry);
         services.Validate(roster, graphics);
 
         hostedPreparationEpoch = checked(hostedPreparationEpoch + 1);
@@ -78,8 +79,9 @@ public sealed partial class BattleSession
                 if (beforeCore is not null)
                 {
                     beforeCore();
-                    roster = logicalOwner.ReadBattlePresentationRoster();
-                    services = logicalOwner.CaptureModelLifecycleServices(roster);
+                    registry = hostedModelRegistry;
+                    roster = HostedPlannedModelRoster;
+                    services = logicalOwner.CaptureHostedModelLifecycleServices(roster, registry);
                     services.Validate(roster, NativeGraphics!);
                     hostedFrameServices = services;
                 }

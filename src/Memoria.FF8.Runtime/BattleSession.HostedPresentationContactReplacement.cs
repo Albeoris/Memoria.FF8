@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest)
+    internal sealed class PreparedHostedContactReplacement(BattleSession owner, HostedPresentationInvocation invocation, NativeBattleGraphicsState graphics, long epoch, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState replacementPackets, NativeBattleGraphicsState? replacementGraphics, ImmutableArray<BattleActionHeaderReference> appendedHeaders, HostedGuardianBoostRequest? guardianRequest, PreparedHostedModelRegistry? registry)
     {
         internal BattleSession Owner { get; } = owner;
         internal HostedPresentationInvocation Invocation { get; } = invocation;
@@ -15,16 +15,17 @@ public sealed partial class BattleSession
         internal NativeBattleGraphicsState? ReplacementGraphics { get; } = replacementGraphics;
         internal ImmutableArray<BattleActionHeaderReference> AppendedHeaders { get; } = appendedHeaders;
         internal HostedGuardianBoostRequest? GuardianRequest { get; } = guardianRequest;
+        internal PreparedHostedModelRegistry? Registry { get; } = registry;
     }
 
-    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null)
+    internal PreparedHostedContactReplacement PrepareHostedContactReplacement(long token, ImmutableArray<NativeBattleContactPacket> replacements, NativeBattleTriggerReceipt? acknowledgeTrigger = null, ImmutableArray<HostedDispatchHeader> append = default, HostedGuardianBoostRequest? acknowledgeGuardian = null, ImmutableArray<HostedModelLoadAdmission> allocations = default)
     {
         if (!hostedBattlePresentation || NativeGraphics is not { EntryReady: true } graphics ||
             hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation || token != invocation.Token)
         {
             throw new InvalidOperationException("Contact replacement requires the active entry-ready hosted invocation outside graphics services.");
         }
-        BattleModelRoster roster = graphics.ActorModels.Roster;
+        BattleModelRoster roster = HostedPlannedModelRoster;
         NativeBattleActionPacketsState packets = nativeActionPackets;
         if (!packets.Roster.Owners.SequenceEqual(roster.Owners) ||
             packets.ActiveHeader is BattleActionHeaderReference active && active != invocation.Header)
@@ -67,9 +68,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted contact append requires live packet counts beyond the current header and its contacts.");
         }
+        PreparedHostedModelRegistry? admission = PrepareHostedModelRegistry(graphics, allocations);
         NativeBattleActionPacketsState replacement = packets.ReplaceHeaderContacts(invocation.Header, replacements);
-        (replacement, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true);
-        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian);
+        if (admission is { Replacement.Roster: { } planned })
+        {
+            replacement = replacement.WithRoster(planned, graphics.NativeBindings.CaptureAliases(graphics.ActorModels, planned));
+        }
+        (replacement, ImmutableArray<BattleActionHeaderReference> appended) = AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true, admission?.Replacement ?? hostedModelRegistry);
+        return new(this, invocation, graphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian, admission);
     }
 
     internal void ValidatePreparedHostedContactReplacement(PreparedHostedContactReplacement prepared)
@@ -77,7 +83,7 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(prepared);
         if (!ReferenceEquals(prepared.Owner, this) || !ReferenceEquals(prepared.Invocation, hostedPresentationInvocation) ||
             !ReferenceEquals(prepared.Graphics, NativeGraphics) || !ReferenceEquals(prepared.OriginalPackets, nativeActionPackets) ||
-            prepared.Epoch != hostedPreparationEpoch || !hostedBattlePresentation || NativeGraphics is not { EntryReady: true } ||
+            prepared.Epoch != hostedPreparationEpoch || prepared.Registry is { } registry && !ReferenceEquals(registry.Original, hostedModelRegistry) || !hostedBattlePresentation || NativeGraphics is not { EntryReady: true } ||
             hostedFrameServices is not null)
         {
             throw new InvalidOperationException("The prepared contact replacement no longer belongs to this active hosted invocation.");
@@ -96,6 +102,7 @@ public sealed partial class BattleSession
 
     internal void CommitHostedContactReplacement(PreparedHostedContactReplacement prepared)
     {
+        PublishHostedModelRegistry(prepared.Registry);
         nativeActionPackets = prepared.ReplacementPackets;
         if (prepared.ReplacementGraphics is { } graphics)
         {

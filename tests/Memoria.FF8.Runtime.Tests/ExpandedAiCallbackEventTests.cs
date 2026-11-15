@@ -180,6 +180,102 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Null(logical.ActiveAction);
     }
 
+    [Fact]
+    public void Hosted_text_receipts_keep_plain_and_composed_messages_in_order_and_omit_zero_duration()
+    {
+        var (logical, child, _) = Fixture(Program());
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        BattleEvent plain = new(0, "NativeText", null, null, 8, "plain") { NativeMessageMode = 3 };
+        BattleEvent composed = new(0, "NativeText", Enemy, null, 16, "Kweh is away.") { NativeMessageMode = 3 };
+        var controls = graphics.Descriptors.EnqueueMessage(plain, 128, 86).State
+            .EnqueueMessage(plain with { Amount = 256, Message = "invisible" }, 128, 86).State
+            .EnqueueMessage(composed, 128, 86).State;
+        graphics = graphics with { Descriptors = controls };
+        SetGraphics(child, graphics);
+        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+
+        Field(child, "hostedFrameServices").SetValue(child, services);
+        try
+        {
+            SetGraphics(child, (NativeBattleGraphicsState)Invoke(child, "AdvanceNativeDescriptors", graphics)!);
+        }
+        finally
+        {
+            Field(child, "hostedFrameServices").SetValue(child, null);
+        }
+
+        NativeBattlePresentationDescriptorText[] texts = services.ReadOrderedReceipts().OfType<NativeBattlePresentationDescriptorText>().ToArray();
+        Assert.Equal(new[] { plain.Message, composed.Message }, texts.Select(text => text.Message.Message));
+        Assert.Equal(new[] { 8, 16 }, texts.Select(text => text.Message.Amount));
+        Assert.All(texts, text => Assert.Null(text.Message.NativeTextIdentity));
+        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+        Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
+        Assert.Equal(new[] { plain.Message, composed.Message }, logical.Events.Where(item => item.Kind == "NativeText").Select(item => item.Message));
+    }
+
+    [Fact]
+    public void Retired_shot_widget_accepts_only_its_cancelled_callback_without_reopening()
+    {
+        const long token = 1;
+        const uint callback = 0x4AD7C0;
+        var (logical, child, _) = Fixture(Program());
+        BattleCombatant actor = Actor(logical, "ally");
+        BattleModelOwner owner = logical.ReadPresentationModelOwner(actor.Id);
+        BattleModelOwner recipient = logical.ReadPresentationModelOwner(Enemy);
+        BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(Enemy)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        BattleActionPresentation command = new(actor.Id, Enemy, BattleActionPhase.Recovery, 1, target, BattleAbility.LimitBreak)
+        {
+            NativeQueuedCommand = 237,
+            NativeAction = FixedHit(100) with { Command = 237, ActionId = 0 },
+            NativeLimitCallback = NativeLimitCallback.ShotEffect
+        };
+        Field(logical, "preparingExpandedHostedAction").SetValue(logical, true);
+        NativeBattleContactPacket contact = new(new(recipient, 0, 0, 0, 0, 0, 0), null);
+        Invoke(logical, "StageExpandedHostedInvocation", command, new NativeBattleActionHeaderPreparation(owner, 237, 0, -1, 0, 188, null), ImmutableArray.Create(new ExpandedBattleContact(Enemy, contact)), null);
+        Field(logical, "expandedHostedCurrentOperation").SetValue(logical, 0);
+        Field(logical, "expandedHostedActionToken").SetValue(logical, token);
+        FieldInfo eventField = Field(logical, "expandedHostedEvent");
+        eventField.SetValue(logical, Activator.CreateInstance(eventField.FieldType, [command, command, 0x47DE70u, null, false, owner]));
+        typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(logical, command);
+        var shots = Assert.IsType<Dictionary<string, BattleNativeShotState>>(Field(logical, "nativeShotProcesses").GetValue(logical));
+        shots.Add(actor.Id, new(0, target, 20, 20, 1, BattleNativeShotPhase.AwaitingEffect));
+        var stock = Assert.IsType<NativeItemStock[]>(Field(logical, "nativeItems").GetValue(logical));
+        stock[0] = new(101, 1);
+        actor.IsBusy = true;
+        actor.CurrentHp = 0;
+        actor.NativeStatus0 = 1;
+        Invoke(logical, "ReconcileExpandedShot");
+        Assert.Empty(shots);
+
+        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        BattleModelRoster roster = graphics.ActorModels.Roster;
+        HostedShotFrameOwner cancelled = Assert.IsType<HostedShotFrameOwner>(Invoke(logical, "CaptureExpandedHostedShotOwner", roster));
+        Assert.Equal(new HostedShotFrameOwner(owner, actor.Id, token, callback, null), cancelled);
+        NativeBattleModelLifecycleServices services = new(logical.CaptureModelLifecycleServices(roster).Facts) { Shot = cancelled };
+        graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, callback).State };
+        SetGraphics(child, graphics);
+        Field(child, "hostedFrameServices").SetValue(child, services);
+        try
+        {
+            SetGraphics(child, (NativeBattleGraphicsState)Invoke(child, "AdvanceNativeDescriptors", graphics)!);
+        }
+        finally
+        {
+            Field(child, "hostedFrameServices").SetValue(child, null);
+        }
+        NativeBattleShotReadinessReached receipt = Assert.IsType<NativeBattleShotReadinessReached>(Assert.Single(services.ReadOrderedReceipts()));
+        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+        BattleSnapshot before = logical.Capture();
+        int events = logical.Events.Count;
+        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Invoke(logical, "ApplyExpandedHostedShotReadiness", services, receipt, token + 1)).InnerException);
+        Invoke(logical, "ApplyExpandedHostedShotReadiness", services, receipt, token);
+        Assert.Empty(shots);
+        Assert.Equal(new NativeItemStock(101, 1), stock[0]);
+        Assert.Equal(before.Random, logical.Capture().Random);
+        Assert.Equal(events, logical.Events.Count);
+        Assert.Same(command, logical.ActiveAction);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

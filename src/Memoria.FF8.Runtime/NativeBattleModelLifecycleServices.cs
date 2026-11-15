@@ -7,8 +7,13 @@ internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty,
     internal uint? RawBattleStatuses { get; init; }
     internal int? CurrentHp { get; init; }
     internal int? MaximumHp { get; init; }
+    internal byte? Information246 { get; init; }
+    internal ushort SavedStatus { get; init; }
+    internal bool PendingAllocationStatistics { get; init; }
 }
 
+internal sealed record HostedNativeAllocationFrame(BattleEnemyActorModel Owner, byte SceneSlot, bool Hidden);
+internal sealed record HostedShotFrameOwner(BattleModelOwner Owner, string ActorId, long ActionToken, uint Callback, BattleNativeShotPhase? Phase);
 internal abstract record NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
@@ -17,14 +22,20 @@ internal sealed record NativeBattlePresentationStopAllSoundsRequested(string Mes
 internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattleMusicCommandReceipt Command) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationDescriptorText(BattleEvent Message) : NativeBattlePresentationReceipt;
 internal abstract record NativeBattleModelLifecycleReceipt(BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattleAllocationStatisticsRequested(BattleEnemyActorModel Model, byte SceneSlot) : NativeBattleModelLifecycleReceipt(Model, Model.Actor.ActorId);
+internal sealed record NativeBattleAllocationGateReached : NativeBattlePresentationReceipt;
 internal sealed record NativeBattleModelParticipantReleased(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
-internal sealed record NativeBattleModelParticipantActivated(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleModelParticipantActivated(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId)
+{
+    internal NativeBattleModelSlot? OriginalSlot { get; init; }
+}
 internal sealed record NativeBattleModelParticipantSuspended(BattleModelOwner Owner, string ActorId, byte Sequence) : NativeBattleModelLifecycleReceipt(Owner, ActorId)
 {
     internal NativeBattleActionHeaderSlot? ActiveHeader { get; init; }
 }
 internal sealed record NativeBattleModelTextPublished(BattleModelOwner Owner, string ActorId, string Text, int Value, BattleTextIdentity? TextIdentity) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 internal sealed record NativeBattleModelTurnAdvanceStopRequested(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
+internal sealed record NativeBattleShotReadinessReached(HostedShotFrameOwner Shot) : NativeBattleModelLifecycleReceipt(Shot.Owner, Shot.ActorId);
 internal sealed record NativeBattleModelTriggerRegistered(BattleModelOwner Owner, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 
 internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)
@@ -32,7 +43,9 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     private readonly ImmutableArray<NativeBattlePresentationReceipt>.Builder receipts = ImmutableArray.CreateBuilder<NativeBattlePresentationReceipt>();
 
     internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
+    internal HostedNativeAllocationFrame? Allocation { get; init; }
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
+    internal HostedShotFrameOwner? Shot { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanDescriptor { get; init; }
     internal Func<BattleModelOwner, NativeBattleScanByteOwner>? ReadScanExtra { get; init; }
 
@@ -41,6 +54,8 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal ImmutableArray<NativeBattlePresentationReceipt> ReadOrderedReceipts() => receipts.ToImmutable();
 
     internal void Emit(NativeBattleModelLifecycleReceipt receipt) => receipts.Add(receipt);
+
+    internal void EmitAllocationGate() => receipts.Add(new NativeBattleAllocationGateReached());
 
     internal void EmitContact(NativeBattleContactPacket packet) => receipts.Add(new NativeBattlePresentationContactReceived(packet));
     internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);

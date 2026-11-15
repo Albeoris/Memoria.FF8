@@ -438,7 +438,7 @@ public sealed partial class BattleSession
                         BattlePreviousTarget? activation = activationIndex == 209 ? nativeLastAllocatedTarget : new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(activationIndex);
                         if (producingExpandedAiCallback)
                         {
-                            StageExpandedHostedModelControl(113, FindActiveActivationActor(activation));
+                            StageHostedNativeActivation(activation);
                         }
                         else if (HasExpandedAiDescriptors)
                         {
@@ -521,8 +521,11 @@ public sealed partial class BattleSession
 
     private void QueueAiEnemyAllocation(BattleCombatant actor, int sceneSlot, int physicalIndex, bool activate)
     {
-        RequireExpandedAiLifecycleOperation("allocation");
-        if (HasExpandedAiDescriptors)
+        if (producingExpandedAiCallback)
+        {
+            _ = AllocateNativeEnemy(actor, sceneSlot, physicalIndex, activate);
+        }
+        else if (HasExpandedAiDescriptors)
         {
             QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Allocate, sceneSlot, physicalIndex, activate));
         }

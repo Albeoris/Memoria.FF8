@@ -54,6 +54,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState CompleteNativeAllocationStatistics(NativeBattleGraphicsState graphics)
     {
+        if (hostedBattlePresentation)
+        {
+            return ReachHostedNativeAllocationStatistics(graphics);
+        }
         NativeBattleAllocationControl control = nativeScriptState.AllocationControl ?? throw new InvalidDataException("Native48AD10 has no current allocation scene owner.");
         BattleCombatant actor = ResolveLastNativeAllocation();
         if (control.SceneSlot is null || actor.SceneSlot != control.SceneSlot)
@@ -69,7 +73,7 @@ public sealed partial class BattleSession
         return QueueNativePlannedModelDescriptor(graphics, 103, actor, (ushort)(1 | (actor.Hidden ? 0x100 : 0)));
     }
 
-    private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, BattleModelOwner owner)
+    private NativeBattleGraphicsState CompleteNativeActivation(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelSlot? originalSlot = null)
     {
         if (hostedBattlePresentation)
         {
@@ -78,7 +82,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Hosted activation lost its allocated model owner.");
             }
-            services.Emit(new NativeBattleModelParticipantActivated(owner, actorFacts.ActorId));
+            services.Emit(new NativeBattleModelParticipantActivated(owner, actorFacts.ActorId) { OriginalSlot = originalSlot });
             return graphics;
         }
         if (presentationNativeTargets is not null)
@@ -94,6 +98,11 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState CompleteNativeAllocationDescriptor(NativeBattleGraphicsState graphics)
     {
+        if (hostedBattlePresentation)
+        {
+            (hostedFrameServices ?? throw new InvalidOperationException("Hosted native 4876B0 requires its ordered receipt owner.")).EmitAllocationGate();
+            return graphics;
+        }
         if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
         {
             return CompleteEncounterAllocationLoad(graphics);

@@ -34,6 +34,45 @@ public sealed partial class BattleSession
         };
     }
 
+    private NativeBattleModelLifecycleServices CaptureHostedModelLifecycleServices(BattleModelRoster roster, HostedModelRegistry? registry)
+    {
+        var facts = ImmutableDictionary.CreateBuilder<BattleModelOwner, NativeBattleModelActorFacts>();
+        foreach (BattleModelOwner owner in roster.Owners)
+        {
+            if (!byId.TryGetValue(RequireCanonicalGraphicsActorId(owner), out BattleCombatant? actor) || owner != CreatePresentationModelOwner(actor))
+            {
+                throw new InvalidDataException("Hosted frame facts require the registered allocation identity.");
+            }
+            facts.Add(owner, new(actor.Id, actor.IsPlayer, actor.ModelId, actor.NativeStatusTimers[12], actor.NativeStatusTimers[10])
+            {
+                RawBattleStatuses = NativeBattleStatusBits(actor),
+                CurrentHp = actor.CurrentHp,
+                MaximumHp = actor.MaximumHp,
+                SavedStatus = NativeSavedStatusBits(actor),
+                Information246 = actor.NativeInformation246,
+                PendingAllocationStatistics = actor.NativeAllocationPendingStatistics
+            });
+        }
+        HostedNativeAllocationFrame? allocation = null;
+        if (nativeScriptState.AllocationControl is { SceneSlot: byte scene } && nativeLastAllocatedTarget is not null)
+        {
+            BattleCombatant actor = ResolveLastNativeAllocation();
+            if (actor.SceneSlot != scene || CreatePresentationModelOwner(actor) is not BattleEnemyActorModel owner || registry?.Loads.ContainsKey(owner) != true)
+            {
+                throw new InvalidDataException("Hosted frame allocation globals lack their registered generation and scene.");
+            }
+            allocation = new(owner, scene, actor.SourceDefinition.InitialHidden);
+        }
+        return new(facts.ToImmutable())
+        {
+            Allocation = allocation,
+            Shot = CaptureExpandedHostedShotOwner(roster),
+            ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty,
+            ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
+            ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
+        };
+    }
+
     private NativeBattleGraphicsState PublishHostedModelLifecycleCue(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleModelActorFacts actor, NativeBattleSequenceCue cue, NativeBattleModelLifecycleServices services)
     {
         switch (cue.Kind)

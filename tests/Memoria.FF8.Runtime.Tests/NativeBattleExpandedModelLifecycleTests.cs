@@ -32,6 +32,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
             NativeGlobalRandom = new(123),
             NativeRetainedMemory = retained with { EffectMemory = NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() } }
         };
+        session.PublishHostedEntryMusic(resources.NativeMusicProcess!);
         ExpandedBattlePresentationProcess process = new(session, resources);
         session.AttachExpandedPresentationProcess(process);
         Assert.Null(process.ActiveActionToken);
@@ -40,7 +41,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         BattleCombatant enemy = Actor(session, "enemy-13");
         party.NativeCombatantFlags = 0x11;
         enemy.NativeCombatantFlags = 0x11;
-        NativeBattleModelLifecycleServices services = new([]);
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(session.ReadBattlePresentationRoster());
         services.Emit(new NativeBattleModelParticipantReleased(session.ReadPresentationModelOwner(party.Id), party.Id));
         services.Emit(new NativeBattleModelParticipantSuspended(session.ReadPresentationModelOwner(enemy.Id), enemy.Id, 5));
 
@@ -115,7 +116,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         Field("nativeActionPackets").SetValue(session, bank);
         NativeBattleActionGraphicsState action = new(mismatchedIndex ? header.Advance(1) : header, headerActor, new BattleContactCursor(0), BattleModelTargets.Empty, BattleModelTargets.Empty, null, null, 0, null, 0);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null)) with { ActionGraphics = action };
-        NativeBattleModelLifecycleServices services = new([]);
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(session.ReadBattlePresentationRoster());
         NativeBattleModelActorFacts facts = new(actorId, owner.Side == BattleSide.Allies, 0, 0, 0);
 
         Invoke(session, "PublishHostedModelLifecycleCue", graphics, owner, graphics.ActorModels.Get(owner), facts, new NativeBattleSequenceCue(NativeBattleSequenceCueKind.SuspendParticipant, cueSequence), services);

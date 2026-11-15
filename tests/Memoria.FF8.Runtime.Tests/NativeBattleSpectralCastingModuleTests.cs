@@ -8,24 +8,46 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSpectralCastingModuleTests
 {
     [Theory]
-    [InlineData(2, 0x3B27)]
-    [InlineData(3, 0x3C67)]
-    public void Wrapper_runs_under_pause_and_writes_only_native_child_fields(int selector, ushort material)
+    [InlineData(2, 0x3B27, false)]
+    [InlineData(3, 0x3C67, false)]
+    [InlineData(2, 0x3B27, true)]
+    [InlineData(3, 0x3C67, true)]
+    public void Wrapper_runs_under_pause_and_writes_only_native_child_fields(int selector, ushort material, bool unaliased)
     {
         NativeBattleModuleState original = NativeBattleModuleState.Clear();
         NativeBattleModuleTask retained = original.Slots[1] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() };
         original = original with { Slots = original.Slots.SetItem(1, retained) };
-        NativeBattleModuleStep step = original.AppendModelEffect(OriginalOwner(4), (byte)selector, OriginalAliases).Advance(new(1));
+        BattleModelOwner model = unaliased ? new BattlePartyActorModel(new BattlePartyActorReference("extra-ally")) : OriginalOwner(4);
+        NativeBattleModelAliases aliases = unaliased ? new(new BattleModelRoster([model]), []) : OriginalAliases;
+        NativeBattleModuleState seeded = original.AppendModelEffect(model, (byte)selector, aliases);
+        NativeBattleModuleTask seed = Assert.Single(seeded.Slots, task => task.Flags != 0);
+        NativeBattleModuleStep step = seeded.Advance(new(1));
         NativeBattleModuleTask child = Assert.Single(step.State.Slots, task => task.Flags != 0);
         Assert.Equal(NativeBattleModuleKind.SpectralCasting573800, child.Kind);
         Assert.Equal((short)0, Word(child, 0));
         Assert.Equal((short)0, Word(child, 2));
         Assert.Equal(material, unchecked((ushort)Word(child, 16)));
-        Assert.Equal(0x1D972C0u + 4 * 156u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(child).Payload.AsSpan().Slice(20)));
+        Assert.Equal(model, child.ModelOwner);
+        Assert.Equal(20, child.ModelPointerOffset);
+        Assert.Equal(unaliased ? 15u << 20 : 0u, child.UnknownModelPointerBytes);
+        Assert.Equal(seed.Payload.AsSpan().Slice(20, 4).ToArray(), child.Payload.AsSpan().Slice(20, 4).ToArray());
+        if (!unaliased)
+        {
+            Assert.Equal(0x1D972C0u + 4 * 156u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(child).Payload.AsSpan().Slice(20)));
+        }
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 12), NativeBattleStorageSnapshots.Capture(child).Payload.Skip(4).Take(12));
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, NativeBattleStorageSnapshots.Capture(child).Payload.AsSpan().Slice(18, 2).ToArray());
         Assert.Empty(step.Draws);
         Assert.Null(step.CrtRandomAfter);
+        BattleModelOwner? reachedModel = null;
+        NativeBattleModuleInputs inputs = Inputs(new(7)) with { ModelAliases = aliases, ReadModelAnchor = owner =>
+        {
+            reachedModel = owner;
+            return new(100, 200, 300, 0);
+        } };
+        NativeBattleModuleStep advanced = step.State.Advance(inputs);
+        Assert.Equal(model, reachedModel);
+        Assert.Equal(new ushort[] { 22, 23 }, advanced.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Sound).Select(draw => draw.Sound));
     }
 
     [Theory]
@@ -61,7 +83,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
         int callbacks = 0;
         while (state.Head is not null && callbacks < 64)
         {
-            NativeBattleModuleState clone = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(state))!;
+            NativeBattleModuleState clone = NativeBattleTestSnapshots.Independent(state);
             NativeBattleModuleStep first = state.Advance(Inputs(random));
             NativeBattleModuleStep independent = clone.Advance(Inputs(random));
             Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(independent));
@@ -185,7 +207,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
         Assert.Throws<InvalidDataException>(() => first.State.Advance(zero with { CrtRandom = first.CrtRandomAfter }));
     }
 
-    private static NativeBattleModuleInputs Inputs(NativeCrtRandomState random) => new(0) { CrtRandom = random, ReadModelAnchor = _ => new(100, 200, 300, 0), ReadModelTransform = _ => new(new(0, 0, 0), new(0, 0, 0), 0, 700, 4096), Resources = [Sprite()] };
+    private static NativeBattleModuleInputs Inputs(NativeCrtRandomState random) => new(0) { CrtRandom = random, ModelAliases = OriginalAliases, ReadModelAnchor = _ => new(100, 200, 300, 0), ReadModelTransform = _ => new(new(0, 0, 0), new(0, 0, 0), 0, 700, 4096), Resources = [Sprite()] };
 
     private static NativeCrtRandomState Advance(NativeCrtRandomState random, int count)
     {

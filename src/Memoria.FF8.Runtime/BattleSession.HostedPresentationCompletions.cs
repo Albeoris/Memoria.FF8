@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed record HostedCompletionInvocation(NativeBattlePresentationCompletionRequested Request, int Slot, byte Serial, bool Reached = false, bool Retired = false);
+    internal sealed record HostedCompletionInvocation(NativeBattlePresentationCompletionRequested Request, int Slot, byte Serial, bool Reached = false, bool Retired = false, bool CapturedBeforeAi = false);
 
     internal sealed class PreparedHostedCompletionAck(BattleSession owner, NativeBattleGraphicsState graphics, long epoch, long nextEpoch, HostedCompletionInvocation invocation, NativeBattleActionPacketsState originalPackets, NativeBattleActionPacketsState acknowledgedPackets)
     {
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
     {
         NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted completion requires its current ordered receipt service.");
         if (hostedPresentationInvocation is not null || hostedCompletionInvocation is not { Reached: false } pending || !MatchesHostedCompletion(pending, slot, packet) ||
-            !OwnsHostedCompletionActor(graphics, pending.Request))
+            !OwnsHostedCompletionActor(graphics, pending))
         {
             throw new InvalidDataException("The native combat completion is not owned by this hosted descriptor.");
         }
@@ -87,16 +87,17 @@ public sealed partial class BattleSession
     internal bool IsHostedCompletionQueued(long token)
     {
         if (hostedCompletionInvocation is not { Reached: false, Retired: false } pending || pending.Request.Token != token ||
-            NativeGraphics is not { } graphics || !OwnsHostedCompletionActor(graphics, pending.Request))
+            NativeGraphics is not { } graphics || !OwnsHostedCompletionActor(graphics, pending))
         {
             return false;
         }
         return graphics.Descriptors.Queue.Contains(pending.Slot) && MatchesHostedCompletion(pending, pending.Slot, graphics.Descriptors.Packets[pending.Slot]);
     }
 
-    private static bool OwnsHostedCompletionActor(NativeBattleGraphicsState graphics, NativeBattlePresentationCompletionRequested request)
+    private static bool OwnsHostedCompletionActor(NativeBattleGraphicsState graphics, HostedCompletionInvocation invocation)
     {
-        return graphics.ActorModels.Contains(request.Owner) && StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(request.Owner), request.ActorId);
+        NativeBattlePresentationCompletionRequested request = invocation.Request;
+        return (invocation.CapturedBeforeAi || graphics.ActorModels.Contains(request.Owner)) && StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(request.Owner), request.ActorId);
     }
 
     private static bool MatchesHostedCompletion(HostedCompletionInvocation pending, int slot, NativeBattleDescriptorPacket packet)
@@ -112,7 +113,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Acknowledgement requires the exact reached and retired hosted completion.");
         }
-        if (!OwnsHostedCompletionActor(graphics, pending.Request))
+        if (!OwnsHostedCompletionActor(graphics, pending))
         {
             throw new InvalidDataException("Hosted completion acknowledgement requires its canonical bound actor.");
         }

@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -25,22 +27,25 @@ public sealed partial class BattleSession
         }
     }
 
-    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, ExpandedBattlePresentationProcess? process)
+    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, ExpandedBattlePresentationProcess? process, BattleModelOwner? capturedCompletionOwner = null)
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;
         if (process is not null && (candidate.HasStagedExpandedHostedOperations || command.ExpandedAiCallback is not null))
         {
-            BattleModelRoster roster = process.Graphics.ActorModels.Roster;
+            BattleModelRoster roster = process.PlannedModelRoster;
             uint callback = UsesNativeOrdinaryCompletion(command) ? 0x47DE70u : 0x47DDA0u;
-            candidate.StageExpandedHostedCompletion(roster, command, callback);
+            BattleModelOwner completionOwner = capturedCompletionOwner ?? RequirePresentationModelOwner(roster, GetActor(command.ActorId));
+            candidate.StageExpandedHostedCompletion(command, callback, completionOwner, capturedCompletionOwner is not null);
             // Routed ordinary counters can publish only after their source mirror and its actual completion are staged.
             candidate.FlushEncounterCounterCommands();
-            candidate.ValidateExpandedHostedInvocations(roster);
-            ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process);
+            ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+            BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+            candidate.ValidateExpandedHostedInvocations(admittedRoster);
+            ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations);
             admission = prefix.Dispatch;
-            candidate.BindExpandedHostedPrefix(prefix, roster);
-            hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token);
+            candidate.BindExpandedHostedPrefix(prefix, admission.Packets.Roster);
+            hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token, CompletionOwner: completionOwner);
         }
         BattleSnapshot prepared = candidate.CaptureState();
         BattleSession preflight = Restore(before, customHandlers);

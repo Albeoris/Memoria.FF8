@@ -39,12 +39,14 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted recompute did not produce all of its captured counters.");
         }
 
-        candidate.ValidateExpandedHostedInvocations(roster);
+        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(expandedPresentationHost);
+        BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+        candidate.ValidateExpandedHostedInvocations(planned);
         ImmutableArray<ExpandedHostedOperation> suffix = candidate.expandedHostedOperations.RemoveAt(0);
         ImmutableArray<HostedDispatchHeader> headers = suffix.OfType<ExpandedHostedInvocation>().Select(write => new HostedDispatchHeader(write.Header, write.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();
-        PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian);
+        PreparedHostedContactReplacement replacement = process.PrepareRecomputedContacts(token, resolved.Contacts.Select(contact => contact.Packet).ToImmutableArray(), headers, trigger, guardian, allocations);
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
-        ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, roster);
+        ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, replacement.ReplacementPackets.Roster);
 
         BattleSnapshot prepared = candidate.CaptureState();
         BattleSession preflight = Restore(before, customHandlers);
@@ -79,6 +81,7 @@ public sealed partial class BattleSession
                     result.Add(invocation with { HeaderReference = reference, FirstContact = prepared.ReplacementPackets.ReadHeader(reference).FirstContact });
                     break;
                 case ExpandedHostedDescriptor { Control: HostedDispatchControl.Model model } when model.Command is 105 or 106 or 113 && roster.Contains(model.Owner):
+                case ExpandedHostedDescriptor { Control: HostedDispatchControl.LoadEnemy or HostedDispatchControl.AllocationStatistics or HostedDispatchControl.ActivateOriginal or HostedDispatchControl.AllocationGate }:
                 case ExpandedHostedDescriptor { Control: HostedDispatchControl.Barrier or HostedDispatchControl.ResetCounts or HostedDispatchControl.Message }:
                     result.Add(operation);
                     break;

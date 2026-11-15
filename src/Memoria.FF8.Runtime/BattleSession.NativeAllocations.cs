@@ -70,14 +70,19 @@ public sealed partial class BattleSession
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
         RecordLastNativeAllocation(spawned);
         Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
-        if (NativeGraphics is not null)
+        if (NativeGraphics is not null || producingExpandedAiCallback)
         {
             spawned.NativeCombatantFlags = 0;
             spawned.NativeStatus0 = (ushort)((previous is null ? 0 : NativeSavedStatusBits(previous)) | 1);
             spawned.NativeAllocationPendingStatistics = true;
             nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)sceneSlot), true, true) };
             SetNativeBattleClockActive(false);
-            NativeBattleGraphicsState graphics = QueueNativePlannedModelDescriptor(NativeGraphics, 102, spawned, checked((ushort)(spawned.ModelId + 16)));
+            if (producingExpandedAiCallback)
+            {
+                StageHostedNativeAllocation((BattleEnemyActorModel)CreatePresentationModelOwner(spawned), NativeBattleModelSlot.Decode(checked((byte)physicalIndex)), sceneSlot, spawned.ModelId, activate);
+                return spawned;
+            }
+            NativeBattleGraphicsState graphics = QueueNativePlannedModelDescriptor(NativeGraphics!, 102, spawned, checked((ushort)(spawned.ModelId + 16)));
             graphics = QueueNativeDescriptor(graphics, 113, 0x48AD10);
             if (activate)
             {
@@ -125,13 +130,7 @@ public sealed partial class BattleSession
         spawned.Hidden = spawned.SourceDefinition.InitialHidden;
         spawned.Untargetable = spawned.SourceDefinition.InitialUntargetable;
         spawned.Suspended = spawned.SourceDefinition.InitialSuspended;
-        if (UsesOriginalEnemySlots)
-        {
-            // TODO(TD-009): The expanded host materializes the reserved model without the native descriptor queue.
-            spawned.Hidden = true;
-            spawned.Untargetable = true;
-            spawned.Suspended = true;
-        }
+
         spawned.AiTurnCount = 0;
         Array.Fill(spawned.NativeStatMultipliers, (byte)10);
         Array.Clear(spawned.AiVariables);

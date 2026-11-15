@@ -106,11 +106,13 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.IsHostedActionComplete(token);
     }
 
-    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false)
+    internal BattleSession.PreparedHostedDispatch PrepareDispatch(ImmutableArray<BattleSession.HostedDispatchHeader> headers, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, BattleSession.HostedDispatchCompletion? completion = null, BattleSession.PreparedHostedCompletionAck? acknowledgment = null, BattleSession.HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders);
+        return presentation.PrepareHostedDispatch(headers, headerReference, dispatchAppended, completion, acknowledgment, controls: controls, publishEventHeaders: publishEventHeaders, allocations: allocations);
     }
+
+    internal BattleModelRoster PlannedModelRoster => presentation.HostedPlannedModelRoster;
 
     internal bool IsControlPrefixRetired => presentation.HostedControlPrefixRetired;
 
@@ -183,10 +185,10 @@ public sealed partial class ExpandedBattlePresentationProcess
         presentation.PressHostedGunblade(token, actor, widget);
     }
 
-    internal BattleSession.PreparedHostedContactReplacement PrepareRecomputedContacts(long token, ImmutableArray<NativeBattleContactPacket> contacts, ImmutableArray<BattleSession.HostedDispatchHeader> append, NativeBattleTriggerReceipt? trigger = null, BattleSession.HostedGuardianBoostRequest? guardian = null)
+    internal BattleSession.PreparedHostedContactReplacement PrepareRecomputedContacts(long token, ImmutableArray<NativeBattleContactPacket> contacts, ImmutableArray<BattleSession.HostedDispatchHeader> append, NativeBattleTriggerReceipt? trigger = null, BattleSession.HostedGuardianBoostRequest? guardian = null, ImmutableArray<BattleSession.HostedModelLoadAdmission> allocations = default)
     {
         RequireAdmissionWindow();
-        return presentation.PrepareHostedContactReplacement(token, contacts, trigger, append, guardian);
+        return presentation.PrepareHostedContactReplacement(token, contacts, trigger, append, guardian, allocations);
     }
 
     internal void ValidatePreparedRecomputedContacts(BattleSession.PreparedHostedContactReplacement prepared)

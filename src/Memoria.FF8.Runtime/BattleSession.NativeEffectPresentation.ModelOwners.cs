@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -23,6 +25,10 @@ public sealed partial class BattleSession
             ValidateHostedPresentationTextureOwners(roster, textures);
         }
         NativeEffectMemory = memory with { Textures = textures };
+        if (hostedBattlePresentation)
+        {
+            hostedModelRegistry = new(roster, ImmutableDictionary<BattleEnemyActorModel, HostedModelLoadAdmission>.Empty);
+        }
         if (useRetainedModelOwners)
         {
             NativeModelCpuResources = (NativeModelCpuResources ?? throw new InvalidDataException("Hosted entry lacks its initialized model CPU owner.")).WithPresentationRoster(roster, nativeActionPackets.ModelAliases);
@@ -66,13 +72,18 @@ public sealed partial class BattleSession
         if (hostedBattlePresentation)
         {
             string actorId = RequireCanonicalGraphicsActorId(owner);
-            return definition.NativeGraphics?.Bindings.SingleOrDefault(binding => binding.ActorId == actorId)?.Resource;
+            return FindHostedAllocationBinding(hostedModelRegistry, owner)?.Resource ?? definition.NativeGraphics?.Bindings.SingleOrDefault(binding => binding.ActorId == actorId)?.Resource;
         }
         if (presentationNativeTargets?.TryGetValue(owner, out NativeBattleEffectModelBinding? target) == true)
         {
             return target.Resource;
         }
         return presentationForeignActors?.GetValueOrDefault(owner)?.NativeResource ?? (owner is BattlePartyActorModel or BattleEnemyActorModel ? FindNativeGraphicsBinding(RequireCanonicalGraphicsActorId(owner))?.Resource : null);
+    }
+
+    private static NativeBattleGraphicsBinding? FindHostedAllocationBinding(HostedModelRegistry? registry, BattleModelOwner owner)
+    {
+        return owner is BattleEnemyActorModel enemy && registry?.Loads.TryGetValue(enemy, out HostedModelLoadAdmission? admission) == true ? admission.Binding : null;
     }
 
     private bool OwnsHostedEnemyPoseRow(BattleModelOwner owner, NativeBattleGraphicsModel model)

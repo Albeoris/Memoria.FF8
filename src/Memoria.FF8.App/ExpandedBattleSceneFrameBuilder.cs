@@ -62,6 +62,12 @@ internal sealed class ExpandedBattleSceneFrameBuilder(BattleAssets assets)
         return ReadPositions(owner.Combatants.Where(actor => actor.Slot.HasValue).Select(Placement), layout, assets.LoadEncounter(layout.EncounterId));
     }
 
+    internal NativeBattleVector ReadPosition(BattleSession owner, BattleCombatant actor, BattleRosterSlot slot)
+    {
+        Layout layout = layouts.GetValue(owner, ReadLayout);
+        return Position(Placement(actor) with { Slot = slot }, layout, assets.LoadEncounter(layout.EncounterId));
+    }
+
     private static ActorPlacement Placement(BattleCombatant actor)
     {
         return new(actor.Id, actor.IsPlayer, actor.Slot, actor.SceneSlot);

@@ -207,7 +207,7 @@ public sealed partial class BattleSession
             {
                 EndNativeShot(action.ActorId);
             }
-            else if (NativeGraphics is null)
+            else if (NativeGraphics is null && !OwnsExpandedHostedInvocation)
             {
                 nativeShotProcesses[action.ActorId] = state with { Phase = BattleNativeShotPhase.Ready };
             }
@@ -257,7 +257,11 @@ public sealed partial class BattleSession
     {
         BattleCombatant target = GetActor(targetId);
         BattleTargetRequest request = SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living);
-        if (callback == NativeLimitCallback.ShotEffect)
+        if (callback == NativeLimitCallback.ShotEnding && OwnsExpandedHostedInvocation)
+        {
+            request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        }
+        else if (callback == NativeLimitCallback.ShotEffect || callback == NativeLimitCallback.ShotOpening && OwnsExpandedHostedInvocation)
         {
             BattleTargetSelection selection = (action.TargetFlags!.Value & 0x10) == 0
                 ? new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies)

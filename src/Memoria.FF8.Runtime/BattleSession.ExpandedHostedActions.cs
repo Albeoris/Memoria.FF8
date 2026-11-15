@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         internal BattleContactCursor FirstContact { get; init; }
     }
 
-    private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false);
+    private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null);
 
     private bool preparingExpandedHostedAction;
     private ImmutableArray<ExpandedHostedOperation> expandedHostedOperations = [];
@@ -37,8 +37,9 @@ public sealed partial class BattleSession
     private static void RequireOrdinaryExpandedHostedCommand(BattleActionPresentation command)
     {
         // TODO(TD-009): Finish nonordinary invocation ownership before enabling the attached host in App.
-        if (command.Ability == BattleAbility.LimitBreak || command.Ability == BattleAbility.GuardianForce && command.NativeQueuedCommand != 254 || command.GuardianFormAction is not null ||
-            command.GuardianFormInvocation is not null || command.IndependentGuardian is not null || command.NativeLimitCallback is not null)
+        bool shot = IsShotCallback(command.NativeLimitCallback);
+        if (command.Ability == BattleAbility.LimitBreak && !shot || command.Ability == BattleAbility.GuardianForce && command.NativeQueuedCommand != 254 || command.GuardianFormAction is not null ||
+            command.GuardianFormInvocation is not null || command.NativeLimitCallback is not null && !shot)
         {
             throw new NotSupportedException("Hosted presentation has no admission for this nonordinary invocation.");
         }
@@ -59,6 +60,11 @@ public sealed partial class BattleSession
         if (contacts.IsDefault || contacts.IsEmpty && disposition != ExpandedHostedContactDisposition.ContextOnly && header is not { Command: 0, Sequence: 10, Action: 9, Effect: 0 })
         {
             throw new NotSupportedException("Hosted presentation requires an explicit contact list, its original failed control header, or a native graphics header.");
+        }
+        if (IsHostedCinematicContext(command, header) && contacts.Any(contact => contact.Packet is not
+            { Primary: { PresentedAmount: 0, Flags2: 1, HitFlags: 0, Sequence: 0, CoverSource: null }, Secondary: null }))
+        {
+            throw new InvalidDataException("A native context-only cinematic produced a contact that requires publication.");
         }
         if ((contacts.IsEmpty || disposition == ExpandedHostedContactDisposition.ContextOnly) && enemyDraw is not null)
         {
@@ -107,6 +113,11 @@ public sealed partial class BattleSession
 
     private static ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (command is { NativeQueuedCommand: 14, NativeLimitCallback: NativeLimitCallback.ShotOpening } && header.Command == 14)
+        {
+            // Shot's opening launches the module and publishes readiness without applying the header contacts.
+            return ExpandedHostedContactDisposition.ContextOnly;
+        }
         if (command.NativeGraphic is { } graphic && header is { Command: 252, Action: 1 } && header.Effect == graphic.MagicId)
         {
             return ExpandedHostedContactDisposition.ContextOnly;
@@ -115,7 +126,23 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Hosted graphics contact context requires its exact native command252 header.");
         }
+        if (IsHostedCinematicContext(command, header))
+        {
+            if (command.NativeAction is not { AttackType: 0, Power: 0, HitCount: 1, AttackFlags: 3, DamagePresentation: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 } native ||
+                native.Command != header.Command || native.ActionId != header.Action || native.MagicId != header.Effect)
+            {
+                throw new InvalidDataException("A native context-only cinematic requires its original zero-impact action.");
+            }
+            return ExpandedHostedContactDisposition.ContextOnly;
+        }
         return ExpandedHostedContactDisposition.RequiredImpacts;
+    }
+
+    private static bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
+    {
+        return command.NativeGraphic is null && command.NativeLimitCallback != NativeLimitCallback.ShotOpening &&
+            NativeBattleCinematicProfile.IsSupported(header.Effect) &&
+            NativeBattleCinematicProfile.ForEffect(header.Effect).ContactPublication == NativeBattleCinematicContactPublication.ContextOnly;
     }
 
     private BattlePendingEnemyDraw? TakePendingHostedEnemyDraw()
@@ -127,26 +154,22 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedHostedInvocations(BattleModelRoster roster)
     {
-        if (!roster.Owners.SequenceEqual(ReadBattlePresentationRoster().Owners))
+        if (ReadBattlePresentationRoster().Owners.Any(owner => !roster.Contains(owner)))
         {
             throw new InvalidDataException("Hosted invocation roster differs from the logical allocations.");
         }
-        foreach (ExpandedHostedInvocation invocation in expandedHostedOperations.OfType<ExpandedHostedInvocation>())
+        foreach (ExpandedHostedInvocation invocation in expandedHostedOperations.Skip(expandedHostedCurrentOperation ?? expandedHostedNextOperation).OfType<ExpandedHostedInvocation>())
         {
             BattleCombatant actor = GetActor(invocation.Command.ActorId);
             _ = GetActor(invocation.Command.TargetId);
-            if (invocation.Header.Source != RequirePresentationModelOwner(roster, actor) || invocation.Contacts.IsDefault)
+            if (invocation.Header.Source != CreatePresentationModelOwner(actor) || !roster.Contains(invocation.Header.Source) || invocation.Contacts.IsDefault)
             {
                 throw new InvalidDataException("Hosted invocation header does not identify its canonical caster.");
             }
-            ValidateExpandedEffectContacts(actor, invocation.Contacts, roster);
+            ValidateExpandedEffectContacts(invocation.Header.Source, invocation.Contacts, roster);
         }
     }
 
-    private HostedDispatchCompletion ReadExpandedHostedCompletion(BattleModelRoster roster, BattleActionPresentation command, uint callback)
-    {
-        return new(callback, RequirePresentationModelOwner(roster, GetActor(command.ActorId)), command.ActorId);
-    }
 
     private static NativeBattleEffectContactBridge<string>? PrepareExpandedHostedContactBridge(ExpandedHostedInvocation invocation, BattleModelRoster roster)
     {
@@ -217,28 +240,32 @@ public sealed partial class BattleSession
                     events.Add(new BattleEvent(Frame, "NativeText", text.ActorId, null, text.Value, text.Text) { NativeMessageMode = 3, NativeTextIdentity = text.TextIdentity });
                     break;
                 case NativeBattleModelTurnAdvanceStopRequested stop:
-                    if (RequirePresentationModelOwner(RequireExpandedLifecycleRoster(), GetActor(stop.ActorId)) != stop.Owner)
-                    {
-                        throw new InvalidDataException("Hosted turn-advance stop does not identify its canonical model owner.");
-                    }
+                    _ = RequireEmittingHostedActor(services, stop);
                     StopTurnAdvance();
                     break;
                 case NativeBattlePresentationDescriptorText descriptorText:
                     events.Add(descriptorText.Message with { Frame = Frame });
                     break;
                 case NativeBattleModelParticipantReleased released:
-                    AcknowledgeExpandedModelRelease(RequireExpandedLifecycleRoster(), released);
+                    ApplyExpandedModelRelease(RequireEmittingHostedActor(services, released));
                     break;
                 case NativeBattleModelParticipantActivated activated:
-                    BattleCombatant actor = RequireExpandedLifecycleActor(RequireExpandedLifecycleRoster(), activated);
-                    actor.NativeCombatantFlags &= ~0xC2u;
-                    ActivateNativeParticipant(actor);
+                    AcknowledgeHostedNativeActivation(services, activated);
                     break;
                 case NativeBattleModelParticipantSuspended suspended:
-                    AcknowledgeExpandedModelSuspension(RequireExpandedLifecycleRoster(), suspended);
+                    ApplyExpandedModelSuspension(RequireEmittingHostedActor(services, suspended), suspended);
+                    break;
+                case NativeBattleAllocationStatisticsRequested statistics:
+                    ApplyHostedAllocationStatistics(services, statistics);
+                    break;
+                case NativeBattleAllocationGateReached:
+                    CompleteNativeAllocationGate();
                     break;
                 case NativeBattleModelTriggerRegistered trigger:
                     AcknowledgeExpandedGunbladeRegistration(trigger, actionToken);
+                    break;
+                case NativeBattleShotReadinessReached shot:
+                    ApplyExpandedHostedShotReadiness(services, shot, actionToken);
                     break;
                 case NativeBattlePresentationCompletionRequested completion:
                     CompleteExpandedHostedEvent(completion, actionToken);

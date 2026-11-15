@@ -1,8 +1,16 @@
 namespace Memoria.FF8.Runtime;
 
+internal enum NativeBattleCinematicContactPublication
+{
+    Required,
+    ContextOnly
+}
+
 /// <summary>The physical directories and entry points of the cinematic effect families.</summary>
 public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint Initializer, uint InitializationAddress, uint OwnerDirectoryAddress, uint QueueAddress, uint BankAddress, uint Callback, uint LoadCallback, uint File0Publication, uint File1Publication, uint InstructionTable, int TextureCount, int SourceBase, int LastSource, string InitialFile, bool Lit)
 {
+    internal NativeBattleCinematicContactPublication ContactPublication { get; init; } = NativeBattleCinematicContactPublication.Required;
+
     public static bool IsSupported(int effect) => effect is 6 or 18 or 75 or 77 or 248 or 201 or 202 or 203 or 204 or 205 or 206 or 208 or 211 or 219 or 220 or 221 or 223 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 236 or 238 or 239 or 240 or 241 or 242 or 249 or 250 or 252 or 253 or 254 or 255 or 256 or 257 or 258 or 261 or 262 or 263 or 264 or 265 or 266 or 267 or 268 or 270 or 243 or 244 or 245 or 246 or 247 or 237 or 331 or 269;
 
     public static NativeBattleCinematicProfile ForInitializationAddress(uint address)
@@ -126,11 +134,11 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
             269 => NativeBattleEffect269Profile.Create(),
             331 => NativeBattleEffect331Profile.Create(),
             270 => new(270, 0x8E9C30, 0x8E9C00, 0x1852FD0, 0x185311C, 0x2795C18, 0x2795C28, 0x8EA2A0, 0x8F2CA0, 0x2795C3C, 0x2795C38, 0x18534D4, 9, 0x233, 0x232, "mag269_b.00", false),
-            243 => new(243, 0x9EEA90, 0x9EEA60, 0x1861FE0, 0x18620B4, 0x27967F0, 0x2796808, 0x9EF100, 0, 0x2796804, 0x2796800, 0x186246C, 4, 0x233, 0x232, "mag242_b.00", false),
-            244 => new(244, 0x9E5810, 0x9E57E0, 0x186161C, 0x18616F0, 0x27967C0, 0x27967D0, 0x9E5E80, 0, 0x27967BC, 0x27967B8, 0x1861AA8, 4, 0x233, 0x232, "mag243_b.00", false),
-            245 => new(245, 0x9DC590, 0x9DC560, 0x1860C58, 0x1860D2C, 0x2796788, 0x2796798, 0x9DCC00, 0, 0x2796784, 0x2796780, 0x18610E4, 4, 0x233, 0x232, "mag244_b.00", false),
-            246 => new(246, 0x9D3310, 0x9D32E0, 0x1860294, 0x1860368, 0x2796750, 0x2796760, 0x9D3980, 0, 0x2796748, 0x279674C, 0x1860720, 4, 0x233, 0x232, "mag245_b.00", false),
-            247 => new(247, 0x9C9890, 0x9C9860, 0x185F89C, 0x185F9A4, 0x2796718, 0x2796728, 0x9C9F00, 0x9CED90, 0x2796710, 0x2796714, 0x185FD5C, 6, 0x233, 0x232, "mag246_b.00", false),
+            243 => new(243, 0x9EEA90, 0x9EEA60, 0x1861FE0, 0x18620B4, 0x27967F0, 0x2796808, 0x9EF100, 0, 0x2796804, 0x2796800, 0x186246C, 4, 0x233, 0x232, "mag242_b.00", false) { ContactPublication = NativeBattleCinematicContactPublication.ContextOnly },
+            244 => new(244, 0x9E5810, 0x9E57E0, 0x186161C, 0x18616F0, 0x27967C0, 0x27967D0, 0x9E5E80, 0, 0x27967BC, 0x27967B8, 0x1861AA8, 4, 0x233, 0x232, "mag243_b.00", false) { ContactPublication = NativeBattleCinematicContactPublication.ContextOnly },
+            245 => new(245, 0x9DC590, 0x9DC560, 0x1860C58, 0x1860D2C, 0x2796788, 0x2796798, 0x9DCC00, 0, 0x2796784, 0x2796780, 0x18610E4, 4, 0x233, 0x232, "mag244_b.00", false) { ContactPublication = NativeBattleCinematicContactPublication.ContextOnly },
+            246 => new(246, 0x9D3310, 0x9D32E0, 0x1860294, 0x1860368, 0x2796750, 0x2796760, 0x9D3980, 0, 0x2796748, 0x279674C, 0x1860720, 4, 0x233, 0x232, "mag245_b.00", false) { ContactPublication = NativeBattleCinematicContactPublication.ContextOnly },
+            247 => new(247, 0x9C9890, 0x9C9860, 0x185F89C, 0x185F9A4, 0x2796718, 0x2796728, 0x9C9F00, 0x9CED90, 0x2796710, 0x2796714, 0x185FD5C, 6, 0x233, 0x232, "mag246_b.00", false) { ContactPublication = NativeBattleCinematicContactPublication.ContextOnly },
             _ => throw new NotSupportedException("The selected effect has no cinematic directory profile.")
         };
     }

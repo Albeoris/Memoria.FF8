@@ -287,7 +287,10 @@ public sealed partial class BattleSession
                         }
                         if (hostedBattlePresentation)
                         {
-                            _ = RequireHostedEntryFacts(loadingOwner);
+                            if (FindHostedAllocationBinding(hostedModelRegistry, loadingOwner) is null)
+                            {
+                                _ = RequireHostedEntryFacts(loadingOwner);
+                            }
                         }
                         if (hostedBattlePresentation && packet.Value != plan.Binding.ModelId)
                         {
@@ -295,8 +298,18 @@ public sealed partial class BattleSession
                         }
                         if (plan.OriginalSlot is { } slotToBind)
                         {
-                            (NativeBattleModelBoundary boundary, BattleActorModels models) = graphics.NativeBindings.BindOriginalSlot(slotToBind, loadingOwner, graphics.ActorModels);
-                            graphics = graphics with { NativeBindings = boundary, ActorModels = models };
+                            if (hostedBattlePresentation && FindHostedAllocationBinding(hostedModelRegistry, loadingOwner) is not null)
+                            {
+                                if (!TryRebindHostedAllocationModel(graphics, plan, slot, out graphics))
+                                {
+                                    return new(descriptors, false);
+                                }
+                            }
+                            else
+                            {
+                                (NativeBattleModelBoundary boundary, BattleActorModels models) = graphics.NativeBindings.BindOriginalSlot(slotToBind, loadingOwner, graphics.ActorModels);
+                                graphics = graphics with { NativeBindings = boundary, ActorModels = models };
+                            }
                         }
                         else if (!graphics.ActorModels.Contains(loadingOwner))
                         {
@@ -306,7 +319,10 @@ public sealed partial class BattleSession
                         graphics = graphics with { ActorModels = graphics.ActorModels.Set(loadingOwner, loading), ModelLoadCount = graphics.ModelLoadCount + 1 };
                         if (hostedBattlePresentation)
                         {
-                            graphics = graphics with { ActorModels = OrderHostedEntryModels(graphics.ActorModels) };
+                            if (FindHostedAllocationBinding(hostedModelRegistry, loadingOwner) is null)
+                            {
+                                graphics = graphics with { ActorModels = OrderHostedEntryModels(graphics.ActorModels) };
+                            }
                             BattleModelRoster plannedRoster = nativeActionPackets.Roster;
                             nativeActionPackets = nativeActionPackets.WithRoster(plannedRoster, graphics.NativeBindings.CaptureAliases(graphics.ActorModels, plannedRoster));
                         }
@@ -387,7 +403,8 @@ public sealed partial class BattleSession
                             NativeBattleDescriptorModelSubject.AuthoredOriginalSlot original => graphics.NativeBindings.DecodeLiteral(original.Slot.Offset, graphics.ActorModels),
                             _ => throw new InvalidDataException("Native activation requires its published model subject.")
                         };
-                        graphics = CompleteNativeActivation(graphics, owner);
+                        NativeBattleModelSlot? originalSlot = (task.ModelSubject as NativeBattleDescriptorModelSubject.AuthoredOriginalSlot)?.Slot;
+                        graphics = CompleteNativeActivation(graphics, owner, originalSlot);
                     }
                     else
                     {
@@ -444,7 +461,7 @@ public sealed partial class BattleSession
             0x47DF60 => BeginNativeOutcome47DF60(graphics),
             0x47DFC0 => BeginNativeOutcomeWait47DFC0(graphics),
             0x48AD10 => CompleteNativeAllocationStatistics(graphics),
-            0x487670 => CompleteNativeActivation(graphics, graphics.NativeBindings.DecodeLiteral(checked((byte)argument), graphics.ActorModels)),
+            0x487670 => CompleteNativeActivation(graphics, graphics.NativeBindings.DecodeLiteral(checked((byte)argument), graphics.ActorModels), NativeBattleModelSlot.Decode(checked((byte)argument))),
             0x4876B0 => CompleteNativeAllocationDescriptor(graphics),
             _ => throw new NotSupportedException($"Native graphics callback{callback:X} requires its original participant/global owner.")
         };
@@ -457,6 +474,18 @@ public sealed partial class BattleSession
         bool isParty = owner.Side == BattleSide.Allies;
         if (hostedBattlePresentation)
         {
+            if (FindHostedAllocationBinding(hostedModelRegistry, owner) is { } allocatedBinding)
+            {
+                NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted native 103 requires its current actor facts.");
+                if (!ReferenceEquals(plan.Binding, allocatedBinding) || !graphics.ActorModels.Contains(owner) ||
+                    !services.Facts.TryGetValue(owner, out NativeBattleModelActorFacts? allocation) || allocation.PendingAllocationStatistics ||
+                    plan.OriginalSlot is not { } originalSlot || graphics.NativeBindings.FindOriginalOwner(originalSlot, graphics.ActorModels) != owner)
+                {
+                    throw new InvalidDataException("Hosted native 103 requires the loaded identity and committed allocation statistics.");
+                }
+                return CompleteNativeGraphicsModel(graphics, packet, owner, allocatedBinding, false, allocation.Information246, allocation.SavedStatus,
+                    allocation.RawBattleStatuses ?? throw new InvalidDataException("Hosted native 103 requires the original battle status."), ReadModelCompletionRandom());
+            }
             NativeBattleModelEntryFacts facts = RequireHostedEntryFacts(owner);
             ValidateHostedEntryModelCompletion(graphics, owner, plan.Binding, isParty);
             return CompleteNativeGraphicsModel(graphics, packet, owner, plan.Binding, isParty, facts.Information246, facts.SavedStatus, facts.BattleStatus, ReadModelCompletionRandom(), plan.OriginalSlot is null);

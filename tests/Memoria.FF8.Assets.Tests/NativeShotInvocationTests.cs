@@ -70,9 +70,9 @@ public sealed class NativeShotInvocationTests
         battle.AdvanceNativeShotPresentation(TimeSpan.FromTicks(1));
 
         Assert.Equal(30, battle.GetNativeShot("irvine")!.UiSubframeTicks);
-        string snapshot = JsonSerializer.Serialize(battle.Capture());
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!);
-        Assert.Equal(snapshot, JsonSerializer.Serialize(battle.Capture()));
+        BattleSnapshot snapshot = battle.Capture();
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot));
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         battle.AdvanceNativeShotUi(battle.GetNativeShot("irvine")!.RemainingTimer);
         Assert.Equal(frame, battle.Frame);
         Assert.Equal(BattleNativeShotPhase.Ending, battle.GetNativeShot("irvine")!.Phase);

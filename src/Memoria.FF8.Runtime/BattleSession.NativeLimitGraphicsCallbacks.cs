@@ -6,6 +6,11 @@ public sealed partial class BattleSession
     {
         if (callback is 0x48D1A0 or 0x4AD7C0)
         {
+            if (hostedBattlePresentation)
+            {
+                EmitExpandedHostedShotReadiness(callback);
+                return graphics;
+            }
             if (nativeShotProcesses.Count != 1)
             {
                 throw new InvalidDataException("Native Shot readiness requires its single current widget owner.");

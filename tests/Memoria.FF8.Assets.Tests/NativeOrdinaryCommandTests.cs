@@ -315,7 +315,7 @@ public sealed class NativeOrdinaryCommandTests
             Assert.Equal(new ushort[] { 600, 1000, 500 }, battle.GuardianForces.Select(gf => gf.HitPoints));
             if (expanded)
             {
-                Assert.Equal(roster.Where(member => member.Id != "ko").Select(member => member.Id), battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId));
+                Assert.Equal(roster.Where(member => member.IsPlayer && member.Id != "ko").Select(member => member.Id), battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.TargetId));
             }
         }
     }

@@ -77,6 +77,7 @@ public sealed partial class BattleSession
 
         BattleSnapshot before = Capture();
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
+        BattleModelOwner completionOwner = RequirePresentationModelOwner(process.Graphics.ActorModels.Roster, actor);
         BattleSession candidate = Restore(before, customHandlers);
         candidate.preparingExpandedHostedAction = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
@@ -95,7 +96,7 @@ public sealed partial class BattleSession
         {
             candidate.producingExpandedAiCallback = false;
         }
-        PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, mirror, process);
+        PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, mirror, process, completionOwner);
     }
 
     private void InterpretExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request, BattleCombatant actor)

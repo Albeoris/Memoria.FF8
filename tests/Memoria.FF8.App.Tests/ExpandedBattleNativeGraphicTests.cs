@@ -29,15 +29,19 @@ public sealed class ExpandedBattleNativeGraphicTests
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant attacker = battle.Combatants.Single(actor => actor.Id == "party-3");
         BattleCombatant trigger = battle.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == (effectId == 110 ? 74 : 101));
+        BattleCombatant? wedge = null;
         if (effectId == 110)
         {
-            BattleCombatant wedge = battle.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == 73);
+            wedge = battle.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == 73);
             Assert.True(wedge.Suspended);
             Strike(trigger, 1);
+            bool wedgeInit = false;
             for (int callback = 0; callback < 1200 && (wedge.Suspended || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); callback++)
             {
                 Advance();
+                wedgeInit |= HasSeparateInit(wedge.Id);
             }
+            Assert.True(wedgeInit);
             Assert.True(trigger.IsAlive);
             Assert.False(wedge.Suspended);
         }
@@ -47,9 +51,33 @@ public sealed class ExpandedBattleNativeGraphicTests
         string? casterId = null;
         int contextCount = 0;
         bool drewEffect = false;
+        bool reserveContext = false;
+        bool reserveInit = false;
+        string? reserveId = null;
         for (int callback = 0; callback < 1600 && (actionToken is null || !process.IsActionComplete(actionToken.Value)); callback++)
         {
             Advance();
+            if (effectId == 248)
+            {
+                reserveId ??= battle.Combatants.SingleOrDefault(actor => actor.ModelId == 71 && actor.Slot is not null)?.Id;
+                reserveInit |= reserveId is not null && HasSeparateInit(reserveId);
+                if (process.Graphics.OriginalEffect is { Binding.Effect: 243, Parameters: { } context, ReturnedDescriptor: > 0 } && !reserveContext)
+                {
+                    NativeBattleActionHeaderSlot contextHeader = presentation.NativeActionPackets.ReadHeader(context.Header);
+                    Assert.Equal((byte)8, contextHeader.Command);
+                    Assert.Equal((ushort)147, contextHeader.Action);
+                    NativeBattleContactPacket packet = Assert.Single(presentation.NativeActionPackets.ReadHeaderContacts(context.Header));
+                    Assert.Equal(contextHeader.Source, packet.Primary.Recipient);
+                    Assert.Equal(0, packet.Primary.PresentedAmount);
+                    Assert.Equal((byte)1, packet.Primary.Flags2);
+                    Assert.Equal((byte)0, packet.Primary.HitFlags);
+                    Assert.Equal((byte)0, packet.Primary.Sequence);
+                    Assert.Null(packet.Primary.CoverSource);
+                    Assert.Null(packet.Secondary);
+                    Assert.Empty(process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>());
+                    reserveContext = true;
+                }
+            }
             if (process.Graphics.OriginalEffect is { Parameters: { } parameters } effect && effect.Binding.Effect == effectId && effect.ReturnedDescriptor is > 0)
             {
                 actionToken ??= Assert.IsType<long>(process.LastStepActionToken);
@@ -69,7 +97,9 @@ public sealed class ExpandedBattleNativeGraphicTests
                 }
                 Assert.Equal(contextCount, battle.Events.Count(entry => entry.Kind == "EffectContact" && entry.NativeGraphicMagicId == effectId));
                 Assert.Empty(process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>());
-                drewEffect |= !effect.PresentationPackets.IsEmpty;
+                drewEffect |= effectId == 110
+                    ? process.Graphics.PrimitiveFrame?.LastCommands.Any(packet => packet.Command.PilotGeometry?.Identity.Effect == effectId) == true
+                    : !effect.PresentationPackets.IsEmpty;
             }
         }
         Assert.True(process.IsActionComplete(Assert.IsType<long>(actionToken)));
@@ -77,6 +107,54 @@ public sealed class ExpandedBattleNativeGraphicTests
         Assert.True(drewEffect);
         Assert.Equal(contextCount, battle.Events.Count(entry => entry.Kind == "EffectContact" && entry.NativeGraphicMagicId == effectId));
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage" && entry.NativeGraphicMagicId == effectId);
+        if (effectId == 248)
+        {
+            Assert.True(reserveContext);
+            Assert.True(reserveInit);
+            Assert.Equal(casterId, reserveId);
+            BattleCombatant reserve = battle.Combatants.Single(actor => actor.Id == reserveId);
+            Assert.False(reserve.NativeAllocationPendingStatistics);
+            Assert.False(reserve.Suspended);
+            Assert.True(reserve.IsActive);
+            Assert.Equal(battle.ReadPresentationModelOwner(reserve.Id), presentation.NativeActionPackets.ModelAliases.DecodeLiteral(5));
+        }
+
+        if (effectId == 110)
+        {
+            BattleCombatant? elvoret = null;
+            bool arrived = false;
+            bool elvoretInit = false;
+            for (int callback = 0; callback < 1600; callback++)
+            {
+                Advance();
+                arrived |= process.Graphics.OriginalEffect is { Binding.Effect: 17, ReturnedDescriptor: > 0 };
+                elvoret ??= battle.Combatants.SingleOrDefault(actor => !actor.IsPlayer && actor.ModelId == 91 && actor.Id.StartsWith("native-allocation-", StringComparison.Ordinal));
+                if (elvoret is not null)
+                {
+                    elvoretInit |= HasSeparateInit(elvoret.Id);
+                    BattleModelOwner owner = battle.ReadPresentationModelOwner(elvoret.Id);
+                    if (elvoretInit && elvoret.IsAlive && !elvoret.Suspended && !elvoret.NativeAllocationPendingStatistics &&
+                        process.Graphics.ActorModels.TryGet(owner, out NativeBattleGraphicsModel? model) && (model.Flags0 & 2) != 0 &&
+                        process.IsControlPrefixRetired && process.ActiveActionToken is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            Assert.True(arrived, "The original Elvoret arrival effect did not run after Control110.");
+            Assert.NotNull(elvoret);
+            Assert.True(elvoretInit, "Elvoret did not receive a separate INIT callback after its model load.");
+            Assert.False(trigger.IsActive);
+            Assert.False(wedge!.IsActive);
+            Assert.True(elvoret.IsAlive);
+            Assert.False(elvoret.Suspended);
+            Assert.False(elvoret.NativeAllocationPendingStatistics);
+            Assert.Equal(2, process.Graphics.ActorModels.Get(battle.ReadPresentationModelOwner(elvoret.Id)).Flags0 & 2);
+            Assert.True(process.IsControlPrefixRetired);
+            Assert.Null(process.ActiveActionToken);
+            Assert.Null(battle.ActiveAction);
+            Assert.Empty(battle.QueuedActions);
+        }
 
         BattleCombatant nextTarget = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && actor.SceneSlot >= 8);
         int nextEvent = battle.Events.Count;
@@ -86,6 +164,10 @@ public sealed class ExpandedBattleNativeGraphicTests
             Advance();
         }
         Assert.True(CompletedNextAttack());
+
+        bool HasSeparateInit(string actorId) =>
+            battle.ActiveAction?.ExpandedAiCallback is { Stage: 0 } active && active.Actor.ActorId == actorId ||
+            battle.QueuedActions.Any(command => command.ExpandedAiCallback is { Stage: 0 } request && request.Actor.ActorId == actorId);
 
         bool CompletedNextAttack() => battle.Events.Skip(nextEvent).Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == attacker.Id && entry.TargetId == nextTarget.Id);
 
@@ -98,7 +180,22 @@ public sealed class ExpandedBattleNativeGraphicTests
 
         void Advance()
         {
-            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            try
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            catch (InvalidDataException error) when (formation == 164 && error.Message.Contains("all prepared contacts", StringComparison.Ordinal))
+            {
+                const BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                Type ownerType = typeof(BattleSession);
+                object? current = ownerType.GetProperty("CurrentExpandedHostedInvocation", instance)!.GetValue(battle);
+                object? header = current?.GetType().GetProperty("Header", instance)?.GetValue(current);
+                object? expected = ownerType.GetField("expandedExpectedContacts", instance)!.GetValue(battle);
+                IEnumerable<int> observed = (IEnumerable<int>)ownerType.GetField("expandedPresentedOccurrences", instance)!.GetValue(battle)!;
+                string queue = string.Join(", ", process.Graphics.Descriptors.Queue.Select(slot => process.Graphics.Descriptors.Packets[slot].Command));
+                string events = string.Join(", ", battle.Events.TakeLast(8).Select(entry => $"{entry.Kind}/{entry.ActorId}/{entry.TargetId}/{entry.Amount}"));
+                throw new InvalidDataException($"Reserve contact completion: header [{header}], expected={expected}, observed=[{string.Join(", ", observed)}], active={presentation.NativeActionPackets.ActiveHeader}, cursor={presentation.NativeActionPackets.ActiveContact}, controlRetired={process.IsControlPrefixRetired}, queue=[{queue}], events=[{events}].", error);
+            }
             Assert.Same(process, battle.ExpandedPresentationProcess);
         }
     }

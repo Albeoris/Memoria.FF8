@@ -4,6 +4,11 @@ public sealed partial class BattleSession
 {
     private void QueueNativeDescriptorMessage(BattleEvent message, byte tag = 86, byte priority = 128)
     {
+        if (preparingExpandedHostedAction)
+        {
+            StageExpandedHostedControl(new HostedDispatchControl.Message(message, tag, priority));
+            return;
+        }
         StopTurnAdvance();
         if (NativeGraphics is not { } graphics)
         {
@@ -26,7 +31,7 @@ public sealed partial class BattleSession
         if (duration != 0)
         {
             BattleEvent published = message with { Frame = Frame, Amount = duration, NativeMessageMode = (byte)packet.Value };
-            if (hostedTerminal is not null || hostedBattlePresentation && message is { ActorId: not null, NativeTextIdentity: not null })
+            if (hostedBattlePresentation)
             {
                 (hostedFrameServices ?? throw new InvalidOperationException("Hosted native text requires the active frame receipt owner.")).EmitDescriptorText(published);
             }

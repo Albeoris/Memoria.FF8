@@ -190,24 +190,30 @@ public sealed partial class BattleSession
         }
     }
 
-    private (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts) ResolveExpandedPhoenixRevival(BattleCombatant actor, BattleActionPresentation source)
+    private (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts, NativeBattleActionHeaderPreparation? Header) ResolveExpandedPhoenixRevival(BattleCombatant actor, BattleActionPresentation source, bool hosted)
     {
         // 484050 selects every allocated party row with the KO modifier before command 0/8 runs.
         BattleNativeAction revival = NativePhoenixRevivalAction() with { Name = source.NativeAction!.Name };
         BattleActionDefinition action = new(BattleAbility.Item, source.ActionId, revival.Name ?? "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
-        BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival };
-        BattleCombatant[] recipients = allies.Where(ally => ally.IsActive && !ally.Untargetable).ToArray();
+        BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy);
+        BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, TargetRequest = request };
+        BattleCombatant[] recipients = ResolveBattleTargets(request);
+        NativeBattleActionHeaderPreparation? header = hosted ? BuildExpandedActionHeaderPreparation(command, revival) : null;
+        ReserveExpandedAiInvocation(command, header);
         NativeBattleActionScratch previousScratch = nativeActionScratch;
+        bool previousDeferral = deferringExpandedImpacts;
         resolvingNativeAction = command;
         nativeActionScratch = nativeActionScratch with { Command = 0, Action = revival.ActionId };
         try
         {
+            deferringExpandedImpacts = hosted;
             (var contacts, _) = ResolveExpandedHitPlan(actor, command, action, revival, [recipients]);
-            return (command, contacts);
+            return (command, contacts, header);
         }
         finally
         {
             resolvingNativeAction = source;
+            deferringExpandedImpacts = previousDeferral;
             nativeActionScratch = nativeActionScratch with { Command = previousScratch.Command, Action = previousScratch.Action };
         }
     }

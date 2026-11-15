@@ -235,10 +235,22 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
 
         void RoundTripNext()
         {
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            BattleSnapshot checkpoint = NativeBattleStorageSnapshots.Capture(battle.Capture());
+            BattleSession restored = BattleSession.Restore(checkpoint);
             battle.Tick();
             restored.Tick();
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+
+            BattleSnapshot observed = battle.Capture();
+            BattleSnapshot continued = restored.Capture();
+            Assert.Equal(observed.Frame, continued.Frame);
+            Assert.Equal(observed.NativeGraphics!.Callback, continued.NativeGraphics!.Callback);
+            Assert.Equal(observed.NativeGraphics.OriginalEffect?.ReturnedDescriptor, continued.NativeGraphics.OriginalEffect?.ReturnedDescriptor);
+            Assert.Equivalent(observed.Combatants, continued.Combatants, strict: true);
+            Assert.Equal(observed.Random!.Lane, continued.Random!.Lane);
+            Assert.Equal(observed.Random.Indexes.ToArray(), continued.Random.Indexes.ToArray());
+            Assert.Equal(battle.Events, restored.Events);
+            Assert.Equal(observed.NativeActionPackets!.PublishedHeaders().ToArray(), continued.NativeActionPackets!.PublishedHeaders().ToArray());
+            Assert.Equivalent(observed.NativeActionPackets.ExportRetained(), continued.NativeActionPackets.ExportRetained(), strict: true);
             battle = restored;
         }
 

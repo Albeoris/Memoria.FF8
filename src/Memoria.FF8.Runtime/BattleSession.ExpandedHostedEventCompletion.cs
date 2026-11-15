@@ -7,11 +7,11 @@ public sealed partial class BattleSession
     private void CompleteExpandedHostedEvent(NativeBattlePresentationCompletionRequested receipt, long? graphicsToken)
     {
         ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted completion lost its presentation process.");
-        BattleModelRoster roster = process.Graphics.ActorModels.Roster;
+        BattleModelRoster roster = process.PlannedModelRoster;
         if (expandedHostedEvent is not { } hostedEvent || hostedEvent.CompletionToken != receipt.Token ||
             hostedEvent.Callback != receipt.Callback || hostedEvent.Command.ActorId != receipt.ActorId ||
             !ReferenceEquals(hostedEvent.ActivePresentation, ActiveAction) ||
-            RequirePresentationModelOwner(roster, GetActor(receipt.ActorId)) != receipt.Owner ||
+            hostedEvent.CompletionOwner != receipt.Owner || CreatePresentationModelOwner(GetActor(receipt.ActorId)) != receipt.Owner ||
             !ReferenceEquals(process.PendingCompletion, receipt) || graphicsToken is long frameToken && frameToken != expandedHostedActionToken)
         {
             throw new InvalidDataException("Native completion does not belong to the current hosted event.");
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
         if (hasAftercare)
         {
             candidate.ValidateExpandedHostedInvocations(roster);
-            candidate.StageExpandedHostedCompletion(roster, hostedEvent.Command, 0x47E120);
+            candidate.StageExpandedHostedCompletion(hostedEvent.Command, 0x47E120, receipt.Owner, hostedEvent.Command.ExpandedAiCallback is not null);
             nextEvent = nextEvent with { Callback = 0x47E120 };
         }
         else
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, ack,
             acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedHostedNextOperation == candidate.expandedHostedOperations.Length);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
-        candidate.BindExpandedHostedPrefix(prefix, roster);
+        candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };
 
         BattleSnapshot prepared = candidate.CaptureState();

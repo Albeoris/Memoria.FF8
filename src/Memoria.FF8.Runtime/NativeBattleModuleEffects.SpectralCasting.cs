@@ -12,8 +12,16 @@ public sealed partial record NativeBattleModuleState
         W(payload, 0, 0);
         W(payload, 2, 0);
         W(payload, 16, material);
-        NativeBattleTelemetry.Copy(1115, Slots[slot].Payload.AsSpan().Slice(20, 4), payload.AsSpan(20));
-        return new(state.StoreCastingPayload(child, payload), true, []);
+        NativeBattleModuleTask seed = Slots[slot];
+        NativeBattleTelemetry.Copy(1115, seed.Payload.AsSpan().Slice(20, 4), payload.AsSpan(20));
+        state = state.StoreCastingPayload(child, payload);
+        NativeBattleModuleTask casting = state.Slots[child] with
+        {
+            ModelOwner = seed.ModelOwner,
+            ModelPointerOffset = seed.ModelPointerOffset,
+            UnknownModelPointerBytes = seed.UnknownModelPointerBytes & (15u << 20)
+        };
+        return new(state with { Slots = state.Slots.SetItem(child, casting) }, true, []);
     }
 
     private NativeBattleModuleCallback AdvanceSpectralCasting(int slot, NativeBattleModuleInputs inputs)
