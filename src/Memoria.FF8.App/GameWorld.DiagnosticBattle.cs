@@ -41,6 +41,10 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new InvalidDataException("Preparing an equipped saved command slot requires one explicit independent expanded diagnostic invocation.");
         }
+        if (Roster is not null && Prelude is not null && (!Prelude.RequireNativeAllocation || Roster.OriginalSceneSlot != Prelude.DefeatedSceneSlot))
+        {
+            throw new InvalidDataException("An expanded diagnostic prelude requires the declared original predecessor and a distinct native allocation target.");
+        }
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
@@ -151,7 +155,11 @@ internal sealed partial class GameWorld
                 throw new NotSupportedException("Diagnostic entry did not initialize its original owners within the declared callback budget. " + JsonSerializer.Serialize(facts));
             }
             SynchronizeNativeBattleHostCallbacks(active);
-            DiagnosticReceipt = DiagnosticReceipt! with { EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original entry/declared target/command readiness callbacks before presentation; measured focal executions retain normal real-time pacing.") };
+            DiagnosticReceipt = DiagnosticReceipt! with
+            {
+                EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original entry/declared target/command readiness callbacks before presentation; measured focal executions retain normal real-time pacing."),
+                RosterMembers = request.Roster is null ? null : ObserveDiagnosticRosterMembers(active)
+            };
         }
         finally
         {
@@ -238,7 +246,7 @@ internal sealed partial class GameWorld
             {
                 DiagnosticReceipt = DiagnosticReceipt with
                 {
-                    RosterMembers = battle.Combatants.Where(actor => actor.IsActive || actor.IsPlayer).Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray(),
+                    RosterMembers = ObserveDiagnosticRosterMembers(battle),
                     RosterDonors = battle.ReadDefinition().AddedEnemySources
                 };
             }

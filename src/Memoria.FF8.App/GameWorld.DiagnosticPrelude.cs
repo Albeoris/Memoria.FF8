@@ -13,9 +13,10 @@ internal sealed partial class GameWorld
         BattleCombatant attacker = active.Combatants.Single(actor => actor.Id == declaration.Input.ActorId);
         BattleCombatant predecessor = active.Combatants.Single(actor => actor.Id == declaration.Input.TargetId);
         BattleCombatantDefinition source = active.GetCombatantDefinition(predecessor.Id);
-        BattleCombatantDefinition targetSource = active.GetCombatantDefinition(request.Target!.ActorId);
+        DiagnosticTargetExpectation expectedTarget = request.Target ?? throw new InvalidDataException("An original allocation prelude requires a focal target declaration.");
+        BattleCombatantDefinition targetSource = active.GetCombatantDefinition(expectedTarget.ActorId);
         string deathHash = Convert.ToHexStringLower(SHA256.HashData(source.NativeAi?.Scripts[3] ?? throw new NotSupportedException("Prelude requires the original predecessor death callback.")));
-        if (!attacker.IsPlayer || predecessor.IsPlayer || predecessor.ModelId != declaration.DefeatedModel || predecessor.SceneSlot != declaration.DefeatedSceneSlot || !source.InitialActive || !predecessor.IsAlive || targetSource.ModelId != request.Target.Model || targetSource.SceneSlot != request.Target.SceneSlot || targetSource.NativeTemplate is null || targetSource.InitialActive == declaration.RequireNativeAllocation || !string.Equals(deathHash, declaration.DeathScriptSha256, StringComparison.OrdinalIgnoreCase))
+        if (!attacker.IsPlayer || predecessor.IsPlayer || predecessor.ModelId != declaration.DefeatedModel || predecessor.SceneSlot != declaration.DefeatedSceneSlot || !source.InitialActive || !predecessor.IsAlive || targetSource.ModelId != expectedTarget.Model || targetSource.SceneSlot != expectedTarget.SceneSlot || targetSource.NativeTemplate is null || targetSource.InitialActive == declaration.RequireNativeAllocation || !string.Equals(deathHash, declaration.DeathScriptSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Prelude does not match the original predecessor, target prototype, allocation origin or death-script identity.");
         }
@@ -36,7 +37,7 @@ internal sealed partial class GameWorld
                 throw new NotSupportedException("Prelude event evidence exceeded its declared bounded capacity.");
             }
             events.Add(value);
-            if (value.Kind == "Damage" && value.ActorId == attacker.Id && value.TargetId == predecessor.Id && value.Amount > 0)
+            if (value.Kind is "Damage" or "EffectDamage" && value.Ability == BattleAbility.Attack && value.ActorId == attacker.Id && value.TargetId == predecessor.Id && value.Amount > 0)
             {
                 ordinaryDamage += value.Amount;
             }
@@ -48,6 +49,13 @@ internal sealed partial class GameWorld
                 throw new NotSupportedException("Prelude cannot warm the focal effect or discard dispatch evidence.");
             }
             dispatches.Add(value);
+        }
+        DiagnosticAllocationProgress ObserveAllocation()
+        {
+            BattleDiagnosticTarget[] identities = active.Combatants.Where(actor => !actor.IsPlayer && actor.SceneSlot == expectedTarget.SceneSlot && actor.ModelId == expectedTarget.Model)
+                .Select(actor => active.ObserveDiagnosticTarget(actor.Id)).TakeLast(4).ToArray();
+            BattleEvent[] spawns = events.Where(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id).TakeLast(4).ToArray();
+            return new(identities, spawns);
         }
         active.DiagnosticEventPublished += ObserveEvent;
         active.DiagnosticEffectDispatched += ObserveDispatch;
@@ -65,25 +73,24 @@ internal sealed partial class GameWorld
                 {
                     if (declaration.RequireNativeAllocation)
                     {
-                        foreach (BattleEvent allocation in events.Where(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id && value.Amount == request.Target.SceneSlot))
+                        foreach (BattleEvent allocation in events.Where(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id && value.Amount == expectedTarget.SceneSlot))
                         {
                             BattleCombatant allocated = active.Combatants.Single(actor => actor.Id == allocation.TargetId);
                             BattleDiagnosticTarget initialized = active.ObserveDiagnosticTarget(allocated.Id);
                             if (initialized.StatisticsReady)
                             {
                                 int levelBand = active.GetCombatantDefinition(allocated.Id).NativeAi?.LevelBand ?? throw new NotSupportedException("The observed allocation lacks its original AI bank.");
-                                VerifyInitializedPreludeAllocationIdentity(request.Target, initialized, request.Driver!.EnemyAbility!.LevelBand, levelBand, targetInitializationHash);
+                                VerifyInitializedPreludeAllocationIdentity(expectedTarget, initialized, request.Driver!.EnemyAbility!.LevelBand, levelBand, targetInitializationHash);
                             }
                         }
                     }
-                    BattleCombatant[] candidates = active.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && actor.ModelId == request.Target.Model && actor.SceneSlot == request.Target.SceneSlot).ToArray();
+                    BattleCombatant[] candidates = active.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && actor.ModelId == expectedTarget.Model && actor.SceneSlot == expectedTarget.SceneSlot).ToArray();
                     if (candidates.Length == 1)
                     {
                         BattleCombatant target = candidates[0];
                         BattleDiagnosticTarget observed = active.ObserveDiagnosticTarget(target.Id);
-                        bool spawned = events.Any(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id && value.TargetId == target.Id && value.Amount == request.Target.SceneSlot);
-                        bool damaged = events.Any(value => value.Kind == "Damage" && value.ActorId == attacker.Id && value.TargetId == predecessor.Id && value.Amount > 0);
-                        if (attacks > 0 && damaged && spawned == declaration.RequireNativeAllocation && (declaration.RequireNativeAllocation || target.Id == request.Target.ActorId) && observed.Alive && observed.StatisticsReady && observed.PhysicalIndex == request.Target.PhysicalIndex && (observed.Flags & request.Target.FlagsMask) == request.Target.FlagsValue)
+                        bool spawned = events.Any(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id && value.TargetId == target.Id && value.Amount == expectedTarget.SceneSlot);
+                        if (attacks > 0 && ordinaryDamage > 0 && spawned == declaration.RequireNativeAllocation && (declaration.RequireNativeAllocation || target.Id == expectedTarget.ActorId) && observed.Alive && observed.StatisticsReady && observed.PhysicalIndex == request.Target.PhysicalIndex && (observed.Flags & request.Target.FlagsMask) == request.Target.FlagsValue)
                         {
                             NativeBattleAiDefinition ai = active.GetCombatantDefinition(target.Id).NativeAi ?? throw new NotSupportedException("Prelude target lacks its original initialized AI bank.");
                             if (ai.LevelBand != request.Driver!.EnemyAbility!.LevelBand)
@@ -92,13 +99,17 @@ internal sealed partial class GameWorld
                             }
                             if (request.AtbMode != BattleAtbMode.TurnBased || active.TryHandoffDiagnosticReadinessActor(declaration.Input.ActorId!, target.Id))
                             {
-                                observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true);
-                                BattleInput resolvedInput = request.Driver.Input with { ActorId = target.Id, TargetId = request.Driver.Input.TargetId == request.Target.ActorId ? target.Id : request.Driver.Input.TargetId };
-                                DiagnosticTargetExpectation resolvedTarget = request.Target with { ActorId = target.Id };
+                                observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true, observeAllocation: ObserveAllocation);
+                                BattleInput resolvedInput = request.Driver.Input with { ActorId = target.Id, TargetId = request.Driver.Input.TargetId == expectedTarget.ActorId ? target.Id : request.Driver.Input.TargetId };
+                                DiagnosticTargetExpectation resolvedTarget = expectedTarget with { ActorId = target.Id };
                                 DiagnosticBattleRequest resolved = request with { Target = resolvedTarget, Driver = request.Driver with { Input = resolvedInput } };
                                 string readinessScope = request.AtbMode == BattleAtbMode.TurnBased ? "Only the diagnostic readiness reference is handed from the declared player to the proved initialized focal owner at the existing idle TurnBased boundary." : "Declared Normal scheduling is retained.";
+                                if (request.Roster is not null && active.Combatants.Any(actor => actor.Id == predecessor.Id && actor.IsActive))
+                                {
+                                    throw new InvalidDataException("The native predecessor must retire before the expanded focal roster is measured.");
+                                }
                                 diagnosticBattle = diagnosticBattle! with { Request = resolved };
-                                DiagnosticReceipt = DiagnosticReceipt! with { Prelude = new(declaration, DiagnosticReceipt.BattleInstanceId, active.DiagnosticLifecycleId, startCallback, active.NativeHostCallbacks!.Value, restores, resets, attacks, Stopwatch.GetElapsedTime(started).TotalMilliseconds, predecessorIndex, initialHp, predecessor.CurrentHp, request.Driver.Input, resolvedInput, request.Target, resolvedTarget, observed, events.ToArray(), dispatches.ToArray(), $"Bounded declared ordinary Attack preparation through original death AI and activation/allocation. {readinessScope} Native callbacks and ATB use their existing admission rules; no HP, participant flags, RNG, clock or snapshot is restored. Full preparation wall time remains overhead.") };
+                                DiagnosticReceipt = DiagnosticReceipt! with { Prelude = new(declaration, DiagnosticReceipt.BattleInstanceId, active.DiagnosticLifecycleId, startCallback, active.NativeHostCallbacks!.Value, restores, resets, attacks, Stopwatch.GetElapsedTime(started).TotalMilliseconds, predecessorIndex, initialHp, predecessor.CurrentHp, request.Driver.Input, resolvedInput, expectedTarget, resolvedTarget, observed, events.ToArray(), dispatches.ToArray(), $"Bounded declared ordinary Attack preparation through original death AI and activation/allocation. {readinessScope} Native callbacks and ATB use their existing admission rules; no HP, participant flags, RNG, clock or snapshot is restored. Full preparation wall time remains overhead.") };
                                 return resolved;
                             }
                         }
@@ -116,10 +127,10 @@ internal sealed partial class GameWorld
                 if (callbacks != declaration.MaximumCallbacks)
                 {
                     active.Tick();
-                    observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker);
+                    observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, observeAllocation: ObserveAllocation);
                 }
             }
-            observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true);
+            observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true, observeAllocation: ObserveAllocation);
             throw new NotSupportedException("Ordinary command prelude did not reach the original initialized target within its callback budget.");
         }
         finally

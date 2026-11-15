@@ -3,14 +3,19 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record DiagnosticPreparationProgress(string Phase, long Callback, long Frame, bool EntryReady, int Attacks, long OrdinaryDamage, string? PredecessorId, int? PredecessorHitPoints, int? PredecessorMaximumHitPoints, uint? PredecessorFlags, bool? AttackerReady, bool? AttackerBusy, string[] DrainBlockers);
+internal sealed record DiagnosticPreparationProgress(string Phase, long Callback, long Frame, bool EntryReady, int Attacks, long OrdinaryDamage, string? PredecessorId, int? PredecessorHitPoints, int? PredecessorMaximumHitPoints, uint? PredecessorFlags, bool? AttackerReady, bool? AttackerBusy, string[] DrainBlockers)
+{
+    public DiagnosticAllocationProgress? NativeAllocation { get; init; }
+}
+
+internal sealed record DiagnosticAllocationProgress(BattleDiagnosticTarget[] TargetIdentities, BattleEvent[] SpawnEvents);
 
 internal sealed class DiagnosticPreparationProgressObserver(BattleSession battle, Action<DiagnosticPreparationProgress>? publish)
 {
     private long lastCallback = -1;
     private long lastTimestamp;
 
-    internal void Report(string phase, int attacks = 0, long ordinaryDamage = 0, BattleCombatant? predecessor = null, BattleCombatant? attacker = null, bool boundary = false)
+    internal void Report(string phase, int attacks = 0, long ordinaryDamage = 0, BattleCombatant? predecessor = null, BattleCombatant? attacker = null, bool boundary = false, Func<DiagnosticAllocationProgress>? observeAllocation = null)
     {
         if (publish is null)
         {
@@ -23,6 +28,6 @@ internal sealed class DiagnosticPreparationProgressObserver(BattleSession battle
         }
         lastCallback = callback;
         lastTimestamp = Stopwatch.GetTimestamp();
-        publish(new(phase, callback, battle.Frame, battle.NativeEntryReady, attacks, ordinaryDamage, predecessor?.Id, predecessor?.CurrentHp, predecessor?.MaximumHp, predecessor?.NativeCombatantFlags, attacker is null ? null : battle.CanChoosePlayerCommand(attacker.Id), attacker?.IsBusy, battle.ObserveDiagnosticDrainBlockers().ToArray()));
+        publish(new(phase, callback, battle.Frame, battle.NativeEntryReady, attacks, ordinaryDamage, predecessor?.Id, predecessor?.CurrentHp, predecessor?.MaximumHp, predecessor?.NativeCombatantFlags, attacker is null ? null : battle.CanChoosePlayerCommand(attacker.Id), attacker?.IsBusy, battle.ObserveDiagnosticDrainBlockers().ToArray()) { NativeAllocation = observeAllocation?.Invoke() });
     }
 }

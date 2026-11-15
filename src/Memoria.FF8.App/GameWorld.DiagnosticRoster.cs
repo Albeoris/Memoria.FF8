@@ -29,12 +29,12 @@ internal sealed record DiagnosticBattleRoster([property: JsonRequired] Immutable
 
 internal sealed partial class GameWorld
 {
-    private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectDiagnosticRosterDonors(BattleEncounter encounter, DiagnosticBattleRoster roster)
+    private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectDiagnosticRosterDonors(BattleEncounter encounter, DiagnosticBattleRoster roster, HashSet<int> reserveSlots)
     {
         IEnumerable<BattleEnemyRosterSource> selected = roster.Donors;
         if (roster.DonorCount is int count)
         {
-            HashSet<int> models = SelectDiagnosticRosterOriginals(encounter, roster).Select(enemy => enemy.ModelId).ToHashSet();
+            HashSet<int> models = SelectDiagnosticRosterOriginals(encounter, roster, reserveSlots).Select(enemy => enemy.ModelId).ToHashSet();
             selected = roster.Donors.Where(IsEligible).Take(count).ToArray();
             if (selected.Count() != count)
             {
@@ -60,10 +60,20 @@ internal sealed partial class GameWorld
         return extended with { Records = extended.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1) }).ToArray() };
     }
 
-    private static BattleEnemyPlacement[] SelectDiagnosticRosterOriginals(BattleEncounter encounter, DiagnosticBattleRoster roster)
+    private BattleEnemyPlacement[] SelectDiagnosticRosterOriginals(BattleEncounter encounter, DiagnosticBattleRoster roster, HashSet<int> reserveSlots)
     {
         BattleEnemyPlacement caster = encounter.Enemies.SingleOrDefault(enemy => enemy.Slot == roster.OriginalSceneSlot && IsOrdinaryEnemyPlacement(enemy))
             ?? throw new InvalidDataException("The declared original diagnostic enemy must be an enabled visible encounter participant.");
-        return [caster];
+        BattleEnemyPlacement[] prototypes = encounter.Slots.Where(enemy => reserveSlots.Contains(enemy.Slot) && IsEnemyPrototype(enemy) && !enemy.Enabled).ToArray();
+        if (diagnosticBattle?.Request is { Prelude.RequireNativeAllocation: true, Target: { } target } && !prototypes.Any(enemy => enemy.Slot == target.SceneSlot && enemy.ModelId == target.Model))
+        {
+            throw new InvalidDataException("The diagnostic allocation target must have its original referenced inactive enemy prototype.");
+        }
+        return [caster, .. prototypes];
+    }
+
+    private static DiagnosticBattleRosterMember[] ObserveDiagnosticRosterMembers(BattleSession active)
+    {
+        return active.Combatants.Where(actor => actor.IsActive || actor.IsPlayer).Select(actor => new DiagnosticBattleRosterMember(actor.Id, actor.ModelId, actor.IsPlayer, actor.SceneSlot)).ToArray();
     }
 }

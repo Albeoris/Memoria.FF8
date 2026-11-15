@@ -176,7 +176,7 @@ internal sealed partial class GameWorld
         ImmutableSortedDictionary<int, BattleEnemyRosterSource>? addedEnemySources = restoredDefinition?.AddedEnemySources;
         if (diagnosticRoster is not null)
         {
-            addedEnemySources = SelectDiagnosticRosterDonors(encounter, diagnosticRoster);
+            addedEnemySources = SelectDiagnosticRosterDonors(encounter, diagnosticRoster, reserveSlots);
         }
         else if (restoredDefinition is null && effectPreviewRequest is null && rosterAdmission.AllowsAdditionalEnemies)
         {
@@ -195,7 +195,7 @@ internal sealed partial class GameWorld
         BattleEnemyPlacement[]? expandedEnemies = null;
         if (expanded && useOriginalEnemySlots)
         {
-            expandedEnemies = diagnosticRoster is null ? OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots) : SelectDiagnosticRosterOriginals(encounter, diagnosticRoster);
+            expandedEnemies = diagnosticRoster is null ? OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots) : SelectDiagnosticRosterOriginals(encounter, diagnosticRoster, reserveSlots);
             if (addedEnemySources is { Count: > 0 })
             {
                 expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: expandedEnemies, diagnosticRoster: diagnosticRoster is not null);
