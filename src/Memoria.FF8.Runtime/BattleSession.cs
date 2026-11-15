@@ -1145,6 +1145,8 @@ public sealed partial class BattleSession
                 Log("Cancelled", command.ActorId, command.TargetId, 0, "Defeated actor cannot act.");
             }
         }
+        BattleActionPresentation? busyAction = expandedHostedEvent is { LogicallyComplete: true } completed &&
+            ReferenceEquals(ActiveAction, completed.ActivePresentation) ? null : ActiveAction;
         foreach (BattleCombatant actor in combatants)
         {
             bool nativeQueued = !UsesExpandedRoster && actor.EncodeNativeSlot() is >= 0 and < 7 && nativeCommandBanks.CountActor(checked((byte)actor.EncodeNativeSlot())) != 0;
@@ -1152,7 +1154,7 @@ public sealed partial class BattleSession
             bool retainedDeathAction = UsesExpandedRoster && (HasExpandedEnemyDeathAction(actor) ||
                 ActiveAction?.ExpandedAiCallback is { Stage: 3 } callback && callback.Actor == TargetActorReference(actor) ||
                 actions.Any(command => command.ExpandedAiCallback is { Stage: 3 } request && request.Actor == TargetActorReference(actor)));
-            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || expandedGuardianFormEntry?.ActorId == actor.Id || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
+            actor.IsBusy = (NativeGraphics is not null || actor.IsAlive || retainedSupport || retainedDeathAction) && (nativeQueued || nativeTimedAction?.Command.ActorId == actor.Id || UsesExpandedRoster && (nativeShotProcesses.ContainsKey(actor.Id) || nativeDuelProcesses.ContainsKey(actor.Id)) || guardianForceCasts.ContainsKey(actor.Id) || expandedGuardianFormEntry?.ActorId == actor.Id || busyAction?.ActorId == actor.Id || actions.Any(command => command.NativeCallback is null && command.ExpandedAiDescriptor is null && command.ActorId == actor.Id));
         }
 
         bool CanRetainTargets(string actorId, string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, BattleTargetRequest request, BattleNativeGraphicCommand? graphic, NativeLimitCallback? callback)

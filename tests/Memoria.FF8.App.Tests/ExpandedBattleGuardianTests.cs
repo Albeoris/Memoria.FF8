@@ -39,7 +39,6 @@ public sealed class ExpandedBattleGuardianTests
         BattleModelOwner casterOwner = battle.ReadPresentationModelOwner(CasterId);
         Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(casterOwner, out _));
         Assert.True(battle.CanSelectExpandedGuardianForce(CasterId, GuardianId));
-        int[] originalHp = enemies.Select(enemy => enemy.CurrentHp).ToArray();
         ushort[] originalAffinity = caster.GuardianForceCompatibility!.ToArray();
         ushort[] affinityAfterOne = originalAffinity.ToArray();
         foreach (BattleGuardianForceVital guardian in battle.GuardianForces.Where(guardian => guardian.Acquired))
@@ -49,15 +48,28 @@ public sealed class ExpandedBattleGuardianTests
         Assert.False(originalAffinity.SequenceEqual(affinityAfterOne));
 
         caster.Atb = BattleSession.AtbMaximum;
-        int start = battle.Events.Count;
+        int chargeStart = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: CasterId, TargetId: enemies[0].Id, Ability: BattleAbility.GuardianForce, ActionId: GuardianId));
+        const int callbackBudget = 3200;
+        int callback = 0;
+        for (; callback < callbackBudget && battle.GuardianForceCasts.Any(cast => cast.ActorId == CasterId); callback++)
+        {
+            if (battle.ActiveAction is null && process.ActiveActionToken is null && battle.QueuedActions.Count == 0)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+            }
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Same(process, battle.ExpandedPresentationProcess);
+        }
+
+        int? admittedAt = null;
         BattleContactOccurrence[]? occurrences = null;
         List<NativeBattleContactPacket> delivered = [];
         long? token = null;
         bool sawModule = false;
         bool sawWidget = false;
         bool pressed = false;
-        for (int callback = 0; callback < 3200 && !Completed(battle, start); callback++)
+        for (; callback < callbackBudget && (admittedAt is not int start || !Completed(battle, start)); callback++)
         {
             battle.PublishNativeGuardianBoostMappedButtons(learnedBoost ? (ushort)0x100 : (ushort)0);
             if (!pressed && battle.NativeGuardianBoost is { Enabled: true, Phase: 4, Window: 1 })
@@ -65,6 +77,8 @@ public sealed class ExpandedBattleGuardianTests
                 Assert.True(battle.PressNativeGuardianBoost());
                 pressed = true;
             }
+            int beforeTick = battle.Events.Count;
+            int[]? hpBeforeAdmission = admittedAt is null ? enemies.Select(enemy => enemy.CurrentHp).ToArray() : null;
             world.ApplyBattleInput(new(BattleInputKind.Tick));
             Assert.Same(process, battle.ExpandedPresentationProcess);
             sawModule |= process.Graphics.OriginalEffect?.RequestedEffect == native.MagicId;
@@ -79,25 +93,26 @@ public sealed class ExpandedBattleGuardianTests
                 if (headers.Length != 0)
                 {
                     var (reference, header) = Assert.Single(headers);
+                    admittedAt = beforeTick;
+                    token = Assert.IsType<long>(process.ActiveActionToken);
                     Assert.Equal(native.ActionId, header.Action);
                     Assert.Equal(enemies.Length, header.ReadContactCount());
                     occurrences = Enumerable.Range(0, enemies.Length).Select(index => child.NativeActionPackets.ResolveContact(reference, index)).ToArray();
                     Assert.All(occurrences, occurrence => Assert.Equal(0, child.NativeActionPackets.ReadContact(occurrence).Primary.PresentedAmount));
-                    Assert.Equal(originalHp, enemies.Select(enemy => enemy.CurrentHp));
+                    Assert.Equal(hpBeforeAdmission!, enemies.Select(enemy => enemy.CurrentHp));
                     Assert.Equal(affinityAfterOne, caster.GuardianForceCompatibility);
                     NativeBattleActionScratch preliminary = ReadField<NativeBattleActionScratch>(battle, "nativeActionScratch");
                     Assert.False(preliminary.GuardianFormulaE1E);
                     Assert.True(preliminary.DeferredEffectsE00);
                 }
             }
-            if (process.LastStepActionToken is long observed)
+            if (token.HasValue && process.LastStepActionToken == token)
             {
-                Assert.Equal(token ??= observed, observed);
                 delivered.AddRange(process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Packet));
             }
         }
 
-        if (!Completed(battle, start))
+        if (admittedAt is not int invocationStart || !Completed(battle, invocationStart))
         {
             Assert.Fail(DescribeStalledGuardian(battle, child, process, sawModule, sawWidget, delivered.Count));
         }
@@ -108,10 +123,10 @@ public sealed class ExpandedBattleGuardianTests
         Assert.NotNull(token);
         Assert.True(process.IsActionComplete(token.Value));
         Assert.Equal(occurrences, delivered.Select(packet => packet.Occurrence!.Value).OrderBy(occurrence => occurrence.Ordinal));
-        Assert.Equal(enemies.Select(enemy => enemy.Id).Order(StringComparer.Ordinal), battle.Events.Skip(start).Where(entry => entry is { Kind: "EffectContact", ActorId: CasterId, Ability: BattleAbility.GuardianForce }).Select(entry => entry.TargetId).Order(StringComparer.Ordinal));
-        Assert.Single(battle.Events.Skip(start), entry => entry is { Kind: "GuardianForceReady", ActorId: CasterId });
-        Assert.Single(battle.Events.Skip(start), entry => entry is { Kind: "ActionComplete", ActorId: CasterId });
-        Assert.Contains(battle.Events.Skip(start), entry => entry.NativeStopAllSounds);
+        Assert.Equal(enemies.Select(enemy => enemy.Id).Order(StringComparer.Ordinal), battle.Events.Skip(admittedAt!.Value).Where(entry => entry is { Kind: "EffectContact", ActorId: CasterId, Ability: BattleAbility.GuardianForce }).Select(entry => entry.TargetId).Order(StringComparer.Ordinal));
+        Assert.Single(battle.Events.Skip(chargeStart), entry => entry is { Kind: "GuardianForceReady", ActorId: CasterId });
+        Assert.Single(battle.Events.Skip(admittedAt!.Value), entry => entry is { Kind: "ActionComplete", ActorId: CasterId });
+        Assert.Contains(battle.Events.Skip(admittedAt!.Value), entry => entry.NativeStopAllSounds);
         Assert.Equal(affinityAfterOne, caster.GuardianForceCompatibility);
         Assert.Equal(learnedBoost ? (byte)76 : (byte)100, ReadField<NativeBattleActionScratch>(battle, "nativeActionScratch").GuardianBoostPercent);
         Assert.Null(battle.NativeGuardianBoost);
@@ -123,7 +138,7 @@ public sealed class ExpandedBattleGuardianTests
         caster.Atb = BattleSession.AtbMaximum;
         int next = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: CasterId, TargetId: nextTarget));
-        for (int callback = 0; callback < 1200 && !Completed(battle, next); callback++)
+        for (int nextCallback = 0; nextCallback < 1200 && !Completed(battle, next); nextCallback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }

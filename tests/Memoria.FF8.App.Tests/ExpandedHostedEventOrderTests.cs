@@ -51,6 +51,7 @@ public sealed class ExpandedHostedEventOrderTests
         int casterHp = caster.CurrentHp;
         int originalHp = recipient.CurrentHp;
         int counterHp = counter.CurrentHp;
+        int demiDamage = demi.Power * casterHp / 16;
         var stock = caster.MagicStocks.Select(item => (item.Id, item.Count)).ToArray();
         if (poisoned)
         {
@@ -60,6 +61,7 @@ public sealed class ExpandedHostedEventOrderTests
         int firstEvent = battle.Events.Count;
         battle.QueueAttack(caster.Id, recipient.Id);
         var order = new List<string>();
+        var selfDamage = new List<int>();
         var completions = new List<NativeBattlePresentationCompletionRequested>();
         BattleActionHeaderReference? counterHeader = null;
         NativeBattleRandomState? producedRandom = null;
@@ -71,7 +73,7 @@ public sealed class ExpandedHostedEventOrderTests
             {
                 counterHeader = produced.Reference;
                 producedRandom = Assert.IsType<NativeBattleRandomState>(battle.Capture().Random);
-                Assert.Equal(casterHp - demi.Power * casterHp / 16, caster.CurrentHp);
+                Assert.Equal(casterHp - demiDamage, caster.CurrentHp);
                 Assert.Equal(originalHp, recipient.CurrentHp);
                 Assert.InRange(counter.CurrentHp, 1, counterHp - 1);
             }
@@ -80,7 +82,15 @@ public sealed class ExpandedHostedEventOrderTests
                 switch (receipt)
                 {
                     case NativeBattlePresentationContactReceived contact:
-                        order.Add(contact.Packet.Primary.Recipient == casterOwner ? "self" : "attack");
+                        if (contact.Packet.Primary.Recipient == casterOwner)
+                        {
+                            order.Add("self");
+                            selfDamage.Add(contact.Packet.Primary.PresentedAmount);
+                        }
+                        else
+                        {
+                            order.Add("attack");
+                        }
                         break;
                     case NativeBattlePresentationCompletionRequested completion when completion.Owner == casterOwner:
                         completions.Add(completion);
@@ -112,13 +122,25 @@ public sealed class ExpandedHostedEventOrderTests
         Assert.All(completions, completion => Assert.True(process.IsCompletionAcknowledged(completion.Token)));
         Assert.Single(battle.Events.Skip(firstEvent), item => item.Kind == "ActionComplete" && item.ActorId == caster.Id);
         Assert.Null(battle.ActiveAction);
+        Assert.Same(caster, battle.Combatants.Single(actor => actor.Id == caster.Id));
+        Assert.False(caster.IsBusy);
         Assert.Equal(0d, caster.Atb);
         Assert.Equal(stock, caster.MagicStocks.Select(item => (item.Id, item.Count)));
-        Assert.Equal(Assert.IsType<NativeBattleRandomState>(producedRandom).Indexes.ToArray(), Assert.IsType<NativeBattleRandomState>(battle.Capture().Random).Indexes.ToArray());
+        NativeBattleRandomState expected = Assert.IsType<NativeBattleRandomState>(producedRandom);
+        int poisonDamage = 0;
+        if (poisoned)
+        {
+            expected = expected.Draw(out byte storedRoll);
+            poisonDamage = Math.Min((storedRoll % 5 + 5) * caster.MaximumHp / 100, definition.Tuning.MaximumDamage);
+        }
+        Assert.Equal(poisoned ? new[] { demiDamage, poisonDamage } : new[] { demiDamage }, selfDamage);
+        Assert.Equal(casterHp - demiDamage - poisonDamage, caster.CurrentHp);
+        Assert.Equal(expected.Indexes.ToArray(), Assert.IsType<NativeBattleRandomState>(battle.Capture().Random).Indexes.ToArray());
 
-        BattleCombatant next = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && actor.Id != original.Id && actor.Id != support.Id);
+        BattleCombatant next = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && !actor.Untargetable && actor.Id != original.Id && actor.Id != support.Id);
         caster.NativeStatus0 &= 0xFFFD;
         caster.Atb = BattleSession.AtbMaximum;
+        Assert.True(caster.IsReady);
         int nextEvent = battle.Events.Count;
         battle.QueueAttack(caster.Id, next.Id);
         for (int frame = 0; frame < 1200 && !BattleCompletedAction(battle, nextEvent, caster.Id); frame++)
