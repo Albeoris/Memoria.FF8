@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -26,6 +27,12 @@ public sealed record NativeBattleBio22ActorMemory([property: JsonRequired] Nativ
     public byte[] ReadSettings(int offset, int length) => Read(Settings, offset, length, SettingsLength);
     public byte[] ReadLighting(int offset, int length) => Read(Lighting, offset, length, LightingLength);
     public byte[] ReadProjected(int offset, int length) => Read(Projected, offset, length, ProjectedLength);
+    internal BattleModelOwner ReadModel(int offset, int width) => Settings.ReadExecutionReference<BattleExecutionReference.Model>(offset, width).Owner;
+    internal NativeBattleBio22ActorMemory WriteModel(int offset, int width, BattleModelOwner owner, ImmutableArray<byte>? encoding)
+    {
+        return this with { Settings = Settings.WriteExecutionReference(offset, width, new BattleExecutionReference.Model(owner), encoding) };
+    }
+
     public NativeBattleBio22ActorMemory WriteSettings(int offset, ReadOnlySpan<byte> bytes) => this with { Settings = Write(Settings, offset, bytes, SettingsLength) };
     public NativeBattleBio22ActorMemory WriteLighting(int offset, ReadOnlySpan<byte> bytes) => this with { Lighting = Write(Lighting, offset, bytes, LightingLength) };
     public NativeBattleBio22ActorMemory WriteProjected(int offset, ReadOnlySpan<byte> bytes) => this with { Projected = Write(Projected, offset, bytes, ProjectedLength) };

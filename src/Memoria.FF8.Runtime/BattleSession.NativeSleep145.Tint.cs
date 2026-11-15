@@ -4,15 +4,15 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeSleep145Tint(NativeBattleGraphicsState graphics, int target, NativeBattleVector center, int fade, NativeBattlePilotVisualIdentity identity)
+    private NativeBattleGraphicsState DrawNativeSleep145Tint(NativeBattleGraphicsState graphics, BattleModelOwner target, NativeBattleVector center, int fade, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(target);
-        if (ReadNativeForeignModel(target) is { } foreign)
+        if (ReadNativeForeignModel(graphics, target) is { } foreign)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, target, actor, projection, 4121, false);
             uint hostTint = colors.Interpolate(0x08B0A0, fade, 0);
             short hostZsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Sleep requires its current ZSF3.");
             short hostZsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Sleep requires its current ZSF4.");
@@ -24,7 +24,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, target);
         if ((actor.Flags0 & 0x20) == 0)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, target, actor, projection, 4121, false);
         }
         NativeBattlePoseSource source = resource.PoseSource!;
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.ModelGroupMatrices50F190(actor, source, NativeBattleCuragaMatrices.Identity8DD770());

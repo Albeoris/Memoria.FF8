@@ -45,7 +45,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = step.Frame.Memory;
         return graphics with { OriginalEffect = step.Frame.Effect with { Restoration = step.Frame.State } };
 
-        NativeBattleRestorationFrame ApplyContact(NativeBattleRestorationFrame current, int index)
+        NativeBattleRestorationFrame ApplyContact(NativeBattleRestorationFrame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

@@ -59,7 +59,9 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 BattleContactCursor contact = header.FirstContact;
                 BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
-                task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target)), 20, ReadNativeDefaultPosition571400(graphics, target)), 28, ReadNativeGraphicsBone(graphics, target, 0xF0, 0));
+                task = task.WriteWord(14, (ushort)action);
+                task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), nativeActionPackets.ModelAliases.EncodeAddress(target));
+                task = WindStore(WindStore(task, 20, ReadNativeDefaultPosition571400(graphics, target)), 28, ReadNativeGraphicsBone(graphics, target, 0xF0, 0));
                 task = Init(task, 0x24, 0x254, resources.Clock);
                 task = Init(task, 0x278, 0x558, resources.Lower);
                 targets = pool.WriteSlot(slot, task);
@@ -99,10 +101,7 @@ public sealed partial class BattleSession
 
         int Target(ref NativeBattleModulePoolTask task)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(task.ReadDword(16), out int actor))
-            {
-                throw new InvalidDataException("Native Haste target leaves its physical model bank.");
-            }
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             int counter = unchecked((short)task.ReadWord(12));
             NativeBattleVector anchor = WindVector(task, 20);
             if (counter == 6)

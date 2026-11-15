@@ -53,3 +53,9 @@ public sealed partial record NativeBattleEffectMemory
 }
 
 public sealed record NativeBattleTheEnd85Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, ushort> TheEndSavedPartyFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+}

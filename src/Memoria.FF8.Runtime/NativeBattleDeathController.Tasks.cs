@@ -39,8 +39,8 @@ public static partial class NativeBattleDeathController
 
         private void Emitter(uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)), inputs.ReadForeign, (index, selector) => current = (inputs.ObserveForeignBone ?? throw new NotSupportedException("The host bone observation service is unavailable."))(current, index, selector));
-            int actor = task.ReadByte(0x2D);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(Read(address), inputs.ReadModel, inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)), inputs.ReadForeign, (index, selector) => current = (inputs.ObserveForeignBone ?? throw new NotSupportedException("The host bone observation service is unavailable."))(current, index, selector));
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             if (inputs.ReadForeign?.Invoke(actor) is { } foreign)
             {
@@ -89,7 +89,7 @@ public static partial class NativeBattleDeathController
             }
         }
 
-        private void Place(int actor)
+        private void Place(BattleModelOwner actor)
         {
             SetState(State with { Module = State.Module.Write(profile.ModuleOffset(0x27423F8), new byte[0x54]) });
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
@@ -99,7 +99,7 @@ public static partial class NativeBattleDeathController
             Word(0x2742402, 0);
             Word(0x2742404, bone.Z);
             int offset = unchecked(unchecked(transform.Scale38 * 125) << 4) >> 12;
-            short z = unchecked((short)(transform.Position28.Z + (actor <= 2 ? -512 - offset : 512 + offset)));
+            short z = unchecked((short)(transform.Position28.Z + (actor.Side == BattleSide.Allies ? -512 - offset : 512 + offset)));
             Word(0x27423F8, transform.Position28.X);
             Word(0x27423FA, 0);
             Word(0x27423FC, z);

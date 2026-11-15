@@ -40,8 +40,8 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         bool frozen = (graphics.Flags & 0x201) != 0;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Wall requires its current target contact list.");
-        int firstActor = nativeActionPackets.ReadContact(first).Primary.Recipient;
+        BattleContactCursor first = header.FirstContact;
+        BattleModelOwner firstActor = nativeActionPackets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectTaskStep stepped = roots.Advance((pool, slot) =>
         {
             roots = pool;
@@ -122,7 +122,7 @@ public sealed partial class BattleSession
             int age = WindWord(task, 12);
             if (age == 0)
             {
-                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.EnumerateRows().Select(index => graphics.ActorModels.Get(index).Transform?.Position28 ?? throw new NotSupportedException("Native Wall center requires every actual target position.")).ToArray());
+                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.Enumerate().Select(index => graphics.ActorModels.Get(index).Transform?.Position28 ?? throw new NotSupportedException("Native Wall center requires every actual target position.")).ToArray());
                 NativeBattleActionMatrix world = graphics.ActorModels.Get(firstActor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Wall requires its target's actual model matrix.");
                 NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(world, new(0, 0, -1500));
                 center = new(unchecked((short)(center.X + offset.X)), unchecked((short)(center.Y + offset.Y)), unchecked((short)(center.Z + offset.Z)));
@@ -162,7 +162,7 @@ public sealed partial class BattleSession
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first.Advance(index))] });
                 }
                 graphics = graphics with { PendingContacts = pending };
             }

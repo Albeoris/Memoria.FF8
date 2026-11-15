@@ -20,12 +20,7 @@ public sealed partial class BattleSession
     private NativeBattleGilgameshFrame DrawNativeZantetsukenActor(ref NativeBattleGraphicsState graphics, NativeBattleGilgameshFrame frame, uint taskAddress)
     {
         NativeBattleModulePoolTask task = NativeBattleZantetsukenTasks.Read(frame, taskAddress);
-        ushort selected = task.ReadWord(14);
-        if (selected >= graphics.Models.Length)
-        {
-            throw new InvalidDataException("Zantetsuken body leaves its physical actor rows.");
-        }
-        int index = selected;
+        BattleModelOwner index = NativeBattleZantetsukenTasks.ReadActor(task);
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Zantetsuken body requires its actual current skeleton.");
@@ -35,7 +30,7 @@ public sealed partial class BattleSession
         if ((actor.Flags0 & 0x20) == 0)
         {
             NativeBattleShadowSource shadowSource = definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Zantetsuken shadow requires its original template.");
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireNativeZantetsukenStaging(frame), new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current arithmetic registers.")), actor, projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Zantetsuken shadow requires its depth-cue controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Zantetsuken shadow requires its current primitive capabilities."), 4121, 16, NativeBattleGilgameshVisuals.Resource(frame.PresentationIdentity, shadowSource, 0x5088A0, index));
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireNativeZantetsukenStaging(frame), new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Zantetsuken shadow requires its current arithmetic registers.")), actor, projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Zantetsuken shadow requires its depth-cue controls."), shadowSource, definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Zantetsuken shadow requires its current primitive capabilities."), 4121, 16, NativeBattleGilgameshVisuals.Resource(frame.PresentationIdentity is { } shadowIdentity ? shadowIdentity with { ModelOwner = index } : null, shadowSource, 0x5088A0));
             frame = frame with { Staging = shadow.Staging, Memory = frame.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors } };
             frame = AppendNativeZantetsukenPackets(ref graphics, frame, shadow.Batch);
             frame = PublishNativeZantetsukenTemporary(frame, RequireNativeZantetsukenStaging(frame), shadow.TemporaryAddress, shadow.Temporary78, 0x78, true);
@@ -44,8 +39,10 @@ public sealed partial class BattleSession
         uint temporaryAddress = NativeZantetsukenReservedTemporary(staging);
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(staging, temporaryAddress, 472);
         NativeBattleActionMatrix main = NativeBattleGfMatrices.Compose56C2F0(packedView.ReadMatrix(), actor.GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken body requires its retained actor world matrix."));
-        NativeBattleGilgameshZantetsukenActors actors = frame.Memory.Gilgamesh?.ZantetsukenActors ?? throw new NotSupportedException("Zantetsuken body requires its current actor transform record.");
-        NativeBattleActionMatrix alternate = NativeBattleGfMatrices.Compose56C2F0(packedView.ReadMatrix(), actors.ReadMatrix((byte)index).ReadMatrix());
+        NativeBattleEffectArena row = nativeActionPackets.ModelAliases.TryEncodeExact(index, out byte slot)
+            ? (frame.Memory.Gilgamesh?.ZantetsukenActors ?? throw new NotSupportedException("Zantetsuken body requires its current actor transform record.")).ReadRow(slot)
+            : frame.Effect.ZantetsukenTransforms.GetValueOrDefault(index) ?? throw new NotSupportedException("Zantetsuken body requires its current actor transform record.");
+        NativeBattleActionMatrix alternate = NativeBattleGfMatrices.Compose56C2F0(packedView.ReadMatrix(), NativeBattleGilgameshZantetsukenActors.ReadMatrix(row).ReadMatrix());
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
         ImmutableArray<NativeBattleZantetsukenRenderObject> objects = NativeBattleActorMaterialGeometry.PrepareBody(resource, actor).Select(mesh => new NativeBattleZantetsukenRenderObject(mesh, null)).ToImmutableArray();
         NativeBattlePilotVisualIdentity? actorIdentity = NativeBattleGilgameshVisuals.ActorResource(frame.PresentationIdentity, resource, index);

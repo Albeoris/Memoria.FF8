@@ -11,7 +11,7 @@ public enum NativeBattleDispel109OperationKind
 }
 
 public sealed record NativeBattleDispel109Operation(NativeBattleDispel109OperationKind Kind, int Value, NativeBattleModuleAnchor? Anchor = null);
-public sealed record NativeBattleDispel109Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor, Func<byte, ushort> ReadHeight, Func<NativeBattleDispel109Frame, NativeBattleDispel109Operation, NativeBattleDispel109Frame> Execute, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleGfAnimationNode, NativeBattleDispel109Frame> DrawModel, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleDispel109Frame> DrawSprite)
+public sealed record NativeBattleDispel109Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleModuleAnchor> ReadAnchor, Func<BattleModelOwner, ushort> ReadHeight, Func<NativeBattleDispel109Frame, NativeBattleDispel109Operation, NativeBattleDispel109Frame> Execute, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleGfAnimationNode, NativeBattleDispel109Frame> DrawModel, Func<NativeBattleDispel109Frame, NativeBattleModulePoolTask, NativeBattleDispel109Frame> DrawSprite)
 {
     public Action? ObserveTargetInitialize6CF687 { get; init; }
 }
@@ -53,17 +53,17 @@ public static class NativeBattleDispel109Controller
             {
                 NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(headerIndex.Advance(group));
                 BattleContactCursor contact = header.FirstContact;
-                byte actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
-                uint actorPointer = NativeBattleGraphicsModelAddress.Encode(actor);
+                BattleModelOwner actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
                 NativeBattleEffectTaskPool targets = frame.Effect.Pools[1];
-                if (targets.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == actorPointer && unchecked((short)task.ReadWord(12)) <= 67))
+                if (targets.Slots.Any(task => (task.Flags & 1) != 0 && Actor(task) == actor && unchecked((short)task.ReadWord(12)) <= 67))
                 {
                     root = root.WriteWord(12, 0);
                 }
                 else
                 {
                     (targets, int slot) = targets.Append(0x6CF700);
-                    NativeBattleModulePoolTask task = ClearPayload(targets.Slots[slot]).WriteWord(14, group).WriteDword(20, actorPointer);
+                    NativeBattleModulePoolTask task = ClearPayload(targets.Slots[slot]).WriteWord(14, group);
+                    task.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
                     NativeBattleModuleAnchor anchor = inputs.ReadAnchor(actor);
                     task = task.WriteWord(24, unchecked((ushort)anchor.X)).WriteWord(26, unchecked((ushort)anchor.Y)).WriteWord(28, unchecked((ushort)anchor.Z)).WriteWord(30, unchecked((ushort)(3 * (inputs.ReadHeight(actor) + 256))));
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (20), 808);
@@ -152,7 +152,7 @@ public static class NativeBattleDispel109Controller
             task = StoreWorkspace(task, played.Workspace);
             if (age == 0)
             {
-                byte actor = Actor(task);
+                BattleModelOwner actor = Actor(task);
                 frame = inputs.Execute(frame, new(NativeBattleDispel109OperationKind.Sound, 257, inputs.ReadAnchor(actor)));
             }
         }
@@ -175,15 +175,7 @@ public static class NativeBattleDispel109Controller
         return new(frame, task.WriteWord(12, age), unchecked((short)age) < unchecked((short)task.ReadWord(14)) ? 0 : 2);
     }
 
-    private static byte Actor(NativeBattleModulePoolTask task)
-    {
-        uint pointer = task.ReadDword(20);
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row))
-        {
-            throw new InvalidDataException("Native Dispel target lost its current actor pointer.");
-        }
-        return (byte)row;
-    }
+    private static BattleModelOwner Actor(NativeBattleModulePoolTask task) => task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner;
 
     private static NativeBattleDispel109Frame AppendSprite(NativeBattleDispel109Frame frame, int x, int y, int z, ushort scale, ushort life, uint resource)
     {

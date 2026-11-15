@@ -15,7 +15,7 @@ internal static class NativeBattleGilgameshVisuals
         return parent is { } identity ? identity with { ResourceGeneration = unchecked(((NativeBattlePilotVisualLifetimes.EpochFor(resource) * 397 ^ identity.ResourceGeneration) * 397 ^ address) * 397 ^ role), Primitive = unchecked(identity.Primitive * 397 + role) } : null;
     }
 
-    internal static NativeBattlePilotVisualIdentity? ActorResource(NativeBattlePilotVisualIdentity? parent, NativeBattleGraphicsResource resource, int actor)
+    internal static NativeBattlePilotVisualIdentity? ActorResource(NativeBattlePilotVisualIdentity? parent, NativeBattleGraphicsResource resource, BattleModelOwner actor)
     {
         if (parent is null)
         {
@@ -23,7 +23,7 @@ internal static class NativeBattleGilgameshVisuals
         }
         NativeBattleModelCpuReference? cpu = resource.PilotGeometryResource;
         object geometry = cpu is not null ? cpu : System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(resource.Geometry!.Value)!;
-        NativeBattlePilotVisualIdentity identity = Resource(parent, geometry, cpu is { } owner && (owner.ResourceOnly || owner.EnemyResourceId is not null) ? owner.ResourceStorageOffset : cpu?.TryPhysicalAddress() ?? 0, actor)!.Value;
+        NativeBattlePilotVisualIdentity identity = Resource(parent.Value with { ModelOwner = actor }, geometry, cpu is { } owner && (owner.ResourceOnly || owner.EnemyResourceId is not null) ? owner.ResourceStorageOffset : cpu?.TryPhysicalAddress() ?? 0)!.Value;
         if (resource.LinkedGeometry is { } linked && !linked.IsEmpty && resource.LinkedGeometryUsesBodySkeleton == true)
         {
             identity = Resource(identity, System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(linked)!, 0, 1)!.Value;

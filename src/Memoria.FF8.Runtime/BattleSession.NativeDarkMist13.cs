@@ -21,7 +21,9 @@ public sealed partial class BattleSession
         hierarchy = appended.Hierarchy;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         BattleContactCursor first = header.FirstContact;
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2D, nativeActionPackets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78);
+        root = new NativeBattleEffectTaskActors(header.Source, nativeActionPackets.ReadContact(first).Primary.Recipient, nativeActionPackets.ModelAliases).WriteTargetTo(root);
+        root = root.WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(appended.Address, root);
         return graphics with { OriginalEffect = effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x2747720, DrawArenaOffset = null } };
     }
@@ -43,7 +45,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         effect = effect with { DrawArenaOffset = (Word(root, 0x5C) & 1) != 0 ? 0 : 0x4000 };
-        root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, effect.Parameters!, graphics.Models, ReadSource);
+        root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, effect.Parameters!, graphics.ActorModels.Get, ReadSource);
         hierarchy = hierarchy.Write(rootAddress, root);
         switch (root.ReadByte(0x29))
         {
@@ -114,8 +116,8 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask Emitter(uint address, NativeBattleModulePoolTask task)
         {
-            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, graphics.Models, ReadSource);
-            int target = task.ReadByte(0x2D);
+            task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, graphics.ActorModels.Get, ReadSource);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattlePoseSource source = ReadSource(target);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(target).SequenceState!, source));
             hierarchy = hierarchy.Write(address, task);
@@ -342,7 +344,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask Overlay(NativeBattleModulePoolTask task)
         {
-            int actor = task.ReadByte(0x2D);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             switch (task.ReadByte(0x29))
             {
                 case 0:
@@ -383,16 +385,16 @@ public sealed partial class BattleSession
             return task;
         }
 
-        void DrawOverlay(int index, NativeBattlePilotVisualIdentity identity)
+        void DrawOverlay(BattleModelOwner owner, NativeBattlePilotVisualIdentity identity)
         {
-            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
-            NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+            NativeBattleGraphicsModel actor = graphics.ActorModels.Get(owner);
+            NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
             NativeBattlePoseSource source = resource.PoseSource!;
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
             NativeBattleActionMatrix main = NativeBattleGfMatrices.Compose56C2F0(view, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Dark Mist requires its actual actor matrix."));
             if ((actor.Flags0 & 0x20) == 0)
             {
-                graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4112, false);
+                graphics = SubmitNativeShadowPackets5088A0(graphics, owner, actor, projection, 4112, false);
             }
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
             short zsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Dark Mist requires its current ZSF3.");
@@ -403,14 +405,14 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Native Dark Mist exceeds its original overlay vertex work.");
                 }
-                NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, actor.Color40!.Value, process.OverlayPhase, process.OverlayAmplitude, zsf3, zsf4, process.ActorWork, 0, resource.GeometryRelocated507550 ? null : geometry.Binding, identity with { Primitive = unchecked(index * 65537 + geometry.AuthoredMesh) });
+                NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, actor.Color40!.Value, process.OverlayPhase, process.OverlayAmplitude, zsf3, zsf4, process.ActorWork, 0, resource.GeometryRelocated507550 ? null : geometry.Binding, identity with { ModelOwner = owner, Primitive = geometry.AuthoredMesh });
                 process = process with { ActorWork = draw.Work };
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, draw.Packets);
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, actor) };
         }
 
         uint Append(int bank, uint callback, int size, uint parent)
@@ -423,6 +425,6 @@ public sealed partial class BattleSession
             }
             return result.Address;
         }
-        NativeBattlePoseSource ReadSource(int index) => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Dark Mist requires its actual actor skeleton.");
+        NativeBattlePoseSource ReadSource(BattleModelOwner index) => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Dark Mist requires its actual actor skeleton.");
     }
 }

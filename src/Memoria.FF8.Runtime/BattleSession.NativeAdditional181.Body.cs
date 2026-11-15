@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleAdditional181Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAdditional181Body(NativeBattleAdditional181Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattleAdditional181Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAdditional181Body(NativeBattleAdditional181Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Additional effect181 target requires its current skeleton.");

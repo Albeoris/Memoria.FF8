@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffectArena Module) DrawNativeWendigoBall(NativeBattleGraphicsState graphics, int index, NativeBattleEffectArena module, uint moduleBase, uint ballAddress, bool shoot, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffectArena Module) DrawNativeWendigoBall(NativeBattleGraphicsState graphics, BattleModelOwner index, NativeBattleEffectArena module, uint moduleBase, uint ballAddress, bool shoot, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int ball = Relative(ballAddress);
-        if (ReadShort(ball + (shoot ? 0xD0 : 0xB0)) != index)
+        if (module.ReadExecutionReference<BattleExecutionReference.Model>(ball + (shoot ? 0xD0 : 0xB0), 2).Owner != index)
         {
             throw new InvalidDataException("Native ball renderer disagrees with its physical actor slot.");
         }

@@ -11,9 +11,9 @@ public static partial class NativeBattleEffect218Controller
         return new(point.X, point.Y, point.Z);
     }
 
-    public static (NativeBattleEffect218Frame Frame, int Result) AdvanceFlare6338B0(NativeBattleEffect218Frame frame, uint address, uint graphicsFlags, NativeBattleEffect218Resources resources, NativeBattlePackedMatrix32 currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<NativeBattleEffect218Frame, uint, byte, short, NativeBattleEffect218PointStep> readBone502170, Func<NativeBattleEffect218Frame, NativeBattleGfGeometryBatch, NativeBattleEffect218Frame> deliver)
+    public static (NativeBattleEffect218Frame Frame, int Result) AdvanceFlare6338B0(NativeBattleEffect218Frame frame, uint address, uint graphicsFlags, NativeBattleEffect218Resources resources, NativeBattlePackedMatrix32 currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<NativeBattleEffect218Frame, BattleModelOwner, byte, short, NativeBattleEffect218PointStep> readBone502170, Func<NativeBattleEffect218Frame, NativeBattleGfGeometryBatch, NativeBattleEffect218Frame> deliver)
     {
-        uint target = ModelAddress(checked((int)frame.State.ReadDword(TargetGlobal)));
+        BattleModelOwner target = frame.State.ReadModelOperand(TargetGlobal);
         NativeBattleEffect218PointStep sampled = readBone502170(frame, target, 240, 4096);
         frame = sampled.Frame;
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(16, unchecked((ushort)sampled.Point.X)).WriteWord(18, unchecked((ushort)sampled.Point.Y)).WriteWord(20, unchecked((ushort)sampled.Point.Z));

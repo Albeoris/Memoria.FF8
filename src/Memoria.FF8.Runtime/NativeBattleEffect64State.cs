@@ -148,6 +148,13 @@ public sealed record NativeBattleEffect64State([property: JsonRequired] NativeBa
         }
     }
 
+    internal BattleModelOwner ReadModel(uint address) => Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    internal NativeBattleEffect64State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena storage = Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Storage = storage };
+    }
+
     private static int Require(uint address, int length)
     {
         if (length >= 0)

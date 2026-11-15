@@ -19,7 +19,7 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect322 requires its current camera.")).RegisterControlResource(textures.Animation);
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect322MeshMask mask:
-                int actorIndex = NativeEffect322Actor(graphics, mask.ModelAddress);
+                BattleModelOwner actorIndex = mask.Actor;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actorIndex);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect322 requires its current mesh-mask owner.");
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };

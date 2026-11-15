@@ -12,7 +12,7 @@ public static partial class NativeBattleEffect290Controller
         {
             return new(frame, 2);
         }
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         NativeBattleEffectArena point = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
         if (age < 16)
         {
@@ -118,12 +118,12 @@ public static partial class NativeBattleEffect290Controller
         NativeBattleWeightedColorStep blend = NativeBattleWeightedColor56CC00.Blend(frame.Memory, firstRgb, secondRgb, unchecked((short)(4096 - factor)), unchecked((short)factor), 0, inputs.Colors);
         frame = frame with { Memory = blend.Memory };
         byte[] output = [(byte)blend.Color, (byte)(blend.Color >> 8), (byte)(blend.Color >> 16)];
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleEffect290WriteModelBytes(caster, 44, NativeBattleEffectArena.Clear().Write(0, output), 3));
         return inputs.Execute(frame, new NativeBattleEffect290WriteModelBytes(caster, 47, NativeBattleEffectArena.Clear().Write(0, [0x32]), 1));
     }
 
-    public static NativeBattleEffect290Frame BirthSmallChildren290(NativeBattleEffect290Frame frame, uint model, NativeBattleEffectArena retainedPoint, NativeBattleEffect290Inputs inputs)
+    public static NativeBattleEffect290Frame BirthSmallChildren290(NativeBattleEffect290Frame frame, BattleModelOwner model, NativeBattleEffectArena retainedPoint, NativeBattleEffect290Inputs inputs)
     {
         (frame, uint particle) = Append(frame, ParticleDescriptor, 0x6775F0);
         NativeBattleEffect290PointStep query = inputs.Point502170(frame, model, 0, 0, retainedPoint);

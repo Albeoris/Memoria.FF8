@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             return graphics with { OriginalEffect = frame.Effect };
         }
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Devour requires its current camera.");
-        NativeBattleDevour62Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), PoseSource, Execute);
+        NativeBattleDevour62Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), () => graphics.ActorModels, slot => graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels).Flags0, actor => graphics.ActorModels.Get(actor), PoseSource, Execute);
         frame = NativeBattleDevour62Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
         {
@@ -73,24 +73,16 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = fade.Value, ColorFlags = fade.ClearRgb ? group.ColorFlags & 0xFF000000 : group.ColorFlags }).ToImmutableArray() };
                     return current;
                 case NativeBattleDevour62WriteActorFlags flags:
-                    if ((uint)flags.Actor >= 7 || graphics.Models.Length != 7)
-                    {
-                        throw new InvalidDataException("Devour actor writes exceed its seven physical models.");
-                    }
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, graphics.ActorModels.Get(flags.Actor) with { Flags0 = flags.Flags }) };
                     return current;
                 case NativeBattleDevour62FadeActors actorFade:
-                    if (graphics.Models.Length != 7)
+                    foreach (BattleModelEntry<BattleModelOwner> actor in graphics.ActorModels.Entries)
                     {
-                        throw new InvalidDataException("Devour fade requires its seven physical models.");
-                    }
-                    for (int actor = 0; actor < 7; actor++)
-                    {
-                        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                        NativeBattleGraphicsModel model = actor.State;
                         if ((model.Flags0 & 2) != 0)
                         {
                             uint processColor = NativeStage?.ModelColors?.Color40 ?? throw new NotSupportedException("Devour requires its retained process actor color.");
-                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, NativeBattleDevour62ActorFade.Apply(model, actorFade.Value, processColor)) };
+                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Owner, NativeBattleDevour62ActorFade.Apply(model, actorFade.Value, processColor)) };
                         }
                     }
                     return current;

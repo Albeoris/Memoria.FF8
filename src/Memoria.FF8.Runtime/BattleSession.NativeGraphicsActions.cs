@@ -26,8 +26,8 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native effect-only command requires its original effect-module completion producer.");
         }
-        int index = graphics.ActorIds.IndexOf(actor.Id);
-        if (index < 0 || !NativeGraphicsPoseResource(graphics, index).Contains(sequence) || graphics.ActionActorId is not null)
+        BattleModelOwner index = CreatePresentationModelOwner(actor);
+        if (!graphics.ActorModels.Contains(index) || !NativeGraphicsPoseResource(graphics, index).Contains(sequence) || graphics.ActionActorId is not null)
         {
             throw new InvalidDataException("Native graphical command lacks its loaded sequence or serialized callback owner.");
         }

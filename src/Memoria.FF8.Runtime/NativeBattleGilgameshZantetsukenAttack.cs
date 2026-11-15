@@ -2,16 +2,16 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleGilgameshZantetsukenContactRow(byte Actor, byte Flags3);
-public sealed record NativeBattleGilgameshZantetsukenAnchor(uint Address, byte Actor) : NativeBattleGilgameshOperation;
-public sealed record NativeBattleGilgameshZantetsukenContact(int Ordinal) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshZantetsukenContactRow(BattleModelOwner Actor, byte HitFlags);
+public sealed record NativeBattleGilgameshZantetsukenAnchor(uint Address, BattleModelOwner Actor) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshZantetsukenContact(BattleContactOccurrence Occurrence) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshZantetsukenActorFlags(BattleModelOwner Actor, byte OrMask) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshZantetsukenFadeActor(BattleModelOwner Actor, int Cue) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshZantetsukenBeginDrawActor(uint Address) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshZantetsukenDrawActor(uint Address) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshZantetsukenStageVisibility(bool Visible) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshZantetsukenDrawStage(uint Address) : NativeBattleGilgameshOperation;
-public sealed record NativeBattleGilgameshZantetsukenInputs(uint GraphicsFlags, ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> Contacts, Func<byte, short> ReadModelWord26, Func<byte, NativeBattlePackedMatrix32> ReadWorld32, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> Execute);
+public sealed record NativeBattleGilgameshZantetsukenInputs(uint GraphicsFlags, ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> Contacts, NativeBattleModelAliases Aliases, Func<int, BattleContactOccurrence> ResolveContact, Func<BattleModelOwner, short> ReadModelWord26, Func<BattleModelOwner, NativeBattlePackedMatrix32> ReadWorld32, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> Execute);
 public sealed record NativeBattleGilgameshZantetsukenStep(NativeBattleGilgameshFrame Frame, int Result);
 
 public static class NativeBattleGilgameshZantetsukenAttack
@@ -33,7 +33,7 @@ public static class NativeBattleGilgameshZantetsukenAttack
         }
         if (counter == 16)
         {
-            if (inputs.Contacts.IsDefault || inputs.Contacts.Length > byte.MaxValue)
+            if (inputs.Contacts.IsDefault)
             {
                 throw new NotSupportedException("Zantetsuken requires its actual first-header contact rows.");
             }
@@ -41,18 +41,14 @@ public static class NativeBattleGilgameshZantetsukenAttack
             for (int ordinal = 0; ordinal < inputs.Contacts.Length; ordinal++)
             {
                 NativeBattleGilgameshZantetsukenContactRow contact = inputs.Contacts[ordinal];
-                if ((contact.Flags3 & 4) != 0)
+                if ((contact.HitFlags & 4) != 0)
                 {
-                    current = inputs.Execute(current, new NativeBattleGilgameshZantetsukenContact(ordinal));
+                    current = inputs.Execute(current, new NativeBattleGilgameshZantetsukenContact(inputs.ResolveContact(ordinal)));
                     continue;
-                }
-                if (contact.Actor >= 7)
-                {
-                    throw new InvalidDataException("Zantetsuken contact leaves its seven physical actors.");
                 }
                 uint first;
                 (current, first) = NativeBattleZantetsukenTasks.Append(current, 0x58E3E0);
-                current = NativeBattleZantetsukenTasks.Write(current, first, NativeBattleZantetsukenTasks.Read(current, first).WriteWord(14, contact.Actor));
+                NativeBattleZantetsukenTasks.WriteActor(current, first, contact.Actor, inputs.Aliases);
                 current = inputs.Execute(current, new NativeBattleGilgameshZantetsukenAnchor(first, contact.Actor));
                 int angle = Draw() % 1280 + 2816;
                 if ((angle & 1) != 0)
@@ -64,8 +60,9 @@ public static class NativeBattleGilgameshZantetsukenAttack
                 current = NativeBattleZantetsukenTasks.Write(current, first, NativeBattleZantetsukenTasks.Read(current, first).WriteWord(0x20, unchecked((ushort)velocity)).WriteWord(0x22, unchecked((ushort)velocity)));
                 uint second;
                 (current, second) = NativeBattleZantetsukenTasks.Append(current, 0x58E570);
-                NativeBattleModulePoolTask copy = NativeBattleZantetsukenTasks.CopyAnchor(NativeBattleZantetsukenTasks.Read(current, second), NativeBattleZantetsukenTasks.Read(current, first)).WriteWord(14, contact.Actor);
+                NativeBattleModulePoolTask copy = NativeBattleZantetsukenTasks.CopyAnchor(NativeBattleZantetsukenTasks.Read(current, second), NativeBattleZantetsukenTasks.Read(current, first));
                 current = NativeBattleZantetsukenTasks.Write(current, second, copy);
+                NativeBattleZantetsukenTasks.WriteActor(current, second, contact.Actor, inputs.Aliases);
                 short height = inputs.ReadModelWord26(contact.Actor);
                 int radius = unchecked((Draw() % 256 + 128) * height) >> 12;
                 int denominator = unchecked(radius * 2);
@@ -75,7 +72,10 @@ public static class NativeBattleGilgameshZantetsukenAttack
                     NativeBattleModulePoolTask task = NativeBattleZantetsukenTasks.Read(current, second);
                     current = NativeBattleZantetsukenTasks.Write(current, second, task.WriteWord(offset, unchecked((ushort)(task.ReadWord(offset) + displacement))));
                 }
-                NativeBattleModulePoolTask secondTask = NativeBattleZantetsukenTasks.Read(current, second).WriteWord(0x18, 128).WriteWord(0x1A, (ushort)ordinal).WriteWord(0x16, (ushort)ordinal);
+                NativeBattleModulePoolTask secondTask = NativeBattleZantetsukenTasks.Read(current, second).WriteWord(0x18, 128);
+                BattleExecutionReference.ContactOffset contactOffset = new(ordinal);
+                secondTask.WriteExecutionReference(0x1A, 2, contactOffset, contactOffset.EncodeOriginalWord());
+                secondTask = secondTask.WriteWord(0x16, (ushort)ordinal);
                 current = NativeBattleZantetsukenTasks.Write(current, second, secondTask);
                 current = NativeBattleZantetsukenTasks.Write(current, first, NativeBattleZantetsukenTasks.Read(current, first).WriteWord(0x16, (ushort)ordinal));
                 eligible++;
@@ -114,6 +114,13 @@ internal static class NativeBattleZantetsukenTasks
         {
             throw new InvalidDataException("Zantetsuken requires its actual selected callback.");
         }
+    }
+
+    internal static BattleModelOwner ReadActor(NativeBattleModulePoolTask task) => task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
+
+    internal static void WriteActor(NativeBattleGilgameshFrame frame, uint address, BattleModelOwner actor, NativeBattleModelAliases aliases)
+    {
+        Read(frame, address).WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
     }
 
     internal static NativeBattleModulePoolTask Read(NativeBattleGilgameshFrame frame, uint address)

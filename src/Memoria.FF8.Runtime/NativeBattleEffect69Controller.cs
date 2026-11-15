@@ -15,8 +15,7 @@ public static partial class NativeBattleEffect69Controller
             throw new InvalidDataException("Effect69 entry requires its retained inactive physical banks.");
         }
         BattleModelOwner actor = Parameters(frame).Source;
-        uint model = PhysicalModelAddress(actor);
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, actor, inputs.Aliases) };
         frame = inputs.Execute(frame, new NativeBattleEffect69ModelFlags(actor, 0xFFFF, 0xC, false));
         frame = inputs.Execute(frame, new NativeBattleEffect69ModelPositionZ(actor, -2000));
         frame = InitializePool(frame, 0);
@@ -120,10 +119,7 @@ public static partial class NativeBattleEffect69Controller
         return (frame with { State = frame.State.WriteDword(RandomGlobal, seed) }, (int)seed);
     }
 
-    internal static int Caster(NativeBattleEffect69Frame frame)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(frame.State.ReadDword(CasterGlobal), out int row) ? row : throw new InvalidDataException("Effect69 requires its current physical caster pointer.");
-    }
+    internal static BattleModelOwner Caster(NativeBattleEffect69Frame frame) => frame.State.ReadModel(CasterGlobal);
 
     private static void RequireBinding(NativeBattleEffect69Frame frame)
     {

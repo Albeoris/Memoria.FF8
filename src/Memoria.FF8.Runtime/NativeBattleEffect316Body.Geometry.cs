@@ -2,17 +2,17 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect316Body
 {
-    public static NativeBattleEffect316Frame Draw661550(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint model, int x, int y, int z)
+    public static NativeBattleEffect316Frame Draw661550(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, BattleModelOwner model, int x, int y, int z)
     {
         return DrawBody(frame, resources, inputs, 0, model, 0, x, y, z, false);
     }
 
-    public static NativeBattleEffect316Frame Draw661CC0(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint main, uint model, uint projected, int x, int y, int z)
+    public static NativeBattleEffect316Frame Draw661CC0(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint main, BattleModelOwner model, uint projected, int x, int y, int z)
     {
         return DrawBody(frame, resources, inputs, main, model, projected, x, y, z, true);
     }
 
-    private static NativeBattleEffect316Frame DrawBody(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint main, uint model, uint projected, int x, int y, int z, bool expanded)
+    private static NativeBattleEffect316Frame DrawBody(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint main, BattleModelOwner model, uint projected, int x, int y, int z, bool expanded)
     {
         frame = inputs.Execute(frame, new NativeBattleEffect316Shadow5088A0(model, 4112, 16));
         int length = expanded ? 0xB0 : 0x84;
@@ -35,7 +35,10 @@ public static partial class NativeBattleEffect316Body
         context = inputs.ReadArena(frame, temporary, length);
         context = PutDword(context, 0x24, projected);
         context = PutWord(PutWord(PutWord(PutWord(context, 0x2C, 0), 0x2E, 0), 0x30, 320), 0x32, 216);
-        context = PutDword(PutDword(context, 0x34, ReadDword(frame, inputs, model + 0x28)), 0x38, ReadDword(frame, inputs, model + 0x7C));
+        NativeBattleGraphicsModel currentModel = inputs.ReadModel(frame, model);
+        uint color = currentModel.Color40 ?? throw new NotSupportedException("Effect316 body requires its current model color.");
+        uint meshMask = currentModel.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect316 body requires its current model mesh mask.");
+        context = PutDword(PutDword(context, 0x34, color), 0x38, meshMask);
         int cursors = expanded ? 0xA8 : 0x7C;
         context = PutDword(PutDword(context, cursors, ReadDword(frame, inputs, CommonCursorGlobal)), cursors + 4, frame.State.ReadDword(PrivateCursorGlobal));
         frame = Write(frame, inputs, temporary, context, length);
@@ -46,7 +49,7 @@ public static partial class NativeBattleEffect316Body
         return inputs.ReleaseTemporary(frame, length);
     }
 
-    private static NativeBattleEffect316Frame WalkObjects(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, uint model, NativeBattleModelGeometrySource geometry, uint contextAddress, int ordering, int shift, bool expanded)
+    private static NativeBattleEffect316Frame WalkObjects(NativeBattleEffect316Frame frame, NativeBattleEffect316Resources resources, NativeBattleEffect316Inputs inputs, BattleModelOwner model, NativeBattleModelGeometrySource geometry, uint contextAddress, int ordering, int shift, bool expanded)
     {
         NativeBattleModelGeometryCursor source = new(geometry);
         int objects = unchecked((int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(source.Read(4).Read(0, 4)));

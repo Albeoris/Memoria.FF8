@@ -275,7 +275,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded Renzokuken disagrees with its installed target selectors or equipped finishers.");
         }
-        int pending = NativeGraphics?.PendingTrigger is { } receipt && receipt.Actor == GetActor(actorId).EncodeNativeSlot() && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
+        int pending = NativeGraphics?.PendingTrigger is { } receipt && receipt.Actor == CreatePresentationModelOwner(GetActor(actorId)) && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
         if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts + pending != process.Input.ContactIndex || timed.Command.NativeTargetMask != process.TargetMask)
         {
             throw new InvalidDataException("Saved Renzokuken contact count or target differs from its durable transaction.");
@@ -289,12 +289,12 @@ public sealed partial class BattleSession
 
     private bool OwnsNativeRenzokukenWidget(NativeBattleGraphicsState graphics)
     {
-        return graphics.TriggerWidget is { SourceMagicId: ushort magic } widget && nativeRenzokukenProcesses.TryGetValue(FindNativeActor(widget.Actor).Id, out BattleNativeRenzokukenState? process) && process.MagicId == magic;
+        return graphics.TriggerWidget is { SourceMagicId: ushort magic } widget && nativeRenzokukenProcesses.TryGetValue(RequireCanonicalGraphicsActorId(widget.Actor), out BattleNativeRenzokukenState? process) && process.MagicId == magic;
     }
 
     private void MirrorNativeRenzokukenWidget(NativeBattleTriggerWidget widget)
     {
-        string actorId = FindNativeActor(widget.Actor).Id;
+        string actorId = RequireCanonicalGraphicsActorId(widget.Actor);
         if (widget.SourceMagicId is null || !nativeRenzokukenProcesses.TryGetValue(actorId, out BattleNativeRenzokukenState? process))
         {
             return;
@@ -311,7 +311,7 @@ public sealed partial class BattleSession
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable event owner.");
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable input owner.");
-        if (receipt.Actor != actor.EncodeNativeSlot() || receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != process.Input.ContactIndex)
+        if (receipt.Actor != CreatePresentationModelOwner(actor) || receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != process.Input.ContactIndex)
         {
             throw new InvalidDataException("Native Renzokuken receipt differs from its pending input/contact boundary.");
         }

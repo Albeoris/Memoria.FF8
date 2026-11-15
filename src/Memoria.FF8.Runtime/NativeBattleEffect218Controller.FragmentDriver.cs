@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect218Controller
 {
-    public static (NativeBattleEffect218Frame Frame, int Result) AdvanceFragmentDriver634C00(NativeBattleEffect218Frame frame, uint address, uint graphicsFlags, NativeBattleEffect218Resources resources, Func<NativeBattleEffect218Frame, uint, byte, short, NativeBattleEffect218PointStep> readBone502170, Func<NativeBattleEffect218Frame, NativeBattleVector, NativeBattleEffect218Frame> capture634E40)
+    public static (NativeBattleEffect218Frame Frame, int Result) AdvanceFragmentDriver634C00(NativeBattleEffect218Frame frame, uint address, uint graphicsFlags, NativeBattleEffect218Resources resources, Func<NativeBattleEffect218Frame, BattleModelOwner, byte, short, NativeBattleEffect218PointStep> readBone502170, Func<NativeBattleEffect218Frame, NativeBattleVector, NativeBattleEffect218Frame> capture634E40)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.ReadWord(12) == 0)
@@ -18,7 +18,7 @@ public static partial class NativeBattleEffect218Controller
         }
         if (Read(frame, address).ReadWord(12) == 15)
         {
-            uint model = ModelAddress(checked((int)frame.State.ReadDword(TargetGlobal)));
+            BattleModelOwner model = frame.State.ReadModelOperand(TargetGlobal);
             NativeBattleEffect218PointStep sampled = readBone502170(frame, model, 241, 0);
             frame = sampled.Frame;
             NativeBattleVector target = sampled.Point with { Y = unchecked((short)(sampled.Point.Y + 100)) };

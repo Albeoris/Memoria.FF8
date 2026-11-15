@@ -5,14 +5,14 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Physical recipient tasks and their current actor-space matrix cache.</summary>
 public static class NativeBattleCarbuncle278Recipients
 {
-    public static NativeBattleCarbuncle278Frame Spawn681B8C(NativeBattleCarbuncle278Frame frame, NativeBattleModulePoolTask creature, Func<uint, NativeBattleModuleAnchor> readAnchor)
+    public static NativeBattleCarbuncle278Frame Spawn681B8C(NativeBattleCarbuncle278Frame frame, NativeBattleModulePoolTask creature, NativeBattleModelAliases aliases, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor)
     {
         int phase = unchecked((short)creature.ReadWord(0xC)) - 145;
         if ((uint)phase >= 12 || (phase & 3) != 0)
         {
             return frame;
         }
-        int target = unchecked((short)creature.ReadWord(0xE)) - (phase >> 2) - 1;
+        int target = creature.ReadContactCount(0xE) - (phase >> 2) - 1;
         if (target < 0)
         {
             return frame;
@@ -27,10 +27,11 @@ public static class NativeBattleCarbuncle278Recipients
             return frame;
         }
         (pool, int index) = pool.Append(0x6822F0);
-        uint actor = creature.ReadDword(checked(0x14 + 4 * target));
+        BattleModelOwner actor = creature.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(0x14, 4).Recipients[target].Owner;
         NativeBattleModuleAnchor anchor = readAnchor(actor);
         NativeBattleModulePoolTask task = pool.Slots[index].ClearPayload(0x10C - 12);
-        task = task.WriteDword(0x10, actor).WriteWord(0x5C, unchecked((ushort)anchor.X)).WriteWord(0x5E, 0).WriteWord(0x60, unchecked((ushort)anchor.Z)).WriteWord(0x62, unchecked((ushort)anchor.W)).WriteDword(0x28, unchecked((uint)anchor.X)).WriteDword(0x2C, unchecked((uint)anchor.Y)).WriteDword(0x30, unchecked((uint)anchor.Z));
+        task.WriteExecutionReference(0x10, 4, new BattleExecutionReference.Model(actor), aliases.EncodeAddress(actor));
+        task = task.WriteWord(0x5C, unchecked((ushort)anchor.X)).WriteWord(0x5E, 0).WriteWord(0x60, unchecked((ushort)anchor.Z)).WriteWord(0x62, unchecked((ushort)anchor.W)).WriteDword(0x28, unchecked((uint)anchor.X)).WriteDword(0x2C, unchecked((uint)anchor.Y)).WriteDword(0x30, unchecked((uint)anchor.Z));
         NativeBattleGfAnimationSource source = frame.Effect.Binding.Carbuncle278Resources?.RecipientProgramme ?? throw new NotSupportedException("Native Carbuncle recipients require their original programme.");
         if (source.Address != 0x10C1CD8)
         {
@@ -41,10 +42,11 @@ public static class NativeBattleCarbuncle278Recipients
         task = workspace.CopyTo(task, 12 + (0x64 - 12), retainUnknown: true);
         pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        (byte[] bytes, bool[] known) = task.BorrowPayloadArena(12, task.PayloadLength).ReadSnapshot(0, task.PayloadLength);
+        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.WriteWithKnownness(offset, bytes, known) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 
-    public static NativeBattleCarbuncle278Frame SpawnSparkle6822F0(NativeBattleCarbuncle278Frame frame, uint actor, Func<uint, int> readBoneCount, Func<uint, int, NativeBattleVector> readBone)
+    public static NativeBattleCarbuncle278Frame SpawnSparkle6822F0(NativeBattleCarbuncle278Frame frame, BattleModelOwner actor, Func<BattleModelOwner, int> readBoneCount, Func<BattleModelOwner, int, NativeBattleVector> readBone)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2508178);
         if (pool.Stride != 0x14 || pool.Slots.Length != 64)

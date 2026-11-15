@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual process memory.");
         NativeBattleEnemyMicroMissiles284Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual CRT stream."), memory.EnemyMicroMissiles284 ?? throw new NotSupportedException("Enemy Micro Missiles requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Enemy Micro Missiles requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Enemy Micro Missiles requires its original arithmetic constants.");
-        NativeBattleEnemyMicroMissiles284Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
+        NativeBattleEnemyMicroMissiles284Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, owner) => graphics.ActorModels.Get(owner), (_, owner) => PoseSource(owner).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, owner) => NativeBattlePackedMatrix32.FromMatrix(World(owner), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEnemyMicroMissiles284Controller.Initialize(frame, resources, inputs) : NativeBattleEnemyMicroMissiles284Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -23,21 +23,12 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Enemy Micro Missiles requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Enemy Micro Missiles requires its current projection.");
-        NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual current skeleton.");
-        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual published model world matrix.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner owner) => NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual current skeleton.");
+        NativeBattleActionMatrix World(BattleModelOwner owner) => graphics.ActorModels.Get(owner).GeometryWorldMatrix ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual published model world matrix.");
 
-        int Actor(uint pointer)
+        short ReadParent(NativeBattleEnemyMicroMissiles284Frame current, BattleModelOwner owner, int bone)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Enemy Micro Missiles requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
-
-        short ReadParent(NativeBattleEnemyMicroMissiles284Frame current, uint pointer, int bone)
-        {
-            NativeBattlePoseSource pose = PoseSource(pointer);
+            NativeBattlePoseSource pose = PoseSource(owner);
             if ((uint)bone >= pose.BoneCount)
             {
                 throw new InvalidDataException("Enemy Micro Missiles parent selector leaves its current skeleton.");
@@ -45,9 +36,9 @@ public sealed partial class BattleSession
             return BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + bone * 48, 2));
         }
 
-        byte ReadAlias(NativeBattleEnemyMicroMissiles284Frame current, uint pointer, int selector)
+        byte ReadAlias(NativeBattleEnemyMicroMissiles284Frame current, BattleModelOwner owner, int selector)
         {
-            NativeBattlePoseSource pose = PoseSource(pointer);
+            NativeBattlePoseSource pose = PoseSource(owner);
             int offset = checked(selector - 0xEC);
             if (selector < 0xF0 || (uint)offset >= pose.Skeleton.Length)
             {
@@ -56,10 +47,10 @@ public sealed partial class BattleSession
             return pose.Skeleton[offset];
         }
 
-        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEnemyMicroMissiles284Frame current, uint pointer, int bone)
+        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEnemyMicroMissiles284Frame current, BattleModelOwner owner, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(owner));
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Enemy Micro Missiles bone selector leaves its current CPU publication.");
@@ -95,12 +86,12 @@ public sealed partial class BattleSession
             {
                 case NativeBattleEnemyMicroMissiles284Reaction505C00 reaction:
                     Publish(current);
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)Actor(reaction.ModelAddress)), reaction.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, reaction.Owner, reaction.Sequence);
                     return Import(current);
                 case NativeBattleEnemyMicroMissiles284Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Cursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEnemyMicroMissiles284Sound501330 sound:

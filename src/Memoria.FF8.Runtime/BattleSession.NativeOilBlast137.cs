@@ -44,20 +44,11 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Oil Blast requires its actual current model pointer.");
-            }
-            return actorIndex;
-        }
+        short ModelYaw(BattleModelOwner pointer) => graphics.ActorModels.Get(pointer).Rotation14 ?? throw new NotSupportedException("Oil Blast requires its current model rotation WORD14.");
 
-        short ModelYaw(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Oil Blast requires its current model rotation WORD14.");
-
-        NativeBattleOilBlast137PointStep Bone(NativeBattleOilBlast137Frame current, uint pointer, byte selector, short distance)
+        NativeBattleOilBlast137PointStep Bone(NativeBattleOilBlast137Frame current, BattleModelOwner pointer, byte selector, short distance)
         {
-            int actor = Actor(pointer);
+            BattleModelOwner actor = pointer;
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;

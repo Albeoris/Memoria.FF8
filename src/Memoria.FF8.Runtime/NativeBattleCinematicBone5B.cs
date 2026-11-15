@@ -16,24 +16,23 @@ public sealed record NativeBattleCinematicBonePose(NativeBattleWaterExecutionFra
         return Pose is { } pose ? services.Evaluate(frame, pose, selector, fraction, basis) : ReadMetadata is { } read ? services.EvaluateB66B80(frame, MetadataLength, read, Bones, selector, fraction, basis) : services.EvaluateB66B80(frame, Skeleton, Bones, selector, fraction, basis);
     }
 }
-public sealed record NativeBattleCinematicBone5BServices(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, bool, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
+public sealed record NativeBattleCinematicBone5BServices(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleCinematicBonePose> RestoreActorPose, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicBonePose> RestoreNodePose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
 
 public static class NativeBattleCinematicBone5B
 {
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleCinematicBone5BServices services)
     {
         bool physical = (ControlByte(0x4B) & 4) != 0;
-        uint source;
+        BattleModelOwner? actor = null;
         uint reference = 0;
         if (physical)
         {
-            byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            source = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor);
+            actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         }
         else
         {
             reference = services.ResolveNode(frame, unchecked((ushort)Operand(2)));
-            source = Dword(reference + 0xBC);
+            uint source = Dword(reference + 0xBC);
             if (source == 0)
             {
                 return NativeBattleScriptedCommandReads.Advance(frame, (ControlByte(0x4B) & 8) != 0 ? 8u : 4u);
@@ -80,7 +79,7 @@ public static class NativeBattleCinematicBone5B
             }
             basis = scaled with { X = x, Y = y, Z = z };
         }
-        NativeBattleCinematicBonePose pose = services.RestorePose(frame, physical ? source : reference, physical);
+        NativeBattleCinematicBonePose pose = actor is { } owner ? services.RestoreActorPose(frame, owner) : services.RestoreNodePose(frame, reference);
         frame = pose.Frame;
         NativeBattleActionMatrix selectedBasis = basis ?? pose.PhysicalBasis ?? throw new NotSupportedException("Native bone positioning requires its actual physical actor matrix.");
         NativeBattleWaterActorAnchorResult result = pose.ReadMetadata is { } readMetadata ? services.ActorAnchor.EvaluateB66B80(frame, pose.MetadataLength, readMetadata, pose.Bones, selector, fraction, selectedBasis) : services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, selector, fraction, selectedBasis);

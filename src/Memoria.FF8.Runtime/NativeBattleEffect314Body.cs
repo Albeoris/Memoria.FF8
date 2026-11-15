@@ -5,9 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect314Body
 {
-    public static NativeBattleEffect314Frame DrawCaster662C00(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, uint boneOffsets) => inputs.Execute(frame, new NativeBattleEffect314Prepare662C00(model, boneOffsets));
+    public static NativeBattleEffect314Frame DrawCaster662C00(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, BattleModelOwner model, uint boneOffsets) => inputs.Execute(frame, new NativeBattleEffect314Prepare662C00(model, boneOffsets));
 
-    public static NativeBattleEffect314Frame Draw663590(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, int x, int y, int z)
+    public static NativeBattleEffect314Frame Draw663590(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, BattleModelOwner model, int x, int y, int z)
     {
         frame = inputs.Execute(frame, new NativeBattleEffect314Shadow5088A0(model, 4112, 16));
         NativeBattleEffect314AddressStep allocation = inputs.AllocateTemporary(frame, 0x84);
@@ -20,7 +20,7 @@ public static class NativeBattleEffect314Body
         context = inputs.ReadArena(frame, temporary, 0x84);
         context = PutDword(context, 0x24, ReadDword(frame, inputs, 0x1D98B3C));
         context = PutWord(PutWord(PutWord(PutWord(context, 0x2C, 0), 0x2E, 0), 0x30, 320), 0x32, 216);
-        context = PutDword(PutDword(context, 0x34, ReadDword(frame, inputs, model + 0x28)), 0x38, ReadDword(frame, inputs, model + 0x7C));
+        context = PutDword(PutDword(context, 0x34, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(inputs.ReadModelField(frame, model, 0x28, 4).Read(0, 4))), 0x38, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(inputs.ReadModelField(frame, model, 0x7C, 4).Read(0, 4)));
         context = PutDword(PutDword(context, 0x7C, ReadDword(frame, inputs, 0x1D8E054)), 0x80, frame.State.ReadDword(NativeBattleEffect314Profile.CursorGlobal));
         frame = Write(frame, inputs, temporary, context, 0x84);
         frame = Walk663670(frame, inputs, model, inputs.ReadGeometrySource?.Invoke(frame, model) ?? NativeBattleModelGeometrySource.FromNumericArena(inputs.ReadGeometryAddress(frame, model), (at, count) => inputs.ReadArena(frame, at, count)), temporary + 0x20, 17, 0);
@@ -30,12 +30,12 @@ public static class NativeBattleEffect314Body
         return inputs.ReleaseTemporary(frame, 0x84);
     }
 
-    public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, uint source, uint contextAddress, int ordering, int shift)
+    public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, BattleModelOwner model, uint source, uint contextAddress, int ordering, int shift)
     {
         return Walk663670(frame, inputs, model, NativeBattleModelGeometrySource.FromNumericArena(source, (at, count) => inputs.ReadArena(frame, at, count)), contextAddress, ordering, shift);
     }
 
-    public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, NativeBattleModelGeometrySource geometry, uint contextAddress, int ordering, int shift)
+    public static NativeBattleEffect314Frame Walk663670(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, BattleModelOwner model, NativeBattleModelGeometrySource geometry, uint contextAddress, int ordering, int shift)
     {
         Dictionary<uint, System.Numerics.Vector3>? worlds = frame.PilotIdentity is null ? null : new();
         NativeBattleModelGeometryCursor source = new(geometry);

@@ -94,11 +94,9 @@ public sealed partial class BattleSession
         }
         BattleNativeAction summon = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction!;
         BattleModelRoster roster = ReadBattlePresentationRoster();
-        byte source = RequireExpandedPresentationRow(roster, actor);
-        NativeBattleContactPacket positioning = new(new(source, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
         try
         {
-            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, PrepareExpandedEffect(actor, summon, 0, [new(actor.Id, positioning)], GuardianFormInvocationMode.EntryOnly, roster));
+            expandedGuardianFormEntry = new(actor.Id, form.InvocationId, PrepareExpandedEffect(actor, summon, 0, [], GuardianFormInvocationMode.EntryOnly, roster));
         }
         catch
         {

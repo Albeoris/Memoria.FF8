@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, byte? ReflectorIndex, bool RepeatAborted);
+    private sealed record NativeProducedContacts(ImmutableArray<NativeBattleContactPacket> Contacts, byte PublishedCount, NativeBattleDeferredContactKind DeferredContact, BattleModelOwner? Reflector, bool RepeatAborted);
     private NativeBattleActionProductionContext? nativeProductionContext;
 
     private static BattleNativeAction NativeFailedInvocationControl(BattleNativeAction native)
@@ -14,7 +14,7 @@ public sealed partial class BattleSession
 
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context, bool miniMogFailed)
     {
-        if (header.Actor != actor.EncodeNativeSlot() || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (header.Source != CreatePresentationModelOwner(actor) || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         }
         NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, formulaCommand, formulaAction, context);
         byte count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial && !silencedMagic ? produced.PublishedCount : (byte)0;
-        return new(header, produced.Contacts, count, produced.DeferredContact, produced.ReflectorIndex) { RepeatAborted = produced.RepeatAborted };
+        return new(header, produced.Contacts, count, produced.DeferredContact, produced.Reflector) { RepeatAborted = produced.RepeatAborted };
     }
 
     private NativeProducedContacts ProduceNativeInstalledContacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionProductionContext? context = null)
@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             nativeAffinityAction = native;
         }
         //48E830 resolves every random target/Cover mask before the first48FE20 formula consumes RNG.
-        (BattleCombatant[] Targets, byte CoverSource)[] plan = new (BattleCombatant[], byte)[native.HitCount];
+        (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan = new (BattleCombatant[], BattleModelOwner?)[native.HitCount];
         for (int hit = 0; hit < plan.Length; hit++)
         {
             BattleCombatant[] targets;
@@ -145,7 +145,7 @@ public sealed partial class BattleSession
                 encounterHitTransaction = null;
             }
         }
-        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.EncodeNativeSlot()), aborted);
+        return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : CreatePresentationModelOwner(firstReflector), aborted);
     }
 
     private static bool HasNativeAffinityAction(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)

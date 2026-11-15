@@ -43,6 +43,17 @@ public sealed record NativeBattleEffect316State([property: JsonRequired] NativeB
         return Write(address, encoded);
     }
 
+    internal NativeBattleEffect316State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
+    internal BattleModelOwner ReadModel(uint address)
+    {
+        return Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    }
+
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
         int offset = Require(address, length);

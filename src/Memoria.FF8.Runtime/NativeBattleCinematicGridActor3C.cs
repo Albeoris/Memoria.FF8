@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicGridActorServices(Func<uint, NativeBattleGraphicsModel> ReadActor, Action<uint, NativeBattleGraphicsModel> WriteActor, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, uint, NativeBattleWaterExecutionFrame> Transform);
+public sealed record NativeBattleCinematicGridActorServices(Func<BattleModelOwner, NativeBattleGraphicsModel> ReadActor, Action<BattleModelOwner, NativeBattleGraphicsModel> WriteActor, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, uint, NativeBattleWaterExecutionFrame> Transform);
 
 /// <summary>Move the physical actor along the current lattice while publishing the same cached script position.</summary>
 public static class NativeBattleCinematicGridActor3C
@@ -12,11 +12,10 @@ public static class NativeBattleCinematicGridActor3C
     {
         uint originalNode = CoreDword(frame, 0x27973E8);
         uint header = CoreDword(frame, 0x279744C);
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
-        NativeBattleGraphicsModel actor = services.ReadActor(actorAddress);
+        BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        NativeBattleGraphicsModel actor = services.ReadActor(actorIndex);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000) };
-        services.WriteActor(actorAddress, actor);
+        services.WriteActor(actorIndex, actor);
         uint payload = SlotDword(0xB8);
         int factor = SignedWord(payload + 2);
         frame = frame.WriteTemporaryDword(0x84, unchecked((uint)factor));
@@ -24,7 +23,7 @@ public static class NativeBattleCinematicGridActor3C
         NativeBattleVector scaled = new(Scale(0), Scale(1), Scale(2));
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native grid actor requires its retained physical transform.");
         actor = actor with { Transform = transform with { Scale148 = scaled } };
-        services.WriteActor(actorAddress, actor);
+        services.WriteActor(actorIndex, actor);
         short actorX = unchecked((short)(NativeBattleCinematicActorAccess.ReadPositionWord(frame, actorIndex, 0, header) * factor >> 12));
         short offset = unchecked((short)((unchecked((NativeBattleCinematicActorAccess.ReadPositionWord(frame, actorIndex, 2, header) + 2048) * factor) >> 12) - 1024));
         frame = frame.WriteTemporaryWord(0xA0, unchecked((ushort)actorX)).WriteTemporaryWord(0xA2, 0).WriteTemporaryWord(0xA4, unchecked((ushort)offset));
@@ -77,9 +76,9 @@ public static class NativeBattleCinematicGridActor3C
             actorZ = unchecked((short)(frame.ReadTemporaryWord(0xC4) - start));
             pitch = unchecked((short)-frame.ReadTemporaryWord(0xD0));
         }
-        actor = services.ReadActor(actorAddress);
+        actor = services.ReadActor(actorIndex);
         actor = actor with { Rotation12 = pitch, Transform = (actor.Transform ?? throw new NotSupportedException("Native grid actor lost its current physical transform.")) with { Position28 = new(actorX, actorY, actorZ) } };
-        services.WriteActor(actorAddress, actor);
+        services.WriteActor(actorIndex, actor);
         frame = WriteCoreDword(frame, 0x27973E8, frame.ReadTemporaryDword(0x80));
         NativeBattleVector position = actor.Transform.Position28;
         short[] values = [position.X, position.Y, position.Z];

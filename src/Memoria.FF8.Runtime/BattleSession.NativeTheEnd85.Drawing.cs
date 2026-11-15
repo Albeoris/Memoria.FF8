@@ -122,9 +122,9 @@ public sealed partial class BattleSession
             NativeBattleGraphicsDefinition definition = owner.definition.NativeGraphics ?? throw new NotSupportedException("Native The End shadows require their current graphics definition.");
             bool gouraud = (definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native The End shadows require their current device capability profile.")).GouraudAlpha;
             NativeBattleShadowSource source = definition.Rules.ShadowSource ?? throw new NotSupportedException("Native The End shadows require their original matrix/vector seeds.");
-            for (int actor = 3; actor < 7; actor++)
+            foreach (BattleModelEntry<BattleEnemyModelOwner> entry in graphics.ActorModels.Enemies.Entries)
             {
-                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+                NativeBattleGraphicsModel model = entry.State;
                 if ((model.Flags0 & 2) == 0)
                 {
                     continue;
@@ -132,7 +132,7 @@ public sealed partial class BattleSession
                 NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, model.GeometryBounds52 ?? throw new NotSupportedException("Native The End shadow requires its retained model bounds."), Projection.View ?? throw new NotSupportedException("Native The End shadow requires its current view."), source, gouraud);
                 NativeBattleModuleProjectedVertex[] vertices = shadow.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shadow.CameraMatrix, vertex, Projection)).ToArray();
                 System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? shadow.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shadow.CameraMatrix, vertex), Projection)).ToArray() : null;
-                AppendPrivate(NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native The End shadow requires its current model color."), gouraud, 17, 4, pilotWorldVertices: world, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + actor), ResourceGeneration = 0x5088A0 } : null));
+                AppendPrivate(NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native The End shadow requires its current model color."), gouraud, 17, 4, pilotWorldVertices: world, pilotIdentity: pilotIdentity is { } identity ? identity with { ModelOwner = entry.Owner, ResourceGeneration = 0x5088A0 } : null));
             }
         }
 

@@ -11,16 +11,15 @@ public sealed partial class BattleSession
         NativeBattleEffect285Resources resources = effect.Binding.Effect285Resources ?? throw new NotSupportedException("Effect285 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect285 requires its current process memory.");
         NativeBattleEffect285Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect285 requires its current CRT stream."), memory.Effect285 ?? throw new NotSupportedException("Effect285 requires its retained state.")) { Staging = NativeFileStaging };
-        NativeBattleEffect285Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect285 requires its color tables."), _ => nativeActionPackets, (_, address) => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(NativeEffect285Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect285 requires its current projection."), _ => CaptureNativeEffect285Camera(Camera()), Point, SelectIo, (current, operation) => ExecuteNativeEffect285Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
+        NativeBattleEffect285Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect285 requires its color tables."), _ => nativeActionPackets, (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect285 requires its current projection."), _ => CaptureNativeEffect285Camera(Camera()), Point, SelectIo, (current, operation) => ExecuteNativeEffect285Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect285Controller.Initialize(frame, resources, inputs) : NativeBattleEffect285Controller.Advance(frame, resources, inputs);
         PublishNativeEffect285Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect285 requires its current camera.");
 
-        NativeBattleEffect285PointStep Point(NativeBattleEffect285Frame current, uint address, NativeBattleEffectArena local, NativeBattleEffectArena retained)
+        NativeBattleEffect285PointStep Point(NativeBattleEffect285Frame current, BattleModelOwner actor, NativeBattleEffectArena local, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect285Actor(graphics, address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect285 requires its current primary skeleton.");
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
@@ -49,15 +48,6 @@ public sealed partial class BattleSession
         current = current with { Memory = current.Memory with { Arena = arena.Write(offset, file.Data.AsSpan()) } };
         QueueNativeFileIo482610(file.Data.Length, request.CompletionCallback);
         return current;
-    }
-
-    private static int NativeEffect285Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect285 requires an actual current model address.");
-        }
-        return actorIndex;
     }
 
     private void PublishNativeEffect285Frame(NativeBattleEffect285Frame frame)

@@ -36,7 +36,9 @@ public static partial class NativeBattleDeathController
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
         int maximum = Math.Max(NativeBattleEffectRootTask.LastContactPosition(header.ReadContactCount()), header.ReadRepeatModeMinusOne());
-        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78).WriteByte(0x2C, header.Source).WriteByte(0x2D, packets.ReadContact(first).Primary.Recipient).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteTraversalPosition(0x2F, maximum);
+        NativeBattleModulePoolTask root = hierarchy.Read(appended.Address).WriteDword(12, 0x1D99A78);
+        root = new NativeBattleEffectTaskActors(header.Source, packets.ReadContact(first).Primary.Recipient, packets.ModelAliases).WriteTo(root);
+        root = root.WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne()).WriteTraversalPosition(0x2F, maximum);
         hierarchy = hierarchy.Write(appended.Address, root);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -92,7 +94,7 @@ public static partial class NativeBattleDeathController
                 {
                     throw new InvalidDataException("LV?Death caster binding selected another original resource.");
                 }
-                byte actor = task.ReadByte(0x2C);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
                 frame = execute(frame, new NativeBattleDeathBindCaster(actor, profile.SavedCasterRow!.Value, caster.Address));
                 frame = execute(frame, new NativeBattleDeathRingSequence(actor, 1));
                 delay = 12;
@@ -137,7 +139,7 @@ public static partial class NativeBattleDeathController
                 current = NativeBattleDeathNodeDrawing.PublishCamera(current, camera);
                 int source = State.Source ?? throw new NotSupportedException("Native Death lost its initialized file pointer.");
                 SetState(State with { Cursor = source + ((root.ReadWord(0x5C) & 1) != 0 ? 0 : 0xE000), PassEmitters = 0, PassGeometry = 0 });
-                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)), inputs.ReadForeign, (actor, selector) => current = (inputs.ObserveForeignBone ?? throw new NotSupportedException("The host bone observation service is unavailable."))(current, actor, selector));
+                root = NativeBattleEffectModelHelpers.UpdateCaster8DC740(root, current.Effect.Parameters!, inputs.ReadModel, inputs.ReadPoseSource, producer => Emit(new NativeBattleDeathObserveAnchor(producer)), inputs.ReadForeign, (actor, selector) => current = (inputs.ObserveForeignBone ?? throw new NotSupportedException("The host bone observation service is unavailable."))(current, actor, selector));
                 Store(address, root);
                 switch (Stage(root))
                 {

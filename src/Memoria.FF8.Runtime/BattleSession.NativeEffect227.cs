@@ -11,16 +11,15 @@ public sealed partial class BattleSession
         NativeBattleEffect227Resources resources = effect.Binding.Effect227Resources ?? throw new NotSupportedException("Effect227 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect227 requires current process memory.");
         NativeBattleEffect227Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect227 requires its current CRT stream."), memory.Effect227 ?? throw new NotSupportedException("Effect227 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
-        NativeBattleEffect227Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect227 requires its color tables."), (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect227Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect227 requires its current projection."), _ => Camera().Roll, Point, (current, operation) => ExecuteNativeEffect227Operation(ref graphics, current, operation, resources));
-        frame = initialize ? NativeBattleEffect227Controller.Initialize(frame, resources, inputs) : NativeBattleEffect227Controller.Advance(frame, resources, inputs);
+        NativeBattleEffect227Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect227 requires its color tables."), (_, actor) => CaptureNativeEffect210Model(graphics.ActorModels.Get(actor)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect227 requires its current projection."), _ => Camera().Roll, Point, (current, operation) => ExecuteNativeEffect227Operation(ref graphics, current, operation, resources));
+        frame = initialize ? NativeBattleEffect227Controller.Initialize(frame, resources, inputs, nativeActionPackets) : NativeBattleEffect227Controller.Advance(frame, resources, inputs);
         PublishNativeEffect227Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect227 requires its current camera.");
 
-        NativeBattleEffect227PointStep Point(NativeBattleEffect227Frame current, uint address, NativeBattleEffectArena local8, NativeBattleEffectArena retained8)
+        NativeBattleEffect227PointStep Point(NativeBattleEffect227Frame current, BattleModelOwner actor, NativeBattleEffectArena local8, NativeBattleEffectArena retained8)
         {
-            int actor = NativeEffect227Actor(graphics, address);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect227 requires its current caster skeleton.");
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Effect227 requires its current addressed memory.");
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
@@ -39,15 +38,6 @@ public sealed partial class BattleSession
             NativeFileStaging = staging;
             return new(current with { Memory = selected.Memory, Staging = staging }, selected.Output8);
         }
-    }
-
-    private static int NativeEffect227Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect227 requires an actual current model address.");
-        }
-        return actorIndex;
     }
 
     private void PublishNativeEffect227Frame(NativeBattleEffect227Frame frame)

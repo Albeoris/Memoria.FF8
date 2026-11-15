@@ -35,9 +35,9 @@ public static partial class NativeBattleBlaster186Controller
             (frame, uint child) = RequireAppend(frame, 0x5C0190);
             frame = Write(frame, child, Read(frame, child).WriteWord(12, 0).WriteWord(14, 1));
             (frame, child) = RequireAppend(frame, 0x5C0750);
-            int target = checked((int)frame.State.ReadDword(0x22B7600));
+            BattleModelOwner target = frame.State.ReadModelOperand(0x22B7600);
             NativeBattleModelTransform transform = inputs.ReadModel(frame, target).Transform ?? throw new NotSupportedException("Blaster requires its current recipient transform.");
-            int caster = checked((int)frame.State.ReadDword(0x22BC0FC));
+            BattleModelOwner caster = frame.State.ReadModelOperand(0x22BC0FC);
             short yaw = inputs.ReadModel(frame, caster).Rotation14 ?? throw new NotSupportedException("Blaster requires its current caster yaw.");
             NativeBattleModulePoolTask task = CopyTask(Read(frame, child).WriteWord(12, 0).WriteWord(28, 0x1600).WriteWord(24, unchecked((ushort)(yaw + 2048))), 16, PointView(transform.Position28, transform.Vertical34), 8);
             frame = Write(frame, child, task);
@@ -71,12 +71,12 @@ public static partial class NativeBattleBlaster186Controller
 
     public static NativeBattleBlaster186Frame PrepareMainGeometry(NativeBattleBlaster186Frame frame, int age, NativeBattleBlaster186Resources resources, NativeBattleBlaster186Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(0x22BC0FC));
+        BattleModelOwner caster = frame.State.ReadModelOperand(0x22BC0FC);
         NativeBattleBlaster186PointStep bone = inputs.ReadBone502170(frame, caster, 0x21, 4096);
         frame = bone.Frame with { State = bone.Frame.State.WriteView(0x22BC108, bone.Point8, 6) };
         if (age == 0)
         {
-            int actor = checked((int)frame.State.ReadDword(0x22B7600));
+            BattleModelOwner actor = frame.State.ReadModelOperand(0x22B7600);
             NativeBattleBlaster186PointStep target = inputs.ReadAnchor571400(frame, actor);
             frame = target.Frame with { State = target.Frame.State.WriteView(0x22BC0F0, target.Point8, 6) };
         }

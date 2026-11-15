@@ -4,6 +4,12 @@ public sealed partial class BattleSession
 {
     private int ReadNativeGraphicsSequenceVariable(NativeBattleGraphicsState graphics, BattleModelOwner modelIndex, byte variable)
     {
+        if (variable == 27)
+        {
+            return graphics.NativeBindings.TryEncodeExactActor(modelIndex, graphics.ActorModels, out byte original)
+                ? original
+                : throw new NotSupportedException("Native sequence variable27 requires an exact original actor operand.");
+        }
         if (variable == 40)
         {
             return (NativeEffectMemory ?? throw new NotSupportedException("Native read40 requires its process task pointer owner.")).ReadReturnedTask5044B0();

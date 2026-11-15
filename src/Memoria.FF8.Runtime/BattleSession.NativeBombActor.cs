@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeBombActor(NativeBattleGraphicsState graphics, int index, uint overlayColor, int scroll, bool textured, NativeBattlePilotVisualIdentity? pilotIdentity = null, Action<ImmutableArray<NativeBattlePrimitiveReference>>? recordPresentation = null)
+    private NativeBattleGraphicsState DrawNativeBombActor(NativeBattleGraphicsState graphics, BattleModelOwner index, uint overlayColor, int scroll, bool textured, NativeBattlePilotVisualIdentity? pilotIdentity = null, Action<ImmutableArray<NativeBattlePrimitiveReference>>? recordPresentation = null)
     {
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         {
             NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess!;
             int start = process.ByteCursor!.Value;
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false, callerPilotIdentity: pilotIdentity is { } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 65537 + 0x10000), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, index, actor, projection, 4121, false, callerPilotIdentity: pilotIdentity is { } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 65537 + 0x10000), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null);
             int end = NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value;
             recordPresentation?.Invoke(graphics.PrimitiveFrame!.Pending.Packets.Select(packet => packet.Reference).Where(reference => reference.Bank == process.PacketBank && reference.Buffer == process.PacketBuffer && reference.ByteOffset >= start && reference.ByteOffset < end).ToImmutableArray());
         }

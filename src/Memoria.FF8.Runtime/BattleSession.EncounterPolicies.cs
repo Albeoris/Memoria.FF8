@@ -220,7 +220,7 @@ public sealed partial class BattleSession
             NativeMagicTargets = repeats
         };
         NativeBattleActionProductionContext? previous = nativeProductionContext;
-        int firstHeader = nativeActionPackets.ActionCount;
+        BattleActionHeaderReference firstHeader = nativeActionPackets.NextHeader;
         if (repeats.Length > 1)
         {
             nativeProductionContext = new(0, 1, false, 0x47DE70);
@@ -230,7 +230,7 @@ public sealed partial class BattleSession
             EnqueueNativePacket(actor, command, spell.CanonicalName);
             if (repeats.Length > 1)
             {
-                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, checked((byte)nativeActionPackets.Headers.Skip(firstHeader).Take(nativeActionPackets.ActionCount - firstHeader).Count(header => header.ReadByte(1) == 2)));
+                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, checked((byte)nativeActionPackets.PublishedHeaders().Count(entry => entry.Reference.Ordinal >= firstHeader.Ordinal && entry.Slot.Command == 2)));
             }
         }
         finally
@@ -309,14 +309,14 @@ public sealed partial class BattleSession
         {
             NativeGraphics = graphics;
             List<EncounterArrivalTrack> tracks = [];
-            NativeBattleModelTransform original = graphics.ActorModels.Get(GetActor(batch.SourceActorId).EncodeNativeSlot()).Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
+            NativeBattleModelTransform original = graphics.ActorModels.Get(CreatePresentationModelOwner(GetActor(batch.SourceActorId))).Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
             for (int index = 0; index < batch.ActorIds.Length; index++)
             {
                 EncounterCompiledSpawn spawn = summon.Spawns[index];
                 EncounterCompiledTemplate template = mod.Templates[spawn.Template];
                 EncounterCompiledPresentation presentation = mod.Presentations[template.Arrival];
                 EncounterCompiledPlacement placement = mod.Placements[spawn.Anchor];
-                int physical = GetActor(batch.ActorIds[index]).EncodeNativeSlot();
+                BattleModelOwner physical = CreatePresentationModelOwner(GetActor(batch.ActorIds[index]));
                 NativeBattleVector Offset(NativeBattleVector value)
                 {
                     return new(checked((short)(value.X + (int)MathF.Round(placement.X))), checked((short)(value.Y + (int)MathF.Round(placement.Y))), checked((short)(value.Z + (int)MathF.Round(placement.Z))));
@@ -369,10 +369,11 @@ public sealed partial class BattleSession
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
             actor.Atb = 0;
-            if (NativeGraphics is { } graphics && actor.EncodeNativeSlot() is >= 0 and < 7)
+            BattleModelOwner owner = CreatePresentationModelOwner(actor);
+            if (NativeGraphics is { } graphics && graphics.ActorModels.Contains(owner))
             {
-                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor.EncodeNativeSlot());
-                NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.EncodeNativeSlot(), model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+                NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
             }
         }
         RemoveEncounterQueuedActions(retiring);

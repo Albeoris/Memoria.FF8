@@ -30,9 +30,9 @@ public sealed partial class BattleSession
             Descriptors = graphics?.Descriptors.Queue.Take(30).Select(index => new { Slot = index, graphics.Descriptors.Packets[index].Command, graphics.Descriptors.Packets[index].Argument, graphics.Descriptors.Packets[index].Serial, graphics.Descriptors.Packets[index].PriorityState }).ToArray(),
             DescriptorTasks = graphics?.Descriptors.Tasks.Select((task, slot) => new { Slot = slot, task.Kind, task.Flags, task.State }).Where(task => (task.Flags & 1) != 0).Take(32).ToArray(),
             Auxiliary = graphics is null ? null : CaptureDiagnosticTextureQuiescence(graphics),
-            Models = graphics?.Models.Take(7).Select(model => new
+            Models = graphics?.NativeBindings.CaptureOriginalCells(graphics.ActorModels).Select((model, index) => new
             {
-                model.Index,
+                Index = index,
                 model.Flags0,
                 model.ResourceFlags44,
                 model.Sequence,
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         NativeBattleEffect101State? state = NativeEffectMemory?.Effect101;
         uint? target = state is null ? null : PreviewScalar<uint>(() => state.ReadDword(NativeBattleEffect101Profile.TargetGlobal));
         uint? working = state is null ? null : PreviewScalar<uint>(() => state.ReadDword(NativeBattleEffect101Profile.WorkingGlobal));
-        int? targetIndex = target is uint pointer && NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex) ? actorIndex : null;
+        int? targetIndex = target is uint pointer && NativeBattleGraphicsModelAddress.TryDecodeOriginalCell(pointer, out NativeBattleModelSlot actorSlot) ? actorSlot.Offset : null;
         return new
         {
             TargetPointer = target,

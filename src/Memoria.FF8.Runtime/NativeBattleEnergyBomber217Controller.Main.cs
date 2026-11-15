@@ -15,7 +15,7 @@ public static partial class NativeBattleEnergyBomber217Controller
             NativeBattleEffectArena position;
             if (age < 47)
             {
-                NativeBattleEnergyBomber217PointStep bone = inputs.ReadBone502170(frame, Actor(frame.State.ReadDword(CasterGlobal)), 39, 0);
+                NativeBattleEnergyBomber217PointStep bone = inputs.ReadBone502170(frame, frame.State.ReadModel(CasterGlobal), 39, 0);
                 frame = bone.Frame;
                 NativeBattleVector point = bone.Position with { Y = unchecked((short)(bone.Position.Y - 512)) };
                 if (age == 46)
@@ -97,7 +97,7 @@ public static partial class NativeBattleEnergyBomber217Controller
         }
         if (age == 78)
         {
-            frame = inputs.Execute(frame, new NativeBattleEnergyBomber217Contact(FirstContact(frame, inputs)));
+            frame = inputs.Execute(frame, new NativeBattleEnergyBomber217Contact(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.")));
         }
         if (age >= 86)
         {

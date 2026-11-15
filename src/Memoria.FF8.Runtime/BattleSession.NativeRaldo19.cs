@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Raldo requires its actual current model rig.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Raldo requires its actual current model rig.");
 
         void Publish(NativeBattleRaldo19Frame current)
         {
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
                 case NativeBattleRaldo19Contact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Raldo contact lost its process memory.") };
                 default:
@@ -85,7 +85,7 @@ public sealed partial class BattleSession
                         return drawn.Frame;
                     }
                 case NativeBattleRaldo19BallTask ball:
-                    return NativeBattleRaldo19BallController.Advance(current, ball.Address, resources, new(actor => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), (drawing, emittedOperation) => ExecuteBall(drawing, emittedOperation, NativeBattlePilotVisualLifetimes.Identity(19, new NativeBattleEffectHierarchy(drawing.Effect.Pools).Read(ball.Address))), SelectActors));
+                    return NativeBattleRaldo19BallController.Advance(current, ball.Address, resources, new(actor => NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), (drawing, emittedOperation) => ExecuteBall(drawing, emittedOperation, NativeBattlePilotVisualLifetimes.Identity(19, new NativeBattleEffectHierarchy(drawing.Effect.Pools).Read(ball.Address))), SelectActors, nativeActionPackets));
                 case NativeBattleRaldo19DebrisTask debris:
                     return NativeBattleRaldo19Debris.Advance(current, debris.Address, nativeActionPackets, DrawDebris);
                 case NativeBattleRaldo19OverlayTask overlay:
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, pointer, group, target);
+        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, pointer, group, target);
 
         NativeBattleRaldo19Frame DrawDebris(NativeBattleRaldo19Frame current, NativeBattleRaldo19DebrisSprite sprite)
         {
@@ -142,7 +142,7 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleRaldo19Frame CaptureAnchor(NativeBattleRaldo19Frame current, NativeBattleGraphicsModel model, int actor, int destination)
+        NativeBattleRaldo19Frame CaptureAnchor(NativeBattleRaldo19Frame current, NativeBattleGraphicsModel model, BattleModelOwner actor, int destination)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, PoseSource(actor), 241, 0);
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);

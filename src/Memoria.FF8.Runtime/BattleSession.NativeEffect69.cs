@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect69 requires its current process memory.");
         NativeBattleEffect69Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect69 requires its current CRT stream."), memory.Effect69 ?? throw new NotSupportedException("Effect69 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect69 requires its addressed shared memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect69 requires its arithmetic constants.");
-        NativeBattleEffect69Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect69 requires its current skeleton."), _ => graphics.Flags, _ => Camera().Roll, (_, address) => address switch
+        NativeBattleEffect69Inputs inputs = new(nativeActionPackets.ModelAliases, colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect69 requires its current skeleton."), _ => graphics.Flags, _ => Camera().Roll, (_, address) => address switch
         {
             0xB8B7D8 => Stage().ModelColors?.Color40 ?? throw new NotSupportedException("Effect69 requires its current model color."),
             0xB8B9A8 => Stage().ModelColors?.Color44 ?? throw new NotSupportedException("Effect69 requires its current model color."),
@@ -114,7 +114,12 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.SetItem(flags.Group, group with { Flags = (byte)((group.Flags & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect69ModelColors44 color:
-                    graphics = graphics with { ActorModels = graphics.Models.Select(model => model with { Color44 = color.Color }).ToImmutableArray() };
+                    BattleActorModels models = graphics.ActorModels;
+                    foreach (BattleModelEntry<BattleModelOwner> entry in models.Entries)
+                    {
+                        models = models.Set(entry.Owner, entry.State with { Color44 = color.Color });
+                    }
+                    graphics = graphics with { ActorModels = models, NativeBindings = graphics.NativeBindings.UpdateUnboundColor44(color.Color) };
                     return current;
                 case NativeBattleEffect69DeliverBatch packets:
                     return Deliver(current, packets.Batch, packets.CursorGlobal, packets.Flags);
@@ -145,7 +150,7 @@ public sealed partial class BattleSession
                     return Deliver(current, drawn.Batch, CursorGlobal);
                 case NativeBattleEffect69DrawCaster caster:
                     (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect69Frame bodyFrame) = DrawNativeEffect69Caster(graphics, current, caster, (body, batch) => Deliver(body, batch, 0x1D8E054));
-                    graphics = graphics with { ActorModels = bodyGraphics.Models };
+                    graphics = graphics with { ActorModels = bodyGraphics.ActorModels };
                     return bodyFrame;
                 case NativeBattleEffect69QueueStage512AA0 queue:
                     Publish(current);

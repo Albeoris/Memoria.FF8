@@ -4,21 +4,22 @@ public sealed partial class BattleSession
 {
     private void RecomputeNativeTriggerContact(NativeBattleTriggerReceipt receipt)
     {
-        receipt.Validate();
-        NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[0];
-        byte actorIndex = first.Source;
-        if (receipt.Actor != actorIndex)
+        receipt.Validate(nativeActionPackets.Roster);
+        BattleActionHeaderReference firstReference = new(0);
+        NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(firstReference);
+        BattleModelOwner source = first.Source;
+        if (receipt.Actor != source)
         {
             throw new InvalidDataException("Native485160 receipt contradicts header0's physical actor.");
         }
-        BattleCombatant actor = FindNativeActor(actorIndex);
-        BattleCombatant recipient = FindNativeActor(nativeActionPackets.ReadContact(0).Primary.Recipient);
+        BattleCombatant actor = GetActor(RequireCanonicalGraphicsActorId(source));
+        BattleCombatant recipient = GetActor(RequireCanonicalGraphicsActorId(nativeActionPackets.ReadContact(first.FirstContact).Primary.Recipient));
         (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, first.Command, receipt);
         BattleActionPresentation original = nativeTimedAction?.Command ?? ActiveAction ?? throw new NotSupportedException("Native485160 requires its currently admitted action provenance.");
         byte? queued = original.NativeQueuedCommand;
         if (original.NativeRenzokuken is not null)
         {
-            ushort control = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Payload.AsSpan()[4..]);
+            ushort control = first.Action;
             queued = control == 65534 ? (byte)250 : (byte)5;
         }
         BattleActionPresentation contact = original with { NativeQueuedCommand = queued, NativeAction = native, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())), GunbladeTriggerTiming = timing };
@@ -28,7 +29,7 @@ public sealed partial class BattleSession
         resolvingNativeAction = contact;
         try
         {
-            nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
+            nativeActionPackets = nativeActionPackets.RestartContactPublication();
             NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, definition, native);
             (nativeActionPackets, BattleContactOccurrence contactIndex) = nativeActionPackets.AppendContact(packet);
             ObserveDiagnosticCounterAppend(packet, contactIndex, triggerRecomputed: true);
@@ -49,7 +50,7 @@ public sealed partial class BattleSession
         bool finisher = last && (nativeActionScratch.FinisherPendingE03 ?? throw new NotSupportedException("Native48F480 requires the retained E03 finisher byte."));
         bool deferred = !last || finisher;
         byte sequence = deferred ? (byte)255 : command == 251 ? (NativeSavedStatusBits(recipient) & 1) != 0 ? (byte)4 : (byte)255 : (byte)4;
-        nativeActionScratch = nativeActionScratch with { ActorIndex = hosted ? nativeActionScratch.ActorIndex : receipt.Actor, Command = command, DeferredEffectsE00 = deferred, FinisherPendingE03 = last && finisher ? false : nativeActionScratch.FinisherPendingE03 };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = hosted ? nativeActionScratch.ActorIndex : RequireTriggerSourceOperand(receipt.Actor), Command = command, DeferredEffectsE00 = deferred, FinisherPendingE03 = last && finisher ? false : nativeActionScratch.FinisherPendingE03 };
         BattleNativeAction weapon = actor.NativeAttack ?? throw new NotSupportedException("Native485160 requires the retained actor's weapon/junction metadata.");
         byte power = ordinary ? weapon.Power : actor.NativePlayerStatRules?.CharacterRecord[33] ?? throw new NotSupportedException("Native251 requires its character kernel power byte33.");
         BattleNativeAction native = weapon with { Command = command, AttackType = 10, Power = power, HitCount = 1, Critical = 0, DamagePresentation = sequence };
@@ -59,6 +60,13 @@ public sealed partial class BattleSession
         }
         short timing = ordinary && (NativeSavedStatusBits(actor) & 8) != 0 ? (short)1 : receipt.Timing;
         return (native, timing);
+    }
+
+    private byte RequireTriggerSourceOperand(BattleModelOwner owner)
+    {
+        return nativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte original)
+            ? original
+            : throw new InvalidDataException("Native trigger scratch requires its exact original source operand.");
     }
 
     private void CompleteNativeComponentTrigger(BattleActionPresentation command)
@@ -82,13 +90,14 @@ public sealed partial class BattleSession
             //TODO(TD-009): The component windup supplies485160 admission until the original AB/UI callbacks are present. Its math/physical contact consumer is shared.
             BattleCombatant actor = GetActor(command.ActorId);
             short timing = ReadGunbladeTiming(actor, command);
-            RecomputeNativeTriggerContact(new(checked((byte)actor.EncodeNativeSlot()), 1, 1, timing, 32));
+            RecomputeNativeTriggerContact(new(CreatePresentationModelOwner(actor), 1, 1, timing, 32));
         }
     }
 
     private void RecomputeNativeGuardianContacts(byte boostPercent)
     {
-        NativeBattleActionHeaderSlot first = nativeActionPackets.Headers[0];
+        BattleActionHeaderReference firstReference = new(0);
+        NativeBattleActionHeaderSlot first = nativeActionPackets.ReadHeader(firstReference);
         byte command = first.Command;
         if (command != 254)
         {
@@ -99,28 +108,28 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native4850A0 requires the physical GF action WORD64..79.");
         }
-        BattleCombatant actor = FindNativeActor(first.Source);
+        BattleCombatant actor = GetActor(RequireCanonicalGraphicsActorId(first.Source));
         BattleNativeAction native = FindInstalledNativeAction(command, id);
         ValidateNativeActionContract(native);
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, id - 64);
         byte sequence = first.Sequence;
-        NativeBattleContactPacket[] retained = Enumerable.Range(0, first.ReadContactCount()).Select(nativeActionPackets.ReadContact).ToArray();
+        var retained = nativeActionPackets.ReadHeaderContacts(firstReference);
         BattleActionPresentation? previous = resolvingNativeAction;
         BattleActionPresentation? submitted = nativeTimedAction?.Command ?? ActiveAction;
         BattleDiagnosticNativeContact? previousDiagnosticContact = diagnosticNativeContact;
-        nativeActionScratch = nativeActionScratch with { ActorIndex = first.Source, Command = command, Action = id, GuardianFormulaE1E = true, DeferredEffectsE00 = false, GuardianBoostPercent = boostPercent };
-        nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = RequireTriggerSourceOperand(first.Source), Command = command, Action = id, GuardianFormulaE1E = true, DeferredEffectsE00 = false, GuardianBoostPercent = boostPercent };
+        nativeActionPackets = nativeActionPackets.RestartContactPublication();
         nativeActionCommitDepth++;
         try
         {
             for (int contactIndex = 0; contactIndex < retained.Length; contactIndex++)
             {
                 NativeBattleContactPacket prior = retained[contactIndex];
-                BattleCombatant recipient = FindNativeActor(prior.Primary.Recipient);
+                BattleCombatant recipient = GetActor(RequireCanonicalGraphicsActorId(prior.Primary.Recipient));
                 //4850A0 restores its invocation globals directly from header0 before48FE20; no queued presentation is consulted.
-                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())) };
+                BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeader = firstReference, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.EncodeNativeSlot())) };
                 resolvingNativeAction = contact;
-                diagnosticNativeContact = ObserveDiagnosticGuardianContact(submitted, actor, recipient, first, prior, contactIndex, id);
+                diagnosticNativeContact = ObserveDiagnosticGuardianContact(submitted, actor, recipient, firstReference, prior.Occurrence ?? throw new InvalidDataException("Native guardian contact needs its actual packet occurrence."), contactIndex, id);
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }

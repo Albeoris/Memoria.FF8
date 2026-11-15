@@ -23,7 +23,7 @@ public sealed partial class BattleSession
                 NativeBattleEffectMemory colorMemory = NativeEffectMemory ?? throw new NotSupportedException("Native50A0A0 requires the retained process model-color owner.");
                 NativeBattleSummonColors colorRules = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native50A0A0 requires its authenticated interpolation constants.");
                 NativeBattleStageColors modelColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native50A0A0 requires the actual stage color DWORDs.");
-                NativeBattleModelColorStep colorStep = NativeBattleModelColors.Advance50A0A0(model, flags, colorRules with { Transition = modelColors.Color40, Normal = modelColors.Color44 }, colorMemory.ModelColorOverrides);
+                NativeBattleModelColorStep colorStep = NativeBattleModelColors.Advance50A0A0(owner, model, flags, colorRules with { Transition = modelColors.Color40, Normal = modelColors.Color44 }, colorMemory.ModelColorOverrides, models, graphics.NativeBindings);
                 model = colorStep.Model;
                 NativeEffectMemory = colorMemory with { ModelColorOverrides = colorStep.Overrides };
                 if (colorStep.CountdownRequired)
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsResource originalResource = ReadHostedPresentationModelResource(owner) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
-                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
+                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(owner, model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
                 {
                     OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 && model.ResourceMagicId is null ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), originalResource) : originalResource,
                     GlobalRandom = NextNativeGlobalRandom,

@@ -7,15 +7,15 @@ public sealed record NativeBattleGilgameshAttackStep(NativeBattleModulePoolTask 
 /// <summary>591250/5920E0's finite attack producer over the original raw child bank.</summary>
 public static class NativeBattleGilgameshExcalipoorAttack
 {
-    public static NativeBattleGilgameshAttackStep Advance5920E0(NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<byte> contactActors, Func<byte, NativeBattleModuleAnchor> readAnchor571400)
+    public static NativeBattleGilgameshAttackStep Advance5920E0(NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<BattleModelOwner> contactActors, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor571400)
     {
         return Advance(NativeBattleGilgameshAttackProfile.ForEffect(330), task, children, random, graphicsFlags, contactActors, readAnchor571400);
     }
 
-    public static NativeBattleGilgameshAttackStep Advance(NativeBattleGilgameshAttackProfile profile, NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<byte> contactActors, Func<byte, NativeBattleModuleAnchor> readAnchor571400)
+    public static NativeBattleGilgameshAttackStep Advance(NativeBattleGilgameshAttackProfile profile, NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<BattleModelOwner> contactActors, Func<BattleModelOwner, NativeBattleModuleAnchor> readAnchor571400)
     {
         profile.Validate();
-        if (task.Callback != profile.Callback || task.PayloadLength != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault || contactActors.Length > byte.MaxValue)
+        if (task.Callback != profile.Callback || task.PayloadLength != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault)
         {
             throw new InvalidDataException("Native Gilgamesh attack requires its actual raw task, child bank and physical header contacts.");
         }

@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect338 requires its current process memory.");
         NativeBattleEffect338Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect338 requires its current CRT random owner."), memory.Effect338 ?? throw new NotSupportedException("Effect338 requires its retained executable storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect338 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect338 requires its actual arithmetic constants.");
-        NativeBattleEffect338Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), _ => nativeActionPackets, Execute, StartVibration, PollIo, (_, pointer) => PoseSource(pointer).BoneCount) { CapturePresentation = true };
+        NativeBattleEffect338Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), _ => nativeActionPackets, Execute, StartVibration, PollIo, (_, actor) => PoseSource(actor).BoneCount) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect338Controller.Initialize(frame, resources, inputs) : NativeBattleEffect338Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -28,16 +28,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect338 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect338 requires its current projection.");
-        NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Effect338 requires its actual current actor skeleton.");
-
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect338 requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect338 requires its actual current actor skeleton.");
 
         void Publish(NativeBattleEffect338Frame current)
         {
@@ -115,7 +106,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect338Frame ReadBone(NativeBattleEffect338Frame current, NativeBattleEffect338ReadBone502170 read)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(read.ModelAddress));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(read.Actor);
             NativeBattleVector point;
             if ((model.Flags0 & 2) == 0)
             {
@@ -124,7 +115,7 @@ public sealed partial class BattleSession
             else
             {
                 NativeFileStaging = RequireStaging(current);
-                NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, PoseSource(read.ModelAddress), checked((byte)read.Bone), 0);
+                NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, PoseSource(read.Actor), checked((byte)read.Bone), 0);
                 NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
                 point = new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters.Mac[2]!.Value));
                 current = current with { Memory = observed, Staging = NativeFileStaging };
@@ -134,9 +125,9 @@ public sealed partial class BattleSession
 
         NativeBattleEffect338Frame Bounds(NativeBattleEffect338Frame current, NativeBattleEffect338CaptureBounds6DFD90 capture)
         {
-            int actor = Actor(capture.ModelAddress);
+            BattleModelOwner actor = capture.Actor;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
-            NativeBattlePoseSource source = PoseSource(capture.ModelAddress);
+            NativeBattlePoseSource source = PoseSource(capture.Actor);
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect338 bounds require their current recipient world matrix."));
             (current, uint temporary) = Allocate(current, 24);
             NativeDeformedBodyBridge bridge = new(current.Memory, current.Effect, current.Random, graphics, model, RequireStaging(current), Context(current, temporary, 24), temporary);
@@ -205,7 +196,7 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)intensity.Intensity), ColorFlags = 0 }).ToImmutableArray() };
                     return current;
                 case NativeBattleEffect338SelectSequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)Actor(sequence.ModelAddress)), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleEffect338Contact506690 contact:
                     Publish(current);

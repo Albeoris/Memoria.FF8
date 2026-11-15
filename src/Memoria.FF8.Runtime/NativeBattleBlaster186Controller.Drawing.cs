@@ -72,7 +72,7 @@ public static partial class NativeBattleBlaster186Controller
             int offset = unchecked(NativeBattleCameraMath.Sine(unchecked(age * 2048) / 24) * 40) >> 12;
             short baseline = Signed(task, 0x14);
             short z = unchecked((short)(baseline + ((age & 1) == 0 ? -offset : offset)));
-            int actor = checked((int)frame.State.ReadDword(0x22B7600));
+            BattleModelOwner actor = frame.State.ReadModelOperand(0x22B7600);
             frame = inputs.Execute(frame, new NativeBattleBlaster186SetActorZWord(actor, z));
             task = Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)));
             frame = Write(frame, address, task);

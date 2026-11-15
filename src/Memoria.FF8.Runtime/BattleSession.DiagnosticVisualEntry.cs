@@ -4,7 +4,7 @@ public sealed record BattleDiagnosticVisualEntryBoundary(byte ActorIndex, byte C
 
 public sealed partial class BattleSession
 {
-    private sealed record DiagnosticVisualEntry(byte Actor, byte Command, ushort Action, ushort Effect);
+    private sealed record DiagnosticVisualEntry(BattleModelOwner Actor, byte OriginalOperand, byte Command, ushort Action, ushort Effect);
     private DiagnosticVisualEntry? diagnosticVisualEntry;
     private Action<BattleDiagnosticVisualEntryBoundary>? diagnosticVisualEntryAdmission;
     public BattleDiagnosticVisualEntryBoundary? DiagnosticVisualEntryBoundary { get; private set; }
@@ -18,18 +18,18 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Visual entry must be armed once before its diagnostic action submission.");
         }
         BattleCombatant actor = GetActor(actorId);
-        diagnosticVisualEntry = new(checked((byte)actor.EncodeNativeSlot()), command, action, effect);
+        diagnosticVisualEntry = new(CreatePresentationModelOwner(actor), checked((byte)actor.EncodeNativeSlot()), command, action, effect);
         diagnosticVisualEntryAdmission = admission;
     }
 
     private void AdmitDiagnosticVisualEntry(NativeBattleActionHeaderSlot header)
     {
-        if (!MatchesDiagnosticVisualEntry(header) || diagnosticVisualEntryAdmission is not { } admission)
+        if (diagnosticVisualEntry is not { } entry || !MatchesDiagnosticVisualEntry(header) || diagnosticVisualEntryAdmission is not { } admission)
         {
             return;
         }
         diagnosticVisualEntryAdmission = null;
-        DiagnosticVisualEntryBoundary = new(header.Source, header.Command, header.Action, header.Effect, NativeHostCallbacks ?? Frame);
+        DiagnosticVisualEntryBoundary = new(entry.OriginalOperand, header.Command, header.Action, header.Effect, NativeHostCallbacks ?? Frame);
         admission(DiagnosticVisualEntryBoundary);
     }
 

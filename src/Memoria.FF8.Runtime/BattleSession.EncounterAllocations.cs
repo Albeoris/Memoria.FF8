@@ -188,7 +188,8 @@ public sealed partial class BattleSession
     {
         BattleEncounterAllocationState batch = encounterAllocation!;
         BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
-        if (actor.NativeAllocationPendingStatistics || graphics.ActorModels.Get(actor.EncodeNativeSlot()).EffectCounter97 != 2 || (graphics.ActorModels.Get(actor.EncodeNativeSlot()).Flags0 & 2) == 0)
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(CreatePresentationModelOwner(actor));
+        if (actor.NativeAllocationPendingStatistics || model.EffectCounter97 != 2 || (model.Flags0 & 2) == 0)
         {
             throw new InvalidDataException("Encounter allocation reached completion before its resolved statistics and model were loaded.");
         }
@@ -208,7 +209,7 @@ public sealed partial class BattleSession
         }
         foreach (string id in batch.ActorIds)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(GetActor(id).EncodeNativeSlot());
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(CreatePresentationModelOwner(GetActor(id)));
             if ((model.Flags0 & 2) == 0 || model.EffectCounter97 != 2 || model.Flags2 is not ushort flags || (flags & 0x84) != 0 || model.Kind5 != 0 || model.SequenceState is not { } sequence || model.Sequence != sequence.Default2)
             {
                 return graphics;
@@ -235,7 +236,7 @@ public sealed partial class BattleSession
         {
             foreach (string id in batch.ActorIds)
             {
-                int index = GetActor(id).EncodeNativeSlot();
+                BattleModelOwner index = CreatePresentationModelOwner(GetActor(id));
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 & ~4) }) };
             }
             NativeGraphics = graphics;

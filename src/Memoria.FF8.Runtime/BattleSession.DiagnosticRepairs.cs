@@ -160,7 +160,7 @@ public sealed partial class BattleSession
         RefreshNativePresentationStatus(actor);
         NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.EncodeNativeSlot());
         int difference = actor.CurrentHp - presented.HitPoints;
-        PublishNativePresentedContact(new(checked((byte)actor.EncodeNativeSlot()), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor)));
+        PublishNativePresentedContact(RequireNativeGraphics(), new(CreatePresentationModelOwner(actor), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor)));
         if (actor.CurrentHp != repair.HitPoints || RequireNativePartyPresentedRow(actor.EncodeNativeSlot()).HitPoints != repair.HitPoints)
         {
             throw new InvalidOperationException("Diagnostic repair did not produce its exact declared HP in the combat and presentation owners.");

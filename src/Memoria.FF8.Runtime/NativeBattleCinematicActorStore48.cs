@@ -5,11 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicActorStore48
 {
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, Func<uint, NativeBattleGraphicsModel> readActor, Action<uint, NativeBattleGraphicsModel> writeActor)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, Func<BattleModelOwner, NativeBattleGraphicsModel> readActor, Action<BattleModelOwner, NativeBattleGraphicsModel> writeActor)
     {
-        uint header = CoreDword(frame, 0x279744C);
-        byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
+        BattleModelOwner address = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         NativeBattleGraphicsModel actor = readActor(address);
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x1000) };
         writeActor(address, actor);
@@ -32,7 +30,7 @@ public static class NativeBattleCinematicActorStore48
         }
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
-    public static NativeBattleWaterExecutionFrame StoreColor38(NativeBattleWaterExecutionFrame frame, uint baseColor, Func<uint, NativeBattleGraphicsModel> readActor, Action<uint, NativeBattleGraphicsModel> writeActor)
+    public static NativeBattleWaterExecutionFrame StoreColor38(NativeBattleWaterExecutionFrame frame, uint baseColor, Func<BattleModelOwner, NativeBattleGraphicsModel> readActor, Action<BattleModelOwner, NativeBattleGraphicsModel> writeActor)
     {
         int offset = (frame.ReadTemporaryWord(0x14A) & 0xFE00) == 0 ? 0x94 : 0x8C;
         uint color = 0;
@@ -43,15 +41,13 @@ public static class NativeBattleCinematicActorStore48
             color |= unchecked((uint)value << (lane * 8));
         }
         frame = frame.WriteTemporaryDword(0xFC, color);
-        uint header = CoreDword(frame, 0x279744C);
-        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, ReadSlot(frame, 0x1B, 1)[0], header);
+        BattleModelOwner address = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         writeActor(address, readActor(address) with { Color40 = color });
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
-    public static NativeBattleWaterExecutionFrame BranchScale49(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<uint, NativeBattleGraphicsModel> readActor)
+    public static NativeBattleWaterExecutionFrame BranchScale49(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<BattleModelOwner, NativeBattleGraphicsModel> readActor)
     {
-        uint header = CoreDword(frame, 0x279744C);
-        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, ReadSlot(frame, 0x1B, 1)[0], header);
+        BattleModelOwner address = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         short scale = (readActor(address).Transform ?? throw new NotSupportedException("Native actor scale branch requires its current transform owner.")).Scale38;
         short boundary = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         bool reached = (frame.ReadTemporaryWord(0x14A) & 0xFE00) == 0 ? scale <= boundary : scale >= boundary;

@@ -4,9 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleEffect213CountStep CountNativeEffect213Vertices(NativeBattleGraphicsState graphics, NativeBattleEffect213Frame frame, uint modelAddress)
+    private NativeBattleEffect213CountStep CountNativeEffect213Vertices(NativeBattleGraphicsState graphics, NativeBattleEffect213Frame frame, BattleModelOwner actor)
     {
-        int actor = NativeEffect213Actor(graphics, modelAddress);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect213 vertex counting requires its current addressed memory.");
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
@@ -26,9 +25,8 @@ public sealed partial class BattleSession
         return new(frame with { Staging = staging }, count);
     }
 
-    private NativeBattleEffect213PointStep SelectNativeEffect213Vertex(ref NativeBattleGraphicsState graphics, NativeBattleEffect213Frame frame, uint modelAddress, int ordinal, NativeBattleEffectArena retained8)
+    private NativeBattleEffect213PointStep SelectNativeEffect213Vertex(ref NativeBattleGraphicsState graphics, NativeBattleEffect213Frame frame, BattleModelOwner actor, int ordinal, NativeBattleEffectArena retained8)
     {
-        byte actor = checked((byte)NativeEffect213Actor(graphics, modelAddress));
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect213 vertex selection requires its current addressed memory.");
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect213 vertex selection requires its current primary skeleton.");

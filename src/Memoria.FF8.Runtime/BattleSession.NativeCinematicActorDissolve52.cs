@@ -12,12 +12,8 @@ public sealed partial class BattleSession
         NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         uint payload = Slot32(0xB8);
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex);
-        if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
-        {
-            throw new NotSupportedException("Native actor dissolve requires its actual physical actor directory.");
-        }
+        BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native actor dissolve requires its current body rig.");
@@ -38,7 +34,7 @@ public sealed partial class BattleSession
                 NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, clone, 0);
             }
             SetSlot(0xBC, clone);
-            Put32(clone + 0xC, actorAddress);
+            frame = frame with { Arena = frame.Arena.WriteExecutionReference(ArenaOffset(clone + 0xC, 4), 4, new BattleExecutionReference.Model(actorIndex), aliases.EncodeAddress(actorIndex)) };
             RefreshClone();
             Put32(clone + 0x54, 0);
             Put32(clone + 0x58, 0xD00140);
@@ -73,7 +69,7 @@ public sealed partial class BattleSession
             actor = actor with { Flags0 = (ushort)(actor.Flags0 | 4) };
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
         }
-        else if (Dword(clone + 0xC) != actorAddress)
+        else if (frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(ArenaOffset(clone + 0xC, 4), 4).Owner != actorIndex)
         {
             throw new InvalidDataException("Native actor dissolve clone belongs to another physical actor.");
         }

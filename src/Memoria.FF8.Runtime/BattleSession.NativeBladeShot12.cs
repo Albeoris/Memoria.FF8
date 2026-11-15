@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("BladeShot12 requires its actual process memory.");
         NativeBattleBladeShot12Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("BladeShot12 requires its actual CRT stream."), (memory.BladeShot12 ?? throw new NotSupportedException("BladeShot12 requires its retained executable storage.")).EnsureVertexSources(resources)) { Staging = NativeFileStaging ?? throw new NotSupportedException("BladeShot12 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("BladeShot12 requires its interpolation constants.");
-        NativeBattleBladeShot12Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("BladeShot12 requires its current projection."), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), Bone, Anchor, Execute);
+        NativeBattleBladeShot12Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("BladeShot12 requires its current projection."), (_, actor) => graphics.ActorModels.Get(actor), Bone, Anchor, Execute);
         frame = initialize ? NativeBattleBladeShot12Controller.Initialize(frame, resources, inputs) : NativeBattleBladeShot12Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -35,9 +35,8 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.BladeShot12 ?? throw new InvalidDataException("BladeShot12 external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("BladeShot12 external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("BladeShot12 external service lost its CRT stream.") };
         }
 
-        NativeBattleBladeShot12PointStep Bone(NativeBattleBladeShot12Frame current, uint pointer, int selector, int distance)
+        NativeBattleBladeShot12PointStep Bone(NativeBattleBladeShot12Frame current, BattleModelOwner actor, int selector, int distance)
         {
-            int actor = Actor(pointer);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
@@ -52,17 +51,16 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleBladeShot12PointStep Anchor(NativeBattleBladeShot12Frame current, uint pointer)
+        NativeBattleBladeShot12PointStep Anchor(NativeBattleBladeShot12Frame current, BattleModelOwner actor)
         {
-            int actor = Actor(pointer);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("BladeShot12 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, Point(transform.Position28).Write(6, BitConverter.GetBytes(transform.Angle36)));
             }
-            NativeBattleBladeShot12PointStep first = Bone(current, pointer, 0xF0, 0);
-            NativeBattleBladeShot12PointStep second = Bone(first.Frame, pointer, 0xF1, 0);
+            NativeBattleBladeShot12PointStep first = Bone(current, actor, 0xF0, 0);
+            NativeBattleBladeShot12PointStep second = Bone(first.Frame, actor, 0xF1, 0);
             short Average(int offset) => unchecked((short)((BinaryPrimitives.ReadInt16LittleEndian(first.Point8.Read(offset, 2)) + BinaryPrimitives.ReadInt16LittleEndian(second.Point8.Read(offset, 2))) / 2));
             return new(second.Frame, Point(new(Average(0), Average(2), Average(4))).Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
@@ -92,7 +90,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleBladeShot12ActorMeshMask124 mask:
-                    int actor = Actor(mask.ModelAddress);
+                    BattleModelOwner actor = mask.Actor;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Blade Shot12 requires its current sequence mesh mask.");
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & ~mask.ClearMask) | mask.SetMask } }) };
@@ -138,15 +136,6 @@ public sealed partial class BattleSession
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Blade Shot12 custom mesh requires its addressed temporary.");
             NativeBattleBladeShot12MeshContext88Step drawn = NativeBattleBladeShot12MeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Blade Shot12 requires its current projection."), Temporary(staging, address, 88), colors, bucket, shift, identity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context88, 88) }, drawn.Batch);
-        }
-
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Blade Shot12 requires its actual current model pointer.");
-            }
-            return actorIndex;
         }
 
         (NativeBattleVector Vertex, short? W) ReadInline(NativeBattleBladeShot12Frame current, uint sourceAddress, int offset)

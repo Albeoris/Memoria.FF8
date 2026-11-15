@@ -19,7 +19,7 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect290 requires its current camera.")).RegisterControlResource(textures.Animation);
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect290ModelFlags flags:
-                int actor = NativeEffect290Actor(graphics, flags.ModelAddress);
+                BattleModelOwner actor = flags.Model;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect290WriteModelBytes write:
-                int target = NativeEffect290Actor(graphics, write.ModelAddress);
+                BattleModelOwner target = write.Model;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(target), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect290Music47E3C0 music:

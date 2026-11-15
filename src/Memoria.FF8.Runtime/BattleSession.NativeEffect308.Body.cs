@@ -9,9 +9,9 @@ public sealed partial class BattleSession
     private NativeBattleEffect308Frame DrawNativeEffect308Body(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, NativeBattleEffect308DrawOffsetBody669070 operation, NativeBattleEffect308Inputs inputs)
     {
         NativeBattleGraphicsState currentGraphics = graphics;
-        int actor = NativeEffect308Actor(graphics, operation.ModelAddress);
+        BattleModelOwner actor = operation.Model;
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.");
-        NativeBattlePoseSource source = inputs.ReadPoseSource(operation.ModelAddress);
+        NativeBattlePoseSource source = inputs.ReadPoseSource(operation.Model);
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect308 requires its current projection capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);

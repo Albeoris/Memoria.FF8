@@ -12,16 +12,17 @@ public sealed record NativeBattleCuraResources(NativeBattleEffectHeapAllocation 
 }
 public sealed record NativeBattleCuraState([property: JsonRequired] int? PrimaryDrawCursor, [property: JsonRequired] int OddDrawBase26FD114, [property: JsonRequired] int EvenDrawBase26FD110)
 {
+    [JsonIgnore]
     public NativeBattleCureActorContext? ActorContext { get; init; }
 }
 public sealed record NativeBattleCuraFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCuraState State);
-public sealed record NativeBattleCuraControllerInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource)
+public sealed record NativeBattleCuraControllerInputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Action<int>? ApplyContact { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Action<BattleContactOccurrence>? ApplyContact { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
 public sealed record NativeBattleCuraLeafStep(NativeBattleCuraFrame Frame, int Result);
-public sealed record NativeBattleCuraControllerStep(NativeBattleCuraFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleCuraControllerStep(NativeBattleCuraFrame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
 /// <summary>889D60/889E40/889F40's actual Cura pools, controller phases and506690 contact producer.</summary>
 public static class NativeBattleCuraController
@@ -45,8 +46,10 @@ public static class NativeBattleCuraController
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor firstContact = header.FirstContact;
-        byte target = packets.ReadContact(firstContact).Primary.Recipient;
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x2D, target).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        BattleModelOwner target = packets.ReadContact(firstContact).Primary.Recipient;
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78);
+        task = new NativeBattleEffectTaskActors(header.Source, target, packets.ModelAliases).WriteTargetTo(task);
+        task = task.WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         if ((parameters.Flags79 & 1) == 0)
         {
@@ -75,7 +78,7 @@ public static class NativeBattleCuraController
         NativeBattleEffectParameters parameters = frame.Effect.Parameters!;
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleCuraFrame current = frame;
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
         NativeBattleEffectHierarchyStep main = hierarchy.Advance(0, (state, address) =>
@@ -86,7 +89,7 @@ public static class NativeBattleCuraController
                 throw new NotSupportedException("Native Cura main task has an unsupported original callback.");
             }
             current = current with { State = current.State with { PrimaryDrawCursor = (task.ReadWord(0x5C) & 1) != 0 ? current.State.OddDrawBase26FD114 : current.State.EvenDrawBase26FD110 } };
-            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource);
+            task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(task, parameters, inputs.ReadModel, inputs.ReadPoseSource);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -151,7 +154,7 @@ public static class NativeBattleCuraController
             {
                 throw new NotSupportedException("Native Cura child task has an unsupported original callback.");
             }
-            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
+            task = NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
             state = state.Write(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {
@@ -188,7 +191,8 @@ public static class NativeBattleCuraController
                     {
                         sbyte group = unchecked((sbyte)task.ReadByte(0x2A));
                         BattleActionHeaderReference headerIndex = parameters.Header.Advance(group);
-                        int contact = inputs.Packets.ReadHeader(headerIndex).FirstContactIndex ?? throw new NotSupportedException("Native88CEA0 requires the selected header's actual first contact pointer.");
+                        BattleContactCursor cursor = inputs.Packets.ReadHeader(headerIndex).FirstContact;
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Cura requires its reached contact occurrence.");
                         inputs.ApplyContact?.Invoke(contact);
                         contacts.Add(contact);
                         task = state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1));

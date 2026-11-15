@@ -36,9 +36,9 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        int BoneCount(int actor) => ReadNativeGraphicsBoneCount(graphics, actor);
+        int BoneCount(BattleModelOwner actor) => ReadNativeGraphicsBoneCount(graphics, actor);
 
-        NativeBattleShot188Anchor Muzzle(int actor)
+        NativeBattleShot188Anchor Muzzle(BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             ImmutableArray<NativeBattleActionMatrix> bones = LinkedBones(actor).Matrices;
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             return new(point, new(NativeBattleModuleAlignment.Rotation5714F0(angle.Angle, angle.Axis), 0, 0, 0, 4096));
         }
 
-        NativeBattleBodyBoneMatrices LinkedBones(int actor)
+        NativeBattleBodyBoneMatrices LinkedBones(BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).LinkedPoseSource ?? throw new NotSupportedException("Native Normal Shot requires its actual linked weapon skeleton.");

@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect316Controller
             }
             frame = ClearDwords6DA380(frame, main + 0xC, 0x204);
             frame = inputs.Execute(frame, new NativeBattleEffect316Vibration4A29A0(VibrationAddress, 1, 0x80, main + 0x10));
-            uint model = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner model = frame.State.ReadModel(CasterGlobal);
             uint color = inputs.ReadModel(frame, model).Color44 ?? throw new NotSupportedException("Effect316 requires its current raw caster Color44.");
             task = Read(frame, main).WriteDword(0x14, color).WriteDword(RecordHintOffset, main + RecordOffset);
             frame = Write(frame, main, task);
@@ -49,15 +49,12 @@ public static partial class NativeBattleEffect316Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         short age = Signed(task, 0xC);
-        uint model = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner model = frame.State.ReadModel(CasterGlobal);
         if (age >= 0x138)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect316ModelFlags(model, 2, 0xFFF7, 0));
             frame = inputs.Execute(frame, new NativeBattleEffect316WriteModel(model, 0x2C, TaskView(task, 0x14, 4), 4));
-            for (int physical = 0; physical < 3; physical++)
-            {
-                frame = inputs.Execute(frame, new NativeBattleEffect316ModelFlags(ModelAddress(physical), 2, 0xFFFB, 0));
-            }
+            frame = inputs.Execute(frame, new NativeBattleEffect316PartyFlags(0xFFFB, 0));
             return new(frame, 2);
         }
         frame = frame with { State = frame.State.WriteDword(AmplitudeGlobal, unchecked((uint)Amplitude(age))) };
@@ -78,7 +75,7 @@ public static partial class NativeBattleEffect316Controller
         if (secondPhase < 140)
         {
             int fraction = ColorFraction(secondPhase);
-            frame = inputs.Execute(frame, new NativeBattleEffect316Blend56CC00(address + 0x14, ColorGlobal, 0x1000 - fraction, fraction, model + 0x2C));
+            frame = inputs.Execute(frame, new NativeBattleEffect316Blend56CC00(address + 0x14, ColorGlobal, 0x1000 - fraction, fraction, model));
             frame = inputs.Execute(frame, new NativeBattleEffect316WriteModel(model, 0x2F, NativeBattleEffectArena.Clear().Write(0, [0x32]), 1));
         }
         if (age >= 60)

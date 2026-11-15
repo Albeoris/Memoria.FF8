@@ -13,7 +13,7 @@ public static class NativeBattleEffect30BeamLower
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.ReadWord(0x24) == 0)
         {
-            NativeBattleEffect30PointStep target = inputs.ReadBone502170(frame, task.ReadByte(0x2D), 0xF1, 0);
+            NativeBattleEffect30PointStep target = inputs.ReadBone502170(frame, task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, 0xF1, 0);
             frame = Write(target.Frame, address, PutXyz(Read(target.Frame, address), 0x7C, target.Position));
         }
         NativeBattleEffect30PointStep actor = inputs.ReadBone502170(frame, caster, 0xF1, 0);

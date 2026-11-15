@@ -18,10 +18,8 @@ public static partial class NativeBattleEffect218Controller
         }
         NativeBattleEffectParameters parameters = Parameters(frame);
         BattleContactCursor first = inputs.Packets.ReadHeader(parameters.Header).FirstContact;
-        int target = inputs.Packets.ReadContact(first).Primary.Recipient;
-        _ = ModelAddress(target);
-        _ = ModelAddress(parameters.Source);
-        NativeBattleEffect218State state = frame.State.InitializeSource(resources).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, parameters.Source).WriteDword(TargetGlobal, checked((uint)target)).WriteDword(0xE257E0, ArenaAddress + ParticleAOffset).WriteDword(0xE257E4, ArenaAddress + ParticleBOffset).WriteDword(0xE257E8, ArenaAddress + ProjectionOffset);
+        BattleModelOwner target = inputs.Packets.ReadContact(first).Primary.Recipient;
+        NativeBattleEffect218State state = frame.State.InitializeSource(resources).WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOperand(CasterGlobal, parameters.Source, inputs.Packets.ModelAliases).WriteModelOperand(TargetGlobal, target, inputs.Packets.ModelAliases).WriteDword(0xE257E0, ArenaAddress + ParticleAOffset).WriteDword(0xE257E4, ArenaAddress + ParticleBOffset).WriteDword(0xE257E8, ArenaAddress + ProjectionOffset);
         ImmutableArray<NativeBattleEffectTaskPool>.Builder pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>(3);
         foreach (NativeBattleCureFamilyPool profile in Pools)
         {

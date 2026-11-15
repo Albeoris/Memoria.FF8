@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>8D8280 replaces the shared actor context's model pointer and target selector.</summary>
-public sealed record NativeBattleCureActorContext(byte Target);
+public sealed record NativeBattleCureActorContext(BattleModelOwner Target);
 
 public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding, bool AlreadyRelocated = false)
 {

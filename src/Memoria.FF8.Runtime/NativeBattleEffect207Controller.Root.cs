@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect207Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -31,14 +32,29 @@ public static partial class NativeBattleEffect207Controller
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                 NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
                 int count = header.ReadContactCount();
-                frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count).WriteWord(40, 0).WriteWord(42, 0).WriteWord(44, 0));
+                frame = Write(frame, main, Read(frame, main).WriteContactCount(14, count).WriteWord(40, 0).WriteWord(42, 0).WriteWord(44, 0));
                 NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
+                var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
+                ImmutableArray<byte>? originalFirst = [0, 0, 0, 0];
                 for (int index = 0; index < count; index++)
                 {
                     BattleContactCursor first = header.FirstContact;
-                    int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                    uint pointer = NativeBattleGraphicsModelAddress.Encode(actor);
-                    frame = WriteBytes(frame, main + 20u + (uint)(index * 4), NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(pointer)), 4);
+                    NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
+                    BattleModelOwner actor = contact.Primary.Recipient;
+                    BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Effect207 requires its captured contact occurrence.");
+                    recipients.Add((actor, occurrence));
+                    if (index < 5)
+                    {
+                        ImmutableArray<byte>? encoding = packets.ModelAliases.EncodeAddress(actor);
+                        if (index == 0)
+                        {
+                            originalFirst = encoding;
+                        }
+                        int offset = 20 + index * 4;
+                        NativeBattleModulePoolTask task = Read(frame, main);
+                        task = encoding is { } encoded ? task.WriteBytes(offset, encoded.AsSpan()) : task.MarkPayloadUnknown(offset, 4);
+                        frame = Write(frame, main, task);
+                    }
                     NativeBattleEffect207PointStep point = inputs.Anchor571400(frame, actor, retained);
                     frame = point.Frame;
                     retained = point.Output8;
@@ -49,6 +65,7 @@ public static partial class NativeBattleEffect207Controller
                     retained = retained.Write(2, BitConverter.GetBytes(unchecked((short)(minimumY - 512))));
                 }
                 NativeBattleModulePoolTask averaged = Read(frame, main);
+                averaged.WriteExecutionReference(20, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), originalFirst);
                 frame = Write(frame, main, averaged.WriteWord(40, unchecked((ushort)(Signed(averaged, 40) / count))).WriteWord(42, unchecked((ushort)(Signed(averaged, 42) / count))).WriteWord(44, unchecked((ushort)(Signed(averaged, 44) / count))));
             }
         }

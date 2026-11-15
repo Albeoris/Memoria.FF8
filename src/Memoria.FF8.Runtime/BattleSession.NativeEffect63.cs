@@ -12,17 +12,16 @@ public sealed partial class BattleSession
         NativeBattleEffect63Resources resources = effect.Binding.Effect63Resources ?? throw new NotSupportedException("Effect63 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect63 requires its current process memory.");
         NativeBattleEffect63Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect63 requires its current CRT stream."), memory.Effect63 ?? throw new NotSupportedException("Effect63 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect63 requires its current temporary memory.") };
-        NativeBattleEffect63Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect63 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect63Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect63 requires its current projection."), _ => Camera().Roll, Anchor, Point, Execute) { CapturePresentation = true };
+        NativeBattleEffect63Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect63 requires its arithmetic constants."), _ => nativeActionPackets, (_, actor) => CaptureNativeEffect210Model(graphics.ActorModels.Get(actor)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect63 requires its current projection."), _ => Camera().Roll, Anchor, Point, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect63Controller.Initialize(frame, resources, inputs) : NativeBattleEffect63Controller.Advance(frame, resources, inputs);
         PublishNativeEffect63Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect63 requires its current camera.");
-        NativeBattlePoseSource Pose(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect63 requires its current physical skeleton.");
+        NativeBattlePoseSource Pose(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect63 requires its current physical skeleton.");
 
-        NativeBattleEffect63PointStep Point(NativeBattleEffect63Frame current, uint address, NativeBattleEffectArena local, NativeBattleEffectArena retained)
+        NativeBattleEffect63PointStep Point(NativeBattleEffect63Frame current, BattleModelOwner actor, NativeBattleEffectArena local, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect63Actor(graphics, address);
             NativeBattlePoseSource source = Pose(actor);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Effect63 requires its current pose temporary memory."), 88);
             NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
@@ -49,7 +48,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = current.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } }, retained);
         }
 
-        NativeBattleEffect63PointStep Bone(NativeBattleEffect63Frame current, int actor, byte selector, NativeBattleEffectArena retained)
+        NativeBattleEffect63PointStep Bone(NativeBattleEffect63Frame current, BattleModelOwner actor, byte selector, NativeBattleEffectArena retained)
         {
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect63 requires its current anchor temporary memory.");
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -61,9 +60,8 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, retained);
         }
 
-        NativeBattleEffect63PointStep Anchor(NativeBattleEffect63Frame current, uint address, NativeBattleEffectArena retained)
+        NativeBattleEffect63PointStep Anchor(NativeBattleEffect63Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect63Actor(graphics, address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect63 requires its current target transform.");
             if ((model.Flags0 & 2) == 0)
@@ -122,15 +120,6 @@ public sealed partial class BattleSession
                     throw new NotSupportedException($"Effect63 emitted unsupported service {operation.GetType().Name}.");
             }
         }
-    }
-
-    private static int NativeEffect63Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect63 requires an actual current physical model address.");
-        }
-        return actorIndex;
     }
 
     private void PublishNativeEffect63Frame(NativeBattleEffect63Frame frame)

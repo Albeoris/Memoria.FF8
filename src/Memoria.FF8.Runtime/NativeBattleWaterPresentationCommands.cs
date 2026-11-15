@@ -4,7 +4,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterPresentationServices(Func<NativeBattleWaterExecutionFrame, uint, ushort> ReadActorFlags, Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleWaterExecutionFrame> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, uint, short, byte, NativeBattleWaterExecutionFrame> PlaySound501330)
+public sealed record NativeBattleWaterPresentationServices(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, ushort> ReadActorFlags, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, ushort, NativeBattleWaterExecutionFrame> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, uint, short, byte, NativeBattleWaterExecutionFrame> PlaySound501330)
 {
     public Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame>? UpdateSlot { get; init; }
 }
@@ -47,7 +47,7 @@ public static class NativeBattleWaterPresentationCommands
                 frame = Update(frame);
                 return Advance(6);
             case 0x5E:
-                int actor = Actor(frame);
+                BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
                 uint header = CoreDword(frame, 0x279744C);
                 for (int lane = 0; lane < 3; lane++)
                 {
@@ -58,9 +58,8 @@ public static class NativeBattleWaterPresentationCommands
                 frame = frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, currentIndex) };
                 return Advance(2);
             case 0x45:
-                int flagActor = Actor(frame);
+                BattleModelOwner flagActor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
                 uint flagHeader = CoreDword(frame, 0x279744C);
-                uint actorPointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, flagActor, flagHeader);
                 int prior = unchecked((short)NativeBattleCinematicActorAccess.ReadCachedFlags0(frame, flagActor, flagHeader));
                 int mask = unchecked((short)Word(unchecked(pc + 2)));
                 int mode = instruction >> 12;
@@ -70,9 +69,9 @@ public static class NativeBattleWaterPresentationCommands
                 }
                 if (mode != 1 || (mask & prior) == 0)
                 {
-                    ushort flags = services.ReadActorFlags(frame, actorPointer);
+                    ushort flags = services.ReadActorFlags(frame, flagActor);
                     ushort output = mode == 0 ? unchecked((ushort)(flags | mask)) : unchecked((ushort)(flags & ~mask));
-                    frame = services.WriteActorFlags(frame, actorPointer, output);
+                    frame = services.WriteActorFlags(frame, flagActor, output);
                 }
                 return Advance(4);
             case 0x2B:
@@ -128,12 +127,6 @@ public static class NativeBattleWaterPresentationCommands
             }
             return current with { Arena = NativeBattleWaterSlots.UpdateSelected(current.Arena, bank, currentIndex, active) };
         }
-    }
-
-    private static int Actor(NativeBattleWaterExecutionFrame frame)
-    {
-        int actor = ReadSlot(frame, 0x1B, 1)[0];
-        return actor < NativeBattleCinematicActorAccess.ActorCapacity(frame) ? actor : throw new NotSupportedException("Native cached actor access leaves its graphics bank.");
     }
 
     private static NativeBattleWaterExecutionFrame SlotByte(NativeBattleWaterExecutionFrame frame, int offset, byte value) => frame with { Arena = frame.Arena.Write(SlotOffset(frame, offset, 1), new byte[] { value }) };

@@ -30,11 +30,11 @@ public sealed partial class BattleSession
             case NativeBattleEffect287Contacts506BA0 contacts:
                 PublishNativeEffect287Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(contacts.FirstContact, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, contacts.Count).Select(index => nativeActionPackets.ReadContact(contacts.FirstContact.Advance(index))).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect287Frame(frame);
             case NativeBattleEffect287ModelFlags flags:
-                int actor = NativeEffect287Actor(graphics, flags.ModelAddress);
+                BattleModelOwner actor = flags.Actor;
                 NativeBattleGraphicsModel current = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
@@ -45,12 +45,12 @@ public sealed partial class BattleSession
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, current with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect287Compose5095B0 compose:
-                int composedActor = NativeEffect287Actor(graphics, compose.ModelAddress);
+                BattleModelOwner composedActor = compose.Actor;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(composedActor);
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(composedActor, NativeBattleBodyBoneMatrices.Compose5095B0(model, model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect287 requires its current model world matrix."))) };
                 return frame;
             case NativeBattleEffect287Restore508C90 restore:
-                int restoredActor = NativeEffect287Actor(graphics, restore.ModelAddress);
+                BattleModelOwner restoredActor = restore.Actor;
                 NativeBattleGraphicsModel composed = graphics.ActorModels.Get(restoredActor);
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, restoredActor).PoseSource ?? throw new NotSupportedException("Effect287 requires its current physical skeleton.");
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect287 requires its current temporary owner."), 88);

@@ -3,13 +3,13 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleBio22ActorFrame(NativeBattleModulePoolTask Task, NativeBattleModulePoolTask Root, NativeBattleEffectMemory Memory, ImmutableArray<NativeBattleGraphicsModel> Models);
+public sealed record NativeBattleBio22ActorFrame(NativeBattleModulePoolTask Task, NativeBattleModulePoolTask Root, NativeBattleEffectMemory Memory, BattleActorModels Models);
 public sealed record NativeBattleBio22ActorStep(NativeBattleBio22ActorFrame Frame, uint Result);
-public sealed record NativeBattleBio22ActorServices(Func<NativeBattleBio22ActorFrame, int, NativeBattleBio22ActorFrame> ReadLocal508C90, Func<NativeBattleBio22ActorFrame, int, NativeBattleActionMatrix, int, int, NativeBattleBio22ActorFrame> DrawShadow5088A0, Func<NativeBattleBio22ActorFrame, int, NativeBattleActionMatrix, short, short, NativeBattleBio22ActorFrame> DrawBodyAndExtra89D780);
+public sealed record NativeBattleBio22ActorServices(Func<NativeBattleBio22ActorFrame, BattleModelOwner, NativeBattleBio22ActorFrame> ReadLocal508C90, Func<NativeBattleBio22ActorFrame, BattleModelOwner, NativeBattleActionMatrix, int, int, NativeBattleBio22ActorFrame> DrawShadow5088A0, Func<NativeBattleBio22ActorFrame, BattleModelOwner, NativeBattleActionMatrix, short, short, NativeBattleBio22ActorFrame> DrawBodyAndExtra89D780);
 
 public static class NativeBattleBio22Actor
 {
-    public static NativeBattleBio22ActorStep Advance89D3D0(NativeBattleBio22ActorFrame frame, Func<NativeBattleBio22ActorFrame, NativeBattleBio22ActorFrame> drawActualActor)
+    public static NativeBattleBio22ActorStep Advance89D3D0(NativeBattleBio22ActorFrame frame, NativeBattleModelAliases aliases, Func<NativeBattleBio22ActorFrame, NativeBattleBio22ActorFrame> drawActualActor)
     {
         if (frame.Task.Callback != 0x89D3D0 || frame.Task.PayloadLength != 0x38 - 12)
         {
@@ -20,11 +20,10 @@ public static class NativeBattleBio22Actor
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                RequireModels(frame.Models);
-                int target = Target(task.ReadByte(0x2D));
-                owner = Initialize89DC30(owner, target);
-                NativeBattleGraphicsModel model = frame.Models[target];
-                frame = frame with { Models = frame.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+                owner = Initialize89DC30(owner, target, aliases);
+                NativeBattleGraphicsModel model = frame.Models.Get(target);
+                frame = frame with { Models = frame.Models.Set(target, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
                 task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 8)).WriteByte(0x29, 1);
                 break;
             case 1:
@@ -48,10 +47,9 @@ public static class NativeBattleBio22Actor
                 owner = owner.WriteWord(0xF2, unchecked((short)ramp) < 0 ? (ushort)0 : ramp).WriteWord(0xCE, W(owner.Word(0xCE) - 0x100));
                 if (owner.SignedWord(0xCE) <= 0)
                 {
-                    RequireModels(frame.Models);
-                    target = Target(task.ReadByte(0x2D));
-                    model = frame.Models[target];
-                    frame = frame with { Models = frame.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 & 0xFFFB) }), Root = frame.Root.WriteByte(0x63, 0) };
+                        target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
+                    model = frame.Models.Get(target);
+                    frame = frame with { Models = frame.Models.Set(target, model with { Flags0 = (ushort)(model.Flags0 & 0xFFFB) }), Root = frame.Root.WriteByte(0x63, 0) };
                     task = task.WriteWord(0x26, (ushort)((task.ReadWord(0x26) & ~8) | 1)).WriteByte(0x29, 4);
                 }
                 break;
@@ -71,11 +69,10 @@ public static class NativeBattleBio22Actor
         return new(frame with { Task = task }, (flags & 1) != 0 && task.ReadByte(0x28) == 0 ? 2u : 0u);
     }
 
-    public static NativeBattleBio22ActorMemory Initialize89DC30(NativeBattleBio22ActorMemory owner, int target)
+    public static NativeBattleBio22ActorMemory Initialize89DC30(NativeBattleBio22ActorMemory owner, BattleModelOwner target, NativeBattleModelAliases aliases)
     {
-        Target(target);
         owner.Validate();
-        owner = owner.WriteDword(0, 0x2705160).WriteDword(4, 0x2714DE8).WriteDword(8, NativeBattleGraphicsModelAddress.Encode(target)).WriteDword(0xC, 0x1D8E054).WriteDword(0x10, 0x270456C).WriteWord(0xDA, (ushort)target);
+        owner = owner.WriteDword(0, 0x2705160).WriteDword(4, 0x2714DE8).WriteModel(8, 4, target, aliases.EncodeAddress(target)).WriteDword(0xC, 0x1D8E054).WriteDword(0x10, 0x270456C).WriteModel(0xDA, 2, target, aliases.EncodeOperand(target, 2));
         foreach (int offset in new[] { 0xB4, 0xB6, 0xB8, 0xCE, 0xF2, 0xA4, 0xA6, 0xA8, 0xAC, 0xAE, 0xB0, 0xBC, 0xBE, 0xC0 })
         {
             owner = owner.WriteWord(offset, 0);
@@ -90,15 +87,10 @@ public static class NativeBattleBio22Actor
 
     public static NativeBattleBio22ActorFrame Draw89D460(NativeBattleBio22ActorFrame frame, NativeBattleActionMatrix camera, NativeBattleBio22ActorServices services)
     {
-        RequireModels(frame.Models);
         NativeBattleBio22ActorMemory owner = RequireOwner(frame.Memory);
-        Target(owner.Word(0xDA));
-        uint pointer = owner.Dword(8);
-        if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int target))
-        {
-            throw new NotSupportedException("Native Bio captured model pointer leaves its seven physical graphics rows.");
-        }
-        NativeBattleActionMatrix original = frame.Models[target].GeometryWorldMatrix ?? throw new NotSupportedException("Native Bio actor requires its previously published model world matrix.");
+        _ = owner.ReadModel(0xDA, 2);
+        BattleModelOwner target = owner.ReadModel(8, 4);
+        NativeBattleActionMatrix original = frame.Models.Get(target).GeometryWorldMatrix ?? throw new NotSupportedException("Native Bio actor requires its previously published model world matrix.");
         NativeBattleVector localOffset = new(owner.SignedWord(0xB4), owner.SignedWord(0xB6), owner.SignedWord(0xB8));
         NativeBattleActionMatrix moved = NativeBattlePoseMatrices.CureMovedModelWorld8D7200(original, localOffset, owner.SignedWord(0xD2));
         owner = WriteMatrix(owner, 0x14, original, true);
@@ -109,7 +101,7 @@ public static class NativeBattleBio22Actor
         NativeBattleActionMatrix main = NativeBattlePoseMatrices.Compose56C2F0(camera, ReadMatrix(owner, 0x14));
         owner = WriteMatrix(owner, 0x34, main, false);
         frame = frame with { Memory = frame.Memory with { Bio22ActorMemory = owner } };
-        if ((frame.Models[target].Flags0 & 0x20) == 0)
+        if ((frame.Models.Get(target).Flags0 & 0x20) == 0)
         {
             frame = services.DrawShadow5088A0(frame, target, main, 4112, 16);
         }
@@ -157,14 +149,6 @@ public static class NativeBattleBio22Actor
     {
         ushort value = W(owner.Word(0xF2) + 0x40);
         return owner.WriteWord(0xF2, unchecked((short)value) > 0x300 ? (ushort)0x300 : value);
-    }
-    private static int Target(int target) => target is >= 0 and < 7 ? target : throw new NotSupportedException("Native Bio actor auxiliary requires an actual physical target row from zero through six.");
-    private static void RequireModels(ImmutableArray<NativeBattleGraphicsModel> models)
-    {
-        if (models.IsDefault || models.Length != 7 || models.Where((model, index) => model is null || model.Index != index).Any())
-        {
-            throw new InvalidDataException("Native Bio actor requires its actual seven physical graphics rows.");
-        }
     }
     private static NativeBattleBio22ActorMemory RequireOwner(NativeBattleEffectMemory memory) => memory.Bio22ActorMemory ?? throw new NotSupportedException("Native Bio actor requires its retained process settings, lighting and vertex work.");
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

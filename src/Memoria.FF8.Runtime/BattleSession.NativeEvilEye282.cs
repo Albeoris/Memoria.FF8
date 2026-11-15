@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Evil-Eye requires its actual process memory.");
         NativeBattleEvilEye282Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Evil-Eye requires its actual CRT stream."), memory.EvilEye282 ?? throw new NotSupportedException("Evil-Eye requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Evil-Eye requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Evil-Eye requires its original arithmetic constants.");
-        NativeBattleEvilEye282Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, _ => nativeActionPackets, Execute) { CapturePresentation = true };
+        NativeBattleEvilEye282Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, owner) => graphics.ActorModels.Get(owner), (_, owner) => PoseSource(owner).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, owner) => NativeBattlePackedMatrix32.FromMatrix(World(owner), null), ReadBone502170, _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEvilEye282Controller.Initialize(frame, resources, inputs) : NativeBattleEvilEye282Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -24,21 +24,12 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Evil-Eye requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Evil-Eye requires its current projection.");
-        NativeBattlePoseSource PoseSource(uint pointer) => NativeGraphicsPoseResource(graphics, Actor(pointer)).PoseSource ?? throw new NotSupportedException("Evil-Eye requires its actual current skeleton.");
-        NativeBattleActionMatrix World(uint pointer) => graphics.ActorModels.Get(Actor(pointer)).GeometryWorldMatrix ?? throw new NotSupportedException("Evil-Eye requires its actual published model world matrix.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner owner) => NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Evil-Eye requires its actual current skeleton.");
+        NativeBattleActionMatrix World(BattleModelOwner owner) => graphics.ActorModels.Get(owner).GeometryWorldMatrix ?? throw new NotSupportedException("Evil-Eye requires its actual published model world matrix.");
 
-        int Actor(uint pointer)
+        short ReadParent(NativeBattleEvilEye282Frame current, BattleModelOwner owner, int bone)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Evil-Eye requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
-
-        short ReadParent(NativeBattleEvilEye282Frame current, uint pointer, int bone)
-        {
-            NativeBattlePoseSource pose = PoseSource(pointer);
+            NativeBattlePoseSource pose = PoseSource(owner);
             if ((uint)bone >= pose.BoneCount)
             {
                 throw new InvalidDataException("Evil-Eye parent selector leaves its current skeleton.");
@@ -46,9 +37,9 @@ public sealed partial class BattleSession
             return BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + bone * 48, 2));
         }
 
-        byte ReadAlias(NativeBattleEvilEye282Frame current, uint pointer, int selector)
+        byte ReadAlias(NativeBattleEvilEye282Frame current, BattleModelOwner owner, int selector)
         {
-            NativeBattlePoseSource pose = PoseSource(pointer);
+            NativeBattlePoseSource pose = PoseSource(owner);
             int offset = checked(selector - 0xEC);
             if (selector < 0xF0 || (uint)offset >= pose.Skeleton.Length)
             {
@@ -57,10 +48,10 @@ public sealed partial class BattleSession
             return pose.Skeleton[offset];
         }
 
-        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEvilEye282Frame current, uint pointer, int bone)
+        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleEvilEye282Frame current, BattleModelOwner owner, int bone)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(Actor(pointer));
-            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(pointer));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, PoseSource(owner));
             if ((uint)bone >= matrices.Length)
             {
                 throw new InvalidDataException("Evil-Eye bone selector leaves its current CPU publication.");
@@ -68,9 +59,9 @@ public sealed partial class BattleSession
             return NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
         }
 
-        NativeBattleEvilEye282PointStep ReadBone502170(NativeBattleEvilEye282Frame current, uint pointer, int selector, int distance)
+        NativeBattleEvilEye282PointStep ReadBone502170(NativeBattleEvilEye282Frame current, BattleModelOwner owner, int selector, int distance)
         {
-            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(Actor(pointer)), PoseSource(pointer), checked((byte)selector), checked((short)distance));
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(owner), PoseSource(owner), checked((byte)selector), checked((short)distance));
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Evil-Eye bone query requires its addressed temporary memory.");
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -108,7 +99,7 @@ public sealed partial class BattleSession
             {
                 case NativeBattleEvilEye282ContactsAll506BA0 contacts:
                     Publish(current);
-                    graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
+                    graphics = ApplyNativeHeaderContacts(graphics, contacts.Header);
                     return Import(current);
                 case NativeBattleEvilEye282Stage5713E0 stage:
                     NativeBattleStageState retained = NativeStage ?? throw new NotSupportedException("Evil-Eye requires its retained stage groups.");

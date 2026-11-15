@@ -10,13 +10,13 @@ public sealed partial class BattleSession
         private ImmutableArray<NativeBattleContactPacket> Contacts(int action)
         {
             NativeBattleActionHeaderSlot header = Header(action);
-            int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Ultima requires its original target contact cursor.");
+            BattleContactCursor first = header.FirstContact;
             int count = header.ReadContactCount();
             if (count == 0)
             {
                 throw new InvalidDataException("Native Ultima cannot average an empty native target list.");
             }
-            return Enumerable.Range(0, count).Select(index => owner.nativeActionPackets.ReadContact(first + index)).ToImmutableArray();
+            return Enumerable.Range(0, count).Select(index => owner.nativeActionPackets.ReadContact(first.Advance(index))).ToImmutableArray();
         }
         private NativeBattleVector Average(int action)
         {
@@ -57,7 +57,10 @@ public sealed partial class BattleSession
             if (age == 0)
             {
                 NativeBattleVector point = Average(action);
-                task = task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)point.Z)).WriteWord(22, unchecked((ushort)-1700)).WriteWord(32, Contacts(action)[0].Primary.Recipient).WriteWord(34, 0);
+                task = task.WriteWord(16, unchecked((ushort)point.X)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)point.Z)).WriteWord(22, unchecked((ushort)-1700));
+                BattleModelOwner target = Contacts(action)[0].Primary.Recipient;
+                task.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(target), owner.nativeActionPackets.ModelAliases.EncodeOperand(target, 2));
+                task = task.WriteWord(34, 0);
                 NativeVibrationProcessState process = owner.NativeVibrationProcess ?? throw new NotSupportedException("Native Ultima requires its current vibration process.");
                 NativeVibrationEnqueue queued = process.Enqueue(resources.Vibration, 1, 128);
                 owner.NativeVibrationProcess = queued.State;
@@ -158,32 +161,45 @@ public sealed partial class BattleSession
         }
         private void SpawnSideFade(NativeBattleModulePoolTask director, bool incoming, int duration)
         {
-            int target = Word(director, 32);
-            int first = target >= 3 ? 0 : 3;
-            int end = target >= 3 ? 3 : 7;
-            for (int actor = first; actor < end; actor++)
+            BattleModelOwner target = director.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner;
+            BattleSide side = target.Side == BattleSide.Enemies ? BattleSide.Allies : BattleSide.Enemies;
+            NativeBattleModelAliases aliases = owner.nativeActionPackets.ModelAliases;
+            if (!incoming)
+            {
+                for (byte cell = 0; cell < NativeBattleModelBoundary.CellCount; cell++)
+                {
+                    NativeBattleModelSlot original = NativeBattleModelSlot.Decode(cell);
+                    if (original.Side == side && graphics.NativeBindings.FindOriginalOwner(original, graphics.ActorModels) is null)
+                    {
+                        state = state with { SideFlags = state.SideFlags.SetItem(cell, 0) };
+                    }
+                }
+            }
+            foreach (BattleModelOwner actor in graphics.ActorModels.Owners.Where(actor => actor.Side == side))
             {
                 ushort flags = graphics.ActorModels.Get(actor).Flags0;
-                bool selected = incoming ? state.SideFlags[actor] != 0 : (flags & 2) != 0 && (flags & 4) == 0;
+                bool selected = incoming ? effect.UltimaSideFadeOwners.Contains(actor) : (flags & 2) != 0 && (flags & 4) == 0;
                 if (!incoming)
                 {
-                    state = state with { SideFlags = state.SideFlags.SetItem(actor, selected ? 1u : 0u) };
+                    effect = effect with { UltimaSideFadeOwners = selected ? effect.UltimaSideFadeOwners.Add(actor) : effect.UltimaSideFadeOwners.Remove(actor) };
+                    if (aliases.TryEncodeExact(actor, out byte cell))
+                    {
+                        state = state with { SideFlags = state.SideFlags.SetItem(cell, selected ? 1u : 0u) };
+                    }
                 }
                 if (!selected)
                 {
                     continue;
                 }
                 int slot = Allocate(1, incoming ? 0x611C20u : 0x611E10u);
-                Put(1, slot, pools[1].Slots[slot].WriteWord(12, 0).WriteWord(14, (ushort)actor).WriteWord(24, (ushort)duration).WriteWord(26, (ushort)(flags & 0x800)));
+                NativeBattleModulePoolTask fade = pools[1].Slots[slot].WriteWord(12, 0);
+                fade.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+                Put(1, slot, fade.WriteWord(24, (ushort)duration).WriteWord(26, (ushort)(flags & 0x800)));
             }
         }
         private int SideFade(ref NativeBattleModulePoolTask task, bool incoming)
         {
-            int actor = Word(task, 14);
-            if ((uint)actor >= 7)
-            {
-                throw new InvalidDataException("Native Ultima side fade leaves its physical actor bank.");
-            }
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
             int age = Word(task, 12);
             int duration = Word(task, 24);
             if (duration == 0)

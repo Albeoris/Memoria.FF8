@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect320Controller
             for (int index = 0; index < count; index++)
             {
                 BattleContactCursor first = header.FirstContact;
-                int actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
                 NativeBattleEffect320PointStep point = inputs.Anchor571400(frame, actor, retained);
                 frame = point.Frame;
                 retained = point.Output8;

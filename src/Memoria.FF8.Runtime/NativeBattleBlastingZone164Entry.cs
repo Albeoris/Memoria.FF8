@@ -25,7 +25,7 @@ public static partial class NativeBattleBlastingZone164Controller
         BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23C9D8C) ?? throw new NotSupportedException("Native5F0260 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23C9D8C, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
-        staging = WriteDword(staging, 0x23C6950, recipient);
+        staging = staging.WriteExecutionReference(0x23C6950, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 4));
         staging = staging.WriteExecutionReference(0x23C9D88, 4, new BattleExecutionReference.Model(parameters.Source), packets.ModelAliases.EncodeOperand(parameters.Source, 4));
         staging = WriteDword(staging, 0x23CA114, 0x20DFAB8);
         for (uint address = 0x23C6978; address < 0x23C8EF8; address += 24)

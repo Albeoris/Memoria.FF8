@@ -16,13 +16,9 @@ public sealed partial class BattleSession
         uint manager = CoreDword(frame, 0x27973EC);
         uint clone = SlotDword(0xBC);
         uint payload = SlotDword(0xB8);
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
+        BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         uint header = CoreDword(frame, 0x279744C);
-        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
-        if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
-        {
-            throw new NotSupportedException("Native cinematic monster drawing requires its actual physical actor directory.");
-        }
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         bool embedded = !glow && (clone == 0 ? (Word(payload) & 1) != 0 : (Word(SlotDword(0xC0) + 2) & 1) != 0);
         if (clone == 0)
         {
@@ -43,7 +39,7 @@ public sealed partial class BattleSession
                 NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) }) };
                 (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
-                StoreDword(clone + 0xC, actorAddress);
+                frame = frame with { Arena = frame.Arena.WriteExecutionReference(ArenaOffset(clone + 0xC, 4), 4, new BattleExecutionReference.Model(actorIndex), aliases.EncodeAddress(actorIndex)) };
                 StoreDword(clone + 0x54, 0);
                 StoreDword(clone + 0x58, 0x00D00140);
                 uint color = actor.Color40 ?? throw new NotSupportedException("Native cinematic monster clone requires its current actor color.");

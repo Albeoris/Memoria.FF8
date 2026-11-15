@@ -12,7 +12,7 @@ public static partial class NativeBattleEvilEye282Controller
             throw new InvalidDataException("Evil-Eye muzzle requires its actual packed point and bone selector.");
         }
         int bone = BinaryPrimitives.ReadInt16LittleEndian(point[6..]);
-        uint model = frame.State.ReadDword(0x2507E98);
+        BattleModelOwner model = frame.State.ReadModel(0x2507E98);
         NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, model).ReadMatrix();
         NativeBattleActionMatrix current = inputs.ReadCurrentBoneMatrix(frame, model, bone).ReadMatrix();
         NativeBattlePackedMatrix32 composed = NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(world, current), null);
@@ -24,7 +24,7 @@ public static partial class NativeBattleEvilEye282Controller
         return new(frame, registers.Colors.Mac[0]!.Value, registers.Colors.Mac[1]!.Value, registers.Colors.Mac[2]!.Value);
     }
 
-    public static NativeBattleEvilEye282PointStep ReadAnchor67E550(NativeBattleEvilEye282Frame frame, uint model, int selector, NativeBattleEffectArena retainedPoint8, NativeBattleEvilEye282Inputs inputs)
+    public static NativeBattleEvilEye282PointStep ReadAnchor67E550(NativeBattleEvilEye282Frame frame, BattleModelOwner model, int selector, NativeBattleEffectArena retainedPoint8, NativeBattleEvilEye282Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 20);
         NativeBattleBoneAnchor67E550Step result = NativeBattleBoneAnchor67E550.Query(selector, Context(frame, temporary, 20), retainedPoint8, value => inputs.ReadBoneAlias(frame, model, value), bone => inputs.ReadBoneParent(frame, model, bone), bone => inputs.ReadCurrentBoneMatrix(frame, model, bone), () => inputs.ReadModelWorld(frame, model));

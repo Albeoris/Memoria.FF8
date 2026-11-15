@@ -11,6 +11,7 @@ public sealed record NativeBattleCureState([property: JsonRequired] int SourceAr
 {
     public int Counter278C7E0 { get; init; }
     public int Counter2783E10 { get; init; }
+    [JsonIgnore]
     public NativeBattleCureActorContext? ActorContext { get; init; }
 }
 

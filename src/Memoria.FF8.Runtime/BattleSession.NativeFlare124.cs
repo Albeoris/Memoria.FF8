@@ -51,12 +51,11 @@ public sealed partial class BattleSession
             {
                 BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContact;
                 BattleModelOwner actor = nativeActionPackets.ReadContact(first).Primary.Recipient;
-                uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
                 uint color = graphics.ActorModels.Get(actor).Color40 ?? throw new NotSupportedException("Native Flare requires its target color.");
                 bool busy = false;
                 foreach (NativeBattleModulePoolTask previous in pools[1].Slots)
                 {
-                    if ((previous.Flags & 1) != 0 && previous.ReadDword(16) == entity)
+                    if ((previous.Flags & 1) != 0 && previous.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == actor)
                     {
                         if (WindWord(previous, 12) <= 60)
                         {
@@ -75,7 +74,9 @@ public sealed partial class BattleSession
                     (pools[1], int slot) = pools[1].Append(0x6BC040);
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0xB38);
                     NativeBattleModuleAnchor position = ReadNativeModelAnchor(graphics, actor);
-                    target = WindStore(WindStore(target.WriteWord(14, (ushort)action).WriteDword(16, entity).WriteDword(36, color).WriteWord(26, unchecked((ushort)position.W)), 20, new(position.X, position.Y, position.Z)), 28, ReadNativeGraphicsBone(graphics, actor, 0xF0, 0));
+                    target = target.WriteWord(14, (ushort)action);
+                    target.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
+                    target = WindStore(WindStore(target.WriteDword(36, color).WriteWord(26, unchecked((ushort)position.W)), 20, new(position.X, position.Y, position.Z)), 28, ReadNativeGraphicsBone(graphics, actor, 0xF0, 0));
                     target = Store(target, 44, NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (32), 0xA70).Initialize7016B0(resources.Burst, 0xA70));
                     target = Store(target, 0xA9C, NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (0xA90), 0xA8).Initialize7016B0(resources.Ring, 0xA8));
                     pools[1] = pools[1].WriteSlot(slot, target);
@@ -121,7 +122,7 @@ public sealed partial class BattleSession
         int Target(ref NativeBattleModulePoolTask task)
         {
             int age = WindWord(task, 12);
-            int actor = NativeBattleGraphicsModelAddress.Decode(task.ReadDword(16), graphics.Models.Length);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             NativeBattleVector anchor = WindVector(task, 20);
             if (age == 0)
             {
@@ -167,9 +168,9 @@ public sealed partial class BattleSession
             if (age == 80)
             {
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(task.ReadWord(14)));
-                int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Flare lost its action contacts.");
+                BattleContactCursor first = header.FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first + index)).ToImmutableArray() });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first.Advance(index))).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
             }
             if ((uint)age < 8)
@@ -272,12 +273,12 @@ public sealed partial class BattleSession
             return Store(task, offset, advance.Workspace);
         }
 
-        void Visibility(int actor, bool hidden)
+        void Visibility(BattleModelOwner actor, bool hidden)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             model = model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & 0xFFFB) };
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
-            foreach (int linked in NativeBattleModelRings.Walk(graphics.Models, actor))
+            foreach (BattleModelOwner linked in NativeBattleModelRings.Walk(graphics.ActorModels, actor))
             {
                 model = graphics.ActorModels.Get(linked);
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 8) : (ushort)(model.Flags0 & 0xFFF7) }) };

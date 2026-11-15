@@ -14,14 +14,12 @@ public static partial class NativeBattleEffect251Controller
         {
             throw new InvalidDataException("Effect251 requires its inactive physical banks and current COMMON owner.");
         }
-        uint parameters = 0x1D99A78;
-        NativeBattleEffectArena parameterBytes = inputs.ReadPhysical(frame, parameters, 8);
-        uint group = Dword251(parameterBytes, 4);
-        uint target = Dword251(inputs.ReadPhysical(frame, group, 12), 8);
-        byte sourceActor = parameterBytes.Read(0, 1)[0];
-        byte targetActor = inputs.ReadPhysical(frame, target, 1).Read(0, 1)[0];
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Effect251 requires its active parameters.");
+        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
+        BattleContactCursor first = packets.ReadHeader(parameters.Header).FirstContact;
+        BattleModelOwner targetActor = packets.ReadContact(first).Primary.Recipient;
         frame = inputs.Execute(frame, new NativeBattleEffect251UploadTim505E30(EmbeddedTimAddress));
-        frame = frame with { State = frame.State.BindOriginalScriptSources(resources).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, parameters).WriteDword(CasterGlobal, ModelAddress(sourceActor)).WriteDword(TargetGlobal, ModelAddress(targetActor)) };
+        frame = frame with { State = frame.State.BindOriginalScriptSources(resources).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, parameters.Source, packets.ModelAliases).WriteModel(TargetGlobal, targetActor, packets.ModelAliases) };
         NativeBattleCureFamilyPool shape = Pools[0];
         NativeBattleEffectTaskPool root = InitializePayload(shape, frame.State.ReadBank(0));
         (root, int slot) = root.Append(RootCallback);
@@ -121,20 +119,6 @@ public static partial class NativeBattleEffect251Controller
             pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, offset, CopyBytes(bank, offset, NativeBattleEffectArena.Clear(), 0, shape.Stride - 12), shape.Stride - 12);
         }
         return pool;
-    }
-
-    public static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new NotSupportedException("Effect251 requires an actual physical actor selector.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
-
-    public static int Actor(uint address)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int row) ? row : throw new InvalidDataException("Effect251 requires an actual physical model pointer.");
     }
 
     private static int PoolIndex(NativeBattleEffect251Frame frame, uint descriptor)

@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             }
         }
         commands = commands.Enqueue(0, 65);
-        nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
+        nativeActionPackets = nativeActionPackets.RestartContactPublication();
         SetNativeBattleClockActive(false);
         NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native47DF60 requires its retained action-phase process byte.")) with { ActionPhaseDEA = 0 };
         return graphics with { NativeOutcome = outcome with { ActionOwnerB0D = 0, ExitModeDE8 = 2, AdmissionDFD = 1 }, UiServices = ui with { Commands = commands } };

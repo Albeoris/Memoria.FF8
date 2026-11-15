@@ -24,9 +24,9 @@ public static partial class NativeBattleEffect251Controller
                 throw new InvalidDataException("Effect251 main allocation is mandatory.");
             }
             frame = ClearDwords701200(frame, main + 12, 0x178);
-            uint caster = frame.State.ReadDword(CasterGlobal);
-            uint target = frame.State.ReadDword(TargetGlobal);
-            frame = SpawnBurst4840(frame, target);
+            BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
+            BattleModelOwner target = frame.State.ReadModel(TargetGlobal);
+            frame = SpawnBurst4840(frame, target, inputs.ReadPackets(frame).ModelAliases);
             frame = WriteBytes(frame, main + 0x10, CopyBytes(inputs.ReadModelArena9C(frame, caster), 0x1C, NativeBattleEffectArena.Clear(), 0, 8), 8);
             frame = WriteBytes(frame, main + 0x18, CopyBytes(inputs.ReadModelArena9C(frame, target), 0x1C, NativeBattleEffectArena.Clear(), 0, 8), 8);
             frame = WriteModelWord(frame, target, 0x1E, 0, inputs);
@@ -72,14 +72,15 @@ public static partial class NativeBattleEffect251Controller
         return new(frame, 0);
     }
 
-    public static NativeBattleEffect251Frame SpawnBurst4840(NativeBattleEffect251Frame frame, uint model)
+    public static NativeBattleEffect251Frame SpawnBurst4840(NativeBattleEffect251Frame frame, BattleModelOwner model, NativeBattleModelAliases aliases)
     {
         (frame, uint address) = TrySpawn(frame, BurstDescriptor, BurstCallback);
         if (address == 0)
         {
             return frame;
         }
-        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteWord(0x22, 0).WriteWord(0x20, checked((ushort)Actor(model)));
+        NativeBattleModulePoolTask task = Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteWord(0x22, 0);
+        task.WriteExecutionReference(0x20, 2, new BattleExecutionReference.Model(model), aliases.EncodeOperand(model, 2));
         return Write(frame, address, task);
     }
 
@@ -90,7 +91,7 @@ public static partial class NativeBattleEffect251Controller
             return new(frame, 0);
         }
         NativeBattleModulePoolTask task = Read(frame, address);
-        uint model = ModelAddress(Signed(task, 0x20));
+        BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(0x20, 2).Owner;
         if (Signed(task, 12) == 1)
         {
             NativeBattleEffectArena actor = inputs.ReadModelArena9C(frame, model);
@@ -148,7 +149,7 @@ public static partial class NativeBattleEffect251Controller
         return value;
     }
 
-    public static NativeBattleEffect251Frame WriteModelWord(NativeBattleEffect251Frame frame, uint model, int offset, int value, NativeBattleEffect251Inputs inputs)
+    public static NativeBattleEffect251Frame WriteModelWord(NativeBattleEffect251Frame frame, BattleModelOwner model, int offset, int value, NativeBattleEffect251Inputs inputs)
     {
         return inputs.Execute(frame, new NativeBattleEffect251WriteModelBytes(model, offset, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((ushort)value))), 2));
     }

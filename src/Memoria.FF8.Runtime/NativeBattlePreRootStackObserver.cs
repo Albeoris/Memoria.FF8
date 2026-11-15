@@ -68,23 +68,18 @@ public static class NativeBattlePreRootStackObserver
         return ObserveUnknownCall(stack, 0x50A9A0, phase);
     }
 
-    public static NativeBattleStackBytes ObserveTextureAnimation5057D0(NativeBattleStackBytes stack, NativeBattleAuxiliaryTask task, NativeBattleGraphicsModel model, string phase)
+    public static NativeBattleStackBytes ObserveTextureAnimation5057D0(NativeBattleStackBytes stack, NativeBattleAuxiliaryTask task, BattleModelOwner owner, NativeBattleGraphicsModel model, string phase)
     {
         RequireInterval(stack);
-        if (task.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || task.Payload.IsDefault || task.Payload.Length != 32)
+        if (task.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || task.ModelOwner != owner || task.Payload.IsDefault || task.Payload.Length != 32)
         {
             throw new InvalidDataException("Native5057D0 observation requires its selected physical auxiliary callback.");
         }
         NativeBattleAuxiliaryProgram program = task.Program ?? throw new InvalidDataException("Native5057D0 observation requires its deadline owner.");
         program.Validate();
-        if ((task.UnknownByteMask & 0x20Fu) != 0)
+        if ((task.UnknownByteMask & 0x200u) != 0)
         {
             return ObserveUnknownCall(stack, 0x5057D0, phase);
-        }
-        uint modelAddress = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-        if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row, NativeBattleGraphicsModelAddress.MaximumRowCount) || row != model.Index)
-        {
-            throw new InvalidDataException("Native5057D0 observation selected a different physical model.");
         }
         if (program.Source[program.Offset] == 255 && (model.Flags0 & 2) != 0 && model.ResourceFlags44 is ushort flags && (flags & 0x40) == 0 && model.Sequence == task.Payload[9])
         {

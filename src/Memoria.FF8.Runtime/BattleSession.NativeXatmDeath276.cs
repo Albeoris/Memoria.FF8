@@ -167,7 +167,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(caster);
             NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native685750 requires its actual view.");
             graphics = graphics with { OriginalEffect = current.Effect };
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 0x1010, false, callerPilotIdentity: NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], 1), ReadModelAddress()));
+            graphics = SubmitNativeShadowPackets5088A0(graphics, caster, actor, projection, 0x1010, false, callerPilotIdentity: NativeBattleSelectedProgrammeVisuals.Resource(NativeBattlePilotVisualLifetimes.Identity(276, current.Effect.Pools[0].Slots[0], 1), ReadModelAddress()));
             current = current with { Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native body shadow lost its selected effect owner.") };
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, NativeBattleGfMatrices.Compose56C2F0(view, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native685750 requires its actual model matrix.")));
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(caster, actor) };

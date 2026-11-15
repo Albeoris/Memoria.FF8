@@ -67,6 +67,13 @@ public sealed record NativeBattleBlaster186State([property: JsonRequired] Native
         return this;
     }
 
+    internal BattleModelOwner ReadModelOperand(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    internal NativeBattleBlaster186State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this with { Globals = globals };
+    }
+
     private static int Require(uint address, int length)
     {
         ulong end = (ulong)address + (uint)Math.Max(length, 0);

@@ -5,26 +5,24 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicActorAnimation2CSource(NativeBattleEffectArena Input, NativeBattleEffectArena Resources, byte[] Skeleton, uint Color, uint ObjectMask);
-public sealed record NativeBattleCinematicActorAnimation2CServices(Func<uint, NativeBattleCinematicActorAnimation2CSource> CaptureActor, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, NativeBattleCinematicModelServices Model, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicActorCloneDraw> DrawBody);
+public sealed record NativeBattleCinematicActorAnimation2CServices(Func<BattleModelOwner, NativeBattleCinematicActorAnimation2CSource> CaptureActor, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, NativeBattleCinematicModelServices Model, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicActorCloneDraw> DrawBody);
 
 /// <summary>One actor's independent animation copy over current physical resource owners.</summary>
 public static class NativeBattleCinematicActorAnimation2C
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicActorAnimation2CServices services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicActorAnimation2CServices services, NativeBattleModelAliases aliases)
     {
         uint clone = SlotDword(0xBC);
         if (clone == 0)
         {
-            uint header = CoreDword(frame, 0x279744C);
-            byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-            uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
+            BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
             NativeBattleCinematicActorAnimation2CSource source = services.CaptureActor(actor);
             if (source.Skeleton.Length == 0 || source.Skeleton.Length != checked(16 + source.Skeleton[0] * 48))
             {
                 throw new InvalidDataException("Native actor animation requires the complete current variable skeleton records.");
             }
             (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
-            StoreDword(clone + 0xC, actor);
+            frame = frame with { Arena = frame.Arena.WriteExecutionReference(ArenaOffset(clone + 0xC, 4), 4, new BattleExecutionReference.Model(actor), aliases.EncodeAddress(actor)) };
             CopySnapshot(source.Input, 0, clone + 0x10, 12);
             CopySnapshot(source.Resources, 0, clone + 0x30, 16);
             StoreDword(clone + 0x54, 0);

@@ -86,6 +86,17 @@ public sealed record NativeBattleEffect251State([property: JsonRequired] NativeB
         return NativeBattleGfAnimationSource.Borrow(address, Storage, Require(address, length), length);
     }
 
+    internal NativeBattleEffect251State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        Storage.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this;
+    }
+
+    internal BattleModelOwner ReadModel(uint address)
+    {
+        return Storage.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    }
+
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
         if (WithinScript(address, length, out uint script))

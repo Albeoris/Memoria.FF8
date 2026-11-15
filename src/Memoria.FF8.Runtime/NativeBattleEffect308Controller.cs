@@ -19,9 +19,9 @@ public static partial class NativeBattleEffect308Controller
         uint texture = checked(CommonAddress + (uint)textureOffset);
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect308UploadTim505E30(texture));
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, NativeBattleGraphicsModelAddress.Encode(parameters.Source)) };
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, parameters.Source, inputs.ReadPackets(frame).ModelAliases) };
         frame = frame with { State = frame.State.BindOriginalScriptSources(resources) };
-        frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(frame.State.ReadDword(CasterGlobal), 2, 0xFFF3, 0));
+        frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(frame.State.ReadModel(CasterGlobal), 2, 0xFFF3, 0));
         NativeBattleCureFamilyPool shape = Pools[0];
         NativeBattleEffectTaskPool root = InitializePayload(shape, frame.State.ReadBank(0));
         (root, int slot) = root.Append(RootCallback);
@@ -100,11 +100,6 @@ public static partial class NativeBattleEffect308Controller
             ScriptCallback => AdvanceScript667990(frame, address, resources, inputs),
             _ => NativeBattleEffect308Lower.Advance(frame, address, resources, inputs)
         };
-    }
-
-    public static int Actor(uint modelAddress)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row) ? row : throw new InvalidDataException("Effect308 requires an actual physical model pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect308Frame frame)

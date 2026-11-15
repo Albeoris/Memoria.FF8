@@ -6,7 +6,7 @@ public static partial class NativeBattleBlaster186Controller
 {
     public static (NativeBattleBlaster186Frame Frame, int Result) AdvanceBeam(NativeBattleBlaster186Frame frame, uint address, NativeBattleBlaster186Resources resources, NativeBattleBlaster186Inputs inputs)
     {
-        int caster = checked((int)frame.State.ReadDword(0x22BC0FC));
+        BattleModelOwner caster = frame.State.ReadModelOperand(0x22BC0FC);
         NativeBattleBlaster186PointStep first = inputs.ReadBone502170(frame, caster, 0x31, 4096);
         NativeBattleBlaster186PointStep second = inputs.ReadBone502170(first.Frame, caster, 0x32, 4096);
         frame = second.Frame;

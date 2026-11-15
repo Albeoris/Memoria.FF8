@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleKiros262Tip(NativeBattleWaterExecutionFrame Frame, NativeBattleVector Position, int DirectionX, int DirectionY, int DirectionZ);
 public sealed record NativeBattleKiros262TrailStep(NativeBattleWaterExecutionFrame Frame, NativeBattleKiros262TrailState State);
-public sealed record NativeBattleKiros262TrailServices(Func<NativeBattleWaterExecutionFrame, uint, ushort, NativeBattleKiros262Tip> ReadTip, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> RestorePose, Func<NativeBattleWaterExecutionFrame, NativeBattleKiros262TrailState, uint, NativeBattleWaterExecutionFrame> Emit)
+public sealed record NativeBattleKiros262TrailServices(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, ushort, NativeBattleKiros262Tip> ReadTip, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterExecutionFrame> RestorePose, Func<NativeBattleWaterExecutionFrame, NativeBattleKiros262TrailState, uint, NativeBattleWaterExecutionFrame> Emit)
 {
     public Action<NativeBattlePilotVisualIdentity>? ObserveIdentity { get; init; }
 }
@@ -37,9 +37,7 @@ public static class NativeBattleKiros262Trail
         {
             capacity = ReadCapacity();
         }
-        uint owner = CoreDword(frame, 0x279744C);
-        byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        uint model = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
+        BattleModelOwner model = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         NativeBattleKiros262Tip tip = services.ReadTip(frame, model, ArenaWord(payload));
         frame = tip.Frame;
         int length = unchecked((short)SlotWord(frame, 0x94));
@@ -57,7 +55,7 @@ public static class NativeBattleKiros262Trail
         memory = memory.MarkUnknown(history + 10, 2).MarkUnknown(history + 18, 2);
         int admitted = counter < 100 - capacity ? capacity : 100 - counter;
         int count = 0;
-        long resourceGeneration = pilotIdentity is { } ownerIdentity ? unchecked((ownerIdentity.ResourceGeneration * 397 ^ payload) * 397 ^ model) : 0;
+        long resourceGeneration = pilotIdentity is { } ownerIdentity ? unchecked(ownerIdentity.ResourceGeneration * 397 ^ payload) : 0;
         for (int index = ring; count < admitted; index = index == 0 ? capacity - 1 : index - 1)
         {
             int source = NativeBattleKiros262TrailState.History + index * 20;
@@ -92,7 +90,7 @@ public static class NativeBattleKiros262Trail
             Normalize(0x2B0, Point(0x280), Point(NativeBattleKiros262TrailState.CurveA));
             if (pilotIdentity is { } capturedIdentity)
             {
-                services.ObserveIdentity?.Invoke(capturedIdentity with { ResourceGeneration = resourceGeneration });
+                services.ObserveIdentity?.Invoke(capturedIdentity with { ResourceGeneration = resourceGeneration, ModelOwner = model });
             }
             frame = services.Emit(frame, state with { Memory = memory }, 0x3A000000u | (SlotDword(0xCC) & 0xFFFFFF));
         }

@@ -7,8 +7,8 @@ public static partial class NativeBattleEffect251Controller
     public static NativeBattleEffect251Step AdvanceMain5000(NativeBattleEffect251Frame frame, uint address, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
     {
         int age = Signed(Read(frame, address), 12);
-        uint caster = frame.State.ReadDword(CasterGlobal);
-        uint target = frame.State.ReadDword(TargetGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
+        BattleModelOwner target = frame.State.ReadModel(TargetGlobal);
         uint buffer = frame.State.ReadDword(ArenaGlobal);
         NativeBattleEffect251PointStep queried = inputs.Point502170(frame, caster, 0, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
         frame = queried.Frame;
@@ -162,17 +162,16 @@ public static partial class NativeBattleEffect251Controller
             int midpoint = (Word251(bounds.Output8, 0) + Word251(bounds.Output8, 2)) >> 1;
             NativeBattleEffectArena angles = PutPoint(NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, new(2048, 0, 0));
             NativeBattleEffectArena pivot = PutPoint(point, 0, new(0, unchecked((short)midpoint), 0));
-            frame = inputs.Execute(frame, new NativeBattleEffect251DrawTarget6A2F60(target, angles, pivot) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address), unchecked((int)target)) });
+            frame = inputs.Execute(frame, new NativeBattleEffect251DrawTarget6A2F60(target, angles, pivot) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(251, Read(frame, address)) with { ModelOwner = target } });
             frame = inputs.Execute(frame, new NativeBattleEffect251ModelFlags(target, 1, 0xFF, 4));
         }
         else if (local == 27)
         {
             if (ReadCurrentPause(frame) == 0)
             {
-                uint parameters = frame.State.ReadDword(ParametersGlobal);
-                uint group = Dword251(inputs.ReadPhysical(frame, parameters + 4, 4), 0);
-                uint targetArgument = Dword251(inputs.ReadPhysical(frame, group + 8, 4), 0);
-                frame = inputs.Execute(frame, new NativeBattleEffect251Contact506690(targetArgument));
+                NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Effect251 requires its active parameters.");
+                BattleContactCursor first = inputs.ReadPackets(frame).ReadHeader(parameters.Header).FirstContact;
+                frame = inputs.Execute(frame, new NativeBattleEffect251Contact506690(first));
             }
             frame = inputs.Execute(frame, new NativeBattleEffect251ModelFlags(target, 2, 0xFFFB, 0));
         }
@@ -251,7 +250,7 @@ public static partial class NativeBattleEffect251Controller
         return CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)), 0, context, 0, 32);
     }
 
-    private static NativeBattleEffect251Frame BlendToModel(NativeBattleEffect251Frame frame, uint first, uint second, int firstWeight, int secondWeight, uint model, NativeBattleEffect251Inputs inputs)
+    private static NativeBattleEffect251Frame BlendToModel(NativeBattleEffect251Frame frame, uint first, uint second, int firstWeight, int secondWeight, BattleModelOwner model, NativeBattleEffect251Inputs inputs)
     {
         NativeBattleWeightedPointsStep blend = NativeBattleWeightedPoints56CB90.Blend(frame.Memory, Vector(ReadBytes(frame, first, 6)), Vector(ReadBytes(frame, second, 6)), unchecked((short)firstWeight), unchecked((short)secondWeight), inputs.Colors);
         frame = frame with { Memory = blend.Memory };

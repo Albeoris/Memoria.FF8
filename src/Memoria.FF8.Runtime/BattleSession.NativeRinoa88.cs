@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         NativeBattleLogicalOrdering Ordering() => (graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Rinoa88 requires its initialized ordering table.")).Pending;
         void StoreOrdering(NativeBattleLogicalOrdering ordering) => graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering } };
         NativeBattleRinoa88Resources CurrentResources() => resources with { DefaultColor44 = (NativeStage?.ModelColors ?? throw new NotSupportedException("Native8DD0F0 requires its current shared model colors.")).Color44 };
-        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, pointer, group, target);
+        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, pointer, group, target);
         NativeBattleEffectOwnedModelResource Model(NativeBattleRinoa88Frame current, uint body)
         {
             uint source = current.State.OwnedModels.GetValueOrDefault(body)?.ResourceAddress ?? throw new NotSupportedException("Native Rinoa88 requires its actual task-owned model source.");
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                 case 0x7718D0:
                     return NativeBattleRinoa88SecondaryBody.Advance(current, address, new(resources.SecondaryModel, (_, actor) => graphics.ActorModels.Get(actor), DrawBody));
                 case 0x769060:
-                    return NativeBattleRinoa88Camera.Advance(current, address, new(resources.Camera, _ => NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(graphics.Models), next => (next, Roll()), (next, camera) =>
+                    return NativeBattleRinoa88Camera.Advance(current, address, new(resources.Camera, _ => NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(graphics.ActorModels), next => (next, Roll()), (next, camera) =>
                     {
                         NativeCamera = NativeBattleMoogleCamera.Publish733150(camera, NativeCamera ?? throw new NotSupportedException("Native7694F0 requires its actual camera globals."));
                         return next;
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
                 case 0x76A180:
                     return NativeBattleRinoa88Program.Advance(current, address, new(pointer => pointer == resources.Program.Address ? resources.Program : pointer == 0x19F3A8C ? new(pointer, Staging(pointer, resources.Io.Files[3].Data.Length)) : throw new NotSupportedException("Native76A250 program has no actual source owner."), (next, model, selector) => ReadBone(next, checked(model - 48), selector), _ =>
                     {
-                        ImmutableArray<byte> anchor = NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(graphics.Models);
+                        ImmutableArray<byte> anchor = NativeBattleRinoa88ModelOperations.PartyMidpoint769A90(graphics.ActorModels);
                         return new(BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan()), 0, BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan().Slice(4)));
                     }, (next, source, node) =>
                     {
@@ -245,7 +245,7 @@ public sealed partial class BattleSession
         {
             return new(complete ? current with { Effect = current.Effect with { Pools = new NativeBattleEffectHierarchy(current.Effect.Pools).Complete8DC530(address).Pools } } : current, complete ? 2 : 0);
         }
-        NativeBattleRinoa88Frame Contact(NativeBattleRinoa88Frame current, int index)
+        NativeBattleRinoa88Frame Contact(NativeBattleRinoa88Frame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

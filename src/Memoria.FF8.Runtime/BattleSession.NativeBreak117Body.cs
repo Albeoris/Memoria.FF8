@@ -4,21 +4,21 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, int index, int level, ImmutableArray<byte> dither, NativeBattlePilotVisualIdentity identity)
+    private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, BattleModelOwner actor, int level, ImmutableArray<byte> dither, NativeBattlePilotVisualIdentity identity)
     {
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Break requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Break requires its retained view matrix.");
-        graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4112, false);
-        if (ReadNativeGraphicsForeignModel(graphics, index) is { } foreign)
+        graphics = SubmitNativeShadowPackets5088A0(graphics, actor, model, projection, 4112, false);
+        if (ReadNativeGraphicsForeignModel(graphics, actor) is { } foreign)
         {
             NativeBattleBreak117BodyResult drawn = NativeBattleForeignModelDrawing.Break(foreign, projection, model.Color40 ?? throw new NotSupportedException("Host model petrification requires its retained model color."), dither, level, identity);
             return AppendNativePrimitivePackets(graphics, drawn.Primitives);
         }
-        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+        NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Break requires its actual body skeleton.");
         model = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(model, source, view);
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native Break requires its actual body geometry.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native Break requires its observed extra geometry presence.");
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                 Submit(linked[meshIndex], linkedMatrices, binding, 0x10000 + meshIndex);
             }
         }
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source)) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actor), source)) };
         return graphics;
 
         void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int visualMesh)

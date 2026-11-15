@@ -25,7 +25,7 @@ public static class NativeBattleEffect301Particles
             {
                 throw new InvalidDataException($"The current mandatory particle append has exhausted its physical pool at script cursor 0x{frame.State.ReadDword(0x103DC9C):X8}.");
             }
-            uint model = frame.State.ReadDword(0x25076E0);
+            BattleModelOwner model = frame.State.ReadModel(0x25076E0);
             NativeBattleModulePoolTask task = Read(frame, address);
             for (int axis = 0; axis < 3; axis++)
             {

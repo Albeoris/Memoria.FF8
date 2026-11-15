@@ -12,16 +12,15 @@ public sealed partial class BattleSession
         NativeBattleEffect213Resources resources = effect.Binding.Effect213Resources ?? throw new NotSupportedException("Effect213 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect213 requires its current process memory.");
         NativeBattleEffect213Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect213 requires its current CRT stream."), memory.Effect213 ?? throw new NotSupportedException("Effect213 requires its retained state.")) { Staging = NativeFileStaging };
-        NativeBattleEffect213Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect213 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect213Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect213 requires its current projection."), _ => Camera().Roll, Point, (current, address) => CountNativeEffect213Vertices(graphics, current, address), (current, address, ordinal, retained) => SelectNativeEffect213Vertex(ref graphics, current, address, ordinal, retained), (current, operation) => ExecuteNativeEffect213Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
+        NativeBattleEffect213Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect213 requires its color tables."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => CaptureNativeEffect210Model(graphics.ActorModels.Get(actor)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect213 requires its current projection."), _ => Camera().Roll, Point, (current, address) => CountNativeEffect213Vertices(graphics, current, address), (current, address, ordinal, retained) => SelectNativeEffect213Vertex(ref graphics, current, address, ordinal, retained), (current, operation) => ExecuteNativeEffect213Operation(ref graphics, current, operation, resources)) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect213Controller.Initialize(frame, resources, inputs) : NativeBattleEffect213Controller.Advance(frame, resources, inputs);
         PublishNativeEffect213Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect213 requires its current camera.");
 
-        NativeBattleEffect213PointStep Point(NativeBattleEffect213Frame current, uint address, short selector, short fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect213PointStep Point(NativeBattleEffect213Frame current, BattleModelOwner actor, short selector, short fraction, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect213Actor(graphics, address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
             {
@@ -38,15 +37,6 @@ public sealed partial class BattleSession
             }
             return new(current, retained);
         }
-    }
-
-    private static int NativeEffect213Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect213 requires an actual current model address.");
-        }
-        return actorIndex;
     }
 
     private void PublishNativeEffect213Frame(NativeBattleEffect213Frame frame)

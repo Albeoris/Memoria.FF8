@@ -56,10 +56,10 @@ public sealed partial class BattleSession
             using NativeBattleTornado146Work work = new(state);
             NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native Tornado requires its current cast parameters.");
             BattleContactCursor first = owner.nativeActionPackets.ReadHeader(parameters.Header).FirstContact;
-            work.WriteDword(0x2491E3C, owner.nativeActionPackets.ReadContact(first).Primary.Recipient);
-            work.WriteDword(0x2494AA0, parameters.Source);
+            work.WriteModelOperand(0x2491E3C, owner.nativeActionPackets.ReadContact(first).Primary.Recipient, owner.nativeActionPackets.ModelAliases);
+            work.WriteModelOperand(0x2494AA0, parameters.Source, owner.nativeActionPackets.ModelAliases);
             state = work.Freeze();
-            effect = effect with { ReturnedDescriptor = 0x24936E8, DrawArenaOffset = null };
+            effect = effect with { ReturnedDescriptor = 0x24936E8, DrawArenaOffset = null, TornadoLiftRows = null };
             return Publish();
         }
 
@@ -216,9 +216,9 @@ public sealed partial class BattleSession
             if (age == 82)
             {
                 NativeBattleActionHeaderSlot selected = owner.nativeActionPackets.ReadHeader(parameters.Header.Advance(action));
-                int start = selected.FirstContactIndex ?? throw new NotSupportedException("Native Tornado contact group has no original contact pointer.");
+                BattleContactCursor start = selected.FirstContact;
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = owner.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, selected.ReadContactCount()).Select(index => owner.nativeActionPackets.ReadContact(start + index)).ToImmutableArray() });
+                graphics = owner.ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, selected.ReadContactCount()).Select(index => owner.nativeActionPackets.ReadContact(start.Advance(index))).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
             }
             if (age == 83 && action + 1 <= first.ReadRepeatModeMinusOne())
@@ -239,7 +239,7 @@ public sealed partial class BattleSession
         {
             NativeBattleActionHeaderSlot header = owner.nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action));
             int count = header.ReadContactCount();
-            int start = header.FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires its selected contact group.");
+            BattleContactCursor start = header.FirstContact;
             if (count == 0)
             {
                 throw new InvalidDataException("Native6184C0 cannot divide by a zero original target count.");
@@ -250,7 +250,7 @@ public sealed partial class BattleSession
             short w = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = owner.nativeActionPackets.ReadContact(start + index).Primary.Recipient;
+                BattleModelOwner actor = owner.nativeActionPackets.ReadContact(start.Advance(index)).Primary.Recipient;
                 NativeBattleModuleAnchor anchor = owner.ReadNativeModelAnchor(graphics, actor);
                 x = unchecked((short)(x + anchor.X));
                 y = unchecked((short)(y + anchor.Y));

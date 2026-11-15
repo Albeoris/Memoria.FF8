@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native recovery callback requires its prior projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native recovery callback requires the previously published camera matrix.");
         NativeBattleRecoveryFrame initial = new(NativeEffectMemory ?? throw new NotSupportedException("Native recovery callback requires its retained process memory."), effect, effect.Recovery ?? throw new NotSupportedException("Native recovery callback requires its executed original entry."));
-        Dictionary<int, NativeBattleEffectActorGeometry?> foreignGeometry = [];
+        Dictionary<BattleModelOwner, NativeBattleEffectActorGeometry?> foreignGeometry = [];
         NativeBattleRecoveryControllerInputs inputs = new(nativeActionPackets, view, ReadModel, index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native recovery anchors require their original model pose source.")) { ApplyContact = ApplyContact, ReadForeignTarget = ReadForeignGeometry };
         NativeBattleRecoveryControllerStep step = NativeBattleRecoveryController.Advance(initial, inputs, resources, (current, address) =>
         {
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
             return ReadForeignGeometry(index) is { } geometry ? model with { GeometryBounds52 = geometry.LocalBounds } : model;
         }
 
-        NativeBattleRecoveryFrame ApplyContact(NativeBattleRecoveryFrame current, int index)
+        NativeBattleRecoveryFrame ApplyContact(NativeBattleRecoveryFrame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

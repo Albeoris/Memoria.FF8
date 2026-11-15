@@ -19,7 +19,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = frame.Memory;
             NativeBattleCameraProjection hostProjection = NativeCamera?.Projection ?? throw new NotSupportedException("World-space actor drawing requires its current projection.");
             NativeBattlePilotVisualIdentity identity = request.PilotIdentity ?? throw new NotSupportedException("World-space actor drawing requires its visual occurrence.");
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, hostProjection, 0x1010, false, callerPilotIdentity: identity with { Primitive = -1 });
+            graphics = SubmitNativeShadowPackets5088A0(graphics, index, actor, hostProjection, 0x1010, false, callerPilotIdentity: identity with { Primitive = -1 });
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("World-space actor drawing requires its packet memory.");
             NativeBattlePrimitiveFrame hostPrimitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("World-space actor drawing requires its current ordering table.");
             NativeBattleGfGeometryBatch hostBatch = NativeBattleForeignModelDrawing.DrawWorld(foreign, Draw, identity with { Primitive = 0x10000 });

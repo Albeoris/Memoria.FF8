@@ -30,13 +30,13 @@ public sealed partial class BattleSession
         });
         NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
         ringServices = ringServices with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
-        NativeBattleCinematicBrothersActor38Services services = new((_, address) => graphics.ActorModels.Get(ActorIndex(address)), (current, address, actor) =>
+        NativeBattleCinematicBrothersActor38Services services = new((_, address) => graphics.ActorModels.Get(address), (current, address, actor) =>
         {
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(ActorIndex(address), actor) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(address, actor) };
             return current;
         }, Restore, (current, address, basis, position) =>
         {
-            int index = ActorIndex(address);
+            BattleModelOwner index = address;
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 | 0x20) }) };
             NativeBattleCinematicBonePose pose = Restore(current, address);
             current = pose.Frame;
@@ -72,18 +72,9 @@ public sealed partial class BattleSession
         }
         return (NativeBattleCinematicBrothersActor38.DrawAF59D0(frame, services), graphics);
 
-        int ActorIndex(uint address)
+        NativeBattleCinematicBonePose Restore(NativeBattleWaterExecutionFrame current, BattleModelOwner address)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Native Brothers actor positioning requires its actual physical model pointer.");
-            }
-            return actorIndex;
-        }
-
-        NativeBattleCinematicBonePose Restore(NativeBattleWaterExecutionFrame current, uint address)
-        {
-            int index = ActorIndex(address);
+            BattleModelOwner index = address;
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);

@@ -17,6 +17,6 @@ public sealed record NativeBattleHypnotize133ContextStep(NativeBattleHypnotize13
 public sealed record NativeBattleHypnotize133ActStep(NativeBattleHypnotize133Frame Frame, int Remaining);
 public abstract record NativeBattleHypnotize133Operation;
 public sealed record NativeBattleHypnotize133Sound(uint Packed) : NativeBattleHypnotize133Operation;
-public sealed record NativeBattleHypnotize133BulkContact(int First, int Count) : NativeBattleHypnotize133Operation;
+public sealed record NativeBattleHypnotize133BulkContact(BattleContactCursor First, int Count) : NativeBattleHypnotize133Operation;
 public sealed record NativeBattleHypnotize133DrawSprite180(uint TaskAddress, uint Temporary180) : NativeBattleHypnotize133Operation;
 public sealed record NativeBattleHypnotize133Inputs(NativeBattleActionPacketsState Packets, Func<BattleModelOwner, byte> ReadBoneCount, Func<NativeBattleHypnotize133Frame, BattleModelOwner, byte, short, NativeBattleHypnotize133PointStep> ReadBone502170, Func<NativeBattleHypnotize133Frame, uint, NativeBattleHypnotize133ContextKind, NativeBattleHypnotize133ContextStep> PrepareActContext, Func<NativeBattleHypnotize133Frame, uint, int, int, NativeBattleGfAnimationSource, NativeBattleEffectArena, NativeBattleHypnotize133ActStep> AdvanceAct, Func<NativeBattleHypnotize133Frame, NativeBattleHypnotize133Operation, NativeBattleHypnotize133Frame> Execute);

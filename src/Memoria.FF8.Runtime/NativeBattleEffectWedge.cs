@@ -8,7 +8,7 @@ public sealed record NativeBattleEffectWedgeStep(NativeBattleEffectWedgeFrame Fr
 public static class NativeBattleEffectWedge
 {
     /// <summary>8DCC20's original task, immediate packet and post-draw completion contract, independent of its spell frame.</summary>
-    public static NativeBattleEffectWedgeStep Advance8DCC20(NativeBattleEffectWedgeFrame frame, uint address, NativeCrtRandomState random, Func<byte, NativeBattleModelTransform> readModel, NativeBattleCameraProjection? projection, Func<NativeBattleEffectWedgeFrame, NativeBattleModulePacketBatch, NativeBattleEffectWedgeFrame> execute, ushort? pilotEffect = null)
+    public static NativeBattleEffectWedgeStep Advance8DCC20(NativeBattleEffectWedgeFrame frame, uint address, NativeCrtRandomState random, Func<BattleModelOwner, NativeBattleModelTransform> readModel, NativeBattleCameraProjection? projection, Func<NativeBattleEffectWedgeFrame, NativeBattleModulePacketBatch, NativeBattleEffectWedgeFrame> execute, ushort? pilotEffect = null)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -17,7 +17,7 @@ public static class NativeBattleEffectWedge
             throw new InvalidDataException("Native8DCC20 requires its original callback task.");
         }
         NativeBattleModulePoolTask first = hierarchy.Read(task.ReadDword(0x14));
-        NativeBattleModelTransform model = readModel(task.ReadByte(0x2D)) ?? throw new NotSupportedException("Native8DCB80 requires the target's original position WORDs.");
+        NativeBattleModelTransform model = readModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner) ?? throw new NotSupportedException("Native8DCB80 requires the target's original position WORDs.");
         short centerY = unchecked((short)((Word(first, 0x4A) + Word(first, 0x52)) / 2 + model.Position28.Y));
         task = task.WriteDword(0x1C, first.ReadDword(0x38)).WriteDword(0x20, first.ReadDword(0x3C)).WriteWord(0x1E, unchecked((ushort)centerY));
         switch (unchecked((sbyte)task.ReadByte(0x29)))

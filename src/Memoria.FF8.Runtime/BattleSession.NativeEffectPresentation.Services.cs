@@ -60,11 +60,24 @@ public sealed partial class BattleSession
 
     internal ushort NextEffectPresentationGlobalRandom() => NextNativeGlobalRandom();
 
-    private void InitializeEffectPresentationServices(NativeBattleEffectParameters parameters)
+    private void InitializeEffectPresentationServices(NativeBattleEffectInvocation invocation)
     {
-        NativeBattleActionGraphicsState action = NativeBattleActionGraphics.Normalize(nativeActionPackets, parameters.Header, NativeGraphics?.ActionGraphics) with { UseActionCamera = false };
-        NativeBattleGraphicsState graphics = NativeGraphics! with { ActionGraphics = action };
-        NativeGraphics = PrepareNativeActionGeometry(graphics, parameters.Source, parameters.TargetActors, parameters.TargetActors);
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        switch (invocation)
+        {
+            case NativeBattleEffectInvocation.Combat combat:
+                NativeBattleEffectParameters parameters = combat.Parameters;
+                var action = NativeBattleActionGraphics.Normalize(nativeActionPackets, parameters.Header, graphics.ActionGraphics) with { UseActionCamera = false };
+                graphics = graphics with { ActionGraphics = action };
+                NativeGraphics = PrepareNativeActionGeometry(graphics, parameters.Source, parameters.TargetActors, parameters.TargetActors);
+                break;
+            case NativeBattleEffectInvocation.Positioning positioning:
+                BattleModelTargets selected = BattleModelTargets.Empty.Add(positioning.Source);
+                NativeGraphics = PrepareNativeActionGeometry(graphics, positioning.Source, selected, selected);
+                break;
+            default:
+                throw new InvalidDataException("Native presentation services require an admitted invocation binding.");
+        }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native presentation lost its initialized process owner.");
         if (memory.PrimitiveProcess is { Software: { } software } process)
         {

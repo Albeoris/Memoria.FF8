@@ -48,13 +48,9 @@ public static partial class NativeBattleEffect207Lower
         return retained8.Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z));
     }
 
-    public static NativeBattleEffect207BoundsStep Bounds5F10(NativeBattleEffect207Frame frame, uint modelPointer, NativeBattleEffectArena rect8, int minimumDepth, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs)
+    public static NativeBattleEffect207BoundsStep Bounds5F10(NativeBattleEffect207Frame frame, BattleModelOwner owner, NativeBattleEffectArena rect8, int minimumDepth, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(modelPointer, out int row))
-        {
-            throw new InvalidDataException("Effect207 bounds require their current physical actor.");
-        }
-        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, row);
+        NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, owner);
         NativeBattleVector bottom = new(L207S(model, 0x1C), L207S(model, 0x1E), L207S(model, 0x20));
         NativeBattleVector top = bottom with { Y = unchecked((short)(L207S(model, 0x36) - 512)) };
         short size = unchecked((short)(L207S(model, 0x26) + 256));

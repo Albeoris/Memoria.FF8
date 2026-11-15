@@ -14,8 +14,8 @@ public sealed record NativeBattleWaterDrawServices(
     Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> SubmitPackets,
     Func<NativeBattleWaterExecutionFrame, ImmutableArray<NativeBattleEffectHeapAllocation>> ReadCurrentFiles,
     Func<NativeBattleWaterExecutionFrame, NativeBattleWaterRectangleWrite, NativeBattleWaterExecutionFrame> EnqueueScroll,
-    Func<NativeBattleWaterExecutionFrame, ImmutableArray<NativeBattleGraphicsModel>> ReadModels,
-    Func<NativeBattleWaterExecutionFrame, ImmutableArray<NativeBattleGraphicsModel>, NativeBattleWaterExecutionFrame> PublishModels,
+    Func<NativeBattleWaterExecutionFrame, BattleActorModels> ReadModels,
+    Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleWaterExecutionFrame> PublishActor,
     NativeBattleWaterActorPoseServices ActorPose,
     Func<NativeBattleWaterExecutionFrame, uint, int, byte[]> ReadMetadata,
     Func<uint, int> ResolveActualOtBucket)
@@ -71,7 +71,7 @@ public static class NativeBattleWaterDrawDispatcher
                 return frame;
             case 0x26:
                 NativeBattleWaterActorDrawResult actor = NativeBattleWaterActorDraw.Draw26A9C340(frame, services.ReadModels(frame), services.ActorPose, services.ReadProjection(frame), input.Dqa, input.Dqb, input.OrderingTablePointer, services.ResolveActualOtBucket, NativeBattleCinematicVisualIdentity.Identity(222, frame, bank, currentIndex));
-                frame = services.PublishModels(actor.Frame, actor.Models);
+                frame = services.PublishActor(actor.Frame, actor.Owner, actor.Actor);
                 return Submit(frame, actor.Packets);
             default:
                 throw new NotSupportedException("Native selected effect draw dispatch requires kind02,05,06,15 or26.");

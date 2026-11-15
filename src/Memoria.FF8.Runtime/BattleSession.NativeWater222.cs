@@ -42,9 +42,8 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess process = RequireWaterMemory().PrimitiveProcess ?? throw new NotSupportedException("Native Water requires its COMMON packet bank.");
         uint common = checked((uint)(process.ByteCursor ?? throw new NotSupportedException("Native Water COMMON cursor is unknown.")));
         NativeBattleWaterCallbackInput input = new(resources, checked((ushort)graphics.Flags), MatrixBytes(view), 0, common, focal);
-        NativeBattleWaterPresentationServices presentation = new((_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)).Flags0, (current, pointer, flags) =>
+        NativeBattleWaterPresentationServices presentation = new((_, index) => graphics.ActorModels.Get(index).Flags0, (current, index, flags) =>
         {
-            int index = PhysicalActor(pointer, graphics.Models.Length);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = flags }) };
             return current;
         }, (current, address, argument, pan) =>
@@ -70,8 +69,8 @@ public sealed partial class BattleSession
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Water requires its four stage groups.");
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
-        }, current => ReadCinematicHeader(current, parameters, null), () => nativeActionPackets, () => graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
-        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, pointer) => graphics.ActorModels.Get(PhysicalActor(pointer, graphics.Models.Length)), ActorAnchor, relative => CaptureCinematicAction(graphics, parameters, null, relative), _ => RequireTextures(), (current, textures) =>
+        }, current => ReadCinematicHeader(current, parameters, null), () => nativeActionPackets, () => graphics.NativeBindings.CaptureAliases(graphics.ActorModels), graphics.Effects.StorageContract);
+        NativeBattleWaterInstructionServices instructions = new(ResolveProgram, presentation, context, (_, address) => ParameterByte(address), (_, owner) => graphics.ActorModels.Get(owner), ActorAnchor, relative => CaptureCinematicAction(graphics, parameters, null, relative), _ => RequireTextures(), (current, textures) =>
         {
             NativeEffectMemory = RequireWaterMemory() with { Textures = textures };
             return current;
@@ -83,24 +82,24 @@ public sealed partial class BattleSession
             NativeFileIo = queued.FileIo;
             return ReadMemory(current);
         }, current => checked(current.TemporaryFrame.Address + 0x100), CreateNativeActorAnchorServices()) { MagicTextureBufferAddress = RequireWaterMemory().MagicTextureBufferAddress1D99A88 };
-        NativeBattleWaterActorPoseServices actors = new((current, actor) =>
+        NativeBattleWaterActorPoseServices actors = new((current, modelOwner, actor) =>
         {
-            if (presentationForeignActors?.TryGetValue(actor.Index, out NativeBattleForeignActor? foreign) == true)
+            if (presentationForeignActors?.TryGetValue(modelOwner, out NativeBattleForeignActor? foreign) == true)
             {
                 return new(current, [], []) { Pose = foreign.Pose ?? throw new NotSupportedException("The host actor cannot supply its current posed skeleton segments.") };
             }
-            NativeBattlePoseSource source = PoseSource(actor.Index);
+            NativeBattlePoseSource source = PoseSource(modelOwner);
             NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Index, published) };
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelOwner, published) };
             return new(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(published, source));
-        }, (current, actor, matrices) =>
+        }, (current, modelOwner, actor, matrices) =>
         {
-            if (presentationForeignActors?.ContainsKey(actor.Index) == true)
+            if (presentationForeignActors?.ContainsKey(modelOwner) == true)
             {
                 return current;
             }
-            NativeBattleBodyBoneMatrices owner = graphics.ActorModels.Get(actor.Index).CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native Water actor composition requires its actual body publication.");
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Index, actor with { CurrentBodyBoneMatrices = owner with { Matrices = matrices } }) };
+            NativeBattleBodyBoneMatrices owner = graphics.ActorModels.Get(modelOwner).CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native Water actor composition requires its actual body publication.");
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelOwner, actor with { CurrentBodyBoneMatrices = owner with { Matrices = matrices } }) };
             return current;
         }, CreateNativeActorAnchorServices());
         NativeBattleWaterDrawInputs drawInput = new(resources, registers.Zsf3 ?? throw new NotSupportedException("Native Water requires its initialized current ZSF3."), registers.Dqa, registers.Dqb, 0);
@@ -113,9 +112,10 @@ public sealed partial class BattleSession
             int file = ArenaOffset(CoreDword(current, write.Upload.SourceIndex == 0 ? 0x2798A68u : 0x2798A6Cu), 0);
             NativeEffectMemory = RequireWaterMemory() with { Textures = RequireTextures().EnqueueArenaRectangle505DF0(write.Upload.Rectangle, current.Arena, checked(file + write.Upload.Offset)) };
             return current;
-        }, _ => graphics.Models, (current, models) =>
+        }, _ => graphics.ActorModels, (current, owner, actor) =>
         {
-            graphics = graphics with { ActorModels = models.Select((model, index) => model with { CurrentBodyBoneMatrices = graphics.ActorModels.Get(index).CurrentBodyBoneMatrices }).ToImmutableArray() };
+            NativeBattleGraphicsModel currentModel = graphics.ActorModels.Get(owner);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, actor with { CurrentBodyBoneMatrices = currentModel.CurrentBodyBoneMatrices }) };
             return current;
         }, actors, ReadMetadata, OtBucket)
         {
@@ -149,7 +149,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection ReadProjection() => NativeCamera?.Projection ?? throw new NotSupportedException("Native Water requires its published projection.");
         NativeBattleScriptedGraphicsMemory RequireRegisters() => RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native Water graphics registers are unknown.");
         NativeBattleEffectTextureState RequireTextures() => RequireWaterMemory().Textures ?? throw new NotSupportedException("Native Water requires its texture queue.");
-        NativeBattlePoseSource PoseSource(int index) => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Water requires its actual actor rig.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner index) => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Water requires its actual actor rig.");
         NativeBattleWaterExecutionFrame PublishFocal(NativeBattleWaterExecutionFrame current, short value)
         {
             NativeCamera = NativeCamera! with { Projection = ReadProjection() with { FocalLength = unchecked((ushort)value) } };
@@ -157,9 +157,8 @@ public sealed partial class BattleSession
         }
         void PublishMemory(NativeBattleWaterExecutionFrame current) => NativeEffectMemory = RequireWaterMemory() with { ScriptedEffects = current.Core, Arena = current.Arena };
         NativeBattleWaterExecutionFrame ReadMemory(NativeBattleWaterExecutionFrame current) => current with { Core = RequireWaterMemory().ScriptedEffects!, Arena = RequireWaterMemory().Arena! };
-        NativeBattleWaterActorAnchorSource ActorAnchor(NativeBattleWaterExecutionFrame current, uint pointer)
+        NativeBattleWaterActorAnchorSource ActorAnchor(NativeBattleWaterExecutionFrame current, BattleModelOwner index)
         {
-            int index = PhysicalActor(pointer, graphics.Models.Length);
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
@@ -298,7 +297,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Presentation-only Ifrit has no subsequent combat header.");
             }
             uint? originalHeader = graphics.NativeBindings.TryEncodeExactActor(positioning, graphics.ActorModels, out _) ? WaterHeadersAddress : null;
-            return new(positioning, null, originalHeader, positioning, [positioning], graphics.ActorModels, graphics.NativeBindings);
+            return new(positioning, null, originalHeader, positioning, [positioning], graphics.ActorModels, graphics.NativeBindings, graphics.Effects.StorageContract);
         }
         NativeBattleEffectParameters action = parameters ?? throw new InvalidDataException("Cinematic combat capture requires its actual action parameters.");
         BattleActionHeaderReference reference = action.Header.Advance(relativeIndex);
@@ -306,23 +305,9 @@ public sealed partial class BattleSession
         BattleModelOwner firstOwner = nativeActionPackets.ReadContact(first.FirstContact).Primary.Recipient;
         ImmutableArray<BattleModelOwner> selected = nativeActionPackets.ReadHeaderContacts(reference).Select(contact => contact.Primary.Recipient).ToImmutableArray();
         uint? address = reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? WaterHeadersAddress + (uint)(20 * reference.Ordinal) : null;
-        return new(action.Source, reference, address, firstOwner, selected, graphics.ActorModels, graphics.NativeBindings);
+        return new(action.Source, reference, address, firstOwner, selected, graphics.ActorModels, graphics.NativeBindings, graphics.Effects.StorageContract);
     }
 
-    private static int PhysicalActor(uint pointer, int actorCount)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, actorCount) ? actorIndex : throw new NotSupportedException("Native Water actor pointer leaves its physical model bank.");
-    }
-    private static uint ActorPointer(int index) => NativeBattleGraphicsModelAddress.Encode(index);
-    private int ContactIndex(uint address)
-    {
-        return NativeBattleContactAddress.TryDecode(address, out int index, nativeActionPackets.StorageCapacity) ? index : throw new NotSupportedException("Native Water contact pointer leaves its physical packet bank.");
-    }
-    private static int HeaderIndex(uint address)
-    {
-        uint relative = unchecked(address - WaterHeadersAddress);
-        return relative % 20 == 0 && relative / 20 < NativeBattleActionPacketsState.HeaderCapacity ? (int)(relative / 20) : throw new NotSupportedException("Native Water header pointer leaves its physical action bank.");
-    }
     private static ImmutableArray<byte> MatrixBytes(NativeBattleActionMatrix matrix)
     {
         byte[] bytes = new byte[32];

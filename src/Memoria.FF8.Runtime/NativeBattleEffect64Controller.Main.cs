@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect64Controller
         if (Read(frame, address).ReadByte(0xF) != 0)
         {
             (frame, survivors) = AdvancePool(frame, 1, resources, inputs);
-            uint model = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner model = frame.State.ReadModel(CasterGlobal);
             frame = inputs.Execute(frame, new NativeBattleEffect64ApplyOffsetPose662C00(model, checked(arena + MainOffset + 0x18)));
             (frame, _) = AdvancePool(frame, 2, resources, inputs);
             (frame, _) = AdvancePool(frame, 3, resources, inputs);
@@ -49,24 +49,21 @@ public static partial class NativeBattleEffect64Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         short age = Signed(task, 0xC);
-        uint model = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner model = frame.State.ReadModel(CasterGlobal);
         if (age >= 0xAA)
         {
             frame = inputs.Execute(frame, new NativeBattleEffect64ModelFlags(model, 0xFFF7, 0));
             frame = inputs.Execute(frame, new NativeBattleEffect64ModelMeshMask(model, 3));
             frame = inputs.Execute(frame, new NativeBattleEffect64ClearGeometryBit15_6E5C90(model));
             frame = inputs.Execute(frame, new NativeBattleEffect64ModelFlags(model, 0xFFFB, 0));
-            for (int actor = 0; actor < 3; actor++)
-            {
-                frame = inputs.Execute(frame, new NativeBattleEffect64ModelFlags(ModelAddress(actor), 0xFFFB, 0));
-            }
+            frame = inputs.Execute(frame, new NativeBattleEffect64PartyFlags(0xFFFB, 0));
             return new(frame, 2);
         }
         if (age == 0)
         {
             foreach (uint source in ScriptAddresses)
             {
-                (frame, _) = SpawnScript6E5D80(frame, model, address + 0x18, source, resources);
+                (frame, _) = SpawnScript6E5D80(frame, model, address + 0x18, source, resources, inputs.Aliases);
             }
         }
         foreach (int first in new[] { 19, 24, 43 })
@@ -94,7 +91,7 @@ public static partial class NativeBattleEffect64Controller
         return new(frame, 0);
     }
 
-    public static (NativeBattleEffect64Frame Frame, uint Address) SpawnScript6E5D80(NativeBattleEffect64Frame frame, uint model, uint offsetRows, uint source, NativeBattleEffect64Resources resources)
+    public static (NativeBattleEffect64Frame Frame, uint Address) SpawnScript6E5D80(NativeBattleEffect64Frame frame, BattleModelOwner model, uint offsetRows, uint source, NativeBattleEffect64Resources resources, NativeBattleModelAliases aliases)
     {
         uint address;
         (frame, address) = Append(frame, ScriptDescriptor, 0x6E5DD0);
@@ -105,7 +102,9 @@ public static partial class NativeBattleEffect64Controller
         frame = ClearDwords701200(frame, address + 0x14, 8);
         frame = frame with { State = frame.State.BindScriptSource(resources, source) };
         short bone = BinaryPrimitives.ReadInt16LittleEndian(frame.State.Read(source, 2));
-        NativeBattleModulePoolTask task = Read(frame, address).WriteDword(0xC, model).WriteDword(0x10, offsetRows).WriteDword(0x14, unchecked((uint)((long)offsetRows + bone * 16))).WriteDword(0x18, source + 2);
+        NativeBattleModulePoolTask task = Read(frame, address);
+        task.WriteExecutionReference(0xC, 4, new BattleExecutionReference.Model(model), aliases.EncodeAddress(model));
+        task = task.WriteDword(0x10, offsetRows).WriteDword(0x14, unchecked((uint)((long)offsetRows + bone * 16))).WriteDword(0x18, source + 2);
         return (Write(frame, address, task), address);
     }
 }

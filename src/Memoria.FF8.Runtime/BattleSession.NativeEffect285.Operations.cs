@@ -39,7 +39,7 @@ public sealed partial class BattleSession
                 NativeCamera = rolled with { Roll = roll.Value, CurrentPose = rolled.CurrentPose is { } rolledPose ? rolledPose with { Roll = roll.Value } : null };
                 return frame;
             case NativeBattleEffect285ModelFlags flags:
-                int actor = NativeEffect285Actor(graphics, flags.ModelAddress);
+                BattleModelOwner actor = flags.Actor;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect285ModelFlags(graphics.ActorModels.Get(actor), flags)) };
                 return frame;
             case NativeBattleEffect285StageFlags flags:

@@ -193,7 +193,7 @@ public sealed partial class BattleSession
         {
             recipient.NativeStatus1 |= 0x10000;
         }
-        if (nativeContactWorking is { SpecialSource: not 255 })
+        if (nativeContactWorking is { CoverSource: not null })
         {
             amount >>= 1;
         }

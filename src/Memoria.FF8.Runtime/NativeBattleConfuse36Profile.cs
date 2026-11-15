@@ -51,13 +51,13 @@ public sealed record NativeBattleConfuse36State([property: JsonRequired] int Sou
 
 public sealed record NativeBattleConfuse36Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleConfuse36State State);
 public sealed record NativeBattleConfuse36LeafStep(NativeBattleConfuse36Frame Frame, int Result);
-public sealed record NativeBattleConfuse36ControllerStep(NativeBattleConfuse36Frame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleConfuse36ControllerStep(NativeBattleConfuse36Frame Frame, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 public sealed record NativeBattleConfuse36ControllerInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource)
 {
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeign { get; init; }
     public Func<BattleModelOwner, byte, NativeBattleVector?>? ReadForeignBone { get; init; }
-    public Func<NativeBattleConfuse36Frame, int, NativeBattleConfuse36Frame>? ApplyContact { get; init; }
-    public Func<NativeBattleConfuse36Frame, byte, NativeBattleConfuse36Frame>? TransformTarget { get; init; }
+    public Func<NativeBattleConfuse36Frame, BattleContactOccurrence, NativeBattleConfuse36Frame>? ApplyContact { get; init; }
+    public Func<NativeBattleConfuse36Frame, BattleModelOwner, NativeBattleConfuse36Frame>? TransformTarget { get; init; }
 }
 public sealed record NativeBattleConfuse36ContextStep(NativeBattleConfuse36Frame Frame, bool Complete);
 public sealed record NativeBattleConfuse36GenericInputs(Func<NativeBattleConfuse36Frame, uint, NativeBattleConfuse36Frame> InitializeContext, Func<NativeBattleConfuse36Frame, uint, NativeBattleConfuse36ContextStep> AdvanceContext);

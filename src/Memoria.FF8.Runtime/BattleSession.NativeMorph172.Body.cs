@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleMorph172Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeMorph172Body(NativeBattleMorph172Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattleMorph172Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeMorph172Body(NativeBattleMorph172Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Morph172 target requires its current skeleton.");

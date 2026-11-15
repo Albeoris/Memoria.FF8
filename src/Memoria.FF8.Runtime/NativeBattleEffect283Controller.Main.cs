@@ -22,8 +22,10 @@ public static partial class NativeBattleEffect283Controller
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             BattleActionHeaderReference header = Parameters(frame).Header;
             BattleContactCursor first = packets.ReadHeader(header).FirstContact;
-            uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-            frame = Write(frame, main, Read(frame, main).WriteDword(0x28, target));
+            BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+            NativeBattleModulePoolTask targetTask = Read(frame, main);
+            targetTask.WriteExecutionReference(0x28, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+            frame = Write(frame, main, targetTask);
             frame = inputs.Execute(frame, new NativeBattleEffect283ModelFlags(target, 0, 4));
             foreach ((NativeBattleGfAnimationSource source, int offset, int length) in new[] { (resources.MainProgramme, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength), (resources.SecondaryProgramme, SecondaryProgrammeWorkspaceOffset, SecondaryProgrammeWorkspaceLength) })
             {
@@ -70,7 +72,7 @@ public static partial class NativeBattleEffect283Controller
         frame = inputs.Execute(frame, new NativeBattleEffect283Stage5713E0(stage, flags));
         frame = DrawProgramme283(frame, address, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength, resources.MainProgramme, ProgrammeCaller283(frame, address, 0x18, (ushort)((age & 15) << 3)), inputs).Frame;
         uint relative = unchecked((uint)(age - 24));
-        uint target = Read(frame, address).ReadDword(0x28);
+        BattleModelOwner target = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x28, 4).Owner;
         if (relative < 36)
         {
             if (relative < 20)

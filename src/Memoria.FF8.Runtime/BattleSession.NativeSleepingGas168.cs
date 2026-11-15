@@ -58,7 +58,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Sleeping Gas requires its original target contacts.");
+        BattleContactCursor firstContact = header.FirstContact;
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;
@@ -96,7 +96,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, effect.Parameters!.Source, 0xF0, 4096);
                 anchor = anchor with { Y = unchecked((short)(anchor.Y - 160)) };
-                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform!.Position28).ToArray());
+                NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(effect.Parameters.TargetActors.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform!.Position28).ToArray());
                 int x = center.X - anchor.X;
                 int y = center.Y - anchor.Y;
                 int z = center.Z - anchor.Z;
@@ -132,7 +132,7 @@ public sealed partial class BattleSession
             {
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    int actor = nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient;
+                    BattleModelOwner actor = nativeActionPackets.ReadContact(firstContact.Advance(index)).Primary.Recipient;
                     (children, int slot) = children.Append(0x5E2430);
                     NativeBattleVector point = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                     point = point with { Y = (graphics.ActorModels.Get(actor).GeometryBounds52 ?? throw new NotSupportedException("Native Sleeping Gas requires its actual modelWORD3C bounds value.")).Maximum.Y };
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             if (counter == 60)
             {
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(firstContact + index)).ToImmutableArray() });
+                graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(firstContact.Advance(index))).ToImmutableArray() });
                 graphics = graphics with { PendingContacts = pending };
             }
             if (counter is >= 4 and <= 12)

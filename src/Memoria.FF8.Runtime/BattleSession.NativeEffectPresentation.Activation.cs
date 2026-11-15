@@ -62,7 +62,7 @@ public sealed partial class BattleSession
             NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Hosted appearance requires its original color interpolation.");
             NativeBattleStageColors stage = NativeStage?.ModelColors ?? throw new NotSupportedException("Hosted appearance requires its loaded stage colors.");
             model = NativeBattleGraphicsModels.AdvanceAppearance(model, (graphics.Flags & 1) != 0, colors with { Transition = stage.Color40, Normal = stage.Color44 });
-            NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
+            NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(owner, model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
             {
                 OriginalResource = resource,
                 ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = graphics.ActorModels.Set(owner, current) }, owner, variable),

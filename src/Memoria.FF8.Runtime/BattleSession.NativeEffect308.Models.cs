@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleResourcePointer NativeEffect308SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor)
+    private NativeBattleResourcePointer NativeEffect308SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         return new(cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect308 requires its current physical resource row.")].Require(12), null);
     }
 
-    private NativeBattleEffect308Frame WriteNativeEffect308BonePadding(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor, int bone, ushort value)
+    private NativeBattleEffect308Frame WriteNativeEffect308BonePadding(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor, int bone, ushort value)
     {
         NativeBattleResourcePointer pointer = NativeEffect308SkeletonPointer(graphics, frame, actor);
         int offset = checked(32 + bone * 48 + 18);
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
         return NativeBattleEffect308Controller.WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, bytes), 2);
     }
 
-    private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect308PackedBones(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor, NativeBattlePoseSource source)
+    private ImmutableArray<NativeBattlePackedMatrix32> ReadNativeEffect308PackedBones(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor, NativeBattlePoseSource source)
     {
         NativeBattleResourcePointer pointer = NativeEffect308SkeletonPointer(graphics, frame, actor);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         return packed.MoveToImmutable();
     }
 
-    private NativeBattleModelGeometrySource ReadNativeEffect308Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor)
+    private NativeBattleModelGeometrySource ReadNativeEffect308Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor)
     {
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging ?? throw new NotSupportedException("Effect308 requires its current addressed memory."), NativeBattleEffectArena.Clear(), 0);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect308 requires its current CPU resources.");
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         return NativeBattleModelGeometrySource.Open(cpu, bridge.Staging, pointer, (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
     }
 
-    private NativeBattleEffect308Frame PrepareNativeEffect308Pose(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor, NativeBattlePoseSource source, NativeBattleEffectArena offsets)
+    private NativeBattleEffect308Frame PrepareNativeEffect308Pose(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor, NativeBattlePoseSource source, NativeBattleEffectArena offsets)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect308 requires its current temporary memory."), 96);
         NativeBattleEffect298PosePreparation prepared = NativeBattleEffect298Pose.Prepare662C00(graphics.ActorModels.Get(actor), source, offsets, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 96));
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
         return PublishNativeEffect308RootPadding(graphics, frame, actor, source, decoded.HasScale);
     }
 
-    private NativeBattleEffect308Frame RestoreNativeEffect308Pose(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor, NativeBattlePoseSource source)
+    private NativeBattleEffect308Frame RestoreNativeEffect308Pose(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor, NativeBattlePoseSource source)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect308 requires its current temporary memory."), 88);
         NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
         return PublishNativeEffect308RootPadding(graphics, frame, actor, source, decoded.HasScale);
     }
 
-    private NativeBattleEffect308Frame PublishNativeEffect308RootPadding(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, int actor, NativeBattlePoseSource source, bool hasScale)
+    private NativeBattleEffect308Frame PublishNativeEffect308RootPadding(NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, BattleModelOwner actor, NativeBattlePoseSource source, bool hasScale)
     {
         if (!hasScale)
         {

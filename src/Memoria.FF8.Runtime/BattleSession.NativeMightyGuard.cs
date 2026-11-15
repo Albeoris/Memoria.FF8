@@ -74,7 +74,7 @@ public sealed partial class BattleSession
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Mighty Guard requires its actual CPU resource rows."), model, bind.SavedBank, bind.Resource);
                     NativeFileStaging = binding.Staging;
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
-                    graphics = SelectNativeHeaderSequence(graphics, checked((byte)bind.Actor), bind.Sequence);
+                    graphics = SelectNativeHeaderSequence(graphics, bind.Actor, bind.Sequence);
                     return current;
                 default:
                     throw new NotSupportedException("Mighty Guard requires its original immediate operation owner.");

@@ -17,7 +17,7 @@ public static class BattleComponentOwnerClosure
 {
     public static bool AreNonAuxiliaryOwnersReleased(BattleDiagnosticInvocationOwners owners)
     {
-        return owners is not null && owners.DescriptorPackets == 0 && owners.NonPumpDescriptorTasks == 0 && owners.PendingContacts == 0 && owners.Effects == 0 && !owners.EffectHead && owners.Modules == 0 && !owners.ModuleHead && owners.Files == 0 && owners.ReturnedTaskPointer == 0 && !owners.DetachedReturnedTask && owners.CameraMask == 0 && !owners.SoundBusy && !owners.ReplacementResource && !owners.ActionOrCommand && !owners.TimedOrReaction && owners.ActionHeaders <= NativeBattleActionPacketsState.HeaderCapacity && owners.ContactRows <= NativeBattleActionPacketsState.ContactCapacity && owners.RetainedActiveHeader is not (< 0 or >= NativeBattleActionPacketsState.HeaderCapacity) && owners.RetainedActiveContact is not (< 0 or > NativeBattleActionPacketsState.ContactCapacity) && owners.ObservedOriginalEffect && owners.SelectedReturnedDescriptor == 0 && !owners.HeaderGraphicsBusy && !owners.OriginalPools.IsDefault && owners.OriginalPools.All(pool => pool is not null && pool.ActiveRows == 0 && !pool.Head && !pool.Tail);
+        return owners is not null && owners.DescriptorPackets == 0 && owners.NonPumpDescriptorTasks == 0 && owners.PendingContacts == 0 && owners.Effects == 0 && !owners.EffectHead && owners.Modules == 0 && !owners.ModuleHead && owners.Files == 0 && owners.ReturnedTaskPointer == 0 && !owners.DetachedReturnedTask && owners.CameraMask == 0 && !owners.SoundBusy && !owners.ReplacementResource && !owners.ActionOrCommand && !owners.TimedOrReaction && owners.ActionHeaders <= NativeBattleRetainedActionPackets.HeaderCapacity && owners.ContactRows <= NativeBattleRetainedActionPackets.ContactCapacity && owners.RetainedActiveHeader is not (< 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity) && owners.RetainedActiveContact is not (< 0 or > NativeBattleRetainedActionPackets.ContactCapacity) && owners.ObservedOriginalEffect && owners.SelectedReturnedDescriptor == 0 && !owners.HeaderGraphicsBusy && !owners.OriginalPools.IsDefault && owners.OriginalPools.All(pool => pool is not null && pool.ActiveRows == 0 && !pool.Head && !pool.Tail);
     }
 }
 
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
         foreach (BattleDiagnosticTextureTask row in textures.Tasks)
         {
             NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[row.Slot];
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(row.ModelIndex!.Value);
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(task.ModelOwner ?? throw new InvalidDataException("Observed texture task lost its live model owner."));
             HashValue(hash, row.Slot);
             HashValue(hash, task.Flags);
             HashValue(hash, task.State);
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             HashValue(hash, task.Program!.Offset);
             HashValue(hash, task.Program.Source.Length);
             hash.AppendData(task.Program.Source.AsSpan());
-            HashValue(hash, model.Index);
+            HashValue(hash, row.ModelIndex!.Value);
             HashValue(hash, model.Flags0 & 2);
             HashValue(hash, model.ResourceFlags44!.Value & 0x40);
             HashValue(hash, model.Sequence!.Value);

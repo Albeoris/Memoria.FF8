@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         encounterHitTransaction = new(CaptureEncounterDamageActors(), ResolveEncounterDamageRoutes());
     }
 
-    private void ValidateEncounterContactCapacity((BattleCombatant[] Targets, byte CoverSource)[] plan, BattleNativeAction native, bool deferred)
+    private void ValidateEncounterContactCapacity((BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, BattleNativeAction native, bool deferred)
     {
         if (!HasEncounterDamageRoutes)
         {
@@ -83,9 +83,9 @@ public sealed partial class BattleSession
                 }
             }
         }
-        if (required > NativeBattleActionPacketsState.ContactCapacity)
+        if (required > NativeBattleRetainedActionPackets.ContactCapacity)
         {
-            throw new InvalidDataException($"Encounter action requires up to {required} native contact slots including existing headers and routed recipients; capacity is {NativeBattleActionPacketsState.ContactCapacity}. No HP transaction was published.");
+            throw new InvalidDataException($"Encounter action requires up to {required} native contact slots including existing headers and routed recipients; capacity is {NativeBattleRetainedActionPackets.ContactCapacity}. No HP transaction was published.");
         }
     }
 
@@ -188,7 +188,7 @@ public sealed partial class BattleSession
         {
             ImmutableArray<EncounterHpReceipt> receipts = EncounterDamageRouting.Plan(transaction.Mutations.Select((mutation, index) => new EncounterHpIntent(index, mutation.Actor?.Id, mutation.Target.Id, Math.Max(0, mutation.Amount), mutation.Cause)), transaction.Actors, transaction.Routes);
             int extraCount = receipts.Count(receipt => receipt.RouteId is not null && receipt.RecipientId != receipt.OriginalTargetId && receipt.AssignedDamage > 0);
-            if (nativeActionPackets.ContactCount + packets.Count + extraCount > NativeBattleActionPacketsState.ContactCapacity)
+            if (nativeActionPackets.ContactCount + packets.Count + extraCount > NativeBattleRetainedActionPackets.ContactCapacity)
             {
                 throw new InvalidDataException("Encounter routed contacts exceed the native contact bank capacity before HP publication.");
             }
@@ -260,7 +260,7 @@ public sealed partial class BattleSession
             {
                 if (mutation.Secondary && originalContact.Secondary is { } secondary)
                 {
-                    originalContact.Secondary = secondary with { Sequence = 0, Flags2 = 0, HitFlags3 = 0, Amount6 = 0, ExtendedDamageAmount = null };
+                    originalContact.Secondary = secondary with { Sequence = 0, Flags2 = 0, HitFlags = 0, CoverSource = null, Amount6 = 0, ExtendedDamageAmount = null };
                 }
                 else
                 {
@@ -285,7 +285,7 @@ public sealed partial class BattleSession
             foreach (EncounterHpReceipt receipt in receipts.Where(receipt => receipt.RecipientId != receipt.OriginalTargetId && receipt.AssignedDamage > 0))
             {
                 BattleCombatant recipient = GetActor(receipt.RecipientId);
-                NativeContactWorking? routedContact = mutation.Contact is { } primary ? new(primary.Actor, recipient, primary.Action, primary.SpecialSource)
+                NativeContactWorking? routedContact = mutation.Contact is { } primary ? new(primary.Actor, recipient, primary.Action, primary.CoverSource)
                 {
                     Sequence = primary.Action.DamagePresentation,
                     AttackClass = primary.AttackClass,
@@ -314,8 +314,8 @@ public sealed partial class BattleSession
                 else if (NativeGraphics is not null)
                 {
                     (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
-                    NativeBattleContactHalf half = NativeBattleContactHalf.FromScratch(checked((byte)recipient.EncodeNativeSlot()), recipient.IsAlive ? (byte)0 : (byte)3, recipient.IsAlive ? (byte)0 : (byte)8, 0, saved, receipt.AssignedDamage, battle);
-                    extra.Add(new(half, new(255, 0, 0, 0, 0, 0, 0)));
+                    NativeBattleContactHalf half = NativeBattleContactHalf.FromScratch(CreatePresentationModelOwner(recipient), recipient.IsAlive ? (byte)0 : (byte)3, recipient.IsAlive ? (byte)0 : (byte)8, 0, saved, receipt.AssignedDamage, battle);
+                    extra.Add(new(half, null));
                 }
             }
         }

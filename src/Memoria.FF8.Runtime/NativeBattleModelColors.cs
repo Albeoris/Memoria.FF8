@@ -18,15 +18,16 @@ public sealed record NativeBattleModelColorOverrides([property: JsonRequired] Im
         }
     }
 
-    public (NativeBattleModelColorOverrides State, NativeBattleGraphicsModel Model) Consume50A0CD(NativeBattleGraphicsModel model)
+    public (NativeBattleModelColorOverrides State, NativeBattleGraphicsModel Model) Consume50A0CD(BattleModelOwner owner, NativeBattleGraphicsModel model, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
         Validate();
         NativeBattleModelColorOverrides state = this;
+        bool hasOriginalAlias = boundary.TryEncodeExactActor(owner, models, out byte original);
         for (int index = 0; index < Slots.Length; index++)
         {
             NativeBattleModelColorOverride slot = state.Slots[index];
             byte actor = slot.Actor ?? throw new NotSupportedException("Native50A0D2 requires the observed pending-color actor BYTE; old missing state is unknown.");
-            if (actor < 8 && actor == model.Index)
+            if (hasOriginalAlias && actor == original)
             {
                 uint color = slot.Color ?? throw new NotSupportedException("Native50A0F7 requires this actor's actual pending RGB DWORD.");
                 state = state with { Slots = state.Slots.SetItem(index, slot with { Actor = 255 }) };
@@ -42,7 +43,7 @@ public sealed record NativeBattleModelColorStep(NativeBattleGraphicsModel Model,
 /// <summary>502AB0 calls50A0A0 before50C110 and before body packets. Stage and one-shot colors are physical writers, not fade completion defaults.</summary>
 public static class NativeBattleModelColors
 {
-    public static NativeBattleModelColorStep Advance50A0A0(NativeBattleGraphicsModel model, uint graphicsFlags, NativeBattleSummonColors colors, NativeBattleModelColorOverrides? overrides)
+    public static NativeBattleModelColorStep Advance50A0A0(BattleModelOwner owner, NativeBattleGraphicsModel model, uint graphicsFlags, NativeBattleSummonColors colors, NativeBattleModelColorOverrides? overrides, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
         ushort flags2 = model.Flags2 ?? throw new NotSupportedException("Native502B56 requires the model WORD2 before50A0A0.");
         if ((flags2 & 4) != 0)
@@ -57,7 +58,7 @@ public static class NativeBattleModelColors
             model = (statuses & 0x2160510) != 0 ? NativeBattleModelStatusColors.Advance50A1C0(model, colors) : model with { Color40 = colors.Transition };
         }
         NativeBattleModelColorOverrides pending = overrides ?? throw new NotSupportedException("Native50A0CD requires its retained B8BA00/B8BA04 pending-color slots; migrate only an explicitly proved standalone owner.");
-        (pending, model) = pending.Consume50A0CD(model);
+        (pending, model) = pending.Consume50A0CD(owner, model, models, boundary);
         if ((model.Flags0 & 0x2000) == 0 && (statuses & 0x804) != 0 && (flags2 & 8) == 0)
         {
             model = NativeBattleModelStatusMotion.Advance50A370(model);

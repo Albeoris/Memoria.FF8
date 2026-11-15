@@ -143,13 +143,19 @@ public sealed partial class BattleSession
         }
     }
 
-    private BattleDiagnosticNativeContact? ObserveDiagnosticGuardianContact(BattleActionPresentation? submitted, BattleCombatant actor, BattleCombatant recipient, NativeBattleActionHeaderSlot header, NativeBattleContactPacket retained, int contactIndex, ushort actionId)
+    private BattleDiagnosticNativeContact? ObserveDiagnosticGuardianContact(BattleActionPresentation? submitted, BattleCombatant actor, BattleCombatant recipient, BattleActionHeaderReference header, BattleContactOccurrence occurrence, int contactIndex, ushort actionId)
     {
         if (DiagnosticResolution is null || submitted is null || submitted.ActorId != actor.Id || submitted.Ability != BattleAbility.GuardianForce || submitted.ActionId != actionId - 64 || submitted.NativeHeader != new BattleActionHeaderReference(0) || submitted.NativeQueuedCommand is byte queued && queued != 254 || submitted.NativeAction is { } native && (native.Command != 254 || native.ActionId != actionId) || diagnosticDispatchSerial == 0)
         {
             return null;
         }
-        return new(0x4850A0, diagnosticDispatchSerial, submitted.TargetId, actor.Id, checked((byte)actor.EncodeNativeSlot()), recipient.Id, checked((byte)recipient.EncodeNativeSlot()), 0, header.Payload, header.UnknownByteMask, header.FirstContactIndex, contactIndex, retained.Encode().ToImmutableArray());
+        NativeBattleRetainedActionPackets retained = nativeActionPackets.RetainedStorage;
+        if (OriginalDiagnosticHeaderIndex(header) is not int originalHeader || occurrence.Ordinal >= NativeBattleRetainedActionPackets.ContactCapacity || retained.Contacts[occurrence.Ordinal] is not { } raw)
+        {
+            return null;
+        }
+        NativeBattleRetainedActionHeaderSlot physical = retained.Headers[originalHeader];
+        return new(0x4850A0, diagnosticDispatchSerial, submitted.TargetId, actor.Id, checked((byte)actor.EncodeNativeSlot()), recipient.Id, checked((byte)recipient.EncodeNativeSlot()), originalHeader, physical.Payload, physical.UnknownByteMask, physical.FirstContactIndex, contactIndex, NativeBattleContactPacketCodec.Encode(raw).ToImmutableArray());
     }
 
     private sealed class DiagnosticBattleEventLog : List<BattleEvent>
@@ -170,7 +176,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        string? actorId = effect.Parameters is { Actor78: < 7 } parameters ? graphics.ActorIds[parameters.Source] : graphics.ActionActorId;
+        string? actorId = effect.Parameters is { } parameters ? ReadGraphicsPresentationId(parameters.Source) : graphics.ActionActorId;
         BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
         if (action?.ActorId != actorId)
         {
@@ -180,7 +186,7 @@ public sealed partial class BattleSession
         BattleAbility? ability = action?.Ability ?? bound?.Ability;
         int? actionId = action?.NativeAction?.ActionId ?? action?.ActionId ?? bound?.NativeAction?.ActionId ?? bound?.ActionId;
         byte? nativeCommand = action?.NativeAction?.Command ?? bound?.NativeAction?.Command;
-        if (effect.Parameters is { HeaderIndex7C: >= 0 and < NativeBattleActionPacketsState.HeaderCapacity } entered)
+        if (effect.Parameters is { } entered)
         {
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(entered.Header);
             actionId = header.Action;

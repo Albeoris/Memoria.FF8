@@ -9,40 +9,22 @@ public static class NativeBattleCarbuncle278Entry
     public const uint MainBank = 0x25081A8;
     public const uint MainCallback = 0x680DF0;
 
-    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models, ushort encounterId)
+    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, BattleActorModels models, ushort encounterId)
     {
         return Initialize680C50(frame, packets, models, NativeBattleEffectSceneContext.FromNativeEncounter(encounterId));
     }
 
-    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleEffectSceneContext sceneContext, ImmutableArray<int>? enemyModelIndices = null, ImmutableArray<NativeBattleModelTransform>? opposingTransforms = null)
+    public static NativeBattleCarbuncle278Frame Initialize680C50(NativeBattleCarbuncle278Frame frame, NativeBattleActionPacketsState packets, BattleActorModels models, NativeBattleEffectSceneContext sceneContext, ImmutableArray<NativeBattleModelTransform>? opposingTransforms = null)
     {
         sceneContext.Validate();
         RequireBinding(frame.Effect);
-        frame.Effect.Validate(packets.PresentationRoster);
+        frame.Effect.Validate();
         packets.Validate();
         NativeBattleCarbuncle278State state = RequireState(frame.Memory);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle entry requires its current action parameters.");
-        BattleModelRoster? roster = packets.PresentationRoster;
-        if (models.IsDefault || models.Length != (roster?.ActorCount ?? 7) || models.Where((model, index) => model is null || model.Index != index).Any())
-        {
-            throw new InvalidDataException(roster is null ? "Native Carbuncle entry requires its seven ordered physical graphics rows." : "Hosted Carbuncle entry requires its ordered presentation model bank.");
-        }
-        ImmutableArray<int> enemies = enemyModelIndices ?? (roster is null ? [3, 4, 5, 6] : roster.EnemyRows.ToImmutableArray());
-        if (enemies.IsDefault || enemies.Any(index => (uint)index >= models.Length || roster is not null && (!roster.ContainsRow(index) || roster[index].IsParty)) || enemies.Distinct().Count() != enemies.Length)
-        {
-            throw new InvalidDataException("Native Carbuncle clearance requires distinct physical enemy model rows within the current model bank.");
-        }
         if (opposingTransforms is { } opposing && (opposing.IsDefault || opposing.Any(transform => transform is null)))
         {
             throw new InvalidDataException("Native Carbuncle clearance requires initialized opposing scene transforms.");
-        }
-        if (roster is not null)
-        {
-            ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts506BA0(parameters.Header);
-            if (!roster.ContainsRow(parameters.Source) || contacts.IsEmpty || contacts.Any(contact => !roster.ContainsRow(contact.Primary.Recipient)))
-            {
-                throw new InvalidDataException("Hosted Carbuncle entry requires a bound caster and at least one bound recipient model row.");
-            }
         }
         NativeCrtRandomState random = frame.Random.Draw(out ushort value);
         int resource = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2508110)?.ArenaOffset ?? throw new NotSupportedException("Native Carbuncle entry requires its executed initializer publication.");
@@ -62,8 +44,8 @@ public static class NativeBattleCarbuncle278Entry
             BattleContactCursor first = header.FirstContact;
             for (int index = 0; index < count; index++)
             {
-                int target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                NativeBattleGraphicsModel model = Model(target);
+                BattleModelOwner target = packets.ReadContact(first.Advance(index)).Primary.Recipient;
+                NativeBattleGraphicsModel model = models.Get(target);
                 NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle centroid requires the selected actor's current signed position WORD20.");
                 sum = unchecked(sum + transform.Position28.Z);
             }
@@ -80,9 +62,9 @@ public static class NativeBattleCarbuncle278Entry
         }
         else
         {
-            foreach (int index in enemies)
+            foreach (BattleModelEntry<BattleEnemyModelOwner> enemy in models.Enemies.Entries)
             {
-                NativeBattleGraphicsModel model = models[index];
+                NativeBattleGraphicsModel model = enemy.State;
                 if ((model.Flags0 & 2) != 0)
                 {
                     NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Carbuncle lift requires the active enemy's current signed position WORD20 and scale WORD26.");
@@ -96,10 +78,9 @@ public static class NativeBattleCarbuncle278Entry
             lift = 0;
             floor = centroid;
         }
-        state = state with { Random811C = value, Action8120 = 0x1D99A78, Caster8124 = NativeBattleGraphicsModelAddress.Encode(parameters.Source), Centroid81C4 = centroid, Base81CC = floor, Lift81D0 = lift, ModelBuffer81F8 = NativeBattleEffectNodeMemory.ArenaAddress };
+        state = state with { Random811C = value, Action8120 = 0x1D99A78, Caster8124 = packets.ModelAliases.EncodeAddress(parameters.Source) is { } encoded ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(encoded.AsSpan()) : null, Centroid81C4 = centroid, Base81CC = floor, Lift81D0 = lift, ModelBuffer81F8 = NativeBattleEffectNodeMemory.ArenaAddress };
         return frame with { Memory = frame.Memory with { Textures = textures, Carbuncle278 = state }, Effect = frame.Effect with { Pools = [pool], ReturnedDescriptor = MainDescriptor }, Random = random };
 
-        NativeBattleGraphicsModel Model(int index) => (uint)index < models.Length ? models[index] : throw new NotSupportedException("Native Carbuncle target pointer leaves the seven physical actor rows.");
     }
 
     internal static NativeBattleCarbuncle278State RequireState(NativeBattleEffectMemory memory) => memory.Carbuncle278 ?? throw new NotSupportedException("Native Carbuncle requires its retained module owner; warm state is not reconstructed.");

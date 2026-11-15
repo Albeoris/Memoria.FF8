@@ -53,7 +53,7 @@ public sealed partial class BattleSession
 
         NativeBattleSandStorm155PointStep TargetCenter(NativeBattleSandStorm155Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Sand Storm requires every selected physical target position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Sand Storm requires every selected physical target position.")).ToArray());
             return new(current, center);
         }
 
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleSandStorm155ContactsAll contacts:
                     Publish(current);
-                    graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
+                    graphics = ApplyNativeHeaderContacts(graphics, contacts.Header);
                     return Import(current);
                 case NativeBattleSandStorm155DrawSprite180 sprite:
                     return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.PilotIdentity);

@@ -107,18 +107,18 @@ public sealed partial class BattleSession
             }
             NativeEffectMemory?.ValidateReturnedTaskOwner(state.OriginalEffect);
             ValidateNativeTriggerWidget(state);
-            int modelCount = state.PresentationRoster is null ? NativeBattleGraphicsModelAddress.NativeRowCount : state.Models.Length;
-            for (int index = 0; index < modelCount; index++)
+            foreach (BattleModelEntry<BattleModelOwner> entry in state.ActorModels.Entries)
             {
-                if (state.ActorIds[index] is string id && (!byId.ContainsKey(id) || FindNativeGraphicsBinding(id) is null))
+                string id = RequireCanonicalGraphicsActorId(entry.Owner);
+                if (!byId.ContainsKey(id) || FindNativeGraphicsBinding(id) is null)
                 {
-                    throw new InvalidDataException("Native graphics row does not identify its actual allocation and immutable resource.");
+                    throw new InvalidDataException("Native graphics model does not identify its actual allocation and immutable resource.");
                 }
-                NativeBattleGraphicsModel model = state.ActorModels.Get(index);
+                NativeBattleGraphicsModel model = entry.State;
                 if ((model.Flags0 & 2) != 0 && model.TextureResourceIndex is int resourceIndex)
                 {
                     NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Saved native graphics resource index has no retained texture cache owner.");
-                    if (state.PresentationRoster is not null && (cache.Rows.IsDefault || (uint)resourceIndex >= (uint)cache.Rows.Length || cache.PresentationActors is { } owners && (!owners.TryGetValue(resourceIndex, out int actor) || actor != index)))
+                    if (cache.Rows.IsDefault || (uint)resourceIndex >= (uint)cache.Rows.Length || cache.PresentationActors is { } owners && (!owners.TryGetValue(resourceIndex, out BattleModelOwner? actor) || actor != entry.Owner))
                     {
                         throw new InvalidDataException("Saved hosted graphics resource index is outside its cache or belongs to another actor.");
                     }

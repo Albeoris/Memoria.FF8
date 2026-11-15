@@ -27,7 +27,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             if (missiles == 0 && Read(frame, address).ReadByte(15) == 1)
             {
                 NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-                int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Enemy Micro Missiles requires its current first physical contact.");
+                BattleContactCursor first = Header(frame, packets).FirstContact;
                 frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284Contact506690(first));
                 frame = Write(frame, address, Read(frame, address).WriteByte(15, 2));
             }
@@ -50,8 +50,8 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         BattleContactCursor first = Header(frame, packets).FirstContact;
-        uint target = ModelAddress(packets.ReadContact(first).Primary.Recipient);
-        NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+        NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadModel(CasterGlobal));
         short yaw = caster.Rotation14 ?? throw new NotSupportedException("Enemy Micro Missiles requires its current caster yaw.");
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Enemy Micro Missiles requires its current caster fields.");
         NativeBattleEffectArena source = SourcePoint67BB70(yaw, -500, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));

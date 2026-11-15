@@ -34,12 +34,12 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Sound, 0, null) { Pan = 128 });
                     return current;
                 case NativeBattleSandStorm176Actor actor:
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Index, actor.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor.Owner, actor.Model) };
                     return current;
                 case NativeBattleSandStorm176Contact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Sand Storm contact lost its process owner.") };
                 case NativeBattleSandStorm176Funnel funnel:

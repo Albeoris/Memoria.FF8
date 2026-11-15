@@ -11,11 +11,11 @@ public sealed record NativeBattleEffect320Inputs(
     NativeBattleSummonColors Colors,
     Func<NativeBattleEffect320Frame, NativeBattleActionPacketsState> ReadPackets,
     Func<NativeBattleEffect320Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel,
-    Func<NativeBattleEffect320Frame, int, NativeBattleEffectArena> ReadModelArena9C,
+    Func<NativeBattleEffect320Frame, BattleModelOwner, NativeBattleEffectArena> ReadModelArena9C,
     Func<NativeBattleEffect320Frame, NativeBattlePackedMatrix32> ReadView,
     Func<NativeBattleEffect320Frame, NativeBattleCameraProjection> ReadProjection,
     Func<NativeBattleEffect320Frame, short> ReadCameraRoll,
-    Func<NativeBattleEffect320Frame, int, NativeBattleEffectArena, NativeBattleEffect320PointStep> Anchor571400,
+    Func<NativeBattleEffect320Frame, BattleModelOwner, NativeBattleEffectArena, NativeBattleEffect320PointStep> Anchor571400,
     Func<NativeBattleEffect320Frame, NativeBattleEffectArena, NativeBattleEffectArena, NativeBattleEffect320PointStep> Origin65DA30,
     Func<NativeBattleEffect320Frame, NativeBattleEffect320Operation, NativeBattleEffect320Frame> Execute)
 {

@@ -143,7 +143,7 @@ public static partial class NativeBattleBio22Controller
 
             NativeBattleModulePoolTask Update(NativeBattleModulePoolTask task)
             {
-                return NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray(), inputs.ReadPoseSource, inputs.ReadForeignTarget);
+                return NativeBattleEffectModelHelpers.UpdateTargetWithBounds8DC610(task, inputs.ReadModel, inputs.ReadPoseSource, inputs.ReadForeignTarget);
             }
 
             short CenterY(NativeBattleModulePoolTask task) => unchecked((short)(PositionY(task) + (S(task, 0x52) + S(task, 0x4A)) / 2));

@@ -183,12 +183,4 @@ public static partial class NativeBattleEffect218Controller
         return frame with { State = state, Effect = frame.Effect with { Pools = [] } };
     }
 
-    private static uint ModelAddress(int actor)
-    {
-        if ((uint)actor >= 7)
-        {
-            throw new NotSupportedException("Effect218 requires an actual physical model row.");
-        }
-        return NativeBattleGraphicsModelAddress.Encode(actor);
-    }
 }

@@ -273,9 +273,13 @@ public static class NativeBattleDevour62Controller
                     case 0:
                         if (Word(task, 0x24) >= 10)
                         {
-                            for (int actor = 0; actor < 7; actor++)
+                            BattleActorModels currentActors = inputs.ReadActors();
+                            var capture = new BattleExecutionReference.SavedModelFlags(currentActors.Entries.ToImmutableDictionary(entry => entry.Owner, entry => entry.State.Flags0));
+                            byte[] first = BitConverter.GetBytes((uint)inputs.ReadOriginalFlags(NativeBattleModelSlot.Decode(0)));
+                            task.WriteExecutionReference(0x30, 4, capture, first.ToImmutableArray());
+                            for (byte operand = 1; operand < NativeBattleModelBoundary.CellCount; operand++)
                             {
-                                task = task.WriteDword(0x30 + 4 * actor, inputs.ReadModel(actor).Flags0);
+                                task = task.WriteDword(0x30 + 4 * operand, inputs.ReadOriginalFlags(NativeBattleModelSlot.Decode(operand)));
                             }
                             hierarchy = Next(hierarchy.Write(address, task), address);
                         }
@@ -305,13 +309,14 @@ public static class NativeBattleDevour62Controller
                         Execute(new NativeBattleDevour62FadeActors(fade));
                         break;
                     case 4:
-                        for (int actor = 0; actor < 7; actor++)
+                        BattleActorModels actors = inputs.ReadActors();
+                        ImmutableDictionary<BattleModelOwner, ushort> saved = task.ReadExecutionReference<BattleExecutionReference.SavedModelFlags>(0x30, 4).Flags;
+                        foreach (BattleModelEntry<BattleModelOwner> actor in actors.Entries)
                         {
-                            ushort flags = inputs.ReadModel(actor).Flags0;
+                            ushort flags = actor.State.Flags0;
                             if ((flags & 2) != 0)
                             {
-                                ushort saved = unchecked((ushort)task.ReadDword(0x30 + 4 * actor));
-                                Execute(new NativeBattleDevour62WriteActorFlags(actor, NativeBattleDevour62ActorFade.RestoreFlags(flags, saved)));
+                                Execute(new NativeBattleDevour62WriteActorFlags(actor.Owner, NativeBattleDevour62ActorFade.RestoreFlags(flags, saved[actor.Owner])));
                             }
                         }
                         HideTarget();

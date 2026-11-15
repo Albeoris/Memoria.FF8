@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect290Controller
             (frame, uint main) = AppendRequired(frame, MainDescriptor, MainCallback);
             frame = ClearDwords701200(frame, main + 12, 0x1A36);
             frame = inputs.Execute(frame, new NativeBattleEffect290VibrationStart4A29A0(VibrationAddress, 1, 128, main + 16));
-            frame = WriteBytes(frame, main + 20, CopyBytes(inputs.ReadModelArena9C(frame, frame.State.ReadDword(CasterGlobal)), 44, NativeBattleEffectArena.Clear().MarkUnknown(0, 4), 0, 4), 4);
+            frame = WriteBytes(frame, main + 20, CopyBytes(inputs.ReadModelArena9C(frame, frame.State.ReadModel(CasterGlobal)), 44, NativeBattleEffectArena.Clear().MarkUnknown(0, 4), 0, 4), 4);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x64D8, main + 0x1D8).WriteDword(0x64DC, main + 0x5ED8));
             frame = inputs.Execute(frame, new NativeBattleEffect290InitializeProgramme7016B0(main + 0x64E0, FirstProgrammeAddress, 0x110));
             frame = inputs.Execute(frame, new NativeBattleEffect290InitializeProgramme7016B0(main + 0x65F0, SecondProgrammeAddress, 0x22C));
@@ -34,7 +34,7 @@ public static partial class NativeBattleEffect290Controller
             {
                 frame = BirthScript675650(frame, source, resources);
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(frame.State.ReadDword(CasterGlobal), 2, 0xFFF7, 0));
+            frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(frame.State.ReadModel(CasterGlobal), 2, 0xFFF7, 0));
             frame = inputs.Execute(frame, new NativeBattleEffect290InitializeIo534110(IoOffset));
         }
         bool initialized = Read(frame, address).ReadByte(15) != 0;
@@ -62,7 +62,7 @@ public static partial class NativeBattleEffect290Controller
                 {
                     return new(frame, 0);
                 }
-                frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(frame.State.ReadDword(CasterGlobal), 2, 0xFFF7, 0));
+                frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(frame.State.ReadModel(CasterGlobal), 2, 0xFFF7, 0));
                 return new(frame, 2);
             }
         }

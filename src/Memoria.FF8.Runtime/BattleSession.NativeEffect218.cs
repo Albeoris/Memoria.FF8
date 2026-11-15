@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect218 requires its actual arithmetic tables.");
         bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect218 requires its current hardware capability.");
         NativeBattleEffect218Inputs main = new(_ => Camera().CapturePackedView1D97778(), current => new(current, (NativeEffectIoResult ?? throw new NotSupportedException("Effect218 requires its signed current I/O result.")) < 0), StartVibration, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect218 requires its retained vibration process.")).IsPlaying(handle), Execute);
-        NativeBattleEffect218RuntimeInputs inputs = new(main, colors, hardware, _ => graphics.Flags, _ => Projection(), _ => CameraEye(), _ => Camera().Roll, _ => Camera().FocalLength ?? throw new NotSupportedException("Effect218 requires its current normal-depth WORD."), current => NativeBattleTemporaryMemory.ReadView(current.Staging ?? throw new NotSupportedException("Effect218 requires its current primitive flag bytes."), 0x1D969A8, 4), current => NativeEffect218CommonCursor(current.Memory), ReadBone, CaptureServices, (current, batch) => Deliver(current, batch, 0), DeliverModule, RestoreCommon, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect218 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, PublishGuardian);
+        NativeBattleEffect218RuntimeInputs inputs = new(main, colors, hardware, _ => graphics.Flags, _ => Projection(), _ => CameraEye(), _ => Camera().Roll, _ => Camera().FocalLength ?? throw new NotSupportedException("Effect218 requires its current normal-depth WORD."), current => NativeBattleTemporaryMemory.ReadView(current.Staging ?? throw new NotSupportedException("Effect218 requires its current primitive flag bytes."), 0x1D969A8, 4), current => NativeEffect218CommonCursor(current.Memory), ReadActorBone, ReadOwnedBone, CaptureServices, (current, batch) => Deliver(current, batch, 0), DeliverModule, RestoreCommon, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect218 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, PublishGuardian);
         frame = initialize ? Initialize6326D0(frame, resources, new(nativeActionPackets, actor => graphics.ActorModels.Get(actor), Center)) : Advance(frame, resources, inputs);
         int commonEnd = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect218 lost its actual callback COMMON cursor.");
         frame = frame with { State = frame.State with { CommonPacketStart = commonStart, CommonPacketEnd = commonEnd } };
@@ -36,16 +36,7 @@ public sealed partial class BattleSession
             return new(point.X, point.Y, point.Z);
         }
 
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect218 requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
-
-        NativeBattleVector Center(BattleModelTargets targets) => NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect218 requires its selected target position WORDs.")).ToArray());
+        NativeBattleVector Center(BattleModelTargets targets) => NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect218 requires its selected target position WORDs.")).ToArray());
 
         void Publish(NativeBattleEffect218Frame current)
         {
@@ -117,21 +108,26 @@ public sealed partial class BattleSession
             return current;
         }
 
-        NativeBattleEffect218PointStep ReadBone(NativeBattleEffect218Frame current, uint address, byte selector, short fraction)
+        NativeBattleEffect218PointStep ReadActorBone(NativeBattleEffect218Frame current, BattleModelOwner actor, byte selector, short fraction)
         {
-            NativeBattleBoneAnchorProducer producer;
-            if (address is StreamedModelAddress or EmbeddedModelAddress)
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+            NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect218 requires its actual recipient skeleton.");
+            return ObserveBone(current, NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, fraction));
+        }
+
+        NativeBattleEffect218PointStep ReadOwnedBone(NativeBattleEffect218Frame current, uint address, byte selector, short fraction)
+        {
+            NativeBattleEffectOwnedModelResource resource = address switch
             {
-                NativeBattleEffectOwnedModelResource resource = address == StreamedModelAddress ? resources.StreamedModel : resources.EmbeddedModel;
-                producer = NativeEffect218OwnedBone(current, address, resource, selector, fraction);
-            }
-            else
-            {
-                int actor = Actor(address);
-                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
-                NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect218 requires its actual recipient skeleton.");
-                producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, selector, fraction);
-            }
+                StreamedModelAddress => resources.StreamedModel,
+                EmbeddedModelAddress => resources.EmbeddedModel,
+                _ => throw new InvalidDataException("Effect218 selected an unsupported local model resource.")
+            };
+            return ObserveBone(current, NativeEffect218OwnedBone(current, address, resource, selector, fraction));
+        }
+
+        NativeBattleEffect218PointStep ObserveBone(NativeBattleEffect218Frame current, NativeBattleBoneAnchorProducer producer)
+        {
             NativeFileStaging = current.Staging;
             NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -229,18 +225,18 @@ public sealed partial class BattleSession
                     graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", actor.Id, null, text.Duration, message) { NativeMessageMode = 3 }, 0, 240);
                     return current;
                 case NativeBattleEffect218SelectSequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)Actor(sequence.ModelAddress)), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Model, sequence.Sequence);
                     return current;
                 case NativeBattleEffect218ModelFlags flags:
-                    int modelIndex = Actor(flags.ModelAddress);
-                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(modelIndex);
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelIndex, model with { Flags0 = (ushort)((model.Flags0 & (0xFF00 | flags.AndMask)) | flags.OrMask) }) };
+                    BattleModelOwner modelOwner = flags.Model;
+                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(modelOwner);
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(modelOwner, model with { Flags0 = (ushort)((model.Flags0 & (0xFF00 | flags.AndMask)) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect218CapturePoint571400 point:
-                    NativeBattleEffect218PointStep first = ReadBone(current, point.ModelAddress, 240, 0);
-                    NativeBattleEffect218PointStep second = ReadBone(first.Frame, point.ModelAddress, 241, 0);
+                    NativeBattleEffect218PointStep first = ReadActorBone(current, point.Model, 240, 0);
+                    NativeBattleEffect218PointStep second = ReadActorBone(first.Frame, point.Model, 241, 0);
                     NativeBattleVector center = new(unchecked((short)((first.Point.X + second.Point.X) / 2)), unchecked((short)((first.Point.Y + second.Point.Y) / 2)), unchecked((short)((first.Point.Z + second.Point.Z) / 2)));
-                    short angle = (graphics.ActorModels.Get(Actor(point.ModelAddress)).Transform ?? throw new NotSupportedException("Effect218 requires its current recipient angle WORD36.")).Angle36;
+                    short angle = (graphics.ActorModels.Get(point.Model).Transform ?? throw new NotSupportedException("Effect218 requires its current recipient angle WORD36.")).Angle36;
                     return WriteBytes(second.Frame, point.DestinationAddress, PointView(center, angle), 8);
                 case NativeBattleEffect218Contact506690:
                     Publish(current);

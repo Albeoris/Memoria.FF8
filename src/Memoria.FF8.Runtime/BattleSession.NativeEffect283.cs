@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleEffect283Frame frame = new(memory, effect, memory.Effect283 ?? throw new NotSupportedException("Effect283 requires its retained executable storage.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect283 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect283 requires its original arithmetic constants.");
         NativeBattleEffect283Inputs? inputs = null;
-        inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.ActorModels.Get(Actor(pointer)), _ => nativeActionPackets, Anchor, Execute, DrawBody, (current, source, node, caller) => NativeBattleEffect283Controller.DrawProgrammeNode67C8A0(current, source, node, caller, resources, inputs!));
+        inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), _ => nativeActionPackets, Anchor, Execute, DrawBody, (current, source, node, caller) => NativeBattleEffect283Controller.DrawProgrammeNode67C8A0(current, source, node, caller, resources, inputs!));
         frame = initialize ? NativeBattleEffect283Controller.Initialize(frame, resources, inputs) : NativeBattleEffect283Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -25,20 +25,12 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect283 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect283 requires its current projection.");
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect283 requires an actual physical graphics-model row.");
-            }
-            return actorIndex;
-        }
         void Publish(NativeBattleEffect283Frame current)
         {
             NativeEffectMemory = current.Memory with { Effect283 = current.State };
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect283 lost its current temporary memory.");
         }
-        NativeBattleEffect283PointStep Bone(NativeBattleEffect283Frame current, int actor, byte selector)
+        NativeBattleEffect283PointStep Bone(NativeBattleEffect283Frame current, BattleModelOwner actor, byte selector)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect283 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, selector, 0);
@@ -47,9 +39,8 @@ public sealed partial class BattleSession
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
             return new(current with { Memory = observed, Staging = NativeFileStaging }, NativeBattleEffect283Controller.PointView(point));
         }
-        NativeBattleEffect283PointStep Anchor(NativeBattleEffect283Frame current, uint pointer)
+        NativeBattleEffect283PointStep Anchor(NativeBattleEffect283Frame current, BattleModelOwner actor)
         {
-            int actor = Actor(pointer);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect283 anchor requires its actual model transform.");
             if ((model.Flags0 & 2) == 0)
@@ -61,7 +52,7 @@ public sealed partial class BattleSession
             short Average(int offset) => unchecked((short)((BinaryPrimitives.ReadInt16LittleEndian(first.Point8.Read(offset, 2)) + BinaryPrimitives.ReadInt16LittleEndian(second.Point8.Read(offset, 2))) / 2));
             return new(second.Frame, NativeBattleEffect283Controller.PointView(new(Average(0), Average(2), Average(4)), transform.Angle36));
         }
-        NativeBattleEffect283BodyResult DrawBody(NativeBattleEffect283Frame current, uint model, short centerX, short centerY, short threshold, int bank, int fade)
+        NativeBattleEffect283BodyResult DrawBody(NativeBattleEffect283Frame current, BattleModelOwner model, short centerX, short centerY, short threshold, int bank, int fade)
         {
             (graphics, current, short maximum) = DrawNativeEffect283Body(graphics, current, model, centerX, centerY, threshold, bank, fade, resources);
             return new(current, maximum);
@@ -150,12 +141,12 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleEffect283ModelFlags fields:
-                    int actor = Actor(fields.ModelAddress);
+                    BattleModelOwner actor = fields.Model;
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = unchecked((ushort)((model.Flags0 & ~fields.ClearFlags0) | fields.SetFlags0)) }) };
                     return current;
                 case NativeBattleEffect283ModelColor44 recolor:
-                    int target = Actor(recolor.ModelAddress);
+                    BattleModelOwner target = recolor.Model;
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, graphics.ActorModels.Get(target) with { Color44 = recolor.Value }) };
                     return current;
                 case NativeBattleEffect283Stage5713E0 stage:

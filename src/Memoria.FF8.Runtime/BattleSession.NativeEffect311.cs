@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             task = StoreEffect311Workspace(task, workspace);
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
             int count = header.ReadContactCount();
-            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native665380 requires its actual first contact.");
+            BattleContactCursor first = header.FirstContact;
             if (count == 0 || count > 14)
             {
                 throw new InvalidDataException("Native665380 requires its original nonempty bounded model-pointer target bank.");
@@ -56,8 +56,8 @@ public sealed partial class BattleSession
             short z = 0;
             for (int index = 0; index < count; index++)
             {
-                int model = nativeActionPackets.ReadContact(first + index).Primary.Recipient;
-                task = task.WriteDword(20 + index * 4, NativeBattleGraphicsModelAddress.Encode(model));
+                BattleModelOwner model = nativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient;
+                task.WriteExecutionReference(20 + index * 4, 4, new BattleExecutionReference.Model(model), nativeActionPackets.ModelAliases.EncodeAddress(model));
                 NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, model);
                 x = unchecked((short)(x + anchor.X));
                 y = unchecked((short)(y + anchor.Y));
@@ -138,9 +138,9 @@ public sealed partial class BattleSession
                 if (phase == 49)
                 {
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-                    int first = header.FirstContactIndex ?? throw new InvalidDataException("Native506BA0 requires its actual all-target contact pointer.");
+                    BattleContactCursor first = header.FirstContact;
                     var pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first + index)).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                 }
             }
@@ -173,7 +173,7 @@ public sealed partial class BattleSession
             NativeBattleEffect311Bounds bounds = new(short.MaxValue, short.MaxValue, -32767, -32767, 65536, false);
             for (int index = 0; index < main.ReadWord(16); index++)
             {
-                bounds = NativeBattleEffect311Geometry.IncludeBounds6661D0(bounds, graphics.ActorModels.Get(Effect107Model(main.ReadDword(20 + index * 4))), projection.View!, projection);
+                bounds = NativeBattleEffect311Geometry.IncludeBounds6661D0(bounds, graphics.ActorModels.Get(main.ReadExecutionReference<BattleExecutionReference.Model>(20 + index * 4, 4).Owner), projection.View!, projection);
             }
             int depth = unchecked(bounds.MinimumDepth - 128);
             if (!bounds.Visible || depth <= 0)

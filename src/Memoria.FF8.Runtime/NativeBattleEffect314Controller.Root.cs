@@ -23,9 +23,9 @@ public static partial class NativeBattleEffect314Controller
             }
             frame = ClearDwords6DA380(frame, main + 0xC, 0x1307);
             frame = inputs.Execute(frame, new NativeBattleEffect314Vibration4A29A0(VibrationAddress, 1, 128, main + 0x10));
-            uint model = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner model = frame.State.ReadModel(CasterGlobal);
             NativeBattleGraphicsModel caster = inputs.ReadModel(frame, model);
-            NativeBattleGraphicsModel companion = inputs.ReadModel(frame, model + 156);
+            NativeBattleGraphicsModel companion = inputs.ReadModel(frame, inputs.ResolveCompanion(frame, model));
             NativeBattleModulePoolTask task = Read(frame, main).WriteDword(0x14, caster.Color44 ?? throw new NotSupportedException("Effect314 requires its current caster Color44.")).WriteDword(0x18, companion.Color44 ?? throw new NotSupportedException("Effect314 requires its current companion Color44.")).WriteDword(0x1C, companion.Color40 ?? throw new NotSupportedException("Effect314 requires its current companion Color40.")).WriteDword(0xF20, main + SparkOffset).WriteDword(0x4724, main + FragmentOffset);
             frame = Write(frame, main, task);
             frame = inputs.Execute(frame, new NativeBattleEffect314InitializeIo534110(work + 0x56A8));
@@ -48,9 +48,9 @@ public static partial class NativeBattleEffect314Controller
         if (root.ReadByte(0xF) != 0 && age < 0xE4)
         {
             (frame, _) = AdvancePool(frame, 1, resources, inputs);
-            frame = NativeBattleEffect314Body.DrawCaster662C00(frame, inputs, frame.State.ReadDword(CasterGlobal), work + 0xAA0);
+            frame = NativeBattleEffect314Body.DrawCaster662C00(frame, inputs, frame.State.ReadModel(CasterGlobal), work + 0xAA0);
             (frame, _) = AdvancePool(frame, 2, resources, inputs);
-            frame = inputs.Execute(frame, new NativeBattleEffect314Restore508C90(frame.State.ReadDword(CasterGlobal)));
+            frame = inputs.Execute(frame, new NativeBattleEffect314Restore508C90(frame.State.ReadModel(CasterGlobal)));
         }
         frame = inputs.Execute(frame, new NativeBattleEffect314Stage5713E0(unchecked((int)frame.State.ReadDword(AmplitudeGlobal)), 0));
         if (age == 0xE4)

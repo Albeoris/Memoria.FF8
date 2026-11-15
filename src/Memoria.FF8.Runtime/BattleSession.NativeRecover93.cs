@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        ImmutableArray<byte> ReadWorld(int actor)
+        ImmutableArray<byte> ReadWorld(BattleModelOwner actor)
         {
             NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Angelo restoration requires the actual target transform.");
             byte[] bytes = new byte[8];

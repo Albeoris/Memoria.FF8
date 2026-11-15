@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattlePoisonGas171Frame Frame, NativeBattleGraphicsState Graphics) DrawNativePoisonGas171Body(NativeBattlePoisonGas171Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattlePoisonGas171Frame Frame, NativeBattleGraphicsState Graphics) DrawNativePoisonGas171Body(NativeBattlePoisonGas171Frame frame, NativeBattleGraphicsState graphics, BattleModelOwner actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Poison Gas171 target requires its current skeleton.");

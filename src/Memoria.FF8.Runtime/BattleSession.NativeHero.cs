@@ -52,7 +52,7 @@ public sealed partial class BattleSession
             return anchor with { W = (graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("The Hero anchor requires its actual model WORD24.")).Angle36 };
         }
 
-        NativeBattleHeroFrame ObserveAnchor(NativeBattleHeroFrame current, byte actor)
+        NativeBattleHeroFrame ObserveAnchor(NativeBattleHeroFrame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)

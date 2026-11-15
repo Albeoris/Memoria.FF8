@@ -3,9 +3,9 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicActorAnchorServices(Func<NativeBattleWaterExecutionFrame, uint, bool, bool, NativeBattleCinematicBonePose> ReadPose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> Update, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor)
+public sealed record NativeBattleCinematicActorAnchorServices(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, bool, bool, NativeBattleCinematicBonePose> ReadPose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> Update, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor)
 {
-    public Func<uint, short>? ReadScale38 { get; init; }
+    public Func<BattleModelOwner, short>? ReadScale38 { get; init; }
 }
 
 public static class NativeBattleCinematicActorAnchorCommands
@@ -17,8 +17,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         uint owner = CoreDword(frame, 0x279744C);
         if (opcode == 0xB4)
         {
-            byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
+            BattleModelOwner pointer = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
             NativeBattleCinematicBonePose pose = services.ReadPose(frame, pointer, true, false);
             frame = pose.Frame;
             int count = pose.BoneCount;
@@ -40,8 +39,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         if (opcode == 0x60)
         {
-            byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
+            BattleModelOwner pointer = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
             NativeBattleWaterActorAnchorResult result = Anchor(pointer, false, false);
             frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
             uint advance = 4;
@@ -68,8 +66,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         }
         if (opcode == 0xAD)
         {
-            byte actor = ReadSlot(frame, 0x1B, 1)[0];
-            uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
+            BattleModelOwner pointer = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
             bool linked = (instruction & 0x8000) != 0;
             NativeBattleWaterActorAnchorResult result = Anchor(pointer, true, linked);
             frame = result.Frame;
@@ -87,14 +84,13 @@ public static class NativeBattleCinematicActorAnchorCommands
         }
         else if (opcode == 0x6E)
         {
-            int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: owner);
+            int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, owner);
             int x = 0;
             int y = 0;
             int z = 0;
             for (int index = 0; index < count; index++)
             {
-                int actor = unchecked((sbyte)NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, owner));
-                uint pointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, owner);
+                BattleModelOwner pointer = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, owner);
                 NativeBattleWaterActorAnchorResult result = Anchor(pointer, false, false);
                 frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
                 x = unchecked(x + result.Anchor.X);
@@ -121,7 +117,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         frame = services.Update(frame, ReadSlot(frame, 0x18, 1)[0]);
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
 
-        NativeBattleWaterActorAnchorResult Anchor(uint actor, bool restore, bool linked)
+        NativeBattleWaterActorAnchorResult Anchor(BattleModelOwner actor, bool restore, bool linked)
         {
             NativeBattleCinematicBonePose pose = services.ReadPose(frame, actor, restore, linked);
             NativeBattleActionMatrix basis = pose.PhysicalBasis ?? throw new NotSupportedException("Native actor anchor requires the actual caller's physical matrix.");

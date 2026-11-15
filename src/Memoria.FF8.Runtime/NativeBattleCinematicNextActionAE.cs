@@ -39,7 +39,7 @@ public static class NativeBattleCinematicNextActionAE
             : frame with { Core = frame.Core.MarkUnknown(manager + 0xCC, 4) };
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
         int indexInBank = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
-        NativeBattleWaterHeaderCaptureResult capture = NativeBattleWaterHeaderCapture.CaptureAA4E90(frame.Core.ReadHeader(), frame.Arena, bank, indexInBank, inputs.Caster, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.Models, inputs.Boundary);
+        NativeBattleWaterHeaderCaptureResult capture = NativeBattleWaterHeaderCapture.CaptureAA4E90(frame.Core.ReadHeader(), frame.Arena, bank, indexInBank, inputs.Caster, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.Models, inputs.Boundary, inputs.StorageContract);
         return frame with { Core = frame.Core.WithHeader(capture.Header), Arena = capture.Arena };
     }
 }

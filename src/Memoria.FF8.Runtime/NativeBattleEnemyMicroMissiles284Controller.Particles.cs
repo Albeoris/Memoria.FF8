@@ -83,8 +83,8 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
                 {
                     NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
                     BattleContactCursor contact = Header(frame, packets).FirstContact;
-                    int actor = packets.ReadContact(contact).Primary.Recipient;
-                    frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284Reaction505C00(NativeBattleGraphicsModelAddress.Encode(actor), 4));
+                    BattleModelOwner actor = packets.ReadContact(contact).Primary.Recipient;
+                    frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284Reaction505C00(actor, 4));
                 }
             }
             for (int index = 0; index < 16; index++)

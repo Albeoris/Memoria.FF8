@@ -128,7 +128,7 @@ public sealed partial class BattleSession
                 }
             }
 
-            NativeBattleSiren95Frame SelectContactSequence(NativeBattleSiren95Frame current, byte actor, int sequence)
+            NativeBattleSiren95Frame SelectContactSequence(NativeBattleSiren95Frame current, BattleModelOwner actor, int sequence)
             {
                 graphics = SelectNativeReadyHeaderSequence505CE0(graphics, actor, sequence);
                 return current;
@@ -367,7 +367,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleSiren95Frame ApplyContact(NativeBattleSiren95Frame current, int contact)
+        NativeBattleSiren95Frame ApplyContact(NativeBattleSiren95Frame current, BattleContactOccurrence contact)
         {
             NativeEffectMemory = current.Memory;
             var pending = graphics.PendingContacts;

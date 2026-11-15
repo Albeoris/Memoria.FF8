@@ -4,15 +4,15 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicScaledActor72Services(Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel, NativeBattleWaterExecutionFrame> WriteActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleActionMatrix, NativeBattleVector, NativeBattleWaterExecutionFrame> DrawShadow, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
+public sealed record NativeBattleCinematicScaledActor72Services(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleWaterExecutionFrame> WriteActor, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleActionMatrix, NativeBattleVector, NativeBattleWaterExecutionFrame> DrawShadow, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
 
 public static class NativeBattleCinematicScaledActor72
 {
     public static NativeBattleWaterExecutionFrame DrawAE44E0(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicScaledActor72Services services)
     {
         uint header = CoreDword(frame, 0x279744C);
-        byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        uint address = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actor, header);
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        BattleModelOwner address = actor;
         if (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xC4, 4)) == 0)
         {
             frame = WriteSlotDword(frame, 0xC4, uint.MaxValue);

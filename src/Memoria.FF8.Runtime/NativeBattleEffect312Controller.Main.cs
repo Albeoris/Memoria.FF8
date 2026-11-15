@@ -7,7 +7,7 @@ public static partial class NativeBattleEffect312Controller
 {
     public static NativeBattleEffect312Step AdvanceMain59CC60(NativeBattleEffect312Frame frame, uint address, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs)
     {
-        uint modelAddress = NativeBattleGraphicsModelAddress.Encode(checked((int)frame.State.ReadDword(CasterGlobal)));
+        BattleModelOwner modelAddress = frame.State.ReadModel(CasterGlobal);
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadWorld(frame, modelAddress).ReadMatrix(), inputs.ReadBoneMatrix59D3C0(frame, modelAddress, 10).ReadMatrix());
         NativeBattleVector offset = Vector(NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(CenterOffsetAddress, 6)));
         NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(composed, offset);
@@ -32,21 +32,8 @@ public static partial class NativeBattleEffect312Controller
         int age = Signed(Read(frame, address), 12);
         if (age == 0)
         {
-            uint parameterAddress = frame.State.ReadDword(ParametersGlobal);
-            BattleModelTargets targets;
-            if (frame.Effect.Parameters is { PresentationTargets: not null } parameters)
-            {
-                if (parameterAddress != OriginalParameterAddress)
-                {
-                    throw new InvalidDataException("Effect312's hosted selection requires its current original parameter address.");
-                }
-                targets = parameters.TargetActors;
-            }
-            else
-            {
-                NativeBattleEffectArena bytes = inputs.ReadPhysical(frame, parameterAddress, 8);
-                targets = BattleModelTargets.FromNative(BinaryPrimitives.ReadUInt16LittleEndian(bytes.Read(2, 2)));
-            }
+            NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Effect312 requires its current action parameters.");
+            BattleModelTargets targets = parameters.TargetActors;
             NativeBattleEffect312PointStep target = inputs.TargetCenter5020A0(frame, targets, ReadBytes(frame, TargetPointAddress, 8));
             frame = WriteBytes(target.Frame, TargetPointAddress, target.Output8, 8);
             frame = frame with { State = frame.State.WriteDword(CueGlobal, 0) };
@@ -121,19 +108,22 @@ public static partial class NativeBattleEffect312Controller
         }
         if (age == 44 || age == 54)
         {
-            for (int actor = 0; actor < 3; actor++)
+            foreach (BattleModelOwner actor in inputs.ReadModels(frame).Roster.Party)
             {
-                NativeBattleEffectArena row = inputs.ReadModelArena9C(frame, NativeBattleGraphicsModelAddress.Encode(actor));
+                NativeBattleEffectArena row = inputs.ReadModelArena9C(frame, actor);
                 if ((row.Read(0, 1)[0] & 2) == 0)
                 {
                     continue;
                 }
-                int contact = ContactIndexMain(frame, actor, inputs);
+                int? contact = ContactIndexMain(frame, actor, inputs);
                 (frame, uint born) = SpawnMain(frame, age == 44 ? 0x5A0AA0u : 0x5A0BF0u);
-                NativeBattleModulePoolTask child = Read(frame, born).WriteWord(14, (ushort)actor);
+                NativeBattleModulePoolTask child = Read(frame, born);
+                child.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), inputs.ReadPackets(frame).ModelAliases.EncodeOperand(actor, 2));
+                BattleExecutionReference.ContactOffset contactOffset = new(contact);
                 if (age == 44)
                 {
-                    child = child.WriteWord(0x1A, unchecked((ushort)contact)).WriteWord(0x20, (ushort)(contact >= 0 ? 500 : 250));
+                    child.WriteExecutionReference(0x1A, 2, contactOffset, contactOffset.EncodeOriginalWord());
+                    child = child.WriteWord(0x20, (ushort)(contact.HasValue ? 500 : 250));
                     frame = Write(frame, born, child);
                 }
                 else
@@ -143,11 +133,13 @@ public static partial class NativeBattleEffect312Controller
                     frame = Write(frame, born, Read(frame, born).WriteWord(0x18, unchecked((ushort)((scale + 1) << 12))));
                     (frame, int displacement) = Random(frame, 1500);
                     short y = unchecked((short)(-3000 - displacement));
-                    if (contact < 0)
+                    if (contact is null)
                     {
                         y = unchecked((short)(y >> 1));
                     }
-                    frame = Write(frame, born, Read(frame, born).WriteWord(0x20, unchecked((ushort)y)).WriteWord(0x1A, unchecked((ushort)contact)));
+                    child = Read(frame, born).WriteWord(0x20, unchecked((ushort)y));
+                    child.WriteExecutionReference(0x1A, 2, contactOffset, contactOffset.EncodeOriginalWord());
+                    frame = Write(frame, born, child);
                 }
             }
         }
@@ -206,8 +198,9 @@ public static partial class NativeBattleEffect312Controller
         return (frame with { Random = random }, value % modulus);
     }
 
-    private static int ContactIndexMain(NativeBattleEffect312Frame frame, int actor, NativeBattleEffect312Inputs inputs)
+    private static int? ContactIndexMain(NativeBattleEffect312Frame frame, BattleModelOwner actor, NativeBattleEffect312Inputs inputs)
     {
-        return NativeBattleEffect312Contacts.Find(frame.State.ReadDword(ParametersGlobal), actor, (address, length) => inputs.ReadPhysical(frame, address, length), inputs.HostedActionPackets);
+        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Effect312 requires its current action parameters.");
+        return NativeBattleEffect312Contacts.Find(inputs.ReadPackets(frame), parameters.Header, actor);
     }
 }

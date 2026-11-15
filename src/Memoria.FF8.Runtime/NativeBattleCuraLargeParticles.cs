@@ -4,9 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCuraMeshOperation(NativeBattleModulePacketBatch Batch) : NativeBattleCuraOperation;
 public sealed record NativeBattleCuraStageFadeOperation(short Fade, bool ClearRgb) : NativeBattleCuraOperation;
-public sealed record NativeBattleCuraActorInitializeOperation(byte Target) : NativeBattleCuraOperation;
-public sealed record NativeBattleCuraActorVisibilityOperation(byte Target, bool Hidden) : NativeBattleCuraOperation;
-public sealed record NativeBattleCuraActorDrawOperation(byte Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCuraOperation
+public sealed record NativeBattleCuraActorInitializeOperation(BattleModelOwner Target) : NativeBattleCuraOperation;
+public sealed record NativeBattleCuraActorVisibilityOperation(BattleModelOwner Target, bool Hidden) : NativeBattleCuraOperation;
+public sealed record NativeBattleCuraActorDrawOperation(BattleModelOwner Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCuraOperation
 {
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
@@ -93,7 +93,7 @@ public static partial class NativeBattleCuraParticles
         }
         short BottomY()
         {
-            NativeBattleModelTransform transform = inputs.Controller.ReadModel(task.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Native8DCAF0 requires target positionWORD30.");
+            NativeBattleModelTransform transform = inputs.Controller.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Native8DCAF0 requires target positionWORD30.");
             return unchecked((short)(transform.Position28.Y + First().ReadWord(0x4A)));
         }
         uint Append(int pool, uint callback, int bytes)
@@ -292,16 +292,16 @@ public static partial class NativeBattleCuraParticles
                 case 0:
                     task = Add(CopyAnchor(), 0x1E, -1536);
                     task = task.WriteWord(0x42, unchecked((ushort)((256 - Word(task, 0x1E)) / 18)));
-                    Execute(new NativeBattleCuraActorInitializeOperation(task.ReadByte(0x2D)));
+                    Execute(new NativeBattleCuraActorInitializeOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 8));
-                    Execute(new NativeBattleCuraActorVisibilityOperation(task.ReadByte(0x2D), true));
+                    Execute(new NativeBattleCuraActorVisibilityOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, true));
                     Next();
                     break;
                 case 1:
                     task = Add(task, 0x1E, Word(task, 0x42));
                     if (Word(task, 0x24) >= 18)
                     {
-                        Execute(new NativeBattleCuraActorVisibilityOperation(task.ReadByte(0x2D), false));
+                        Execute(new NativeBattleCuraActorVisibilityOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, false));
                         uint root = task.ReadDword(0x10);
                         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x63, 0));
                         task = task.WriteWord(0x26, (ushort)((task.ReadWord(0x26) & ~8) | 1));
@@ -320,7 +320,7 @@ public static partial class NativeBattleCuraParticles
                 short yaw = unchecked((short)((NativeWorldScriptedPathMath.NativeAngle(camera.Rotation[8], camera.Rotation[2]) + 1024) & 0xFFF));
                 NativeBattleModulePoolTask first = First();
                 task = task.WriteWord(0x52, unchecked((ushort)yaw)).WriteWord(0x1C, unchecked((ushort)(first.ReadWord(0x30) + NativeBattleCameraMath.Sine(yaw) * 1024 / 4096))).WriteWord(0x20, unchecked((ushort)(first.ReadWord(0x34) + NativeBattleCameraMath.Cosine(yaw) * 1024 / 4096)));
-                Execute(new NativeBattleCuraActorDrawOperation(task.ReadByte(0x2D), new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)) { PilotIdentity = frame.Effect.Binding.Effect is 25 or 51 ? NativeBattlePilotVisualLifetimes.Identity(frame.Effect.Binding.Effect, task, 10) : null });
+                Execute(new NativeBattleCuraActorDrawOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)) { PilotIdentity = frame.Effect.Binding.Effect is 25 or 51 ? NativeBattlePilotVisualLifetimes.Identity(frame.Effect.Binding.Effect, task, 10) : null });
             }
         }
         void InvalidPhase() => throw new InvalidDataException("Native Cura signed large-particle phase exceeds its original callback table.");

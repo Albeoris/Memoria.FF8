@@ -19,7 +19,7 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect319 requires its current camera.")).RegisterControlResource(textures.Animation);
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect319MeshMask mask:
-                int actorIndex = NativeEffect319Actor(graphics, mask.ModelAddress);
+                BattleModelOwner actorIndex = mask.Actor;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actorIndex);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect319 requires its current mesh-mask owner.");
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & mask.AndMask) | mask.OrMask } }) };
@@ -67,7 +67,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffect319Frame ScaleNativeEffect319Bone(ref NativeBattleGraphicsState graphics, NativeBattleEffect319Frame frame, uint? recordAddress, NativeBattleResourcePointer? record, short xy, short z)
     {
-        int caster = NativeEffect319Actor(graphics, frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModelAddress(CasterGlobal);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, caster).PoseSource ?? throw new NotSupportedException("Effect319 requires its current bone-cache source.");
         _ = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(caster), source);
         NativeBattleResourcePointer skeleton = NativeEffect319SkeletonPointer(graphics, frame, caster);

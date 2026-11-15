@@ -23,18 +23,31 @@ public static partial class NativeBattleEvilEye282Controller
             frame = ClearDwords701200(frame, main + 12, 342);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             int count = Header(frame, packets).ReadContactCount();
-            if (count > 3)
-            {
-                throw new NotSupportedException("Evil-Eye recipient pointers exceed the three physical rows before its programme workspace.");
-            }
-            frame = Write(frame, main, Read(frame, main).WriteWord(14, checked((ushort)count)));
+            NativeBattleModulePoolTask director = Read(frame, main).WriteContactCount(14, count);
+            var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
+            ImmutableArray<byte>? originalFirst = [0, 0, 0, 0];
             for (int index = 0; index < count; index++)
             {
                 packets = inputs.ReadPackets(frame);
                 BattleContactCursor first = Header(frame, packets).FirstContact;
-                uint model = ModelAddress(packets.ReadContact(first.Advance(index)).Primary.Recipient);
-                frame = Write(frame, main, Read(frame, main).WriteDword(16 + index * 4, model));
+                NativeBattleContactPacket contact = packets.ReadContact(first.Advance(index));
+                BattleModelOwner owner = contact.Primary.Recipient;
+                BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Evil-Eye requires its captured contact occurrence.");
+                recipients.Add((owner, occurrence));
+                if (index == 0)
+                {
+                    originalFirst = packets.ModelAliases.EncodeAddress(owner);
+                }
+                else if (index < 3)
+                {
+                    int offset = 16 + index * 4;
+                    director = packets.ModelAliases.EncodeAddress(owner) is { } encoded
+                        ? director.WriteBytes(offset, encoded.AsSpan())
+                        : director.MarkPayloadUnknown(offset, 4);
+                }
             }
+            director.WriteExecutionReference(16, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), originalFirst);
+            frame = Write(frame, main, director);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 28, 1352);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 1352);
             NativeBattleSelectedProgrammeVisuals.Allocated(frame.Effect.Pools, main + 28);
@@ -72,7 +85,7 @@ public static partial class NativeBattleEvilEye282Controller
         int time = age - 2;
         if ((uint)time < 26)
         {
-            uint caster = frame.State.ReadDword(0x2507E98);
+            BattleModelOwner caster = frame.State.ReadModel(0x2507E98);
             short yaw = inputs.ReadModel(frame, caster).Rotation14 ?? throw new NotSupportedException("Evil-Eye requires its current caster yaw.");
             NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(unchecked((short)-yaw));
             NativeBattleEvilEye282MuzzleStep muzzle = UpdateMuzzle67DAC0(frame, resources, inputs);
@@ -91,15 +104,16 @@ public static partial class NativeBattleEvilEye282Controller
         }
         if (Read(frame, address).ReadWord(12) == 10)
         {
-            for (int index = 0; index < Signed(Read(frame, address), 14); index++)
+            foreach ((BattleModelOwner model, _) in Read(frame, address).ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients)
             {
                 (frame, uint child) = Append(frame, 0x2507EB0, 0x67DB20);
                 if (child == 0)
                 {
-                    continue;
+                    throw new NotSupportedException("Evil-Eye exhausted its original ProgrammeB task bank.");
                 }
-                uint model = Read(frame, address).ReadDword(16 + index * 4);
-                frame = Write(frame, child, Read(frame, child).WriteDword(20, model));
+                NativeBattleModulePoolTask target = Read(frame, child);
+                target.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(model), inputs.ReadPackets(frame).ModelAliases.EncodeAddress(model));
+                frame = Write(frame, child, target);
                 NativeBattleEvilEye282PointStep bone = inputs.ReadBone502170(frame, model, 0xF1, 0);
                 frame = bone.Frame;
                 frame = WriteBytes(frame, child + 12, bone.Point8, 6);

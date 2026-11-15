@@ -24,7 +24,7 @@ public static partial class NativeBattleEffect209Controller
             }
         }
         int age = Signed(Read(frame, address), 12);
-        int caster = checked((int)frame.State.ReadDword(CasterGlobal));
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (age == 0)
         {
             NativeBattleEffect209PointStep anchor = inputs.Anchor571400(frame, caster, TaskView(Read(frame, address), 16, 8));
@@ -156,7 +156,7 @@ public static partial class NativeBattleEffect209Controller
         return frame;
     }
 
-    public static NativeBattleEffect209Frame BirthSprite(NativeBattleEffect209Frame frame, int caster, NativeBattleEffect209Inputs inputs)
+    public static NativeBattleEffect209Frame BirthSprite(NativeBattleEffect209Frame frame, BattleModelOwner caster, NativeBattleEffect209Inputs inputs)
     {
         (frame, uint address) = RequireAppend(frame, 0x638900);
         frame = Write(frame, address, Read(frame, address).WriteWord(12, 0));
@@ -171,7 +171,7 @@ public static partial class NativeBattleEffect209Controller
         return Write(frame, address, task);
     }
 
-    public static NativeBattleEffect209Frame BirthBurst(NativeBattleEffect209Frame frame, int caster, bool alternate, NativeBattleEffect209Inputs inputs)
+    public static NativeBattleEffect209Frame BirthBurst(NativeBattleEffect209Frame frame, BattleModelOwner caster, bool alternate, NativeBattleEffect209Inputs inputs)
     {
         (frame, uint address) = RequireAppend(frame, 0x638A80);
         frame = Write(frame, address, Read(frame, address).WriteWord(12, 0));

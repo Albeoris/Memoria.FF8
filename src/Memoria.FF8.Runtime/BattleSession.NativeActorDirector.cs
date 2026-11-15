@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("The actor director requires its actual posed model source.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("The actor director requires its actual posed model source.");
 
         void Publish(NativeBattleActorDirectorFrame current)
         {

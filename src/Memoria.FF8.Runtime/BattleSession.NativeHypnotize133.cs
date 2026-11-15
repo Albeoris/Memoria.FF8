@@ -28,7 +28,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Hypnotize requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Hypnotize requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Hypnotize requires its current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Hypnotize requires its current actor skeleton.");
 
         void Publish(NativeBattleHypnotize133Frame current)
         {
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleHypnotize133PointStep Bone(NativeBattleHypnotize133Frame current, int actor, byte selector, short distance)
+        NativeBattleHypnotize133PointStep Bone(NativeBattleHypnotize133Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
@@ -61,7 +61,7 @@ public sealed partial class BattleSession
             switch (kind)
             {
                 case NativeBattleHypnotize133ContextKind.Main:
-                    int caster = Caster(current);
+                    BattleModelOwner caster = Caster(current);
                     if ((graphics.ActorModels.Get(caster).Flags0 & 2) != 0)
                     {
                         foreach (byte selector in new byte[] { 0xF0, 0xF1 })
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
                     prepared = NativeBattleHypnotize133Contexts.Screen(current.Memory, camera, new(anchor.X, anchor.Y, anchor.Z), anchor.W, Camera().FocalLength ?? throw new NotSupportedException("Hypnotize requires its actual signed focal shadow."), morph, Projection());
                     break;
                 case NativeBattleHypnotize133ContextKind.Anchored:
-                    int actor = Caster(current);
+                    BattleModelOwner actor = Caster(current);
                     NativeBattleModuleAnchor local = new(unchecked((short)task.ReadWord(12)), unchecked((short)task.ReadWord(14)), unchecked((short)task.ReadWord(16)), unchecked((short)task.ReadWord(18)));
                     ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), PoseSource(actor));
                     if ((uint)local.W >= bones.Length)
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                 case NativeBattleHypnotize133BulkContact bulk:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(bulk.First, bulk.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, bulk.Count).Select(index => nativeActionPackets.ReadContact(bulk.First.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Hypnotize contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleHypnotize133DrawSprite180 sprite:
@@ -152,14 +152,6 @@ public sealed partial class BattleSession
             }
         }
 
-        int Caster(NativeBattleHypnotize133Frame current)
-        {
-            uint pointer = current.State.ReadDword(NativeBattleHypnotize133Profile.CasterGlobal);
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Hypnotize caster pointer leaves its actual model bank.");
-            }
-            return actorIndex;
-        }
+        BattleModelOwner Caster(NativeBattleHypnotize133Frame current) => current.State.ReadModel(NativeBattleHypnotize133Profile.CasterGlobal);
     }
 }

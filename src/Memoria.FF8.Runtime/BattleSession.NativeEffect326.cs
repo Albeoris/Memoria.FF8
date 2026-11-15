@@ -57,7 +57,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena Center(NativeBattleEffect326Frame current, BattleModelTargets targets, NativeBattleEffectArena retained)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect326 requires its actual selected target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Effect326 requires its actual selected target positions.")).ToArray());
             return retained.Write(0, BitConverter.GetBytes(center.X)).Write(2, BitConverter.GetBytes(center.Y)).Write(4, BitConverter.GetBytes(center.Z));
         }
 
@@ -174,7 +174,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(write.Actor, ApplyNativeEffect326ModelBytes(graphics.ActorModels.Get(write.Actor), write)) };
                     return current;
                 case NativeBattleEffect326ActorAnimation505C00 animation:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)animation.Actor), animation.Animation);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, animation.Actor, animation.Animation);
                     return current;
                 case NativeBattleEffect326DeliverBatch draw when draw.CursorGlobal == 0x1D8E054:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect326 requires its current ordering table.");

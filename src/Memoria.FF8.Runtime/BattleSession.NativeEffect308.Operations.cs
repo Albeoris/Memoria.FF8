@@ -19,7 +19,7 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect308 requires its current camera.")).RegisterControlResource(textures.Animation);
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect308ModelFlags flags:
-                int actor = NativeEffect308Actor(graphics, flags.ModelAddress);
+                BattleModelOwner actor = flags.Model;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model with { Flags0 = updated }) };
                 return frame;
             case NativeBattleEffect308WriteModelBytes write:
-                int target = NativeEffect308Actor(graphics, write.ModelAddress);
+                BattleModelOwner target = write.Model;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(target), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect308Music47E3C0 music:
@@ -66,13 +66,13 @@ public sealed partial class BattleSession
             case NativeBattleEffect308SelectFragments667DB0 selection:
                 return SelectNativeEffect308Fragments(ref graphics, frame, selection, resources, inputs);
             case NativeBattleEffect308ApplyOffsetPose662C00 pose:
-                int poseActor = NativeEffect308Actor(graphics, pose.ModelAddress);
-                NativeBattlePoseSource poseSource = inputs.ReadPoseSource(pose.ModelAddress);
+                BattleModelOwner poseActor = pose.Model;
+                NativeBattlePoseSource poseSource = inputs.ReadPoseSource(pose.Model);
                 NativeBattleEffectArena offsets = NativeBattleEffect308Controller.ReadBytes(frame, pose.OffsetRowsAddress, checked(poseSource.BoneCount * 16));
                 return PrepareNativeEffect308Pose(ref graphics, frame, poseActor, poseSource, offsets);
             case NativeBattleEffect308RestorePose508C90 restore:
-                int restoreActor = NativeEffect308Actor(graphics, restore.ModelAddress);
-                NativeBattlePoseSource restoreSource = inputs.ReadPoseSource(restore.ModelAddress);
+                BattleModelOwner restoreActor = restore.Model;
+                NativeBattlePoseSource restoreSource = inputs.ReadPoseSource(restore.Model);
                 return RestoreNativeEffect308Pose(ref graphics, frame, restoreActor, restoreSource);
             case NativeBattleEffect308Intensity5713E0 intensity:
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect308 requires its current stage groups.");

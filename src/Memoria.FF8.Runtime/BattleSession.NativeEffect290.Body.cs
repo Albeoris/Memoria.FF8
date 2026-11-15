@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     private NativeBattleEffect290Frame DrawNativeEffect290Body(ref NativeBattleGraphicsState graphics, NativeBattleEffect290Frame frame, NativeBattleEffect290DrawBody676B40 operation, NativeBattleEffect290Inputs inputs)
     {
         NativeBattleGraphicsState currentGraphics = graphics;
-        int actor = NativeEffect290Actor(graphics, operation.ModelAddress);
+        BattleModelOwner actor = operation.Model;
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect290 requires its current addressed memory.");
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect290 requires its current caster skeleton.");
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
@@ -62,7 +62,7 @@ public sealed partial class BattleSession
 
     private NativeBattleEffect290Frame SelectNativeEffect290Fragments(ref NativeBattleGraphicsState graphics, NativeBattleEffect290Frame frame, NativeBattleEffect290SelectFragments675AA0 operation, NativeBattleEffect290Resources resources, NativeBattleEffect290Inputs inputs)
     {
-        int actor = NativeEffect290Actor(graphics, operation.ModelAddress);
+        BattleModelOwner actor = operation.Model;
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect290 requires its current addressed memory.");
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect290 requires its current caster skeleton.");
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         {
             return frame;
         }
-        int actor = NativeEffect290Actor(graphics, operation.ModelAddress);
+        BattleModelOwner actor = operation.Model;
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect290 requires its current addressed memory.");
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect290 requires its current caster skeleton.");
         if ((uint)operation.Bone >= source.BoneCount)
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
         frame = PrepareNativeEffect290Pose(ref graphics, frame, actor, source, offsets);
-        NativeBattleEffect290PointStep point = inputs.Point502170(frame, operation.ModelAddress, operation.Bone, operation.Fraction, ReadBytes(frame, address + 12, 8));
+        NativeBattleEffect290PointStep point = inputs.Point502170(frame, operation.Model, operation.Bone, operation.Fraction, ReadBytes(frame, address + 12, 8));
         frame = point.Frame;
         NativeBattleEffectArena packed = point.Output8;
         for (int axis = 0; axis < 3; axis++)

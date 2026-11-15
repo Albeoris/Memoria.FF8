@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             ExpandedHostedEvent? hostedEvent = null;
             if (process is not null && !candidate.expandedHostedInvocations.IsEmpty)
             {
-                BattleModelRoster roster = process.Graphics.PresentationRoster!;
+                BattleModelRoster roster = process.Graphics.ActorModels.Roster;
                 candidate.ValidateExpandedHostedInvocations(roster);
                 uint callback = UsesNativeOrdinaryCompletion(command) ? 0x47DE70u : 0x47DDA0u;
                 admission = candidate.PrepareExpandedHostedEventSegment(process, roster, command, callback);

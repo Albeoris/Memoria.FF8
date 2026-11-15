@@ -19,7 +19,7 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect321 requires its current camera.")).RegisterControlResource(textures.Animation);
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect321WriteModelBytes write:
-                int actor = NativeEffect321Actor(graphics, write.ModelAddress);
+                BattleModelOwner actor = write.Model;
                 NativeBattleGraphicsModel model = ApplyNativeEffect174ModelBytes(graphics.ActorModels.Get(actor), new(actor, write.Offset, write.Data, write.Length));
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };
                 return frame;

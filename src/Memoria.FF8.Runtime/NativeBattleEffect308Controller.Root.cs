@@ -20,17 +20,16 @@ public static partial class NativeBattleEffect308Controller
             (frame, uint main) = AppendRequired(frame, MainDescriptor, MainCallback);
             frame = ClearDwords701200(frame, main + 12, 0x3A2);
             frame = inputs.Execute(frame, new NativeBattleEffect308VibrationStart4A29A0(VibrationAddress, 1, 128, main + 16));
-            uint model = frame.State.ReadDword(CasterGlobal);
+            BattleModelOwner model = frame.State.ReadModel(CasterGlobal);
             for (int index = 0; index < 3; index++)
             {
-                uint current = checked(model + (uint)(index * 156));
-                _ = Actor(current);
+                BattleModelOwner current = inputs.ResolveResourceModel(model, index);
                 frame = WriteBytes(frame, checked(main + 20 + (uint)(index * 4)), CopyBytes(inputs.ReadModelArena9C(frame, current), 44, NativeBattleEffectArena.Clear().MarkUnknown(0, 4), 0, 4), 4);
             }
             frame = Write(frame, main, Read(frame, main).WriteDword(0xE90, main + 0x890));
             for (int index = 0; index < ScriptRanges.Length; index++)
             {
-                frame = BirthScript667940(frame, checked(model + (uint)(index * 156)), checked(main + 0x20 + (uint)(index * 0x2D0)), ScriptRanges[index].Address);
+                frame = BirthScript667940(frame, inputs.ResolveResourceModel(model, index), checked(main + 0x20 + (uint)(index * 0x2D0)), ScriptRanges[index].Address, inputs.ReadPackets(frame).ModelAliases);
             }
             frame = inputs.Execute(frame, new NativeBattleEffect308InitializeIo534110(IoOffset));
         }

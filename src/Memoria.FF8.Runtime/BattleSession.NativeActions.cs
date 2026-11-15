@@ -162,7 +162,7 @@ public sealed partial class BattleSession
             nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(headerIndex, 1);
         }
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);
-        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
+        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = unchecked((byte)produced.PublishedTargetCount) };
         if (queueGraphics && NativeGraphics is { } graphics)
         {
             graphics = QueueNativeActionDescriptor(graphics, headerIndex);
@@ -188,9 +188,9 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
         }
-        if (produced.ReflectorIndex is byte reflector)
+        if (produced.Reflector is { } reflector)
         {
-            ResolveNativeReflection(actor, combatants.Single(candidate => candidate.EncodeNativeSlot() == reflector), command, action.NativeAction!, headerIndex);
+            ResolveNativeReflection(actor, GetActor(RequireCanonicalGraphicsActorId(reflector)), command, action.NativeAction!, headerIndex);
         }
         return !produced.RepeatAborted && produced.PublishedTargetCount != 0;
     }
@@ -613,7 +613,7 @@ public sealed partial class BattleSession
         {
             damage *= 5;
         }
-        if (nativeContactWorking is { SpecialSource: not 255 })
+        if (nativeContactWorking is { CoverSource: not null })
         {
             damage /= 2;
         }

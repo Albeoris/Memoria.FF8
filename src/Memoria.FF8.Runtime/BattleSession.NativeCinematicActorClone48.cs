@@ -15,14 +15,14 @@ public sealed partial class BattleSession
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, selected));
         }, (current, address) =>
         {
-            int index = ActorIndex(address);
+            BattleModelOwner index = address;
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 | 4) }) };
             return current;
-        }, address => graphics.ActorModels.Get(ActorIndex(address)).Color40 ?? throw new NotSupportedException("Native actor clone requires its actual physical color DWORD40."), address => presentationForeignActors?.ContainsKey(ActorIndex(address)) == true ? null : graphics.ActorModels.Get(ActorIndex(address)).SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor clone requires its actual physical object mask DWORD124."), (current, clone, address) =>
+        }, address => graphics.ActorModels.Get(address).Color40 ?? throw new NotSupportedException("Native actor clone requires its actual physical color DWORD40."), address => presentationForeignActors?.ContainsKey(address) == true ? null : graphics.ActorModels.Get(address).SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor clone requires its actual physical object mask DWORD124."), (current, clone, address) =>
         {
-            if (ReadNativeForeignModel(graphics, ActorIndex(address)) is null)
+            if (ReadNativeForeignModel(graphics, address) is null)
             {
-                _ = NativeGraphicsPoseResource(graphics, ActorIndex(address));
+                _ = NativeGraphicsPoseResource(graphics, address);
             }
             return current with { Arena = current.Arena.MarkUnknown(ArenaOffset(clone + 0x10, 12), 12).MarkUnknown(ArenaOffset(clone + 0x30, 16), 16) };
         }, (current, address) =>
@@ -33,7 +33,7 @@ public sealed partial class BattleSession
             return current;
         }, ComposeAndDraw, (current, address) =>
         {
-            int index = ActorIndex(address);
+            BattleModelOwner index = address;
             if (ReadNativeForeignModel(graphics, index) is not null)
             {
                 return current;
@@ -43,20 +43,11 @@ public sealed partial class BattleSession
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, restored) };
             return current;
         });
-        return (NativeBattleCinematicActorClone48.Draw(frame, services), graphics);
+        return (NativeBattleCinematicActorClone48.Draw(frame, services, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)), graphics);
 
-        int ActorIndex(uint address)
+        NativeBattleCinematicActorCloneDraw ComposeAndDraw(NativeBattleWaterExecutionFrame current, uint clone, BattleModelOwner actorAddress, NativeBattleActionMatrix basis)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Native actor clone requires its actual physical model pointer.");
-            }
-            return actorIndex;
-        }
-
-        NativeBattleCinematicActorCloneDraw ComposeAndDraw(NativeBattleWaterExecutionFrame current, uint clone, uint actorAddress, NativeBattleActionMatrix basis)
-        {
-            int index = ActorIndex(actorAddress);
+            BattleModelOwner index = actorAddress;
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
             if (ReadNativeForeignModel(graphics, index) is { } foreign)
             {
@@ -78,7 +69,7 @@ public sealed partial class BattleSession
                 uint hostColor = CloneDword(0x5C);
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = hostGate.Process.PublishModelColor(hostColor) };
                 NativeBattleWaterSlotBank hostVisualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
-                NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, hostVisualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, hostVisualBank), index);
+                NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, hostVisualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, hostVisualBank)) with { ModelOwner = index };
                 NativeBattleRawModelBodyDraw hostDraw = NativeBattleForeignModelDrawing.DrawBody(hostGeometry, bodyBasis, hostProjection, hostColor, hostColors, identity, 4, new(CloneWord(0x54), CloneWord(0x56), CloneWord(0x58), CloneWord(0x5A)), OtBucket(current.ReadTemporaryDword(0x14C)), CloneWord(0x64));
                 uint hostWork = CloneDword(0x44);
                 if (hostDraw.ProjectedBytesWritten != 0)
@@ -115,7 +106,7 @@ public sealed partial class BattleSession
             NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native actor clone requires its original color arithmetic tables.");
             NativeBattleGeometryViewport viewport = new(CloneWord(0x54), CloneWord(0x56), CloneWord(0x58), CloneWord(0x5A));
             NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
-            NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, visualBank), index);
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, visualBank)) with { ModelOwner = index };
             NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, NativeBattleBodyBoneMatrices.Require(actor, source), projection, color, mask, new byte[length].ToImmutableArray(), colors, 4, viewport, OtBucket(current.ReadTemporaryDword(0x14C)), CloneWord(0x64), visualIdentity);
             uint work = CloneDword(0x44);
             if (draw.ProjectedBytesWritten != 0)

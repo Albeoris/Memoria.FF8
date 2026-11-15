@@ -23,7 +23,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Sigh46 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Sigh46 requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Sigh46 requires its actual current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Sigh46 requires its actual current actor skeleton.");
 
         void Publish(NativeBattleSigh46Frame current)
         {
@@ -72,11 +72,11 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleSigh46UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleSigh46Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = Observe(current, producer));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleSigh46Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.ActorModels.Get, PoseSource, producer => current = Observe(current, producer));
                     return NativeBattleSigh46Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleSigh46UpdateTargetBounds8DC610_8DC870 target:
-                    NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleSigh46Controller.Read(current, target.TaskAddress), graphics.Models, PoseSource, producer => current = Observe(current, producer));
-                    int actor = task.ReadByte(0x2D);
+                    NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleSigh46Controller.Read(current, target.TaskAddress), graphics.ActorModels.Get, PoseSource, producer => current = Observe(current, producer));
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = PoseSource(actor);
                     task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Sigh46 target bounds require its actual current pose."), source));
                     return NativeBattleSigh46Controller.Write(current, target.TaskAddress, task);

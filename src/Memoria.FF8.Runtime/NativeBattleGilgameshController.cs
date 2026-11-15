@@ -15,7 +15,7 @@ public sealed record NativeBattleGilgameshPackets(NativeBattleGfGeometryBatch Ba
 public sealed record NativeBattleGilgameshPacketCursorAdvance(int Bytes) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshSprites(NativeBattleModulePacketBatch Batch) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshService(NativeBattleGilgameshDirectorOperation Operation) : NativeBattleGilgameshOperation;
-public sealed record NativeBattleGilgameshContacts(int First, int Count) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshContacts(BattleContactCursor First, int Count) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshCameraPublish(NativeBattleGuardianCameraStep Step) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshTextureLoad(uint CompletionAddress) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshPcRequest(int Mode) : NativeBattleGilgameshOperation;
@@ -24,13 +24,13 @@ public sealed record NativeBattleGilgameshInputs(uint GraphicsFlags, NativeBattl
     public Func<NativeBattleCameraProjection>? ReadProjection { get; init; }
     public Func<short>? ReadFocalShadow { get; init; }
     public bool CapturePresentation { get; init; }
-    public Func<byte, short>? ReadModelWord26 { get; init; }
-    public Func<byte, NativeBattlePackedMatrix32>? ReadModelWorld32 { get; init; }
+    public Func<BattleModelOwner, short>? ReadModelWord26 { get; init; }
+    public Func<BattleModelOwner, NativeBattlePackedMatrix32>? ReadModelWorld32 { get; init; }
 }
 
 public static partial class NativeBattleGilgameshController
 {
-    public static NativeBattleGilgameshFrame Initialize58DCF0(NativeBattleGilgameshFrame frame, NativeBattleActionPacketsState packets, ImmutableArray<NativeBattleGraphicsModel> models)
+    public static NativeBattleGilgameshFrame Initialize58DCF0(NativeBattleGilgameshFrame frame, NativeBattleActionPacketsState packets, BattleActorModels models)
     {
         NativeBattleGilgameshProcess retained = frame.Memory.Gilgamesh ?? throw new NotSupportedException("Native Gilgamesh requires its retained process model owners; explicitly migrate a needed snapshot.");
         retained.Validate();
@@ -82,7 +82,7 @@ public static partial class NativeBattleGilgameshController
         private NativeBattleActionHeaderSlot Header => inputs.Packets.ReadHeader(Parameters.Header);
         private NativeBattleEffectTaskPool Children => Frame.Effect.Pools[1];
         private bool Paused => (inputs.GraphicsFlags & 0x201) != 0;
-        private NativeBattleGilgameshZantetsukenInputs ZantetsukenInputs(ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> contacts) => new(inputs.GraphicsFlags, contacts, actor => inputs.ReadModelWord26?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."), actor => inputs.ReadModelWorld32?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), inputs.Execute);
+        private NativeBattleGilgameshZantetsukenInputs ZantetsukenInputs(ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> contacts) => new(inputs.GraphicsFlags, contacts, inputs.Packets.ModelAliases, ordinal => inputs.Packets.ResolveContact((Frame.Effect.Parameters ?? throw new NotSupportedException("Zantetsuken requires its captured action parameters.")).Header, ordinal), actor => inputs.ReadModelWord26?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."), actor => inputs.ReadModelWorld32?.Invoke(actor) ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), inputs.Execute);
 
         private void SetShared(NativeBattleGilgameshProcess state) => Frame = Frame with { Memory = Frame.Memory with { Gilgamesh = state } };
         private void SetChildren(NativeBattleEffectTaskPool pool) => Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(1, pool) } };
@@ -172,8 +172,8 @@ public static partial class NativeBattleGilgameshController
                     ImmutableArray<NativeBattleGilgameshZantetsukenContactRow> zantetsukenContacts = default;
                     if (task.ReadWord(12) == 16)
                     {
-                        int zantetsukenFirst = Header.FirstContactIndex ?? throw new NotSupportedException("Zantetsuken requires its captured first contact pointer.");
-                        zantetsukenContacts = Enumerable.Range(zantetsukenFirst, Header.ReadContactCount()).Select(index => inputs.Packets.ReadContact(index).Primary).Select(contact => new NativeBattleGilgameshZantetsukenContactRow(contact.ActorIndex, contact.HitFlags3)).ToImmutableArray();
+                        BattleContactCursor zantetsukenFirst = Header.FirstContact;
+                        zantetsukenContacts = Enumerable.Range(0, Header.ReadContactCount()).Select(index => inputs.Packets.ReadContact(zantetsukenFirst.Advance(index)).Primary).Select(contact => new NativeBattleGilgameshZantetsukenContactRow(contact.Recipient, contact.HitFlags)).ToImmutableArray();
                     }
                     NativeBattleGilgameshZantetsukenStep zantetsuken = NativeBattleGilgameshZantetsukenAttack.Advance(Frame, address, ZantetsukenInputs(zantetsukenContacts));
                     Frame = zantetsuken.Frame;
@@ -197,9 +197,9 @@ public static partial class NativeBattleGilgameshController
                     {
                         return 0;
                     }
-                    int masamuneFirst = Header.FirstContactIndex ?? throw new NotSupportedException("Masamune requires its captured physical contact pointer.");
+                    BattleContactCursor masamuneFirst = Header.FirstContact;
                     int masamuneCount = Header.ReadContactCount();
-                    ImmutableArray<byte> masamuneActors = Enumerable.Range(masamuneFirst, masamuneCount).Select(index => inputs.Packets.ReadContact(index).Primary.Recipient).ToImmutableArray();
+                    ImmutableArray<BattleModelOwner> masamuneActors = Enumerable.Range(0, masamuneCount).Select(index => inputs.Packets.ReadContact(masamuneFirst.Advance(index)).Primary.Recipient).ToImmutableArray();
                     NativeBattleGilgameshMasamuneAttackStep masamune = NativeBattleGilgameshMasamuneAttack.Advance(Frame, address, inputs.GraphicsFlags, masamuneActors, inputs.Execute);
                     Frame = masamune.Frame;
                     if (masamune.Contact)
@@ -219,9 +219,9 @@ public static partial class NativeBattleGilgameshController
                     return MasamuneParticles(address, true);
                 case 0x591250:
                 case 0x5920E0:
-                    int first = Header.FirstContactIndex ?? throw new NotSupportedException("Native Excalipoor requires its physical contact pointer.");
+                    BattleContactCursor first = Header.FirstContact;
                     int count = Header.ReadContactCount();
-                    ImmutableArray<byte> actors = Enumerable.Range(first, count).Select(index => inputs.Packets.ReadContact(index).Primary.Recipient).ToImmutableArray();
+                    ImmutableArray<BattleModelOwner> actors = Enumerable.Range(0, count).Select(index => inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient).ToImmutableArray();
                     NativeBattleGilgameshAttackStep attack = NativeBattleGilgameshExcalipoorAttack.Advance(NativeBattleGilgameshAttackProfile.ForEffect(Frame.Effect.Binding.Effect), task, Children, Frame.Random, inputs.GraphicsFlags, actors, inputs.ReadAnchor571400);
                     SetChildren(attack.Children);
                     Write(address, attack.Task);

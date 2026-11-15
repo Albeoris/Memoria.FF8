@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Melting Bubble requires its actual current model rig.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Melting Bubble requires its actual current model rig.");
 
         void Publish(NativeBattleMeltingBubble43Frame current)
         {
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                 {
                     return nodes;
                 }
-                int actor = task.ReadByte(0x2C);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
                 NativeBattleBoneAnchorProducer anchor = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), 0xF0, 0);
                 NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(nodes.Memory, anchor);
                 NativeBattleScriptedColorRegisters registers = observed.ScriptedColorRegisters ?? throw new NotSupportedException("Melting Bubble requires its current anchor outputs.");

@@ -43,7 +43,7 @@ public sealed record NativeBattleWaterHeaderCaptureResult(NativeBattleWaterHeade
 
 public static class NativeBattleWaterHeaderCapture
 {
-    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, BattleModelOwner caster, BattleModelOwner firstHeaderFirstActor, ImmutableArray<BattleModelOwner> contacts, BattleActorModels models, NativeBattleModelBoundary boundary)
+    public static NativeBattleWaterHeaderCaptureResult CaptureAA4E90(NativeBattleWaterHeader header, NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int slotIndex, BattleModelOwner caster, BattleModelOwner firstHeaderFirstActor, ImmutableArray<BattleModelOwner> contacts, BattleActorModels models, NativeBattleModelBoundary boundary, BattleContactTaskStorageContract storageContract)
     {
         NativeBattleCinematicActorContext context = header.PresentationActors ?? NativeBattleCinematicActorContext.FromGraphics(models);
         _ = context.ReadCachedActor(caster);
@@ -58,8 +58,8 @@ public static class NativeBattleWaterHeaderCapture
             writer.Word(0x4E + 2 * slot, unchecked((short)model.Flags0));
         }
         // The seventh original list byte shares the low byte of the first raw flags field.
-        bool allOriginal = captured.CurrentActors.All(actor => aliases.TryEncodeExact(actor, out _));
-        int listExtent = allOriginal ? NativeBattleGraphicsModelAddress.NativeRowCount : 6;
+        bool originalStorage = storageContract == BattleContactTaskStorageContract.OriginalArena;
+        int listExtent = originalStorage ? NativeBattleGraphicsModelAddress.NativeRowCount : 6;
         for (int ordinal = 0; ordinal < captured.CurrentActors.Length; ordinal++)
         {
             byte? alias = Alias(captured.CurrentActors[ordinal]);
@@ -72,6 +72,13 @@ public static class NativeBattleWaterHeaderCapture
                 writer.Byte(0xCC + slot, EncodeByte(ordinal));
             }
         }
+        if (originalStorage && captured.CurrentActors.Length >= NativeBattleGraphicsModelAddress.NativeRowCount &&
+            models.Owners.FirstOrDefault(owner => aliases.TryEncodeExact(owner, out byte slot) && slot == 0) is { } slotZero &&
+            Alias(captured.CurrentActors[NativeBattleGraphicsModelAddress.NativeRowCount - 1]) is byte seventh)
+        {
+            NativeBattleCinematicActorCache cached = captured.ReadCachedActor(slotZero);
+            captured = captured with { CachedActors = captured.CachedActors.SetItem(slotZero, cached with { Flags0 = (ushort)((cached.Flags0 & 0xFF00) | seventh) }) };
+        }
         BattleModelOwner first = captured.ReadFirstActor();
         arena = arena.WriteExecutionReference(bank.SlotOffset(arena, slotIndex) + 0x1B, 1, new BattleExecutionReference.Model(first), aliases.EncodeOperand(first, 1));
         writer.Byte(0x41, EncodeByte(captured.CurrentActors.Length));
@@ -83,7 +90,9 @@ public static class NativeBattleWaterHeaderCapture
     public static NativeBattleWaterHeader CacheRowsAA4B60(NativeBattleWaterHeader header, BattleActorModels models, NativeBattleModelBoundary boundary)
     {
         HeaderWriter writer = new(header);
-        NativeBattleCinematicActorContext cached = (header.PresentationActors ?? throw new InvalidDataException("Cinematic actor cache requires its captured live context.")).RefreshCache(models);
+        NativeBattleCinematicActorContext captured = header.PresentationActors ?? throw new InvalidDataException("Cinematic actor cache requires its captured live context.");
+        NativeBattleCinematicActorContext cached = captured.RefreshCache(models);
+        cached = cached with { CachedActors = cached.CachedActors.ToImmutableDictionary(pair => pair.Key, pair => pair.Value with { Flags0 = captured.ReadCachedActor(pair.Key).Flags0 }) };
         for (byte index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
             NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(index);
@@ -116,7 +125,7 @@ public static class NativeBattleWaterHeaderCapture
             if (boundary.TryEncodeExactActor(owner, models, out byte slot))
             {
                 originalOwners.Add(slot, owner);
-                if (header.Known[0xCC + slot] && header.Bytes[0xCC + slot] < models.Roster.Count)
+                if (header.Known[0xCC + slot])
                 {
                     ordinals[owner] = header.Bytes[0xCC + slot];
                 }

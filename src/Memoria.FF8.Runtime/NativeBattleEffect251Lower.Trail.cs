@@ -10,7 +10,7 @@ public static partial class NativeBattleEffect251Lower
         frame = frame with { State = frame.State with { CallbackStackWord58 = unchecked((ushort)address) } };
         (frame, uint temporary) = Allocate(frame, 64);
         NativeBattleEffectArena scratch = ReadBytes(frame, temporary, 64);
-        NativeBattleEffect251BoneStep bone = inputs.BoneWorld5FC0(frame, NativeBattleGraphicsModelAddress.Encode(4), 1, CopyBytes(scratch, 0x30, NativeBattleEffectArena.Clear().MarkUnknown(0, 12), 0, 12), CopyBytes(scratch, 0x20, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8));
+        NativeBattleEffect251BoneStep bone = inputs.BoneWorld5FC0(frame, inputs.ReadPackets(frame).ModelAliases.DecodeLiteral(4), 1, CopyBytes(scratch, 0x30, NativeBattleEffectArena.Clear().MarkUnknown(0, 12), 0, 12), CopyBytes(scratch, 0x20, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8));
         frame = bone.Frame;
         scratch = CopyBytes(bone.Direction12, 0, scratch, 0x30, 12);
         scratch = CopyBytes(bone.Position8, 0, scratch, 0x20, 8);

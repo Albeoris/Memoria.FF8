@@ -13,16 +13,15 @@ public sealed partial class BattleSession
         NativeBattleEffect319Resources resources = effect.Binding.Effect319Resources ?? throw new NotSupportedException("Effect319 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect319 requires current process memory.");
         NativeBattleEffect319Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect319 requires its current CRT stream."), memory.Effect319 ?? throw new NotSupportedException("Effect319 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
-        NativeBattleEffect319Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect319 requires its color tables."), _ => nativeActionPackets, (_, address) => CaptureNativeEffect210Model(graphics.ActorModels.Get(NativeEffect319Actor(graphics, address))), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect319 requires its current projection."), _ => Camera().Roll, Point, Anchor, ResolveBoneRecord, SelectIo, (current, operation) => ExecuteNativeEffect319Operation(ref graphics, current, operation, resources)) { ResolveBoneRecordReference = (current, address, bone) => ResolveNativeEffect319BoneRecord(graphics, current, address, bone) };
+        NativeBattleEffect319Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect319 requires its color tables."), _ => nativeActionPackets, (_, owner) => CaptureNativeEffect210Model(graphics.ActorModels.Get(owner)), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect319 requires its current projection."), _ => Camera().Roll, Point, Anchor, ResolveBoneRecord, SelectIo, (current, operation) => ExecuteNativeEffect319Operation(ref graphics, current, operation, resources)) { ResolveBoneRecordReference = (current, actor, bone) => ResolveNativeEffect319BoneRecord(graphics, current, actor, bone) };
         frame = initialize ? NativeBattleEffect319Controller.Initialize(frame, resources, inputs) : NativeBattleEffect319Controller.Advance(frame, resources, inputs);
         PublishNativeEffect319Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect319 requires its current camera.");
 
-        NativeBattleEffect319PointStep Point(NativeBattleEffect319Frame current, uint address, short selector, short fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect319PointStep Point(NativeBattleEffect319Frame current, BattleModelOwner actor, short selector, short fraction, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect319Actor(graphics, address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect319 requires its current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect319 requires its current skeleton.");
@@ -33,16 +32,16 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, retained);
         }
 
-        NativeBattleEffect319PointStep Anchor(NativeBattleEffect319Frame current, uint address, NativeBattleEffectArena retained)
+        NativeBattleEffect319PointStep Anchor(NativeBattleEffect319Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect319Actor(graphics, address));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect319 requires its current target transform.");
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, retained.Write(0, BitConverter.GetBytes(transform.Position28.X)).Write(2, BitConverter.GetBytes(transform.Position28.Y)).Write(4, BitConverter.GetBytes(transform.Position28.Z)).Write(6, BitConverter.GetBytes(transform.Angle36)));
             }
-            NativeBattleEffect319PointStep first = Point(current, address, 0xF0, 0, retained);
-            NativeBattleEffect319PointStep second = Point(first.Frame, address, 0xF1, 0, first.Output8);
+            NativeBattleEffect319PointStep first = Point(current, actor, 0xF0, 0, retained);
+            NativeBattleEffect319PointStep second = Point(first.Frame, actor, 0xF1, 0, first.Output8);
             for (int axis = 0; axis < 3; axis++)
             {
                 int left = BinaryPrimitives.ReadInt16LittleEndian(first.Output8.Read(axis * 2, 2));
@@ -52,9 +51,9 @@ public sealed partial class BattleSession
             return new(second.Frame, retained.Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
 
-        uint ResolveBoneRecord(NativeBattleEffect319Frame current, uint address, int bone)
+        uint ResolveBoneRecord(NativeBattleEffect319Frame current, BattleModelOwner actor, int bone)
         {
-            NativeBattleResourcePointer record = ResolveNativeEffect319BoneRecord(graphics, current, address, bone);
+            NativeBattleResourcePointer record = ResolveNativeEffect319BoneRecord(graphics, current, actor, bone);
             return record.Cpu?.TryPhysicalAddress() ?? record.StagingAddress ?? throw new NotSupportedException("A logical bone cache requires its typed record coordinate.");
         }
 
@@ -76,16 +75,7 @@ public sealed partial class BattleSession
         return current;
     }
 
-    private static int NativeEffect319Actor(NativeBattleGraphicsState graphics, uint address)
-    {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
-        {
-            throw new NotSupportedException("Effect319 requires an actual current model address.");
-        }
-        return actorIndex;
-    }
-
-    private NativeBattleResourcePointer NativeEffect319SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect319Frame frame, int actor)
+    private NativeBattleResourcePointer NativeEffect319SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect319Frame frame, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
@@ -102,9 +92,8 @@ public sealed partial class BattleSession
         return new(row.Require(12), null, row.Lengths.TryGetValue(12, out int length) ? length : null);
     }
 
-    private NativeBattleResourcePointer ResolveNativeEffect319BoneRecord(NativeBattleGraphicsState graphics, NativeBattleEffect319Frame frame, uint address, int bone)
+    private NativeBattleResourcePointer ResolveNativeEffect319BoneRecord(NativeBattleGraphicsState graphics, NativeBattleEffect319Frame frame, BattleModelOwner actor, int bone)
     {
-        int actor = NativeEffect319Actor(graphics, address);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect319 requires its current caster skeleton.");
         _ = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         return NativeBattleEffect319BoneCache.ResolveRecord(NativeEffect319SkeletonPointer(graphics, frame, actor), source.BoneCount, bone);

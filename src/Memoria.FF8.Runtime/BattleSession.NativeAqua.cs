@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        NativeBattleModuleAnchor ReadAnchor(int actor, short selector, int fraction)
+        NativeBattleModuleAnchor ReadAnchor(BattleModelOwner actor, short selector, int fraction)
         {
             NativeBattleVector point = ReadNativeGraphicsBone(graphics, actor, checked((byte)selector), checked((short)fraction));
             return new(point.X, point.Y, point.Z, 0);
@@ -64,7 +64,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("The Aqua contact lost its process owner.") };
                 case NativeBattleAquaSequence sequence:
-                    graphics = SelectNativeReadyHeaderSequence505CE0(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = SelectNativeReadyHeaderSequence505CE0(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleAquaBindCaster bind:
                     ImmutableArray<byte> dat = resources.CasterDat72 ?? throw new NotSupportedException("The Aqua caster binding requires its original Blue Magic DAT.");
@@ -73,7 +73,7 @@ public sealed partial class BattleSession
                     NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("The Aqua caster binding requires its actual CPU resource rows."), model, 0x25FA3D8, 0x158D9AC);
                     NativeFileStaging = binding.Staging;
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
-                    graphics = SelectNativeHeaderSequence(graphics, checked((byte)bind.Actor), 1);
+                    graphics = SelectNativeHeaderSequence(graphics, bind.Actor, 1);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, graphics.ActorModels.Get(bind.Actor) with { Rotation14 = current.State.Word(0x4A) }) };
                     return current;
                 case NativeBattleAquaAnchor anchor:

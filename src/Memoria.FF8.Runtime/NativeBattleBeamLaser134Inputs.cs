@@ -12,7 +12,7 @@ public sealed record NativeBattleBeamLaser134ActStep(NativeBattleBeamLaser134Fra
 public abstract record NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134ActorFlags(BattleModelOwner Actor, ushort Mask, ushort Bits) : NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134Sound(uint Packed) : NativeBattleBeamLaser134Operation;
-public sealed record NativeBattleBeamLaser134Contact(int Index) : NativeBattleBeamLaser134Operation;
+public sealed record NativeBattleBeamLaser134Contact(BattleContactOccurrence Occurrence) : NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134DrawSprite180(uint TaskAddress, uint Temporary180, bool Moving) : NativeBattleBeamLaser134Operation;
 public sealed record NativeBattleBeamLaser134DrawStatic88(NativeBattlePackedMatrix32 World, int FadeCue) : NativeBattleBeamLaser134Operation
 {

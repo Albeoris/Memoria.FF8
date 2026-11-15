@@ -19,8 +19,8 @@ public static partial class NativeBattleEffect64Controller
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect64UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect64 requires its current parameters.");
-        uint model = ModelAddress(parameters.Source);
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model) };
+        BattleModelOwner model = parameters.Source;
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, model, inputs.Aliases) };
         frame = inputs.Execute(frame, new NativeBattleEffect64ModelFlags(model, 0xFFF3, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect64ModelMeshMask(model, uint.MaxValue));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootBankLength, 1);
@@ -28,10 +28,7 @@ public static partial class NativeBattleEffect64Controller
         (root, _) = root.Append(RootCallback);
         frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, State = frame.State with { RootBankStorage = null } };
         frame = ClearDwords701200(frame, RootBank + 12, 2);
-        for (int actor = 0; actor < 3; actor++)
-        {
-            frame = inputs.Execute(frame, new NativeBattleEffect64ModelFlags(ModelAddress(actor), ushort.MaxValue, 4));
-        }
+        frame = inputs.Execute(frame, new NativeBattleEffect64PartyFlags(ushort.MaxValue, 4));
         return inputs.Execute(frame, new NativeBattleEffect64RegisterCamera(resources.Camera));
     }
 
@@ -137,5 +134,4 @@ public static partial class NativeBattleEffect64Controller
         }
     }
 
-    private static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect64 requires its actual physical caster.");
 }

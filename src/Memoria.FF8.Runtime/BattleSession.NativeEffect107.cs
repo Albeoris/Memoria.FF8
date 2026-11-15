@@ -58,8 +58,7 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot header = Effect107Header(sequence);
                 BattleContactCursor contact = header.FirstContact;
                 BattleModelOwner model = nativeActionPackets.ReadContact(contact).Primary.Recipient;
-                uint modelAddress = NativeBattleGraphicsModelAddress.Encode(model);
-                if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == modelAddress))
+                if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner == model))
                 {
                     canComplete = false;
                     root = root.WriteWord(12, 0);
@@ -68,7 +67,8 @@ public sealed partial class BattleSession
                 {
                     (pools[1], int slot) = pools[1].Append(0x6D1640);
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(652);
-                    target = target.WriteWord(14, (ushort)sequence).WriteDword(20, modelAddress);
+                    target = target.WriteWord(14, (ushort)sequence);
+                    target.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(model), nativeActionPackets.ModelAliases.EncodeAddress(model));
                     NativeBattleVector first = ReadNativeGraphicsBone(graphics, model, 241, 0);
                     NativeBattleVector second = ReadNativeGraphicsBone(graphics, model, 240, 0);
                     target = target.WriteWord(24, unchecked((ushort)((first.X + second.X) >> 1))).WriteWord(26, unchecked((ushort)((first.Y + second.Y) >> 1))).WriteWord(28, unchecked((ushort)((first.Z + second.Z) >> 1)));
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
         int AdvanceTarget(int targetIndex, ref NativeBattleModulePoolTask task)
         {
             short frame = Effect107Word(task, 12);
-            int model = Effect107Model(task.ReadDword(20));
+            BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner;
             NativeBattleVector anchor = Effect107Vector(task, 24);
             if (frame < 13)
             {
@@ -214,16 +214,16 @@ public sealed partial class BattleSession
 
             void Visibility(bool hidden)
             {
-                int linked = model;
+                BattleModelOwner linked = model;
                 NativeBattleGraphicsModel first = graphics.ActorModels.Get(linked);
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, first with { Flags0 = hidden ? (ushort)(first.Flags0 | 4) : (ushort)(first.Flags0 & ~4) }) };
-                HashSet<int> seen = [];
+                HashSet<BattleModelOwner> seen = [];
                 while (seen.Add(linked))
                 {
                     NativeBattleGraphicsModel current = graphics.ActorModels.Get(linked);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(linked, current with { Flags0 = hidden ? (ushort)(current.Flags0 | 8) : (ushort)(current.Flags0 & ~8) }) };
-                    int? next = current.ReadLinkedModelIndex140();
-                    if (next is not int child)
+                    BattleModelOwner? next = current.ReadLinkedModel();
+                    if (next is not { } child)
                     {
                         break;
                     }
@@ -342,8 +342,4 @@ public sealed partial class BattleSession
     }
     private static short Effect107Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Effect107Vector(NativeBattleModulePoolTask task, int offset) => new(Effect107Word(task, offset), Effect107Word(task, offset + 2), Effect107Word(task, offset + 4));
-    private static int Effect107Model(uint address)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native effect107 target leaves the seven physical model rows.");
-    }
 }

@@ -10,7 +10,7 @@ public static class NativeBattleEffect64Script
         NativeBattleModulePoolTask task = Read(frame, address);
         uint cursor = task.ReadDword(0x18);
         uint row = task.ReadDword(0x14);
-        uint model = task.ReadDword(0xC);
+        BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(0xC, 4).Owner;
         uint rows = task.ReadDword(0x10);
         short Operand()
         {

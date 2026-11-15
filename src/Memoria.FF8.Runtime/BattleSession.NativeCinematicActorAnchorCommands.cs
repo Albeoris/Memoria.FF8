@@ -8,10 +8,7 @@ public sealed partial class BattleSession
     {
         NativeBattleCinematicActorAnchorServices services = new((current, address, restore, linked) =>
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int index, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Native actor anchor requires its actual physical model pointer.");
-            }
+            BattleModelOwner index = address;
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(index);
             if (presentationForeignActors?.TryGetValue(index, out NativeBattleForeignActor? foreign) == true)
             {
@@ -58,10 +55,7 @@ public sealed partial class BattleSession
         {
             ReadScale38 = pointer =>
             {
-                if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-                {
-                    throw new NotSupportedException("Native radial anchor requires its actual physical actor pointer.");
-                }
+                BattleModelOwner actorIndex = pointer;
                 return graphics.ActorModels.Get(actorIndex).Transform?.Scale38 ?? throw new NotSupportedException("Native radial anchor requires the actual actor scale WORD38.");
             }
         };

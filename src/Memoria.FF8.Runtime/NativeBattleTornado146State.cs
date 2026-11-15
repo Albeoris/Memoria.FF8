@@ -103,6 +103,12 @@ public sealed class NativeBattleTornado146Work : IDisposable
         writer = writer.MarkUnknown(offset, count);
     }
 
+    internal void WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        RequireRange(address, 4);
+        writer.WriteExecutionReference(checked((int)(address - NativeBattleTornado146State.WorkAddress)), 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+    }
+
     public NativeBattleTornado146State Freeze() => state with { Storage = writer.Freeze() };
     public void Dispose() => writer.Dispose();
 

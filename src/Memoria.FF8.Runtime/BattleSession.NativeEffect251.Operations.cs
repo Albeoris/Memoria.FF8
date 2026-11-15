@@ -17,11 +17,11 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect251 requires its current camera.")).RegisterControlResource(textures.Animation);
                 return frame with { Memory = frame.Memory with { Textures = textures } };
             case NativeBattleEffect251WriteModelBytes write:
-                int writtenActor = NativeEffect301Actor(graphics, write.ModelAddress);
+                BattleModelOwner writtenActor = write.Model;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(writtenActor, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(writtenActor), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect251ModelFlags flags:
-                int actor = NativeEffect301Actor(graphics, flags.ModelAddress);
+                BattleModelOwner actor = flags.Model;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 ushort updated = flags.Width switch
                 {
@@ -48,14 +48,10 @@ public sealed partial class BattleSession
                 NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)intensity.Strength), ColorFlags = unchecked((uint)intensity.Kind) }).ToImmutableArray() };
                 return frame;
             case NativeBattleEffect251SetModelAnimation505C00 animation:
-                graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)NativeEffect301Actor(graphics, animation.ModelAddress)), animation.Mode);
+                graphics = ScheduleNativeRingSequence505C00(graphics, animation.Model, animation.Mode);
                 return frame;
             case NativeBattleEffect251Contact506690 contact:
-                if (!NativeBattleContactAddress.TryDecode(contact.TargetArgumentAddress, out int contactIndex, nativeActionPackets.StorageCapacity) || contactIndex >= nativeActionPackets.ContactCount)
-                {
-                    throw new InvalidDataException("Effect251 contact argument leaves its current physical contact records.");
-                }
-                NativeBattleContactPacket selected = nativeActionPackets.ReadContact(contactIndex);
+                NativeBattleContactPacket selected = nativeActionPackets.ReadContact(contact.Cursor);
                 PublishNativeEffect251Frame(frame);
                 ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [selected] });
@@ -63,7 +59,7 @@ public sealed partial class BattleSession
                 return ImportNativeEffect251Frame(frame);
             case NativeBattleEffect251DrawTarget6A2F60 body:
                 PublishNativeEffect251Frame(frame);
-                int target = NativeEffect301Actor(graphics, body.ModelAddress);
+                BattleModelOwner target = body.Model;
                 NativeBattleActionMatrix world = graphics.ActorModels.Get(target).GeometryWorldMatrix ?? throw new NotSupportedException("Effect251 transformed body requires its actual current world matrix.");
                 NativeBattleActionMatrix matrix = NativeBattleDuel212Body.Matrix6A2F60(world, inputs.ReadView(frame).ReadMatrix(), NativeBattleEffect251Controller.Vector(body.Angles8), NativeBattleEffect251Controller.Vector(body.Pivot8));
                 graphics = DrawNativeEffectModelContext92(graphics, target, matrix, NativeBattleEffect251Controller.Vector(body.Pivot8), inputs.ReadProjection(frame), -47, 4, pilotIdentity: body.PilotIdentity);

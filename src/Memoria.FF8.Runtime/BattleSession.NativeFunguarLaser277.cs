@@ -58,16 +58,17 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot selected = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 BattleContactCursor contact = selected.FirstContact;
                 BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
-                uint pointer = NativeBattleGraphicsModelAddress.Encode(target);
                 NativeBattleModulePoolTask live = pools[1].Slots[0];
-                if ((live.Flags & 1) != 0 && live.ReadDword(16) == pointer)
+                if ((live.Flags & 1) != 0 && live.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == target)
                 {
                     root = root.WriteWord(12, 0);
                 }
                 else if (Allocate(1, 0x6841F0, out int slot))
                 {
                     NativeBattleModulePoolTask beam = pools[1].Slots[slot].ClearPayload(0x658);
-                    beam = LaserStore(beam.WriteWord(14, (ushort)action).WriteDword(16, pointer), 20, ReadNativeGraphicsBone(graphics, target, 0xF1, 0));
+                    beam = beam.WriteWord(14, (ushort)action);
+                    beam.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), nativeActionPackets.ModelAliases.EncodeAddress(target));
+                    beam = LaserStore(beam, 20, ReadNativeGraphicsBone(graphics, target, 0xF1, 0));
                     beam = Initialize(beam, 0x1C, 0x3B0, resources.Muzzle);
                     beam = Initialize(beam, 0x3CC, 0xE8, resources.Ray);
                     beam = Initialize(beam, 0x4B4, 0x1B0, resources.Impact);
@@ -117,10 +118,7 @@ public sealed partial class BattleSession
         int Beam(ref NativeBattleModulePoolTask task)
         {
             int counter = LaserWord(task, 12);
-            if (!NativeBattleGraphicsModelAddress.TryDecode(task.ReadDword(16), out int target))
-            {
-                throw new InvalidDataException("Native Funguar Laser target leaves its physical model bank.");
-            }
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             NativeBattleVector origin = VertexPoint();
             NativeBattleModuleAnchor targetAnchor = ReadNativeModelAnchor(graphics, target);
             NativeBattleVector endpoint = new(targetAnchor.X, targetAnchor.Y, targetAnchor.Z);

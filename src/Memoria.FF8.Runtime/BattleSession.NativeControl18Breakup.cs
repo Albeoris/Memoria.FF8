@@ -12,12 +12,8 @@ public sealed partial class BattleSession
         NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         uint payload = Slot32(0xB8);
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actorPointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex);
-        if (actorIndex >= graphics.Models.Length || actorPointer != NativeBattleGraphicsModelAddress.Encode(actorIndex))
-        {
-            throw new NotSupportedException("Native breakup drawing requires its actual physical actor directory.");
-        }
+        BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        visualIdentity = visualIdentity with { ModelOwner = actorIndex };
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native breakup drawing requires its current body rig.");
@@ -42,7 +38,7 @@ public sealed partial class BattleSession
         {
             (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
             SetSlot(0xBC, clone);
-            Put32(clone + 0xC, actorPointer);
+            frame = frame with { Arena = frame.Arena.WriteExecutionReference(ArenaOffset(clone + 0xC, 4), 4, new BattleExecutionReference.Model(actorIndex), graphics.NativeBindings.CaptureAliases(graphics.ActorModels).EncodeAddress(actorIndex)) };
             Put32(clone + 0x54, 0);
             Put32(clone + 0x58, 0xD00140);
             uint color = actor.Color40 ?? throw new NotSupportedException("Native breakup clone requires its current body color.");

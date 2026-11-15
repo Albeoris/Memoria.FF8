@@ -19,7 +19,7 @@ public static partial class NativeBattleEvilEye282Controller
             {
                 while (true)
                 {
-                    uint target = Read(frame, address).ReadDword(0x14);
+                    BattleModelOwner target = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(0x14, 4).Owner;
                     frame = DrawRandom(frame, out ushort random);
                     int count = inputs.ReadBoneCount(frame, target);
                     int selected = unchecked(random * count) >> 15;

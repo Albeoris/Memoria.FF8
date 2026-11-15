@@ -36,8 +36,8 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect30 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect30 requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect30 requires its current actor skeleton.");
-        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect30 requires its current actor skeleton.");
+        NativeBattleEffectTaskActors SelectActors(uint parameters, sbyte header, int target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, parameters, header, target);
         NativeBattleEffect30LowerInputs LowerInputs() => new(Bone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Effect30 requires its retained actor world matrix."), null), Look, _ => Camera().CapturePackedView1D97778(), SelectActors, Deliver, Projection(), colors) { CapturePresentation = true };
 
         void Publish(NativeBattleEffect30Frame current)
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        NativeBattleEffect30PointStep Bone(NativeBattleEffect30Frame current, byte actor, byte selector, short distance)
+        NativeBattleEffect30PointStep Bone(NativeBattleEffect30Frame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveAnchor(current, producer);
@@ -76,14 +76,14 @@ public sealed partial class BattleSession
 
         NativeBattleEffect30Frame RefreshRoot(NativeBattleEffect30Frame current, uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect30Controller.Read(current, address), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect30Controller.Read(current, address), current.Effect.Parameters!, graphics.ActorModels.Get, PoseSource, producer => current = ObserveAnchor(current, producer));
             return NativeBattleEffect30Controller.Write(current, address, task);
         }
 
         NativeBattleEffect30Frame PrepareTarget(NativeBattleEffect30Frame current, uint address)
         {
-            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect30Controller.Read(current, address), graphics.Models, PoseSource, producer => current = ObserveAnchor(current, producer));
-            int actor = task.ReadByte(0x2D);
+            NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect30Controller.Read(current, address), graphics.ActorModels.Get, PoseSource, producer => current = ObserveAnchor(current, producer));
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattlePoseSource source = PoseSource(actor);
             task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Effect30 requires its target pose."), source));
             return NativeBattleEffect30Controller.Write(current, address, task);
@@ -133,10 +133,10 @@ public sealed partial class BattleSession
                 case NativeBattleEffect30Contact contact:
                     NativeBattleModulePoolTask task = NativeBattleEffect30Controller.Read(current, contact.TaskAddress);
                     BattleActionHeaderReference header = current.Effect.Parameters!.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                    int index = checked((nativeActionPackets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Effect30 requires its actual contact pointer.")) + unchecked((sbyte)task.ReadByte(0x2B)));
+                    BattleContactCursor contactCursor = nativeActionPackets.ReadHeader(header).FirstContact.Advance(task.ReadTraversalPosition(0x2B));
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contactCursor)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 default:

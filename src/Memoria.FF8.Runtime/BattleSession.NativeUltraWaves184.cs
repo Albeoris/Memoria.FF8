@@ -40,7 +40,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.UltraWaves184 ?? throw new InvalidDataException("Ultra Waves external service lost its retained banks."), Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Ultra Waves lost its current tasks."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Ultra Waves lost its CRT stream.") };
         }
 
-        NativeBattleUltraWaves184AnchorStep Anchor(NativeBattleUltraWaves184Frame current, int actor, short selector, short distance)
+        NativeBattleUltraWaves184AnchorStep Anchor(NativeBattleUltraWaves184Frame current, BattleModelOwner actor, short selector, short distance)
         {
             Publish(current);
             NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Ultra Waves requires its selected current skeleton.");

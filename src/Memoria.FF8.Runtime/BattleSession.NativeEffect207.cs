@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect207 ?? throw new InvalidDataException("Effect207 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect207 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect207 service lost its addressed memory.") };
         }
 
-        NativeBattleEffect207PointStep Anchor571400(NativeBattleEffect207Frame current, int actor, NativeBattleEffectArena retained)
+        NativeBattleEffect207PointStep Anchor571400(NativeBattleEffect207Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect207 requires its current actor transform.");
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect207AllContacts506BA0 contacts:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    ImmutableArray<NativeBattleContactPacket> selected = Enumerable.Range(contacts.FirstContactIndex, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray();
+                    ImmutableArray<NativeBattleContactPacket> selected = Enumerable.Range(0, contacts.Count).Select(index => nativeActionPackets.ReadContact(contacts.First.Advance(index))).ToImmutableArray();
                     graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = selected });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);

@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterScalarReferenceServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, uint, byte> ReadParameterByte, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterActorAnchorSource> ReadAnchor, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> UpdateSelected, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> CachePosition, NativeBattleWaterActorAnchorServices ActorAnchor);
+public sealed record NativeBattleWaterScalarReferenceServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, uint, byte> ReadParameterByte, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterActorAnchorSource> ReadAnchor, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> UpdateSelected, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> CachePosition, NativeBattleWaterActorAnchorServices ActorAnchor);
 
 /// <summary>Selected scalar and reference operations over current slots and explicit engine services.</summary>
 public static class NativeBattleWaterScalarReferenceCommands
@@ -30,13 +30,7 @@ public static class NativeBattleWaterScalarReferenceCommands
             case 0x62:
                 return CopyMotion(frame, program, services.ResolveSlot, services.CachePosition, services.UpdateSelected);
             case 0x75:
-                int actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-                if ((uint)actorIndex >= NativeBattleCinematicActorAccess.ActorCapacity(frame))
-                {
-                    throw new NotSupportedException("Native scalar height leaves its seven captured actor rows.");
-                }
-                uint header = CoreDword(frame, 0x279744C);
-                uint actorPointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
+                BattleModelOwner actorPointer = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
                 NativeBattleGraphicsModel actor = services.ReadActor(frame, actorPointer);
                 int height = (actor.Transform ?? throw new NotSupportedException("Native scalar height requires its actual actor Scale38.")).Scale38;
                 if ((instruction & 0x200) != 0)

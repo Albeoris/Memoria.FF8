@@ -5,15 +5,13 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicActorCloneDraw(NativeBattleWaterExecutionFrame Frame, uint Cursor);
-public sealed record NativeBattleCinematicActorClone48Services(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SuppressActor, Func<uint, uint> ReadColor40, Func<uint, uint?> ReadMeshMask124, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> RefreshDescriptors, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleActionMatrix, NativeBattleCinematicActorCloneDraw> ComposeAndDraw, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> RestorePose);
+public sealed record NativeBattleCinematicActorClone48Services(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterExecutionFrame> SuppressActor, Func<BattleModelOwner, uint> ReadColor40, Func<BattleModelOwner, uint?> ReadMeshMask124, Func<NativeBattleWaterExecutionFrame, uint, BattleModelOwner, NativeBattleWaterExecutionFrame> RefreshDescriptors, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, uint, BattleModelOwner, NativeBattleActionMatrix, NativeBattleCinematicActorCloneDraw> ComposeAndDraw, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterExecutionFrame> RestorePose);
 
 public static class NativeBattleCinematicActorClone48
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicActorClone48Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicActorClone48Services services, NativeBattleModelAliases aliases)
     {
-        uint header = CoreDword(frame, 0x279744C);
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         uint clone = SlotDword(0xBC);
         if (clone == 0)
         {
@@ -25,7 +23,7 @@ public static class NativeBattleCinematicActorClone48
             SlotDwordStore(0xA8, Dword(reference + 0x8C));
             SlotWordStore(0xAC, Word(reference + 0x98));
             (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
-            StoreDword(clone + 0xC, actor);
+            frame = frame with { Arena = frame.Arena.WriteExecutionReference(ArenaOffset(clone + 0xC, 4), 4, new BattleExecutionReference.Model(actor), aliases.EncodeAddress(actor)) };
             frame = services.RefreshDescriptors(frame, clone, actor);
             StoreDword(clone + 0x54, 0);
             StoreDword(clone + 0x58, 0x00D00140);
@@ -49,8 +47,8 @@ public static class NativeBattleCinematicActorClone48
             SlotDwordStore(0xBC, clone);
         }
         uint selected = services.ResolveNode(frame, unchecked((ushort)SignedWord(SlotDword(0xB8))));
-        actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        header = CoreDword(frame, 0x279744C);
+        BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        uint header = CoreDword(frame, 0x279744C);
         NativeBattleVector angles = new(unchecked((short)(NativeBattleCinematicActorAccess.ReadRotationWord(frame, actorIndex, 0, header) - SignedSlot(0xA8) + SignedWord(selected + 0x8C))), unchecked((short)(SignedWord(selected + 0x8E) - SignedSlot(0xAA) + NativeBattleCinematicActorAccess.ReadRotationWord(frame, actorIndex, 1, header))), unchecked((short)(SignedWord(selected + 0x98) - SignedSlot(0xAC) + NativeBattleCinematicActorAccess.ReadRotationWord(frame, actorIndex, 2, header))));
         frame = frame.WriteTemporaryWord(0x80, unchecked((ushort)angles.X)).WriteTemporaryWord(0x82, unchecked((ushort)angles.Y)).WriteTemporaryWord(0x84, unchecked((ushort)angles.Z));
         (frame, NativeBattleActionMatrix relative) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, 1);
@@ -69,7 +67,7 @@ public static class NativeBattleCinematicActorClone48
         StoreRotation(0xE0, composed);
         frame = frame.WriteTemporaryDword(0xF4, unchecked((uint)composed.X)).WriteTemporaryDword(0xF8, unchecked((uint)composed.Y)).WriteTemporaryDword(0xFC, unchecked((uint)composed.Z));
         clone = SlotDword(0xBC);
-        uint sourceActor = Dword(clone + 0xC);
+        BattleModelOwner sourceActor = frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(ArenaOffset(clone + 0xC, 4), 4).Owner;
         frame = services.RefreshDescriptors(frame, clone, sourceActor);
         StoreDword(clone + 0x44, CoreDword(frame, unchecked(CoreDword(frame, 0x27973EC) + 0x74)));
         NativeBattleCinematicActorCloneDraw drawn = services.ComposeAndDraw(frame, clone, sourceActor, composed);

@@ -12,7 +12,7 @@ public static partial class NativeBattleDeathController
             NativeBattleModulePoolTask task = Read(address);
             if (Stage(task) == 0)
             {
-                int actor = task.ReadByte(0x2D);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                 NativeBattleVector position = inputs.ReadForeignBone?.Invoke(actor, 0xF1) ?? NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
                 Store(address, Next(task.WriteWord(0x1C, unchecked((ushort)position.X)).WriteWord(0x1E, unchecked((ushort)position.Y)).WriteWord(0x20, unchecked((ushort)position.Z))));
                 return;
@@ -21,7 +21,7 @@ public static partial class NativeBattleDeathController
             {
                 return;
             }
-            short yaw = inputs.ReadModel(task.ReadByte(0x2D)).Rotation14 ?? throw new NotSupportedException("Native Death sparks require the target's current yaw WORD.");
+            short yaw = inputs.ReadModel(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Rotation14 ?? throw new NotSupportedException("Native Death sparks require the target's current yaw WORD.");
             NativeBattleActionMatrix basis = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), yaw);
             basis = NativeBattleCuragaMatrices.RotateZ8DD960(basis, 0x155);
             basis = NativeBattleCuragaMatrices.RotateX8DD7E0(basis, 0xEAB);

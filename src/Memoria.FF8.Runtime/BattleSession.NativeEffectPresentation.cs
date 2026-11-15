@@ -63,18 +63,30 @@ public sealed partial class BattleSession
         nativeCrtRandom = inputs.Random;
         nativeGlobalRandom = definition.NativeGlobalRandom;
         presentationSourceResource = inputs.SourceResource;
-        BattleModelOwner sourceOwner = inputs.Parameters.Source;
+        bool positioning = hostedGuardianFormMode == GuardianFormInvocationMode.EntryOnly;
+        (BattleModelOwner sourceOwner, BattleModelRoster roster, NativeBattleModelAliases aliases) = inputs.Invocation switch
+        {
+            NativeBattleEffectInvocation.Combat combat when !positioning => (combat.Parameters.Source, combat.Packets.Roster, combat.Packets.ModelAliases),
+            NativeBattleEffectInvocation.Positioning entrance when positioning && inputs.Effect == 201 && inputs.CameraMode == NativeBattleEffectCameraMode.NativeCinematic && !inputs.GuardianSummon && entrance.Source is { Side: BattleSide.Allies }
+                => (entrance.Source, entrance.Roster, entrance.Aliases),
+            _ => throw new InvalidDataException("Native effect presentation requires the invocation binding for its selected presentation mode.")
+        };
         presentationSourceOwner = sourceOwner;
         presentationSourceModelId = inputs.Source.ModelId4;
         presentationSourceIsParty = sourceOwner.Side == BattleSide.Allies;
-        BattleModelRoster roster = inputs.Packets.Roster;
-        ValidatePresentationBindings(inputs, roster);
+        ValidatePresentationBindings(inputs, roster, sourceOwner);
         presentationForeignActors = inputs.ForeignActors.ToDictionary(actor => actor.Owner);
         presentationNativeTargets = inputs.NativeTargets.ToDictionary(target => target.Owner);
-        NativeBattleModelAliases aliases = inputs.Packets.ModelAliases;
         bool hasExtendedOwners = roster.Owners.Any(owner => !aliases.TryEncodeExact(owner, out _));
-        nativeActionPackets = inputs.Packets.ActivateHeader(inputs.Parameters.Header);
-        presentationInvocationHeader = inputs.Parameters.Header;
+        if (inputs.Invocation is NativeBattleEffectInvocation.Combat combatInvocation)
+        {
+            nativeActionPackets = combatInvocation.Packets.ActivateHeader(combatInvocation.Parameters.Header);
+            presentationInvocationHeader = combatInvocation.Parameters.Header;
+        }
+        else
+        {
+            nativeActionPackets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        }
         NativeEffectMemory = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(definition.NativeRetainedMemory?.EffectMemory ?? NativeBattleEffectMemory.FromColdProcess())) with { Textures = inputs.Textures };
         NativeEffectMemory = NativeBattleGraphicsInitialization.Initialize500520(NativeEffectMemory);
         NativeCamera = BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), inputs.Projection);
@@ -147,7 +159,7 @@ public sealed partial class BattleSession
         {
             NativeEffectMemory = NativeEffectMemory with { SequenceSine = sequenceGlobals.Sine, SequenceCosine = sequenceGlobals.Cosine };
         }
-        InitializeEffectPresentationServices(inputs.Parameters);
+        InitializeEffectPresentationServices(inputs.Invocation);
         if (hasExtendedOwners)
         {
             NativeGraphics!.Validate();
@@ -168,9 +180,8 @@ public sealed partial class BattleSession
             execution.ApplyEnvironment45B660(buffer ^ 1);
             NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = process with { Software = execution.State, TextureWindowCache = execution.Cache }, Textures = execution.Textures };
         }
-        if (NativeGraphics.ActionGraphics!.Callback == 0x50BC20)
+        if (NativeGraphics.ActionGraphics is { Callback: 0x50BC20 } context)
         {
-            NativeBattleActionGraphicsState context = NativeGraphics.ActionGraphics;
             (NativeBattleGraphicsState selectedGraphics, byte phase, _) = PollNativeUnsequencedGraphics(NativeGraphics, context, 0);
             NativeGraphics = selectedGraphics;
             presentationSelectedModulePhase = phase;
@@ -183,9 +194,9 @@ public sealed partial class BattleSession
         {
             NativeEffectMemory = NativeEffectMemory! with { GuardianCasterBank = 0 };
         }
-        if (hostedGuardianFormMode != GuardianFormInvocationMode.EntryOnly)
+        if (inputs.Invocation is NativeBattleEffectInvocation.Combat entered)
         {
-            NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = inputs.Parameters.CaptureOriginalWindow(NativeGraphics.NativeBindings.CaptureAliases(NativeGraphics.ActorModels)) } };
+            NativeGraphics = NativeGraphics with { OriginalEffect = NativeGraphics.OriginalEffect! with { Parameters = entered.Parameters.CaptureOriginalWindow(NativeGraphics.NativeBindings.CaptureAliases(NativeGraphics.ActorModels)) } };
         }
         if (!inputs.DeferInvocation)
         {

@@ -15,7 +15,7 @@ public static class BattleDiagnosticReflectionLineage
 {
     public static bool Matches(BattleDiagnosticEffectDispatch child, BattleDiagnosticEffectDispatch source)
     {
-        if (child.Reflection is not { } proof || source.Reflection is not null || proof.ProducerAddress != 0x487DF0 || proof.SourceDispatchSerial != source.Serial || source.Serial >= child.Serial || source.Callback > child.Callback || string.IsNullOrWhiteSpace(proof.ActorId) || proof.SourceEffect == 0 || proof.ReflectedEffect == 0 || proof.ActorIndex >= 7 || proof.ReflectorIndex >= 7 || proof.RecipientIndex >= 7 || proof.SourceHeaderIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || proof.ReflectedHeaderIndex is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity || proof.SourceHeaderGeneration <= 0 || proof.ReflectedHeaderGeneration <= proof.SourceHeaderGeneration)
+        if (child.Reflection is not { } proof || source.Reflection is not null || proof.ProducerAddress != 0x487DF0 || proof.SourceDispatchSerial != source.Serial || source.Serial >= child.Serial || source.Callback > child.Callback || string.IsNullOrWhiteSpace(proof.ActorId) || proof.SourceEffect == 0 || proof.ReflectedEffect == 0 || proof.ActorIndex >= 7 || proof.ReflectorIndex >= 7 || proof.RecipientIndex >= 7 || proof.SourceHeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || proof.ReflectedHeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || proof.SourceHeaderGeneration <= 0 || proof.ReflectedHeaderGeneration <= proof.SourceHeaderGeneration)
         {
             return false;
         }
@@ -37,7 +37,7 @@ public static class BattleDiagnosticReflectionLineage
         {
             return child.NativeTargetMask == selectedMask;
         }
-        if (targets.ProducerAddress != 0x48E830 || targets.HeaderIndex != proof.ReflectedHeaderIndex || targets.HeaderGeneration != proof.ReflectedHeaderGeneration || targets.FirstContactIndex is < 0 or >= NativeBattleActionPacketsState.ContactCapacity || targets.Resolutions.IsDefaultOrEmpty || targets.Resolutions.Length > NativeBattleActionPacketsState.ContactCapacity || targets.ContactRecipients.IsDefaultOrEmpty || targets.ContactRecipients.Length > NativeBattleActionPacketsState.ContactCapacity - targets.FirstContactIndex)
+        if (targets.ProducerAddress != 0x48E830 || targets.HeaderIndex != proof.ReflectedHeaderIndex || targets.HeaderGeneration != proof.ReflectedHeaderGeneration || targets.FirstContactIndex is < 0 or >= NativeBattleRetainedActionPackets.ContactCapacity || targets.Resolutions.IsDefaultOrEmpty || targets.Resolutions.Length > NativeBattleRetainedActionPackets.ContactCapacity || targets.ContactRecipients.IsDefaultOrEmpty || targets.ContactRecipients.Length > NativeBattleRetainedActionPackets.ContactCapacity - targets.FirstContactIndex)
         {
             return false;
         }
@@ -159,7 +159,7 @@ public sealed partial class BattleSession
             return;
         }
         pending.Resolutions ??= [];
-        if (pending.Resolutions.Count < NativeBattleActionPacketsState.ContactCapacity)
+        if (pending.Resolutions.Count < NativeBattleRetainedActionPackets.ContactCapacity)
         {
             pending.Resolutions.Add(new(input, checked((ushort)selected), checked((byte)modifiers), checked((ushort)available), nativeScriptState.DisableAutomaticTargetReplacement, checked((ushort)result)));
         }
@@ -201,7 +201,7 @@ public sealed partial class BattleSession
         dispatch = dispatch with { NativeHeaderGeneration = generation };
         if (dispatch.NativeCommand == 247)
         {
-            if (OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))
+            if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))
             {
                 dispatch = RejectDiagnosticReflection(dispatch, "PENDING_HEADER_ABSENT");
             }

@@ -15,7 +15,7 @@ public static class NativeBattleEffect301Lower
         };
     }
 
-    public static NativeBattleEffect301Frame DrawModel66E300(NativeBattleEffect301Frame frame, uint model, int age, int thresholdY, uint scratch, NativeBattleEffect301Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect301DrawBody66E300(model, age, thresholdY, scratch));
+    public static NativeBattleEffect301Frame DrawModel66E300(NativeBattleEffect301Frame frame, BattleModelOwner model, int age, int thresholdY, uint scratch, NativeBattleEffect301Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect301DrawBody66E300(model, age, thresholdY, scratch));
     public static short Word301(NativeBattleEffectArena value, int offset) => BinaryPrimitives.ReadInt16LittleEndian(value.Read(offset, 2));
     public static uint Dword301(NativeBattleEffectArena value, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(value.Read(offset, 4));
     public static NativeBattleEffectArena Put301(NativeBattleEffectArena value, int offset, uint number) => value.Write(offset, BitConverter.GetBytes(number));

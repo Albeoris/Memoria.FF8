@@ -19,19 +19,16 @@ public static partial class NativeBattleEffect314Controller
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, texture) };
         frame = inputs.Execute(frame, new NativeBattleEffect314UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect314 requires its actual current parameters.");
-        uint model = ModelAddress(parameters.Source);
-        _ = ModelAddress(parameters.Source + 1);
-        frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model).WriteDword(WorkGlobal, CommonAddress) };
+        BattleModelOwner model = parameters.Source;
+        BattleModelOwner companion = inputs.ResolveCompanion(frame, model);
+        frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, model, inputs.ReadPackets(frame).ModelAliases).WriteDword(WorkGlobal, CommonAddress) };
         frame = inputs.Execute(frame, new NativeBattleEffect314ModelFlags(model, 2, 0xFFF3, 0));
-        frame = inputs.Execute(frame, new NativeBattleEffect314ModelFlags(model + 156, 2, 0xFFF3, 0));
+        frame = inputs.Execute(frame, new NativeBattleEffect314ModelFlags(companion, 2, 0xFFF3, 0));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         (root, _) = root.Append(RootCallback);
         frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, State = frame.State.DetachBank(RootBank) };
         frame = ClearDwords6DA380(frame, RootBank + 12, 2);
-        for (int physical = 0; physical < 3; physical++)
-        {
-            frame = inputs.Execute(frame, new NativeBattleEffect314ModelFlags(ModelAddress(physical), 2, ushort.MaxValue, 4));
-        }
+        frame = inputs.Execute(frame, new NativeBattleEffect314PartyFlags(ushort.MaxValue, 4));
         return inputs.Execute(frame, new NativeBattleEffect314RegisterCamera5099A0(CameraAddress));
     }
 
@@ -55,5 +52,4 @@ public static partial class NativeBattleEffect314Controller
         }
     }
 
-    private static uint ModelAddress(int physical) => (uint)physical < 7 ? NativeBattleGraphicsModelAddress.Encode(physical) : throw new InvalidDataException("Effect314 requires its actual consecutive physical model owners.");
 }

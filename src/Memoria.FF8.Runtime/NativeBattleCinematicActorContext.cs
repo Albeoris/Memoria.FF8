@@ -48,7 +48,7 @@ public sealed record NativeBattleCinematicActorContext
         foreach (BattleModelOwner owner in ownerOrder)
         {
             if (!CachedActors.TryGetValue(owner, out NativeBattleCinematicActorCache? cached) || cached is null ||
-                !ActorOrdinals.TryGetValue(owner, out int? ordinal) || (ordinal is int index && (index < 0 || index >= ownerOrder.Length)))
+                !ActorOrdinals.TryGetValue(owner, out int? ordinal) || ordinal is < 0)
             {
                 throw new InvalidDataException("Cinematic actor cache or ordinal disagrees with its model owner.");
             }

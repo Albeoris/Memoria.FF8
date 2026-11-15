@@ -8,34 +8,20 @@ public sealed record NativeBattleWaterActorPoseResult(NativeBattleWaterExecution
 {
     public NativeBattlePosedActor? Pose { get; init; }
 }
-public sealed record NativeBattleWaterActorPoseServices(Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel, NativeBattleWaterActorPoseResult> ReadLocal508C90, Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel, ImmutableArray<NativeBattleActionMatrix>, NativeBattleWaterExecutionFrame> PublishBones5095B0, NativeBattleWaterActorAnchorServices ActorAnchor);
-public sealed record NativeBattleWaterActorDrawResult(NativeBattleWaterExecutionFrame Frame, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleGfGeometryBatch Packets);
+public sealed record NativeBattleWaterActorPoseServices(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel, NativeBattleWaterActorPoseResult> ReadLocal508C90, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleGraphicsModel, ImmutableArray<NativeBattleActionMatrix>, NativeBattleWaterExecutionFrame> PublishBones5095B0, NativeBattleWaterActorAnchorServices ActorAnchor);
+public sealed record NativeBattleWaterActorDrawResult(NativeBattleWaterExecutionFrame Frame, BattleModelOwner Owner, NativeBattleGraphicsModel Actor, NativeBattleGfGeometryBatch Packets);
 public sealed record NativeBattleWaterActorShadowResult(NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsModel Actor, NativeBattleGfGeometryBatch Packets);
 
 /// <summary>Current physical actor placement and its custom floor shadow, without advancing its sequence.</summary>
 public static partial class NativeBattleWaterActorDraw
 {
-    public static NativeBattleWaterActorDrawResult Draw26A9C340(NativeBattleWaterExecutionFrame frame, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleWaterActorDrawResult Draw26A9C340(NativeBattleWaterExecutionFrame frame, BattleActorModels models, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        int actorCapacity = NativeBattleCinematicActorAccess.ActorCapacity(frame);
-        if (models.IsDefault || models.Length != actorCapacity || models.Where((model, index) => model is null || model.Index != index).Any())
-        {
-            throw new InvalidDataException("Native actor drawing requires its current indexed graphics bank.");
-        }
-        int index = ReadSlot(frame, 0x1B, 1)[0];
-        if ((uint)index >= actorCapacity)
-        {
-            throw new NotSupportedException("Native actor drawing leaves its captured graphics-row directory.");
-        }
-        uint header = CoreDword(frame, 0x279744C);
-        if (NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header) != NativeBattleGraphicsModelAddress.Encode(index))
-        {
-            throw new NotSupportedException("Native actor drawing requires its actual captured physical graphics row.");
-        }
-        NativeBattleGraphicsModel actor = models[index];
+        BattleModelOwner owner = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        NativeBattleGraphicsModel actor = models.Get(owner);
         NativeBattleModelTransform transform = actor.Transform ?? throw new NotSupportedException("Native actor placement requires its current position owner.");
-        NativeBattleVector cachedPosition = NativeBattleCinematicActorAccess.ReadPosition(frame, index, header);
-        NativeBattleVector cachedRotation = NativeBattleCinematicActorAccess.ReadRotation(frame, index, header);
+        NativeBattleVector cachedPosition = NativeBattleCinematicActorAccess.ReadPosition(frame, owner);
+        NativeBattleVector cachedRotation = NativeBattleCinematicActorAccess.ReadRotation(frame, owner);
         if (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xC4, 4)) == 0)
         {
             frame = SlotDword(frame, 0xC4, uint.MaxValue);
@@ -55,7 +41,7 @@ public static partial class NativeBattleWaterActorDraw
         NativeBattleVector retained = SlotVector(frame, 0xBC);
         NativeBattleActionMatrix oldBasis = Placement(cachedRotation, retained);
         frame = TemporaryMatrix(frame, oldBasis);
-        NativeBattleWaterActorPoseResult localPose = services.ReadLocal508C90(frame, actor);
+        NativeBattleWaterActorPoseResult localPose = services.ReadLocal508C90(frame, owner, actor);
         frame = localPose.Frame;
         NativeBattleWaterActorAnchorResult old = localPose.Pose is { } oldPose ? services.ActorAnchor.Evaluate(frame, oldPose, 0xF1, 0x1000, oldBasis) : services.ActorAnchor.EvaluateB66B80(frame, localPose.Skeleton, localPose.LocalBones, 0xF1, 0x1000, oldBasis);
         frame = old.Frame;
@@ -69,8 +55,8 @@ public static partial class NativeBattleWaterActorDraw
         NativeBattleVector position = new(unchecked((short)(SlotWord(frame, 0x94) + cachedPosition.X + old.Anchor.X - current.Anchor.X)), unchecked((short)(SlotWord(frame, 0x96) + cachedPosition.Y + old.Anchor.Y - current.Anchor.Y)), unchecked((short)(SlotWord(frame, 0x98) + cachedPosition.Z + old.Anchor.Z - current.Anchor.Z)));
         frame = TemporaryVector(frame, 0x50, position);
         actor = actor with { Transform = transform with { Position28 = position } };
-        NativeBattleWaterActorShadowResult shadow = FloorShadowA9C670(frame, actor, basis, position, services, projection, dqa, dqb, orderingTablePointer, resolveActualOtBucket, pilotIdentity);
-        return new(shadow.Frame, models.SetItem(index, shadow.Actor), shadow.Packets);
+        NativeBattleWaterActorShadowResult shadow = FloorShadowA9C670(frame, owner, actor, basis, position, services, projection, dqa, dqb, orderingTablePointer, resolveActualOtBucket, pilotIdentity);
+        return new(shadow.Frame, owner, shadow.Actor, shadow.Packets);
     }
 
     private static NativeBattleActionMatrix Placement(NativeBattleVector angles, NativeBattleVector offset)

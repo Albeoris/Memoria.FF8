@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect314Controller
 {
-    public static NativeBattleEffect314Frame EmitShards664420(NativeBattleEffect314Frame frame, NativeBattleEffect314Resources resources, NativeBattleEffect314Inputs inputs, uint model, uint offsetAddress, uint rotationBank, int threshold, short velocityMask, ushort texturePageAddition, ushort clutAddition)
+    public static NativeBattleEffect314Frame EmitShards664420(NativeBattleEffect314Frame frame, NativeBattleEffect314Resources resources, NativeBattleEffect314Inputs inputs, BattleModelOwner model, uint offsetAddress, uint rotationBank, int threshold, short velocityMask, ushort texturePageAddition, ushort clutAddition)
     {
         frame = inputs.Execute(frame, new NativeBattleEffect314Prepare662C00(model, offsetAddress));
         NativeBattleEffect298BodySource source = inputs.ReadBody(frame, model);

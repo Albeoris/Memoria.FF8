@@ -11,25 +11,37 @@ public static class NativeBattleGilgameshZantetsukenLifecycle
             return delayed;
         }
         NativeBattleModulePoolTask task = NativeBattleZantetsukenTasks.Read(frame, address);
-        byte actor = Actor(task);
+        BattleModelOwner actor = NativeBattleZantetsukenTasks.ReadActor(task);
         short age = unchecked((short)task.ReadWord(12));
         if (age <= 40)
         {
             NativeBattleGilgameshProcess process = frame.Memory.Gilgamesh ?? throw new NotSupportedException("Zantetsuken requires its current process actor owner.");
             NativeBattleGilgameshZantetsukenActors actors = process.ZantetsukenActors ?? NativeBattleGilgameshZantetsukenActors.FromUnknown();
+            bool original = inputs.Aliases.TryEncodeExact(actor, out byte slot);
+            NativeBattleEffectArena row = original ? actors.ReadRow(slot) : frame.Effect.ZantetsukenTransforms.GetValueOrDefault(actor) ?? NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleGilgameshZantetsukenActors.RecordStride);
             if (age == 0)
             {
-                actors = actors.WithWord(actor, 0, 0).WithWord(actor, 2, 0).WithWord(actor, 4, 0);
+                row = NativeBattleGilgameshZantetsukenActors.WithWord(row, 0, 0);
+                row = NativeBattleGilgameshZantetsukenActors.WithWord(row, 2, 0);
+                row = NativeBattleGilgameshZantetsukenActors.WithWord(row, 4, 0);
             }
             short angle = unchecked((short)task.ReadWord(0x18));
-            actors = actors.WithWord(actor, 0, unchecked((short)(age * angle / 40))).WithWord(actor, 2, unchecked((short)(age * (angle / 2) / 40)));
-            NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(new(actors.ReadWord(actor, 0), actors.ReadWord(actor, 2), actors.ReadWord(actor, 4)));
+            row = NativeBattleGilgameshZantetsukenActors.WithWord(row, 0, unchecked((short)(age * angle / 40)));
+            row = NativeBattleGilgameshZantetsukenActors.WithWord(row, 2, unchecked((short)(age * (angle / 2) / 40)));
+            NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(new(NativeBattleGilgameshZantetsukenActors.ReadWord(row, 0), NativeBattleGilgameshZantetsukenActors.ReadWord(row, 2), NativeBattleGilgameshZantetsukenActors.ReadWord(row, 4)));
             NativeBattleVector anchor = new(unchecked((short)task.ReadWord(0x10)), unchecked((short)task.ReadWord(0x12)), unchecked((short)task.ReadWord(0x14)));
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(local, anchor);
             local = local with { X = anchor.X - rotated.X, Y = anchor.Y + unchecked((short)task.ReadWord(0x20)) - rotated.Y, Z = anchor.Z - rotated.Z };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadWorld32(actor).ReadMatrix(), local);
-            actors = actors.WithMatrix(actor, NativeBattlePackedMatrix32.FromMatrix(composed, null));
-            frame = frame with { Memory = frame.Memory with { Gilgamesh = process with { ZantetsukenActors = actors } } };
+            row = NativeBattleGilgameshZantetsukenActors.WithMatrix(row, NativeBattlePackedMatrix32.FromMatrix(composed, null));
+            if (original)
+            {
+                frame = frame with { Memory = frame.Memory with { Gilgamesh = process with { ZantetsukenActors = actors.WithRow(slot, row) } } };
+            }
+            else
+            {
+                frame = frame with { Effect = frame.Effect with { ZantetsukenTransforms = frame.Effect.ZantetsukenTransforms.SetItem(actor, row) } };
+            }
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -54,7 +66,7 @@ public static class NativeBattleGilgameshZantetsukenLifecycle
         short age = unchecked((short)task.ReadWord(12));
         if (age < 40)
         {
-            byte actor = Actor(task);
+            BattleModelOwner actor = NativeBattleZantetsukenTasks.ReadActor(task);
             frame = inputs.Execute(frame, new NativeBattleGilgameshZantetsukenActorFlags(actor, 0x0C));
             frame = inputs.Execute(frame, new NativeBattleGilgameshZantetsukenBeginDrawActor(address));
             if (age >= 24)
@@ -75,7 +87,7 @@ public static class NativeBattleGilgameshZantetsukenLifecycle
         {
             return new(frame, 0);
         }
-        frame = inputs.Execute(frame, new NativeBattleGilgameshZantetsukenContact(unchecked((short)task.ReadWord(0x1A))));
+        frame = inputs.Execute(frame, new NativeBattleGilgameshZantetsukenContact(inputs.ResolveContact(task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(0x1A, 2).Offset ?? throw new InvalidDataException("Zantetsuken child has no contact offset."))));
         return new(frame, 2);
     }
 
@@ -124,9 +136,4 @@ public static class NativeBattleGilgameshZantetsukenLifecycle
         return new(frame, 0);
     }
 
-    private static byte Actor(NativeBattleModulePoolTask task)
-    {
-        ushort actor = task.ReadWord(14);
-        return actor < 7 ? (byte)actor : throw new InvalidDataException("Zantetsuken child actor leaves its seven original physical models.");
-    }
 }

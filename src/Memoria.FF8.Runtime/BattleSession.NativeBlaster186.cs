@@ -72,7 +72,7 @@ public sealed partial class BattleSession
                     return Import(current);
                 case NativeBattleBlaster186ContactsAll contacts:
                     Publish(current);
-                    graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
+                    graphics = ApplyNativeHeaderContacts(graphics, contacts.Header);
                     return Import(current);
                 case NativeBattleBlaster186SetActorZWord position:
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(position.Actor);

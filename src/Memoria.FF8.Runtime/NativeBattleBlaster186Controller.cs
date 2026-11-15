@@ -16,7 +16,7 @@ public static partial class NativeBattleBlaster186Controller
         children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(Parameters(frame).Header);
         BattleContactCursor first = header.FirstContact;
-        frame = Dword(Dword(Dword(frame, 0x22B7600, inputs.Packets.ReadContact(first).Primary.Recipient), 0x22BC0FC, Parameters(frame).Source), 0x22BC0F8, 0x1D99A78);
+        frame = frame with { State = frame.State.WriteModelOperand(0x22B7600, inputs.Packets.ReadContact(first).Primary.Recipient, inputs.Packets.ModelAliases).WriteModelOperand(0x22BC0FC, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteDword(0x22BC0F8, 0x1D99A78) };
         foreach ((uint bank, int count) in new (uint, int)[] { (0x22B7638, 100) })
         {
             for (int index = 0; index < count; index++)

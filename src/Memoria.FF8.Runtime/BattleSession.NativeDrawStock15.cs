@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect with { DrawStock15 = frame.State } };
 
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Draw Stock requires its actual posed model source.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Draw Stock requires its actual posed model source.");
 
         NativeBattleModuleAnchor ReadBone241(BattleModelOwner actor)
         {

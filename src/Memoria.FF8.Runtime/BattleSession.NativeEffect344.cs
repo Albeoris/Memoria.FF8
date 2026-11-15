@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                     NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect344 requires its current camera owner.")).RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect344SetSequence505C00 sequence:
-                    graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleEffect344MusicGain501B10 gain:
                     NativeMusicProcess = (NativeMusicProcess ?? throw new NotSupportedException("Effect344 requires its current music commands.")).QueueGain501B10(gain.Duration, gain.Gain);

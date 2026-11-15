@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using static Memoria.FF8.Runtime.NativeBattleEffect301Profile;
 
 namespace Memoria.FF8.Runtime;
@@ -12,7 +11,7 @@ public static partial class NativeBattleEffect301Controller
         uint arena = frame.State.ReadDword(ArenaGlobal);
         frame = frame with { State = frame.State.WriteDword(CursorGlobal, arena + (uint)(side ? FirstPacketOffset : SecondPacketOffset)) };
         frame = Write(frame, address, Read(frame, address).WriteDword(16, side ? 0u : 1u));
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         frame = inputs.Execute(frame, new NativeBattleEffect301ModelFlags(caster, 1, 255, 12));
         if (age == 1 && Read(frame, address).ReadByte(15) == 0)
         {
@@ -46,13 +45,7 @@ public static partial class NativeBattleEffect301Controller
         }
         if (initialized && mains == 0)
         {
-            for (int actor = 0; actor < 3; actor++)
-            {
-                ushort current = BinaryPrimitives.ReadUInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(actor)).Read(0, 2));
-                ushort saved = unchecked((ushort)frame.State.ReadDword(SavedPartyFlagsAddress + (uint)(actor * 4)));
-                ushort restored = (ushort)(current ^ ((current ^ saved) & 4));
-                frame = inputs.Execute(frame, new NativeBattleEffect301WriteModelBytes(ModelAddress(actor), 0, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(restored)), 2));
-            }
+            frame = inputs.Execute(frame, new NativeBattleEffect301PartyVisibility(true));
             frame = inputs.Execute(frame, new NativeBattleEffect301ModelFlags(caster, 2, 0xFFF3, 0));
             return new(frame, 2);
         }

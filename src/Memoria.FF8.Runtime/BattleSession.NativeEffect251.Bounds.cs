@@ -5,9 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleEffect251PointStep ReadNativeEffect251Bounds(ref NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, uint address)
+    private NativeBattleEffect251PointStep ReadNativeEffect251Bounds(ref NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, BattleModelOwner actor)
     {
-        int actor = NativeEffect301Actor(graphics, address);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect251 bounds require current physical memory.");
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect251 bounds require the current physical rig.");
         frame = frame with { Staging = NativeFileStaging };
@@ -85,7 +84,7 @@ public sealed partial class BattleSession
         return new(frame, output);
     }
 
-    private NativeBattleResourcePointer NativeEffect251BoundsSkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, int actor)
+    private NativeBattleResourcePointer NativeEffect251BoundsSkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
@@ -101,7 +100,7 @@ public sealed partial class BattleSession
         return new(cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect251 bounds require the physical resource row.")].Require(12), null);
     }
 
-    private short? ReadNativeEffect251BonePadding(NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, int actor, int bone)
+    private short? ReadNativeEffect251BonePadding(NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, BattleModelOwner actor, int bone)
     {
         NativeBattleResourcePointer pointer = NativeEffect251BoundsSkeletonPointer(graphics, frame, actor);
         int offset = checked(32 + bone * 48 + 18);
@@ -109,7 +108,7 @@ public sealed partial class BattleSession
         return known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(data) : null;
     }
 
-    private NativeBattleEffect251Frame RestoreNativeEffect251BoundsPose(ref NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, int actor, NativeBattlePoseSource source)
+    private NativeBattleEffect251Frame RestoreNativeEffect251BoundsPose(ref NativeBattleGraphicsState graphics, NativeBattleEffect251Frame frame, BattleModelOwner actor, NativeBattlePoseSource source)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect251 bounds require retained pose temporary memory."), 88);
         NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(graphics.ActorModels.Get(actor), source, NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88));

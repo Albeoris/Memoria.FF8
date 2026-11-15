@@ -306,16 +306,16 @@ public static class NativeBattleEffect107Geometry
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, short Depth) DrawNativeEffect107Model(NativeBattleGraphicsState graphics, int model, short screenX, short screenY, short priorDepth, int intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    private (NativeBattleGraphicsState Graphics, short Depth) DrawNativeEffect107Model(NativeBattleGraphicsState graphics, BattleModelOwner model, short screenX, short screenY, short priorDepth, int intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsModel target = graphics.ActorModels.Get(model);
         if (ReadNativeForeignModel(model) is { } foreign)
         {
             NativeBattleEffect107Resources lookup = graphics.OriginalEffect?.Binding.Effect107Resources ?? throw new NotSupportedException("Native6D19A0 requires its original lookup tables.");
             NativeBattleCameraProjection camera = NativeCamera?.Projection ?? throw new NotSupportedException("Native6D19A0 requires its current projection.");
-            graphics = SubmitNativeShadowPackets5088A0(graphics, target, camera, 4112, false);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, model, target, camera, 4112, false);
             short maximum = 0;
-            NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.Deform(foreign, camera, point => NativeBattleEffect107Geometry.Deform6D1C30(point, screenX, screenY, priorDepth, ref maximum, intensity, lookup.Read), (mesh, projected, identity) => NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, target.Color40!.Value, null, pilotIdentity: identity), pilotIdentity ?? new(107, 0x6D19A0, model, 0, 0));
+            NativeBattleGfGeometryBatch batch = NativeBattleForeignModelDrawing.Deform(foreign, camera, point => NativeBattleEffect107Geometry.Deform6D1C30(point, screenX, screenY, priorDepth, ref maximum, intensity, lookup.Read), (mesh, projected, identity) => NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, target.Color40!.Value, null, pilotIdentity: identity), pilotIdentity ?? NativeBattlePilotVisualIdentity.ForModel(107, 0x6D19A0, model));
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
             return (graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } }, maximum);
@@ -324,7 +324,7 @@ public sealed partial class BattleSession
         NativeBattleEffect107Resources resources = graphics.OriginalEffect?.Binding.Effect107Resources ?? throw new NotSupportedException("Native6D19A0 requires its original effect107 lookup tables.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6D19A0 requires its prior camera registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6D19A0 requires its prior camera matrix.");
-        graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
+        graphics = SubmitNativeShadowPackets5088A0(graphics, model, target, projection, 4112, false);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native6D19A0 requires its actual body skeleton.");
         target = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(target, source, view);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(model, target) };

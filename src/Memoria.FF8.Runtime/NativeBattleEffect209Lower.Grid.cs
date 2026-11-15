@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect209Lower
     public static NativeBattleEffect209Frame DeformGrid80F0(NativeBattleEffect209Frame frame, int age, int duration, NativeBattleEffect209Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 12);
-        NativeBattleEffect209PointStep anchor = inputs.Point502170(frame, checked((int)frame.State.ReadDword(CasterGlobal)), 0xF1, 0, Context(frame, temporary, 12));
+        NativeBattleEffect209PointStep anchor = inputs.Point502170(frame, frame.State.ReadModel(CasterGlobal), 0xF1, 0, Context(frame, temporary, 12));
         frame = PublishContext(anchor.Frame, temporary, anchor.Output8, 8);
         frame = LoadMatrix(frame, inputs.ReadView(frame));
         NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(Registers(frame), 0, Vector(anchor.Output8), OptionalWord(anchor.Output8, 6)), inputs.ReadProjection(frame), frame.Memory.ScriptedGraphics!.Dqa, frame.Memory.ScriptedGraphics.Dqb);

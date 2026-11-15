@@ -58,7 +58,8 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action));
                 BattleContactCursor contact = header.FirstContact;
                 BattleModelOwner target = nativeActionPackets.ReadContact(contact).Primary.Recipient;
-                task = task.WriteWord(14, (ushort)action).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(target));
+                task = task.WriteWord(14, (ushort)action);
+                task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(target), nativeActionPackets.ModelAliases.EncodeAddress(target));
                 task = Init(task, 0x14, 0x2E8, resources.Glyph);
                 task = Init(task, 0x2FC, 0x26C, resources.Upper);
                 targets = pool.WriteSlot(slot, task);
@@ -98,10 +99,7 @@ public sealed partial class BattleSession
 
         int Target(ref NativeBattleModulePoolTask task)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(task.ReadDword(16), out int actor))
-            {
-                throw new InvalidDataException("Native Float target leaves its physical model bank.");
-            }
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
             int counter = unchecked((short)task.ReadWord(12));
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (counter == 0)

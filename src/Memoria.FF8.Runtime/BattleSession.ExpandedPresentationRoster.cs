@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         return new(ReadPresentationModelBindings().Select(binding => binding.Owner));
     }
 
-    internal (BattleModelRoster Roster, NativeBattleModelAliases Aliases) ReadBattlePresentationPacketBindings()
+    public (BattleModelRoster Roster, NativeBattleModelAliases Aliases) ReadBattlePresentationPacketBindings()
     {
         var bindings = ReadPresentationModelBindings().ToArray();
         BattleModelRoster roster = new(bindings.Select(binding => binding.Owner));

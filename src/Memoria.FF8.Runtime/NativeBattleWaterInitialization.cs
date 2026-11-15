@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterInitializationResource(int ArenaOffset, int Length, uint Address);
 public sealed record NativeBattleWaterInitializationInputs(NativeBattleWaterInitializationResource Resource0, NativeBattleWaterInitializationResource Resource1, NativeBattleWaterTemporaryFrame TemporaryFrame, uint ActionParametersAddress, uint InitializationDirectoryAddress, NativeBattleWaterResetCaptureInputs Selection, byte FirstHeaderCount);
-public sealed record NativeBattleWaterResetCaptureInputs(BattleModelOwner Caster, BattleActionHeaderReference? Header, uint? OriginalHeaderAddress, BattleModelOwner FirstHeaderFirstActor, ImmutableArray<BattleModelOwner> Contacts, BattleActorModels Models, NativeBattleModelBoundary Boundary);
+public sealed record NativeBattleWaterResetCaptureInputs(BattleModelOwner Caster, BattleActionHeaderReference? Header, uint? OriginalHeaderAddress, BattleModelOwner FirstHeaderFirstActor, ImmutableArray<BattleModelOwner> Contacts, BattleActorModels Models, NativeBattleModelBoundary Boundary, BattleContactTaskStorageContract StorageContract);
 public sealed record NativeBattleWaterResetResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterTemporaryFrame TemporaryFrame, NativeBattleWaterSlotBank SlotBank, BattleActionHeaderReference? CurrentHeader);
 public sealed record NativeBattleWaterInitialPoolRequest(uint DescriptorAddress, uint BankAddress, int Stride, int Capacity, uint Callback);
 public sealed record NativeBattleWaterInitializationResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterSlotBank SlotBank, NativeBattleWaterTemporaryFrame TemporaryFrame, BattleActionHeaderReference? CurrentHeader, NativeBattleWaterInitialPoolRequest PoolRequest);
@@ -203,7 +203,7 @@ public static class NativeBattleWaterInitialization
         {
             core = core.MarkUnknown(manager + 0xCC, 4);
         }
-        NativeBattleWaterHeaderCaptureResult captured = NativeBattleWaterHeaderCapture.CaptureAA4E90(core.ReadHeader(), arena, bank, 0, inputs.Caster, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.Models, inputs.Boundary);
+        NativeBattleWaterHeaderCaptureResult captured = NativeBattleWaterHeaderCapture.CaptureAA4E90(core.ReadHeader(), arena, bank, 0, inputs.Caster, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.Models, inputs.Boundary, inputs.StorageContract);
         arena = captured.Arena;
         core = core.WithHeader(NativeBattleWaterHeaderCapture.CacheRowsAA4B60(captured.Header, inputs.Models, inputs.Boundary));
         byte[] main = new byte[4];

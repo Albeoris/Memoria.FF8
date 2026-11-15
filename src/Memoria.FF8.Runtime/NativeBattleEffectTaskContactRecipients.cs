@@ -1,0 +1,32 @@
+﻿using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial record NativeBattleModulePoolTask
+{
+    internal NativeBattleModulePoolTask WriteOrderedContactRecipients(int offset, int originalCells, NativeBattleActionPacketsState packets, NativeBattleActionHeaderSlot header)
+    {
+        int count = header.ReadContactCount();
+        var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
+        ImmutableArray<byte>? first = [0, 0, 0, 0];
+        NativeBattleModulePoolTask task = this;
+        for (int index = 0; index < count; index++)
+        {
+            NativeBattleContactPacket packet = packets.ReadContact(header.FirstContact.Advance(index));
+            BattleModelOwner owner = packet.Primary.Recipient;
+            BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("The selected contact has no retained occurrence.");
+            recipients.Add((owner, occurrence));
+            if (index == 0)
+            {
+                first = packets.ModelAliases.EncodeAddress(owner);
+            }
+            else if (index < originalCells)
+            {
+                int address = checked(offset + 4 * index);
+                task = packets.ModelAliases.EncodeAddress(owner) is { } encoded ? task.WriteBytes(address, encoded.AsSpan()) : task.MarkPayloadUnknown(address, 4);
+            }
+        }
+        task.WriteExecutionReference(offset, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), first);
+        return task;
+    }
+}

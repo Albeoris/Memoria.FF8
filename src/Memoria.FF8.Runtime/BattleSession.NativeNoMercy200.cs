@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, bound.Model) };
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleNoMercy200Sequence sequence:
-                    graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
                     return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleNoMercy200TargetSequence sequence:
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Parameters.Header);

@@ -51,12 +51,11 @@ public sealed partial class BattleSession
         switch (owner.Subphase)
         {
             case 0:
-                foreach (int index in new[] { 0, 2 })
+                foreach (byte slot in new byte[] { 0, 2 })
                 {
-                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                    graphics = SetLandingHidden(graphics, slot, true);
                 }
-                if ((graphics.ActorModels.Get(0).Flags0 & 2) != 0)
+                if ((graphics.NativeBindings.ReadOriginalCell(NativeBattleModelSlot.Decode(0), graphics.ActorModels).Flags0 & 2) != 0)
                 {
                     owner = owner with { Subphase = 1 };
                 }
@@ -69,8 +68,9 @@ public sealed partial class BattleSession
                 }
                 break;
             case 2:
-                foreach (byte index in new byte[] { 0, 2 })
+                foreach (byte slot in new byte[] { 0, 2 })
                 {
+                    BattleModelOwner index = graphics.NativeBindings.DecodeLiteral(slot, graphics.ActorModels);
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                     NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Native511EF0 requires the party actor transform.");
                     model = model with { Transform = transform with { Position28 = transform.Position28 with { Z = unchecked((short)(transform.Position28.Z + 6000)) } }, Rotation14 = 2048 };
@@ -79,17 +79,17 @@ public sealed partial class BattleSession
                 owner = owner with { Subphase = 3, Counter = 0 };
                 break;
             case 3:
-                foreach (int index in new[] { 0, 2 })
+                foreach (byte slot in new byte[] { 0, 2 })
                 {
-                    NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Flags0 = (ushort)(model.Flags0 & ~4) }) };
+                    graphics = SetLandingHidden(graphics, slot, false);
                 }
                 owner = owner with { Counter = 0, Subphase = 4 };
                 break;
             case 4:
                 owner = owner with { Counter = unchecked((short)(owner.Counter + 1)) };
-                foreach (int index in new[] { 0, 2 })
+                foreach (byte slot in new byte[] { 0, 2 })
                 {
+                    BattleModelOwner index = graphics.NativeBindings.DecodeLiteral(slot, graphics.ActorModels);
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                     NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Native511EF0 requires the party actor transform.");
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model with { Transform = transform with { Position28 = transform.Position28 with { Z = NativeBattleStage147.Descent511EF0(transform.Initial20.Z, owner.Counter) } } }) };
@@ -105,8 +105,9 @@ public sealed partial class BattleSession
                     NativeBattleUiWindows windows = ui.Windows ?? throw new InvalidDataException("Native511EF0 requires its retained vitals window bank.");
                     graphics = graphics with { UiServices = ui with { Windows = windows.RequestVitalsVisibility4B1830(0, true).RequestVitalsVisibility4B1830(2, true) } };
                     owner = owner with { Subphase = 5, Counter = 0 };
-                    foreach (byte index in new byte[] { 0, 2 })
+                    foreach (byte slot in new byte[] { 0, 2 })
                     {
+                        BattleModelOwner index = graphics.NativeBindings.DecodeLiteral(slot, graphics.ActorModels);
                         NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
                         byte sequence = NativeStandingSequence(model.Flags8 ?? throw new InvalidDataException("Native511EF0 requires the party status DWORD."));
                         graphics = SelectNativeHeaderSequence(graphics, index, sequence);
@@ -121,7 +122,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectHeapAllocation animation = definition.NativeStageSource?.TextureAnimation147 ?? throw new InvalidDataException("Native511EF0 requires its original stage animation resource.");
                     NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native511EF0 requires its retained effect memory.");
                     NativeEffectMemory = memory with { Textures = (memory.Textures ?? throw new InvalidDataException("Native511EF0 requires its retained texture process.")).Register5099A0(animation) };
-                    graphics = SelectNativeHeaderSequence(graphics, 3, 16);
+                    graphics = SelectNativeHeaderSequence(graphics, graphics.NativeBindings.DecodeLiteral(3, graphics.ActorModels), 16);
                     owner = owner with { Subphase = 6 };
                 }
                 else
@@ -142,4 +143,15 @@ public sealed partial class BattleSession
         NativeStage = state with { Extended = extended with { Stage147 = owner } };
         return graphics;
     }
+
+    private static NativeBattleGraphicsState SetLandingHidden(NativeBattleGraphicsState graphics, byte originalOperand, bool hidden)
+    {
+        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(originalOperand);
+        NativeBattleGraphicsModel model = graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels);
+        model = model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & ~4) };
+        return graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is { } owner
+            ? graphics with { ActorModels = graphics.ActorModels.Set(owner, model) }
+            : graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(slot, model) };
+    }
+
 }

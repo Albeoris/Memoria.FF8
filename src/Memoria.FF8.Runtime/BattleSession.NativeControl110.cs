@@ -51,18 +51,14 @@ public sealed partial class BattleSession
             {
                 NativeBattleModulePoolTask director = Clear(5, slot);
                 BattleActionHeaderReference headerIndex = effect.Parameters!.Header;
-                int count = nativeActionPackets.ReadHeader(headerIndex).ReadContactCount();
-                int contact = nativeActionPackets.ReadHeader(headerIndex).FirstContactIndex ?? throw new InvalidDataException("Native control110 requires its original target array.");
+                NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(headerIndex);
+                int count = header.ReadContactCount();
                 if (count is < 1 or > 3)
                 {
                     throw new InvalidDataException("Native control110 target pointers leave their three physical slots.");
                 }
                 director = director.WriteWord(14, (ushort)count).WriteWord(30, 1).WriteWord(34, unchecked((ushort)((count << 12) / 60)));
-                for (int index = 0; index < count; index++)
-                {
-                    int actor = nativeActionPackets.ReadContact(contact + index).Primary.Recipient;
-                    director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor));
-                }
+                director = director.WriteOrderedContactRecipients(16, 3, nativeActionPackets, header);
                 Put(5, slot, director);
                 BeginTarget(slot, 0);
             }
@@ -135,7 +131,7 @@ public sealed partial class BattleSession
                         int next = WindWord(task, 30);
                         if (WindWord(task, 28) != next)
                         {
-                            NativeBattleVector saved = Position(Actor(task.ReadDword(16 + next * 4)));
+                            NativeBattleVector saved = Position(DirectorTarget(task, next));
                             task = WindStore(task, 60, saved);
                             Put(5, slot, task);
                             BeginTarget(slot, next);
@@ -144,7 +140,7 @@ public sealed partial class BattleSession
                     }
                 }
                 NativeBattleVector aim;
-                int nextActor = Actor(task.ReadDword(16 + WindWord(task, 30) * 4));
+                BattleModelOwner nextActor = DirectorTarget(task, WindWord(task, 30));
                 NativeBattleVector to = Position(nextActor);
                 if (WindWord(task, 28) == 1)
                 {
@@ -153,7 +149,7 @@ public sealed partial class BattleSession
                 }
                 else
                 {
-                    NativeBattleVector from = Position(Actor(task.ReadDword(16 + WindWord(task, 28) * 4)));
+                    NativeBattleVector from = Position(DirectorTarget(task, WindWord(task, 28)));
                     int fraction = WindWord(task, 32);
                     aim = new(unchecked((short)(from.X + ((to.X - from.X) * fraction >> 12))), unchecked((short)(from.Y + ((to.Y - from.Y) * fraction >> 12))), unchecked((short)(from.Z + ((to.Z - from.Z) * fraction >> 12))));
                 }
@@ -221,21 +217,21 @@ public sealed partial class BattleSession
                 task = task.WriteWord(34, unchecked((ushort)(WindWord(task, 34) - 1)));
                 return 0;
             }
-            int actor = Actor(task.ReadDword(28));
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(28, 4).Owner;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (WindWord(task, 12) == 0)
             {
                 int ordinal = WindWord(task, 32);
                 if (ordinal is 0 or 1)
                 {
-                    graphics = SelectNativeHeaderSequence(graphics, (byte)actor, 5);
+                    graphics = SelectNativeHeaderSequence(graphics, actor, 5);
                     task = task.WriteWord(14, 10);
                 }
-                if (actor is 3 or 4)
+                if (nativeActionPackets.ModelAliases.TryEncodeExact(actor, out byte originalSlot) && originalSlot is 3 or 4)
                 {
-                    BattleCombatant combatant = GraphicsActor(graphics, (byte)actor);
+                    BattleCombatant combatant = GraphicsActor(graphics, actor);
                     NativeBattleAiDefinition program = combatant.NativeAi ?? throw new NotSupportedException("Native control110 actor message requires its installed enemy message bank.");
-                    QueueNativeText(combatant, program, actor == 3 ? 10 : 1, 0);
+                    QueueNativeText(combatant, program, originalSlot == 3 ? 10 : 1, 0);
                 }
             }
             model = graphics.ActorModels.Get(actor);
@@ -337,20 +333,20 @@ public sealed partial class BattleSession
                 return;
             }
             NativeBattleModulePoolTask director = pools[5].Slots[directorSlot];
-            uint entity = director.ReadDword(16 + ordinal * 4);
-            int actor = Actor(entity);
-            NativeBattleModulePoolTask task = Clear(1, slot).WriteDword(16, Address(0x1498 + directorSlot * 100)).WriteDword(28, entity).WriteWord(32, unchecked((ushort)ordinal)).WriteWord(22, unchecked((ushort)Count110(actor))).WriteWord(40, 8);
+            BattleModelOwner actor = DirectorTarget(director, ordinal);
+            NativeBattleModulePoolTask task = Clear(1, slot).WriteDword(16, Address(0x1498 + directorSlot * 100)).WriteWord(32, unchecked((ushort)ordinal)).WriteWord(22, unchecked((ushort)Count110(actor))).WriteWord(40, 8);
+            task.WriteExecutionReference(28, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
             if (ordinal is 0 or 1)
             {
                 task = task.WriteWord(34, ordinal == 0 ? (ushort)10 : (ushort)2).WriteWord(20, 15);
             }
             Put(1, slot, task);
         }
-        NativeBattleVector Position(int actor) => graphics.ActorModels.Get(actor).Transform!.Position28;
+        NativeBattleVector Position(BattleModelOwner actor) => graphics.ActorModels.Get(actor).Transform!.Position28;
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + (uint)offset);
-        int Actor(uint address)
+        BattleModelOwner DirectorTarget(NativeBattleModulePoolTask task, int ordinal)
         {
-            return NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex) ? actorIndex : throw new InvalidDataException("Native control110 actor pointer leaves its actual model bank.");
+            return task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients[ordinal].Owner;
         }
         int DirectorSlot(uint address)
         {
@@ -391,12 +387,12 @@ public sealed partial class BattleSession
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
-        int Count110(int actor)
+        int Count110(BattleModelOwner actor)
         {
             var data = Inputs110(actor);
             return NativeBattleStorm11Vertices.Count69EEE0(data.Body, data.Mask) + NativeBattleStorm11Vertices.Count69EEE0(data.Linked, uint.MaxValue);
         }
-        NativeBattleVector Sample110(int actor, int vertex)
+        NativeBattleVector Sample110(BattleModelOwner actor, int vertex)
         {
             var data = Inputs110(actor);
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
@@ -416,7 +412,7 @@ public sealed partial class BattleSession
             }
             return point;
         }
-        (ImmutableArray<NativeBattleRawMesh> Body, ImmutableArray<NativeBattleRawMesh> Linked, uint Mask, NativeBattlePoseSource Source, NativeBattlePoseSource? LinkedSource) Inputs110(int actor)
+        (ImmutableArray<NativeBattleRawMesh> Body, ImmutableArray<NativeBattleRawMesh> Linked, uint Mask, NativeBattlePoseSource Source, NativeBattlePoseSource? LinkedSource) Inputs110(BattleModelOwner actor)
         {
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
             ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native control110 requires actual body geometry.");

@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         short dqa = registers.Dqa;
         int dqb = registers.Dqb;
         BattleModelOwner caster = effect.Parameters!.Source;
-        int target = effect.Parameters.TargetActors.EnumerateRows().First();
+        BattleModelOwner target = effect.Parameters.TargetActors.Enumerate().First();
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;

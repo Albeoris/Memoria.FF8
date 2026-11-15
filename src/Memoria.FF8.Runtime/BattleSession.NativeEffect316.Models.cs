@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleResourcePointer NativeEffect316SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, int actor)
+    private NativeBattleResourcePointer NativeEffect316SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         if (model.ActiveStagedResourceRow100 is uint staged)
@@ -20,9 +20,8 @@ public sealed partial class BattleSession
         return new(row.Require(12), null, row.Lengths.TryGetValue(12, out int length) ? length : null);
     }
 
-    private NativeBattlePackedMatrix32 ReadNativeEffect316BoneMatrix(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, uint model, int bone)
+    private NativeBattlePackedMatrix32 ReadNativeEffect316BoneMatrix(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, BattleModelOwner actor, int bone)
     {
-        int actor = NativeEffect316Actor(graphics, model);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect316 requires its current rig.");
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         if ((uint)bone >= (uint)matrices.Length)
@@ -35,9 +34,8 @@ public sealed partial class BattleSession
         return packed with { Bytes = packed.Bytes.SetItem(18, data[0]).SetItem(19, data[1]), Known = packed.Known.SetItem(18, known[0]).SetItem(19, known[1]) };
     }
 
-    private NativeBattleModelGeometrySource ReadNativeEffect316Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, uint model, bool mutable = false)
+    private NativeBattleModelGeometrySource ReadNativeEffect316Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, BattleModelOwner actor, bool mutable = false)
     {
-        int actor = NativeEffect316Actor(graphics, model);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect316 requires its current CPU owner.");
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
@@ -48,9 +46,8 @@ public sealed partial class BattleSession
         return NativeBattleModelGeometrySource.Open(cpu, frame.Staging!, pointer.Pin(cpu), (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
     }
 
-    private NativeBattleEffect316Frame WriteNativeEffect316Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, uint model, int offset, byte[] bytes)
+    private NativeBattleEffect316Frame WriteNativeEffect316Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect316Frame frame, BattleModelOwner actor, int offset, byte[] bytes)
     {
-        int actor = NativeEffect316Actor(graphics, model);
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
         if (offset < 0 || pointer.Length is int length && offset > length - bytes.Length)

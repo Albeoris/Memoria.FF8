@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicShadow71Step(NativeBattleWaterExecutionFrame Frame, uint OutputAddress);
-public sealed record NativeBattleCinematicShadow71Services(Func<uint, ushort> ReadActorFlags, Action<uint, ushort> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, uint, uint, byte, uint, NativeBattleCinematicShadow71Step> DrawShadow);
+public sealed record NativeBattleCinematicShadow71Services(Func<BattleModelOwner, ushort> ReadActorFlags, Action<BattleModelOwner, ushort> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, uint, byte, uint, NativeBattleCinematicShadow71Step> DrawShadow);
 
 /// <summary>The selected actor shadow flag and explicit current-output shadow pass.</summary>
 public static class NativeBattleCinematicShadow71
@@ -15,9 +15,7 @@ public static class NativeBattleCinematicShadow71
         {
             throw new NotSupportedException("Native explicit shadow requires its selected Main71 instruction.");
         }
-        uint header = CoreDword(frame, 0x279744C);
-        byte index = ReadSlot(frame, 0x1B, 1)[0];
-        uint actor = NativeBattleCinematicActorAccess.ReadModelPointer(frame, index, header);
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         ushort flags = services.ReadActorFlags(actor);
         if ((instruction & 0x8000) != 0)
         {

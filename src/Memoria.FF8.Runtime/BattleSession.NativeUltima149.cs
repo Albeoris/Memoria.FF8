@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             tasks = tasks.WriteSlot(director, tasks.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
             pools = [roots, tasks];
             state = state.Initialize();
-            effect = effect with { ReturnedDescriptor = 0x2461EB0, DrawArenaOffset = null };
+            effect = effect with { ReturnedDescriptor = 0x2461EB0, DrawArenaOffset = null, UltimaSideFadeOwners = ImmutableHashSet<BattleModelOwner>.Empty };
             return Publish();
         }
 

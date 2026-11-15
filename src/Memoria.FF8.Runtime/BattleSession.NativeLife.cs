@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         {
             CameraRoll = camera.Roll,
             ApplyContact = ApplyContact,
-            ReadForeignTarget = ReadNativeForeignTarget
+            ReadForeignTarget = actor => ReadNativeForeignTarget(graphics, actor)
         };
         NativeBattleLifeStep step = NativeBattleLifeController.Advance864AB0(frame, resources, inputs);
         NativeEffectMemory = step.Frame.Memory;
@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         }
         return graphics with { OriginalEffect = step.Frame.Effect with { Life = step.Frame.State } };
 
-        NativeBattleLifeFrame ApplyContact(NativeBattleLifeFrame current, int index)
+        NativeBattleLifeFrame ApplyContact(NativeBattleLifeFrame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             var pending = graphics.PendingContacts;

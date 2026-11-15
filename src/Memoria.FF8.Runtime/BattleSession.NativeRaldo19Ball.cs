@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleRaldo19Frame Frame) DrawNativeRaldo19Ball(NativeBattleGraphicsState graphics, NativeBattleRaldo19Frame current, int index, NativeBattlePilotVisualIdentity identity)
+    private (NativeBattleGraphicsState Graphics, NativeBattleRaldo19Frame Frame) DrawNativeRaldo19Ball(NativeBattleGraphicsState graphics, NativeBattleRaldo19Frame current, BattleModelOwner index, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleRaldo19BallParameters ball = NativeBattleRaldo19BallRendering.Read(current.State.BallC4);
         if (ball.Actor != index || BinaryPrimitives.ReadUInt32LittleEndian(current.State.Descriptor48.Read(4, 4)) != NativeBattleRaldo19BallRendering.VertexAddress)

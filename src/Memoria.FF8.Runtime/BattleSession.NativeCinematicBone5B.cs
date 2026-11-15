@@ -13,18 +13,14 @@ public sealed partial class BattleSession
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
             int index = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, index));
-        }, (current, source, physical) =>
+        }, RestorePhysical, (current, source) =>
         {
-            if (physical)
-            {
-                return RestorePhysical(current, source);
-            }
             byte kind = current.Arena.Read(ArenaOffset(source + 0x1C, 1), 1)[0];
             uint handler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(profile.DrawTable + 4u * kind, 4)));
             uint model = BinaryPrimitives.ReadUInt32LittleEndian(current.Arena.Read(ArenaOffset(source + 0xBC, 4), 4));
             if (handler == 0xAF6040)
             {
-                return RestorePhysical(current, BinaryPrimitives.ReadUInt32LittleEndian(current.Arena.Read(ArenaOffset(model + 0x0C, 4), 4)));
+                return RestorePhysical(current, current.Arena.ReadExecutionReference<BattleExecutionReference.Model>(ArenaOffset(model + 0x0C, 4), 4).Owner);
             }
             if (handler is not (0xB26B80 or 0xAF5810 or 0xA5D730))
             {
@@ -51,12 +47,8 @@ public sealed partial class BattleSession
         }, CreateNativeActorAnchorServices());
         return (NativeBattleCinematicBone5B.Execute(frame, program, services), graphics);
 
-        NativeBattleCinematicBonePose RestorePhysical(NativeBattleWaterExecutionFrame current, uint address)
+        NativeBattleCinematicBonePose RestorePhysical(NativeBattleWaterExecutionFrame current, BattleModelOwner index)
         {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int index, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Native bone positioning requires its actual physical model pointer.");
-            }
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native bone positioning requires its actual physical rig source.");
             NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source);

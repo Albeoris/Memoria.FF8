@@ -18,7 +18,17 @@ public sealed record NativeBattleForeignActor(BattleModelOwner Owner, NativeBatt
     public bool IsParty => Owner.Side == BattleSide.Allies;
 }
 
-public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
+public abstract record NativeBattleEffectInvocation
+{
+    private NativeBattleEffectInvocation()
+    {
+    }
+
+    public sealed record Combat(NativeBattleActionPacketsState Packets, NativeBattleEffectParameters Parameters) : NativeBattleEffectInvocation;
+    public sealed record Positioning(BattleModelOwner Source, BattleModelRoster Roster, NativeBattleModelAliases Aliases) : NativeBattleEffectInvocation;
+}
+
+public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleEffectInvocation Invocation, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
 {
     public NativeBattleArenaHost? Arena { get; init; }
     public NativeBattleEffectSceneContext? SceneContext { get; init; }

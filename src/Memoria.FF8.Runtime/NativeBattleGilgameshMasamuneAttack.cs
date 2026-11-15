@@ -2,13 +2,13 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleGilgameshMasamuneAnchor(uint Address, byte Actor) : NativeBattleGilgameshOperation;
+public sealed record NativeBattleGilgameshMasamuneAnchor(uint Address, BattleModelOwner Actor) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshMasamuneProjectFlare(uint Address) : NativeBattleGilgameshOperation;
 public sealed record NativeBattleGilgameshMasamuneAttackStep(NativeBattleGilgameshFrame Frame, bool Contact, int Result);
 
 public static class NativeBattleGilgameshMasamuneAttack
 {
-    public static NativeBattleGilgameshMasamuneAttackStep Advance(NativeBattleGilgameshFrame frame, uint parentAddress, uint graphicsFlags, ImmutableArray<byte> contactActors, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> execute)
+    public static NativeBattleGilgameshMasamuneAttackStep Advance(NativeBattleGilgameshFrame frame, uint parentAddress, uint graphicsFlags, ImmutableArray<BattleModelOwner> contactActors, Func<NativeBattleGilgameshFrame, NativeBattleGilgameshOperation, NativeBattleGilgameshFrame> execute)
     {
         if (frame.Effect.Binding.Effect != 328 || frame.Effect.Binding.Entry != 0x58D930 || frame.Effect.Pools.IsDefault || frame.Effect.Pools.Length != 3)
         {
@@ -33,17 +33,13 @@ public static class NativeBattleGilgameshMasamuneAttack
         ushort counter = parent.ReadWord(0x0C);
         if (counter is 0 or 16)
         {
-            if (contactActors.IsDefault || contactActors.Length > byte.MaxValue)
+            if (contactActors.IsDefault)
             {
                 throw new NotSupportedException("Masamune requires its actual first-header contact actors.");
             }
             for (int index = 0; index < contactActors.Length; index++)
             {
-                byte actor = contactActors[index];
-                if (actor >= 7)
-                {
-                    throw new InvalidDataException("Masamune contact actor leaves its seven physical models.");
-                }
+                BattleModelOwner actor = contactActors[index];
                 if (counter == 0)
                 {
                     uint flare = Append(0x590790);

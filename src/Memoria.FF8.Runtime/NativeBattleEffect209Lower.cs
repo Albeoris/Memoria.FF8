@@ -27,7 +27,7 @@ public static partial class NativeBattleEffect209Lower
         int y = Signed(task, 0x12);
         if (scrolling)
         {
-            NativeBattleEffect209PointStep point = inputs.Point502170(frame, checked((int)frame.State.ReadDword(CasterGlobal)), 0xF1, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
+            NativeBattleEffect209PointStep point = inputs.Point502170(frame, frame.State.ReadModel(CasterGlobal), 0xF1, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8));
             frame = point.Frame;
             y = Vector(point.Output8).Y;
         }

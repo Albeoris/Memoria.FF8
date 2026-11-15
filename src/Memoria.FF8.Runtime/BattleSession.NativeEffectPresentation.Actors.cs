@@ -4,13 +4,13 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static void ValidatePresentationBindings(NativeBattleEffectPresentationInputs inputs, BattleModelRoster roster)
+    private static void ValidatePresentationBindings(NativeBattleEffectPresentationInputs inputs, BattleModelRoster roster, BattleModelOwner source)
     {
-        if (!roster.Contains(inputs.Parameters.Source) || inputs.NativeTargets.IsDefault || inputs.ForeignActors.IsDefault)
+        if (!roster.Contains(source) || inputs.NativeTargets.IsDefault || inputs.ForeignActors.IsDefault)
         {
             throw new InvalidDataException("The effect presentation requires a bound source and explicit model bindings.");
         }
-        HashSet<BattleModelOwner> occupied = [inputs.Parameters.Source];
+        HashSet<BattleModelOwner> occupied = [source];
         foreach (NativeBattleEffectModelBinding target in inputs.NativeTargets)
         {
             if (target?.Model is null || target.Resource is null || target.Owner is not (BattlePartyActorModel or BattleEnemyActorModel) ||

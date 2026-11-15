@@ -49,7 +49,7 @@ public sealed partial class BattleSession
                 targets = NativeBattleEffectTaskPool.Initialize(0x2508520, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer), 0x310, 3);
                 particles = NativeBattleEffectTaskPool.Initialize(0x2508510, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + 0x930), 0x18, 0x40);
             }
-            int first = header.FirstContactIndex ?? throw new InvalidDataException("Mad Rush requires its original contact directory.");
+            BattleContactCursor first = header.FirstContact;
             for (int contact = 0; contact < header.ReadContactCount(); contact++)
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Mad Rush lost its target pool.");
@@ -59,9 +59,13 @@ public sealed partial class BattleSession
                 }
                 (pool, int slot) = pool.Append(0x68D8B0);
                 NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x304);
-                int actor = nativeActionPackets.ReadContact(first + contact).Primary.Recipient;
+                BattleModelOwner actor = nativeActionPackets.ReadContact(first.Advance(contact)).Primary.Recipient;
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
-                task = WindStore(task.WriteWord(12, unchecked((ushort)(-contact * 2))).WriteWord(14, (ushort)contact).WriteDword(16, NativeBattleGraphicsModelAddress.Encode(actor)), 20, anchor);
+                task = task.WriteWord(12, unchecked((ushort)(-contact * 2)));
+                BattleExecutionReference.ContactOffset offset = new(contact);
+                task.WriteExecutionReference(14, 2, offset, offset.EncodeOriginalWord());
+                task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
+                task = WindStore(task, 20, anchor);
                 task = task.WriteWord(22, unchecked((ushort)(graphics.ActorModels.Get(actor).Transform?.Angle36 ?? throw new NotSupportedException("Mad Rush requires its target height."))));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x10), 0x2F4);
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Animation, 0x2F4));
@@ -110,8 +114,9 @@ public sealed partial class BattleSession
                 int result = 0;
                 if (advance.Remaining == 0)
                 {
-                    int first = header.FirstContactIndex ?? throw new InvalidDataException("Mad Rush lost its contact directory.");
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first + unchecked((short)task.ReadWord(14)))] });
+                    BattleContactCursor first = header.FirstContact;
+                    int offset = task.ReadExecutionReference<BattleExecutionReference.ContactOffset>(14, 2).Offset ?? throw new InvalidDataException("Mad Rush lost its contact offset.");
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first.Advance(offset))] });
                     result = 2;
                 }
                 else

@@ -26,11 +26,11 @@ public sealed record NativeBattleLifeState([property: JsonRequired] int? DrawCur
 public sealed record NativeBattleLifeFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleLifeState State);
 public sealed record NativeBattleLifeInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, NativeCrtRandomState Random, Func<NativeBattleLifeFrame, NativeBattleModulePacketBatch, NativeBattleLifeFrame> Execute)
 {
-    public Func<NativeBattleLifeFrame, int, NativeBattleLifeFrame>? ApplyContact { get; init; }
+    public Func<NativeBattleLifeFrame, BattleContactOccurrence, NativeBattleLifeFrame>? ApplyContact { get; init; }
     public short CameraRoll { get; init; }
-    public Func<int, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
+    public Func<BattleModelOwner, NativeBattleEffectActorGeometry?>? ReadForeignTarget { get; init; }
 }
-public sealed record NativeBattleLifeStep(NativeBattleLifeFrame Frame, NativeCrtRandomState Random, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
+public sealed record NativeBattleLifeStep(NativeBattleLifeFrame Frame, NativeCrtRandomState Random, ImmutableArray<BattleContactOccurrence> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
 
 /// <summary>8649C0/864AB0/864BC0's five original task banks and native same-pass scheduling.</summary>
 public static partial class NativeBattleLifeController
@@ -52,8 +52,10 @@ public static partial class NativeBattleLifeController
         hierarchy = root.Hierarchy;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleContactCursor first = header.FirstContact;
-        byte target = packets.ReadContact(first).Primary.Recipient;
-        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0).WriteByte(0x2D, target).WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
+        BattleModelOwner target = packets.ReadContact(first).Primary.Recipient;
+        NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(0x0C, 0x1D99A78).WriteByte(0x29, 0);
+        task = new NativeBattleEffectTaskActors(header.Source, target, packets.ModelAliases).WriteTargetTo(task);
+        task = task.WriteContactCount(0x5A, header.ReadContactCount()).WriteWord(0x58, header.ReadRepeatModeMinusOne());
         hierarchy = hierarchy.Write(root.Address, task);
         if (!profile.RegistersAnimation || (parameters.Flags79 & 1) == 0)
         {
@@ -83,7 +85,7 @@ public static partial class NativeBattleLifeController
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new InvalidDataException("Native Life lost its50AFC0 parameters.");
         NativeBattleLifeFrame current = frame;
         NativeCrtRandomState random = inputs.Random;
-        ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<BattleContactOccurrence>.Builder contacts = ImmutableArray.CreateBuilder<BattleContactOccurrence>();
         ImmutableArray<NativeBattleModuleSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleModuleSound>();
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleEffectTaskActors Select(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(parameters, inputs.Packets, pointer, group, target);
@@ -162,7 +164,7 @@ public static partial class NativeBattleLifeController
             {
                 throw new InvalidDataException("Native Life target callback is not864BC0.");
             }
-            int target = task.ReadByte(0x2D);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             if (inputs.ReadForeignTarget?.Invoke(target) is { } foreign)
             {
                 task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, foreign);
@@ -201,8 +203,8 @@ public static partial class NativeBattleLifeController
                         uint rootAddress = task.ReadDword(0x10);
                         state = state.Write(rootAddress, state.Read(rootAddress).WriteByte(0x63, 0));
                         BattleActionHeaderReference header = parameters.Header.Advance(unchecked((sbyte)task.ReadByte(0x2A)));
-                        int contact = inputs.Packets.ReadHeader(header).FirstContactIndex ?? throw new NotSupportedException("Native865520 requires its header's first-contact pointer.");
-                        _ = inputs.Packets.ReadContact(contact);
+                        BattleContactCursor cursor = inputs.Packets.ReadHeader(header).FirstContact;
+                        BattleContactOccurrence contact = inputs.Packets.ReadContact(cursor).Occurrence ?? throw new InvalidDataException("Native Life requires its reached contact occurrence.");
                         current = current with { Effect = current.Effect with { Pools = state.Write(address, task).Pools } };
                         current = inputs.ApplyContact?.Invoke(current, contact) ?? current;
                         state = new(current.Effect.Pools);

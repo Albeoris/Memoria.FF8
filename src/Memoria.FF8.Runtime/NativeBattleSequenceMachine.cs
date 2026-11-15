@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>504290 callback timing and the reached local/control operations of504BB0/50DB40.</summary>
 public static class NativeBattleSequenceMachine
 {
-    public static NativeBattleSequenceStep Advance(NativeBattleGraphicsModel source, NativeBattleGraphicsResource resource, NativeBattleSequenceInputs inputs)
+    public static NativeBattleSequenceStep Advance(BattleModelOwner owner, NativeBattleGraphicsModel source, NativeBattleGraphicsResource resource, NativeBattleSequenceInputs inputs)
     {
         resource.Validate();
         NativeBattleSequenceState state = source.SequenceState ?? throw new InvalidDataException("Native graphics model lacks its resource-header sequence owner.");
@@ -423,7 +423,7 @@ public static class NativeBattleSequenceMachine
                         model = model with { Flags0 = (ushort)((model.Flags0 & ~0x400) | (blink != 0 ? 0x400 : 0)) };
                         break;
                     default:
-                        throw new NotSupportedException($"Native model{model.Index} sequence{sequence} opcode{opcode:X2} requires its original graphical service.");
+                        throw new NotSupportedException($"Native model{owner} sequence{sequence} opcode{opcode:X2} requires its original graphical service.");
                 }
             }
             throw new InvalidDataException("Native graphics sequence exceeded the bounded instruction budget without a callback yield.");
@@ -440,7 +440,7 @@ public static class NativeBattleSequenceMachine
             {
                 if (variable < 8)
                 {
-                    return state.Locals[variable] ?? throw new InvalidDataException($"Native sequence reads an uninitialized local WORD (model {model.Index}, sequence {sequence}, executing sequence {executingSequence}, position {position:X}, variable {variable}).");
+                    return state.Locals[variable] ?? throw new InvalidDataException($"Native sequence reads an uninitialized local WORD (model {owner}, sequence {sequence}, executing sequence {executingSequence}, position {position:X}, variable {variable}).");
                 }
                 if (variable >= 120)
                 {
@@ -460,8 +460,7 @@ public static class NativeBattleSequenceMachine
                     21 => model.LinkedTransform?.Position.Y ?? 0,
                     22 => model.LinkedTransform?.Position.Z ?? 0,
                     23 => (model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF,
-                    27 => model.Index,
-                    28 => model.Index >= 3 ? 2048 : ((model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF) <= 2048 ? 0 : 4096,
+                    28 => owner.Side == BattleSide.Enemies ? 2048 : ((model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF) <= 2048 ? 0 : 4096,
                     31 => unchecked((int)(model.Flags8 ?? throw new InvalidDataException("Native sequence lacks projected model flags."))),
                     34 => inputs.EntryAdvantage ?? throw new InvalidDataException("Native sequence lacks48AFD0 entry advantage."),
                     35 => (inputs.CameraTasks ?? throw new InvalidDataException("Native sequence lacks actual camera task flags.")),
@@ -472,7 +471,7 @@ public static class NativeBattleSequenceMachine
                     42 => RequireTransform().Scale38,
                     44 => RequireTransform().Initial20.Z,
                     55 => model.Flags0 & 4,
-                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => inputs.ReadModelExternal is { } readModel ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable) : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
+                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 24 or 25 or 26 or 27 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => inputs.ReadModelExternal is { } readModel ? readModel(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, variable) : (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
                     _ => 0
                 };
             }
@@ -580,7 +579,7 @@ public static class NativeBattleSequenceMachine
 
         void RestoreStanding()
         {
-            model = model with { Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0 };
+            model = model with { Rotation12 = 0, Rotation14 = owner.Side == BattleSide.Enemies ? (short)2048 : (short)0, Rotation16 = 0 };
         }
     }
 }

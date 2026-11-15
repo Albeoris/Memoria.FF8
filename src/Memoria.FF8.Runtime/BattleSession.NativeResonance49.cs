@@ -23,7 +23,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Resonance49 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Resonance49 requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Resonance49 requires its actual current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Resonance49 requires its actual current actor skeleton.");
 
         void Publish(NativeBattleResonance49Frame current)
         {
@@ -83,18 +83,18 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleResonance49UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleResonance49Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, PoseSource, producer => current = Observe(current, producer));
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleResonance49Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.ActorModels.Get, PoseSource, producer => current = Observe(current, producer));
                     return NativeBattleResonance49Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleResonance49UpdateTargetBounds8DC610_8DC870 target:
-                    NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleResonance49Controller.Read(current, target.TaskAddress), graphics.Models, PoseSource, producer => current = Observe(current, producer));
-                    int actor = task.ReadByte(0x2D);
+                    NativeBattleModulePoolTask task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleResonance49Controller.Read(current, target.TaskAddress), graphics.ActorModels.Get, PoseSource, producer => current = Observe(current, producer));
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
                     NativeBattlePoseSource source = PoseSource(actor);
                     task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(graphics.ActorModels.Get(actor).SequenceState ?? throw new NotSupportedException("Resonance49 target bounds require its actual current pose."), source));
                     return NativeBattleResonance49Controller.Write(current, target.TaskAddress, task);
                 case NativeBattleResonance49SelectSequence505CE0 selection:
                     if (((graphics.ActorModels.Get(selection.Actor).ResourceFlags44 ?? throw new NotSupportedException("Resonance49 sequence selection requires its current resource flags.")) & 0x140) != 0)
                     {
-                        graphics = SelectNativeHeaderSequence(graphics, checked((byte)selection.Actor), checked((byte)selection.Sequence));
+                        graphics = SelectNativeHeaderSequence(graphics, selection.Actor, checked((byte)selection.Sequence));
                     }
                     return current;
                 case NativeBattleResonance49Sound501330 sound:
@@ -104,7 +104,7 @@ public sealed partial class BattleSession
                 case NativeBattleResonance49Contact506690 contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.ContactIndex)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleResonance49CommonTextureLoad508630 load:

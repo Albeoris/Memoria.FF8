@@ -64,8 +64,8 @@ public sealed partial class BattleSession
             return graphics with { OriginalEffect = frame.Effect };
         }
 
-        private NativeBattleGraphicsModel ReadModel(int actor) => graphics.ActorModels.Get(actor);
-        private NativeBattlePoseSource ReadPose(int actor) => owner.NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native The End requires its current actor pose source.");
+        private NativeBattleGraphicsModel ReadModel(BattleModelOwner actor) => graphics.ActorModels.Get(actor);
+        private NativeBattlePoseSource ReadPose(BattleModelOwner actor) => owner.NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native The End requires its current actor pose source.");
         private NativeBattleModulePoolTask Task(uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         private void Put(uint address, NativeBattleModulePoolTask task) => frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
         private ImmutableArray<byte> Context => State.Read(resources.DirectorAddress, 84).ToImmutableArray();
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
             return appended.Address;
         }
 
-        private NativeBattleTheEnd85Frame Contact(NativeBattleTheEnd85Frame current, int contact)
+        private NativeBattleTheEnd85Frame Contact(NativeBattleTheEnd85Frame current, BattleContactOccurrence contact)
         {
             owner.NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

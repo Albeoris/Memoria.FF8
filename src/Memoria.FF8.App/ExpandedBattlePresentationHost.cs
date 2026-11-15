@@ -17,17 +17,17 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
     internal ExpandedBattlePresentationProcess CreateProcess(BattleSession owner)
     {
         BattleDefinition definition = owner.ReadDefinition();
-        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
+        BattleModelRoster roster = owner.ReadBattlePresentationRoster();
         ImmutableDictionary<string, NativeBattleVector> positions = sceneFrames.ReadPositions(owner);
-        ImmutableArray<BattleModelOwner> actors = roster.Rows.OfType<BattleModelOwner>().ToImmutableArray();
+        ImmutableArray<BattleModelOwner> actors = roster.Owners.ToImmutableArray();
         var combatants = owner.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
         ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(binding =>
         {
-            BattleCombatant actor = combatants[binding.ActorId];
-            byte modelId = checked((byte)(binding.IsParty ? actor.ModelId : actor.ModelId + 16));
+            BattleCombatant actor = combatants[ActorId(binding)];
+            byte modelId = checked((byte)(binding.Side == BattleSide.Allies ? actor.ModelId : actor.ModelId + 16));
             return new NativeBattleGraphicsBinding(actor.Id, modelId, GetResource(owner, actor, null)) { InitialPosition = positions[actor.Id] };
         }).ToImmutableArray();
-        ImmutableArray<string> loadOrder = actors.OrderBy(actor => actor.IsParty).Select(actor => actor.ActorId).ToImmutableArray();
+        ImmutableArray<string> loadOrder = actors.OrderBy(actor => actor.Side == BattleSide.Allies).Select(ActorId).ToImmutableArray();
         NativeBattleGraphicsDefinition graphics = new(rules, bindings, loadOrder)
         {
             PrimitiveTables = tables,
@@ -41,17 +41,39 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
     public NativeBattleEffectPresentation PrepareEffect(BattleSession owner, BattleCombatant caster, BattleNativeAction action, byte sequence, ImmutableArray<ExpandedBattleContact> contacts, GuardianFormInvocationMode? formMode)
     {
         BattleDefinition definition = owner.ReadDefinition();
-        BattleModelRoster roster = owner.ReadExpandedPresentationRoster();
-        byte sourceIndex = owner.ReadExpandedPresentationRow(caster.Id);
+        (BattleModelRoster roster, NativeBattleModelAliases aliases) = owner.ReadBattlePresentationPacketBindings();
+        BattleModelOwner sourceOwner = owner.ReadPresentationModelOwner(caster.Id);
         foreach (ExpandedBattleContact contact in contacts)
         {
-            if (roster[contact.Contact.ActorIndex].ActorId != contact.RecipientId)
+            if (owner.ReadPresentationModelOwner(contact.RecipientId) != contact.Contact.Recipient || !roster.Contains(contact.Contact.Recipient))
             {
                 throw new InvalidDataException("Expanded effect contact does not match its presentation roster binding.");
             }
         }
-        NativeBattleEffectContactBridge<string> bridge = new(contacts.Select(contact => (contact.RecipientId, contact.Packet)), roster);
-        (NativeBattleActionPacketsState packets, BattleModelTargets targets) = bridge.PrepareHosted(action.Command, sequence, action.ActionId, action.MagicId, sourceIndex);
+
+        NativeBattleEffectInvocation invocation;
+        if (formMode == GuardianFormInvocationMode.EntryOnly)
+        {
+            if (!contacts.IsEmpty)
+            {
+                throw new InvalidDataException("Guardian form positioning cannot consume combat contacts.");
+            }
+            invocation = new NativeBattleEffectInvocation.Positioning(sourceOwner, roster, aliases);
+        }
+        else
+        {
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+            (packets, _) = packets.Prepare(new(sourceOwner, action.Command, sequence, -1, action.ActionId, action.MagicId, null));
+            packets = packets.AppendContacts(contacts.Select(contact => contact.Packet));
+            (packets, BattleActionHeaderReference header) = packets.Publish(contacts.Length);
+            BattleModelTargets targets = BattleModelTargets.From(roster.Owners.Where(model => contacts.Any(contact => contact.Contact.Recipient == model)));
+            NativeBattleEffectParameters parameters = new(sourceOwner, action.Command == 247 ? (byte)1 : (byte)0, targets, header, 0, 0)
+            {
+                Parameter80 = 0,
+                Parameter82 = 0
+            };
+            invocation = new NativeBattleEffectInvocation.Combat(packets, parameters);
+        }
 
         ExpandedBattleSceneFrame frame = ReadSceneFrame(owner);
         bool guardianSummon = action is { Command: 254, KernelSection: 2 } && formMode is null;
@@ -59,7 +81,7 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
         bool originalGraphic = activatesActor || action.Command == 252 && definition.UsesOriginalEnemySlots;
         int? casterForm = formMode == GuardianFormInvocationMode.EntryOnly ? BattleGuardianFormProfiles.Find(owner.GetGuardianForm(caster.Id)!.GuardianForceId)!.ModelId : owner.GetGuardianFormVisual(caster.Id);
         NativeBattleGraphicsResource sourceResource = GetResource(owner, caster, casterForm);
-        NativeBattleGraphicsModel source = CreateModel(owner, caster, sourceResource, casterForm, frame.Positions[caster.Id]) with { Index = sourceIndex };
+        NativeBattleGraphicsModel source = CreateModel(owner, caster, sourceResource, casterForm, frame.Positions[caster.Id]);
         if (!caster.IsActive)
         {
             source = source with { Flags0 = 0 };
@@ -69,24 +91,23 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
         var modelBindings = ImmutableArray.CreateBuilder<NativeBattleGraphicsBinding>();
         modelBindings.Add(new(caster.Id, source.ModelId4!.Value, sourceResource));
         var combatants = owner.Combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
-        for (int row = 0; row < roster.ActorCount; row++)
+        foreach (BattleModelOwner binding in roster.Owners)
         {
-            if (row == sourceIndex || roster.Rows[row] is not { } binding)
+            if (binding == sourceOwner)
             {
                 continue;
             }
-            BattleCombatant participant = combatants[binding.ActorId];
+            BattleCombatant participant = combatants[ActorId(binding)];
             int? form = owner.GetGuardianFormVisual(participant.Id);
             NativeBattleGraphicsResource resource = GetResource(owner, participant, form);
-            NativeBattleGraphicsModel model = CreateModel(owner, participant, resource, form, frame.Positions[participant.Id]) with { Index = row };
+            NativeBattleGraphicsModel model = CreateModel(owner, participant, resource, form, frame.Positions[participant.Id]);
             if (!participant.IsActive)
             {
                 model = model with { Flags0 = 0 };
             }
-            nativeTargets.Add(new(participant.Id, model, resource)
+            nativeTargets.Add(new(binding, model, resource)
             {
-                CanActivate = activatesActor && participant.IsActive && participant is { Hidden: true, Suspended: true, Untargetable: true },
-                IsParty = binding.IsParty
+                CanActivate = activatesActor && participant.IsActive && participant is { Hidden: true, Suspended: true, Untargetable: true }
             });
             modelBindings.Add(new(participant.Id, model.ModelId4!.Value, resource));
         }
@@ -106,24 +127,23 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory()
         };
         NativeBattleEffectCameraMode cameraMode = formMode is not null || guardianSummon || originalGraphic ? NativeBattleEffectCameraMode.NativeCinematic : NativeBattleEffectCameraMode.HostPoseWithEffectTranslation;
-        byte parameterFlags = action.Command == 247 ? (byte)1 : (byte)0;
-        NativeBattleEffectParameters parameters = new(sourceIndex, parameterFlags, targets.NativePhysicalBits, 0, 0, 0)
-        {
-            Parameter80 = 0,
-            Parameter82 = 0,
-            PresentationTargets = targets
-        };
-        return new(new(resources, source, sourceResource, packets, parameters, action.MagicId, textures, NativeCrtRandomState.FromColdProcess(), frame.Projection, [])
+        return new(new(resources, source, sourceResource, invocation, action.MagicId, textures, NativeCrtRandomState.FromColdProcess(), frame.Projection, [])
         {
             CameraMode = cameraMode,
             HostCameraPose = frame.Camera,
             GuardianFormMode = formMode,
             GuardianSummon = guardianSummon,
-            PartyActorCount = roster.PartyRows.Count(),
-            SourceIsParty = roster[sourceIndex].IsParty,
+            PartyActorCount = roster.Party.Count(),
             NativeTargets = nativeTargets.ToImmutable()
         });
     }
+
+    private static string ActorId(BattleModelOwner owner) => owner switch
+    {
+        BattlePartyActorModel party => party.Actor.ActorId,
+        BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+        _ => throw new InvalidDataException("Expanded battle presentation requires a canonical actor owner.")
+    };
 
     private NativeBattleGraphicsResource GetResource(BattleSession owner, BattleCombatant actor, int? formModel)
     {
@@ -146,7 +166,7 @@ internal sealed class ExpandedBattlePresentationHost(GameAssets game, BattleAsse
         int modelId = formModel ?? actor.ModelId;
         bool characterModel = actor.IsPlayer && formModel is null;
         BattleStatusPresentation status = owner.ReadStatusPresentation(actor.Id);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0)
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0)
         {
             Transform = new(position, position, 0, actor.IsPlayer ? (short)0 : (short)2048, scale),
             LinkedTransform = new(default, default),

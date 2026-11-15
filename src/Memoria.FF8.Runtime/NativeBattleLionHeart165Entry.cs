@@ -27,7 +27,7 @@ public static partial class NativeBattleLionHeart165Controller
         BattleModelOwner recipient = packets.ReadContact(first).Primary.Recipient;
         NativeBattleEffectResourcePointer initializer = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x23C6874) ?? throw new NotSupportedException("Native5E9470 requires its actual initializer publication.");
         staging = WriteDword(staging, 0x23C6874, checked(0x20DFAB8u + (uint)initializer.ArenaOffset));
-        staging = WriteDword(staging, 0x23C32EC, recipient);
+        staging = staging.WriteExecutionReference(0x23C32EC, 4, new BattleExecutionReference.Model(recipient), packets.ModelAliases.EncodeOperand(recipient, 4));
         staging = staging.WriteExecutionReference(0x23C6870, 4, new BattleExecutionReference.Model(parameters.Source), packets.ModelAliases.EncodeOperand(parameters.Source, 4));
         staging = WriteDword(staging, 0x23C6944, 0x20DFAB8);
         staging = WriteDword(staging, 0x23C694C, 0x209FAB8);

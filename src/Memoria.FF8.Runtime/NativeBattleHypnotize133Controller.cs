@@ -16,7 +16,7 @@ public static class NativeBattleHypnotize133Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        NativeBattleHypnotize133State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source));
+        NativeBattleHypnotize133State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases);
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -89,16 +89,8 @@ public static class NativeBattleHypnotize133Controller
         frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, anchored, fading, sprites] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, anchored, fading, sprites]) };
         (frame, uint address) = Append(frame, 1, MainCallback);
         NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0xB8]);
-        int count = Header(frame, inputs).ReadContactCount();
-        if (count > 3)
-        {
-            throw new NotSupportedException("Hypnotize contacts exceed its three physical actor pointers.");
-        }
-        task = task.WriteWord(14, checked((ushort)count));
-        for (int index = 0; index < count; index++)
-        {
-            task = task.WriteDword(16 + index * 4, ModelAddress(inputs.Packets.ReadContact(FirstContact(frame, inputs) + index).Primary.Recipient));
-        }
+        NativeBattleActionHeaderSlot header = Header(frame, inputs);
+        task = task.WriteContactCount(14, header.ReadContactCount()).WriteOrderedContactRecipients(16, 3, inputs.Packets, header);
         frame = Write(frame, address, task);
         return InitializeAct(frame, address, 0x1C, 0xA8, resources.MainAct);
     }
@@ -172,7 +164,7 @@ public static class NativeBattleHypnotize133Controller
             if (child != 0)
             {
                 frame = Random(frame, out ushort actorRoll);
-                int actor = SelectedActor(frame, address, actorRoll);
+                BattleModelOwner actor = SelectedActor(frame, address, actorRoll);
                 frame = Random(frame, out ushort distanceRoll);
                 frame = Random(frame, out ushort boneRoll);
                 byte count = inputs.ReadBoneCount(actor);
@@ -192,7 +184,7 @@ public static class NativeBattleHypnotize133Controller
             if (child != 0)
             {
                 frame = Random(frame, out ushort actorRoll);
-                int actor = SelectedActor(frame, address, actorRoll);
+                BattleModelOwner actor = SelectedActor(frame, address, actorRoll);
                 NativeBattleHypnotize133PointStep point = inputs.ReadBone502170(frame, actor, 0xF0, 0);
                 frame = Random(point.Frame, out ushort x);
                 frame = Random(frame, out ushort y);
@@ -275,11 +267,11 @@ public static class NativeBattleHypnotize133Controller
         return (WithPool(frame, index, pool), pool.BankAddress + (uint)(slot * pool.Stride));
     }
 
-    private static int SelectedActor(NativeBattleHypnotize133Frame frame, uint address, ushort roll)
+    private static BattleModelOwner SelectedActor(NativeBattleHypnotize133Frame frame, uint address, ushort roll)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        int index = (roll * unchecked((short)task.ReadWord(14))) >> 15;
-        return Actor(task.ReadDword(16 + index * 4));
+        int index = (int)(((long)roll * task.ReadContactCount(14)) >> 15);
+        return task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients[index].Owner;
     }
 
     private static NativeBattleHypnotize133Frame Random(NativeBattleHypnotize133Frame frame, out ushort value)
@@ -300,9 +292,7 @@ public static class NativeBattleHypnotize133Controller
     private static NativeBattleHypnotize133Frame WithPool(NativeBattleHypnotize133Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleHypnotize133Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Hypnotize requires its captured native parameters.");
     private static NativeBattleActionHeaderSlot Header(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
-    private static int FirstContact(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Hypnotize requires its current physical contacts.");
+    private static BattleContactCursor FirstContact(NativeBattleHypnotize133Frame frame, NativeBattleHypnotize133Inputs inputs) => Header(frame, inputs).FirstContact;
     private static uint Working(NativeBattleHypnotize133Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Hypnotize selected an absent actor.");
-    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Hypnotize requires its current physical model pointer.");
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
 }

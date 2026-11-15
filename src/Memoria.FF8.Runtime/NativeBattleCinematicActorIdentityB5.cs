@@ -5,15 +5,15 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicActorIdentityB5
 {
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleModelAliases aliases)
     {
         if ((frame.ReadTemporaryWord(0x14A) & 0x1FF) != 0xB5)
         {
             throw new NotSupportedException("Native actor identity branch requires instruction B5.");
         }
-        byte actor = ReadSlot(frame, 0x1B, 1)[0];
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         ushort expected = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
-        if (actor != expected)
+        if (!aliases.TryEncodeExact(actor, out byte original) || original != expected)
         {
             return NativeBattleScriptedCommandReads.Advance(frame, 6);
         }

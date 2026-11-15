@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         long sourceGeneration = 0;
         NativeBattleKiros262TrailServices services = new((current, pointer, selector) =>
         {
-            int actorIndex = ActorIndex(pointer);
+            BattleModelOwner actorIndex = pointer;
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native trail requires the actual body skeleton.");
             sourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(source) * 397 ^ selector);
@@ -40,7 +40,7 @@ public sealed partial class BattleSession
             return new(current, new(unchecked((short)matrix.X), unchecked((short)matrix.Y), unchecked((short)matrix.Z)), direction.X, direction.Y, direction.Z);
         }, (current, pointer) =>
         {
-            int actorIndex = ActorIndex(pointer);
+            BattleModelOwner actorIndex = pointer;
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native trail restore requires its actual body rig.");
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(actorIndex), source)) };
             return current;
@@ -93,14 +93,5 @@ public sealed partial class BattleSession
         NativeBattleKiros262TrailStep drawn = NativeBattleKiros262Trail.Draw(frame, state, services, identity);
         NativeEffectMemory = RequireWaterMemory() with { Kiros262Trail = drawn.State };
         return (drawn.Frame, graphics);
-
-        int ActorIndex(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Native trail requires its actual physical actor pointer.");
-            }
-            return actorIndex;
-        }
     }
 }

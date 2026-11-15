@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using static Memoria.FF8.Runtime.NativeBattleEffect301Profile;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -38,15 +41,53 @@ public sealed partial class BattleSession
         {
             return model with { Flags0 = unchecked((ushort)((model.Flags0 & 0xFF00) | data.Read(0, 1)[0])) };
         }
-        return ApplyNativeEffect174ModelBytes(model, new(model.Index, offset, data, length));
+        return ApplyNativeEffect174ModelBytes(model, offset, data, length);
     }
 
-    private static int NativeEffect301Actor(NativeBattleGraphicsState graphics, uint address)
+    private static NativeBattleEffect301Frame ApplyNativeEffect301PartyVisibility(ref NativeBattleGraphicsState graphics, NativeBattleEffect301Frame frame, bool restore)
     {
-        if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex, graphics.Models.Length))
+        bool original = graphics.Effects.StorageContract == BattleContactTaskStorageContract.OriginalArena;
+        if (!restore)
         {
-            throw new NotSupportedException("Effect301 requires an actual current model address.");
+            BattleActorModels models = graphics.ActorModels;
+            frame = frame with { Effect = frame.Effect with { Effect301SavedPartyFlags = models.Roster.Party.ToImmutableDictionary(actor => (BattleModelOwner)actor, actor => models.Get(actor).Flags0) } };
+            if (original)
+            {
+                for (byte operand = 0; operand < 3; operand++)
+                {
+                    NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(operand);
+                    ushort flags = graphics.NativeBindings.ReadOriginalCell(slot, models).Flags0;
+                    frame.State.WriteDword(SavedPartyFlagsAddress + (uint)slot.Offset * 4, flags);
+                }
+            }
         }
-        return actorIndex;
+        if (original)
+        {
+            for (byte operand = 0; operand < 3; operand++)
+            {
+                NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(operand);
+                NativeBattleGraphicsModel before = graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels);
+                ushort saved = restore ? unchecked((ushort)frame.State.ReadDword(SavedPartyFlagsAddress + (uint)slot.Offset * 4)) : (ushort)4;
+                NativeBattleGraphicsModel after = before with { Flags0 = VisibilityFlags(before.Flags0, saved) };
+                graphics = graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is { } owner
+                    ? graphics with { ActorModels = graphics.ActorModels.Set(owner, after) }
+                    : graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(slot, after) };
+            }
+        }
+        else
+        {
+            foreach (BattlePartyActorModel owner in graphics.ActorModels.Roster.Party)
+            {
+                if (!frame.Effect.Effect301SavedPartyFlags.TryGetValue(owner, out ushort saved))
+                {
+                    throw new InvalidDataException("Effect301 party visibility requires its captured model owner.");
+                }
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model with { Flags0 = VisibilityFlags(model.Flags0, restore ? saved : (ushort)4) }) };
+            }
+        }
+        return frame;
+
+        static ushort VisibilityFlags(ushort current, ushort saved) => (ushort)(current ^ ((current ^ saved) & 4));
     }
 }

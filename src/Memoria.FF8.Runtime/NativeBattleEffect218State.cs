@@ -104,6 +104,19 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
         return this;
     }
 
+    internal BattleModelOwner ReadModelOperand(uint address)
+    {
+        (NativeBattleEffectArena storage, int offset, _) = Locate(address, 4);
+        return storage.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner;
+    }
+
+    internal NativeBattleEffect218State WriteModelOperand(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        (NativeBattleEffectArena storage, int offset, _) = Locate(address, 4);
+        storage.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(owner), aliases.EncodeOperand(owner, 4));
+        return this;
+    }
+
     private (NativeBattleEffectArena Storage, int Offset, int Owner) Locate(uint address, int length)
     {
         if (length < 0)

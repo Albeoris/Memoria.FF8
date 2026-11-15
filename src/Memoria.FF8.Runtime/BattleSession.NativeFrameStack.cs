@@ -105,14 +105,11 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && (task.UnknownByteMask & 15) == 0)
+        if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
         {
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan());
-            if (NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex))
-            {
-                nativePreRootStack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, graphics.ActorModels.Get(actorIndex), "texture-animation callback");
-                return;
-            }
+            BattleModelOwner owner = task.ModelOwner ?? throw new InvalidDataException("Native5057D0 observation requires its live model owner.");
+            nativePreRootStack = NativeBattlePreRootStackObserver.ObserveTextureAnimation5057D0(stack, task, owner, graphics.ActorModels.Get(owner), "texture-animation callback");
+            return;
         }
         ObserveNativeUnknownStackCallback(0x508434, $"auxiliary callback {task.Kind}");
     }

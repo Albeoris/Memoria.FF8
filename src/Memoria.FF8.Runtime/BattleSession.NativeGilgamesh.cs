@@ -26,7 +26,7 @@ public sealed partial class BattleSession
             ReadModelWord26 = actor => graphics.ActorModels.Get(actor).Transform?.Scale38 ?? throw new NotSupportedException("Zantetsuken requires its actual model height WORD."),
             ReadModelWorld32 = actor => NativeBattlePackedMatrix32.FromMatrix(graphics.ActorModels.Get(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Zantetsuken requires its retained model world matrix."), null)
         };
-        frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.Models) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
+        frame = initialize ? NativeBattleGilgameshController.Initialize58DCF0(frame, nativeActionPackets, graphics.ActorModels) : NativeBattleGilgameshController.Advance596B70(frame, resources, inputs);
         if (initialize)
         {
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.EnterGilgameshPresentation(frame.Effect) };
@@ -67,14 +67,8 @@ public sealed partial class BattleSession
                 case NativeBattleGilgameshZantetsukenAnchor anchor327:
                     return ReadNativeZantetsukenAnchor(graphics, current, anchor327.Address, anchor327.Actor);
                 case NativeBattleGilgameshZantetsukenContact contact327:
-                    NativeBattleActionHeaderSlot captured327 = nativeActionPackets.ReadHeader((current.Effect.Parameters ?? throw new NotSupportedException("Zantetsuken requires its captured action parameters.")).Header);
-                    int first327 = captured327.FirstContactIndex ?? throw new NotSupportedException("Zantetsuken requires its captured first contact pointer.");
-                    if ((uint)contact327.Ordinal >= captured327.ReadContactCount())
-                    {
-                        throw new InvalidDataException("Zantetsuken contact leaves its captured action contacts.");
-                    }
                     ImmutableArray<NativeBattleContactPacket> pending327 = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(first327 + contact327.Ordinal)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact327.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending327 };
                     return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Zantetsuken contact lost its current effect memory.") };
                 case NativeBattleGilgameshZantetsukenActorFlags flags327:
@@ -132,7 +126,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Gilgamesh sprite submission lost its current memory.") };
                 case NativeBattleGilgameshContacts contacts:
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(contacts.First, contacts.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, contacts.Count).Select(index => nativeActionPackets.ReadContact(contacts.First.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Gilgamesh contact publication lost its current memory.") };
                 case NativeBattleGilgameshCameraPublish camera:

@@ -3,6 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableHashSet<BattleModelOwner> UltimaSideFadeOwners { get; init; } = ImmutableHashSet<BattleModelOwner>.Empty;
+}
+
 public sealed record NativeBattleUltima149Resources(NativeBattleEffectHeapAllocation Camera, NativeBattleModuleResource Orbit, NativeBattleModuleResource Dust, NativeBattleModuleResource Spark, NativeBattleStaticMeshResource Streak, NativeBattleStaticMeshResource Shard, NativeBattleStaticMeshResource Energy, NativeBattleStaticMeshResource Ring, NativeBattleStaticMeshResource Dome, NativeBattleStaticMeshResource Core, ImmutableArray<byte> CoreShape1, ImmutableArray<int> RingFades, NativeVibrationBank Vibration, NativeBattleVector ReferencePoint, uint StartSound, uint BlastSound);
 
 public sealed record NativeBattleUltima149State([property: JsonRequired] ImmutableArray<byte> ParticlesA, [property: JsonRequired] ImmutableArray<byte> ParticlesB, [property: JsonRequired] ImmutableArray<uint> SideFlags, [property: JsonRequired] ImmutableArray<byte> CoreVertices, [property: JsonRequired] int RingScale, [property: JsonRequired] int VibrationHandle)

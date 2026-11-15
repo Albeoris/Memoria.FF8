@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleWendigoResources resources = (shoot ? effect.Binding.Shoot42Resources : effect.Binding.Dribble41Resources) ?? throw new NotSupportedException("Native Wendigo requires its original resources.");
         if (shoot)
         {
-            NativeBattleShootParty.RequireBallOwner(graphics.Models);
+            NativeBattleShootParty.RequireBallOwner(graphics.ActorModels, graphics.NativeBindings);
         }
         NativeBattleWendigoFrame frame = NativeBattleWendigoController.Initialize(NativeEffectMemory ?? throw new NotSupportedException("Native Wendigo requires its process memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Wendigo requires its shared CRT stream."));
         NativeEffectMemory = frame.Memory;
@@ -50,11 +50,11 @@ public sealed partial class BattleSession
                 case NativeBattleWendigoContact contact:
                     NativeEffectMemory = current.Memory;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Index)] });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact.Occurrence)] });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Wendigo contact lost its process owner.") };
                 case NativeBattleWendigoModel model:
-                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Model.Index, model.Model) };
+                    graphics = graphics with { ActorModels = graphics.ActorModels.Set(model.Owner, model.Model) };
                     return current;
                 case NativeBattleWendigoSequence sequence:
                     graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);

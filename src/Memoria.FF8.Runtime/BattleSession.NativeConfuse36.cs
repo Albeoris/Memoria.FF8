@@ -50,7 +50,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = step.Frame.Memory;
         return graphics with { OriginalEffect = step.Frame.Effect with { Confuse36 = step.Frame.State } };
 
-        NativeBattleConfuse36Frame ApplyContact(NativeBattleConfuse36Frame current, int index)
+        NativeBattleConfuse36Frame ApplyContact(NativeBattleConfuse36Frame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Confuse36 contact lost its canonical process memory.") };
         }
 
-        NativeBattleConfuse36Frame TransformTarget(NativeBattleConfuse36Frame current, byte actor)
+        NativeBattleConfuse36Frame TransformTarget(NativeBattleConfuse36Frame current, BattleModelOwner actor)
         {
             graphics = SelectNativeReadyHeaderSequence505CE0(graphics, actor, 4);
             return current;

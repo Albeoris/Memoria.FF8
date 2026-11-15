@@ -2,9 +2,9 @@ namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleCureOperation;
 public sealed record NativeBattleCureSpriteOperation(NativeBattleModuleDraw Draw) : NativeBattleCureOperation;
-public sealed record NativeBattleCureActorInitializeOperation(byte Target) : NativeBattleCureOperation;
-public sealed record NativeBattleCureActorVisibilityOperation(byte Target, bool Hidden) : NativeBattleCureOperation;
-public sealed record NativeBattleCureActorDrawOperation(byte Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCureOperation
+public sealed record NativeBattleCureActorInitializeOperation(BattleModelOwner Target) : NativeBattleCureOperation;
+public sealed record NativeBattleCureActorVisibilityOperation(BattleModelOwner Target, bool Hidden) : NativeBattleCureOperation;
+public sealed record NativeBattleCureActorDrawOperation(BattleModelOwner Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCureOperation
 {
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
@@ -84,7 +84,7 @@ public static partial class NativeBattleCureParticles
 
         short TopY(NativeBattleModulePoolTask source)
         {
-            NativeBattleModelTransform transform = inputs.Controller.ReadModel(source.ReadByte(0x2D)).Transform ?? throw new NotSupportedException("Native8DCAC0 requires target positionWORD30.");
+            NativeBattleModelTransform transform = inputs.Controller.ReadModel(source.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner).Transform ?? throw new NotSupportedException("Native8DCAC0 requires target positionWORD30.");
             return unchecked((short)(transform.Position28.Y + FirstLevel(source).ReadWord(0x52)));
         }
 
@@ -116,9 +116,9 @@ public static partial class NativeBattleCureParticles
                     short height = unchecked((short)(first.ReadWord(0x52) - first.ReadWord(0x4A)));
                     short division = unchecked((short)((height + 256) / -20));
                     task = task.WriteWord(0x5A, unchecked((ushort)(division / 4)));
-                    Execute(new NativeBattleCureActorInitializeOperation(task.ReadByte(0x2D)));
+                    Execute(new NativeBattleCureActorInitializeOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
                     task = task.WriteByte(0x26, (byte)(task.ReadByte(0x26) | 8));
-                    Execute(new NativeBattleCureActorVisibilityOperation(task.ReadByte(0x2D), true));
+                    Execute(new NativeBattleCureActorVisibilityOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, true));
                     IncrementPhase();
                     break;
                 case 1:
@@ -134,7 +134,7 @@ public static partial class NativeBattleCureParticles
                         uint rootAddress = task.ReadDword(0x10);
                         NativeBattleModulePoolTask root = hierarchy.Read(rootAddress);
                         hierarchy = hierarchy.Write(rootAddress, root.WriteByte(0x63, 0));
-                        Execute(new NativeBattleCureActorVisibilityOperation(task.ReadByte(0x2D), false));
+                        Execute(new NativeBattleCureActorVisibilityOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, false));
                         task = task.WriteByte(0x26, (byte)((task.ReadByte(0x26) & 0xF5) | 1));
                         IncrementPhase();
                     }
@@ -165,7 +165,7 @@ public static partial class NativeBattleCureParticles
             }
             if ((task.ReadByte(0x26) & 8) != 0)
             {
-                Execute(new NativeBattleCureActorDrawOperation(task.ReadByte(0x2D), new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)) { PilotIdentity = frame.Effect.Binding.Effect is 1 or 50 ? NativeBattlePilotVisualLifetimes.Identity(frame.Effect.Binding.Effect, task, 10) : null });
+                Execute(new NativeBattleCureActorDrawOperation(task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner, new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)) { PilotIdentity = frame.Effect.Binding.Effect is 1 or 50 ? NativeBattlePilotVisualLifetimes.Identity(frame.Effect.Binding.Effect, task, 10) : null });
             }
             DrawSprite();
             if (Word(task, 0x24) < 20 && (task.ReadByte(0x26) & 4) == 0)

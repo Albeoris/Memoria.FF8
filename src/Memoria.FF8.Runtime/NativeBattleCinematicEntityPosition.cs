@@ -7,9 +7,9 @@ public sealed record NativeBattleCinematicEntityAnchor(NativeBattleWaterExecutio
 
 public static class NativeBattleCinematicEntityPosition
 {
-    public static NativeBattleWaterExecutionFrame FromEntityOffset5F(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<byte, NativeBattleVector> readPosition, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot)
+    public static NativeBattleWaterExecutionFrame FromEntityOffset5F(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<BattleModelOwner, NativeBattleVector> readPosition, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot)
     {
-        byte actor = ReadSlot(frame, 0x1B, 1)[0];
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         for (int lane = 0; lane < 3; lane++)
         {
             short offset = Operand(2 + lane * 2);
@@ -26,9 +26,9 @@ public static class NativeBattleCinematicEntityPosition
         short Operand(int offset) => BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, (uint)offset, 2));
     }
 
-    public static NativeBattleWaterExecutionFrame FromEntityJoint60(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, int, short, NativeBattleCinematicEntityAnchor> readAnchor, Func<int, short> readScale, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot)
+    public static NativeBattleWaterExecutionFrame FromEntityJoint60(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, short, NativeBattleCinematicEntityAnchor> readAnchor, Func<BattleModelOwner, short> readScale, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot)
     {
-        int actor = ReadSlot(frame, 0x1B, 1)[0];
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         short selector = Operand(2);
         NativeBattleCinematicEntityAnchor selected = readAnchor(frame, actor, selector);
         frame = selected.Frame;
@@ -55,15 +55,15 @@ public static class NativeBattleCinematicEntityPosition
         short Operand(int offset) => BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, (uint)offset, 2));
     }
 
-    public static NativeBattleWaterExecutionFrame FromTargetJointAverage6E(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, int, short, NativeBattleCinematicEntityAnchor> readAnchor, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot)
+    public static NativeBattleWaterExecutionFrame FromTargetJointAverage6E(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, short, NativeBattleCinematicEntityAnchor> readAnchor, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSlot)
     {
         short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         uint header = CoreDword(frame, 0x279744C);
         int[] sum = new int[3];
         int index = 0;
-        while (index < NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: header))
+        while (index < NativeBattleCinematicActorAccess.ReadCurrentCount(frame, header))
         {
-            int actor = unchecked((sbyte)NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, header));
+            BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, index, header);
             NativeBattleCinematicEntityAnchor selected = readAnchor(frame, actor, selector);
             frame = selected.Frame;
             sum[0] = unchecked(sum[0] + selected.Point.X);
@@ -72,7 +72,7 @@ public static class NativeBattleCinematicEntityPosition
             header = CoreDword(frame, 0x279744C);
             index++;
         }
-        int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, signedNative: true, headerAddress: header);
+        int count = NativeBattleCinematicActorAccess.ReadCurrentCount(frame, header);
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         for (int lane = 0; lane < 3; lane++)
         {
@@ -91,8 +91,8 @@ public static class NativeBattleCinematicEntityPosition
 
     public static NativeBattleWaterExecutionFrame WaitScaledBySlot140(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
     {
-        byte actor = ReadSlot(frame, 0x1B, 1)[0];
-        byte scale = NativeBattleCinematicActorAccess.ReadActorOrdinal(frame, actor);
+        BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        int scale = NativeBattleCinematicActorAccess.ReadActorOrdinal(frame, actor);
         ushort value = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         ushort product = unchecked((ushort)(scale * value));
         frame = frame.WriteTemporaryWord(0x13E, unchecked((ushort)(product << 7)));

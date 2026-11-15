@@ -10,7 +10,7 @@ public abstract record NativeBattleNoMercy200Operation
 }
 public sealed record NativeBattleNoMercy200Camera : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Bind : NativeBattleNoMercy200Operation;
-public sealed record NativeBattleNoMercy200Sequence(int Actor, ushort Sequence) : NativeBattleNoMercy200Operation;
+public sealed record NativeBattleNoMercy200Sequence(BattleModelOwner Actor, ushort Sequence) : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200TargetSequence(ushort Sequence) : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Spawn(uint Callback) : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Sound(uint Descriptor) : NativeBattleNoMercy200Operation;

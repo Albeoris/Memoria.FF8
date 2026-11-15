@@ -18,7 +18,7 @@ public static partial class NativeBattleBeamLaser134Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(caster)).WriteDword(SavedCasterFlagsGlobal, saved), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, caster, inputs.Packets.ModelAliases).WriteDword(SavedCasterFlagsGlobal, saved), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
         return inputs.Execute(frame, new NativeBattleBeamLaser134ActorFlags(caster, 8, 8));
     }
 
@@ -45,7 +45,7 @@ public static partial class NativeBattleBeamLaser134Controller
             bool first = task.ReadDword(16) != 0;
             current = current with { State = current.State.WriteDword(CursorGlobal, checked(Working(current) + (uint)(first ? FirstPacketOffset : SecondPacketOffset))) };
             current = Write(current, RootBank, task.WriteDword(16, first ? 0u : 1u));
-            int caster = Actor(current.State.ReadDword(CasterGlobal));
+            BattleModelOwner caster = current.State.ReadModel(CasterGlobal);
             current = inputs.Execute(current, new NativeBattleBeamLaser134ActorFlags(caster, 8, 8));
             if (task.ReadWord(12) == 1)
             {
@@ -108,10 +108,9 @@ public static partial class NativeBattleBeamLaser134Controller
         }
         BattleActionHeaderReference headerIndex = Parameters(frame).Header.Advance(ordinal);
         BattleContactCursor contact = inputs.Packets.ReadHeader(headerIndex).FirstContact;
-        int actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
-        uint pointer = ModelAddress(actor);
+        BattleModelOwner actor = inputs.Packets.ReadContact(contact).Primary.Recipient;
         NativeBattleModulePoolTask existing = frame.Effect.Pools[1].Slots[0];
-        if ((existing.Flags & 1) != 0 && existing.ReadDword(16) == pointer)
+        if ((existing.Flags & 1) != 0 && existing.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner == actor)
         {
             return Write(frame, RootBank, root.WriteWord(12, 0));
         }
@@ -120,7 +119,8 @@ public static partial class NativeBattleBeamLaser134Controller
         {
             return frame;
         }
-        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0x534]).WriteWord(14, checked((ushort)ordinal)).WriteDword(16, pointer);
+        NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0x534]).WriteWord(14, checked((ushort)ordinal));
+        task.WriteExecutionReference(16, 4, new BattleExecutionReference.Model(actor), inputs.Packets.ModelAliases.EncodeAddress(actor));
         frame = Write(frame, address, task);
         NativeBattleBeamLaser134PointStep point = inputs.ReadBone502170(frame, actor, 0xF1, 0);
         frame = Write(point.Frame, address, Vector(Read(point.Frame, address), 20, point.Point));
@@ -251,9 +251,7 @@ public static partial class NativeBattleBeamLaser134Controller
     private static NativeBattleBeamLaser134Frame WithPool(NativeBattleBeamLaser134Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleBeamLaser134Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Beam Laser requires its captured native parameters.");
     private static NativeBattleActionHeaderSlot Header(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header);
-    private static int FirstContact(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Inputs inputs) => Header(frame, inputs).FirstContactIndex ?? throw new NotSupportedException("Beam Laser requires its current physical contacts.");
+    private static BattleContactCursor FirstContact(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Inputs inputs) => Header(frame, inputs).FirstContact;
     private static uint Working(NativeBattleBeamLaser134Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("Beam Laser selected an absent actor.");
-    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("Beam Laser requires its current physical model pointer.");
     private static NativeBattleModulePoolTask Vector(NativeBattleModulePoolTask task, int offset, NativeBattleVector point) => task.WriteWord(offset, unchecked((ushort)point.X)).WriteWord(offset + 2, unchecked((ushort)point.Y)).WriteWord(offset + 4, unchecked((ushort)point.Z));
 }

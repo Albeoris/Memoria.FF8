@@ -22,7 +22,7 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect301 requires its current camera.")).Apply50A730();
                 return frame;
             case NativeBattleEffect301ModelFlags flags:
-                int target = NativeEffect301Actor(graphics, flags.ModelAddress);
+                BattleModelOwner target = flags.Model;
                 NativeBattleGraphicsModel current = graphics.ActorModels.Get(target);
                 ushort updated = flags.Width switch
                 {
@@ -32,8 +32,10 @@ public sealed partial class BattleSession
                 };
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, current with { Flags0 = updated }) };
                 return frame;
+            case NativeBattleEffect301PartyVisibility party:
+                return ApplyNativeEffect301PartyVisibility(ref graphics, frame, party.Restore);
             case NativeBattleEffect301WriteModelBytes write:
-                int actor = NativeEffect301Actor(graphics, write.ModelAddress);
+                BattleModelOwner actor = write.Model;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect301ModelBytes(graphics.ActorModels.Get(actor), write.Offset, write.Data, write.Length)) };
                 return frame;
             case NativeBattleEffect301VibrationStart4A29A0 vibration when vibration.SourceAddress == VibrationAddress:

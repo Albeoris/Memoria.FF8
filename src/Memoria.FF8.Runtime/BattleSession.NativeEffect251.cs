@@ -12,10 +12,10 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect251 requires its current process memory.");
         NativeBattleEffect251Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect251 requires its current CRT stream."), memory.Effect251 ?? throw new NotSupportedException("Effect251 requires its retained state.")) { Staging = NativeFileStaging };
         NativeBattleEffect251Inputs? inputs = null;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect251 requires its color tables."), ReadPhysical, (_, address) => CaptureNativeEffect301Model(graphics.ActorModels.Get(NativeEffect301Actor(graphics, address))), Point, Anchor, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect251 requires its current projection."), _ => Camera().Roll, PollIo, (current, operation) => ExecuteNativeEffect251Operation(ref graphics, current, operation, resources, inputs!))
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect251 requires its color tables."), _ => nativeActionPackets, (_, actor) => CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), Point, Anchor, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect251 requires its current projection."), _ => Camera().Roll, PollIo, (current, operation) => ExecuteNativeEffect251Operation(ref graphics, current, operation, resources, inputs!))
         {
             BoneWorld5FC0 = Bone,
-            Bounds6690 = (current, address) => ReadNativeEffect251Bounds(ref graphics, current, address)
+            Bounds6690 = (current, actor) => ReadNativeEffect251Bounds(ref graphics, current, actor)
         };
         frame = initialize ? NativeBattleEffect251Controller.Initialize(frame, resources, inputs) : NativeBattleEffect251Controller.Advance(frame, resources, inputs);
         PublishNativeEffect251Frame(frame);
@@ -23,9 +23,8 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect251 requires its current camera.");
 
-        NativeBattleEffect251PointStep Point(NativeBattleEffect251Frame current, uint address, int selector, int fraction, NativeBattleEffectArena retained)
+        NativeBattleEffect251PointStep Point(NativeBattleEffect251Frame current, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
         {
-            int actor = NativeEffect301Actor(graphics, address);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect251 point queries require their current addressed memory.");
             NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect251 requires its current skeleton.");
@@ -42,39 +41,24 @@ public sealed partial class BattleSession
             return new(poll.Request is { } request ? QueueNativeEffect251File(current, resources, request) : current, poll.Busy);
         }
 
-        NativeBattleEffect251BoneStep Bone(NativeBattleEffect251Frame current, uint address, int selector, NativeBattleEffectArena direction, NativeBattleEffectArena position)
+        NativeBattleEffect251BoneStep Bone(NativeBattleEffect251Frame current, BattleModelOwner actor, int selector, NativeBattleEffectArena direction, NativeBattleEffectArena position)
         {
-            int actor = NativeEffect301Actor(graphics, address);
             NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect251 requires its current physical rig memory.");
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect251 requires its current physical rig.");
             NativeBattleEffect251BoneWorldOutput result = NativeBattleEffect251ModelServices.BoneWorld5FC0(graphics.ActorModels.Get(actor), source, selector, direction, position);
             return new(current with { Staging = NativeFileStaging }, result.Direction12, result.Position8);
         }
 
-        NativeBattleEffectArena ReadPhysical(NativeBattleEffect251Frame current, uint address, int length)
+        NativeBattleEffect251PointStep Anchor(NativeBattleEffect251Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
-            if (TryResolveNativeModelRead(address, length, out int modelOffset))
-            {
-                if (length > NativeBattleGraphicsModelAddress.RowSize - modelOffset)
-                {
-                    throw new InvalidDataException("Effect251 physical read crosses a current model row.");
-                }
-                (NativeBattleModelSlot slot, int offset) = NativeBattleGraphicsModelAddress.ResolveOriginalField(address, length);
-                return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-            }
-            return ReadNativeEffect251ActionBytes(current, address, length);
-        }
-
-        NativeBattleEffect251PointStep Anchor(NativeBattleEffect251Frame current, uint address, NativeBattleEffectArena retained)
-        {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(NativeEffect301Actor(graphics, address));
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect251 requires its current anchor transform.");
             if ((model.Flags0 & 2) == 0)
             {
                 return new(current, retained.Write(0, BitConverter.GetBytes(transform.Position28.X)).Write(2, BitConverter.GetBytes(transform.Position28.Y)).Write(4, BitConverter.GetBytes(transform.Position28.Z)).Write(6, BitConverter.GetBytes(transform.Angle36)));
             }
-            NativeBattleEffect251PointStep first = Point(current, address, 0xF0, 0, retained);
-            NativeBattleEffect251PointStep second = Point(first.Frame, address, 0xF1, 0, first.Output8);
+            NativeBattleEffect251PointStep first = Point(current, actor, 0xF0, 0, retained);
+            NativeBattleEffect251PointStep second = Point(first.Frame, actor, 0xF1, 0, first.Output8);
             for (int axis = 0; axis < 3; axis++)
             {
                 int left = BinaryPrimitives.ReadInt16LittleEndian(first.Output8.Read(axis * 2, 2));
@@ -83,29 +67,6 @@ public sealed partial class BattleSession
             }
             return new(second.Frame, retained.Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
-    }
-
-    private NativeBattleEffectArena ReadNativeEffect251ActionBytes(NativeBattleEffect251Frame frame, uint address, int length)
-    {
-        NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect251 requires its current action parameters.");
-        if (address >= 0x1D99A78 && (ulong)address + (uint)length <= 0x1D99A80)
-        {
-            return NativeBattleEffectArena.Clear().MarkUnknown(0, length).Write(0, NativeBattleCinematicParameterBytes.Read(parameters, checked((int)(address - 0x1D99A78)), length));
-        }
-        if (TryReadOriginalHeaderBytes(address, length, out byte[] header))
-        {
-            return NativeBattleEffectArena.Clear().MarkUnknown(0, length).Write(0, header);
-        }
-        if (TryResolveNativeContactRead(address, length, out BattleContactOccurrence row, out int contactOffset))
-        {
-            if (length > NativeBattleContactAddress.RowSize - contactOffset)
-            {
-                throw new InvalidDataException("Effect251 action read crosses a current contact row.");
-            }
-            byte[] contact = ReadOriginalContactBytes(row, contactOffset, length);
-            return NativeBattleEffectArena.Clear().Write(0, contact.AsSpan());
-        }
-        return NativeBattleEffect251Controller.ReadBytes(frame, address, length);
     }
 
     private void PublishNativeEffect251Frame(NativeBattleEffect251Frame frame)

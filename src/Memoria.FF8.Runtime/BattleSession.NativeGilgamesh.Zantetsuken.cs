@@ -2,12 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGilgameshFrame ReadNativeZantetsukenAnchor(NativeBattleGraphicsState graphics, NativeBattleGilgameshFrame frame, uint taskAddress, byte actor)
+    private NativeBattleGilgameshFrame ReadNativeZantetsukenAnchor(NativeBattleGraphicsState graphics, NativeBattleGilgameshFrame frame, uint taskAddress, BattleModelOwner actor)
     {
-        if (actor >= graphics.Models.Length)
-        {
-            throw new InvalidDataException("Zantetsuken anchor leaves its actual physical models.");
-        }
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Zantetsuken requires the retained model angle WORD.");
         NativeBattlePoseSource? source = (model.Flags0 & 2) != 0 ? NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Zantetsuken requires the current body's actual skeleton.") : null;

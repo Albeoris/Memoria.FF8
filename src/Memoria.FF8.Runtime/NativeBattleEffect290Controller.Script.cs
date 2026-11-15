@@ -82,7 +82,7 @@ public static partial class NativeBattleEffect290Controller
                     short speed = TakeScriptWord290(ref frame, ref cursor, resources);
                     short scale = TakeScriptWord290(ref frame, ref cursor, resources);
                     short threshold = TakeScriptWord290(ref frame, ref cursor, resources);
-                    frame = inputs.Execute(frame, new NativeBattleEffect290SelectFragments675AA0(frame.State.ReadDword(CasterGlobal), checked(frame.State.ReadDword(ArenaGlobal) + 0x1CF4), bones.ToImmutable(), limit, speed, scale, threshold));
+                    frame = inputs.Execute(frame, new NativeBattleEffect290SelectFragments675AA0(frame.State.ReadModel(CasterGlobal), checked(frame.State.ReadDword(ArenaGlobal) + 0x1CF4), bones.ToImmutable(), limit, speed, scale, threshold));
                     break;
                 }
                 case 0x10A0:
@@ -91,7 +91,7 @@ public static partial class NativeBattleEffect290Controller
                     short fraction = TakeScriptWord290(ref frame, ref cursor, resources);
                     cursor = checked(cursor + 2);
                     short scale = TakeScriptWord290(ref frame, ref cursor, resources);
-                    frame = inputs.Execute(frame, new NativeBattleEffect290BirthTarget676340(frame.State.ReadDword(CasterGlobal), checked(frame.State.ReadDword(ArenaGlobal) + 0x1CF4), bone, fraction, scale));
+                    frame = inputs.Execute(frame, new NativeBattleEffect290BirthTarget676340(frame.State.ReadModel(CasterGlobal), checked(frame.State.ReadDword(ArenaGlobal) + 0x1CF4), bone, fraction, scale));
                     break;
                 }
                 case 0x10F0:

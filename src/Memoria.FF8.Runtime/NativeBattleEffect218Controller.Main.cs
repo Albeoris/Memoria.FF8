@@ -32,8 +32,7 @@ public static partial class NativeBattleEffect218Controller
                 return (frame, 0);
             }
         }
-        int target = checked((int)frame.State.ReadDword(TargetGlobal));
-        uint model = ModelAddress(target);
+        BattleModelOwner target = frame.State.ReadModelOperand(TargetGlobal);
         uint ioBuffer = checked(frame.State.ReadDword(ArenaGlobal) + StreamedIoOffset);
         switch (age)
         {
@@ -111,9 +110,9 @@ public static partial class NativeBattleEffect218Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect218Sound501330(0xE257D4));
                 break;
             case 383:
-                frame = inputs.Execute(frame, new NativeBattleEffect218SelectSequence505C00(model, 55));
-                frame = inputs.Execute(frame, new NativeBattleEffect218ModelFlags(model, 0xFF, 0x20));
-                frame = SpawnTarget6336D0(frame, model, inputs);
+                frame = inputs.Execute(frame, new NativeBattleEffect218SelectSequence505C00(target, 55));
+                frame = inputs.Execute(frame, new NativeBattleEffect218ModelFlags(target, 0xFF, 0x20));
+                frame = SpawnTarget6336D0(frame, target, inputs);
                 break;
             case 401:
                 (frame, _) = AppendMain632E30(frame, 0x6338B0);
@@ -150,12 +149,12 @@ public static partial class NativeBattleEffect218Controller
             return (frame, 0);
         }
         (frame, _) = AppendMain632E30(frame, 0x633BF0);
-        frame = inputs.Execute(frame, new NativeBattleEffect218SelectSequence505C00(model, 1));
-        frame = inputs.Execute(frame, new NativeBattleEffect218ModelFlags(model, 0xFF, 4));
+        frame = inputs.Execute(frame, new NativeBattleEffect218SelectSequence505C00(target, 1));
+        frame = inputs.Execute(frame, new NativeBattleEffect218ModelFlags(target, 0xFF, 4));
         return (frame, 2);
     }
 
-    public static NativeBattleEffect218Frame SpawnTarget6336D0(NativeBattleEffect218Frame frame, uint model, NativeBattleEffect218Inputs inputs)
+    public static NativeBattleEffect218Frame SpawnTarget6336D0(NativeBattleEffect218Frame frame, BattleModelOwner model, NativeBattleEffect218Inputs inputs)
     {
         (frame, uint address) = AppendRequired(frame, MainDescriptor, 0x633720);
         frame = Write(frame, address, Read(frame, address).WriteWord(12, 0));

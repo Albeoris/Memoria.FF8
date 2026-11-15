@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect308Fragments
 {
-    public static (NativeBattleEffect308Frame Frame, uint Next) Birth667DB0(NativeBattleEffect308Frame frame, uint script, uint model, uint offsets, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
+    public static (NativeBattleEffect308Frame Frame, uint Next) Birth667DB0(NativeBattleEffect308Frame frame, uint script, BattleModelOwner model, uint offsets, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
     {
         ImmutableArray<short>.Builder selected = ImmutableArray.CreateBuilder<short>();
         while (true)

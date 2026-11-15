@@ -54,15 +54,17 @@ public sealed partial class BattleSession
         }
         RequireNativeEntryReady();
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        if (ObserveDiagnosticDrainBlockers().Count != 0 || graphics.ActorIds[0] is null || graphics.ActorIds[3] is null)
+        BattleModelOwner? source = graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(0), graphics.ActorModels);
+        BattleModelOwner? target = graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(3), graphics.ActorModels);
+        if (ObserveDiagnosticDrainBlockers().Count != 0 || source is null || target is null)
         {
             throw new InvalidOperationException("Graphical preview requires its initialized ally0/enemy3 resource owners.");
         }
         BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == 0);
         byte sequence = ResolveNativeDispatchSequence(actor, command, 0, action);
-        NativeBattleActionHeaderPreparation header = new(0, command, sequence, -1, action, effect, null);
+        NativeBattleActionHeaderPreparation header = new(source, command, sequence, -1, action, effect, null);
         (nativeActionPackets, BattleActionHeaderReference index) = nativeActionPackets.Prepare(header);
-        (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(3, 0, 1, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(target, 0, 1, 0, 0, 0, 0), null));
         (nativeActionPackets, _) = nativeActionPackets.Publish(1);
         nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(index, 1);
         ObserveDiagnosticPreparedHeader(index);

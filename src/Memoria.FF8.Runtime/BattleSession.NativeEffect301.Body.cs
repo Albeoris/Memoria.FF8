@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleEffect301Frame DrawNativeEffect301Body(ref NativeBattleGraphicsState graphics, NativeBattleEffect301Frame frame, NativeBattleEffect301DrawBody66E300 operation, NativeBattleEffect301Resources resources, NativeBattleEffect301Inputs inputs)
     {
-        int actor = NativeEffect301Actor(graphics, operation.ModelAddress);
+        BattleModelOwner actor = operation.Model;
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
         var resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect301 requires its current caster skeleton.");

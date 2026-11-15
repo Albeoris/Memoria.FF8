@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Morph172 ?? throw new InvalidDataException("Morph172 external service lost its executable storage."), Staging = NativeFileStaging ?? throw new InvalidDataException("Morph172 external service lost its temporary memory."), Random = nativeCrtRandom ?? throw new InvalidDataException("Morph172 external service lost its CRT stream.") };
         }
 
-        NativeBattleMorph172PointStep Bone(NativeBattleMorph172Frame current, int actor, int selector, int distance)
+        NativeBattleMorph172PointStep Bone(NativeBattleMorph172Frame current, BattleModelOwner actor, int selector, int distance)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Morph172 requires its current actor skeleton.");
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), source, checked((byte)selector), checked((short)distance));
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, Point(point));
         }
 
-        NativeBattleMorph172PointStep Anchor(NativeBattleMorph172Frame current, int actor)
+        NativeBattleMorph172PointStep Anchor(NativeBattleMorph172Frame current, BattleModelOwner actor)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Morph172 anchor requires its actual model transform.");
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleMorph172DrawBody220 body:
                     Publish(current);
-                    var drawnBody = DrawNativeMorph172Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress, body.PilotIdentity);
+                    var drawnBody = DrawNativeMorph172Body(current, graphics, body.Actor, body.TemporaryAddress, body.PilotIdentity);
                     graphics = drawnBody.Graphics;
                     return drawnBody.Frame;
                 case NativeBattleMorph172DrawSprite180 sprite:

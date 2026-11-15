@@ -33,41 +33,52 @@ public sealed record NativeBattleGilgameshZantetsukenActors([property: JsonRequi
         Bytes.ValidateExtent(Length);
     }
 
-    public short ReadWord(byte actor, int offset)
-    {
-        Validate();
-        return BinaryPrimitives.ReadInt16LittleEndian(Bytes.Read(Offset(actor, offset, 2), 2));
-    }
+    internal static short ReadWord(NativeBattleEffectArena row, int offset) => BinaryPrimitives.ReadInt16LittleEndian(row.Read(offset, 2));
 
-    public NativeBattleGilgameshZantetsukenActors WithWord(byte actor, int offset, short value)
+    internal static NativeBattleEffectArena WithWord(NativeBattleEffectArena row, int offset, short value)
     {
-        Validate();
         byte[] bytes = new byte[2];
         BinaryPrimitives.WriteInt16LittleEndian(bytes, value);
-        return this with { Bytes = Bytes.Write(Offset(actor, offset, 2), bytes) };
+        return row.Write(offset, bytes);
     }
 
-    public NativeBattlePackedMatrix32 ReadMatrix(byte actor)
+    internal static NativeBattlePackedMatrix32 ReadMatrix(NativeBattleEffectArena row)
     {
-        Validate();
-        (byte[] bytes, bool[] known) = Bytes.ReadSnapshot(Offset(actor, 24, 32), 32);
+        (byte[] bytes, bool[] known) = row.ReadSnapshot(24, 32);
         return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }
 
-    public NativeBattleGilgameshZantetsukenActors WithMatrix(byte actor, NativeBattlePackedMatrix32 matrix)
+    internal static NativeBattleEffectArena WithMatrix(NativeBattleEffectArena row, NativeBattlePackedMatrix32 matrix)
+    {
+        matrix.Validate();
+        return WriteKnownBytes(row, 24, matrix.Bytes.AsSpan(), matrix.Known.AsSpan());
+    }
+
+    internal NativeBattleEffectArena ReadRow(byte actor)
     {
         Validate();
-        matrix.Validate();
-        int offset = Offset(actor, 24, 32);
-        NativeBattleEffectArena bytes = Bytes.Write(offset, matrix.Bytes.AsSpan());
-        for (int index = 0; index < 32; index++)
+        (byte[] data, bool[] known) = Bytes.ReadSnapshot(Offset(actor, 0, RecordStride), RecordStride);
+        return WriteKnownBytes(NativeBattleEffectArena.Clear(), 0, data, known);
+    }
+
+    internal NativeBattleGilgameshZantetsukenActors WithRow(byte actor, NativeBattleEffectArena row)
+    {
+        Validate();
+        (byte[] data, bool[] known) = row.ReadSnapshot(0, RecordStride);
+        return this with { Bytes = WriteKnownBytes(Bytes, Offset(actor, 0, RecordStride), data, known) };
+    }
+
+    private static NativeBattleEffectArena WriteKnownBytes(NativeBattleEffectArena arena, int offset, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
+    {
+        arena = arena.Write(offset, bytes);
+        for (int index = 0; index < known.Length; index++)
         {
-            if (!matrix.Known[index])
+            if (!known[index])
             {
-                bytes = bytes.MarkUnknown(offset + index, 1);
+                arena = arena.MarkUnknown(offset + index, 1);
             }
         }
-        return this with { Bytes = bytes };
+        return arena;
     }
 
     private static int Offset(byte actor, int offset, int length)
@@ -78,4 +89,10 @@ public sealed record NativeBattleGilgameshZantetsukenActors([property: JsonRequi
         }
         return actor * RecordStride + offset;
     }
+}
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena> ZantetsukenTransforms { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena>.Empty;
 }

@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
 
-        ImmutableArray<byte> ReadWorld(int actor)
+        ImmutableArray<byte> ReadWorld(BattleModelOwner actor)
         {
             NativeBattleModelTransform transform = graphics.ActorModels.Get(actor).Transform ?? throw new NotSupportedException("Native Search requires the actual target transform.");
             byte[] bytes = new byte[8];
@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(bind.Actor, binding.Model) };
                     return current;
                 case NativeBattleSearchSelectActorSequence sequence:
-                    graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);
+                    graphics = SelectNativeHeaderSequence(graphics, sequence.Actor, sequence.Sequence);
                     return current;
                 case NativeBattleSearchSprite sprite:
                     return Append(current, NativeBattleSearchSprites.Draw7582A0(sprite.Task, resources.Sprite8.Bytes, view, projection, NativeCamera!.Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(92, sprite.Task) with { ResourceGeneration = resources.Sprite8.Address }), false);

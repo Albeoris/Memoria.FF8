@@ -48,7 +48,7 @@ public sealed record NativeBattlePartyPresentedVital([property: JsonRequired] us
         {
             ushort nextHp = HitPoints;
             ushort? nextGfHp = GuardianForceHitPoints;
-            if ((half.HitFlags3 & 0x20) != 0)
+            if ((half.HitFlags & 0x20) != 0)
             {
                 nextGfHp = checked((ushort)Math.Max(0, (GuardianForceHitPoints ?? throw new NotSupportedException("Damage requires its summoned GF HP owner.")) - extended));
             }
@@ -65,12 +65,12 @@ public sealed record NativeBattlePartyPresentedVital([property: JsonRequired] us
         short amount = unchecked((short)half.Amount6);
         ushort hp = HitPoints;
         ushort? gfHp = GuardianForceHitPoints;
-        if ((half.HitFlags3 & 0x20) != 0)
+        if ((half.HitFlags & 0x20) != 0)
         {
             short remaining = unchecked((short)((gfHp ?? throw new NotSupportedException("Native493D80 requires the summoned GF's actual cached HP WORD.")) - amount));
             gfHp = remaining <= 0 ? (ushort)0 : unchecked((ushort)remaining);
         }
-        else if ((half.HitFlags3 & 1) != 0)
+        else if ((half.HitFlags & 1) != 0)
         {
             short healed = unchecked((short)(hp + amount));
             hp = healed > unchecked((short)MaximumHitPoints) ? MaximumHitPoints : unchecked((ushort)healed);
@@ -223,16 +223,20 @@ public sealed partial class BattleSession
         return expandedPartyPresentation is { } expanded && actor.IsPlayer ? RequireExpandedPartyPresentedRow(expanded, actor.Id) : null;
     }
 
-    private void PublishNativePresentedContact(NativeBattleContactHalf half)
+    private void PublishNativePresentedContact(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)
     {
-        if (half.Recipient >= 3)
+        if (half.Recipient.Side != BattleSide.Allies)
         {
             return;
         }
         NativeBattlePartyPresentation state = nativePartyPresentation ?? throw new InvalidDataException("Native493D80 lacks the current party presentation cache.");
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(half.Recipient);
-        BattleCombatant actor = combatants.Single(actor => actor.EncodeNativeSlot() == half.Recipient);
-        if (actor.GuardianFormVitals is not null && (half.HitFlags3 & 0x20) != 0)
+        if (!graphics.NativeBindings.TryEncodeExactActor(half.Recipient, graphics.ActorModels, out byte original))
+        {
+            throw new InvalidDataException("Native presented contact requires its original party cache slot.");
+        }
+        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(original);
+        BattleCombatant actor = GraphicsActor(graphics, half.Recipient);
+        if (actor.GuardianFormVitals is not null && (half.HitFlags & 0x20) != 0)
         {
             row = row with { GuardianForceHitPoints = checked((ushort)actor.CurrentHp), GuardianForceMaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedGuardianForceHitPointsQ12 = actor.CurrentHp << 12 };
         }
@@ -240,7 +244,7 @@ public sealed partial class BattleSession
         {
             row = row.Apply(half);
         }
-        nativePartyPresentation = state with { Rows = state.Rows.SetItem(half.Recipient, row) };
+        nativePartyPresentation = state with { Rows = state.Rows.SetItem(original, row) };
     }
 
     private NativeBattlePartyPresentedVital RequireNativePartyPresentedRow(int index)

@@ -9,7 +9,7 @@ public static partial class NativeBattleEffect301Controller
     {
         short age = unchecked((short)(Signed(Read(frame, address), 12) + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)age)));
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (age >= 142)
         {
             return new(inputs.Execute(frame, new NativeBattleEffect301ModelFlags(caster, 2, 0xFFF3, 0)), 2);
@@ -49,7 +49,7 @@ public static partial class NativeBattleEffect301Controller
         return new(frame, 0);
     }
 
-    public static NativeBattleEffect301Frame FadeModelColor(NativeBattleEffect301Frame frame, uint main, uint model, int fraction, NativeBattleEffect301Inputs inputs)
+    public static NativeBattleEffect301Frame FadeModelColor(NativeBattleEffect301Frame frame, uint main, BattleModelOwner model, int fraction, NativeBattleEffect301Inputs inputs)
     {
         int factor = 4096 - NativeBattleCameraMath.Sine(((20 - fraction) << 10) / 20);
         byte[] original = TaskView(Read(frame, main), 0xE10, 3).Read(0, 3);

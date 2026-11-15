@@ -43,7 +43,7 @@ public static partial class NativeBattleEffect69Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int age = unchecked((short)task.ReadWord(0xC));
-        int caster = Caster(frame);
+        BattleModelOwner caster = Caster(frame);
         uint arena = frame.State.ReadDword(ArenaGlobal);
         if (unchecked((uint)age) < 92)
         {
@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect69Controller
         if (age is >= 55 and < 85)
         {
             uint scratch = (inputs.ReadScratchAddress ?? throw new NotSupportedException("Effect69 requires its current shared projected scratch pointer."))(frame);
-            frame = inputs.Execute(frame, new NativeBattleEffect69DrawCaster(frame.State.ReadDword(CasterGlobal), 0, scratch) { PilotIdentity = inputs.PilotIdentity });
+            frame = inputs.Execute(frame, new NativeBattleEffect69DrawCaster(caster, 0, scratch) { PilotIdentity = inputs.PilotIdentity });
             frame = inputs.Execute(frame, new NativeBattleEffect69ModelFlags(caster, 0xFFFF, 4, false));
         }
         else if (age == 85)

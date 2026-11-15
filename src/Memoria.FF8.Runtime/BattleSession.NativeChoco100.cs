@@ -127,24 +127,20 @@ public sealed partial class BattleSession
 
         NativeBattleChoco100TaskStep AdvanceSecondary(NativeBattleChoco100Frame current, uint address, NativeBattleModulePoolTask task)
         {
-            int actorIndex = task.ReadByte(0x2D);
-            if ((uint)actorIndex >= graphics.Models.Length)
-            {
-                throw new NotSupportedException("Native Choco secondary requires its actual selected actor.");
-            }
+            BattleModelOwner owner = task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner;
             NativeBattleChoco100State shared = Shared(current);
             NativeBattleChoco100IoState io = shared.Io ?? throw new NotSupportedException("Native Choco secondary requires its actual TIM work allocation.");
             uint work = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(io.Control.AsSpan().Slice(0x100));
-            NativeBattleChoco100SecondaryStep changed = NativeBattleChoco100Secondary.Advance716C20(new(task, graphics.ActorModels.Get(actorIndex), shared.SecondarySettings), work, DrawActor);
-            graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, changed.Frame.Actor) };
+            NativeBattleChoco100SecondaryStep changed = NativeBattleChoco100Secondary.Advance716C20(new(task, owner, graphics.ActorModels.Get(owner), shared.SecondarySettings), work, nativeActionPackets.ModelAliases, DrawActor);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, changed.Frame.Actor) };
             current = current with { Memory = current.Memory with { Choco100 = Shared(current) with { SecondarySettings = changed.Frame.Settings } } };
             return new(current, changed.Frame.Task, changed.ReadyToComplete);
 
             NativeBattleChoco100SecondaryFrame DrawActor(NativeBattleChoco100SecondaryFrame secondary)
             {
                 NativeBattleGraphicsModel actor = secondary.Actor;
-                graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
-                NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, actor) };
+                NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
                 NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Choco actor drawing requires its actual skeleton.");
                 NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Native Choco actor drawing requires its current body pose.");
                 NativeBattleDecodedPose pose = source.Sample(sequence.Pose ?? throw new NotSupportedException("Native Choco actor drawing requires its selected pose."), sequence.PoseFrame114 ?? throw new NotSupportedException("Native Choco actor drawing requires its current pose frame."), sequence.PoseFlags109);
@@ -158,7 +154,7 @@ public sealed partial class BattleSession
                 NativeEffectMemory = current.Memory;
                 NativeBattlePrimitiveProcess shadowStart = NativeEffectMemory!.PrimitiveProcess!;
                 int shadowCursor = shadowStart.ByteCursor!.Value;
-                graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection with { View = view }, 4112, false, callerPilotIdentity: NativeBattlePilotVisualLifetimes.Identity(100, task, 1) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) });
+                graphics = SubmitNativeShadowPackets5088A0(graphics, owner, actor, projection with { View = view }, 4112, false, callerPilotIdentity: NativeBattlePilotVisualLifetimes.Identity(100, task, 1) with { ModelOwner = owner, ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) });
                 int shadowEnd = NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value;
                 current = current with { Effect = current.Effect with { PresentationPackets = current.Effect.PresentationPackets.AddRange(graphics.PrimitiveFrame!.Pending.Packets.Select(packet => packet.Reference).Where(reference => reference.Bank == shadowStart.PacketBank && reference.Buffer == shadowStart.PacketBuffer && reference.ByteOffset >= shadowCursor && reference.ByteOffset < shadowEnd)) } };
                 current = current with { Memory = NativeEffectMemory ?? throw new NotSupportedException("Native Choco shadow lost its retained packet memory.") };
@@ -167,7 +163,7 @@ public sealed partial class BattleSession
                 NativeBattleChoco100Wave wave = new(unchecked((short)drawnTask.ReadWord(0xC2)), drawnTask.ReadWord(0xC4), drawnTask.ReadWord(0xC6), drawnTask.ReadWord(0xC8), drawnTask.ReadWord(0xC0));
                 foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(actor, resource, sequence.MeshMask124))
                 {
-                    NativeBattleChoco100ActorDraw drawn = NativeBattleChoco100ActorPackets.Emit716DD0(geometry, bones, camera, projection, actor.Color40 ?? throw new NotSupportedException("Native Choco actor drawing requires its actual body color."), wave, current.Memory.Arena ?? throw new NotSupportedException("Native Choco actor drawing requires its current TIM work arena."), offset, NativeBattlePilotVisualLifetimes.Identity(100, task, checked(2 + geometry.AuthoredMesh)) with { ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(resource) * 397 + geometry.AuthoredMesh) });
+                    NativeBattleChoco100ActorDraw drawn = NativeBattleChoco100ActorPackets.Emit716DD0(geometry, bones, camera, projection, actor.Color40 ?? throw new NotSupportedException("Native Choco actor drawing requires its actual body color."), wave, current.Memory.Arena ?? throw new NotSupportedException("Native Choco actor drawing requires its current TIM work arena."), offset, NativeBattlePilotVisualLifetimes.Identity(100, task, checked(2 + geometry.AuthoredMesh)) with { ModelOwner = owner, ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.EpochFor(resource) * 397 + geometry.AuthoredMesh) });
                     current = current with { Memory = current.Memory with { Arena = drawn.Arena } };
                     current = AppendCommon(current, drawn.Packets);
                 }

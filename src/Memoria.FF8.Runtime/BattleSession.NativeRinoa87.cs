@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         NativeBattleLogicalOrdering Ordering() => (graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Rinoa87 requires its initialized ordering table.")).Pending;
         void StoreOrdering(NativeBattleLogicalOrdering ordering) => graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering } };
         NativeBattleRinoa87Resources CurrentResources() => resources with { DefaultColor44 = (NativeStage?.ModelColors ?? throw new NotSupportedException("Native8DD0F0 requires its current shared model colors.")).Color44 };
-        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, sbyte target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, pointer, group, target);
+        NativeBattleEffectTaskActors SelectActors(uint pointer, sbyte group, int target) => NativeBattleCureController.SelectActors(effect.Parameters!, nativeActionPackets, pointer, group, target);
         NativeBattleVector ReadBone(NativeBattleRinoa87Frame current, uint body, byte selector) => NativeBattleRinoa87BodyDrawing.ReadBone502170(current, body, resources.Model, selector);
 
         NativeBattleRinoa87LeafStep AdvanceLeaf(NativeBattleRinoa87Frame current, uint address)
@@ -239,7 +239,7 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleRinoa87Frame Contact(NativeBattleRinoa87Frame current, int index)
+        NativeBattleRinoa87Frame Contact(NativeBattleRinoa87Frame current, BattleContactOccurrence index)
         {
             NativeEffectMemory = current.Memory;
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;

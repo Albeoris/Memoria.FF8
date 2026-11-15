@@ -281,6 +281,11 @@ public sealed class NativeBattleActionPacketsState
         return ReadContact(cursor);
     }
 
+    internal NativeBattleActionPacketsState RestartContactPublication()
+    {
+        return new(Roster, aliases, RetainedStorage with { ContactCount = 0 }, headers, contacts, ActionCount, 0, ActiveHeader, ActiveContact);
+    }
+
     public NativeBattleActionPacketsState ResetCounts()
     {
         return new(Roster, aliases, RetainedStorage.ResetCounts(), headers, contacts, 0, 0, ActiveHeader, ActiveContact);

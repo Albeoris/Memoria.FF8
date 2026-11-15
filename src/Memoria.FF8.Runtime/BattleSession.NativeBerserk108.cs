@@ -50,8 +50,7 @@ public sealed partial class BattleSession
             {
                 BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(action)).FirstContact;
                 BattleModelOwner actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
-                uint entity = NativeBattleGraphicsModelAddress.Encode(actor);
-                if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadDword(20) == entity && WindWord(task, 12) <= 43))
+                if (pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner == actor && WindWord(task, 12) <= 43))
                 {
                     root = root.WriteWord(12, 0);
                 }
@@ -59,7 +58,9 @@ public sealed partial class BattleSession
                 {
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x8B8);
                     NativeBattleVector spawn = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0) with { Y = graphics.ActorModels.Get(actor).Transform!.Angle36 };
-                    task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(20, entity), 24, spawn), 32, ReadNativeDefaultPosition571400(graphics, actor));
+                    task = task.WriteWord(14, (ushort)action);
+                    task.WriteExecutionReference(20, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
+                    task = WindStore(WindStore(task, 24, spawn), 32, ReadNativeDefaultPosition571400(graphics, actor));
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x628 - 12), 0x29C);
                     task = PublishWorkspace(task, 0x628, workspace.Initialize7016B0(resources.Burst, 0x29C));
                     pools[1] = pools[1].WriteSlot(slot, task);
@@ -213,7 +214,7 @@ public sealed partial class BattleSession
             Append(rays.Packets, 1);
             if (counter == 0)
             {
-                int actor = Actor(task.ReadDword(20));
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(20, 4).Owner;
                 NativeBattleVector currentAnchor = ReadNativeDefaultPosition571400(graphics, actor);
                 PublishNativeModuleSound(resources.Sound, 0x101, new(currentAnchor.X, currentAnchor.Y, currentAnchor.Z, 0));
             }
@@ -315,14 +316,6 @@ public sealed partial class BattleSession
             }
             (pools[bank], slot) = pools[bank].Append(callback);
             return true;
-        }
-        int Actor(uint address)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(address, out int actorIndex))
-            {
-                throw new InvalidDataException("Native Berserk target leaves its physical entity bank.");
-            }
-            return actorIndex;
         }
         void Append(NativeBattleGfGeometryBatch batch, ushort flags = 0)
         {

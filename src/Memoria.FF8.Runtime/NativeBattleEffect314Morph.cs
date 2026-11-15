@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect314Morph
 {
-    public static NativeBattleEffect314Frame Draw663850(NativeBattleEffect314Frame frame, NativeBattleEffect314Resources resources, NativeBattleEffect314Inputs inputs, uint modelAddress, uint offsetAddress, int texturePageAddition, int clutAddition)
+    public static NativeBattleEffect314Frame Draw663850(NativeBattleEffect314Frame frame, NativeBattleEffect314Resources resources, NativeBattleEffect314Inputs inputs, BattleModelOwner modelAddress, uint offsetAddress, int texturePageAddition, int clutAddition)
     {
         NativeBattleEffect314AddressStep allocation = inputs.AllocateTemporary(frame, 156);
         frame = allocation.Frame;

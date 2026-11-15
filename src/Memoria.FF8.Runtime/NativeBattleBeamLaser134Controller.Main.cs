@@ -8,8 +8,8 @@ public static partial class NativeBattleBeamLaser134Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         short age = unchecked((short)task.ReadWord(12));
-        int targetActor = Actor(task.ReadDword(16));
-        NativeBattleBeamLaser134PointStep casterStep = inputs.ReadBone502170(frame, Actor(frame.State.ReadDword(NativeBattleBeamLaser134Profile.CasterGlobal)), 13, 2048);
+        BattleModelOwner targetActor = task.ReadExecutionReference<BattleExecutionReference.Model>(16, 4).Owner;
+        NativeBattleBeamLaser134PointStep casterStep = inputs.ReadBone502170(frame, frame.State.ReadModel(NativeBattleBeamLaser134Profile.CasterGlobal), 13, 2048);
         NativeBattleBeamLaser134AnchorStep targetStep = inputs.ReadAnchor571400(casterStep.Frame, targetActor);
         frame = targetStep.Frame;
         NativeBattleVector caster = casterStep.Point;
@@ -135,7 +135,7 @@ public static partial class NativeBattleBeamLaser134Controller
         }
         if (age == 26)
         {
-            frame = inputs.Execute(frame, new NativeBattleBeamLaser134Contact(FirstContact(frame, inputs)));
+            frame = inputs.Execute(frame, new NativeBattleBeamLaser134Contact(inputs.Packets.ReadContact(FirstContact(frame, inputs)).Occurrence ?? throw new InvalidDataException("The reached contact has no retained occurrence.")));
         }
         if (age >= 46)
         {

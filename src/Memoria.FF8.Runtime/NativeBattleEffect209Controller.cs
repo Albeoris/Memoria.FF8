@@ -17,8 +17,8 @@ public static partial class NativeBattleEffect209Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleModelOwner actor = parameters.Source;
-        int target = packets.ReadContact(header.FirstContact).Primary.Recipient;
-        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(GuardianGlobal, GuardianAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
+        BattleModelOwner target = packets.ReadContact(header.FirstContact).Primary.Recipient;
+        frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(GuardianGlobal, GuardianAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, actor, packets.ModelAliases).WriteModel(TargetGlobal, target, packets.ModelAliases) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         (root, int rootSlot) = root.Append(RootCallback);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
@@ -102,7 +102,6 @@ public static partial class NativeBattleEffect209Controller
         };
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect209 requires an actual physical model.");
     private static void RequireBinding(NativeBattleEffect209Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging, 0x78) };
         current = current with { Temporary = current.Temporary.Write(0x40, new byte[4]).Write(0x44, BitConverter.GetBytes((short)320)).Write(0x46, BitConverter.GetBytes((short)216)).Write(0x48, BitConverter.GetBytes(current.Model.Color40 ?? throw new NotSupportedException("Host body deformation requires its retained color."))) };
         NativeBattleEffectArena scratch = NativeBattleEffectArena.CreateUnknown(checked(geometry.Vertices.Length * 8));
-        NativeBattleDeformedBodyStep drawn = NativeBattleDeformedBodyDrawing.DrawForeign(current.Memory, current.Temporary, scratch, geometry, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics!, cacheAddress, cacheLength, pilotIdentity ?? new(effect.Binding.Effect, 0x5099D0, actor, 0, 0));
+        NativeBattleDeformedBodyStep drawn = NativeBattleDeformedBodyDrawing.DrawForeign(current.Memory, current.Temporary, scratch, geometry, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics!, cacheAddress, cacheLength, pilotIdentity ?? NativeBattlePilotVisualIdentity.ForModel(effect.Binding.Effect, 0x5099D0, actor));
         current = AppendNativeDeformedBody(current with { Memory = drawn.Memory, Temporary = drawn.Temporary132 }, drawn.Batch);
         return FinishNativeDeformedBody(current, actor, 132);
     }

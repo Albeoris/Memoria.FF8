@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         nativeProductionContext = new(0, 1, false, 0x47DE70);
         try
         {
-            int header = nativeActionPackets.ActionCount;
+            BattleActionHeaderReference header = nativeActionPackets.NextHeader;
             BattleActionDefinition action = new(command.Ability, command.ActionId, selected.Name ?? "Renzokuken finisher", BattleActionEffect.Native, 0, false) { NativeAction = preliminary };
             ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, action);
             nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, nativeProductionContext.RepeatMode);
@@ -48,28 +48,28 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native finisher callback contradicts its selected kernel record.");
         }
-        NativeBattleActionHeaderSlot header = nativeActionPackets.Headers.Take(nativeActionPackets.ActionCount).FirstOrDefault(slot => slot.ReadByte(1) == 250) ?? throw new InvalidDataException("Native finisher callback lacks its original250 header.");
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native finisher callback requires its physical retained contact pointer.");
-        BattleCombatant actor = FindNativeActor(header.Source);
+        NativeBattleActionHeaderSlot header = nativeActionPackets.PublishedHeaders().Select(entry => entry.Slot).FirstOrDefault(slot => slot.Command == 250)
+            ?? throw new InvalidDataException("Native finisher callback lacks its original250 header.");
+        BattleCombatant actor = GetActor(RequireCanonicalGraphicsActorId(header.Source));
         BattleNativeAction native = FindInstalledNativeAction(249, index) with { ActionId = nativeActionScratch.Action ?? throw new NotSupportedException("Native finisher requires its retained AF4 action WORD.") };
         int count = index == 3 ? native.HitCount : nativeActionScratch.LastPublishedTargetCountE05 ?? throw new NotSupportedException("Native48F3F0 requires its retained E05 target count.");
-        NativeBattleContactPacket[] recipients = Enumerable.Range(first, count).Select(nativeActionPackets.ReadContact).ToArray();
+        NativeBattleContactPacket[] recipients = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(header.FirstContact.Advance(index))).ToArray();
         if (index == 3)
         {
-            FindNativeActor(recipients[0].Primary.Recipient).NativeRemainingHits = native.HitCount;
+            GetActor(RequireCanonicalGraphicsActorId(recipients[0].Primary.Recipient)).NativeRemainingHits = native.HitCount;
         }
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new NotSupportedException("Native finisher callback requires its admitted event provenance.");
         BattleActionPresentation command = timed.Command with { NativeQueuedCommand = 250, NativeAction = native, ActionId = index };
         BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Renzokuken finisher", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         BattleActionPresentation? previous = resolvingNativeAction;
-        nativeActionScratch = nativeActionScratch with { ActorIndex = header.Source, Command = 249, DeferredEffectsE00 = false };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = RequireTriggerSourceOperand(header.Source), Command = 249, DeferredEffectsE00 = false };
         nativeActionCommitDepth++;
         resolvingNativeAction = command;
         try
         {
             foreach (NativeBattleContactPacket recipient in recipients)
             {
-                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, FindNativeActor(recipient.Primary.Recipient), command, action, native);
+                NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, GetActor(RequireCanonicalGraphicsActorId(recipient.Primary.Recipient)), command, action, native);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }
         }

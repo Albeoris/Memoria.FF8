@@ -20,8 +20,8 @@ public static partial class NativeBattleEffect290Controller
         frame = inputs.Execute(frame, new NativeBattleEffect290UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect290 requires its actual parameters.");
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78) };
-        uint caster = ModelAddress(parameters.Source);
-        frame = frame with { State = frame.State.WriteDword(CasterGlobal, caster) };
+        BattleModelOwner caster = parameters.Source;
+        frame = frame with { State = frame.State.WriteModel(CasterGlobal, caster, inputs.Aliases) };
         frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(caster, 2, 0xFFF3, 0));
         frame = inputs.Execute(frame, new NativeBattleEffect290ModelFlags(caster, 1, 255, 8));
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
@@ -86,7 +86,6 @@ public static partial class NativeBattleEffect290Controller
         return pool;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect290 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect290Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

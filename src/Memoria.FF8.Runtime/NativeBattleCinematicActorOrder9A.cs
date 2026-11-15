@@ -5,42 +5,39 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicActorOrder9A
 {
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterContextServices services)
     {
         int count = frame.ReadTemporaryWord(0x14A) >> 12;
-        if (NativeBattleCinematicActorAccess.ReadContext(frame) is { } context)
-        {
-            return ExecuteHosted(frame, program, context, count);
-        }
-        uint attributes = CoreDword(frame, 0x279744C);
-        frame = frame with { Core = frame.Core.Write(unchecked(attributes + 0x41), [unchecked((byte)count)]) };
-        frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
-        for (int index = 0; index < count; index++)
-        {
-            byte value = NativeBattleScriptedCommandReads.Program(frame, program, 0, 1)[0];
-            frame = frame with { Core = frame.Core.Write(unchecked(attributes + 0x48u + (uint)index), [value]) };
-            frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
-        }
-        return frame;
-    }
-
-    private static NativeBattleWaterExecutionFrame ExecuteHosted(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleCinematicActorContext context, int count)
-    {
-        ImmutableArray<byte>.Builder actors = ImmutableArray.CreateBuilder<byte>(count);
-        frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
-        for (int index = 0; index < count; index++)
-        {
-            actors.Add(NativeBattleScriptedCommandReads.Program(frame, program, 0, 1)[0]);
-            frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
-        }
-        ImmutableArray<byte> ordered = actors.MoveToImmutable();
-        NativeBattleCinematicActorContext updated = context.WithCurrentActors(ordered);
+        NativeBattleCinematicActorContext context = NativeBattleCinematicActorAccess.ReadContext(frame);
+        NativeBattleModelAliases aliases = services.CaptureAliases();
+        bool original = services.StorageContract == BattleContactTaskStorageContract.OriginalArena;
         uint header = NativeBattleScriptedEffectMemory.Address;
-        NativeBattleScriptedEffectMemory core = frame.Core.Write(header + 0x41, [checked((byte)count)]);
-        if (!ordered.IsEmpty)
+        frame = frame with { Core = frame.Core.Write(header + 0x41, [(byte)count]) };
+        frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
+        ImmutableArray<BattleModelOwner>.Builder actors = ImmutableArray.CreateBuilder<BattleModelOwner>(count);
+        for (int index = 0; index < count; index++)
         {
-            core = core.Write(header + 0x48, ordered.AsSpan()[..Math.Min(ordered.Length, 6)]);
+            byte literal = NativeBattleScriptedCommandReads.Program(frame, program, 0, 1)[0];
+            actors.Add(aliases.DecodeLiteral(literal));
+            if (original || index < 6)
+            {
+                frame = frame with { Core = frame.Core.Write(header + 0x48 + (uint)index, [literal]) };
+            }
+            frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
         }
-        return frame with { Core = core with { PresentationActors = updated } };
+        context = context.WithCurrentActors(actors.MoveToImmutable());
+        if (original && count > 6)
+        {
+            foreach (BattleModelOwner actor in context.Owners)
+            {
+                if (aliases.TryEncodeExact(actor, out byte slot) && 6 + 2 * slot < count)
+                {
+                    NativeBattleCinematicActorCache cached = context.ReadCachedActor(actor);
+                    ushort flags = CoreWord(frame, header + 0x4E + 2u * slot);
+                    context = context with { CachedActors = context.CachedActors.SetItem(actor, cached with { Flags0 = flags }) };
+                }
+            }
+        }
+        return frame with { Core = frame.Core with { PresentationActors = context } };
     }
 }

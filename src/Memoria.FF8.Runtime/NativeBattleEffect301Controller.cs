@@ -20,18 +20,10 @@ public static partial class NativeBattleEffect301Controller
         frame = inputs.Execute(frame, new NativeBattleEffect301UploadTim505E30(texture));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect301 requires its actual parameters.");
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, 0x1D99A78) };
-        for (int actor = 0; actor < 3; actor++)
-        {
-            ushort flags = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(inputs.ReadModelArena9C(frame, ModelAddress(actor)).Read(0, 2));
-            frame = frame with { State = frame.State.WriteDword(SavedPartyFlagsAddress + (uint)(actor * 4), flags) };
-        }
-        for (int actor = 0; actor < 3; actor++)
-        {
-            frame = inputs.Execute(frame, new NativeBattleEffect301ModelFlags(ModelAddress(actor), 2, ushort.MaxValue, 4));
-        }
-        uint caster = ModelAddress(parameters.Source);
+        frame = inputs.Execute(frame, new NativeBattleEffect301PartyVisibility(false));
+        BattleModelOwner caster = parameters.Source;
         ushort casterFlags = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(inputs.ReadModelArena9C(frame, caster).Read(0, 2));
-        frame = frame with { State = frame.State.WriteDword(CasterGlobal, caster).WriteDword(SavedCasterFlagsGlobal, casterFlags) };
+        frame = frame with { State = frame.State.WriteModel(CasterGlobal, caster, inputs.Aliases).WriteDword(SavedCasterFlagsGlobal, casterFlags) };
         frame = inputs.Execute(frame, new NativeBattleEffect301ModelFlags(caster, 1, 255, 12));
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
         (root, _) = root.Append(RootCallback);
@@ -100,7 +92,6 @@ public static partial class NativeBattleEffect301Controller
         return pool;
     }
 
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect301 requires an actual physical model row.");
     private static void RequireBinding(NativeBattleEffect301Frame frame)
     {
         if (frame.Effect.RequestedEffect != Effect || frame.Effect.Binding.Entry != Entry || frame.Effect.Binding.Initializer != Initializer)

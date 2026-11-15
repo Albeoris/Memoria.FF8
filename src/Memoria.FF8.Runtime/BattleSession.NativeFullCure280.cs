@@ -48,16 +48,26 @@ public sealed partial class BattleSession
             (directors, int slot) = directors.Append(0x67E980);
             NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
             int count = header.ReadContactCount();
-            if (count > 3)
-            {
-                throw new NotSupportedException("Native Full-cure target count exceeds its physical three-pointer director.");
-            }
-            NativeBattleModulePoolTask director = directors.Slots[slot].WriteDword(12, 0).WriteDword(16, 0).WriteDword(20, 0).WriteDword(24, 0).WriteWord(14, (ushort)count);
-            int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Full-cure requires its current target contacts.");
+            NativeBattleModulePoolTask director = directors.Slots[slot].WriteDword(12, 0).WriteDword(16, 0).WriteDword(20, 0).WriteDword(24, 0).WriteContactCount(14, count);
+            var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
+            ImmutableArray<byte>? originalFirst = [0, 0, 0, 0];
             for (int index = 0; index < count; index++)
             {
-                director = director.WriteDword(16 + index * 4, NativeBattleGraphicsModelAddress.Encode(nativeActionPackets.ReadContact(contact + index).Primary.Recipient));
+                NativeBattleContactPacket packet = nativeActionPackets.ReadContact(header.FirstContact.Advance(index));
+                BattleModelOwner model = packet.Primary.Recipient;
+                BattleContactOccurrence occurrence = packet.Occurrence ?? throw new InvalidDataException("Native Full-cure requires its captured recipient occurrence.");
+                recipients.Add((model, occurrence));
+                if (index == 0)
+                {
+                    originalFirst = nativeActionPackets.ModelAliases.EncodeAddress(model);
+                }
+                else if (index < 3)
+                {
+                    int offset = 16 + index * 4;
+                    director = nativeActionPackets.ModelAliases.EncodeAddress(model) is { } encoded ? director.WriteBytes(offset, encoded.AsSpan()) : director.MarkPayloadUnknown(offset, 4);
+                }
             }
+            director.WriteExecutionReference(16, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), originalFirst);
             directors = directors.WriteSlot(slot, director);
         }
         int directorSurvivors = 1;
@@ -70,12 +80,12 @@ public sealed partial class BattleSession
                 int age = WindWord(task, 12);
                 flash = NativeBattleFullCure280Geometry.Flash((short)age);
                 int index = age / 20;
-                if ((uint)age < 63 && age % 20 == 0 && index < WindWord(task, 14))
+                if ((uint)age < 63 && age % 20 == 0 && index < task.ReadContactCount(14))
                 {
                     (targets, int targetSlot) = targets!.Append(0x67EA80);
-                    uint actorPointer = task.ReadDword(16 + index * 4);
-                    int actor = NativeBattleGraphicsModelAddress.Decode(actorPointer, graphics.Models.Length);
-                    NativeBattleModulePoolTask target = targets.Slots[targetSlot].WriteDword(12, actorPointer);
+                    BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(16, 4).Recipients[index].Owner;
+                    NativeBattleModulePoolTask target = targets.Slots[targetSlot];
+                    target.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(actor), nativeActionPackets.ModelAliases.EncodeAddress(actor));
                     target = WindStore(target, 16, ReadNativeGraphicsBone(graphics, actor, 0xF1, 0)).WriteWord(22, 0);
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 2244);
                     workspace = workspace.Initialize7016B0(resources.Layout, 2244);
@@ -105,7 +115,7 @@ public sealed partial class BattleSession
                     return current;
                 });
                 task = StoreWorkspace(task, played.Workspace);
-                int actor = NativeBattleGraphicsModelAddress.Decode(task.ReadDword(12), graphics.Models.Length);
+                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
                 int age = WindWord(task, 22);
                 if (age >= 19 && (age & 1) == 0 && sparks!.Slots.Any(candidate => (candidate.Flags & 1) == 0))
                 {
@@ -118,11 +128,11 @@ public sealed partial class BattleSession
                 if (age + 1 >= 30)
                 {
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-                    int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Full-cure lost its contact owner.");
+                    BattleContactCursor first = header.FirstContact;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
                     for (int index = 0; index < header.ReadContactCount(); index++)
                     {
-                        NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + index);
+                        NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first.Advance(index));
                         if (contact.Primary.Recipient == actor)
                         {
                             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [contact] });

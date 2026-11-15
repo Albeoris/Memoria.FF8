@@ -61,14 +61,14 @@ public sealed partial class BattleSession
         NativeBattleResourcePointer? linkedGeometry = null;
         NativeBattleModelTextureOwner? bodyMaterial = null;
         NativeBattleModelTextureOwner? linkedMaterial = null;
-        if (graphics.PresentationRoster is not null && memory.Textures?.PresentationTextures is not null)
+        if (memory.Textures?.PresentationTextures is not null)
         {
             bodyGeometry = NativeDeformedGeometryPointer(model, memory, effect, staging, false);
-            bodyMaterial = SelectNativeModelMaterial(graphics, model, bodyGeometry, memory.Textures);
+            bodyMaterial = SelectNativeModelMaterial(graphics, actor, bodyGeometry, memory.Textures);
             if (model.LinkedTransform is not null)
             {
                 linkedGeometry = NativeDeformedGeometryPointer(model, memory, effect, staging, true);
-                linkedMaterial = SelectNativeModelMaterial(graphics, model, linkedGeometry, memory.Textures);
+                linkedMaterial = SelectNativeModelMaterial(graphics, actor, linkedGeometry, memory.Textures);
             }
         }
         NativeDeformedBodyBridge current = AllocateNativeDeformedBody(memory, effect, random, staging, graphics, actor, 132);

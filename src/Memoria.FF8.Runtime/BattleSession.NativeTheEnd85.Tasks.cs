@@ -31,13 +31,10 @@ public sealed partial class BattleSession
                 case 0x787FD0:
                 case 0x7882E0:
                     NativeBattleStageState stage = task.Callback == 0x787E20 ? owner.ReadNativeStageVisibilityOwner() : owner.NativeStage ?? throw new NotSupportedException("Native The End requires its current stage owner.");
-                    NativeBattleTheEnd85EnvironmentInput environmentInput = new(task, Context, stage, graphics.Models);
-                    if (task.Callback == 0x787FD0)
-                    {
-                        environmentInput = environmentInput with { PartyActors = owner.ReadRequiredPresentationPartyActors() };
-                    }
+                    NativeBattleTheEnd85EnvironmentInput environmentInput = new(task, Context, stage, graphics.ActorModels, owner.nativeActionPackets.ModelAliases, frame.Effect.TheEndSavedPartyFlags);
                     NativeBattleTheEnd85EnvironmentStep environment = NativeBattleTheEnd85Environment.Advance(environmentInput, resources.DefaultColor);
                     owner.NativeStage = environment.Input.Stage;
+                    frame = frame with { Effect = frame.Effect with { TheEndSavedPartyFlags = environment.Input.SavedPartyFlags } };
                     graphics = graphics with { ActorModels = environment.Input.Models };
                     PutContext(environment.Input.Context);
                     Put(address, environment.Input.Task);

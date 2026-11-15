@@ -54,7 +54,7 @@ public static partial class NativeBattleEffect308Lower
         return new(Write(frame, address, task), phase < phases ? 0 : 2);
     }
 
-    public static (NativeBattleEffect308Frame Frame, uint Next) BirthAct6684C0(NativeBattleEffect308Frame frame, uint pc, uint model, uint rows, bool forceYzero, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
+    public static (NativeBattleEffect308Frame Frame, uint Next) BirthAct6684C0(NativeBattleEffect308Frame frame, uint pc, BattleModelOwner model, uint rows, bool forceYzero, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
     {
         short[] operands = ReadOperands(frame, pc, 6);
         (frame, uint address) = Append(frame, ActDescriptor, 0x6685E0);
@@ -76,7 +76,7 @@ public static partial class NativeBattleEffect308Lower
         return (frame, checked(pc + 12));
     }
 
-    public static (NativeBattleEffect308Frame Frame, uint Next) BirthParticle668970(NativeBattleEffect308Frame frame, uint pc, uint model, uint rows, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
+    public static (NativeBattleEffect308Frame Frame, uint Next) BirthParticle668970(NativeBattleEffect308Frame frame, uint pc, BattleModelOwner model, uint rows, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
     {
         short[] operands = ReadOperands(frame, pc, 11);
         if (operands[0] != 0)
@@ -100,7 +100,7 @@ public static partial class NativeBattleEffect308Lower
         return (Write(frame, address, task), checked(pc + 22));
     }
 
-    public static (NativeBattleEffect308Frame Frame, uint Next) BirthBurst668B20(NativeBattleEffect308Frame frame, uint pc, uint model, uint rows, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
+    public static (NativeBattleEffect308Frame Frame, uint Next) BirthBurst668B20(NativeBattleEffect308Frame frame, uint pc, BattleModelOwner model, uint rows, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
     {
         short[] operands = ReadOperands(frame, pc, 19);
         if (operands[0] != 0)

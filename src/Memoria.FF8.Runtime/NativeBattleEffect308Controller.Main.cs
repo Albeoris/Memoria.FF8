@@ -9,16 +9,16 @@ public static partial class NativeBattleEffect308Controller
         short age = Signed(Read(frame, address), 12);
         int intensity = age < 8 ? unchecked(age * 2300) >> 3 : age > 102 ? unchecked((110 - age) * 2300) >> 3 : 2300;
         frame = inputs.Execute(frame, new NativeBattleEffect308Intensity5713E0(0, intensity));
-        uint caster = frame.State.ReadDword(CasterGlobal);
+        BattleModelOwner caster = frame.State.ReadModel(CasterGlobal);
         if (age >= 110)
         {
             for (int index = 0; index < 3; index++)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(checked(caster + (uint)(index * 156)), 2, 0xFFF7, 0));
+                frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(inputs.ResolveResourceModel(caster, index), 2, 0xFFF7, 0));
             }
             for (int index = 0; index < 3; index++)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect308WriteModelBytes(checked(caster + (uint)(index * 156)), 44, ReadBytes(frame, checked(address + 20 + (uint)(index * 4)), 4), 4));
+                frame = inputs.Execute(frame, new NativeBattleEffect308WriteModelBytes(inputs.ResolveResourceModel(caster, index), 44, ReadBytes(frame, checked(address + 20 + (uint)(index * 4)), 4), 4));
             }
             return new(inputs.Execute(frame, new NativeBattleEffect308Intensity5713E0(0, 0)), 2);
         }
@@ -34,7 +34,7 @@ public static partial class NativeBattleEffect308Controller
                 NativeBattleWeightedColorStep blend = NativeBattleWeightedColor56CC00.Blend(frame.Memory, firstRgb, secondRgb, unchecked((short)(4096 - factor)), unchecked((short)factor), 0, inputs.Colors);
                 frame = frame with { Memory = blend.Memory };
                 NativeBattleEffectArena rgb = NativeBattleEffectArena.Clear().Write(0, [(byte)blend.Color, (byte)(blend.Color >> 8), (byte)(blend.Color >> 16)]);
-                uint model = checked(caster + (uint)(index * 156));
+                BattleModelOwner model = inputs.ResolveResourceModel(caster, index);
                 frame = inputs.Execute(frame, new NativeBattleEffect308WriteModelBytes(model, 44, rgb, 3));
                 frame = inputs.Execute(frame, new NativeBattleEffect308WriteModelBytes(model, 47, NativeBattleEffectArena.Clear().Write(0, [0x32]), 1));
             }
@@ -43,8 +43,8 @@ public static partial class NativeBattleEffect308Controller
         {
             for (int index = 0; index < 3; index++)
             {
-                uint model = checked(caster + (uint)(index * 156));
-                frame = inputs.Execute(frame, new NativeBattleEffect308DrawOffsetBody669070(model, checked(address + 0x20 + (uint)(index * 0x2D0))) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, model, checked(address + 0x20 + (uint)(index * 0x2D0))) : null });
+                BattleModelOwner model = inputs.ResolveResourceModel(caster, index);
+                frame = inputs.Execute(frame, new NativeBattleEffect308DrawOffsetBody669070(model, checked(address + 0x20 + (uint)(index * 0x2D0))) { PilotIdentity = inputs.CapturePresentation ? NativeBattleOffsetBodyVisuals.At(308, frame.Effect.Pools, address, checked(address + 0x20 + (uint)(index * 0x2D0))) with { ModelOwner = model } : null });
                 frame = inputs.Execute(frame, new NativeBattleEffect308ModelFlags(model, 1, 255, 4));
             }
         }

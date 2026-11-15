@@ -42,7 +42,7 @@ public static partial class NativeBattleEffect314Controller
                         row = row.Write(lane * 2, BitConverter.GetBytes(unchecked((ushort)(U16(row, lane * 2) + task.ReadWord(0x1C + lane * 2)))));
                     }
                     frame = WriteBytes(frame, boneRow, row, 16);
-                    uint model = task.ReadDword(0xC);
+                    BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(0xC, 4).Owner;
                     int bone = unchecked((int)(boneRow - task.ReadDword(0x10))) >> 4;
                     NativeBattleEffectArena translation = inputs.ReadBoneMatrix is { } readBone ? NativeBattleEffectNodeContextMemory.Copy(PackedArena(readBone(frame, model, bone)), 20, NativeBattleEffectArena.Clear(), 0, 12) : inputs.ReadArena(frame, checked(inputs.ResolveBoneRecord(frame, model, bone) + 20), 12);
                     NativeBattleActionMatrix world = inputs.ReadModel(frame, model).GeometryWorldMatrix ?? throw new NotSupportedException("Effect314 particle requires its current caster world matrix.");
@@ -79,7 +79,7 @@ public static partial class NativeBattleEffect314Controller
         }
     }
 
-    private static NativeBattleEffect314Frame EmitParticleBurst(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint model, int bone, NativeBattleEffectArena row)
+    private static NativeBattleEffect314Frame EmitParticleBurst(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, BattleModelOwner model, int bone, NativeBattleEffectArena row)
     {
         uint main = frame.State.ReadDword(WorkGlobal) + MainOffset;
         ushort Draw()

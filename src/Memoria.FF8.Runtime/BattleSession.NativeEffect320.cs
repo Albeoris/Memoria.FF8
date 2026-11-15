@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.Effect320 ?? throw new InvalidDataException("Effect320 service lost its storage."), Random = nativeCrtRandom ?? throw new InvalidDataException("Effect320 service lost its CRT stream."), Staging = NativeFileStaging ?? throw new InvalidDataException("Effect320 service lost its addressed memory.") };
         }
 
-        NativeBattleEffect320PointStep Anchor571400(NativeBattleEffect320Frame current, int actor, NativeBattleEffectArena retained)
+        NativeBattleEffect320PointStep Anchor571400(NativeBattleEffect320Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect320 requires its current actor transform.");
@@ -55,11 +55,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect320PointStep Origin65DA30(NativeBattleEffect320Frame current, NativeBattleEffectArena input8, NativeBattleEffectArena retained)
         {
-            uint modelAddress = current.State.ReadDword(NativeBattleEffect320Profile.CasterGlobal);
-            if (!NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int actor, graphics.Models.Length))
-            {
-                throw new InvalidDataException("Effect320 bone origin requires its current physical caster row.");
-            }
+            BattleModelOwner actor = current.State.ReadModel(NativeBattleEffect320Profile.CasterGlobal);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect320 requires its current caster skeleton.");
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);

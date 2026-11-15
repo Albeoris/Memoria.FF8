@@ -21,18 +21,15 @@ public static partial class NativeBattleEffect316Controller
         frame = inputs.Execute(frame, new NativeBattleEffect316UploadTim505E30(texture));
         frame = inputs.Execute(frame, new NativeBattleEffect316UploadTim505E30(EmbeddedTimAddress));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Effect316 requires its actual current parameters.");
-        uint model = ModelAddress(parameters.Source);
-        frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, model).WriteDword(WorkGlobal, CommonAddress) };
+        BattleModelOwner model = parameters.Source;
+        frame = frame with { State = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, model, inputs.ReadPackets(frame).ModelAliases).WriteDword(WorkGlobal, CommonAddress) };
         frame = inputs.Execute(frame, new NativeBattleEffect316ModelFlags(model, 2, 0xFFF3, 0));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         root = NativeBattleEffectTaskMemory.WriteBankSpan(root, 12, CopyBytes(retained, 12, NativeBattleEffectArena.Clear(), 0, RootStride - 12), RootStride - 12);
         (root, _) = root.Append(RootCallback);
         frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, State = frame.State.DetachBank(RootBank) };
         frame = ClearDwords6DA380(frame, RootBank + 12, 2);
-        for (int physical = 0; physical < 3; physical++)
-        {
-            frame = inputs.Execute(frame, new NativeBattleEffect316ModelFlags(ModelAddress(physical), 2, ushort.MaxValue, 4));
-        }
+        frame = inputs.Execute(frame, new NativeBattleEffect316PartyFlags(ushort.MaxValue, 4));
         return inputs.Execute(frame, new NativeBattleEffect316RegisterCamera5099A0(CameraAddress));
     }
 
@@ -137,5 +134,4 @@ public static partial class NativeBattleEffect316Controller
         }
     }
 
-    private static uint ModelAddress(int physical) => (uint)physical < 7 ? NativeBattleGraphicsModelAddress.Encode(physical) : throw new InvalidDataException("Effect316 requires its actual physical caster.");
 }

@@ -11,17 +11,9 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native actor animation requires its current CPU resource owner.");
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native actor animation requires its current staging owner.");
         uint existing = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
-        uint actorAddress;
-        if (existing == 0)
-        {
-            uint header = CoreDword(frame, 0x279744C);
-            actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, ReadSlot(frame, 0x1B, 1)[0], header);
-        }
-        else
-        {
-            actorAddress = Dword(frame, existing + 0xC);
-        }
-        int actorIndex = NativeEffect301Actor(graphics, actorAddress);
+        BattleModelOwner actorIndex = existing == 0
+            ? NativeBattleCinematicActorAccess.ReadSlotActor(frame)
+            : frame.Arena.ReadExecutionReference<BattleExecutionReference.Model>(ArenaOffset(existing + 0xC, 4), 4).Owner;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattleResourcePointer[]? fields = null;
         NativeBattleCinematicModelServices modelServices = new((_, _) => throw new NotSupportedException("Native actor animation uses its copied physical resource row, not an embedded shape."), (_, address) =>
@@ -38,7 +30,7 @@ public sealed partial class BattleSession
             }
         };
         NativeBattleCinematicActorAnimation2CServices services = new(CaptureActor, PrepareBasis, modelServices, DrawBody);
-        return (NativeBattleCinematicActorAnimation2C.Draw(frame, services), graphics);
+        return (NativeBattleCinematicActorAnimation2C.Draw(frame, services, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)), graphics);
 
         NativeBattleResourcePointer[] ActorFields() => fields ??= Enumerable.Range(0, 4).Select(ReadResource).ToArray();
 
@@ -63,9 +55,9 @@ public sealed partial class BattleSession
             return pointer;
         }
 
-        NativeBattleCinematicActorAnimation2CSource CaptureActor(uint address)
+        NativeBattleCinematicActorAnimation2CSource CaptureActor(BattleModelOwner address)
         {
-            if (address != actorAddress)
+            if (address != actorIndex)
             {
                 throw new InvalidDataException("Native actor animation changed physical actor during clone construction.");
             }

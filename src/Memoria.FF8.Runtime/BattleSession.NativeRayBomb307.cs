@@ -41,9 +41,9 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = latest.RayBomb307 ?? throw new InvalidDataException("Ray-Bomb lost its process banks."), Effect = graphics.OriginalEffect ?? throw new InvalidDataException("Ray-Bomb lost its current tasks."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Ray-Bomb lost its CRT stream.") };
         }
 
-        NativeBattleEffectArena ReadModel8(int actor, int offset) => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
+        NativeBattleEffectArena ReadModel8(BattleModelOwner actor, int offset) => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
 
-        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleRayBomb307Frame current, int actor, int selector)
+        NativeBattlePackedMatrix32 ReadBoneMatrix(NativeBattleRayBomb307Frame current, BattleModelOwner actor, int selector)
         {
             Publish(current);
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Ray-Bomb requires its current caster skeleton.");
@@ -67,11 +67,11 @@ public sealed partial class BattleSession
 
         NativeBattleRayBomb307PointStep TargetCenter(NativeBattleRayBomb307Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Ray-Bomb requires its selected physical target positions.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Ray-Bomb requires its selected physical target positions.")).ToArray());
             return new(current, center);
         }
 
-        NativeBattleRayBomb307AnchorStep Anchor(NativeBattleRayBomb307Frame current, int actor)
+        NativeBattleRayBomb307AnchorStep Anchor(NativeBattleRayBomb307Frame current, BattleModelOwner actor)
         {
             Publish(current);
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);

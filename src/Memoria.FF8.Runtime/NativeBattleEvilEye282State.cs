@@ -68,6 +68,13 @@ public sealed record NativeBattleEvilEye282State([property: JsonRequired] Native
         return this;
     }
 
+    internal BattleModelOwner ReadModel(uint address) => Globals.ReadExecutionReference<BattleExecutionReference.Model>(Require(address, 4), 4).Owner;
+    internal NativeBattleEvilEye282State WriteModel(uint address, BattleModelOwner owner, NativeBattleModelAliases aliases)
+    {
+        NativeBattleEffectArena globals = Globals.WriteExecutionReference(Require(address, 4), 4, new BattleExecutionReference.Model(owner), aliases.EncodeAddress(owner));
+        return this with { Globals = globals };
+    }
+
     private static int Require(uint address, int length)
     {
         ulong end = (ulong)address + (uint)Math.Max(length, 0);

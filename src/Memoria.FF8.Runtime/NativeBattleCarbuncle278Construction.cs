@@ -68,13 +68,26 @@ public static class NativeBattleCarbuncle278Construction
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Carbuncle requires its current action header.");
         NativeBattleActionHeaderSlot header = inputs.Packets.ReadHeader(parameters.Header);
         int count = header.ReadContactCount();
-        task = task.WriteWord(0xE, (ushort)count);
+        task = task.WriteContactCount(0xE, count);
+        var recipients = ImmutableArray.CreateBuilder<(BattleModelOwner Owner, BattleContactOccurrence Occurrence)>(count);
+        ImmutableArray<byte>? originalFirst = [0, 0, 0, 0];
         for (int index = 0; index < count; index++)
         {
-            BattleContactCursor first = header.FirstContact;
-            byte actor = inputs.Packets.ReadContact(first.Advance(index)).Primary.Recipient;
-            task = task.WriteDword(0x14 + index * 4, NativeBattleGraphicsModelAddress.Encode(actor));
+            NativeBattleContactPacket contact = inputs.Packets.ReadContact(header.FirstContact.Advance(index));
+            BattleModelOwner actor = contact.Primary.Recipient;
+            BattleContactOccurrence occurrence = contact.Occurrence ?? throw new InvalidDataException("Native Carbuncle requires its captured recipient occurrence.");
+            recipients.Add((actor, occurrence));
+            if (index == 0)
+            {
+                originalFirst = inputs.Packets.ModelAliases.EncodeAddress(actor);
+            }
+            else if (index < 3)
+            {
+                int offset = 0x14 + index * 4;
+                task = inputs.Packets.ModelAliases.EncodeAddress(actor) is { } encoded ? task.WriteBytes(offset, encoded.AsSpan()) : task.MarkPayloadUnknown(offset, 4);
+            }
         }
+        task.WriteExecutionReference(0x14, 4, new BattleExecutionReference.OrderedContactRecipients(recipients.MoveToImmutable()), originalFirst);
         bounds = NativeBattleStaticMeshBounds.Read6D6070(secondBounds.Bytes.AsSpan());
         state = NativeBattleCarbuncle278Entry.RequireState(frame.Memory) with { Bounds81E0 = bounds };
         arena = frame.Memory.Arena!;
@@ -82,7 +95,8 @@ public static class NativeBattleCarbuncle278Construction
         byte[] dimensions = new byte[4];
         BinaryPrimitives.WriteInt16LittleEndian(dimensions, bounds.Minimum.Z);
         BinaryPrimitives.WriteInt16LittleEndian(dimensions.AsSpan(2), unchecked((short)(delta + (delta >> 4))));
-        arena = arena.Write(0, dimensions).Write(0x28A4 + 12, task.ReadRawPayloadSpan());
+        (byte[] bytes, bool[] known) = task.BorrowPayloadArena(12, task.PayloadLength).ReadSnapshot(0, task.PayloadLength);
+        arena = arena.Write(0, dimensions).WriteWithKnownness(0x28A4 + 12, bytes, known);
         creature = creature.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { Arena = arena, Carbuncle278 = state, CarbuncleExecutableMemory = pose.Executable }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == creature.DescriptorAddress ? creature : pool).ToImmutableArray() } };
         return frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x3E84) };

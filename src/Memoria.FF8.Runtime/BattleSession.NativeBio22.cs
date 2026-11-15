@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Bio requires its published projection.");
         NativeBattleBio22Frame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native Bio requires retained process memory."), effect, effect.Bio22 ?? throw new NotSupportedException("Native Bio requires its executed entry state."));
         short zsf3 = frame.Memory.ScriptedGraphics?.Zsf3 ?? throw new NotSupportedException("Native Bio requires its initialized current ZSF3.");
-        NativeBattleBio22Inputs inputs = new(nativeActionPackets, projection, camera.Roll, zsf3, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Bio requires its actual body pose source."), _ => NativeStage ?? throw new NotSupportedException("Native Bio requires its four stage groups."), ReadProxyDepth, Execute, FinalActor) { ReadForeignTarget = ReadNativeForeignTarget };
+        NativeBattleBio22Inputs inputs = new(nativeActionPackets, projection, camera.Roll, zsf3, index => graphics.ActorModels.Get(index), index => NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Bio requires its actual body pose source."), _ => NativeStage ?? throw new NotSupportedException("Native Bio requires its four stage groups."), ReadProxyDepth, Execute, FinalActor) { ReadForeignTarget = actor => ReadNativeForeignTarget(graphics, actor) };
         NativeBattleBio22ChildStep step = NativeBattleBio22Controller.Advance89A7B0(frame, resources, inputs, nativeCrtRandom ?? throw new NotSupportedException("Native Bio requires its retained CRT state."));
         NativeEffectMemory = step.Frame.Memory;
         nativeCrtRandom = step.Random;
@@ -72,14 +72,14 @@ public sealed partial class BattleSession
             NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
             NativeBattleModulePoolTask task = hierarchy.Read(address);
             uint rootAddress = task.ReadDword(0x10);
-            NativeBattleBio22ActorFrame actor = new(task, hierarchy.Read(rootAddress), current.Memory, graphics.Models);
+            NativeBattleBio22ActorFrame actor = new(task, hierarchy.Read(rootAddress), current.Memory, graphics.ActorModels);
             NativeBattleBio22ActorServices services = new(ReadLocal, Shadow, Body);
-            NativeBattleBio22ActorStep changed = NativeBattleBio22Actor.Advance89D3D0(actor, actual => NativeBattleBio22Actor.Draw89D460(actual, projection.View ?? throw new NotSupportedException("Native Bio actor requires its actual view matrix."), services));
+            NativeBattleBio22ActorStep changed = NativeBattleBio22Actor.Advance89D3D0(actor, nativeActionPackets.ModelAliases, actual => NativeBattleBio22Actor.Draw89D460(actual, projection.View ?? throw new NotSupportedException("Native Bio actor requires its actual view matrix."), services));
             graphics = graphics with { ActorModels = changed.Frame.Models };
             hierarchy = hierarchy.Write(rootAddress, changed.Frame.Root).Write(address, changed.Frame.Task);
             return new(current with { Memory = changed.Frame.Memory, Effect = current.Effect with { Pools = hierarchy.Pools } }, random, unchecked((int)changed.Result));
 
-            NativeBattleBio22ActorFrame ReadLocal(NativeBattleBio22ActorFrame actual, int index)
+            NativeBattleBio22ActorFrame ReadLocal(NativeBattleBio22ActorFrame actual, BattleModelOwner index)
             {
                 graphics = graphics with { ActorModels = actual.Models };
                 if (ReadNativeForeignModel(index) is not null)
@@ -87,11 +87,11 @@ public sealed partial class BattleSession
                     return actual;
                 }
                 NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Bio ReadLocal requires the actual body source.");
-                NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(actual.Models[index], source);
-                return actual with { Models = actual.Models.SetItem(index, published) };
+                NativeBattleGraphicsModel published = NativeBattleBodyBoneMatrices.Publish508C90(actual.Models.Get(index), source);
+                return actual with { Models = actual.Models.Set(index, published) };
             }
 
-            NativeBattleBio22ActorFrame Shadow(NativeBattleBio22ActorFrame actual, int index, NativeBattleActionMatrix main, int bucket, int shift)
+            NativeBattleBio22ActorFrame Shadow(NativeBattleBio22ActorFrame actual, BattleModelOwner index, NativeBattleActionMatrix main, int bucket, int shift)
             {
                 if (shift != 16)
                 {
@@ -99,14 +99,14 @@ public sealed partial class BattleSession
                 }
                 graphics = graphics with { ActorModels = actual.Models };
                 NativeEffectMemory = actual.Memory;
-                graphics = SubmitNativeShadowPackets5088A0(graphics, actual.Models[index], projection, bucket, false);
+                graphics = SubmitNativeShadowPackets5088A0(graphics, index, actual.Models.Get(index), projection, bucket, false);
                 return actual with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Bio shadow lost process memory.") };
             }
 
-            NativeBattleBio22ActorFrame Body(NativeBattleBio22ActorFrame actual, int index, NativeBattleActionMatrix main, short phase, short amplitude)
+            NativeBattleBio22ActorFrame Body(NativeBattleBio22ActorFrame actual, BattleModelOwner index, NativeBattleActionMatrix main, short phase, short amplitude)
             {
                 graphics = graphics with { ActorModels = actual.Models };
-                NativeBattleGraphicsModel model = actual.Models[index];
+                NativeBattleGraphicsModel model = actual.Models.Get(index);
                 if (ReadNativeForeignModel(index) is { } foreign)
                 {
                     short hostZsf4 = actual.Memory.ScriptedGraphics?.Zsf4 ?? throw new NotSupportedException("Native Bio body requires its initialized current ZSF4.");

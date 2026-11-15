@@ -5,12 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect308Controller
 {
-    public static NativeBattleEffect308Frame BirthScript667940(NativeBattleEffect308Frame frame, uint model, uint rows, uint source)
+    public static NativeBattleEffect308Frame BirthScript667940(NativeBattleEffect308Frame frame, BattleModelOwner model, uint rows, uint source, NativeBattleModelAliases aliases)
     {
         (frame, uint address) = AppendRequired(frame, ScriptDescriptor, ScriptCallback);
         frame = ClearDwords701200(frame, address + 0x14, 8);
         short row = Word308(ReadBytes(frame, source, 2), 0);
-        NativeBattleModulePoolTask task = Read(frame, address).WriteDword(12, model).WriteDword(16, rows).WriteDword(20, unchecked(rows + (uint)(row << 4))).WriteDword(24, source + 2);
+        NativeBattleModulePoolTask task = Read(frame, address);
+        task.WriteExecutionReference(12, 4, new BattleExecutionReference.Model(model), aliases.EncodeAddress(model));
+        task = task.WriteDword(16, rows).WriteDword(20, unchecked(rows + (uint)(row << 4))).WriteDword(24, source + 2);
         return Write(frame, address, task);
     }
 
@@ -20,7 +22,7 @@ public static partial class NativeBattleEffect308Controller
         uint pc = task.ReadDword(24);
         uint row = task.ReadDword(20);
         uint rows = task.ReadDword(16);
-        uint model = task.ReadDword(12);
+        BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(12, 4).Owner;
         while (true)
         {
             short opcode = Word308(ReadBytes(frame, pc, 2), 0);

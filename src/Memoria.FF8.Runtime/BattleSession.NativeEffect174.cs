@@ -177,39 +177,44 @@ public sealed partial class BattleSession
 
     internal static NativeBattleGraphicsModel ApplyNativeEffect174ModelBytes(NativeBattleGraphicsModel model, NativeBattleEffect174WriteModelBytes write)
     {
-        if (write.Offset == 12 && write.Length == 2)
+        return ApplyNativeEffect174ModelBytes(model, write.Offset, write.Data, write.Length);
+    }
+
+    internal static NativeBattleGraphicsModel ApplyNativeEffect174ModelBytes(NativeBattleGraphicsModel model, int offset, NativeBattleEffectArena data, int length)
+    {
+        if (offset == 12 && length == 2)
         {
-            return model with { Rotation12 = BinaryPrimitives.ReadInt16LittleEndian(write.Data.Read(0, 2)) };
+            return model with { Rotation12 = BinaryPrimitives.ReadInt16LittleEndian(data.Read(0, 2)) };
         }
-        if (write.Offset == 12 && write.Length == 8)
+        if (offset == 12 && length == 8)
         {
-            model = NativeBattleRaldo19ModelMemory.Apply(model, 12, write.Data, 0, 4);
-            return NativeBattleRaldo19ModelMemory.Apply(model, 16, write.Data, 4, 4);
+            model = NativeBattleRaldo19ModelMemory.Apply(model, 12, data, 0, 4);
+            return NativeBattleRaldo19ModelMemory.Apply(model, 16, data, 4, 4);
         }
-        if (write.Offset == 28 && write.Length is 6 or 8)
+        if (offset == 28 && length is 6 or 8)
         {
-            model = NativeBattleRaldo19ModelMemory.Apply(model, 28, write.Data, 0, 4);
-            return NativeBattleRaldo19ModelMemory.Apply(model, 32, write.Data, 4, write.Length - 4);
+            model = NativeBattleRaldo19ModelMemory.Apply(model, 28, data, 0, 4);
+            return NativeBattleRaldo19ModelMemory.Apply(model, 32, data, 4, length - 4);
         }
-        if (write.Offset == 7 && write.Length == 1)
+        if (offset == 7 && length == 1)
         {
-            return model with { Alpha7 = write.Data.Read(0, 1)[0] };
+            return model with { Alpha7 = data.Read(0, 1)[0] };
         }
-        if (write.Offset is 0x28 or 0x2C && write.Length == 4)
+        if (offset is 0x28 or 0x2C && length == 4)
         {
-            uint color = BinaryPrimitives.ReadUInt32LittleEndian(write.Data.Read(0, 4));
-            return write.Offset == 0x28 ? model with { Color40 = color } : model with { Color44 = color };
+            uint color = BinaryPrimitives.ReadUInt32LittleEndian(data.Read(0, 4));
+            return offset == 0x28 ? model with { Color40 = color } : model with { Color44 = color };
         }
-        if (write.Offset == 0x2B && write.Length == 1)
+        if (offset == 0x2B && length == 1)
         {
             uint color = model.Color40 ?? throw new NotSupportedException("Effect174 requires its current packed model color before its code-byte store.");
-            return model with { Color40 = (color & 0xFFFFFF) | ((uint)write.Data.Read(0, 1)[0] << 24) };
+            return model with { Color40 = (color & 0xFFFFFF) | ((uint)data.Read(0, 1)[0] << 24) };
         }
-        if (write.Offset == 0x7C && write.Length == 4)
+        if (offset == 0x7C && length == 4)
         {
             NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Effect174 requires its current object mask owner.");
-            return model with { SequenceState = sequence with { MeshMask124 = BinaryPrimitives.ReadUInt32LittleEndian(write.Data.Read(0, 4)) } };
+            return model with { SequenceState = sequence with { MeshMask124 = BinaryPrimitives.ReadUInt32LittleEndian(data.Read(0, 4)) } };
         }
-        return NativeBattleRaldo19ModelMemory.Apply(model, write.Offset, write.Data, 0, write.Length);
+        return NativeBattleRaldo19ModelMemory.Apply(model, offset, data, 0, length);
     }
 }

@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleScriptedGraphicsMemory registers = memory.ScriptedGraphics ?? throw new NotSupportedException("Native Shiva requires its current GTE control owners.");
         NativeBattleShivaFrame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Native Shiva requires its retained CRT random state."));
         NativeBattleShivaInputs inputs = new(graphics.Flags, projection, colors, registers.Zsf3 ?? throw new NotSupportedException("Native Shiva requires its initialized current ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Shiva requires its initialized current ZSF4."), registers.Dqa, registers.Dqb, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Shiva requires its current signed IO result."), () => NativeCamera?.CurrentPose ?? throw new NotSupportedException("Native Shiva requires its current camera pose."), Execute);
-        frame = initialize ? NativeBattleShivaExecution.Initialize5C0D50(frame, nativeActionPackets, graphics.Models) : NativeBattleShivaExecution.Advance5C7F50(frame, resources, inputs);
+        frame = initialize ? NativeBattleShivaExecution.Initialize5C0D50(frame, nativeActionPackets, graphics.ActorModels) : NativeBattleShivaExecution.Advance5C7F50(frame, resources, inputs);
         NativeEffectMemory = frame.Memory;
         nativeCrtRandom = frame.Random;
         return graphics with { OriginalEffect = frame.Effect };
@@ -126,9 +126,9 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleShivaDirectorService.Contacts:
                     NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(current.Effect.Parameters!.Header);
-                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Shiva requires its actual contact pointer.");
+                    BattleContactCursor first = header.FirstContact;
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(first, header.ReadContactCount()).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => nativeActionPackets.ReadContact(first.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Shiva contact lost its current process memory.") };
                 default:

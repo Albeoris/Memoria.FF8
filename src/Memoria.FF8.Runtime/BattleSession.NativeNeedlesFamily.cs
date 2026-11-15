@@ -29,7 +29,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Needles requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Needles requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Needles requires its current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Needles requires its current actor skeleton.");
         NativeBattleNeedlesFamilyState? SelectState(NativeBattleEffectMemory current) => resources.Effect == 177 ? current.ThousandNeedles177 : current.TenThousandNeedles178;
 
         void Publish(NativeBattleNeedlesFamilyFrame current)
@@ -45,7 +45,7 @@ public sealed partial class BattleSession
             return current with { Memory = latest, State = SelectState(latest) ?? throw new InvalidDataException("Needles external service lost its module owner."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new InvalidDataException("Needles external service lost its CRT stream.") };
         }
 
-        NativeBattleNeedlesFamilyPointStep Bone(NativeBattleNeedlesFamilyFrame current, byte actor, byte selector, short distance)
+        NativeBattleNeedlesFamilyPointStep Bone(NativeBattleNeedlesFamilyFrame current, BattleModelOwner actor, byte selector, short distance)
         {
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             NativeFileStaging = current.Staging;

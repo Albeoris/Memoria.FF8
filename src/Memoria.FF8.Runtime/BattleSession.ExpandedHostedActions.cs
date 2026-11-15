@@ -180,9 +180,9 @@ public sealed partial class BattleSession
                     AcknowledgeExpandedEffectContact(command, contact.Packet);
                     BattleModelRoster roster = expandedModelRoster!;
                     PublishExpandedReadyContact(roster, contact.Packet.Primary, command.ActorId);
-                    if (contact.Packet.Secondary.Recipient != byte.MaxValue)
+                    if (contact.Packet.Secondary is { } secondary)
                     {
-                        PublishExpandedReadyContact(roster, contact.Packet.Secondary, command.ActorId);
+                        PublishExpandedReadyContact(roster, secondary, command.ActorId);
                     }
                     break;
                 case NativeBattlePresentationSoundCommitted sound:

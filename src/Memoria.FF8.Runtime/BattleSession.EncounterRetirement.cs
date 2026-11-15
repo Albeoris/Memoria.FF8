@@ -4,22 +4,34 @@ public sealed record EncounterAllocationRetirement(int PhysicalIndex, bool Remov
 {
     public bool HasAcceptedConsumers(string allocationId, NativeBattleActionPacketsState packets, NativeBattleGraphicsState graphics, BattleActionPresentation? activeAction = null, NativeBattleOriginalEffectState? detachedEffect = null)
     {
+        BattleModelOwner owner = new BattleEnemyActorModel(new(allocationId));
         bool IsContactOwner(NativeBattleContactPacket packet)
         {
-            return packet.Primary.Recipient == PhysicalIndex || packet.Secondary.Recipient == PhysicalIndex;
+            return packet.Primary.Recipient == owner || packet.Primary.CoverSource == owner ||
+                packet.Secondary?.Recipient == owner || packet.Secondary?.CoverSource == owner;
         }
         bool IsEffectOwner(NativeBattleOriginalEffectState? effect)
         {
-            return effect is { ReturnedDescriptor: > 0 } && (effect.Parameters is not { } parameters || parameters.Source == PhysicalIndex || (parameters.TargetActors & (1 << PhysicalIndex)) != 0);
+            return effect is { ReturnedDescriptor: > 0 } && (effect.Parameters is not { } parameters || parameters.Source == owner || parameters.TargetActors.Contains(owner));
         }
-        for (int header = 0; header < packets.ActionCount; header++)
+        foreach ((BattleActionHeaderReference reference, NativeBattleActionHeaderSlot header) in packets.PublishedHeaders())
         {
-            if (packets.Headers[header].ReadByte(0) == PhysicalIndex || packets.ReadHeaderContacts506BA0(header).Any(IsContactOwner))
+            if (header.Source == owner || packets.ReadHeaderContacts(reference).Any(IsContactOwner))
             {
                 return true;
             }
         }
-        return activeAction?.ActorId == allocationId || activeAction?.TargetId == allocationId || activeAction is not null && (activeAction.NativeTargetMask & (1 << PhysicalIndex)) != 0 || graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context && (context.Source == PhysicalIndex || (context.PhysicalTargetMask.GetValueOrDefault() & (1 << PhysicalIndex)) != 0) || graphics.PendingContacts.Any(IsContactOwner) || IsEffectOwner(graphics.OriginalEffect) || IsEffectOwner(detachedEffect);
+        bool IsAcceptedHeader(BattleActionHeaderReference reference)
+        {
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(reference);
+            return header.Source == owner || packets.ReadHeaderContacts(reference).Any(IsContactOwner);
+        }
+        return activeAction?.ActorId == allocationId || activeAction?.TargetId == allocationId ||
+            activeAction?.AiRecipients?.ActorIds.Contains(allocationId) == true ||
+            activeAction?.NativeHeader is { } activeHeader && IsAcceptedHeader(activeHeader) ||
+            activeAction is not null && (activeAction.NativeTargetMask & (1 << PhysicalIndex)) != 0 ||
+            graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context && (context.Source == owner || context.TargetActors?.Contains(owner) == true || context.SourceTargets.Contains(owner)) ||
+            graphics.PendingContacts.Any(IsContactOwner) || IsEffectOwner(graphics.OriginalEffect) || IsEffectOwner(detachedEffect);
     }
 }
 
@@ -80,8 +92,17 @@ public sealed partial class BattleSession
         {
             return;
         }
-        int physical = actor.EncodeNativeSlot() is >= 3 and <= 6 ? actor.EncodeNativeSlot() : NativeGraphics?.ActorIds.IndexOf(actor.Id) ?? -1;
-        if (physical is < 3 or > 6 || NativeGraphics is { } graphics && (graphics.ActorModels.Get(physical).Flags0 & 3) == 0)
+        int physical = actor.EncodeNativeSlot();
+        if (NativeGraphics is { } graphics)
+        {
+            BattleModelOwner owner = CreatePresentationModelOwner(actor);
+            if (!graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte original) || (graphics.ActorModels.Get(owner).Flags0 & 3) == 0)
+            {
+                return;
+            }
+            physical = original;
+        }
+        if (physical is < 3 or > 6)
         {
             return;
         }
@@ -97,10 +118,14 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            int physical = retirement.PhysicalIndex;
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(physical);
-            bool pendingRemoval = graphics.Descriptors.Queue.Any(slot => graphics.Descriptors.Packets[slot].Command == 105 && graphics.Descriptors.Packets[slot].ScalarWord8 == physical) || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Remove502ED0 && graphics.Descriptors.Packets[task.PacketSlot].ScalarWord8 == physical);
-            if (graphics.ActorIds[physical] != allocation.Id)
+            NativeBattleModelSlot original = NativeBattleModelSlot.Decode(checked((byte)retirement.PhysicalIndex));
+            BattleModelOwner owner = new BattleEnemyActorModel(new(allocation.Id));
+            BattleModelOwner? current = graphics.NativeBindings.FindOriginalOwner(original, graphics.ActorModels);
+            bool IsRemovalSubject(NativeBattleDescriptorModelSubject? subject) => subject is NativeBattleDescriptorModelSubject.ExplicitModel model && model.Owner == owner ||
+                subject is NativeBattleDescriptorModelSubject.AuthoredOriginalSlot authored && authored.Slot == original;
+            bool pendingRemoval = graphics.Descriptors.Queue.Any(slot => graphics.Descriptors.Packets[slot] is { Command: 105 } packet && IsRemovalSubject(packet.ModelSubject)) ||
+                graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Remove502ED0 && IsRemovalSubject(task.ModelSubject));
+            if (current != owner)
             {
                 if (!retirement.RemovalQueued)
                 {
@@ -113,6 +138,7 @@ public sealed partial class BattleSession
                 }
                 continue;
             }
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
             if ((model.Flags0 & 3) == 0 && !pendingRemoval)
             {
                 nativeAllocations[index] = allocation with { Retirement = retirement with { ResourcesReleased = true } };
@@ -136,7 +162,7 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            graphics = QueueNativeDescriptor(graphics, 105, 0, checked((ushort)physical));
+            graphics = QueueNativeModelDescriptor(graphics, 105, 0, owner);
             nativeAllocations[index] = allocation with { Retirement = retirement with { RemovalQueued = true } };
         }
         return graphics;
@@ -148,7 +174,13 @@ public sealed partial class BattleSession
         {
             EncounterAllocationRetirement retirement = allocation.Retirement!;
             BattleCombatant actor = GetActor(allocation.Id);
-            if (actor.IsActive || retirement.PhysicalIndex is < 3 or > 6 || !retirement.ResourcesReleased && (NativeGraphics is null || NativeGraphics.ActorIds[retirement.PhysicalIndex] != allocation.Id && !retirement.RemovalQueued) || retirement.ResourcesReleased && NativeGraphics is { } graphics && graphics.ActorIds[retirement.PhysicalIndex] == allocation.Id && (graphics.ActorModels.Get(retirement.PhysicalIndex).Flags0 & 3) != 0)
+            NativeBattleGraphicsState? graphics = NativeGraphics;
+            BattleModelOwner owner = CreatePresentationModelOwner(actor);
+            bool slotValid = retirement.PhysicalIndex is >= 3 and <= 6;
+            bool retainsOwner = slotValid && graphics is not null &&
+                graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode((byte)retirement.PhysicalIndex), graphics.ActorModels) == owner;
+            if (actor.IsActive || !slotValid || !retirement.ResourcesReleased && (graphics is null || !retainsOwner && !retirement.RemovalQueued) ||
+                retirement.ResourcesReleased && retainsOwner && (graphics!.ActorModels.Get(owner).Flags0 & 3) != 0)
             {
                 throw new InvalidDataException("Encounter retirement snapshot disagrees with its inactive allocation and resource generation.");
             }

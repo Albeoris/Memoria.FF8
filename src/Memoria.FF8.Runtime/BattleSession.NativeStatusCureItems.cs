@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleStatusCureItemInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("Native status-cure item requires its published camera matrix."), ReadAnchor, ReadModelY, Draw) { DrawWithPilotIdentity = resources.Effect is 292 or 293 or 294 or 295 or 296 ? DrawWithIdentity : null };
         NativeBattleStatusCureItemStep step = NativeBattleStatusCureItemController.Advance(frame, resources, inputs);
         NativeEffectMemory = step.Frame.Memory;
-        foreach (int contact in step.Contacts)
+        foreach (BattleContactOccurrence contact in step.Contacts)
         {
             ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
             graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });

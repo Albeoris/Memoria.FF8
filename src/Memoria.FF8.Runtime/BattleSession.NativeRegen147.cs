@@ -34,8 +34,12 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters.Header);
         BattleContactCursor contact = header.FirstContact;
         BattleModelOwner actor = nativeActionPackets.ReadContact(contact).Primary.Recipient;
-        tasks = tasks.WriteSlot(first, tasks.Slots[first].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, actor));
-        state = state with { Storage = RegenDword(RegenDword(state.Storage, 0, actor), 0xE4C, effect.Parameters.Source) };
+        NativeBattleModelAliases aliases = nativeActionPackets.ModelAliases;
+        NativeBattleModulePoolTask firstTask = tasks.Slots[first].WriteWord(12, 0).WriteWord(14, 0);
+        firstTask.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+        tasks = tasks.WriteSlot(first, firstTask);
+        prepared = state.Storage.WriteExecutionReference(0, 4, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 4));
+        state = state with { Storage = prepared.WriteExecutionReference(0xE4C, 4, new BattleExecutionReference.Model(effect.Parameters.Source), aliases.EncodeOperand(effect.Parameters.Source, 4)) };
         NativeEffectMemory = memory with { Regen147 = state };
         return graphics with { OriginalEffect = effect with { Pools = [roots, tasks], ReturnedDescriptor = 0x2476678 } };
     }
@@ -122,7 +126,7 @@ public sealed partial class BattleSession
                 return false;
             }
             int age = S(node, 12);
-            int actor = S(node, 32);
+            BattleModelOwner actor = node.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (age == 0)
             {
@@ -176,14 +180,16 @@ public sealed partial class BattleSession
             if (age == 28)
             {
                 int action = S(node, 14);
-                int contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContactIndex!.Value;
+                BattleContactCursor contact = nativeActionPackets.ReadHeader(effect.Parameters!.Header.Advance(action)).FirstContact;
                 graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(contact)] });
                 int next = action + 1;
                 if (next <= nativeActionPackets.ReadHeader(effect.Parameters.Header).ReadRepeatModeMinusOne())
                 {
                     (int slot, NativeBattleModulePoolTask child) = Add(0x614350);
-                    int first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(next)).FirstContactIndex!.Value;
-                    child = W(W(W(child, 12, 0), 14, next), 32, nativeActionPackets.ReadContact(first).Primary.Recipient);
+                    BattleContactCursor first = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(next)).FirstContact;
+                    child = W(W(child, 12, 0), 14, next);
+                    BattleModelOwner recipient = nativeActionPackets.ReadContact(first).Primary.Recipient;
+                    child.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(recipient), nativeActionPackets.ModelAliases.EncodeOperand(recipient, 2));
                     Set(slot, child);
                 }
             }

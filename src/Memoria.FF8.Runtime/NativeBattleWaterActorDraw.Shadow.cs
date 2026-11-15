@@ -6,10 +6,10 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleWaterActorDraw
 {
-    public static NativeBattleWaterActorShadowResult FloorShadowA9C670(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsModel actor, NativeBattleActionMatrix basis, NativeBattleVector position, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleWaterActorShadowResult FloorShadowA9C670(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, NativeBattleGraphicsModel actor, NativeBattleActionMatrix basis, NativeBattleVector position, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x20) };
-        NativeBattleWaterActorPoseResult local = services.ReadLocal508C90(frame, actor);
+        NativeBattleWaterActorPoseResult local = services.ReadLocal508C90(frame, owner, actor);
         frame = local.Frame;
         if (local.Pose is null && (local.Skeleton.IsDefaultOrEmpty || local.Skeleton[0] == 0 || local.LocalBones.IsDefault || local.LocalBones.Length != local.Skeleton[0] || local.Skeleton.Length < 0x10 + local.Skeleton[0] * 0x30))
         {
@@ -18,7 +18,7 @@ public static partial class NativeBattleWaterActorDraw
         ImmutableArray<NativeBattleActionMatrix> world = local.Pose is null ? NativeBattlePoseMatrices.ComposeStageCamera(local.LocalBones, basis, 0) : [];
         if (local.Pose is null)
         {
-            frame = services.PublishBones5095B0(frame, actor, world);
+            frame = services.PublishBones5095B0(frame, owner, actor, world);
         }
         NativeBattleVector hostRoot = local.Pose is { } hostPose ? NativeBattleGfMatrices.Transform460840(basis, hostPose.ReadLocalBone(240, 0)) : default;
         int rootX = local.Pose is null ? world[0].X : hostRoot.X;
@@ -119,7 +119,7 @@ public static partial class NativeBattleWaterActorDraw
             uint cursor = CoreDword(frame, checked(manager + 0x7C));
             frame = WriteCoreDword(frame, checked(manager + 0x7C), unchecked(cursor + (uint)allocated));
         }
-        NativeBattleWaterActorPoseResult restored = services.ReadLocal508C90(frame, actor);
+        NativeBattleWaterActorPoseResult restored = services.ReadLocal508C90(frame, owner, actor);
         return new(restored.Frame, actor, new(attempts.ToImmutable(), allocated));
     }
 }

@@ -31,7 +31,10 @@ public sealed partial class BattleSession
         (children, int slot) = children.Append(0x6186A0);
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
         BattleContactCursor contact = header.FirstContact;
-        children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.Recipient));
+        NativeBattleModulePoolTask first = children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
+        BattleModelOwner firstTarget = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+        first.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(firstTarget), nativeActionPackets.ModelAliases.EncodeOperand(firstTarget, 2));
+        children = children.WriteSlot(slot, first);
         return graphics with { OriginalEffect = effect with { Pools = [root, children], ReturnedDescriptor = 0x24AA828, DrawArenaOffset = null } };
     }
 
@@ -107,7 +110,7 @@ public sealed partial class BattleSession
             }
             int counter = SleepWord(task, 12);
             int action = SleepWord(task, 14);
-            int target = SleepWord(task, 32);
+            BattleModelOwner target = task.ReadExecutionReference<BattleExecutionReference.Model>(32, 2).Owner;
             if (counter == 0)
             {
                 NativeBattleVector point = ReadNativeDefaultPosition571400(graphics, target);
@@ -164,7 +167,10 @@ public sealed partial class BattleSession
                 NativeBattleActionHeaderSlot nextHeader = nativeActionPackets.ReadHeader(effect.Parameters.Header.Advance(checked(action + 1)));
                 BattleContactCursor contact = nextHeader.FirstContact;
                 NativeBattleModulePoolTask next = New(0x6186A0, out int slot);
-                Put(slot, next.WriteWord(12, 0).WriteWord(14, (ushort)(action + 1)).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.Recipient));
+                next = next.WriteWord(12, 0).WriteWord(14, (ushort)(action + 1));
+                    BattleModelOwner nextTarget = nativeActionPackets.ReadContact(contact).Primary.Recipient;
+                    next.WriteExecutionReference(32, 2, new BattleExecutionReference.Model(nextTarget), nativeActionPackets.ModelAliases.EncodeOperand(nextTarget, 2));
+                    Put(slot, next);
             }
             if (counter == 1)
             {

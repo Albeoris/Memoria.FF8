@@ -8,9 +8,9 @@ public sealed partial class BattleSession
 {
     private NativeBattleEffect308Frame SelectNativeEffect308Fragments(ref NativeBattleGraphicsState graphics, NativeBattleEffect308Frame frame, NativeBattleEffect308SelectFragments667DB0 operation, NativeBattleEffect308Resources resources, NativeBattleEffect308Inputs inputs)
     {
-        int actor = NativeEffect308Actor(graphics, operation.ModelAddress);
+        BattleModelOwner actor = operation.Model;
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.");
-        NativeBattlePoseSource source = inputs.ReadPoseSource(operation.ModelAddress);
+        NativeBattlePoseSource source = inputs.ReadPoseSource(operation.Model);
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
         (frame, uint temporary) = Allocate(frame, 172);
         uint main = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleEffect308Profile.MainDescriptor).BankAddress;

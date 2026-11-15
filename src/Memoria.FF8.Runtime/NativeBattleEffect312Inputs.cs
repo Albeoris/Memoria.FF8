@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect312Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleEffect312State State)
@@ -12,6 +15,7 @@ public sealed record NativeBattleEffect312Inputs(
     NativeBattleSummonColors Colors,
     Func<NativeBattleEffect312Frame, uint> ReadFlags,
     Func<NativeBattleEffect312Frame, NativeBattleActionPacketsState> ReadPackets,
+    Func<NativeBattleEffect312Frame, BattleActorModels> ReadModels,
     Func<NativeBattleEffect312Frame, uint, int, NativeBattleEffectArena> ReadPhysical,
     Func<NativeBattleEffect312Frame, BattleModelOwner, NativeBattleEffectArena> ReadModelArena9C,
     Func<NativeBattleEffect312Frame, BattleModelOwner, NativeBattlePackedMatrix32> ReadWorld,
@@ -40,7 +44,13 @@ public sealed record NativeBattleEffect312Stage5713E0(int Intensity, uint Color)
 public sealed record NativeBattleEffect312Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312WriteModelBytes(BattleModelOwner Model, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312SetModelAnimation505C00(BattleModelOwner Model, short Mode) : NativeBattleEffect312Operation;
-public sealed record NativeBattleEffect312Contact506690(uint TargetArgumentAddress) : NativeBattleEffect312Operation;
+public sealed record NativeBattleEffect312Contact506690(BattleContactOccurrence Occurrence) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal = NativeBattleEffect312Profile.CursorGlobal, ushort Flags = 0, int CursorAdvanceAfterBatch = 0) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312CommonTextureLoad508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312CaptureStage59D400(uint TargetAddress) : NativeBattleEffect312Operation;
+
+public sealed partial record NativeBattleOriginalEffectState
+{
+    [JsonIgnore]
+    internal ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena> Effect312SavedTransforms { get; init; } = ImmutableDictionary<BattleModelOwner, NativeBattleEffectArena>.Empty;
+}

@@ -19,6 +19,7 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
     private ImmutableArray<byte> end;
     private ImmutableDictionary<BattleModelOwner, NativeBattleQuake38SavedActor> savedActors = ImmutableDictionary<BattleModelOwner, NativeBattleQuake38SavedActor>.Empty;
 
+    private ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor> savedUnboundCells = ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor>.Empty;
     private ImmutableDictionary<BattleModelOwner, ushort> savedActorFlags = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
 
     [JsonConstructor]
@@ -112,6 +113,34 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
             RequireSnapshotInitializer();
             savedActorFlags = value;
         }
+    }
+
+    [JsonIgnore]
+    internal ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor> SavedUnboundCells
+    {
+        get => owner?.SavedUnboundCells ?? savedUnboundCells;
+        private init
+        {
+            RequireSnapshotInitializer();
+            savedUnboundCells = value;
+        }
+    }
+
+    internal NativeBattleQuake38SavedActor ReadSavedUnboundCell(NativeBattleModelSlot slot)
+    {
+        return SavedUnboundCells.TryGetValue(slot, out NativeBattleQuake38SavedActor? saved) ? saved : throw new InvalidDataException("Native Quake has no saved transform for the reached unbound cell.");
+    }
+
+    internal void SetSavedUnboundCells(ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor> cells)
+    {
+        RequireOwner().SavedUnboundCells = cells;
+    }
+
+    internal void UpdateSavedUnboundCell(NativeBattleModelSlot slot, NativeBattleQuake38SavedActor saved)
+    {
+        Owner current = RequireOwner();
+        _ = ReadSavedUnboundCell(slot);
+        current.SavedUnboundCells = current.SavedUnboundCells.SetItem(slot, saved);
     }
 
     internal ushort ReadSavedActorFlags(BattleModelOwner actor)
@@ -266,6 +295,7 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
         current.Storage.BeginCheckpoint();
         current.CheckpointActors = current.SavedActors;
         current.CheckpointActorFlags = current.SavedActorFlags;
+        current.CheckpointUnboundCells = current.SavedUnboundCells;
     }
 
     internal void CommitCheckpoint()
@@ -274,6 +304,7 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
         current.Storage.CommitCheckpoint();
         current.CheckpointActors = default;
         current.CheckpointActorFlags = default;
+        current.CheckpointUnboundCells = default;
     }
 
     internal void RollbackCheckpoint()
@@ -285,8 +316,10 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
         }
         current.SavedActors = current.CheckpointActors ?? throw new InvalidOperationException("Native Quake model rollback requires its active checkpoint.");
         current.SavedActorFlags = current.CheckpointActorFlags ?? throw new InvalidOperationException("Native Quake flag rollback requires its active checkpoint.");
+        current.SavedUnboundCells = current.CheckpointUnboundCells ?? throw new InvalidOperationException("Native Quake unbound-cell rollback requires its active checkpoint.");
         current.CheckpointActors = default;
         current.CheckpointActorFlags = default;
+        current.CheckpointUnboundCells = default;
         current.Storage.RollbackCheckpoint();
     }
 
@@ -297,7 +330,7 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
         {
             throw new InvalidOperationException("Native Quake snapshot requires its committed scalar boundary.");
         }
-        return context.GetOrAddOwner(current, () => new NativeBattleQuake38State(ReadBank(0), ReadBank(1), ReadBank(2), ReadBank(3), ReadBank(4)) { SavedActors = current.SavedActors, SavedActorFlags = current.SavedActorFlags });
+        return context.GetOrAddOwner(current, () => new NativeBattleQuake38State(ReadBank(0), ReadBank(1), ReadBank(2), ReadBank(3), ReadBank(4)) { SavedActors = current.SavedActors, SavedActorFlags = current.SavedActorFlags, SavedUnboundCells = current.SavedUnboundCells });
     }
 
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)
@@ -310,7 +343,7 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
         Owner restored = context.GetOrAddOwner(this, () =>
         {
             bool newBattle = context.Purpose == NativeBattleStorageRestorePurpose.NewBattle;
-            Owner result = new(newBattle ? savedActors.Clear() : savedActors) { SavedActorFlags = newBattle ? savedActorFlags.Clear() : savedActorFlags };
+            Owner result = new(newBattle ? savedActors.Clear() : savedActors) { SavedActorFlags = newBattle ? savedActorFlags.Clear() : savedActorFlags, SavedUnboundCells = newBattle ? savedUnboundCells.Clear() : savedUnboundCells };
             result.Storage.Write(0, header.AsSpan());
             result.Storage.Write(0xD8, middle.AsSpan());
             result.Storage.Write(0x10C, pointers.AsSpan());
@@ -390,6 +423,8 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
         public ImmutableDictionary<BattleModelOwner, NativeBattleQuake38SavedActor>? CheckpointActors;
         public ImmutableDictionary<BattleModelOwner, ushort> SavedActorFlags = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
         public ImmutableDictionary<BattleModelOwner, ushort>? CheckpointActorFlags;
+        public ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor> SavedUnboundCells = ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor>.Empty;
+        public ImmutableDictionary<NativeBattleModelSlot, NativeBattleQuake38SavedActor>? CheckpointUnboundCells;
     }
 }
 

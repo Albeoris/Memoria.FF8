@@ -14,12 +14,8 @@ public sealed partial class BattleSession
         NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
         NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        uint actorAddress = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex);
-        if (actorIndex >= graphics.Models.Length || actorAddress != NativeBattleGraphicsModelAddress.Encode(actorIndex))
-        {
-            throw new NotSupportedException("Native actor glow requires its actual physical actor row.");
-        }
+        BattleModelOwner actorIndex = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Native actor glow requires its current physical rig.");
         NativeBattleResourcePointer[] fields = Enumerable.Range(0, 4).Select(ReadResource).ToArray();
@@ -36,7 +32,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor with { Flags0 = (ushort)(actor.Flags0 | 4) }) };
             (frame, clone) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, 0x80);
-            StoreDword(clone + 0xC, actorAddress);
+            frame = frame with { Arena = frame.Arena.WriteExecutionReference(ArenaOffset(clone + 0xC, 4), 4, new BattleExecutionReference.Model(actorIndex), aliases.EncodeAddress(actorIndex)) };
             RefreshDescriptors();
             StoreDword(clone + 0x54, 0);
             StoreDword(clone + 0x58, 0x00D00140);

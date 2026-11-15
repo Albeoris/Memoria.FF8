@@ -43,20 +43,11 @@ public sealed partial class BattleSession
             return current with { Memory = observed, Staging = NativeFileStaging };
         }
 
-        int Actor(uint pointer)
-        {
-            if (!NativeBattleGraphicsModelAddress.TryDecode(pointer, out int actorIndex, graphics.Models.Length))
-            {
-                throw new NotSupportedException("Saliva requires its actual current model pointer.");
-            }
-            return actorIndex;
-        }
-
-        short ModelYaw(BattleModelOwner pointer) => graphics.ActorModels.Get(Actor(pointer)).Rotation14 ?? throw new NotSupportedException("Saliva requires its actual current model rotation WORD14.");
+        short ModelYaw(BattleModelOwner pointer) => graphics.ActorModels.Get(pointer).Rotation14 ?? throw new NotSupportedException("Saliva requires its actual current model rotation WORD14.");
 
         NativeBattleSaliva138PointStep Bone(NativeBattleSaliva138Frame current, BattleModelOwner pointer, byte selector, short distance)
         {
-            int actor = Actor(pointer);
+            BattleModelOwner actor = pointer;
             NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.ActorModels.Get(actor), PoseSource(actor), selector, distance);
             current = ObserveBone(current, producer);
             NativeBattleVector point = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
@@ -65,7 +56,7 @@ public sealed partial class BattleSession
 
         NativeBattleSaliva138PointStep Mouth(NativeBattleSaliva138Frame current)
         {
-            int caster = Actor(current.State.ReadDword(NativeBattleSaliva138Profile.CasterGlobal));
+            BattleModelOwner caster = current.State.ReadModelOwner(NativeBattleSaliva138Profile.CasterGlobal);
             var prepared = NativeBattleSaliva138Mouth.Prepare(current.Memory, graphics.ActorModels.Get(caster), PoseSource(caster), resources.BoneAnchor);
             return new(current with { Memory = prepared.Memory }, prepared.Position);
         }

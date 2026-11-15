@@ -48,12 +48,11 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        uint headerAddress = checked(0x1D280C4u + 20u * (uint)action.Header);
         NativeBattleDescriptorState descriptors = graphics.Descriptors;
         for (int slot = 0; slot < descriptors.Tasks.Length; slot++)
         {
             NativeBattleDescriptorTask task = descriptors.Tasks[slot];
-            if (task.Flags != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && descriptors.Packets[task.PacketSlot].Argument == headerAddress)
+            if (task.Flags != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Header == action.Header)
             {
                 descriptors = descriptors.CompleteFailedGuardianFormAction(slot);
             }

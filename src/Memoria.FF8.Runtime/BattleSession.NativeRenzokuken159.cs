@@ -89,7 +89,7 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(actor, model) }, actor, binding.Sequence);
                     return current;
                 case NativeBattleRenzokuken159TargetResource targetBinding:
-                    byte target = checked((byte)current.Memory.Renzokuken159!.FirstTarget);
+                    BattleModelOwner target = NativeBattleRenzokukenInvocation.FirstTarget(current.Effect);
                     NativeBattleGraphicsModel targetModel = RetainNativeDecodedPoseBeforeResourceChange(graphics.ActorModels.Get(target), NativeGraphicsPoseResource(graphics, target));
                     targetModel = targetModel with { ResourceMagicId = targetBinding.Resource.MagicId, ResourceRenzokukenTargetBank = 0, Flags2 = (ushort)((targetModel.Flags2 ?? throw new NotSupportedException("Native5022C0 requires target model WORD2.")) | 8) };
                     graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(target, targetModel) }, target, 1);

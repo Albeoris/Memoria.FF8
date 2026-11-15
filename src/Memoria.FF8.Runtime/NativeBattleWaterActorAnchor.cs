@@ -105,7 +105,7 @@ public static class NativeBattleWaterActorAnchor
         return new(frame, composed, anchor, registers);
     }
 
-    public static NativeBattleWaterExecutionFrame Execute60AA2190(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterActorAnchorSource> resolveActor, NativeBattleWaterActorAnchorServices services)
+    public static NativeBattleWaterExecutionFrame Execute60AA2190(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, NativeBattleWaterActorAnchorSource> resolveActor, NativeBattleWaterActorAnchorServices services)
     {
         ArgumentNullException.ThrowIfNull(resolveActor);
         ushort instruction = frame.ReadTemporaryWord(0x14A);
@@ -113,13 +113,7 @@ public static class NativeBattleWaterActorAnchor
         {
             throw new NotSupportedException("Native selected actor positioning admits only its direct anchor branch.");
         }
-        byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
-        if (actorIndex >= NativeBattleCinematicActorAccess.ActorCapacity(frame))
-        {
-            throw new NotSupportedException("Native actor positioning leaves its seven captured physical graphics rows.");
-        }
-        uint header = CoreDword(frame, 0x279744C);
-        uint actorPointer = NativeBattleCinematicActorAccess.ReadModelPointer(frame, actorIndex, header);
+        BattleModelOwner actorPointer = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         uint pc = CoreDword(frame, 0x2797450);
         uint relative = unchecked(pc + 2 - program.Address);
         if (program.ArenaOffset < 0 || program.Length < 2 || program.ArenaOffset > NativeBattleEffectArena.Length - program.Length || relative > (uint)(program.Length - 2))

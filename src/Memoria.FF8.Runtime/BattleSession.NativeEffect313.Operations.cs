@@ -28,11 +28,11 @@ public sealed partial class BattleSession
                 graphics = graphics with { PendingContacts = pending };
                 return ImportNativeEffect313Frame(frame);
             case NativeBattleEffect313WriteModelBytes write:
-                int actor = NativeEffect313Actor(graphics, write.ModelAddress);
+                BattleModelOwner actor = write.Model;
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, ApplyNativeEffect174ModelBytes(graphics.ActorModels.Get(actor), new(actor, write.Offset, write.Data, write.Length))) };
                 return frame;
             case NativeBattleEffect313SelectSequence505C00 sequence:
-                graphics = ScheduleNativeRingSequence505C00(graphics, checked((byte)NativeEffect313Actor(graphics, sequence.ModelAddress)), sequence.Sequence);
+                graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Model, sequence.Sequence);
                 return frame;
             case NativeBattleEffect313AppendTextureLoad508630 load:
                 (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(load.SourceAddress, load.CompletionAddress, (address, value) => frame = NativeBattleEffect313Controller.WriteCompletionByte(frame, address, value));

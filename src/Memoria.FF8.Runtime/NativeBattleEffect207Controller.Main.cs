@@ -49,10 +49,8 @@ public static partial class NativeBattleEffect207Controller
         NativeBattleEffectArena rectangle = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)32767)).Write(2, BitConverter.GetBytes((short)32767)).Write(4, BitConverter.GetBytes((short)-32767)).Write(6, BitConverter.GetBytes((short)-32767));
         int metric = 65536;
         bool included = false;
-        int count = Signed(Read(frame, address), 14);
-        for (int index = 0; index < count; index++)
+        foreach ((BattleModelOwner model, _) in Read(frame, address).ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(20, 4).Recipients)
         {
-            uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(frame, address + 20u + (uint)(index * 4), 4).Read(0, 4));
             NativeBattleEffect207BoundsStep bounds = NativeBattleEffect207Lower.Bounds5F10(frame, model, rectangle, metric, resources, inputs);
             frame = bounds.Frame;
             rectangle = bounds.Rect8;

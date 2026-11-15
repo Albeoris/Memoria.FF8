@@ -13,11 +13,11 @@ public static partial class NativeBattleEnergyBomber217Controller
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Energy Bomber requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Energy Bomber requires its texture queue.");
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
-        int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
+        BattleModelOwner target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.Recipient;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
         root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
-        return frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Source)).WriteDword(TargetGlobal, ModelAddress(target)), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
+        return frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModel(CasterGlobal, Parameters(frame).Source, inputs.Packets.ModelAliases).WriteModel(TargetGlobal, target, inputs.Packets.ModelAliases), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
     public static NativeBattleEnergyBomber217Frame Advance(NativeBattleEnergyBomber217Frame frame, NativeBattleEnergyBomber217Resources resources, NativeBattleEnergyBomber217Inputs inputs)
@@ -96,7 +96,7 @@ public static partial class NativeBattleEnergyBomber217Controller
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x44, 0x398).Initialize7016B0(resources.MainAct, 0x398);
         task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x44, workspace);
         frame = WithPool(frame, 1, main.WriteSlot(slot, task));
-        NativeBattleEnergyBomber217AnchorStep anchor = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(TargetGlobal)));
+        NativeBattleEnergyBomber217AnchorStep anchor = inputs.ReadAnchor571400(frame, frame.State.ReadModel(TargetGlobal));
         frame = anchor.Frame;
         task = Read(frame, main.BankAddress).WriteWord(0x28, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x2A, unchecked((ushort)anchor.Anchor.Y)).WriteWord(0x2C, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x2E, unchecked((ushort)anchor.Anchor.W));
         return Write(frame, main.BankAddress, task);
@@ -157,8 +157,6 @@ public static partial class NativeBattleEnergyBomber217Controller
 
     private static NativeBattleEnergyBomber217Frame WithPool(NativeBattleEnergyBomber217Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     private static NativeBattleEffectParameters Parameters(NativeBattleEnergyBomber217Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("EnergyBomber217 requires its captured native parameters.");
-    private static int FirstContact(NativeBattleEnergyBomber217Frame frame, NativeBattleEnergyBomber217Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContactIndex ?? throw new NotSupportedException("EnergyBomber217 requires its current physical contacts.");
+    private static BattleContactCursor FirstContact(NativeBattleEnergyBomber217Frame frame, NativeBattleEnergyBomber217Inputs inputs) => inputs.Packets.ReadHeader(Parameters(frame).Header).FirstContact;
     private static uint Working(NativeBattleEnergyBomber217Frame frame) => frame.State.ReadDword(WorkingGlobal);
-    private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new NotSupportedException("EnergyBomber217 selected an absent actor.");
-    private static int Actor(uint pointer) => NativeBattleGraphicsModelAddress.TryDecode(pointer, out int row) ? row : throw new NotSupportedException("EnergyBomber217 requires its current physical model pointer.");
 }

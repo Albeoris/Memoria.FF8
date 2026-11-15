@@ -31,9 +31,10 @@ public sealed partial class BattleSession
         {
             return (graphics, step.Phase, false);
         }
-        for (byte index = 0; index < 3; index++)
+        foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
         {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(index);
+            BattleModelOwner index = entry.Owner;
+            NativeBattleGraphicsModel model = entry.State;
             if ((model.Flags0 & 2) == 0)
             {
                 continue;

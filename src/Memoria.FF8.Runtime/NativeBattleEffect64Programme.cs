@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect64Programme
 {
-    public static (NativeBattleEffect64Frame Frame, uint Next) Birth6E61E0(NativeBattleEffect64Frame frame, uint script, uint model, uint offsets, bool forceYZero, NativeBattleEffect64Resources resources, NativeBattleEffect64Inputs inputs)
+    public static (NativeBattleEffect64Frame Frame, uint Next) Birth6E61E0(NativeBattleEffect64Frame frame, uint script, BattleModelOwner model, uint offsets, bool forceYZero, NativeBattleEffect64Resources resources, NativeBattleEffect64Inputs inputs)
     {
         short[] words = Enumerable.Range(0, 6).Select(index => NativeBattleEffect64Script.ReadWord(frame, script + (uint)(index * 2))).ToArray();
         (frame, uint address) = Append(frame, 0x2545038, 0x6E6310);

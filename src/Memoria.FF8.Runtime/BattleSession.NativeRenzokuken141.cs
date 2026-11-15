@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Renzokuken contact requires its original offset-vector table.");
             }
-            NativeBattleActionMatrix body = graphics.ActorModels.Get(state.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken contact requires its actual actor matrix64.");
+            NativeBattleActionMatrix body = graphics.ActorModels.Get(NativeBattleRenzokukenInvocation.Source(current.Effect)).GeometryWorldMatrix ?? throw new NotSupportedException("Native Renzokuken contact requires its actual actor matrix64.");
             NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(body, offsets[contact]);
             NativeBattleVector origin = new(unchecked((short)(state.Origin.X + offset.X)), unchecked((short)(state.Origin.Y + offset.Y)), unchecked((short)(state.Origin.Z + offset.Z)));
             return new(origin, null);

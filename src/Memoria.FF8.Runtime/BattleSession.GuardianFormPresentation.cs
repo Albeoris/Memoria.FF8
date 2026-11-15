@@ -393,7 +393,11 @@ public sealed partial class BattleSession
             short scale = unchecked((short)(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(2)) * 4));
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(loading.Actor);
             model = model with { ModelId4 = 77, Flags0 = (ushort)(model.Flags0 & ~0xC), Flags2 = (ushort)(model.Flags2!.Value & ~4), CurrentBodyBoneMatrices = null, LinkedModel = null, LinkedTransform = null, HasLinkedModelRing140 = false, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale), SequenceState = new(), SequenceByte145 = 0, Sequence = 1, ResourceFlags44 = 1 };
-            NativeBattleSequenceStep initializedPose = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, 0) { OriginalResource = resource });
+            NativeBattleSequenceStep initializedPose = NativeBattleSequenceMachine.Advance(loading.Actor, model, resource, new(NativeEntryAdvantage, 0)
+            {
+                OriginalResource = resource,
+                ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = graphics.ActorModels.Set(loading.Actor, current) }, loading.Actor, variable)
+            });
             if (initializedPose.Cues.Any(cue => cue.Kind != NativeBattleSequenceCueKind.RestoreStanding))
             {
                 throw new NotSupportedException("GF body standing initialization reached a non-pose service.");

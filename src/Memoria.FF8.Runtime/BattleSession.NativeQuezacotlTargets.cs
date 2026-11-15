@@ -6,10 +6,10 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native6C5300/6C5350 lost its actual action header.");
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
-        int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C5300/6C5350 requires its actual target contact pointer.");
+        BattleContactCursor first = header.FirstContact;
         for (int index = 0; index < header.ReadContactCount(); index++)
         {
-            int target = nativeActionPackets.ReadContact(first + index).Primary.Recipient;
+            BattleModelOwner target = nativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient;
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(target);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, model with { Flags0 = hidden ? (ushort)(model.Flags0 | 4) : (ushort)(model.Flags0 & ~4) }) };
         }

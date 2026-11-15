@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect314Controller
 {
-    public static NativeBattleEffect314AddressStep SpawnParticle664CD0(NativeBattleEffect314Frame frame, NativeBattleEffect314Resources resources, uint model, uint bones, uint program)
+    public static NativeBattleEffect314AddressStep SpawnParticle664CD0(NativeBattleEffect314Frame frame, NativeBattleEffect314Resources resources, BattleModelOwner model, uint bones, uint program, NativeBattleModelAliases aliases)
     {
         if (!resources.Programs.TryGetValue(program, out ImmutableArray<byte> bytes))
         {
@@ -19,7 +19,10 @@ public static partial class NativeBattleEffect314Controller
             throw new InvalidDataException("Effect314 original particle allocation exhausted its physical bank.");
         }
         frame = ClearDwords6DA380(frame, address + 0x14, 9);
-        frame = WriteBytes(frame, address + 0xC, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(model)).Write(4, BitConverter.GetBytes(bones)).Write(8, BitConverter.GetBytes(unchecked(bones + (uint)(bone << 4)))).Write(12, BitConverter.GetBytes(checked(program + 2))), 16);
+        NativeBattleModulePoolTask task = Read(frame, address);
+        task.WriteExecutionReference(0xC, 4, new BattleExecutionReference.Model(model), aliases.EncodeAddress(model));
+        task = task.WriteDword(0x10, bones).WriteDword(0x14, unchecked(bones + (uint)(bone << 4))).WriteDword(0x18, checked(program + 2));
+        frame = Write(frame, address, task);
         return new(frame, address);
     }
 

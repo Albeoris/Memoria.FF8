@@ -19,17 +19,17 @@ public static partial class NativeBattleEffect312Controller
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
         BattleModelOwner actor = parameters.Source;
-        int target = packets.ReadContact(header.FirstContact).Primary.Recipient;
+        BattleModelOwner target = packets.ReadContact(header.FirstContact).Primary.Recipient;
         int textureOffset = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Effect312 requires its actual executed initializer pointer.");
         uint source = checked(CommonAddress + (uint)textureOffset);
-        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, source).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, OriginalParameterAddress).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
+        frame = frame with { State = frame.State.WriteDword(InitializerGlobal, source).WriteDword(ArenaGlobal, CommonAddress).WriteDword(ParametersGlobal, OriginalParameterAddress).WriteModel(CasterGlobal, actor, packets.ModelAliases).WriteModel(TargetGlobal, target, packets.ModelAliases) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool child = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);
         root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         (child, int mainSlot) = child.Append(MainCallback);
         child = child.WriteSlot(mainSlot, child.Slots[mainSlot].WriteWord(12, 0));
-        frame = frame with { State = frame.State.DetachBank(0).DetachBank(1).DetachQueue(RootDescriptor).DetachQueue(ChildDescriptor), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };
+        frame = frame with { State = frame.State.DetachBank(0).DetachBank(1).DetachQueue(RootDescriptor).DetachQueue(ChildDescriptor), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor, Effect312SavedTransforms = frame.Effect.Effect312SavedTransforms.Clear() } };
         for (int index = 0; index < FirstRecordCount; index++)
         {
             frame = WriteBytes(frame, FirstRecordsAddress + (uint)(index * FirstRecordStride), NativeBattleEffectArena.Clear(), 4);
@@ -137,12 +137,6 @@ public static partial class NativeBattleEffect312Controller
         ushort completed = Read(frame, address).ReadWord(14);
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1))));
         return new(frame, completed != 0 ? 2 : 0);
-    }
-
-    public static uint ModelAddress(int actor) => (uint)actor < 7 ? NativeBattleGraphicsModelAddress.Encode(actor) : throw new InvalidDataException("Effect312 requires an actual physical model.");
-    public static int Actor(uint modelAddress)
-    {
-        return NativeBattleGraphicsModelAddress.TryDecode(modelAddress, out int row) ? row : throw new InvalidDataException("Effect312 requires an actual physical model pointer.");
     }
 
     private static void RequireBinding(NativeBattleEffect312Frame frame)

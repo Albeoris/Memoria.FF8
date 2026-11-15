@@ -28,7 +28,7 @@ public sealed partial class BattleSession
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Melt-Eye requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Melt-Eye requires its current projection.");
-        NativeBattlePoseSource PoseSource(int actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Melt-Eye requires its current actor skeleton.");
+        NativeBattlePoseSource PoseSource(BattleModelOwner actor) => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Melt-Eye requires its current actor skeleton.");
 
         void Publish(NativeBattleMeltEye158Frame current)
         {
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
 
         NativeBattleMeltEye158PointStep TargetCenter(NativeBattleMeltEye158Frame current, BattleModelTargets targets)
         {
-            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.EnumerateRows().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Melt-Eye requires each selected physical target position.")).ToArray());
+            NativeBattleVector center = NativeBattleActionGeometryRules.TargetCenter(targets.Enumerate().Select(actor => graphics.ActorModels.Get(actor).Transform?.Position28 ?? throw new NotSupportedException("Melt-Eye requires each selected physical target position.")).ToArray());
             return new(current, center);
         }
 
@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                 case NativeBattleMeltEye158BulkContact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
-                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(contact.First, contact.Count).Select(nativeActionPackets.ReadContact).ToImmutableArray() });
+                    graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = Enumerable.Range(0, contact.Count).Select(index => nativeActionPackets.ReadContact(contact.First.Advance(index))).ToImmutableArray() });
                     graphics = graphics with { PendingContacts = pending };
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Melt-Eye contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleMeltEye158DrawStatic88 mesh:

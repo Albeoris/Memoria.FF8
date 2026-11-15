@@ -41,14 +41,17 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
         NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(effect.Parameters!.Header);
-        int firstContact = header.FirstContactIndex ?? throw new InvalidDataException("Native Bad Breath requires its physical target records.");
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
+        BattleModelTargets targets = effect.Parameters.TargetActors;
+        ushort? originalTargetWord = aliases.EncodeTargetMask(targets);
         if (BadWord(root, 12) == 1)
         {
             root = root.WriteByte(15, 1);
             pools = [pools[0], NativeBattleEffectTaskPool.Initialize(0x25218B8, BadBreath113Arena + 0x10B4, 0x104, 1), NativeBattleEffectTaskPool.Initialize(0x25218A8, BadBreath113Arena + 0x2F4, 0x2C, 80), NativeBattleEffectTaskPool.Initialize(0x2521898, BadBreath113Arena, 0xFC, 3)];
             if (Allocate(1, 0x6CAE10, out int slot))
             {
-                Put(1, slot, Clear(1, slot).WriteByte(14, unchecked((byte)effect.Parameters.TargetActors)));
+                NativeBattleModulePoolTask main = Clear(1, slot);
+                Put(1, slot, MirrorTargetByte(main, 0));
             }
         }
         NativeBattlePilotVisualIdentity? pilotIdentity = null;
@@ -101,32 +104,26 @@ public sealed partial class BattleSession
                 {
                     NativeBattleVector total = default;
                     int count = 0;
-                    for (int actor = 0; actor < 3; actor++)
+                    foreach (BattleModelOwner actor in graphics.ActorModels.Roster.Party.Where(targets.Contains))
                     {
-                        if ((effect.Parameters.TargetActors & (1 << actor)) == 0)
-                        {
-                            continue;
-                        }
                         NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
                         total = new(unchecked((short)(total.X + anchor.X)), unchecked((short)(total.Y + anchor.Y)), unchecked((short)(total.Z + anchor.Z)));
                         count++;
                     }
                     if (count == 0)
                     {
-                        throw new InvalidDataException("Native Bad Breath requires its original party target mask.");
+                        throw new InvalidDataException("Native Bad Breath requires at least one selected party model.");
                     }
                     task = BadStore(task, 16, new((short)(total.X / count), (short)(total.Y / count), unchecked((short)(total.Z / count + 2000)))).WriteWord(22, 0xF000);
                 }
                 else if (frame is 10 or 16 or 26)
                 {
-                    if ((task.ReadByte(14) & 1) != 0 && Allocate(3, 0x6CB340, out int targetSlot))
+                    byte role = frame == 10 ? (byte)0 : frame == 16 ? (byte)1 : (byte)2;
+                    if (graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(role), graphics.ActorModels) is { } actor && targets.Contains(actor))
                     {
-                        NativeBattleModulePoolTask targetTask = Clear(3, targetSlot).WriteWord(14, task.ReadByte(15));
-                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(targetTask, 16, 0xEC);
-                        workspace = workspace.Initialize7016B0(resources.Cloud, 0xEC);
-                        Put(3, targetSlot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(targetTask, 16, workspace));
+                        SpawnTarget(actor);
                     }
-                    task = task.WriteByte(14, (byte)(task.ReadByte(14) >> 1)).WriteByte(15, unchecked((byte)(task.ReadByte(15) + 1)));
+                    task = MirrorTargetByte(task, role + 1).WriteByte(15, (byte)(role + 1));
                 }
                 if (NewParticle(out int slot, out NativeBattleModulePoolTask puff))
                 {
@@ -176,6 +173,23 @@ public sealed partial class BattleSession
             return 0;
         }
 
+        NativeBattleModulePoolTask MirrorTargetByte(NativeBattleModulePoolTask task, int shift)
+        {
+            return originalTargetWord is ushort word ? task.WriteByte(14, (byte)((byte)word >> shift)) : task.MarkPayloadUnknown(14, 1);
+        }
+
+        void SpawnTarget(BattleModelOwner actor)
+        {
+            if (Allocate(3, 0x6CB340, out int targetSlot))
+            {
+                NativeBattleModulePoolTask targetTask = Clear(3, targetSlot);
+                targetTask.WriteExecutionReference(14, 2, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 2));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(targetTask, 16, 0xEC);
+                workspace = workspace.Initialize7016B0(resources.Cloud, 0xEC);
+                Put(3, targetSlot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(targetTask, 16, workspace));
+            }
+        }
+
         int Particle(ref NativeBattleModulePoolTask task)
         {
             int frame = BadWord(task, 12);
@@ -206,7 +220,7 @@ public sealed partial class BattleSession
         int Target(ref NativeBattleModulePoolTask task)
         {
             int frame = BadWord(task, 12);
-            int actor = BadWord(task, 14);
+            BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(14, 2).Owner;
             if (frame <= 10 && NewParticle(out int slot, out NativeBattleModulePoolTask particle))
             {
                 NativeBattleVector anchor = ReadNativeDefaultPosition571400(graphics, actor);
@@ -235,9 +249,9 @@ public sealed partial class BattleSession
             {
                 for (int index = 0; index < header.ReadContactCount(); index++)
                 {
-                    if (nativeActionPackets.ReadContact(firstContact + index).Primary.Recipient == actor)
+                    if (nativeActionPackets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient == actor)
                     {
-                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(firstContact + index)] });
+                        graphics = ConsumeNativeGraphicsContacts(graphics with { PendingContacts = [nativeActionPackets.ReadContact(header.FirstContact.Advance(index))] });
                     }
                 }
             }
@@ -245,7 +259,7 @@ public sealed partial class BattleSession
             return frame >= 38 ? 2 : 0;
         }
 
-        void PlayCloud(ref NativeBattleModulePoolTask task, int actor)
+        void PlayCloud(ref NativeBattleModulePoolTask task, BattleModelOwner actor)
         {
             NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
             anchor = anchor with { Y = graphics.ActorModels.Get(actor).Transform!.Angle36 };
@@ -291,7 +305,7 @@ public sealed partial class BattleSession
             task = advanced.Workspace.CopyTo(task, 12 + (4), retainUnknown: true);
         }
 
-        void DrawOverlay(int actorIndex, short amplitude, short phase)
+        void DrawOverlay(BattleModelOwner actorIndex, short amplitude, short phase)
         {
             NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actorIndex);
@@ -301,7 +315,7 @@ public sealed partial class BattleSession
             {
                 return;
             }
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4112, false);
+            graphics = SubmitNativeShadowPackets5088A0(graphics, actorIndex, actor, projection, 4112, false);
             NativeBattlePoseSource source = resource.PoseSource!;
             actor = NativeBattlePoseMatrices.ComposeGeometryMatrices5095B0(actor, source, view);
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);

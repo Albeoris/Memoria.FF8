@@ -3,25 +3,18 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleTheEnd85EnvironmentInput(NativeBattleModulePoolTask Task, ImmutableArray<byte> Context, NativeBattleStageState Stage, ImmutableArray<NativeBattleGraphicsModel> Models)
-{
-    public ImmutableArray<int> PartyActors { get; init; } = [0, 1, 2];
-}
+public sealed record NativeBattleTheEnd85EnvironmentInput(NativeBattleModulePoolTask Task, ImmutableArray<byte> Context, NativeBattleStageState Stage, BattleActorModels Models, NativeBattleModelAliases Aliases, ImmutableDictionary<BattleModelOwner, ushort> SavedPartyFlags);
 public sealed record NativeBattleTheEnd85EnvironmentStep(NativeBattleTheEnd85EnvironmentInput Input, bool Complete, short? MusicGain);
 
 public static class NativeBattleTheEnd85Environment
 {
     public static NativeBattleTheEnd85EnvironmentStep Advance(NativeBattleTheEnd85EnvironmentInput input, uint defaultColor)
     {
-        if (input.Context.IsDefault || input.Context.Length != 84 || input.Models.IsDefault || input.Models.Length != 7 || input.Task.PayloadLength != 96 - 12)
+        if (input.Context.IsDefault || input.Context.Length != 84 || input.Task.PayloadLength != 96 - 12)
         {
             throw new InvalidDataException("Native The End environment requires its complete task, context, stage and graphics model owners.");
         }
         input.Stage.Validate();
-        if (input.PartyActors.IsDefault || input.PartyActors.Length > 3 || input.PartyActors.Distinct().Count() != input.PartyActors.Length || input.PartyActors.Any(index => index is < 0 or >= 7))
-        {
-            throw new InvalidDataException("Native party presentation requires at most three distinct current actor owners.");
-        }
         int phase = unchecked((sbyte)input.Task.ReadByte(41));
         short? musicGain = null;
         bool stage = input.Task.Callback == 0x787E20;
@@ -60,17 +53,26 @@ public static class NativeBattleTheEnd85Environment
                     else if (actors)
                     {
                         byte[] context = input.Context.ToArray();
-                        ImmutableArray<NativeBattleGraphicsModel>.Builder models = input.Models.ToBuilder();
-                        for (int party = 0; party < input.PartyActors.Length; party++)
+                        BattleActorModels models = input.Models;
+                        ImmutableDictionary<BattleModelOwner, ushort> savedFlags = input.SavedPartyFlags;
+                        foreach (BattleModelEntry<BattlePartyModelOwner> entry in input.Models.Party.Entries)
                         {
-                            int index = input.PartyActors[party];
-                            if ((models[index].Flags0 & 2) != 0)
+                            ushort flags = entry.State.Flags0;
+                            if ((flags & 2) == 0)
                             {
-                                BinaryPrimitives.WriteUInt32LittleEndian(context.AsSpan(32 + party * 4), models[index].Flags0);
-                                models[index] = models[index] with { Flags0 = (ushort)(models[index].Flags0 | 4) };
+                                continue;
                             }
+                            if (input.Aliases.TryEncodeExact(entry.Owner, out byte slot))
+                            {
+                                BinaryPrimitives.WriteUInt32LittleEndian(context.AsSpan(32 + slot * 4), flags);
+                            }
+                            else
+                            {
+                                savedFlags = savedFlags.SetItem(entry.Owner, flags);
+                            }
+                            models = models.Set(entry.Owner, entry.State with { Flags0 = (ushort)(flags | 4) });
                         }
-                        input = input with { Context = context.ToImmutableArray(), Models = models.ToImmutable() };
+                        input = input with { Context = context.ToImmutableArray(), Models = models, SavedPartyFlags = savedFlags };
                     }
                     Next();
                 }
@@ -85,18 +87,20 @@ public static class NativeBattleTheEnd85Environment
                     }
                     else if (actors)
                     {
-                        ImmutableArray<NativeBattleGraphicsModel>.Builder models = input.Models.ToBuilder();
-                        for (int party = 0; party < input.PartyActors.Length; party++)
+                        BattleActorModels models = input.Models;
+                        foreach (BattleModelEntry<BattlePartyModelOwner> entry in input.Models.Party.Entries)
                         {
-                            int index = input.PartyActors[party];
-                            ushort flags = models[index].Flags0;
-                            if ((flags & 2) != 0)
+                            ushort flags = entry.State.Flags0;
+                            if ((flags & 2) == 0)
                             {
-                                byte saved = input.Context[32 + party * 4];
-                                models[index] = models[index] with { Flags0 = (ushort)(flags ^ ((flags ^ saved) & 4)) };
+                                continue;
                             }
+                            ushort saved = input.Aliases.TryEncodeExact(entry.Owner, out byte slot)
+                                ? input.Context[32 + slot * 4]
+                                : input.SavedPartyFlags.GetValueOrDefault(entry.Owner, flags);
+                            models = models.Set(entry.Owner, entry.State with { Flags0 = (ushort)(flags ^ ((flags ^ saved) & 4)) });
                         }
-                        input = input with { Models = models.ToImmutable() };
+                        input = input with { Models = models };
                         Store(input.Task.WriteWord(28, 4096));
                     }
                     Next();
@@ -132,7 +136,15 @@ public static class NativeBattleTheEnd85Environment
             }
             else if (actors)
             {
-                input = input with { Models = input.Models.Select((model, index) => input.PartyActors.Contains(index) && (model.Flags0 & 2) != 0 ? Fade788120(model with { Flags0 = (ushort)(model.Flags0 | 0x800) }, amount, defaultColor) : model).ToImmutableArray() };
+                BattleActorModels models = input.Models;
+                foreach (BattleModelEntry<BattlePartyModelOwner> entry in input.Models.Party.Entries)
+                {
+                    if ((entry.State.Flags0 & 2) != 0)
+                    {
+                        models = models.Set(entry.Owner, Fade788120(entry.State with { Flags0 = (ushort)(entry.State.Flags0 | 0x800) }, amount, defaultColor));
+                    }
+                }
+                input = input with { Models = models };
             }
             else
             {

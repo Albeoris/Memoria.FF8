@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             };
         }
 
-        NativeBattleEffect209PointStep Point(NativeBattleEffect209Frame current, int actor, byte selector, short offset, NativeBattleEffectArena retained)
+        NativeBattleEffect209PointStep Point(NativeBattleEffect209Frame current, BattleModelOwner actor, byte selector, short offset, NativeBattleEffectArena retained)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if ((model.Flags0 & 2) == 0)
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
             return new(current, retained);
         }
 
-        NativeBattleEffect209PointStep Anchor(NativeBattleEffect209Frame current, int actor, NativeBattleEffectArena retained)
+        NativeBattleEffect209PointStep Anchor(NativeBattleEffect209Frame current, BattleModelOwner actor, NativeBattleEffectArena retained)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Effect209 requires its current actor transform.");

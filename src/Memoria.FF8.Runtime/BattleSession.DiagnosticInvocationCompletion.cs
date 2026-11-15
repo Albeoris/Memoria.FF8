@@ -16,7 +16,7 @@ public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequi
 }
 public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int NonPumpDescriptorTasks, int PendingContacts, int Effects, bool EffectHead, bool AuxiliaryHead, int Modules, bool ModuleHead, int? Files, uint? ReturnedTaskPointer, bool DetachedReturnedTask, byte CameraMask, bool SoundBusy, bool ReplacementResource, bool ActionOrCommand, bool TimedOrReaction)
 {
-    public byte ActionHeaders { get; init; }
+    public int ActionHeaders { get; init; }
     public int ContactRows { get; init; }
     public int? RetainedActiveHeader { get; init; }
     public int? RetainedActiveContact { get; init; }
@@ -94,8 +94,11 @@ public sealed partial class BattleSession
         {
             return null;
         }
-        NativeBattleActionHeaderSlot physicalHeader = nativeActionPackets.Headers[header];
-        bool captured = physicalHeader.Source == actor && physicalHeader.Command == dispatch.NativeCommand && (physicalHeader.ReadByte(4) | physicalHeader.ReadByte(5) << 8) == dispatch.ActionId && (physicalHeader.ReadByte(6) | physicalHeader.ReadByte(7) << 8) == dispatch.RequestedEffect && dispatch.Serial <= diagnosticDispatchSerial && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long actual) && actual == generation && generation > 0 && nativeActionScratch.EventActorB0F == actor && dispatch.Serial > 0;
+        NativeBattleActionHeaderSlot physicalHeader = nativeActionPackets.ReadHeader(new BattleActionHeaderReference(header));
+        bool captured = nativeActionPackets.ModelAliases.TryEncodeExact(physicalHeader.Source, out byte sourceAlias) && sourceAlias == actor &&
+            physicalHeader.Command == dispatch.NativeCommand && physicalHeader.Action == dispatch.ActionId && physicalHeader.Effect == dispatch.RequestedEffect &&
+            dispatch.Serial <= diagnosticDispatchSerial && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long actual) &&
+            actual == generation && generation > 0 && nativeActionScratch.EventActorB0F == actor && dispatch.Serial > 0;
         int slot = graphics.Descriptors.Queue.IsEmpty ? -1 : graphics.Descriptors.Queue[0];
         byte serial = slot < 0 ? (byte)0 : graphics.Descriptors.Packets[slot].Serial;
         return new(dispatch, physicalHeader, slot < 0 ? null : graphics.Descriptors.Packets[slot], actor, callback, slot, serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), graphics.Callback, diagnosticDispatchSerial);
@@ -241,7 +244,7 @@ public sealed partial class BattleSession
             ActiveAction = ActiveAction is { } active ? new { active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeHeader, active.NativeQueuedCommand } : null,
             QueuedPresentationCount = actions.Count,
             QueuedPresentations = actions.Take(64).Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeHeader, command.NativeQueuedCommand, command.NativeCallback }).ToArray(),
-            BoundCommands = nativeCommandBanks.Banks.SelectMany((bank, bankIndex) => bank.LogicalCommands.Select((command, packetIndex) => new { command, bankIndex, packetIndex })).Where(row => row.command is not null).Take(66).Select(row => new { Bank = row.bankIndex, Slot = row.packetIndex / 2, Subcommand = row.packetIndex % 2, row.command!.ActorId, row.command!.TargetId, row.command!.Ability, row.command!.ActionId, row.command!.NativeHeaderIndex, row.command!.NativeQueuedCommand, row.command!.NativeCallback }).ToArray(),
+            BoundCommands = nativeCommandBanks.Banks.SelectMany((bank, bankIndex) => bank.LogicalCommands.Select((command, packetIndex) => new { command, bankIndex, packetIndex })).Where(row => row.command is not null).Take(66).Select(row => new { Bank = row.bankIndex, Slot = row.packetIndex / 2, Subcommand = row.packetIndex % 2, row.command!.ActorId, row.command!.TargetId, row.command!.Ability, row.command!.ActionId, NativeHeaderIndex = OriginalDiagnosticHeaderIndex(row.command!.NativeHeader), row.command!.NativeQueuedCommand, row.command!.NativeCallback }).ToArray(),
             DispatchedCommand = nativeDispatchCommandLocation,
             Auxiliary = auxiliary.ToArray(),
             AuxiliaryTruncated = next is not null
@@ -257,8 +260,7 @@ public sealed partial class BattleSession
         bool known = !task.Payload.IsDefault && task.Payload.Length >= 12 && (task.UnknownByteMask & 0x20F) == 0;
         uint? pointer = known ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
         byte? sequence = known ? task.Payload[9] : null;
-        int? index = pointer is uint observed && NativeBattleGraphicsModelAddress.TryDecode(observed, out int actorIndex) ? actorIndex : null;
-        NativeBattleGraphicsModel? model = index is int selected && !graphics.Models.IsDefault && selected < graphics.Models.Length ? graphics.ActorModels.Get(selected) : null;
+        (int? index, NativeBattleGraphicsModel? model) = ResolveDiagnosticTextureModel(task, graphics, pointer);
         NativeBattleAuxiliaryProgram? program = task.Program;
         int? sourceLength = program is not null && !program.Source.IsDefault ? program.Source.Length : null;
         byte? deadline = program is not null && !program.Source.IsDefault && (uint)program.Offset < program.Source.Length ? program.Source[program.Offset] : null;
@@ -272,8 +274,19 @@ public sealed partial class BattleSession
             ModelPointer = pointer,
             CapturedSequence = sequence,
             Program = program is null ? null : new { program.Offset, SourceLength = sourceLength, ActualByteAtOffset = deadline },
-            Model = model is null ? null : new { model.Index, model.Flags0, model.ResourceFlags44, model.Sequence }
+            Model = model is null ? null : new { Index = index, model.Flags0, model.ResourceFlags44, model.Sequence }
         };
+    }
+
+    private static (int? Index, NativeBattleGraphicsModel? Model) ResolveDiagnosticTextureModel(NativeBattleAuxiliaryTask task, NativeBattleGraphicsState graphics, uint? pointer)
+    {
+        if (task.ModelOwner is not { } owner || !graphics.ActorModels.Contains(owner))
+        {
+            return (null, null);
+        }
+        int? index = pointer is uint original && NativeBattleGraphicsModelAddress.TryDecodeOriginalCell(original, out NativeBattleModelSlot slot) &&
+            graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) == owner ? slot.Offset : null;
+        return (index, graphics.ActorModels.Get(owner));
     }
 
     private BattleDiagnosticInvocationOwners CaptureDiagnosticInvocationOwnerState(NativeBattleGraphicsState graphics)
@@ -284,8 +297,8 @@ public sealed partial class BattleSession
         {
             ActionHeaders = nativeActionPackets.ActionCount,
             ContactRows = nativeActionPackets.ContactCount,
-            RetainedActiveHeader = nativeActionPackets.ActiveHeaderIndex,
-            RetainedActiveContact = nativeActionPackets.ActiveContactIndex,
+            RetainedActiveHeader = nativeActionPackets.RetainedStorage.ActiveHeaderIndex,
+            RetainedActiveContact = nativeActionPackets.RetainedStorage.ActiveContactIndex,
             ObservedOriginalEffect = graphics.OriginalEffect is not null,
             SelectedReturnedDescriptor = graphics.OriginalEffect?.ReturnedDescriptor,
             HeaderGraphicsBusy = (graphics.Flags & 0x10) != 0,

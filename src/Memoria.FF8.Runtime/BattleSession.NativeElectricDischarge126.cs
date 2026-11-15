@@ -107,21 +107,7 @@ public sealed partial class BattleSession
             return state;
         }
 
-        void ClearPartyFlash()
-        {
-            for (byte operand = 0; operand < 3; operand++)
-            {
-                NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(operand);
-                if (graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is null)
-                {
-                    graphics = graphics with { NativeBindings = graphics.NativeBindings.ClearUnboundPartyCellFlags(slot, 0x800) };
-                }
-            }
-            foreach (BattleModelEntry<BattlePartyModelOwner> entry in graphics.ActorModels.Party.Entries)
-            {
-                graphics = graphics with { ActorModels = graphics.ActorModels.Set(entry.Owner, entry.State with { Flags0 = (ushort)(entry.State.Flags0 & ~0x800) }) };
-            }
-        }
+        void ClearPartyFlash() => graphics = UpdateNativePartyModelFlags0(graphics, 0xF7FF, 0);
 
         NativeBattleResourceRowReference CurrentBinding(BattleModelOwner actor)
         {
