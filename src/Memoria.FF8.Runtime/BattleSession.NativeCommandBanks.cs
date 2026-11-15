@@ -132,6 +132,15 @@ public sealed partial class BattleSession
 
     private bool TryTakeQueuedCommand(out BattleAttackCommand command)
     {
+        if (expandedPresentationProcess is not null && nativeShotProcesses.Count != 0)
+        {
+            (string actorId, BattleNativeShotState shot) = nativeShotProcesses.Single();
+            if (shot.Phase != BattleNativeShotPhase.Opening)
+            {
+                // The native Shot UI directly submits 237/238 to the event that owns the loaded effect.
+                return TryTakeHostedShotCommand(actorId, out command);
+            }
+        }
         while (actions.TryPeek(out BattleAttackCommand? queued))
         {
             if (queued.ExpandedAiCallback is not null || expandedPresentationProcess is not null && (queued.NativeDuel is not null || queued.NativeRenzokuken is not null))

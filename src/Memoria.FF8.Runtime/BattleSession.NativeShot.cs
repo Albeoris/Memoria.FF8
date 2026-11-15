@@ -299,6 +299,25 @@ public sealed partial class BattleSession
             : throw new InvalidDataException("Expanded Shot requires its selected enemy target.");
     }
 
+    private bool TryTakeHostedShotCommand(string actorId, out BattleAttackCommand command)
+    {
+        BattleAttackCommand? selected = null;
+        for (int remaining = actions.Count; remaining > 0; remaining--)
+        {
+            BattleAttackCommand pending = actions.Dequeue();
+            if (selected is null && pending.ActorId == actorId && IsShotCallback(pending.NativeLimitCallback))
+            {
+                selected = pending;
+            }
+            else
+            {
+                actions.Enqueue(pending);
+            }
+        }
+        command = selected!;
+        return selected is not null;
+    }
+
     private void ReconcileExpandedShot()
     {
         if (!UsesExpandedRoster || nativeShotProcesses.Count == 0)

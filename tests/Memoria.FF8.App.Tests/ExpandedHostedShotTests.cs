@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -9,6 +10,74 @@ public sealed class ExpandedHostedShotTests
 {
     private const string IrvineId = "party-2";
     private const int CallbackBudget = 1200;
+
+    [Fact]
+    public void Installed_fire_ammo_finishes_the_shot_event_before_the_enemy_death_callback()
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        (int Formation, int Slot)[] placements = [(385, 0), (318, 0), (370, 0), (717, 0), (388, 2), (659, 0), (92, 1), (673, 2)];
+        ImmutableArray<BattleEnemyRosterSource> donors = placements.Select(row => new BattleEnemyRosterSource(row.Formation, row.Slot, world.BattleResources.FormationSourceHash(row.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation irvine = new(2, 2, [], []) { HitPoints = 1, Level = 100 };
+        BattleInput command = new(BattleInputKind.Action, ActorId: IrvineId, TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 14 << 16 | 1);
+        DiagnosticBattleRequest request = new(390, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([], [irvine], true) { CombatParty = [2, 255, 255], Items = [new(102, 3)] },
+            Target = new("enemy-0", 99, 32, 0, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 0) { DonorCount = 4 },
+            Driver = new(command, 192) { ExpectedNativeCommand = 237, ExpectedNativeAction = 1, LimitSelection = new(1, 4, 256) }
+        };
+        BattleSession battle = world.StartDiagnosticBattle(request);
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        List<BattleDiagnosticEffectDispatch> shotDispatches = [];
+        battle.DiagnosticEffectDispatched += dispatch =>
+        {
+            if (dispatch.ActorId == IrvineId && dispatch.ExecutedEffect == 192)
+            {
+                shotDispatches.Add(dispatch);
+            }
+        };
+        TickUntil(() => RecreateGame.DiagnosticCommandReady(battle, request.Driver!), "ready Irvine");
+        Assert.True(battle.SelectDiagnosticLimit(IrvineId, request.Driver!.LimitSelection!).Accepted);
+        world.ApplyBattleInput(command);
+        TickUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ready, "Shot opening");
+        Assert.True(battle.TriggerNativeShot(IrvineId));
+        TickUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ready, "Fire Ammo readiness");
+        Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
+        battle.EndNativeShot(IrvineId);
+        Assert.Contains(battle.QueuedActions, pending => pending.ActorId == IrvineId && pending.NativeLimitCallback == NativeLimitCallback.ShotEnding);
+        TickUntil(() => battle.GetNativeShot(IrvineId) is null && !process.HasActiveAction && process.PendingCompletion is null, "Shot close");
+        Assert.Equal(new byte?[] { 14, 237, 238 }, shotDispatches.Select(dispatch => dispatch.NativeCommand).ToArray());
+        Assert.True(battle.Combatants.Single(actor => actor.Id == IrvineId).IsAlive);
+        Assert.Null(battle.GetNativeShot(IrvineId));
+        Assert.DoesNotContain(battle.QueuedActions, pending => pending.ActorId == IrvineId && pending.NativeLimitCallback is not null);
+        Assert.Equal(2, battle.Items.Single(stock => stock.Id == 102).Count);
+        Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
+        TickUntil(() => battle.QueuedActions.Count == 0 && !process.HasActiveAction && process.PendingCompletion is null, "queued enemy reactions");
+
+        void TickUntil(Func<bool> condition, string boundary)
+        {
+            for (int frame = 0; frame < CallbackBudget && !condition(); frame++)
+            {
+                if (battle.NativeEntryReady && battle.ObserveDiagnosticDrainBlockers().Count == 0)
+                {
+                    battle.AdvanceTurn();
+                }
+                battle.Tick();
+            }
+            if (!condition())
+            {
+                string queue = string.Join(", ", battle.QueuedActions.Select(pending => $"{pending.ActorId}/{pending.ExpandedAiCallback?.Stage}/{pending.NativeLimitCallback}"));
+                string details = $"Shot {battle.GetNativeShot(IrvineId)?.Phase}, active {battle.ActiveAction?.ActorId}/{battle.ActiveAction?.NativeLimitCallback}, token {process.ActiveActionToken}, effect {process.Graphics.OriginalEffect?.RequestedEffect}/{process.Graphics.OriginalEffect?.ReturnedDescriptor:X}, queue [{queue}].";
+                world.AbandonFaultedDiagnosticBattle();
+                Assert.Fail($"Did not reach {boundary}. {details}");
+            }
+        }
+    }
 
     [Theory]
     [InlineData(0, 2, "Manual")]
