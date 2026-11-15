@@ -101,7 +101,7 @@ public sealed partial class BattleSession
             BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, flags);
             BattleTargetSelection preflight = UsesExpandedRoster
                 ? new BattleTargetSelection.Explicit([TargetActorReference(target)])
-                : NativeBattleTargetRequestAdapter.CaptureMagicPreflight(NativeBattleLimitRules.PlayerTargetMask(flags, target.EncodeNativeSlot()));
+                : NativeBattleTargetRequestAdapter.CreatePlayerRequest(flags, target.EncodeNativeSlot()).OriginalProjection!.Operands;
             casts.Add(new(request, preflight, UsesExpandedRoster ? TargetActorReference(target) : anchor));
         }
         return UsesExpandedRoster && targets.Count == 1 ? [] : casts.MoveToImmutable();

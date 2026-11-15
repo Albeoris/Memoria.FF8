@@ -73,7 +73,7 @@ public static partial class ScenarioDiscovery
             return false;
         }
         (string target, int targetIndex) = ResolveRecipeRecipient(result, party, actor);
-        _ = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags.Value, targetIndex);
+        _ = NativeBattleLimitRules.EncodePlayerTargetWord(native.TargetFlags.Value, targetIndex);
         JsonObject driver = result["driver"]!.AsObject();
         driver["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actor, ["target_id"] = target, ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = invocation << 16 | native.ActionId };
         driver["expected_effect"] = native.MagicId;

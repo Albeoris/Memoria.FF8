@@ -46,40 +46,40 @@ public sealed partial class BattleSession
         BattleCombatant[] party = combatants.Where(actor => actor.EncodeNativeSlot() is >= 0 and < 3).ToArray();
         if ((progress.AngeloFlags & 2) != 0 && party.Any(actor => actor != rinoa && actor.IsActive && (NativeSavedStatusBits(actor) & 0x101) == 0x100) && NextRandomByte() <= 8)
         {
-            QueueNativePeriodicAngelo(12, FilterNativeAiTargetMask(0, 200, 0, 8));
+            QueueNativePeriodicAngelo(12, FilterAiTargets(0, 200, 0, 8).Request);
             return;
         }
         if ((progress.AngeloFlags & 4) != 0)
         {
             if ((NativeSavedStatusBits(rinoa) & 1) != 0 && NextRandomByte() <= 8)
             {
-                QueueNativePeriodicAngelo(13, checked((ushort)((1 << rinoa.EncodeNativeSlot()) | 0x4000)));
+                QueueNativePeriodicAngelo(13, ApplyOriginalAiTargetFlags(SelectAiActor(rinoa), 0, allowsKnockedOutAllies: true));
                 return;
             }
             if (party.Any(actor => actor != rinoa && actor.IsActive && (NativeSavedStatusBits(actor) & 1) != 0) && NextRandomByte() <= 2)
             {
-                QueueNativePeriodicAngelo(13, (ushort)(FilterNativeAiTargetMask(0, 200, 0, 0) | 0x4000));
+                QueueNativePeriodicAngelo(13, ApplyOriginalAiTargetFlags(FilterAiTargets(0, 200, 0, 0), 0, allowsKnockedOutAllies: true));
                 return;
             }
         }
         if ((progress.AngeloFlags & 8) != 0 && (NativeSavedStatusBits(rinoa) & 5) == 0 && (NativeBattleStatusBits(rinoa) & 0x4009) == 0 && NextRandomByte() <= 8)
         {
-            QueueNativePeriodicAngelo(14, checked((ushort)(1 << rinoa.EncodeNativeSlot())));
+            QueueNativePeriodicAngelo(14, SelectAiActor(rinoa).Request);
         }
     }
 
-    private void QueueNativePeriodicAngelo(ushort id, ushort mask)
+    private void QueueNativePeriodicAngelo(ushort id, BattleTargetRequest targets)
     {
         //4831C0 writes the shared selector/mask, then queues stage8 on486080's first allocated party actor.
         NativeBattleSupportState state = nativeSupport ?? throw new InvalidOperationException("Native periodic support lacks its battle-local selector owners.");
-        nativeSupport = state with { SelectedAction = checked((byte)id), SelectedTargets = mask };
+        nativeSupport = state with { SelectedAction = checked((byte)id), SelectedTargets = targets };
         QueueNativeCallback(NativeSupportActor(), 8);
     }
 
     private void ExpandNativePeriodicAngelo(BattleCombatant actor)
     {
         byte id = nativeSupport?.SelectedAction ?? throw new InvalidDataException("Native stage8 lacks its actual selector BYTE1D28E14.");
-        ushort targets = nativeSupport.SelectedTargets ?? throw new InvalidDataException("Native stage8 lacks its actual target WORD1D28DE6.");
-        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloPeriodic, 240, id, NativeBattleTargetRequestAdapter.Decode(targets, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true));
+        BattleTargetRequest targets = nativeSupport.SelectedTargets ?? throw new InvalidDataException("Native stage8 lacks its actual target WORD1D28DE6.");
+        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloPeriodic, 240, id, targets);
     }
 }

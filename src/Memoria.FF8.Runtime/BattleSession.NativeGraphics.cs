@@ -5,16 +5,13 @@ public sealed record BattleNativeGraphicCommand(byte MagicId);
 
 public sealed partial class BattleSession
 {
-    private void QueueNativeGraphicCommand(BattleCombatant actor, byte magicId, byte sequence, ushort targetMask)
+    private void QueueNativeGraphicCommand(BattleCombatant actor, byte magicId, byte sequence, AiTargetSelection selected)
     {
-        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(targetMask);
-        //487DF0 LABEL375's non-Magic/non-Item branch reads EnemyAttack[id1] bit80 even for252.
-        if ((NativeGraphicsTargetFlags() & 0x80) != 0)
-        {
-            targetMask |= 0x4000;
-        }
-        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.EncodeNativeSlot() is >= 0 and < 16 && (targetMask & (1 << candidate.EncodeNativeSlot())) != 0) ?? actor;
-        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(targetMask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        actor.PreviousAiTarget = selected.PreviousTarget;
+        // 487DF0 reads EnemyAttack[id1] bit80 for graphics command 252.
+        BattleTargetRequest request = ApplyOriginalAiTargetFlags(selected, 0, (NativeGraphicsTargetFlags() & 0x80) != 0);
+        var originalSlots = request.OriginalProjection!.Operands.Slots;
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.Slot is { } slot && originalSlots.Contains(slot)) ?? actor;
         BattleAttackCommand command = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, 1) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = 252, NativeSequence = sequence, NativeGraphic = new(magicId) };
         EnqueueNativePacket(actor, command, $"native graphics252/1 effect{magicId}");
     }
@@ -37,18 +34,18 @@ public sealed partial class BattleSession
         return command;
     }
 
-    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, ushort? diagnosticSelectedTargetMask = null)
+    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, BattleTargetRequest? diagnosticSelection = null)
     {
-        if (CaptureEncounterCounterCommand(actor, command, name, playerInput, diagnosticSelectedTargetMask))
+        if (CaptureEncounterCounterCommand(actor, command, name, playerInput, diagnosticSelection))
         {
             return;
         }
         command = PrepareNativeEventCommand(actor, command);
         NativeBattleCommandBanks? input = playerInput ? PrepareNativeInputCommand(command) : null;
-        PublishNativePacket(actor, command, name, input, diagnosticSelectedTargetMask);
+        PublishNativePacket(actor, command, name, input, diagnosticSelection);
     }
 
-    private void PublishNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, NativeBattleCommandBanks? input, ushort? diagnosticSelectedTargetMask = null)
+    private void PublishNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, NativeBattleCommandBanks? input, BattleTargetRequest? diagnosticSelection = null)
     {
         StopTurnAdvance();
         //47DDA0 completes initialization, reaction and periodic events without consuming the actor's gauge.
@@ -66,7 +63,7 @@ public sealed partial class BattleSession
             actions.Enqueue(command);
         }
         Log("Queued", actor.Id, command.TargetId, command.ActionId, $"{actor.Name}: {name} queued.");
-        ObserveDiagnosticCounterCommand(actor, command, diagnosticSelectedTargetMask);
+        ObserveDiagnosticCounterCommand(actor, command, diagnosticSelection);
         if ((nativeAiDepth != 0 || flushingEncounterCounterCommands) && !IsNativeReturnDamageAction(command.NativeAction))
         {
             CompleteNativeAiReturnDamage(actor, NativeCommandPresentation(command));

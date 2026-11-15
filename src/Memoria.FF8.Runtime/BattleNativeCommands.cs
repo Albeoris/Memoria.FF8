@@ -52,40 +52,11 @@ public static class NativeBattleLimitRules
         return rules.IsExact ? (byte)rules.Values[0] : throw new NotSupportedException("Native battle rules require the actual field-block BYTE243.");
     }
 
-    /// <summary>Native483860/483880 retain random/KO/group markers alongside the selected physical slot.</summary>
-    public static ushort PlayerTargetMask(byte targetFlags, int targetNativeIndex)
+    /// <summary>Encodes the original 483860/483880 target word for native packet evidence.</summary>
+    public static ushort EncodePlayerTargetWord(byte targetFlags, int targetNativeIndex)
     {
-        if (targetNativeIndex is < 0 or >= 16)
-        {
-            throw new ArgumentOutOfRangeException(nameof(targetNativeIndex));
-        }
-        int mask = 1 << targetNativeIndex;
-        switch (targetFlags & 0x30)
-        {
-            case 0:
-                mask |= 0x8000;
-                break;
-            case 0x10:
-                break;
-            case 0x20:
-                mask = 0x80FF;
-                break;
-            default:
-                throw new NotSupportedException("Original player target flags request an unresolved target mode.");
-        }
-        if ((targetFlags & 1) != 0)
-        {
-            mask |= 0x4000;
-        }
-        if ((targetFlags & 2) != 0)
-        {
-            mask |= 0x2000;
-        }
-        if ((targetFlags & 0x80) != 0)
-        {
-            mask |= 0x80;
-        }
-        return (ushort)mask;
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.CreatePlayerRequest(targetFlags, targetNativeIndex);
+        return request.OriginalProjection!.WriteOriginalWord(request.AllowsKnockedOutAllies);
     }
 
     /// <summary>Native4941F0 integer ordering; the caller owns whether this selection consumes a random byte.</summary>

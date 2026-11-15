@@ -63,7 +63,7 @@ public static partial class ScenarioDiscovery
         fixture["pocket_station"] = new JsonObject { ["available"] = true, ["away"] = false, ["level"] = 1, ["attack_variant"] = route.PocketStationAttackVariant.Value };
         bool party = definition.Allies || NativeBattleLimitRules.IsFixedAllyTarget(route.Item.TargetFlags!.Value);
         (string recipient, int recipientIndex) = ResolveRecipeRecipient(result, party, "party-0");
-        _ = NativeBattleLimitRules.PlayerTargetMask(route.Item.TargetFlags!.Value, recipientIndex);
+        _ = NativeBattleLimitRules.EncodePlayerTargetWord(route.Item.TargetFlags!.Value, recipientIndex);
         result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = "party-0", ["target_id"] = recipient, ["ability"] = nameof(BattleAbility.Item), ["action_id"] = definition.Id };
         result["driver"]!["expected_effect"] = child.MagicId;
         result["driver"]!["expected_native_action"] = child.ActionId;

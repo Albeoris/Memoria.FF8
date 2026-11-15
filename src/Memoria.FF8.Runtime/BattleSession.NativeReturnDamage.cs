@@ -76,7 +76,7 @@ public sealed partial class BattleSession
             return;
         }
         //The original command's header is already published. This synchronous0/5 follows it before the interpreter resumes.
-        QueueNativeCommand(actor, 0, 5, 0, checked((ushort)(1 << actor.EncodeNativeSlot())));
+        QueueNativeCommand(actor, 0, 5, 0, SelectAiActor(actor));
     }
 
     private bool TryResolveNativeReturnDamage(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleNativeAction native)

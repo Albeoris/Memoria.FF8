@@ -142,14 +142,14 @@ public sealed partial class BattleSession
         }
     }
 
-    private PendingDiagnosticReflection? PrepareDiagnosticReflection(BattleActionHeaderReference reference, BattleCombatant actor, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction source, BattleNativeAction reflected, ushort targetMask)
+    private PendingDiagnosticReflection? PrepareDiagnosticReflection(BattleActionHeaderReference reference, BattleCombatant actor, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction source, BattleNativeAction reflected, BattleTargetRequest targets)
     {
         if (DiagnosticEffectDispatched is null || OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
         {
             return null;
         }
         NativeBattleActionHeaderSlot original = nativeActionPackets.ReadHeader(reference);
-        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.Command, original.Action, source, reflected, targetMask);
+        return new(header, generation, actor.Id, checked((byte)actor.EncodeNativeSlot()), reflector.Id, checked((byte)reflector.EncodeNativeSlot()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.EncodeNativeSlot()), original.Command, original.Action, source, reflected, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native reflection evidence requires its original target word."));
     }
 
     private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)

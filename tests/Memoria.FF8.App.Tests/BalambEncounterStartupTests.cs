@@ -59,9 +59,11 @@ public sealed class BalambEncounterStartupTests
             Assert.Equal((float)(1d - (double)0.8f), battle.NativeEffectMemory.PrimitiveProcess.Depth.RemainingWeight);
             Assert.Equal(new NativeBattleMusicCommandState(false, null, null, null, 0x1CE075C, false), battle.NativeMusicProcess!.Commands);
             BattleSnapshot snapshot = battle.Capture();
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+            BattleSession restored = BattleSession.Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            //Constructor/resource/entry persistence only: no callback, AI turn, formula or playable-encounter claim.
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
     }
 

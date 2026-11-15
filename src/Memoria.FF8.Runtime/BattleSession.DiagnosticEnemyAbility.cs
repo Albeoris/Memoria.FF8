@@ -86,8 +86,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Diagnostic enemy row does not resolve to the requested native effect.");
         }
-        ushort targets = ResolveNativeAiTargetMask(actor, selection.TargetSelector);
+        AiTargetSelection targets = ResolveAiTargets(actor, selection.TargetSelector);
         QueuePreparedNativeAiCommand(actor, command, action, sequence, targets);
-        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.EncodeNativeSlot(), selection, expectedEffect, targets);
+        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.EncodeNativeSlot(), selection, expectedEffect, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets.Request, ReadOriginalTargetSlot));
     }
 }

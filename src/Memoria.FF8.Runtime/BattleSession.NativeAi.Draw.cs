@@ -97,22 +97,16 @@ public sealed partial class BattleSession
         }
         BattleNativeAction action = FindInstalledNativeAction(2, spell);
         byte flags = action.TargetFlags ?? throw new InvalidDataException("Native drawn spell lacks its kernel target flags.");
-        ushort mask = (flags & 0x30) switch
+        AiTargetSelection selected = (flags & 0x30) switch
         {
-            0 => (flags & 0x40) != 0 ? (ushort)0x8007 : (ushort)0x80F8,
-            0x10 => ResolveNativeAiTargetMask(actor, (flags & 0x40) != 0 ? (byte)201 : (byte)202),
-            0x20 => 0x80FF,
-            _ => spell
+            0 => SelectAiGroup((flags & 0x40) != 0 ? BattleTargetSide.Allies : BattleTargetSide.Enemies),
+            0x10 => PickAiSide((flags & 0x40) != 0 ? BattleSide.Allies : BattleSide.Enemies),
+            0x20 => SelectAiGroup(BattleTargetSide.Both),
+            _ => SelectOriginalAiTargets(new(NativeBattleTargetRequestAdapter.CaptureMagicPreflight(spell)))
         };
-        if ((flags & 1) != 0)
-        {
-            mask |= 0x4000;
-        }
-        if ((flags & 2) != 0)
-        {
-            mask |= 0x2000;
-        }
-        QueueNativeCommand(actor, 2, spell, 11, mask);
+        BattleTargetRequest request = ApplyOriginalAiTargetFlags(selected, flags);
+        BattlePreviousTarget previous = NativeBattleTargetRequestAdapter.CapturePrevious(request.OriginalProjection!, request.AllowsKnockedOutAllies);
+        QueueNativeCommand(actor, 2, spell, 11, new(request, previous));
     }
 
     private void CastExpandedEnemyDrawnSpell(BattleCombatant actor)
@@ -138,19 +132,19 @@ public sealed partial class BattleSession
         }
         IEnumerable<BattleCombatant> roster = targetsBothSides && !random ? combatants : Roster(side);
         BattleCombatant[] targets = roster.Where(candidate => IsExpandedDrawCastTarget(candidate, (flags & 1) != 0)).ToArray();
-        ExpandedAiSelection selected;
+        AiTargetSelection selected;
         if ((flags & 0x30) == 0x10)
         {
             BattleCombatant[] living = targets.Where(target => target.IsAlive).ToArray();
-            selected = living.Any(target => (NativeSavedStatusBits(target) & 5) == 0) ? PickExpandedAiTarget(living) : SelectExpandedAiActors([]);
-            if (random && selected.Selection is not BattleTargetSelection.None)
+            selected = living.Any(target => (NativeSavedStatusBits(target) & 5) == 0) ? PickAiTarget(living) : SelectAiActors([]);
+            if (random && selected.Request.Selection is not BattleTargetSelection.None)
             {
-                selected = SelectExpandedAiActors(targets, side);
+                selected = SelectAiActors(targets, side);
             }
         }
         else
         {
-            selected = SelectExpandedAiActors(targets, random ? side : null);
+            selected = SelectAiActors(targets, random ? side : null);
         }
         if (!ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action))
         {

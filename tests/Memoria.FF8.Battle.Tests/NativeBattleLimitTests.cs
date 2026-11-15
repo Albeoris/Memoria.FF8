@@ -32,7 +32,7 @@ public sealed class NativeBattleLimitTests
     [InlineData(0x20, 3, 0x80FF)]
     public void Player_masks_keep_native_group_random_and_KO_modifiers(byte flags, int nativeSlot, ushort expected)
     {
-        Assert.Equal(expected, NativeBattleLimitRules.PlayerTargetMask(flags, nativeSlot));
+        Assert.Equal(expected, NativeBattleLimitRules.EncodePlayerTargetWord(flags, nativeSlot));
     }
 
     [Fact]

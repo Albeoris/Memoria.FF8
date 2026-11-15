@@ -47,25 +47,21 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(command, id, crisis);
     }
 
-    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, byte? crisis = null, NativeLimitCallback? callback = null, bool playerInput = false)
+    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
     {
-        BattleNativeAction native = FindNativeCommandAction(actor, command, id, crisis);
+        BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         ValidateNativeActionContract(native);
-        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(targetMask);
-        ushort diagnosticSelectedTargetMask = targetMask;
-        if (command is 2 or 4)
-        {
-            targetMask |= (ushort)(((native.TargetFlags.GetValueOrDefault() & 1) != 0 ? 0x4000 : 0) | ((native.TargetFlags.GetValueOrDefault() & 2) != 0 ? 0x2000 : 0));
-        }
-        else if (command == 8 && (native.AttackFlags & 0x80) != 0)
-        {
-            targetMask |= 0x4000;
-        }
-        BattleActorReference? selected = NativeBattleTargetRequestAdapter.ReadFirstActiveMagicAnchor(NativeBattleTargetRequestAdapter.CaptureMagicPreflight(targetMask), ReadOriginalTargetOccupant, _ => true);
-        BattleCombatant target = selected is null ? actor : FindTargetActor(selected)!;
-        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(targetMask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
-        BattleAttackCommand queued = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence };
-        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", playerInput, diagnosticSelectedTargetMask);
+        actor.PreviousAiTarget = selected.PreviousTarget;
+        byte flags = command is 2 or 4 ? native.TargetFlags.GetValueOrDefault() : (byte)0;
+        BattleTargetRequest request = ApplyOriginalAiTargetFlags(selected, flags, EnemyActionTargetsKnockedOutAllies(native));
+        BattleCombatant target = ReadOriginalAiAnchor(selected) ?? actor;
+        BattleAttackCommand queued = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence };
+        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", diagnosticSelection: selected.Request);
+    }
+
+    private BattleCombatant? ReadOriginalAiAnchor(AiTargetSelection selection)
+    {
+        return selection.Request.OriginalProjection is { } projection ? ReadOriginalSelectedActor(projection.Operands, activeOnly: false) : null;
     }
 
     private static bool IsNativeRevive(BattleActionDefinition action)

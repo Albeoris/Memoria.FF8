@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private sealed record EncounterImmediateCounter(BattleCombatant Actor, NativeContactWorking? Contact, BattleActionPresentation? Action, bool Suppressed, bool Death);
-    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, ushort? DiagnosticMask, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context, ExpandedAiInvocationReservation? ExpandedSource);
+    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, BattleTargetRequest? DiagnosticSelection, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context, ExpandedAiInvocationReservation? ExpandedSource);
     private readonly Queue<EncounterCounterCommand> encounterCounterCommands = [];
     private bool capturingEncounterCounterCommands;
     private bool flushingEncounterCounterCommands;
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool CaptureEncounterCounterCommand(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput, ushort? diagnosticMask)
+    private bool CaptureEncounterCounterCommand(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput, BattleTargetRequest? diagnosticSelection)
     {
         if (!capturingEncounterCounterCommands)
         {
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
         ExpandedAiInvocationReservation? expandedSource = producingExpandedAiCallback
             ? producingExpandedAiInvocation ?? throw new InvalidDataException("A captured expanded counter requires its actual source invocation reservation.")
             : null;
-        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticMask, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeader, nativeProductionContext, expandedSource));
+        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticSelection, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeader, nativeProductionContext, expandedSource));
         return true;
     }
 
@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                         }
                         command = command with { NativeEventOwner = new(sourceActor.Id, sourceHeader.Value) };
                     }
-                    EnqueueNativePacket(pending.Actor, command, pending.Name, pending.PlayerInput, pending.DiagnosticMask);
+                    EnqueueNativePacket(pending.Actor, command, pending.Name, pending.PlayerInput, pending.DiagnosticSelection);
                 }
                 finally
                 {

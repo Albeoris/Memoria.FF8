@@ -68,7 +68,7 @@ public sealed class NativeCallbackQueueTests
     }
 
     [Fact]
-    public void PeriodicAngeloCallbackReadsTheSavedSharedSelectorAndMaskOnlyWhenDispatched()
+    public void PeriodicAngeloCallbackReadsTheSavedSelectionOnlyWhenDispatched()
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -76,7 +76,7 @@ public sealed class NativeCallbackQueueTests
         BattleSession battle = BattleSession.Restore(saved with
         {
             Definition = saved.Definition with { LimitProgress = game.ReadNewGameLimitProgress() with { AngeloFlags = 2 } },
-            NativeSupport = saved.NativeSupport! with { SelectedAction = 12, SelectedTargets = 1 },
+            NativeSupport = saved.NativeSupport! with { SelectedAction = 12, SelectedTargets = new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(BattleRosterSlot.Ally(0)), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy) },
             NativeCommandBanks = Callbacks(new BattleAttackCommand("party-0", "party-0", BattleTargetRequest.None, BattleAbility.EnemyAbility) { NativeCallback = new(0, 8) })
         });
         NativeBattleRandomState random = battle.Capture().Random!;

@@ -83,12 +83,12 @@ public sealed partial class BattleSession
         {
             if ((NativeSavedStatusBits(actor) & 1) == 0 && nativeActionScratch.Command is 28 or 243)
             {
-                QueueNativeCommand(actor, 0, 6, 0, checked((ushort)(1 << index)));
+                QueueNativeCommand(actor, 0, 6, 0, SelectAiActorOperand(index));
                 produced = true;
             }
             if ((NativeSavedStatusBits(actor) & 3) == 2)
             {
-                QueueNativeCommand(actor, 0, 2, 0, checked((ushort)(1 << index)));
+                QueueNativeCommand(actor, 0, 2, 0, SelectAiActorOperand(index));
                 produced = true;
             }
             if (produced)

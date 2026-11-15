@@ -38,8 +38,7 @@ public sealed partial class BattleSession
         BattleCombatant selected = NativePlayerSelectedTarget(actor, target, targetFlags);
         if (!UsesExpandedRoster)
         {
-            ushort originalWord = NativeBattleLimitRules.PlayerTargetMask(targetFlags, selected.EncodeNativeSlot());
-            return NativeBattleTargetRequestAdapter.Decode(originalWord, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+            return NativeBattleTargetRequestAdapter.CreatePlayerRequest(targetFlags, selected.EncodeNativeSlot());
         }
 
         BattleTargetSide side = selected.IsPlayer ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
@@ -74,18 +73,12 @@ public sealed partial class BattleSession
         bool allowsKnockedOutAllies = (targetFlags & 1) != 0;
         if (!UsesExpandedRoster)
         {
-            // The original automatic enemy-group operand includes bit 7 alongside its four enemy cells.
-            ushort originalWord = selection switch
-            {
-                BattleTargetSelection.SideGroup { Side: BattleTargetSide.Allies } => 0x8007,
-                BattleTargetSelection.SideGroup { Side: BattleTargetSide.Enemies } => 0x80F8,
-                BattleTargetSelection.SideGroup { Side: BattleTargetSide.Both } => 0x80FF,
-                _ => NativeBattleTargetRequestAdapter.ProjectOriginalWord(new(selection, BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), ReadOriginalTargetSlot)
-                    ?? throw new InvalidDataException("The automatic action requires its reached original target operand.")
-            };
-            originalWord |= (ushort)((allowsKnockedOutAllies ? 0x4000 : 0) | ((targetFlags & 2) != 0 ? 0x2000 : 0));
-            return NativeBattleTargetRequestAdapter.Decode(originalWord, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+            NativeBattleTargetRequestAdapter.OriginalWordProjection original = selection is BattleTargetSelection.SideGroup group
+                ? NativeBattleTargetRequestAdapter.OriginalGroup(group.Side)
+                : new(originalPreflight ?? throw new InvalidDataException("The automatic action requires its reached original target operand."));
+            return NativeBattleTargetRequestAdapter.CreateOriginalRequest(original with { Random = (targetFlags & 2) != 0 }, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies);
         }
+
         if ((targetFlags & 2) != 0)
         {
             selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: false);

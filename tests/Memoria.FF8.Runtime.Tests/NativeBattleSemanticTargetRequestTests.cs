@@ -5,6 +5,28 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleSemanticTargetRequestTests
 {
+    [Theory]
+    [InlineData(0x4022, false)]
+    [InlineData(0x5080, true)]
+    public void Original_single_target_transport_round_trips_typed_slots_and_reserved_positions(ushort word, bool hasReservedPositions)
+    {
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(word, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        var selection = Assert.IsType<NativeBattleTargetRequestAdapter.DeferredOperands>(request.Selection);
+
+        Assert.True(request.AllowsKnockedOutAllies);
+        if (hasReservedPositions)
+        {
+            Assert.Empty(selection.Slots);
+            Assert.Equal(new[] { NativeBattleTargetRequestAdapter.ReservedPosition.Seven, NativeBattleTargetRequestAdapter.ReservedPosition.Twelve }, selection.ReservedPositions);
+        }
+        else
+        {
+            Assert.Equal(new[] { BattleRosterSlot.Ally(1), BattleRosterSlot.Enemy(2) }, selection.Slots);
+            Assert.Empty(selection.ReservedPositions);
+        }
+        Assert.Equal(word, NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, _ => null));
+    }
+
     [Fact]
     public void Original_fallback_returns_the_full_shifted_word_at_original_word_width()
     {

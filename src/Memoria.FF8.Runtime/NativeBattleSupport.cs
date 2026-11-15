@@ -11,8 +11,8 @@ public sealed record NativeBattleSupportState([property: JsonRequired] bool Entr
 {
     [JsonRequired]
     public byte? SelectedAction { get; init; }
-    [JsonRequired]
-    public ushort? SelectedTargets { get; init; }
+    [JsonIgnore]
+    public BattleTargetRequest? SelectedTargets { get; init; }
 }
 
 public sealed partial class BattleSession

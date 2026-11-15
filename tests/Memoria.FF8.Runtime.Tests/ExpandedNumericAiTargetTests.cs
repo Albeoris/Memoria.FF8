@@ -140,7 +140,7 @@ public sealed class ExpandedNumericAiTargetTests
         BattleSnapshot saved = Create([14, 220, 255, 4, 220, 7, 1, 6, 0], originalEnemySlots: false).Capture();
         Assert.Equal(255u, Enemy(saved).NativeParticipant!.Variables[0]);
         BattleAttackCommand queued = Assert.Single(saved.QueuedActions, command => command.NativeAiCallbackStage == 0);
-        Assert.Equal((ushort)0, Assert.IsType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection).Selection);
+        Assert.True(Assert.IsType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection).IsEmpty);
         Assert.Empty(Resolve(Restore(saved), queued.TargetRequest));
     }
 

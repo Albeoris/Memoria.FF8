@@ -130,7 +130,7 @@ public sealed partial class BattleSession
         nativeAiCallbackStage = 1;
         try
         {
-            QueuePreparedNativeAiCommand(actor, command, action, sequence, ResolveNativeAiTargetMask(actor, 200));
+            QueuePreparedNativeAiCommand(actor, command, action, sequence, ResolveAiTargets(actor, 200));
         }
         finally
         {

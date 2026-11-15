@@ -4,7 +4,6 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private readonly record struct ExpandedAiSelection(BattleTargetSelection Selection, BattlePreviousTarget? PreviousTarget, bool AllowsKnockedOutAllies = false);
 
     private void RunExpandedEnemyDeathAi(BattleCombatant actor)
     {
@@ -119,49 +118,10 @@ public sealed partial class BattleSession
         }
     }
 
-    private ExpandedAiSelection ResolveExpandedAiTargets(BattleCombatant actor, byte selector)
-    {
-        return selector switch
-        {
-            200 => SelectExpandedAiActors([actor]),
-            201 => PickExpandedAiTarget(allies.Where(IsExpandedAiTarget)),
-            202 => PickExpandedAiTarget(enemies.Where(IsExpandedAiTarget)),
-            203 => SelectExpandedAiActors(actor.LastAttackerId is { } attacker ? [GetActor(attacker)] : []),
-            204 => DecodeExpandedAiSelection(0x8007),
-            205 => DecodeExpandedAiSelection(0x80F8),
-            206 => DecodeExpandedAiSelection(0x80FF),
-            207 => PickExpandedAiTarget(enemies.Where(candidate => candidate != actor && IsExpandedAiTarget(candidate)).DefaultIfEmpty(actor).Where(IsExpandedAiTarget)),
-            208 => DecodeExpandedAiSelection(0xA007),
-            209 => SelectLastExpandedAiAllocation(),
-            >= 220 and <= 227 => ResolveExpandedAiLocalTarget(actor, selector - 220),
-            _ => ResolveExpandedModelTarget(selector)
-        };
-    }
-
-    private ExpandedAiSelection SelectLastExpandedAiAllocation()
-    {
-        return nativeLastAllocatedTarget switch
-        {
-            NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => ResolveExpandedOriginalTarget(original.Operand),
-            BattlePreviousTarget.Actor captured => new(new BattleTargetSelection.Explicit([captured.Reference]), captured),
-            _ => new(new BattleTargetSelection.None(), null)
-        };
-    }
-
-    private ExpandedAiSelection DecodeExpandedAiSelection(ushort operand)
-    {
-        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(operand, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: false);
-        if (request.Selection is NativeBattleTargetRequestAdapter.DeferredOperands { Selection: not 0 } && !UsesOriginalEnemySlots)
-        {
-            throw new InvalidDataException("Expanded AI cannot use original target operands without original enemy slots.");
-        }
-        return new(request.Selection, NativeBattleTargetRequestAdapter.CapturePrevious(operand), request.AllowsKnockedOutAllies);
-    }
-
-    private ExpandedAiSelection ResolveExpandedModelTarget(int selector)
+    private AiTargetSelection ResolveExpandedModelTarget(int selector)
     {
         BattleCombatant? target = UsesOriginalEnemySlots ? ExpandedAiModelActor(selector) : combatants.FirstOrDefault(candidate => IsExpandedAiTarget(candidate) && NativeModelId(candidate) == selector);
-        return SelectExpandedAiActors(target is null ? [] : [target]);
+        return SelectAiActors(target is null ? [] : [target]);
     }
 
     private BattleCombatant? ExpandedAiModelActor(int model)
@@ -182,20 +142,6 @@ public sealed partial class BattleSession
         return NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex);
     }
 
-    private ExpandedAiSelection ResolveExpandedOriginalTarget(int index)
-    {
-        if (!UsesOriginalEnemySlots)
-        {
-            throw new NotSupportedException("Expanded AI direct actor targeting requires original enemy slots.");
-        }
-        if (!NativeBattleSlots.Contains(index))
-        {
-            return new(new BattleTargetSelection.None(), null);
-        }
-        var previous = new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(index);
-        return new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(index)), previous);
-    }
-
     private void ValidateExpandedOriginalEnemySlots()
     {
         BattleCombatant[] allocated = enemies.Where(actor => !IsAddedEnemy(actor) && actor.Slot is not null).ToArray();
@@ -205,13 +151,6 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Expanded original enemy slots require unique owners with resolved allocation statistics.");
         }
-    }
-
-    private ExpandedAiSelection ResolveExpandedAiLocalTarget(BattleCombatant actor, int index)
-    {
-        return actor.AiActorReferences.TryGetValue(index, out string? targetId)
-            ? SelectExpandedAiActors([GetActor(targetId)])
-            : DecodeExpandedAiSelection(NativeAiIndexMask(unchecked((int)actor.AiVariables[index])));
     }
 
     private static void StoreExpandedAiLastAttacker(BattleCombatant actor, int variable, bool add)
@@ -226,45 +165,6 @@ public sealed partial class BattleSession
         actor.AiActorReferences[index] = attackerId;
     }
 
-    private ExpandedAiSelection FilterExpandedAiTargets(byte allTargets, byte group, byte comparison, byte criterion)
-    {
-        BattleCombatant[] population = UsesOriginalEnemySlots && group >= 16 && group is not (200 or 201)
-            ? NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex).ToArray()
-            : combatants.Where(HasAiRosterSlot).ToArray();
-        var filter = NativeAiTargetFilter(population, group, comparison, criterion);
-        BattleCombatant[] candidates = population.Where(candidate => !candidate.Untargetable && filter.Eligible(candidate)).ToArray();
-        if (allTargets == 0)
-        {
-            return PickExpandedAiTarget(candidates);
-        }
-
-        BattleTargetSide side = candidates.Any(candidate => candidate.Side == BattleSide.Enemies) ? BattleTargetSide.Enemies : BattleTargetSide.Allies;
-        int? firstOriginalSlot = candidates.Select(candidate => candidate.NativeActorIndex).Min();
-        BattlePreviousTarget previous = firstOriginalSlot is int original
-            ? new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(original)
-            : candidates.FirstOrDefault() is { } first
-                ? new BattlePreviousTarget.Actor(TargetActorReference(first))
-                : NativeBattleTargetRequestAdapter.CapturePrevious(0x8000);
-        return new(new BattleTargetSelection.SideGroup(side), previous);
-    }
-
-    private ExpandedAiSelection PickExpandedAiTarget(IEnumerable<BattleCombatant> candidates)
-    {
-        BattleCombatant[] available = candidates.ToArray();
-        return SelectExpandedAiActors(available.Length == 0 ? [] : [available[NextRandomByte() % available.Length]]);
-    }
-
-    private static ExpandedAiSelection SelectExpandedAiActors(IEnumerable<BattleCombatant> candidates, BattleSide? randomSide = null)
-    {
-        ImmutableArray<BattleActorReference> actors = candidates.Select(TargetActorReference).ToImmutableArray();
-        if (actors.IsEmpty)
-        {
-            return new(new BattleTargetSelection.None(), null);
-        }
-        BattleTargetSelection selection = randomSide is BattleSide side ? new BattleTargetSelection.RandomOnSide(side) : new BattleTargetSelection.Explicit(actors);
-        return new(selection, new BattlePreviousTarget.Actor(actors[0]));
-    }
-
     private static bool IsExpandedAiTarget(BattleCombatant candidate)
     {
         return candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && (NativeSavedStatusBits(candidate) & 5) == 0;
@@ -275,12 +175,12 @@ public sealed partial class BattleSession
         return action is { Command: 8 or 252 } && (action.AttackFlags & 0x80) != 0;
     }
 
-    private void QueueExpandedGraphicCommand(BattleCombatant actor, byte magicId, byte sequence, ExpandedAiSelection? selected)
+    private void QueueExpandedGraphicCommand(BattleCombatant actor, byte magicId, byte sequence, AiTargetSelection selected)
     {
-        EnqueueExpandedAiAction(actor, 252, 1, sequence, selected ?? new ExpandedAiSelection(new BattleTargetSelection.None(), null), graphic: new(magicId));
+        EnqueueExpandedAiAction(actor, 252, 1, sequence, selected, graphic: new(magicId));
     }
 
-    private void QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, ExpandedAiSelection? selected)
+    private void QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         if (!NativeBattleExpandedAi.SupportsAction(native, UsesOriginalEnemySlots))
@@ -290,17 +190,17 @@ public sealed partial class BattleSession
         EnqueueExpandedAiAction(actor, native.Command, native.ActionId, sequence, selected, native);
     }
 
-    private void EnqueueExpandedAiAction(BattleCombatant actor, byte command, ushort actionId, byte sequence, ExpandedAiSelection? selected, BattleNativeAction? native = null, BattleNativeGraphicCommand? graphic = null, BattleTargetEligibility eligibility = BattleTargetEligibility.SavedStatus)
+    private void EnqueueExpandedAiAction(BattleCombatant actor, byte command, ushort actionId, byte sequence, AiTargetSelection selected, BattleNativeAction? native = null, BattleNativeGraphicCommand? graphic = null, BattleTargetEligibility eligibility = BattleTargetEligibility.SavedStatus)
     {
-        if (selected is not { } captured || captured.Selection is BattleTargetSelection.None && graphic is null)
+        if (selected.Request.Selection is BattleTargetSelection.None && graphic is null)
         {
             return;
         }
 
-        BattleTargetSelection selection = captured.Selection;
+        BattleTargetSelection selection = selected.Request.Selection;
         BattleActorReference? deathSelf = nativeAiCallbackStage == 3 && selection is BattleTargetSelection.Explicit explicitActors &&
             explicitActors.Actors.Any(reference => reference.ActorId == actor.Id) && (NativeSavedStatusBits(actor) & 1) == 0 ? TargetActorReference(actor) : null;
-        bool allowsKnockedOutAllies = captured.AllowsKnockedOutAllies || EnemyActionTargetsKnockedOutAllies(native) || graphic is not null && (NativeGraphicsTargetFlags() & 0x80) != 0;
+        bool allowsKnockedOutAllies = selected.Request.AllowsKnockedOutAllies || EnemyActionTargetsKnockedOutAllies(native) || graphic is not null && (NativeGraphicsTargetFlags() & 0x80) != 0;
         if (native is { Command: 2 or 4 })
         {
             byte flags = native.TargetFlags.GetValueOrDefault();
@@ -328,8 +228,8 @@ public sealed partial class BattleSession
             ? BattleTargetReplacement.UseCurrentBattlePolicy
             : BattleTargetReplacement.None;
         var request = new BattleTargetRequest(selection, deathSelf is not null ? BattleTargetEligibility.DeathCallback : eligibility, allowsKnockedOutAllies, replacement, deathSelf);
-        actor.PreviousAiTarget = captured.PreviousTarget;
-        string targetId = captured.PreviousTarget is BattlePreviousTarget.Actor first ? first.Reference.ActorId : actor.Id;
+        actor.PreviousAiTarget = selected.PreviousTarget;
+        string targetId = selected.PreviousTarget is BattlePreviousTarget.Actor first ? first.Reference.ActorId : actor.Id;
         BattleAttackCommand packet = new(actor.Id, targetId, request, BattleAbility.EnemyAbility, actionId)
         {
             NativeQueuedCommand = command,

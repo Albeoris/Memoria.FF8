@@ -22,10 +22,8 @@ public sealed partial class BattleSession
         }
         BattleCombatant target = FindTargetActor(reference)!;
         byte flags = reflected.TargetFlags.GetValueOrDefault();
-        BattleTargetRequest seed = new(selection, BattleTargetEligibility.SavedStatus, (flags & 1) != 0, BattleTargetReplacement.UseCurrentBattlePolicy);
-        ushort mask = (ushort)(NativeBattleTargetRequestAdapter.ProjectOriginalWord(seed, ReadOriginalTargetSlot)!.Value | ((flags & 2) != 0 ? 0x2000 : 0));
-        BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(mask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
-        PendingDiagnosticReflection? diagnostic = PrepareDiagnosticReflection(sourceHeader, actor, reflector, target, source, reflected, mask);
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(new(initial, Random: (flags & 2) != 0), BattleTargetEligibility.SavedStatus, (flags & 1) != 0);
+        PendingDiagnosticReflection? diagnostic = PrepareDiagnosticReflection(sourceHeader, actor, reflector, target, source, reflected, request);
         BattleAttackCommand packet = new(actor.Id, target.Id, request, BattleAbility.Magic, reflected.ActionId) { NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, NativeEventOwner = command.NativeEventOwner };
         if (nativeAiDepth == 0 && nativeCallbackTail is null)
         {

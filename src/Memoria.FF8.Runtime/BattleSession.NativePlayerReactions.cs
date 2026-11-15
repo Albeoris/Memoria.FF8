@@ -67,8 +67,7 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         ValidateNativeActionContract(native);
-        ushort originalWord = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native player reaction requires its original previous-target operand.");
-        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(originalWord);
+        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(request, ReadOriginalTargetSlot);
         if (command == 4)
         {
             byte targetFlags = native.TargetFlags.GetValueOrDefault();

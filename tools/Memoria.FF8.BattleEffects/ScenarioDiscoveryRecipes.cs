@@ -62,7 +62,7 @@ public static partial class ScenarioDiscovery
         string actorId = $"party-{ownerRow}";
         bool party = (flags & 0x40) == 0 || NativeBattleLimitRules.IsFixedAllyTarget(flags);
         (string recipient, int recipientIndex) = ResolveRecipeRecipient(result, party, actorId);
-        _ = NativeBattleLimitRules.PlayerTargetMask(flags, recipientIndex);
+        _ = NativeBattleLimitRules.EncodePlayerTargetWord(flags, recipientIndex);
         result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actorId, ["target_id"] = recipient, ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = native.Command << 16 | native.ActionId };
         result["driver"]!["expected_effect"] = native.MagicId;
         result["driver"]!["expected_native_action"] = native.ActionId;
@@ -351,7 +351,7 @@ public static partial class ScenarioDiscovery
         character["commands"] = new JsonArray(new JsonObject { ["slot"] = 0, ["ability"] = commandAbility });
         bool party = definition.Allies || native.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
         (string recipient, int recipientIndex) = ResolveRecipeRecipient(result, party, "party-0");
-        _ = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, recipientIndex);
+        _ = NativeBattleLimitRules.EncodePlayerTargetWord(native.TargetFlags!.Value, recipientIndex);
         character["hit_points"] = party && native.AttackType is 3 or 4 or 32 ? 1 : initial.GetMagicMaximumHitPoints(0);
         JsonObject input = result["driver"]!["input"]!.AsObject();
         input["ability"] = ability.ToString();

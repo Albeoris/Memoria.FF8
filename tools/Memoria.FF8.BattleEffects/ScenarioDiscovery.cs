@@ -107,7 +107,7 @@ public static partial class ScenarioDiscovery
                 JsonObject recipe = JsonNode.Parse(File.ReadAllText(sourceRecipe))!.AsObject();
                 bool partyTarget = definition!.Allies;
                 (string recipient, int recipientIndex) = ResolveRecipeRecipient(recipe, partyTarget, "party-0");
-                ushort targetMask = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, recipientIndex);
+                ushort targetMask = NativeBattleLimitRules.EncodePlayerTargetWord(native.TargetFlags!.Value, recipientIndex);
                 recipe["driver"]!["input"]!["action_id"] = native.ActionId;
                 recipe["driver"]!["input"]!["target_id"] = recipient;
                 recipe["driver"]!["expected_effect"] = native.MagicId;
@@ -122,7 +122,7 @@ public static partial class ScenarioDiscovery
                 File.WriteAllText(copied, recipe.ToJsonString(RecordJson.Options));
                 recipePath = copied;
                 blockers.Clear();
-                targetPolicy = "Installed BattleActionDefinition.Allies and NativeBattleLimitRules.PlayerTargetMask: target=" + recipe["driver"]!["input"]!["target_id"]!.GetValue<string>() + $"; mask=0x{targetMask:X4}; template-sha256={Hash(File.ReadAllBytes(sourceRecipe))}; initialHP is the original character maximum at the declared prepared level, except positive-power party healing starts at1HP.";
+                targetPolicy = "Installed BattleActionDefinition.Allies and NativeBattleLimitRules.EncodePlayerTargetWord: target=" + recipe["driver"]!["input"]!["target_id"]!.GetValue<string>() + $"; mask=0x{targetMask:X4}; template-sha256={Hash(File.ReadAllBytes(sourceRecipe))}; initialHP is the original character maximum at the declared prepared level, except positive-power party healing starts at1HP.";
             }
             if (recipePath is null && templatePath is not null && requiresRevival && native.KernelSection is 1 or 7)
             {
@@ -224,7 +224,7 @@ public static partial class ScenarioDiscovery
             }
             if (native.TargetFlags is byte targetFlags && (targetFlags & 0x30) is 0 or 0x20 && (targetFlags & 2) == 0)
             {
-                scenarios.Add(scenarios[^1] with { CaseId = caseId + "-multiple-targets", Status = "PLANNED_BLOCKED", Disposition = "unresolved", DiagnosticRecipe = null, TargetPolicy = $"Multiple legal actual recipients required by installed group selector 0x{targetFlags:X2}; NativeBattleLimitRules.PlayerTargetMask and BattleHudController.SelectingTargetGroup preserve native group mode.", ExecutionBlockers = ["MULTI_TARGET_PRECONDITION: prove at least two legitimate actual recipients and their active targetable/life-state conditions in the required canonical phase or original enemy context. The current one-party/direct-participant recipe does not certify this branch; no synthetic enemy or arbitrary target-count override is substituted."] });
+                scenarios.Add(scenarios[^1] with { CaseId = caseId + "-multiple-targets", Status = "PLANNED_BLOCKED", Disposition = "unresolved", DiagnosticRecipe = null, TargetPolicy = $"Multiple legal actual recipients required by installed group selector 0x{targetFlags:X2}; NativeBattleLimitRules.EncodePlayerTargetWord and BattleHudController.SelectingTargetGroup preserve native group mode.", ExecutionBlockers = ["MULTI_TARGET_PRECONDITION: prove at least two legitimate actual recipients and their active targetable/life-state conditions in the required canonical phase or original enemy context. The current one-party/direct-participant recipe does not certify this branch; no synthetic enemy or arbitrary target-count override is substituted."] });
             }
         }
         foreach (EnemyScenarioActionOwner owner in enemies.Owners)

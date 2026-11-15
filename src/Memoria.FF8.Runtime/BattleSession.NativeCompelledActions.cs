@@ -96,33 +96,28 @@ public sealed partial class BattleSession
             BattleGuardianFormDefinition profile = BattleGuardianFormProfiles.Find(form.GuardianForceId)!;
             BattleGuardianFormActionBinding binding = (battleStatus & 0x2000000) != 0 ? profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Magic) : profile.Actions.First(action => action.Source == BattleGuardianFormActionSource.Physical);
             BattleNativeAction native = GetGuardianFormActionDefinition(actor.Id, binding.Action).NativeAction!;
-            ushort mask = binding.Source == BattleGuardianFormActionSource.Physical ? ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202) : NativeCompelledTargetMask(actor, native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
-            return new(native.Command, native.ActionId, DecodeCompelledTargets(mask), binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
+            BattleTargetRequest formTargets = binding.Source == BattleGuardianFormActionSource.Physical ? PickAiSide((battleStatus & 0x4000) != 0 ? BattleSide.Allies : BattleSide.Enemies).Request : SelectNativeCompelledTargets(native.TargetFlags ?? throw new InvalidDataException("GF compelled spell lacks its installed targeting flags."), true);
+            return new(native.Command, native.ActionId, formTargets, binding.Cost == BattleGuardianFormActionCost.Innate) { GuardianFormBinding = binding };
         }
         if (HasNativeAngelWing(actor))
         {
             return SelectNativeAngelWingSpell(actor) is byte spell
-                ? new(2, spell, DecodeCompelledTargets(NativeCompelledTargetMask(actor, RequiredNativeSpellFlags(spell), true)), true)
-                : new(1, 0, DecodeCompelledTargets(ResolveNativeAiTargetMask(actor, 202)), false);
+                ? new(2, spell, SelectNativeCompelledTargets(RequiredNativeSpellFlags(spell), true), true)
+                : new(1, 0, PickAiSide(BattleSide.Enemies).Request, false);
         }
         if ((NativeSavedStatusBits(actor) & 0x20) != 0)
         {
-            return new(1, 0, DecodeCompelledTargets(ResolveNativeAiTargetMask(actor, (battleStatus & 0x4000) != 0 ? (byte)201 : (byte)202)), false);
+            return new(1, 0, PickAiSide((battleStatus & 0x4000) != 0 ? BattleSide.Allies : BattleSide.Enemies).Request, false);
         }
         if ((battleStatus & 0x4000) == 0)
         {
             return null;
         }
         var selection = SelectNativeConfuseCommand(actor);
-        ushort targetMask = selection.TargetFlags is byte flags
-            ? NativeCompelledTargetMask(actor, flags, selection.OppositeSide)
-            : ResolveNativeAiTargetMask(actor, selection.OppositeSide ? (byte)202 : (byte)201);
-        return new(selection.Command, selection.ActionId, DecodeCompelledTargets(targetMask), false);
-    }
-
-    private static BattleTargetRequest DecodeCompelledTargets(ushort originalWord)
-    {
-        return NativeBattleTargetRequestAdapter.Decode(originalWord, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
+        BattleTargetRequest targets = selection.TargetFlags is byte flags
+            ? SelectNativeCompelledTargets(flags, selection.OppositeSide)
+            : PickAiSide(selection.OppositeSide ? BattleSide.Enemies : BattleSide.Allies).Request;
+        return new(selection.Command, selection.ActionId, targets, false);
     }
 
     private (byte Command, ushort ActionId, byte? TargetFlags, bool OppositeSide) SelectNativeConfuseCommand(BattleCombatant actor)
@@ -369,24 +364,16 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(2, (ushort)spell).TargetFlags ?? throw new InvalidDataException("Native compelled spell lacks original target flags.");
     }
 
-    private ushort NativeCompelledTargetMask(BattleCombatant actor, byte flags, bool invertSide)
+    private BattleTargetRequest SelectNativeCompelledTargets(byte flags, bool invertSide)
     {
-        bool party = ((flags & 0x40) != 0) != invertSide;
-        ushort mask = (flags & 0x30) switch
+        BattleSide side = ((flags & 0x40) != 0) != invertSide ? BattleSide.Allies : BattleSide.Enemies;
+        AiTargetSelection selected = (flags & 0x30) switch
         {
-            0 => party ? (ushort)0x8007 : (ushort)0x80F8,
-            0x10 => ResolveNativeAiTargetMask(actor, party ? (byte)201 : (byte)202),
-            0x20 => 0x80FF,
+            0 => SelectAiGroup(NativeBattleTargetRequestAdapter.ToTargetSide(side)),
+            0x10 => PickAiSide(side),
+            0x20 => SelectAiGroup(BattleTargetSide.Both),
             _ => throw new NotSupportedException("Native compelled action target flags depend on an uninitialized native temporary.")
         };
-        if ((flags & 1) != 0)
-        {
-            mask |= 0x4000;
-        }
-        if ((flags & 2) != 0)
-        {
-            mask |= 0x2000;
-        }
-        return mask;
+        return ApplyOriginalAiTargetFlags(selected, flags);
     }
 }

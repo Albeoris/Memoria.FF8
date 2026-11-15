@@ -43,7 +43,7 @@ public static partial class ScenarioDiscovery
         fixture["limits"] = new JsonObject { ["learn_duel"] = 0x3F, ["options978"] = 0 };
         string actor = $"party-{row}";
         (string target, int targetIndex) = ResolveRecipeRecipient(result, false, actor);
-        _ = NativeBattleLimitRules.PlayerTargetMask(rules.InvocationChoices.Single().TargetFlags, targetIndex);
+        _ = NativeBattleLimitRules.EncodePlayerTargetWord(rules.InvocationChoices.Single().TargetFlags, targetIndex);
         JsonObject driver = result["driver"]!.AsObject();
         driver["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actor, ["target_id"] = target, ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = 11 << 16 };
         driver["expected_effect"] = 274;

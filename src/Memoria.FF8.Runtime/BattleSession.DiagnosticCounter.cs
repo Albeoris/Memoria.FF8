@@ -193,9 +193,9 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ObserveDiagnosticCounterCommand(BattleCombatant actor, BattleAttackCommand command, ushort? selectedTargetMask)
+    private void ObserveDiagnosticCounterCommand(BattleCombatant actor, BattleAttackCommand command, BattleTargetRequest? diagnosticSelection)
     {
-        if (DiagnosticCounterCommandQueued is not { } observer || diagnosticCounterAiScope is not { } scope || diagnosticCounterCurrentCallback is not { } queue || command.NativeAiCallbackStage != scope.Stage || OriginalDiagnosticHeaderIndex(command.NativeHeader) is not int header || DiagnosticCounterHeaderGeneration(header) is not long generation || command.NativeAction is not { } native || command.NativeQueuedCommand is not byte queued || command.NativeSequence is not byte sequence || selectedTargetMask is not ushort selected)
+        if (DiagnosticCounterCommandQueued is not { } observer || diagnosticCounterAiScope is not { } scope || diagnosticCounterCurrentCallback is not { } queue || command.NativeAiCallbackStage != scope.Stage || OriginalDiagnosticHeaderIndex(command.NativeHeader) is not int header || DiagnosticCounterHeaderGeneration(header) is not long generation || command.NativeAction is not { } native || command.NativeQueuedCommand is not byte queued || command.NativeSequence is not byte sequence || diagnosticSelection is null || NativeBattleTargetRequestAdapter.ProjectOriginalWord(diagnosticSelection, ReadOriginalTargetSlot) is not ushort selected)
         {
             return;
         }

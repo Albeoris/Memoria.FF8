@@ -13,14 +13,7 @@ public sealed partial class BattleSession
         ushort id = 0;
         byte sequence = 0;
         PrepareNativeAiAbility(actor, 0, ref command, ref id, ref sequence);
-        if (UsesExpandedRoster)
-        {
-            QueuePreparedNativeAiCommand(actor, command, id, sequence, 0, ResolveExpandedAiTargets(actor, 201));
-        }
-        else
-        {
-            QueueNativeCommand(actor, command, id, sequence, ResolveNativeAiTargetMask(actor, 201));
-        }
+        QueuePreparedNativeAiCommand(actor, command, id, sequence, ResolveAiTargets(actor, 201));
         return true;
     }
 }

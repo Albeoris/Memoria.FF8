@@ -141,17 +141,19 @@ public sealed partial class BattleSession
     private ImmutableArray<string> QueueEncounterSpell(BattleCombatant actor, EncounterPolicyDecision decision, EncounterCompiledDefinition mod)
     {
         EncounterCompiledSpell spell = decision.Spell ?? throw new InvalidDataException("An admitted cast lacks its compiled native spell.");
-        ushort Mask(EncounterPolicyDecision cast)
+        BattleTargetSelection SelectTargets(IEnumerable<string> ids)
         {
-            ushort mask = 0;
-            foreach (string id in cast.TargetIds)
-            {
-                mask |= checked((ushort)(1 << GetActor(id).EncodeNativeSlot()));
-            }
-            return mask;
+            return UsesExpandedRoster
+                ? new BattleTargetSelection.Explicit(ids.Select(id => TargetActorReference(GetActor(id))))
+                : NativeBattleTargetRequestAdapter.SelectOriginalSlots(ids.Select(id => NativeBattleSlots.Decode(GetActor(id).EncodeNativeSlot())));
         }
-        ushort firstMask = Mask(decision);
-        ImmutableArray<ushort> repeats = [];
+        BattleTargetRequest Request(BattleTargetSelection selection)
+        {
+            return new(selection, UsesExpandedRoster ? BattleTargetEligibility.Living : BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+        }
+
+        BattleTargetSelection firstSelection = SelectTargets(decision.TargetIds);
+        ImmutableArray<BattleTargetSelection> repeats = [];
         ImmutableArray<string> targets = decision.TargetIds;
         uint statuses = EncounterMulticastStatusBits(actor);
         bool mirror = mod.Templates.ContainsKey(EncounterRoleOf(actor.Id));
@@ -159,7 +161,7 @@ public sealed partial class BattleSession
         if (mirror && decision.TargetIds.Length > 1 && !spell.NativeAllTargets)
         {
             List<string> available = decision.TargetIds.ToList();
-            List<ushort> masks = [];
+            List<BattleTargetSelection> selections = [];
             List<string> selected = [];
             for (int cast = 0; cast < castCount; cast++)
             {
@@ -181,11 +183,11 @@ public sealed partial class BattleSession
                 string id = preferred[NextEncounterRandomIndex(preferred.Length)];
                 available.Remove(id);
                 selected.Add(id);
-                masks.Add(checked((ushort)(1 << GetActor(id).EncodeNativeSlot())));
+                selections.Add(SelectTargets([id]));
             }
             targets = selected.Distinct(StringComparer.Ordinal).ToImmutableArray();
-            firstMask = masks[0];
-            repeats = masks.Count > 1 ? masks.ToImmutableArray() : [];
+            firstSelection = selections[0];
+            repeats = selections.Count > 1 ? selections.ToImmutableArray() : [];
         }
         else if (castCount > 1)
         {
@@ -196,8 +198,8 @@ public sealed partial class BattleSession
                 pinnedAction = pinnedAction with { Target = EncounterCompiledTargetKind.RandomReflectedOpponent, AvoidReflect = false };
             }
             EncounterCompiledRule pinned = rule with { Action = pinnedAction };
-            ImmutableArray<ushort>.Builder masks = ImmutableArray.CreateBuilder<ushort>(castCount);
-            masks.Add(firstMask);
+            ImmutableArray<BattleTargetSelection>.Builder selections = ImmutableArray.CreateBuilder<BattleTargetSelection>(castCount);
+            selections.Add(firstSelection);
             for (int cast = 1; cast < castCount; cast++)
             {
                 EncounterPolicyDecision? next = EncounterPolicyRuntime.Resolve(mod, decision.PolicyId, pinned, decision.OwnTurn, actor.Id, EncounterPolicyCandidates(), scanKnowledge, NextEncounterRandomIndex, targets, distinctTargets: true);
@@ -205,20 +207,18 @@ public sealed partial class BattleSession
                 {
                     break;
                 }
-                masks.Add(Mask(next));
+                selections.Add(SelectTargets(next.TargetIds));
                 targets = targets.Concat(next.TargetIds).Distinct(StringComparer.Ordinal).ToImmutableArray();
             }
-            repeats = masks.ToImmutable();
+            repeats = selections.ToImmutable();
         }
-        BattleAttackCommand command = new(actor.Id, targets[0], NativeBattleTargetRequestAdapter.Decode(firstMask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.Magic, spell.NativeAction.ActionId)
+        BattleAttackCommand command = new(actor.Id, targets[0], Request(firstSelection), BattleAbility.Magic, spell.NativeAction.ActionId)
         {
             NativeAiCallbackStage = 1,
             NativeQueuedCommand = 2,
             NativeSequence = mod.CastingSequence,
             NativeAction = spell.NativeAction,
-            MagicCasts = repeats.Select(mask => new BattleMagicCastInvocation(
-                NativeBattleTargetRequestAdapter.Decode(mask, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true),
-                NativeBattleTargetRequestAdapter.CaptureMagicPreflight(mask), TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
+            MagicCasts = repeats.Select(selection => new BattleMagicCastInvocation(Request(selection), selection, TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
         };
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         BattleActionHeaderReference firstHeader = nativeActionPackets.NextHeader;

@@ -49,7 +49,7 @@ public static partial class ScenarioDiscovery
             fixture["items"] = new JsonArray(new JsonObject { ["id"] = definition.Id, ["count"] = 2 });
         }
         // The second selected saved row occupies native physical slot1, independently of its saved-row number.
-        _ = NativeBattleLimitRules.PlayerTargetMask(flags, 1);
+        _ = NativeBattleLimitRules.EncodePlayerTargetWord(flags, 1);
         result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = "party-0", ["target_id"] = $"party-{recipientRow}", ["ability"] = ability.ToString(), ["action_id"] = definition.Id };
         result["driver"]!["expected_effect"] = native.MagicId;
         result["driver"]!["expected_native_action"] = native.ActionId;

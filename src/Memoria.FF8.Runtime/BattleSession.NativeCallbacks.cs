@@ -99,7 +99,7 @@ public sealed partial class BattleSession
                 if ((NativeSavedStatusBits(actor) & 1) == 0)
                 {
                     BeginNativeBattleActionPause();
-                    QueueNativeCommand(actor, 0, 4, 0, checked((ushort)(1 << callback.ActorIndex)));
+                    QueueNativeCommand(actor, 0, 4, 0, SelectAiActorOperand(callback.ActorIndex));
                     QueueNativeActionClockCompletion(0x47DDA0);
                 }
             }

@@ -15,7 +15,7 @@ public sealed partial class BattleSession
     private void RecordLastNativeAllocation(BattleCombatant actor)
     {
         nativeLastAllocatedTarget = actor.NativeActorIndex is int original
-            ? NativeBattleTargetRequestAdapter.CapturePrevious(NativeAiIndexMask(original))
+            ? new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(original)
             : new BattlePreviousTarget.Actor(TargetActorReference(actor));
     }
 
@@ -111,8 +111,7 @@ public sealed partial class BattleSession
             }
             byte[] code = program.Scripts[callback];
             int pc = 0;
-            ushort targetMask = 0;
-            ExpandedAiSelection? selected = null;
+            AiTargetSelection selected = EmptyAiTargets;
             byte preparedCommand = 0;
             ushort preparedId = 0;
             byte sequenceOverride = 0;
@@ -156,20 +155,13 @@ public sealed partial class BattleSession
                         break;
                     case 4:
                         byte selectorTarget = (byte)ReadAiByte(code, ref pc);
-                        if (UsesExpandedRoster)
-                        {
-                            selected = ResolveExpandedAiTargets(actor, selectorTarget);
-                        }
-                        else
-                        {
-                            targetMask = ResolveNativeAiTargetMask(actor, selectorTarget);
-                        }
+                        selected = ResolveAiTargets(actor, selectorTarget);
                         break;
                     case 5:
                         sequenceOverride = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 6:
-                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask, selected);
+                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
                         break;
                     case 7:
                         preparedCommand = 8;
@@ -205,12 +197,12 @@ public sealed partial class BattleSession
                         if (chosen != 253)
                         {
                             PrepareNativeAiAbility(actor, chosen, ref preparedCommand, ref preparedId, ref sequenceOverride);
-                            QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask, selected);
+                            QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
                         }
                         break;
                     case 12:
                         PrepareNativeAiAbility(actor, ReadAiByte(code, ref pc), ref preparedCommand, ref preparedId, ref sequenceOverride);
-                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask, selected);
+                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
                         break;
                     case 14:
                     case 15:
@@ -308,7 +300,7 @@ public sealed partial class BattleSession
                         }
                         else
                         {
-                            QueueNativeGraphicCommand(actor, effect, sequenceOverride, targetMask);
+                            QueueNativeGraphicCommand(actor, effect, sequenceOverride, selected);
                         }
                         break;
                     case 28:
@@ -357,25 +349,11 @@ public sealed partial class BattleSession
                         byte group = (byte)ReadAiByte(code, ref pc);
                         byte targetComparison = (byte)ReadAiByte(code, ref pc);
                         byte criterion = (byte)ReadAiByte(code, ref pc);
-                        if (UsesExpandedRoster)
-                        {
-                            selected = FilterExpandedAiTargets(allTargets, group, targetComparison, criterion);
-                        }
-                        else
-                        {
-                            targetMask = FilterNativeAiTargetMask(allTargets, group, targetComparison, criterion);
-                        }
+                        selected = FilterAiTargets(allTargets, group, targetComparison, criterion);
                         break;
                     case 43:
                         int physicalTarget = ReadAiByte(code, ref pc);
-                        if (UsesExpandedRoster)
-                        {
-                            selected = ResolveExpandedOriginalTarget(physicalTarget);
-                        }
-                        else
-                        {
-                            targetMask = unchecked((ushort)(1 << physicalTarget));
-                        }
+                        selected = SelectDirectAiActor(physicalTarget);
                         break;
                     case 41:
                         DrawNativeAiSpell(actor, false);
@@ -561,7 +539,7 @@ public sealed partial class BattleSession
         return status < 16 ? (NativeSavedStatusBits(actor) & (1u << status)) != 0 : (NativeBattleStatusBits(actor) & (1u << (status - 16))) != 0;
     }
 
-    private void QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, ExpandedAiSelection? selected = null)
+    private void QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
     {
         //487DF0 LABEL374 skips a zero prepared WORD ID, including zero-filled ability rows.
         //This guard belongs to the AI interpreter: ordinary player physical command1 legitimately uses ID0.
@@ -575,7 +553,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            QueueNativeCommand(actor, command, id, sequence, targetMask);
+            QueueNativeCommand(actor, command, id, sequence, selected);
         }
     }
 

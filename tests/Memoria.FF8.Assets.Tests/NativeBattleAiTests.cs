@@ -56,7 +56,12 @@ public sealed class NativeBattleAiTests
         }
         Assert.Contains(battle.Capture().Combatants, actor => actor.Id.StartsWith("enemy-") && actor.NativeParticipant!.TurnCount > 0);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(battle.Capture()), System.Text.Json.JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
+        BattleSnapshot snapshot = battle.Capture();
+        BattleSession restored = BattleSession.Restore(snapshot);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(snapshot), System.Text.Json.JsonSerializer.Serialize(restored.Capture()));
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(battle.Capture()), System.Text.Json.JsonSerializer.Serialize(restored.Capture()));
     }
 
     [Fact]
