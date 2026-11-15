@@ -18,7 +18,22 @@ public static class NativeBattleCinematicActorAccess
     internal static NativeBattleWaterExecutionFrame WriteSlotActor(NativeBattleWaterExecutionFrame frame, BattleModelOwner actor, NativeBattleModelAliases aliases)
     {
         _ = ReadContext(frame).ReadCachedActor(actor);
-        return frame with { Arena = frame.Arena.WriteExecutionReference(SlotOffset(frame, 0x1B, 1), 1, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 1)) };
+        return frame with { Arena = WriteActorOperand(frame.Arena, SlotOffset(frame, 0x1B, 1), actor, aliases.EncodeOperand(actor, 1)) };
+    }
+
+    internal static NativeBattleEffectArena WriteActorOperand(NativeBattleEffectArena arena, int offset, BattleModelOwner actor, ImmutableArray<byte>? encoded)
+    {
+        BattleExecutionReference.Model reference = new(actor);
+        if (encoded is null)
+        {
+            // A texture transfer may overlap this slot byte. There is no physical store for an unencoded actor.
+            Span<byte> bytes = stackalloc byte[1];
+            Span<bool> known = stackalloc bool[1];
+            arena.ReadWithKnownness(offset, bytes, known);
+            byte? retained = known[0] ? bytes[0] : arena.TryReadExecutionReference<BattleExecutionReference.Model>(offset, 1, out var previous) ? previous.CinematicTextureByte : null;
+            reference = reference with { CinematicTextureByte = retained };
+        }
+        return arena.WriteExecutionReference(offset, 1, reference, encoded);
     }
 
     public static ushort ReadCachedFlags0(NativeBattleWaterExecutionFrame frame, BattleModelOwner owner, uint? headerAddress = null)

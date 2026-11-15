@@ -453,7 +453,7 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 else if (pending.ArenaOffset is int rectangleOffset)
                 {
                     NativeBattleEffectArena current = arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable rectangle pointer.");
-                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleOffset, length), pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut);
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, ReadArenaRectangle(current, rectangleOffset, length), pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut);
                 }
                 else
                 {
@@ -691,6 +691,33 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
         {
             throw new InvalidDataException("Native505DF0 rectangle leaves its1024x512 word VRAM.");
         }
+    }
+
+    private static byte[] ReadArenaRectangle(NativeBattleEffectArena arena, int offset, int length)
+    {
+        byte[] bytes = new byte[length];
+        try
+        {
+            arena.ReadInto(offset, bytes);
+        }
+        catch (NotSupportedException)
+        {
+            bool[] known = new bool[length];
+            arena.ReadWithKnownness(offset, bytes, known);
+            for (int lane = 0; lane < length; lane++)
+            {
+                if (known[lane])
+                {
+                    continue;
+                }
+                if (!arena.TryReadExecutionReference<BattleExecutionReference.Model>(offset + lane, 1, out var reference) || reference.CinematicTextureByte is not byte physical)
+                {
+                    throw;
+                }
+                bytes[lane] = physical;
+            }
+        }
+        return bytes;
     }
 
     private static void RequireArenaRange(int offset, int length)

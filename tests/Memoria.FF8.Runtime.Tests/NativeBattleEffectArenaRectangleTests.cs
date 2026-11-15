@@ -38,6 +38,29 @@ public sealed class NativeBattleEffectArenaRectangleTests
     }
 
     [Fact]
+    public void TextureAliasingCinematicActorRetainsItsPhysicalByteWithoutEncodingAnOperand()
+    {
+        const int source = 0x800;
+        BattleModelOwner first = new BattleForeignPartyModel(new("first"));
+        BattleModelOwner second = new BattleForeignPartyModel(new("second"));
+        NativeBattleEffectArena arena = new NativeBattleEffectArena([]).Write(source, [5, 0x43, 7, 8]);
+        arena = NativeBattleCinematicActorAccess.WriteActorOperand(arena, source + 1, first, null);
+        arena = NativeBattleCinematicActorAccess.WriteActorOperand(arena, source + 1, second, null);
+        NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaRectangle505DF0(new(0, 0, 2, 1), arena, source);
+        NativeBattleEffectArena resumed = NativeBattleTestSnapshots.Independent(arena).Write(source + 3, [9]);
+
+        Assert.Throws<NotSupportedException>(() => resumed.ReadByte(source + 1));
+        Assert.Equal(second, resumed.ReadExecutionReference<BattleExecutionReference.Model>(source + 1, 1).Owner);
+        Assert.Equal(new byte[] { 5, 0x43, 7, 9 }, NativeBattleTestSnapshots.Independent(queued).Drain505D20(resumed).Uploads.Single().Bytes);
+
+        resumed = resumed.MarkUnknown(source + 1, 1);
+        resumed = NativeBattleCinematicActorAccess.WriteActorOperand(resumed, source + 1, second, null);
+        Assert.Throws<NotSupportedException>(() => NativeBattleTestSnapshots.Independent(queued).Drain505D20(resumed));
+        resumed = NativeBattleCinematicActorAccess.WriteActorOperand(resumed, source + 1, first, [2]);
+        Assert.Equal(new byte[] { 5, 2, 7, 9 }, NativeBattleTestSnapshots.Independent(queued).Drain505D20(resumed).Uploads.Single().Bytes);
+    }
+
+    [Fact]
     public void PointerUnionRejectsConflictingHeapOffsetAndStagingOwners()
     {
         NativeBattleEffectArena arena = new([]);

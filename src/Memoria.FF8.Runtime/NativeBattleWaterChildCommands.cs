@@ -21,7 +21,7 @@ public static class NativeBattleWaterChildCommands
             bool encoded = aliases.TryEncodeExact(actor, out byte alias);
             if ((ulong)destination - NativeBattleEffectNodeMemory.ArenaAddress < (ulong)NativeBattleEffectArena.Length)
             {
-                frame = frame with { Arena = frame.Arena.WriteExecutionReference(NativeBattleWaterExecutionFields.ArenaOffset(destination, 1), 1, new BattleExecutionReference.Model(actor), aliases.EncodeOperand(actor, 1)) };
+                frame = frame with { Arena = NativeBattleCinematicActorAccess.WriteActorOperand(frame.Arena, NativeBattleWaterExecutionFields.ArenaOffset(destination, 1), actor, aliases.EncodeOperand(actor, 1)) };
             }
             else
             {

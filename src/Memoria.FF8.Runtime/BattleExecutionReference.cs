@@ -17,6 +17,7 @@ internal abstract partial record BattleExecutionReference
         }
 
         internal BattleModelOwner Owner { get; }
+        internal byte? CinematicTextureByte { get; init; }
     }
 
     internal sealed record ModelAddress : BattleExecutionReference

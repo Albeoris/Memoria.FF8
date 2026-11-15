@@ -80,7 +80,7 @@ public static class NativeBattleWaterHeaderCapture
             captured = captured with { CachedActors = captured.CachedActors.SetItem(slotZero, cached with { Flags0 = (ushort)((cached.Flags0 & 0xFF00) | seventh) }) };
         }
         BattleModelOwner first = captured.ReadFirstActor();
-        arena = arena.WriteExecutionReference(bank.SlotOffset(arena, slotIndex) + 0x1B, 1, new BattleExecutionReference.Model(first), aliases.EncodeOperand(first, 1));
+        arena = NativeBattleCinematicActorAccess.WriteActorOperand(arena, bank.SlotOffset(arena, slotIndex) + 0x1B, first, aliases.EncodeOperand(first, 1));
         writer.Byte(0x41, EncodeByte(captured.CurrentActors.Length));
         return new(writer.Freeze() with { PresentationActors = captured }, arena);
 
