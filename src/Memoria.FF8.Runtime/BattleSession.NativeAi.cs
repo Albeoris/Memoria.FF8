@@ -607,7 +607,7 @@ public sealed partial class BattleSession
 
     private bool RetainsNativeActorIndex(BattleCombatant actor) => !UsesExpandedRoster || UsesOriginalEnemySlots && !actor.IsPlayer && !IsAddedEnemy(actor);
 
-    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, RetainsNativeActorIndex(actor) ? actor.NativeActorIndex ?? NativeBattleSlots.Unassigned : NativeBattleSlots.Unassigned, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, ExpandedAiRemovalPending = actor.ExpandedAiRemovalPending, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
+    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, RetainsNativeActorIndex(actor) ? actor.NativeActorIndex ?? NativeBattleSlots.Unassigned : NativeBattleSlots.Unassigned, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { ReprojectedEncounterCopy = actor.NativeLevelReprojected && nativeAllocations.Any(allocation => allocation.Id == actor.Id && allocation.ResolvedDefinition is not null), MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, ExpandedAiRemovalPending = actor.ExpandedAiRemovalPending, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -657,19 +657,20 @@ public sealed partial class BattleSession
         {
             actor.BindRosterSlot(saved.ActorIndex == NativeBattleSlots.Unassigned ? null : NativeBattleSlots.Decode(saved.ActorIndex));
         }
+        BattleCombatantDefinition? copy = nativeAllocations.SingleOrDefault(allocation => allocation.Id == actor.Id)?.ResolvedDefinition;
+        if (saved.ReprojectedEncounterCopy && (copy is null || saved.ResolvedLevel is null))
+        {
+            throw new InvalidDataException("Encounter level reprojection requires its resolved copy and current level.");
+        }
         if (saved.ResolvedLevel is int level)
         {
-            if (nativeAllocations.SingleOrDefault(allocation => allocation.Id == actor.Id)?.ResolvedDefinition is { } resolved)
+            if (copy is not null && !saved.ReprojectedEncounterCopy && level == copy.Level)
             {
-                if (level != resolved.Level)
-                {
-                    throw new InvalidDataException("Encounter copy resolved level differs from its captured allocation definition.");
-                }
-                actor.ResolvedNativeLevel = level;
+                actor.RestoreResolvedEncounterCopy(copy);
             }
             else
             {
-                if (UsesExpandedRoster && actor.NativeTemplate is null && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level, saved.Variables)))
+                if (UsesExpandedRoster && (actor.NativeTemplate is null || copy is not null) && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level, saved.Variables)))
                 {
                     throw new InvalidDataException("Saved expanded enemy level is outside its installed level or AI contract.");
                 }

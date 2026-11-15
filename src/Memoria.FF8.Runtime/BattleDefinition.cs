@@ -638,9 +638,17 @@ public sealed partial class BattleCombatant
     }
 
     internal int? ResolvedNativeLevel { get; set; }
+    internal bool NativeLevelReprojected { get; private set; }
     internal bool ExpandedAiRemovalPending { get; set; }
     internal ExpandedEnemyLevelProfile? ExpandedEnemyLevels { get; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
+
+    internal void RestoreResolvedEncounterCopy(BattleCombatantDefinition resolved)
+    {
+        definition = resolved;
+        ResolvedNativeLevel = resolved.Level;
+        NativeLevelReprojected = false;
+    }
 
     internal void BindNativeLevel(int level)
     {
@@ -661,6 +669,7 @@ public sealed partial class BattleCombatant
                 NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = row.AiLevelBand }
             };
             ResolvedNativeLevel = level;
+            NativeLevelReprojected = true;
             return;
         }
         NativeBattleEnemyTemplate template = definition.NativeTemplate ?? throw new InvalidDataException("Native reserve allocation lacks its installed level template.");
@@ -672,6 +681,7 @@ public sealed partial class BattleCombatant
         int maximumHp = definition.MaximumHpMultiplier == 1 ? projection.MaximumHp : EncounterActorProperties.ScaleMaximumHp(projection.MaximumHp, definition.MaximumHpMultiplier);
         definition = definition with { Level = level, MaximumHp = maximumHp, Attack = projection.Strength, Defense = projection.Vitality, Magic = projection.Magic, Spirit = projection.Spirit, Speed = Math.Max(1, projection.Speed), Evasion = projection.Evasion, ElementDefenses = projection.ElementDefenses, DrawSpells = projection.DrawSpells, DrawGuardianForces = projection.DrawGuardianForces, NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = projection.AiLevelBand } };
         ResolvedNativeLevel = level;
+        NativeLevelReprojected = true;
     }
     internal NativeBattleEnemyTemplate? NativeTemplate => definition.NativeTemplate;
 

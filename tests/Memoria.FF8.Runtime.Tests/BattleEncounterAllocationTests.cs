@@ -113,6 +113,65 @@ public sealed class BattleEncounterAllocationTests
         Assert.Equal(80, restored.Combatants.Single(actor => actor.Id == "original").CurrentHp);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EncounterCopyRestoresItsCurrentLevelProjectionAfterBothChanges(bool expanded)
+    {
+        BattleDefinition definition = Create(0, projectedHp: 100).ReadDefinition();
+        BattleNativeAction levelUp = definition.NativeActions[0] with { Command = 34, ActionId = 0, Name = "Level Up", AttackType = 16, Power = 16, KernelSection = 10, StatusAttack = 255, TargetFlags = 0x50 };
+        BattleNativeAction levelDown = levelUp with { Command = 33, Name = "Level Down", AttackType = 13, Power = 4 };
+        BattleCombatantDefinition party = definition.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum, NativeCommands = [new(33, "Level Down", 0x50, 0), new(34, "Level Up", 0x50, 0)] };
+        BattleCombatantDefinition source = definition.Combatants[1];
+        ImmutableArray<NativeBattleDrawSlot> drawBand = [new(0, 0), new(0, 0), new(0, 0), new(0, 0)];
+        ExpandedEnemyLevelProfile profile = new([.. Enumerable.Repeat(new ExpandedEnemyLevel(100, [10, 10, 10, 10, 10, 10], 0), 100)], [drawBand, drawBand, drawBand]);
+        string?[] messages = new string?[96];
+        messages[11] = " 0123456789";
+        messages[88] = " Level ";
+        messages[89] = "raised";
+        messages[90] = "lowered";
+        definition = definition with
+        {
+            Combatants = [party, source],
+            UsesExpandedRoster = expanded,
+            UsesOriginalEnemySlots = expanded,
+            NativeActions = [definition.NativeActions[0], levelUp, levelDown],
+            ExpandedEnemyLevels = expanded ? ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Empty.Add(source.ModelId, profile) : null,
+            NativeGlobalMessages = messages,
+            NativeMessageSpeed = 0,
+            NativeFieldBattleMode = 0x200
+        };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        if (expanded)
+        {
+            DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        }
+        BattleEncounterAllocationState batch = battle.BeginEncounterAllocation("fixture.summon", source.Id, "support");
+        battle.BeginEncounterAllocationArrival();
+        battle.CompleteEncounterAllocationArrival();
+        string copyId = Assert.Single(batch.ActorIds);
+
+        BattleCombatant copied = battle.Combatants.Single(actor => actor.Id == copyId);
+        Assert.Equal(17, copied.Level);
+        Assert.Equal(250, copied.MaximumHp);
+        BattleSession restored = DetachedExpandedAiFixture.Restore(battle.Capture());
+        Assert.Equal(250, restored.Combatants.Single(actor => actor.Id == copyId).MaximumHp);
+
+        restored.QueueNativePlayerCommand(party.Id, copyId, 34, 0);
+        DetachedExpandedAiFixture.AdvanceTo(restored, () => restored.ActiveAction is null && restored.QueuedActions.Count == 0, "The first level command must complete.");
+        restored = DetachedExpandedAiFixture.Restore(restored.Capture());
+        Assert.Equal(34, restored.Combatants.Single(actor => actor.Id == copyId).Level);
+        Assert.Equal(100, restored.Combatants.Single(actor => actor.Id == copyId).MaximumHp);
+
+        restored.Combatants[0].Atb = BattleSession.AtbMaximum;
+        restored.QueueNativePlayerCommand(party.Id, copyId, 33, 0);
+        DetachedExpandedAiFixture.AdvanceTo(restored, () => restored.ActiveAction is null && restored.QueuedActions.Count == 0, "The second level command must complete.");
+        restored = DetachedExpandedAiFixture.Restore(restored.Capture());
+        Assert.Equal(17, restored.Combatants.Single(actor => actor.Id == copyId).Level);
+        Assert.Equal(100, restored.Combatants.Single(actor => actor.Id == copyId).MaximumHp);
+        Assert.Equal(2, restored.Events.Count(item => item.Kind == "LevelChanged" && item.TargetId == copyId));
+    }
+
     [Fact]
     public void BerserkCopyUsesInheritedPhysicalAbilityWithoutOriginalLifecycleCallbacks()
     {
