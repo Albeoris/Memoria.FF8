@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--discovery-deadline-only", StringComparer.Ordinal))
+{
+    AutoPlayDiscoveryDeadlineTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-field-goal-only", StringComparer.Ordinal))
 {
     AutoPlayWorldFieldGoalTests.Run();

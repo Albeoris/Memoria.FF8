@@ -37,6 +37,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     }
 
     public Ff7AutoPlayState State { get; }
+    public string WorkProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}";
     public string Status => State.Status ?? "Discovering native events";
 
     internal static AutoPlayPlanner<Ff7AutoPlayDeferral> CreatePlanner(Ff7AutoPlayState state, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null)

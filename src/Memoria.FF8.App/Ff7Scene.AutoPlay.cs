@@ -51,7 +51,7 @@ internal sealed partial class Ff7Scene
                         autoPlayPolicy.State.FrontierProgressKey = null;
                         autoPlayPolicy.State.FrontierIdleSteps = 0;
                     }
-                    autoPlay = new Ff7AutoPlayController(Session, autoPlayPolicy.ChooseInput, present: PrepareAutoPlayDialogue, checkpoint: SaveAutoPlayCheckpoint, advanceTick: AdvanceFieldTick, chooseDialogueSelection: ChooseAutoPlayDialogueSelection, advanceDialoguePresentation: AdvanceCommonDialogue, advanceShop: cancel => Session.AdvanceShop(cancel));
+                    autoPlay = new Ff7AutoPlayController(Session, autoPlayPolicy.ChooseInput, present: PrepareAutoPlayDialogue, checkpoint: SaveAutoPlayCheckpoint, advanceTick: AdvanceFieldTick, chooseDialogueSelection: ChooseAutoPlayDialogueSelection, advanceDialoguePresentation: AdvanceCommonDialogue, advanceShop: cancel => Session.AdvanceShop(cancel), readPlanningProgress: () => autoPlayPolicy!.WorkProgress);
                     autoPlay.Start();
                 }
                 else

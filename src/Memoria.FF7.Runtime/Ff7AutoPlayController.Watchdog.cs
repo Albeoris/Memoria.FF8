@@ -6,6 +6,10 @@ public sealed partial class Ff7AutoPlayController
 {
     private void ObserveProgress(string progress)
     {
+        if (readPlanningProgress?.Invoke() is string planning)
+        {
+            progress += ":planning:" + planning;
+        }
         if (progressWatchdog.Observe(progress))
         {
             deadline.Reset();
