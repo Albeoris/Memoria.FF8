@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
@@ -75,6 +76,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
     }
     private readonly Dictionary<(int Entity, int Script), FieldScriptInputDemand?> entryInputs = [];
     private string? analysisAllocation;
+    private readonly Ff7AutoPlayEntryReadiness entryReadiness = new();
 
     public Ff7AutoPlayTarget? FindTarget(string id) => Observe().Events.SingleOrDefault(target => target.Id == id);
 
@@ -91,6 +93,20 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         {
             return new(visit, identity, session.FieldGeneration, [], false, false, "World discovery requires a world observation adapter.");
         }
+        string navigationKey = Ff7AutoplayDriver.ReadNavigationKey(session, visit);
+        bool entryStable = entryReadiness.IsReady(session.FieldGeneration);
+        if (!entryStable)
+        {
+            string entryWitness = canAccept ? JsonSerializer.Serialize(new
+            {
+                Navigation = navigationKey,
+                process.MapJumpDisabled,
+                Actors = process.Actors.Select(actor => new { actor.Slot, actor.Entity, actor.Model, actor.EntityBound, actor.PlayerControlled, actor.TalkEnabled, actor.CollisionEnabled, actor.CollisionRadius, actor.TalkRadius }),
+                Lines = process.Lines.Select(line => new { line.Entity, line.Enabled, line.SlipDisabled, line.X1, line.Y1, line.Z1, line.X2, line.Y2, line.Z2 })
+            }) : string.Empty;
+            entryStable = entryReadiness.Observe(session.FieldGeneration, session.Machine.Tick, entryWitness, canAccept);
+        }
+        canAccept = canAccept && entryStable;
         string allocation = session.Machine.ReadScriptAnalysisAllocationFingerprint();
         if (analysisAllocation != allocation)
         {
@@ -147,7 +163,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         bool complete = events.All(target => target.AnalysisComplete);
         return new(visit, identity, session.FieldGeneration, events.ToArray(), canAccept, complete, complete ? null : string.Join("; ", events.Where(target => !target.AnalysisComplete).Select(target => $"{target.Id}: {target.SupportReason}")))
         {
-            NavigationKey = Ff7AutoplayDriver.ReadNavigationKey(session, visit),
+            NavigationKey = navigationKey,
             PersistentReads = persistentReads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray(),
             GlobalHostReads = globalHostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray()
         };

@@ -104,7 +104,10 @@ internal static class AutoPlayWatchdogTests
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The completed native choice was unexpectedly reentered."));
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
         controller.Start();
-        controller.Advance(1);
+        for (int step = 0; step < 4 && controller.Running && policy.State.Active?.TravelRoute is null; step++)
+        {
+            controller.Advance(1);
+        }
         Check(controller.Failure is null, $"Original completed choice failed to reach its recorded navigation path: {controller.Error}");
         Check(policy.State.Active?.TravelRoute is not null, "Original completed choice did not retain its recorded route through another native topology.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The original completed-choice source changed.");

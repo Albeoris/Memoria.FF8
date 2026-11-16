@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--autoplay-entry-readiness-only", StringComparer.Ordinal))
+{
+    AutoPlayEntryReadinessTests.Run();
+    return 0;
+}
+
 if (args.Contains("--frog-status-only", StringComparer.Ordinal))
 {
     FrogStatusTests.Run();
@@ -803,6 +809,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native generic autoplay discovery", NativeAutoPlayDiscoveryTests.Run),
     ("native autonomous spatial frontiers", NativeAutoPlaySpatialTests.Run),
+    ("native field entry readiness", AutoPlayEntryReadinessTests.Run),
     ("native same-field spatial navigation ownership", AutoPlaySpatialNavigationTests.Run),
     ("native autoplay choice workflow", AutoPlayChoiceWorkflowTests.Run),
     ("native autoplay scripted input", NativeAutoPlayScriptedInputTests.Run),
