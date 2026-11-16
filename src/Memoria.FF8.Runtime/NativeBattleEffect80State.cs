@@ -18,6 +18,16 @@ public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBa
         return this with { Storage = storage };
     }
 
+    internal NativeBattleEffect80State WriteBodyMatrices7AFEC0(uint address, NativeBattleEffectArena context)
+    {
+        int offset = Require(address, BodyContextLength);
+        // Only the native matrix stores publish; the context also contains live model references.
+        NativeBattleEffectNodeContextMemory.Copy(context, 0x20, Storage, offset + 0x20, 32);
+        NativeBattleEffectNodeContextMemory.Copy(context, 0x40, Storage, offset + 0x40, 18);
+        NativeBattleEffectNodeContextMemory.Copy(context, 0x54, Storage, offset + 0x54, 12);
+        return this;
+    }
+
     public static NativeBattleEffect80State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), ImmutableDictionary<uint, NativeBattleNodeSource>.Empty, ImmutableDictionary<uint, NativeBattleEffectArena>.Empty, true);
 
     public static NativeBattleEffect80State FromUnknown()

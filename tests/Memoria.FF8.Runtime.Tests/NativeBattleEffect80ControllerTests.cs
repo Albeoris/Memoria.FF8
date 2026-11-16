@@ -53,6 +53,45 @@ public sealed class NativeBattleEffect80ControllerTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Successive_body_matrix_stores_retain_model_references_and_unwritten_bytes(bool physicalAlias)
+    {
+        BattleModelOwner actor = OriginalOwner(5);
+        NativeBattleEffect80Frame frame = InitializeBody7B4480(Frame(), actor, OriginalAliases);
+        NativeBattleEffect80State state = frame.State;
+        if (!physicalAlias)
+        {
+            state = state.WriteModelReference(BodyContextAddress + 0x64, 4, actor, null).WriteModelReference(BodyContextAddress + 0xA8, 2, actor, null);
+        }
+        state = state.WriteWord(BodyContextAddress + 0x52, 0xCAFE).WriteWord(BodyContextAddress + 0xC2, 0x1234);
+        (byte[] initialBytes, bool[] initialKnown) = state.ReadView(BodyContextAddress, BodyContextLength).ReadSnapshot(0, BodyContextLength);
+        for (int draw = 0; draw < 2; draw++)
+        {
+            Assert.Equal(actor, state.ReadModelReference(BodyContextAddress + 0x64, 4));
+            NativeBattleEffectArena context = state.ReadView(BodyContextAddress, BodyContextLength);
+            context.Write(0x20, Enumerable.Repeat((byte)(draw + 1), 32).ToArray()).MarkUnknown(0x32, 2);
+            context.Write(0x40, Enumerable.Repeat((byte)(draw + 3), 18).ToArray());
+            context.Write(0x54, Enumerable.Repeat((byte)(draw + 5), 12).ToArray());
+            context.Write(0x52, [0, 0]).Write(0xC2, [0, 0]);
+            state = state.WriteBodyMatrices7AFEC0(BodyContextAddress, context);
+            (byte[] actualBytes, bool[] actualKnown) = state.ReadView(BodyContextAddress, BodyContextLength).ReadSnapshot(0, BodyContextLength);
+            (byte[] expectedBytes, bool[] expectedKnown) = context.ReadSnapshot(0, BodyContextLength);
+            for (int index = 0; index < BodyContextLength; index++)
+            {
+                bool written = index is >= 0x20 and < 0x52 or >= 0x54 and < 0x60;
+                Assert.Equal(written ? expectedKnown[index] : initialKnown[index], actualKnown[index]);
+                if (actualKnown[index])
+                {
+                    Assert.Equal(written ? expectedBytes[index] : initialBytes[index], actualBytes[index]);
+                }
+            }
+            Assert.Equal(actor, state.ReadModelReference(BodyContextAddress + 0x64, 4));
+            Assert.Equal(actor, state.ReadModelReference(BodyContextAddress + 0xA8, 2));
+        }
+    }
+
+    [Theory]
     [InlineData(-1, 17)]
     [InlineData(119, 23)]
     [InlineData(120, 23)]

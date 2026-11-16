@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             context = context.Write(0x54 + row * 4, BitConverter.GetBytes(registers.Colors.Mac[row] ?? throw new NotSupportedException("Effect80 matrix translation requires full current MAC.")));
         }
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
-        frame = NativeBattleEffect80Controller.WriteBytes(frame, bodyAddress, context, BodyContextLength);
+        frame = frame with { State = frame.State.WriteBodyMatrices7AFEC0(bodyAddress, context) };
         Draw(false, NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose));
         if (graphics.ActorModels.Get(actor).LinkedTransform is not null)
         {
