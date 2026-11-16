@@ -122,11 +122,11 @@ internal static class NativeAutoPlayPolicyPlanningTests
             Check(planner.Plan("visit")?.Event.Id == "exit", "A local failed contact must yield to the unconsumed exit.");
             Ff7Actor upperPlayer = player with { Z4096 = 400 };
             Refresh(state, planner, upperPlayer, obstacle);
-            Check(!state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Leaving the first failed region must permit a new local approach.");
+            Check(state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Unchanged source eligibility was released by leaving the old search region.");
             Ff7AutoPlayActiveEvent active = new("visit", "blocked", "selected-before-scratch-change", 1, 2, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before");
             Ff7AutoPlayObservation observation = new("visit", "native", 1, [new("blocked", 2, 1, Ff7AutoPlayTargetKind.ActorTalk, "entry", false, default)], true, true);
             state.Active = active;
-            Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation) && state.Active == active, "An eligible outside-region approach must retain its active target.");
+            Check(Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation) && state.Active is null, "An unchanged failed approach was restarted merely because the player moved.");
             Refresh(state, planner, player, obstacle);
             state.Active = active with { Accepted = true };
             Check(!Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation) && state.Active is { Accepted: true }, "A refreshed local guard must preserve accepted native script callbacks.");
@@ -145,7 +145,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
             Refresh(cold, coldPlanner, player, obstacle);
             Check(coldPlanner.Plan("visit")?.Event.Id == "exit", "Cold restoration must retain both local failure regions.");
             Refresh(state, planner, player with { Z4096 = 600 }, obstacle);
-            Check(!state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Outside both failed regions the contact must remain eligible for another approach.");
+            Check(state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Moving outside prior search bounds reopened an unchanged failed approach.");
             Refresh(state, planner, player, obstacle with { CollisionEnabled = false });
             Check(!state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "blocked").Unavailable, "Changed relevant collider admission must rearm a remembered region.");
 
@@ -173,11 +173,12 @@ internal static class NativeAutoPlayPolicyPlanningTests
         string blocked = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player, obstacle]);
         Check(blocked == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player with { X4096 = 110, Direction = 128 }, obstacle]), "Small movement or facing changes inside a failed search region must not replay its cycle.");
         string departed = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player with { X4096 = 201 }, obstacle]);
-        Check(blocked != departed, "A meaningful departure must refresh the local cycle deferral.");
+        Check(blocked == departed, "Leaving a failed search region without changed native eligibility reopened its cycle.");
         Check(blocked != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player, obstacle with { X4096 = 501 }]), "Changed native occupancy must refresh the local cycle deferral.");
         Ff7AutoPlayMovementFailure layer = bounds with { MinZ = player.Z4096 - 10, MaxZ = player.Z4096 + 10 };
         string sameLayer = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player, obstacle]);
-        Check(sameLayer != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player with { Z4096 = player.Z4096 + 11 }, obstacle]), "A different native floor must reopen a local approach even when XY remains inside its bounds.");
+        Check(sameLayer == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", layer, [player with { Z4096 = player.Z4096 + 11 }, obstacle]), "Player height alone reopened an unchanged physical source contract.");
+        Check(sameLayer != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("other-native-component", layer, [player, obstacle]), "A changed native source component failed to rearm its approach.");
         Ff7AutoPlayMovementFailure legacy = System.Text.Json.JsonSerializer.Deserialize<Ff7AutoPlayMovementFailure>("{\"MinX\":0,\"MaxX\":200,\"MinY\":0,\"MaxY\":200}")!;
         Check(legacy.MinZ is null && legacy.MaxZ is null && blocked == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", legacy, [player, obstacle]), "A legacy XY-only approach guard must preserve its previous scope without requiring migration.");
         Ff7Actor ambient = obstacle with { Slot = 2, Entity = 2, X4096 = 1000 };
@@ -192,7 +193,9 @@ internal static class NativeAutoPlayPolicyPlanningTests
         planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["cycle"] = blocked });
         Check(planner.Plan("visit") is null, "The unchanged failed region must remain deferred.");
         planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["cycle"] = departed });
-        Check(planner.Plan("visit")?.Event.Id == "exit", "A local search failure must not consume execution after departure.");
+        Check(planner.Plan("visit") is null && !state.Coverage.Visits.Single().Events.Single().Completed, "Unchanged failed navigation was retried or falsely credited as native execution.");
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["cycle"] = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native", bounds, [player, obstacle with { X4096 = 501 }]) });
+        Check(planner.Plan("visit")?.Event.Id == "exit", "A changed native obstacle did not release the bounded failed approach.");
         Ff7AutoPlayState older = new();
         var olderPlanner = Ff7AutoPlayPolicy.CreatePlanner(older);
         olderPlanner.Observe(new("visit", "resource"), [new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry")]);

@@ -75,7 +75,7 @@ public sealed partial class Ff7AutoPlayPolicy
                             continue;
                         }
                         string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle, current ? null : guard.SpatialBoundaryTriangles!.ToHashSet());
-                        projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, current ? null : true);
+                        projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities);
                         State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = projected[entry.Key] };
                     }
                 }

@@ -7,6 +7,26 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    internal static void RecordFailedAdmission(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayActiveEvent active, IReadOnlyDictionary<string, string> currentFacts)
+    {
+        var coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId);
+        if (active.Accepted || active.Returned || active.TransitionOwned || active.CompletionRecorded || active.EntryGuardFingerprints is null || coverage.Event.ConditionSignature != active.ConditionFingerprint)
+        {
+            return;
+        }
+        foreach (var entry in active.EntryGuardFingerprints)
+        {
+            if (!state.NavigationGuards.TryGetValue(entry.Key, out var guard) || guard.VisitId != active.VisitId || guard.NavigationKey != active.NavigationKey || guard.EventId != active.EventId || !currentFacts.TryGetValue(entry.Key, out string? current))
+            {
+                continue;
+            }
+            if (coverage.UnavailableAttempts.Any(attempt => attempt.GuardKey == entry.Key && attempt.GuardFingerprint == current && attempt.SourceConditionSignature == active.ConditionFingerprint && (attempt.TargetId ?? active.EventId) == active.EventId))
+            {
+                planner.MarkUnavailable(active.VisitId, active.EventId, new(active.ConditionFingerprint, active.VisitId, entry.Key, entry.Value, active.EventId));
+            }
+        }
+    }
+
     internal static bool DeferUnavailableActiveNavigation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
         if (state.Active is not { Accepted: false } active || active.VisitId != observation.VisitId || active.Generation != observation.Generation)
@@ -54,15 +74,13 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    internal static string ReadMovementFailureFingerprint(string physical, Ff7AutoPlayMovementFailure? failure, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<int>? blockingEntities = null, bool? sourceRegionContainsPlayer = null)
+    internal static string ReadMovementFailureFingerprint(string physical, Ff7AutoPlayMovementFailure? failure, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<int>? blockingEntities = null)
     {
         if (failure is null)
         {
             return physical;
         }
-        Ff7Actor player = actors.Single(actor => actor.PlayerControlled);
-        bool inside = sourceRegionContainsPlayer ?? (player.X4096 >= failure.MinX && player.X4096 <= failure.MaxX && player.Y4096 >= failure.MinY && player.Y4096 <= failure.MaxY && (failure.MinZ is not int minZ || player.Z4096 >= minZ) && (failure.MaxZ is not int maxZ || player.Z4096 <= maxZ));
-        StringBuilder witness = new($"{physical}|movement-region:{inside}|movement-entry-admission:1");
+        StringBuilder witness = new($"{physical}|movement-entry-admission:2");
         foreach (Ff7Actor actor in actors.Where(actor => !actor.PlayerControlled && actor.CollisionEnabled && (blockingEntities is not { Count: > 0 } || blockingEntities.Contains(actor.Entity))).OrderBy(actor => actor.Entity))
         {
             witness.Append($"|occupancy:{actor.Entity}:{actor.Model}:{actor.X4096}:{actor.Y4096}:{actor.Z4096}:{actor.Triangle}:{actor.CollisionRadius}");

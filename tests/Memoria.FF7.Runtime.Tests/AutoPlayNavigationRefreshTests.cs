@@ -18,6 +18,8 @@ internal static class AutoPlayNavigationRefreshTests
         CheckOriginalCurrentFieldRefresh();
         CheckOriginalForeignRefresh();
         CheckOriginalRetainedGuardObservation();
+        CheckFailedAdmissionReceipts();
+        CheckOriginalFailedAdmission();
         CheckScopedPhysicalTravel();
     }
 
@@ -125,10 +127,9 @@ internal static class AutoPlayNavigationRefreshTests
         Ff7AutoPlayMovementFailure region = new(0, 20, 0, 40, 20, 40);
         string blocked = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [player, blocker], [blocker.Entity]);
         Ff7Actor elsewhere = player with { X4096 = 1000, Y4096 = -1000, Z4096 = 2000, Triangle = 2 };
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], true) == blocked, "The current player's remote location released an unchanged source movement-region proof.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity]) != blocked, "Current-component movement eligibility ignored leaving its actual recorded source region.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], true) != blocked, "A remote source-region projection hid changed relevant blocker occupancy.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("changed-native-source", region, [elsewhere, blocker], [blocker.Entity], true) != blocked, "A remote source-region projection hid changed native target eligibility.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity]) == blocked, "The current player's remote location released an unchanged source movement-region proof.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity]) != blocked, "A remote source-region projection hid changed relevant blocker occupancy.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("changed-native-source", region, [elsewhere, blocker], [blocker.Entity]) != blocked, "A remote source-region projection hid changed native target eligibility.");
     }
 
     private static void RejectUnknown(Func<AutoPlayEventAvailability> read)
@@ -350,7 +351,8 @@ internal static class AutoPlayNavigationRefreshTests
         bool retriedRefresh = false;
         bool actorAttempted = false;
         bool actorFinished = false;
-        for (int step = 0; step < 512 && controller.Running && session.FieldGeneration == source.FieldGeneration; step++)
+        int afterActor = 0;
+        for (int step = 0; step < 512 && controller.Running && afterActor < 16; step++)
         {
             controller.Advance(1);
             inheritedFinished |= policy.State.NavigationGoal != inherited;
@@ -358,10 +360,14 @@ internal static class AutoPlayNavigationRefreshTests
             bool actorActive = policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Entity: 6 };
             actorAttempted |= actorActive;
             actorFinished |= actorAttempted && !actorActive;
+            if (actorFinished)
+            {
+                afterActor++;
+            }
         }
-        Check(controller.Failure is null && inheritedFinished && !retriedRefresh && actorFinished && session.FieldGeneration > source.FieldGeneration, $"Duplicate current-field refresh still starved native execution: {controller.Error}");
+        Check(controller.Failure is null && inheritedFinished && !retriedRefresh && actorFinished && afterActor == 16, $"Duplicate current-field refresh still starved native execution: {controller.Error}");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Current-field refresh validation changed its original standalone.");
-        Console.WriteLine($"PASS original inherited arrival finishes, native actor frontier resolves and normal travel continues without duplicate same-field refresh after {controller.Steps} callbacks; source unchanged.");
+        Console.WriteLine($"PASS original inherited arrival and native actor attempt finish without restarting same-field refresh after {controller.Steps} callbacks; source unchanged.");
     }
 
     private static void CheckOriginalForeignRefresh()
@@ -431,6 +437,63 @@ internal static class AutoPlayNavigationRefreshTests
         Check(retainedOutside && checkpoints == 1 && controller.Failure is ExpectedChoiceBoundary, $"Latest source eligibility did not survive departure through the next native choice frontier: {controller.Error}");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Retained guard validation changed its original standalone.");
         Console.WriteLine($"PASS original latest guard observation survives foreign travel and reaches a new native choice after {controller.Steps} callbacks; source unchanged.");
+    }
+
+    private static void CheckFailedAdmissionReceipts()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        planner.Observe(new("visit", "program"), [new("actor", AutoPlayEventKind.Interaction, ConditionSignature: "entry")]);
+        state.NavigationGuards["guard"] = new("visit", 1, EventId: "actor", NavigationKey: "source");
+        planner.MarkUnavailable("visit", "actor", new("entry", "visit", "guard", "blocked", "actor"));
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "admitted" });
+        Ff7AutoPlayActiveEvent active = new("visit", "actor", "entry", 1, 1, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "before", NavigationKey: "source", EntryGuardFingerprints: new Dictionary<string, string> { ["guard"] = "admitted" });
+        state.Active = active;
+        Check(state.Clone().Active!.EntryGuardFingerprints!["guard"] == "admitted", "Cold state lost its admitted source evidence.");
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "blocked" });
+        Ff7AutoPlayObservation observation = new("visit", "program", 1, [new("actor", 1, 1, Ff7AutoPlayTargetKind.ActorTalk, "entry", false, default)], true, true);
+        Check(Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation), "The known native failure did not end the unaccepted approach.");
+        Dictionary<string, string> current = new() { ["guard"] = "blocked" };
+        Ff7AutoPlayPolicy.RecordFailedAdmission(state, planner, active, current);
+        var item = state.Coverage.Visits.Single().Events.Single();
+        Check(item.UnavailableAttempts.Count == 2 && !item.Completed && item.Conditions?.HasExecutedEntry("entry") != true, "A failed admission was lost or credited as native execution.");
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "admitted" });
+        Check(planner.Plan("visit") is null, "The identical failed admission was offered again.");
+        foreach (var rejected in new[] { active with { Accepted = true }, active with { Returned = true }, active with { TransitionOwned = true }, active with { CompletionRecorded = true }, active with { EntryGuardFingerprints = null }, active with { NavigationKey = "other" }, active with { ConditionFingerprint = "other-entry" } })
+        {
+            Ff7AutoPlayPolicy.RecordFailedAdmission(state, planner, rejected, current);
+        }
+        Check(item.UnavailableAttempts.Count == 2, "Unowned, legacy or accepted execution fabricated failure evidence.");
+        planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "genuinely-changed" });
+        Check(planner.Plan("visit")?.Event.Id == "actor", "A genuine new source contract lost its next attempt.");
+    }
+
+    private static void CheckOriginalFailedAdmission()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_FAILED_ADMISSION_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice before the bounded source-event admission."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool reached = false;
+        for (int step = 0; step < 1200 && controller.Running && !reached; step++)
+        {
+            controller.Advance(1);
+            reached = session.MapId == 536 && policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Entity: 5, Accepted: true };
+        }
+        Check(controller.Failure is null && reached, $"Unchanged failed approaches still starved the real changed source event: {controller.Error}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Failed admission validation changed its original standalone.");
+        Console.WriteLine($"PASS original repeated-approach source reaches its changed NPC frontier after {controller.Steps} ordinary callbacks; source unchanged.");
     }
 
     private sealed class ExpectedChoiceBoundary : Exception
