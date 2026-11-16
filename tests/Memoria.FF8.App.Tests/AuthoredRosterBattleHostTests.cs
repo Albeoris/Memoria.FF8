@@ -63,16 +63,18 @@ public sealed class AuthoredRosterBattleHostTests
     {
         var original = RunSeiferAction(attached: false, action, sequence, effect, firstTurn);
         var hosted = RunSeiferAction(attached: true, action, sequence, effect, firstTurn);
+        Assert.Equal(original.Contacts, hosted.Contacts);
         if (firstTurn)
         {
-            Assert.Equal(original.Contacts, hosted.Contacts);
             Assert.Equal(original.Random, hosted.Random);
             Assert.Equal((original.Hp, original.Status), (hosted.Hp, hosted.Status));
         }
         else
         {
             Assert.Equal(0, Assert.Single(original.Contacts).PresentedAmount);
-            Assert.Equal(0, Assert.Single(hosted.Contacts).PresentedAmount);
+            Assert.Equal(0, Assert.Single(hosted.Contacts).SavedStatuses4 & 1);
+            Assert.Equal(0, hosted.Hp);
+            Assert.Equal(1, hosted.Status & 1);
         }
     }
 
@@ -128,6 +130,7 @@ public sealed class AuthoredRosterBattleHostTests
         HashSet<string> trace = [];
         bool entered = false;
         bool retired = false;
+        HashSet<BattleActionHeaderReference> deathCallbacks = [];
         for (int frame = 0; frame < 1500 && !retired && world.Battle is not null; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
@@ -144,6 +147,10 @@ public sealed class AuthoredRosterBattleHostTests
                     Assert.Equal(caster, Assert.Single(contacts).Recipient);
                     actionHeader = reference;
                 }
+                if (!firstTurn && header is { Command: 8, Action: 341 } && header.Source == caster)
+                {
+                    deathCallbacks.Add(reference);
+                }
             }
             NativeBattleGraphicsState graphics = process?.Graphics ?? battle.NativeGraphics!;
             if (graphics.OriginalEffect is { Parameters: { } parameters } native)
@@ -151,12 +158,18 @@ public sealed class AuthoredRosterBattleHostTests
                 trace.Add($"effect {native.RequestedEffect}/{packets.ReadHeader(parameters.Header).Action}");
                 entered |= actionHeader == parameters.Header && native.RequestedEffect == effect;
             }
-            retired = entered && Completed(battle, eventStart, seifer.Id) && battle.ActiveAction is null && process?.HasActiveAction != true;
+            retired = entered && (firstTurn || deathCallbacks.Count != 0) && Completed(battle, eventStart, seifer.Id) &&
+                battle.ActiveAction is null && process?.HasActiveAction != true;
         }
         Assert.True(retired, $"Seifer {(attached ? "attached" : "physical")} turn {seifer.AiTurnCount}: {string.Join(", ", trace)}");
         if (firstTurn)
         {
             Assert.True(seifer.IsAlive);
+        }
+        else
+        {
+            Assert.Single(deathCallbacks);
+            Assert.Single(battle.EnemyDefeats, defeat => defeat.AllocationId == seifer.Id);
         }
         return (contacts!, battle.Capture().Random!.Indexes.ToArray(), seifer.CurrentHp, seifer.NativeStatus0);
     }

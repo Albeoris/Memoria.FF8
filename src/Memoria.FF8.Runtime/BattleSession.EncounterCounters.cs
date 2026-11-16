@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record EncounterImmediateCounter(BattleCombatant Actor, NativeContactWorking? Contact, BattleActionPresentation? Action, bool Suppressed, bool Death);
+    private sealed record EncounterImmediateCounter(BattleCombatant Actor, NativeContactWorking? Contact, BattleActionPresentation? Action, bool Suppressed, bool Death, bool Secondary);
     private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, BattleTargetRequest? DiagnosticSelection, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context, ExpandedAiInvocationReservation? ExpandedSource);
     private readonly Queue<EncounterCounterCommand> encounterCounterCommands = [];
     private bool capturingEncounterCounterCommands;
@@ -14,10 +14,31 @@ public sealed partial class BattleSession
     {
         if (encounterHitTransaction is { } transaction && committingEncounterHp)
         {
-            transaction.Counters.Add(new(actor, nativeContactWorking, resolvingNativeAction, suppressNativeImmediateCounter, death));
+            transaction.Counters.Add(new(actor, nativeContactWorking, resolvingNativeAction, suppressNativeImmediateCounter, death, nativeContactWorking?.CommittingSecondary == true));
             return;
         }
         RunNativeAi(actor, 4);
+        if (death && UsesExpandedRoster)
+        {
+            MarkExpandedDeathContactMirror(actor, nativeContactWorking?.CommittingSecondary == true);
+        }
+    }
+
+    private void MarkExpandedDeathContactMirror(BattleCombatant actor, bool secondary)
+    {
+        // 494410 clears KO after stage 4 and before 47E2D0 mirrors the contact.
+        // The attached scheduler retains logical KO until the deferred stage 3 handoff.
+        if (nativeContactWorking is { } contact)
+        {
+            if (secondary && actor == contact.Actor)
+            {
+                contact.SecondaryDeathCallbackClearsKoMirror = true;
+            }
+            else if (!secondary && actor == contact.Recipient)
+            {
+                contact.PrimaryDeathCallbackClearsKoMirror = true;
+            }
+        }
     }
 
     private void RunDeferredEncounterCounters(EncounterHitTransaction transaction)
@@ -44,10 +65,14 @@ public sealed partial class BattleSession
                 }
                 finally
                 {
-                    if (invocation.Death)
+                    if (invocation.Death && !UsesExpandedRoster)
                     {
                         invocation.Actor.NativeStatus0 &= 0xFFFE;
                     }
+                }
+                if (invocation.Death && UsesExpandedRoster)
+                {
+                    MarkExpandedDeathContactMirror(invocation.Actor, invocation.Secondary);
                 }
                 if (invocation.Contact is { EncounterRedirectedDamage: true } zero)
                 {

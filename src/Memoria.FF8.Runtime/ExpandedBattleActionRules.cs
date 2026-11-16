@@ -26,15 +26,15 @@ internal static class ExpandedBattleActionRules
     public static bool SupportsDrawnEnemyMagic(BattleNativeAction action)
     {
         return action is { Command: 2, KernelSection: 1, ActionId: > 0, TargetFlags: byte flags } && (flags & 0x30) != 0x30 &&
-            (SupportsContacts(action) || SupportsEnemyMagicCure(action) ||
+            (SupportsContacts(action) || SupportsMagicCure(action) ||
              action is { AttackType: 2, Power: 0, HitCount: 1, AttackFlags: 0x23, Statuses0: 0, Statuses1: 0x10000, StatusAttack: 254 });
     }
 
-    public static bool SupportsEnemyMagicCure(BattleNativeAction action)
+    public static bool SupportsMagicCure(BattleNativeAction action)
     {
         // Esuna and Full-cure erase Eject along with other statuses. They never apply Eject.
-        return action is { KernelSection: 1, ActionId: 27, AttackType: 3, HitCount: 1, Statuses1: 0x100520D } or
-            { KernelSection: 1, ActionId: 51, AttackType: 32, HitCount: 1, Statuses1: 0x100560D };
+        return action is { Command: 2 or 247, KernelSection: 1, HitCount: 1, PresentationOnly: false, CrisisLevel: null } &&
+            action is { AttackType: 3, Statuses1: 0x100520D } or { AttackType: 32, Statuses1: 0x100560D };
     }
 
     public static bool SupportsCompelledAction(BattleAbility ability, BattleNativeAction action)
@@ -48,6 +48,7 @@ internal static class ExpandedBattleActionRules
     public static bool SupportsPlayerAction(BattleAbility ability, BattleNativeAction action)
     {
         return (ability, action.Command) is (BattleAbility.Magic, 2) or (BattleAbility.Item, 4) &&
-            action.TargetFlags is byte flags && (flags & 0x30) != 0x30 && ((flags & 1) == 0 || action.AttackType is 5 or 6) && SupportsContacts(action);
+            action.TargetFlags is byte flags && (flags & 0x30) != 0x30 && ((flags & 1) == 0 || action.AttackType is 5 or 6) &&
+            (SupportsContacts(action) || SupportsMagicCure(action));
     }
 }

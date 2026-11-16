@@ -1,4 +1,5 @@
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -50,39 +51,83 @@ public sealed class AttachedEncounterMagicTests
             ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
-            TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null);
-            BattleCombatant[] party = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
-            int[] initialHp = party.Select(actor => actor.CurrentHp).ToArray();
-            foreach (BattleCombatant actor in party)
-            {
-                if (!petrified)
-                {
-                    actor.CurrentHp = 0;
-                    actor.Atb = 0;
-                }
-                actor.NativeStatus0 |= petrified ? (ushort)4 : (ushort)1;
-            }
-            string casterId = battle.ReadDefinition().EncounterMod!.OriginalActorId;
-            BattleModelOwner source = battle.ReadPresentationModelOwner(casterId);
-            TickUntil(world, () => battle.EncounterPolicies?.TerminalStarted == true);
-            Assert.Equal(BattleOutcome.Active, battle.Outcome);
-            Assert.False(battle.EncounterPolicies!.TerminalReached);
-            bool sawTerminal = false;
-            TickUntil(world, () =>
-            {
-                NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
-                sawTerminal |= packets.PublishedHeaders().Any(entry => entry.Slot is { Command: 8, Action: 207, Sequence: 15 } && entry.Slot.Source == source);
-                return battle.Outcome != BattleOutcome.Active;
-            });
-            Assert.True(sawTerminal);
-            Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-            Assert.Equal((byte)4, battle.NativeResult);
-            Assert.True(battle.EncounterPolicies.TerminalReached);
-            Assert.True(battle.EncounterPolicies.CleanedUp);
-            Assert.Equal(petrified ? initialHp : new int[party.Length], party.Select(actor => actor.CurrentHp).ToArray());
-            TickUntil(world, () => battle.CanReturnToField && (battle.ExpandedPresentationProcess?.TerminalFinished ?? true));
+            DriveEdeaTerminal(world, battle, petrified);
         }
+    }
+
+    [Fact]
+    public void Installed_Edea_attached_terminal_returns_to_the_suspended_field_request()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("story-battle-136")));
+        using GameWorld world = new(session, directory, sharedAssets: game, expandedBattleAllyCount: 3, applyEncounterMods: (definition, context) => BindFirePolicy(definition, resource, context)) { UseAttachedBattlePresentation = true };
+        world.EnsureField();
+
+        NativeBattleCompletion request = Assert.IsType<NativeBattleCompletion>(world.Events.PendingInteractiveBattle);
+        Assert.Equal((768, 0, 4, 93, (ushort)136, (ushort)18), (request.FieldId, request.ObjectId, request.ScriptId, request.Operation, request.Encounter, request.Flags));
+        Assert.Null(world.Battle);
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        Assert.NotNull(battle.ExpandedPresentationProcess);
+        BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
+        Assert.Equal(new ScriptedBattleOwner(request.FieldId, request.ObjectId, request.ScriptId, request.Operation, request.Flags, request.ProgramHash), occurrence.ScriptedOwner);
+
+        DriveEdeaTerminal(world, battle, petrified: true);
+        Assert.Equal(request.Frame, world.Events.Frame);
+        Assert.Equal(request, world.Events.PendingInteractiveBattle);
+        int callbacks = checked((int)battle.NativeHostCallbacks!.Value);
+        world.ApplyBattleInput(new(BattleInputKind.Return));
+
+        Assert.Null(world.Battle);
+        Assert.Null(world.Events.PendingInteractiveBattle);
+        Assert.Null(session.State.PendingBattleEncounter);
+        Assert.Single(session.State.AppliedBattleResultIds, id => id == occurrence.OccurrenceId);
+        NativeBattleCompletion completion = Assert.Single(world.Events.Scene.NativeBattleCompletions!, entry => entry.Frame == request.Frame && entry.ObjectId == request.ObjectId && entry.ScriptId == request.ScriptId && entry.Operation == request.Operation);
+        Assert.Equal((byte)4, completion.Result);
+        Assert.Equal(callbacks, completion.EmulatedCombatCallbacks);
+        Assert.NotNull(completion.ReturnFrame);
+        Assert.Null(completion.Abandonment);
+        NativeBattleFieldReturnReceipt receipt = Assert.IsType<NativeBattleFieldReturnReceipt>(world.Events.Scene.NativeBattleFieldReturn);
+        Assert.Equal((request.FieldId, request.ProgramHash, request.Frame, (byte)4), (receipt.Reload.FieldId, receipt.Reload.ProgramHash, receipt.Reload.BattleEntryFrame, receipt.Reload.NativeResult));
+    }
+
+    private static void DriveEdeaTerminal(GameWorld world, BattleSession battle, bool petrified)
+    {
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+        TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null);
+        BattleCombatant[] party = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
+        int[] initialHp = party.Select(actor => actor.CurrentHp).ToArray();
+        foreach (BattleCombatant actor in party)
+        {
+            if (!petrified)
+            {
+                actor.CurrentHp = 0;
+                actor.Atb = 0;
+            }
+            actor.NativeStatus0 |= petrified ? (ushort)4 : (ushort)1;
+        }
+        string casterId = battle.ReadDefinition().EncounterMod!.OriginalActorId;
+        BattleModelOwner source = battle.ReadPresentationModelOwner(casterId);
+        TickUntil(world, () => battle.EncounterPolicies?.TerminalStarted == true);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.False(battle.EncounterPolicies!.TerminalReached);
+        bool sawTerminal = false;
+        TickUntil(world, () =>
+        {
+            NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+            sawTerminal |= packets.PublishedHeaders().Any(entry => entry.Slot is { Command: 8, Action: 207, Sequence: 15 } && entry.Slot.Source == source);
+            return battle.Outcome != BattleOutcome.Active;
+        });
+        Assert.True(sawTerminal);
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+        Assert.Equal((byte)4, battle.NativeResult);
+        Assert.True(battle.EncounterPolicies.TerminalReached);
+        Assert.True(battle.EncounterPolicies.CleanedUp);
+        Assert.Equal(petrified ? initialHp : new int[party.Length], party.Select(actor => actor.CurrentHp).ToArray());
+        TickUntil(world, () => battle.CanReturnToField && (battle.ExpandedPresentationProcess?.TerminalFinished ?? true));
     }
 
     [Theory]
@@ -292,7 +337,7 @@ public sealed class AttachedEncounterMagicTests
         return new(headers.Select(header => (header.Command, header.Action, header.Sequence, header.Effect, header.ReadContactCount(), header.ReadRepeatModeMinusOne())).ToArray(), damage, battle.Capture().Random!.Indexes.ToArray(), opening);
     }
 
-    private static BattleDefinition BindFirePolicy(BattleDefinition definition, NativeBattleGraphicsResource? tauntResource)
+    private static BattleDefinition BindFirePolicy(BattleDefinition definition, NativeBattleGraphicsResource? tauntResource, EncounterBindingContext? context = null)
     {
         const string policyId = "fire";
         string name = tauntResource is null ? "fixture.encounter" : EncounterBindingResolver.Disc1Edea;
@@ -304,7 +349,7 @@ public sealed class AttachedEncounterMagicTests
         }
         else
         {
-            binding = EncounterBindingResolver.Resolve(name, definition, new("Classic"));
+            binding = EncounterBindingResolver.Resolve(name, definition, context ?? new("Classic"));
         }
         EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(name, "Classic", ["original"]), []);
         EncounterCompiledDefinition mod = EncounterPolicyRuntime.Compile(composition, definition, binding);

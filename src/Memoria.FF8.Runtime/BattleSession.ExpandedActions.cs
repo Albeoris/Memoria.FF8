@@ -287,7 +287,7 @@ public sealed partial class BattleSession
         {
             // 487DF0 reads a magic record for the first reflected contact.
             reflected = definition.NativeActions.SingleOrDefault(action => action.Command == 247 && action.ActionId == unchecked((byte)native.ActionId) && action.CrisisLevel is null);
-            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !(command is { NativeQueuedCommand: 2, NativeAiCallbackStage: not null } && ExpandedBattleActionRules.SupportsEnemyMagicCure(reflected)))
+            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !ExpandedBattleActionRules.SupportsMagicCure(reflected))
             {
                 RefundCancelledNativeItem(command);
                 CompleteExpandedProducedCommand(command, "The expanded host has no supported reflected spell record.");

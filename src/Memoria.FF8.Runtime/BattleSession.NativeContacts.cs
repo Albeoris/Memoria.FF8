@@ -24,6 +24,8 @@ public sealed partial class BattleSession
         public NativeBattleContactHalf? Secondary { get; set; }
         public bool CommittingSecondary { get; set; }
         public bool EncounterRedirectedDamage { get; set; }
+        public bool PrimaryDeathCallbackClearsKoMirror { get; set; }
+        public bool SecondaryDeathCallbackClearsKoMirror { get; set; }
     }
 
     private NativeContactWorking? nativeContactWorking;
@@ -109,6 +111,10 @@ public sealed partial class BattleSession
     private static NativeBattleContactPacket BuildNativeContactPacket(NativeContactWorking contact)
     {
         (ushort saved, uint battle) = contact.PrimaryStatusSnapshot ?? NativeContactStatusMirror(contact.Recipient);
+        if (contact.PrimaryDeathCallbackClearsKoMirror)
+        {
+            saved &= 0xFFFE;
+        }
         NativeBattleContactHalf primary = NativeBattleContactHalf.FromScratch(contact.PrimaryOwner, contact.Sequence, contact.Flags, contact.HitFlags, saved, contact.Magnitude, battle, contact.CoverSource);
         if (contact.Magnitude > short.MaxValue && (contact.HitFlags & 1) == 0)
         {
@@ -118,6 +124,10 @@ public sealed partial class BattleSession
         if (secondary is not null)
         {
             (ushort secondarySaved, uint secondaryBattle) = NativeContactStatusMirror(contact.Actor);
+            if (contact.SecondaryDeathCallbackClearsKoMirror)
+            {
+                secondarySaved &= 0xFFFE;
+            }
             secondary = secondary with { SavedStatuses4 = secondarySaved, BattleStatuses8 = secondaryBattle };
         }
         return new(primary, secondary);
