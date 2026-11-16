@@ -145,7 +145,7 @@ public sealed class NativeBattleEffect210TargetStorageTests
             (NativeBattleEffect210Frame tentative, int survivors) = AdvancePool(frame, ActDescriptor, resources, fixture.Inputs);
             Assert.Equal(0, survivors);
             _ = DetachCommonPool(tentative, ActDescriptor, false);
-            Assert.Throws<InvalidOperationException>(() => final.Validate());
+            Assert.Throws<ObjectDisposedException>(() => final.Validate());
         }
         Assert.Equal(count, final.Slots.Count(task => (task.Flags & 1) != 0));
         using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
@@ -155,7 +155,7 @@ public sealed class NativeBattleEffect210TargetStorageTests
             frame = DetachCommonPool(frame, ActDescriptor, false);
             operation.Commit();
         }
-        Assert.Throws<InvalidOperationException>(() => final.Validate());
+        Assert.Throws<ObjectDisposedException>(() => final.Validate());
         Assert.DoesNotContain(frame.Effect.Pools, pool => pool.DescriptorAddress == ActDescriptor);
         for (int index = 0; index < 3; index++)
         {

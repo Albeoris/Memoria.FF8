@@ -182,9 +182,8 @@ public sealed class ExpandedBattleHostTests
         records[casterRow] = records[casterRow] with { MagicInventory = stock, HitPoints = new NativeHpWord(100, 100), Junction = records[casterRow].Junction with { Commands = (uint)(magicCommand | itemCommand << 8 | drawCommand << 16) } };
         if (mass)
         {
-            byte[] bonuses = records[casterRow].StatBonuses.ToArray();
-            bonuses[2] = byte.MaxValue;
-            records[casterRow] = records[casterRow] with { StatBonuses = bonuses };
+            NativeCharacterVital vital = records[casterRow];
+            records[casterRow] = vital.WithBonusSources(vital.Growth.Sources.Add(NativeStatBonusSources.Items, 0, [0, 0, 255, 0, 0, 0], initial.LevelBasedStatBonuses));
         }
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock[] items = economy.Items.ToArray();
