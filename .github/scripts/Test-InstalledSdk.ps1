@@ -10,3 +10,5 @@ if (Get-Command dotnet -ErrorAction SilentlyContinue) {
     $available = $LASTEXITCODE -eq 0
 }
 "available=$($available.ToString().ToLowerInvariant())" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+# GitHub Actions propagates the last native exit code from pwsh steps.
+exit 0
