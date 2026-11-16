@@ -1,16 +1,42 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8;
 
 internal readonly record struct PresentationPacerObservation(bool Enabled, long Calls, long TimerCalls, long TimerTicks, long Resets, int FrameLimit, long Invalid);
-internal readonly record struct DiagnosticPacingSample(long Frame, long PresentedTicks, long IntervalTicks, long PresentBeginTicks, long PresentEndTicks, long TimerWaitTicks, long PacerCalls, long TimerCalls, long ResetGeneration, int FrameLimit, DiagnosticHostFramePhases? HostPhases);
+internal readonly record struct DiagnosticPacingSample(long Frame, long PresentedTicks, long IntervalTicks, long PresentBeginTicks, long PresentEndTicks, long TimerWaitTicks, long PacerCalls, long TimerCalls, long ResetGeneration, int FrameLimit, DiagnosticHostFramePhases? HostPhases)
+{
+    internal DiagnosticGcPauseDelta? GcPause { get; init; }
+}
+internal readonly record struct DiagnosticGcPauseObservation(long Timestamp, long TotalPauseTimeSpanTicks, int Gen2Collections)
+{
+    internal static DiagnosticGcPauseObservation Capture()
+    {
+        long pause = GC.GetTotalPauseDuration().Ticks;
+        int gen2 = GC.CollectionCount(2);
+        return new(Stopwatch.GetTimestamp(), pause, gen2);
+    }
+}
+internal readonly record struct DiagnosticGcPauseDelta(long ObservationBeginTicks, long ObservationEndTicks, long PauseTimeSpanTicks, int Gen2Collections);
+// Process-wide cumulative-counter correlation, not an extra phase or an exact frame-local pause measurement.
+// Counter publication can lag a pause; observation boundaries can follow the associated Present boundaries.
+internal sealed record DiagnosticGcPauseAnnotation(long ObservationBeginTicks, long ObservationEndTicks, double ReportedProcessGcPauseMilliseconds, int Gen2Collections);
 internal sealed record DiagnosticPacingDuration(long Count, double TotalMilliseconds, double MinimumMilliseconds, double MedianMilliseconds, double P95Milliseconds, double MaximumMilliseconds);
 internal sealed record DiagnosticPacingLimit(int FrameLimit, int Samples);
+internal sealed record DiagnosticExclusiveHostPhases(double UpdateOtherMilliseconds, double BattlePresentationMilliseconds, double DrawOtherMilliseconds, double BattleSceneMilliseconds, double PostPresentMilliseconds, double UninstrumentedMilliseconds);
+internal sealed record DiagnosticNativeIntervalPhases(long Callbacks, double TotalMilliseconds, double SetupMilliseconds, double RequestsAndEffectsMilliseconds, double PacketsContactsAndStatusMilliseconds, double ModelsMilliseconds, double StageAndProducerCommitMilliseconds, double CameraAndSoundMilliseconds, double OrderingExecutionMilliseconds, double RenderTailMilliseconds, double SceneReplayMilliseconds, double CompletionMilliseconds);
+// Host phases, timer wait and Present partition the interval. Native phases subdivide BattlePresentationMilliseconds.
+internal sealed record DiagnosticSlowPresent(long Frame, long IntervalBeginTicks, long PresentedTicks, long PresentBeginTicks, long PresentEndTicks, int FrameLimit, double IntervalMilliseconds, double TimerWaitMilliseconds, double PresentMilliseconds, string HostPhaseStatus, DiagnosticExclusiveHostPhases? HostPhases, DiagnosticNativeIntervalPhases? NativePhases)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticGcPauseAnnotation? GcPauseAnnotation { get; init; }
+}
 internal sealed record DiagnosticHostPhaseSummary(int Samples, int ExcludedSamples, DiagnosticPacingDuration UpdateExcludingTimerWait, DiagnosticPacingDuration BattlePresentationUpdate, DiagnosticPacingDuration Draw, DiagnosticPacingDuration BattleSceneRender, DiagnosticPacingDuration PostPresent, DiagnosticPacingDuration Uninstrumented);
 internal sealed record DiagnosticPacingSummary(long TimestampFrequency, int Capacity, long Observations, long InvalidObservations, long OverflowObservations, int Samples, long PacerCalls, long TimerCalls, long ResetCalls, DiagnosticPacingLimit[] FrameLimits, DiagnosticPacingDuration Interval, DiagnosticPacingDuration TimerWait, DiagnosticPacingDuration Present, DiagnosticPacingDuration Other)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticHostPhaseSummary? HostPhases { get; init; }
+    public DiagnosticSlowPresent[] SlowestPresents { get; init; } = [];
 }
 internal readonly record struct DiagnosticPacingProgressDuration(double TotalMilliseconds, double MaximumMilliseconds);
 internal sealed record DiagnosticPacingProgress(long TimestampFrequency, int Capacity, long Observations, long InvalidObservations, long OverflowObservations, int Samples, long PacerCalls, long TimerCalls, long ResetCalls, DiagnosticPacingProgressDuration Interval, DiagnosticPacingProgressDuration TimerWait, DiagnosticPacingProgressDuration Present, DiagnosticPacingProgressDuration Other);
@@ -21,6 +47,7 @@ internal sealed class DiagnosticPresentationPacing
     private readonly DiagnosticPacingSample[] samples;
     private readonly long frequency;
     private PresentationPacerObservation previous;
+    private DiagnosticGcPauseObservation previousGcPause;
     private readonly long initialResets;
     private long preceding;
     private int count;
@@ -28,10 +55,11 @@ internal sealed class DiagnosticPresentationPacing
     private long invalid;
     private long overflow;
 
-    internal DiagnosticPresentationPacing(long frequency, int capacity, long preceding, PresentationPacerObservation baseline)
+    internal DiagnosticPresentationPacing(long frequency, int capacity, long preceding, PresentationPacerObservation baseline, DiagnosticGcPauseObservation? gcBaseline = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frequency);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+        previousGcPause = gcBaseline ?? DiagnosticGcPauseObservation.Capture();
         this.frequency = frequency;
         samples = new DiagnosticPacingSample[capacity];
         this.preceding = preceding;
@@ -39,8 +67,9 @@ internal sealed class DiagnosticPresentationPacing
         initialResets = baseline.Resets;
     }
 
-    internal void Record(long frame, long presented, long presentBegin, long presentEnd, PresentationPacerObservation observation, DiagnosticHostFramePhases? hostPhases = null)
+    internal void Record(long frame, long presented, long presentBegin, long presentEnd, PresentationPacerObservation observation, DiagnosticHostFramePhases? hostPhases = null, DiagnosticGcPauseObservation? gcObservation = null)
     {
+        DiagnosticGcPauseObservation gc = gcObservation ?? DiagnosticGcPauseObservation.Capture();
         observations++;
         bool valid = observation.Enabled && presented > preceding && presentBegin >= preceding && presentEnd >= presentBegin && presentEnd <= presented && observation.Calls >= previous.Calls && observation.TimerCalls >= previous.TimerCalls && observation.TimerTicks >= previous.TimerTicks && observation.Resets >= previous.Resets && observation.Invalid == previous.Invalid && observation.TimerTicks - previous.TimerTicks <= presented - preceding - (presentEnd - presentBegin);
         if (!valid)
@@ -53,10 +82,16 @@ internal sealed class DiagnosticPresentationPacing
         }
         else
         {
-            samples[count++] = new(frame, presented, presented - preceding, presentBegin, presentEnd, observation.TimerTicks - previous.TimerTicks, observation.Calls - previous.Calls, observation.TimerCalls - previous.TimerCalls, observation.Resets, observation.FrameLimit, hostPhases);
+            samples[count++] = new(frame, presented, presented - preceding, presentBegin, presentEnd, observation.TimerTicks - previous.TimerTicks, observation.Calls - previous.Calls, observation.TimerCalls - previous.TimerCalls, observation.Resets, observation.FrameLimit, hostPhases)
+            {
+                GcPause = gc.Timestamp >= previousGcPause.Timestamp && previousGcPause.TotalPauseTimeSpanTicks >= 0 && gc.TotalPauseTimeSpanTicks >= previousGcPause.TotalPauseTimeSpanTicks && previousGcPause.Gen2Collections >= 0 && gc.Gen2Collections >= previousGcPause.Gen2Collections
+                    ? new(previousGcPause.Timestamp, gc.Timestamp, gc.TotalPauseTimeSpanTicks - previousGcPause.TotalPauseTimeSpanTicks, gc.Gen2Collections - previousGcPause.Gen2Collections)
+                    : null
+            };
         }
         preceding = presented;
         previous = observation;
+        previousGcPause = gc;
     }
 
     internal DiagnosticPacingProgress SnapshotProgress()
@@ -105,7 +140,30 @@ internal sealed class DiagnosticPresentationPacing
         long resets = observed.Length == 0 && throughTimestamp.HasValue ? 0 : finalResets - initialResets;
         return new(frequency, samples.Length, observations, invalid, overflow, included, observed.Sum(sample => sample.PacerCalls), observed.Sum(sample => sample.TimerCalls), resets, observed.GroupBy(sample => sample.FrameLimit).Select(group => new DiagnosticPacingLimit(group.Key, group.Count())).ToArray(), Summarize(observed.Select(sample => sample.IntervalTicks)), Summarize(observed.Select(sample => sample.TimerWaitTicks)), Summarize(observed.Select(sample => sample.PresentEndTicks - sample.PresentBeginTicks)), Summarize(observed.Select(sample => sample.IntervalTicks - sample.TimerWaitTicks - (sample.PresentEndTicks - sample.PresentBeginTicks))))
         {
-            HostPhases = SummarizeHostPhases(observed)
+            HostPhases = SummarizeHostPhases(observed),
+            SlowestPresents = observed.OrderByDescending(sample => sample.IntervalTicks).Take(10).Select(DescribeSlowPresent).ToArray()
+        };
+    }
+
+    private DiagnosticSlowPresent DescribeSlowPresent(DiagnosticPacingSample sample)
+    {
+        double milliseconds = 1000d / frequency;
+        DiagnosticExclusiveHostPhases? host = null;
+        DiagnosticNativeIntervalPhases? native = null;
+        string status = sample.HostPhases is null ? "Unavailable" : "OverlappingBoundary";
+        if (sample.HostPhases is { } phases && phases.FitsInterval(sample.TimerWaitTicks, NonPresentTicks(sample)))
+        {
+            status = "Aligned";
+            host = new((phases.Update - sample.TimerWaitTicks - phases.BattlePresentationUpdate) * milliseconds, phases.BattlePresentationUpdate * milliseconds, (phases.Draw - phases.BattleSceneRender) * milliseconds, phases.BattleSceneRender * milliseconds, phases.PostPresent * milliseconds, (NonPresentTicks(sample) - phases.Update - phases.Draw - phases.PostPresent) * milliseconds);
+            DiagnosticNativeFramePhases timing = phases.Native;
+            if (timing.Total <= phases.BattlePresentationUpdate)
+            {
+                native = new(timing.Callbacks, timing.Total * milliseconds, timing.Setup * milliseconds, timing.RequestsAndEffects * milliseconds, timing.PacketsContactsAndStatus * milliseconds, timing.Models * milliseconds, timing.StageAndProducerCommit * milliseconds, timing.CameraAndSound * milliseconds, timing.OrderingExecution * milliseconds, timing.RenderTail * milliseconds, timing.SceneReplay * milliseconds, timing.Completion * milliseconds);
+            }
+        }
+        return new(sample.Frame, sample.PresentedTicks - sample.IntervalTicks, sample.PresentedTicks, sample.PresentBeginTicks, sample.PresentEndTicks, sample.FrameLimit, sample.IntervalTicks * milliseconds, sample.TimerWaitTicks * milliseconds, (sample.PresentEndTicks - sample.PresentBeginTicks) * milliseconds, status, host, native)
+        {
+            GcPauseAnnotation = sample.GcPause is { } gc ? new(gc.ObservationBeginTicks, gc.ObservationEndTicks, gc.PauseTimeSpanTicks / (double)TimeSpan.TicksPerMillisecond, gc.Gen2Collections) : null
         };
     }
 

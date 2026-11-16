@@ -595,6 +595,7 @@ internal sealed partial class RecreateGame
     private void AdvanceMeasuredBattlePresentation(BattleSession active, TimeSpan elapsed)
     {
         using DiagnosticHostPhaseTiming.Scope presentationTimingScope = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.BattlePresentationUpdate);
+        using NativeBattlePhaseTiming.ObservationScope nativeTimingScope = NativeBattlePhaseTiming.Observe(diagnosticHostPhaseTiming.Enabled ? diagnosticHostPhaseTiming : null);
         active.AdvanceNativeGraphicsPresentation(elapsed);
     }
 

@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -99,104 +99,121 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (services is not null)
-        {
-            services.Validate(nativeActionPackets.Roster, graphics);
-        }
-        graphics.Validate();
-        uint flags = graphics.Flags;
-        if (graphics.EntryLifecycle == 1)
-        {
-            graphics = services is null ? QueueNativeEntryModels(graphics) : QueueHostedNativeEntryModels(graphics);
-        }
-        //500900: descriptor/callback listAA4, then published effect listAA8, then model listA94, then camera5033E0.
+        NativeBattlePhaseTiming.CallbackScope phaseTiming = NativeBattlePhaseTiming.BeginCallback();
         try
         {
-            graphics = AdvanceNativeGraphicsRequests(graphics);
-            if (services is null)
+            if (services is not null)
             {
-                graphics = AdvanceEncounterAllocationRetirements(graphics);
-                graphics = AdvanceEncounterAllocationPreparation(graphics);
-                graphics = AdvanceEncounterPolicySpawn(graphics, this);
+                services.Validate(nativeActionPackets.Roster, graphics);
             }
+            graphics.Validate();
+            uint flags = graphics.Flags;
+            if (graphics.EntryLifecycle == 1)
+            {
+                graphics = services is null ? QueueNativeEntryModels(graphics) : QueueHostedNativeEntryModels(graphics);
+            }
+            //500900: descriptor/callback listAA4, then published effect listAA8, then model listA94, then camera5033E0.
+            phaseTiming.Advance(NativeBattleTimedPhase.RequestsAndEffects);
+            try
+            {
+                graphics = AdvanceNativeGraphicsRequests(graphics);
+                if (services is null)
+                {
+                    graphics = AdvanceEncounterAllocationRetirements(graphics);
+                    graphics = AdvanceEncounterAllocationPreparation(graphics);
+                    graphics = AdvanceEncounterPolicySpawn(graphics, this);
+                }
+                flags = graphics.Flags;
+                graphics = AdvanceNativeAuxiliary(graphics);
+                graphics = AdvanceNativeModuleEffects(graphics);
+                graphics = AdvanceNativeOriginalEffect(graphics);
+                graphics = AdvanceGuardianFormPresentation(graphics, services);
+            }
+            catch when (services is null && GuardianFormOwnsCurrentPresentation())
+            {
+                FailOwnedGuardianFormPresentation();
+                throw;
+            }
+            phaseTiming.Advance(NativeBattleTimedPhase.PacketsContactsAndStatus);
             flags = graphics.Flags;
-            graphics = AdvanceNativeAuxiliary(graphics);
-            graphics = AdvanceNativeModuleEffects(graphics);
-            graphics = AdvanceNativeOriginalEffect(graphics);
-            graphics = AdvanceGuardianFormPresentation(graphics, services);
-        }
-        catch when (services is null && GuardianFormOwnsCurrentPresentation())
-        {
-            FailOwnedGuardianFormPresentation();
-            throw;
-        }
-        flags = graphics.Flags;
-        graphics = SubmitNativeModulePackets(graphics);
-        graphics = ConsumeNativeGraphicsContacts(graphics);
-        NativeBattleEffectsStep effects = graphics.Effects.Advance(graphics.ActorModels, owner => ProjectNativeDamageText(graphics, owner));
-        foreach (BattleModelOwner owner in effects.ResetModelStatuses)
-        {
-            graphics = ApplyNativeGraphicsStatus509CD0(graphics, owner, 16);
-        }
-        graphics = graphics with { Effects = effects.State };
-        graphics = FrameGuardianFormIdleCamera(graphics, services?.GuardianForm);
-        using NativeBattleLogicalOrderingTransaction? ordering = definition.NativeGraphics?.PrimitiveTables is not null && graphics.PrimitiveFrame is { } primitiveFrame ? new(primitiveFrame.Pending) : null;
-        using NativeBattleCommonPacketTransaction? common = ordering is not null ? new(NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native model producers require their retained common packet process.")) : null;
-        if (ordering is not null)
-        {
-            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
-            NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = common!.View };
-        }
-        try
-        {
-            graphics = AdvanceNativeLoadedModels(graphics, flags, services);
-            graphics = AdvanceNativeStage506C30(graphics);
+            graphics = SubmitNativeModulePackets(graphics);
+            graphics = ConsumeNativeGraphicsContacts(graphics);
+            NativeBattleEffectsStep effects = graphics.Effects.Advance(graphics.ActorModels, owner => ProjectNativeDamageText(graphics, owner));
+            foreach (BattleModelOwner owner in effects.ResetModelStatuses)
+            {
+                graphics = ApplyNativeGraphicsStatus509CD0(graphics, owner, 16);
+            }
+            graphics = graphics with { Effects = effects.State };
+            graphics = FrameGuardianFormIdleCamera(graphics, services?.GuardianForm);
+            using NativeBattleLogicalOrderingTransaction? ordering = definition.NativeGraphics?.PrimitiveTables is not null && graphics.PrimitiveFrame is { } primitiveFrame ? new(primitiveFrame.Pending) : null;
+            using NativeBattleCommonPacketTransaction? common = ordering is not null ? new(NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native model producers require their retained common packet process.")) : null;
             if (ordering is not null)
             {
-                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
-                NativeBattleEffectMemory produced = NativeEffectMemory ?? throw new NotSupportedException("Native model producers lost their retained common packet process.");
-                NativeEffectMemory = produced with { PrimitiveProcess = common!.Freeze(produced.PrimitiveProcess ?? throw new NotSupportedException("Native model producers lost their retained common packet process.")) };
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
+                NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = common!.View };
             }
-        }
-        catch
-        {
-            if (common is not null && NativeEffectMemory is { PrimitiveProcess: { } publishedProcess } publishedMemory && ReferenceEquals(publishedProcess.CommonTransaction, common))
+            try
             {
-                NativeEffectMemory = publishedMemory with { PrimitiveProcess = common.Freeze(publishedProcess) };
+                phaseTiming.Advance(NativeBattleTimedPhase.Models);
+                graphics = AdvanceNativeLoadedModels(graphics, flags, services);
+                phaseTiming.Advance(NativeBattleTimedPhase.StageAndProducerCommit);
+                graphics = AdvanceNativeStage506C30(graphics);
+                if (ordering is not null)
+                {
+                    graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+                    NativeBattleEffectMemory produced = NativeEffectMemory ?? throw new NotSupportedException("Native model producers lost their retained common packet process.");
+                    NativeEffectMemory = produced with { PrimitiveProcess = common!.Freeze(produced.PrimitiveProcess ?? throw new NotSupportedException("Native model producers lost their retained common packet process.")) };
+                }
             }
-            if (ordering is not null && NativeGraphics is { PrimitiveFrame: { } published } && ReferenceEquals(published.Pending.Transaction, ordering))
+            catch
             {
-                NativeGraphics = NativeGraphics with { PrimitiveFrame = published with { Pending = ordering.Freeze() } };
+                if (common is not null && NativeEffectMemory is { PrimitiveProcess: { } publishedProcess } publishedMemory && ReferenceEquals(publishedProcess.CommonTransaction, common))
+                {
+                    NativeEffectMemory = publishedMemory with { PrimitiveProcess = common.Freeze(publishedProcess) };
+                }
+                if (ordering is not null && NativeGraphics is { PrimitiveFrame: { } published } && ReferenceEquals(published.Pending.Transaction, ordering))
+                {
+                    NativeGraphics = NativeGraphics with { PrimitiveFrame = published with { Pending = ordering.Freeze() } };
+                }
+                throw;
             }
-            throw;
-        }
-        // The committed owners are reused by the render tail; its resets are outside the producer journals.
-        common?.Dispose();
-        ordering?.Dispose();
-        nativePilotSourceProjection = NativeCamera?.Projection;
-        nativePilotSourceCamera = EncounterPresentationCamera;
-        NativeGraphics = graphics with { Callback = checked(graphics.Callback + 1) };
-        AdvanceNativeCamera(flags);
-        if (NativeCamera is not null)
-        {
-            NativeCamera = NativeCamera.PublishProjection(flags, presentationPose: PrepareEncounterCamera(NativeCamera));
-        }
-        //The original loc_5005A0 tail calls501B60 at50065E regardless of flags4/8, before501230 and505D20.
-        DrainNativeMusic501B60();
-        if (NativeEffectMemory is { } effectMemory)
-        {
-            effectMemory = effectMemory.PublishSound();
-            if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
+            // The committed owners are reused by the render tail; its resets are outside the producer journals.
+            common?.Dispose();
+            ordering?.Dispose();
+            phaseTiming.Advance(NativeBattleTimedPhase.CameraAndSound);
+            nativePilotSourceProjection = NativeCamera?.Projection;
+            nativePilotSourceCamera = EncounterPresentationCamera;
+            NativeGraphics = graphics with { Callback = checked(graphics.Callback + 1) };
+            AdvanceNativeCamera(flags);
+            if (NativeCamera is not null)
             {
-                effectMemory = DrainNativeTextureUploads(effectMemory, textures);
+                NativeCamera = NativeCamera.PublishProjection(flags, presentationPose: PrepareEncounterCamera(NativeCamera));
             }
-            NativeEffectMemory = effectMemory;
+            //The original loc_5005A0 tail calls501B60 at50065E regardless of flags4/8, before501230 and505D20.
+            DrainNativeMusic501B60();
+            if (NativeEffectMemory is { } effectMemory)
+            {
+                effectMemory = effectMemory.PublishSound();
+                if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
+                {
+                    effectMemory = DrainNativeTextureUploads(effectMemory, textures);
+                }
+                NativeEffectMemory = effectMemory;
+            }
+            phaseTiming.Advance(NativeBattleTimedPhase.OrderingExecution);
+            NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
+            phaseTiming.Advance(NativeBattleTimedPhase.RenderTail);
+            NativeGraphics = PublishNativePcRenderTail47CF60(NativeGraphics);
+            phaseTiming.Advance(NativeBattleTimedPhase.SceneReplay);
+            NativeGraphics = RetainNativeSceneReplaySource(NativeGraphics);
+            phaseTiming.Advance(NativeBattleTimedPhase.Completion);
+            ObserveDiagnosticInvocationGraphicsFrameEnd();
+            ObserveDiagnosticInvocationAftercareFrameEnd();
         }
-        NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
-        NativeGraphics = PublishNativePcRenderTail47CF60(NativeGraphics);
-        NativeGraphics = RetainNativeSceneReplaySource(NativeGraphics);
-        ObserveDiagnosticInvocationGraphicsFrameEnd();
-        ObserveDiagnosticInvocationAftercareFrameEnd();
+        finally
+        {
+            phaseTiming.Dispose();
+        }
     }
 
     private NativeBattleEffectMemory DrainNativeTextureUploads(NativeBattleEffectMemory memory, NativeBattleEffectTextureState textures)
