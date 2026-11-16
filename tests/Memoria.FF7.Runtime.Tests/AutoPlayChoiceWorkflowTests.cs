@@ -40,6 +40,8 @@ internal static class AutoPlayChoiceWorkflowTests
         RestorePending();
         Check(NativeJson(snapshot) == primaryChild, "Finishing the parent must restore the primary continuation rather than the last alternative.");
         Check(state.Coverage.Choices.All(choice => choice.Finished && choice.CompletedOptions.Count == 2), "Cold native restores must retain all observed shared choice coverage.");
+        RunMissingCheckpoint(false);
+        RunMissingCheckpoint(true);
 
         Ff7AutoPlayChoiceWorkflow CreateWorkflow()
         {
@@ -69,6 +71,50 @@ internal static class AutoPlayChoiceWorkflowTests
                 checkpoints.Remove(retired);
             }
         }
+    }
+
+    private static void RunMissingCheckpoint(bool completePriorOption)
+    {
+        Dictionary<string, Ff7SessionSave> checkpoints = new(StringComparer.Ordinal);
+        Ff7SessionSave snapshot = Fixture(1, 104, 2, 3);
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => snapshot, planner, state, (key, save) =>
+        {
+            string path = key + ".ffsave";
+            checkpoints[path] = save;
+            return path;
+        }, checkpoints.ContainsKey);
+        Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 2, "The authored parent choice did not begin.");
+        Ff7AutoPlayChoiceState parent = state.Choice!;
+        snapshot = Fixture(2, 105, 4, 6);
+        Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 4, "The authored nested choice did not begin.");
+        AutoPlayChoiceCoverage child = planner.State.Choices.Single(choice => choice.Key == state.Choice!.Key);
+        snapshot = Continuation(snapshot, 11);
+        string primaryContinuation = NativeJson(snapshot);
+        if (completePriorOption)
+        {
+            Check(workflow.CompleteAtControlReturn(), "The first observed option did not record its primary continuation.");
+            snapshot = checkpoints[state.PendingRestore!.Path];
+            state.PendingRestore = null;
+            Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 5, "The second observed option did not begin from the exact before-choice boundary.");
+            snapshot = Continuation(snapshot, 29);
+        }
+        checkpoints.Remove(child.BeforeCheckpoint!);
+        string unchangedNative = NativeJson(snapshot);
+        Check(workflow.CompleteAtControlReturn(), "A missing optional before-choice checkpoint prevented native continuation.");
+        Check(NativeJson(snapshot) == unchangedNative, "Deferring missing exploration changed current native progress or RNG.");
+        Check(child.CompletedOptions.SequenceEqual(completePriorOption ? new[] { 4, 5 } : new[] { 4 }), "Missing optional exploration changed the observed completed options.");
+        Check(child.PolicyDeferredOptions.SetEquals(completePriorOption ? new[] { 6 } : new[] { 5, 6 }), "Unobserved alternatives were completed or omitted rather than deferred.");
+        Check(child.PolicyExhausted && !child.Finished, "Deferred coverage was incorrectly reported as fully observed.");
+        Check(state.Status?.Contains("before-choice checkpoint is missing", StringComparison.Ordinal) == true, "Missing optional exploration omitted its explicit status warning.");
+        Check(state.Choice == parent && planner.State.Choices.Single(choice => choice.Key == parent.Key).ActiveOption == 2, "Missing nested exploration discarded or completed its parent.");
+        Ff7AutoPlayRestoreRequest restore = state.PendingRestore!;
+        Check(restore.Path == child.ContinuationCheckpoint && checkpoints.ContainsKey(restore.Path), "Missing optional exploration queued its absent before-choice checkpoint.");
+        snapshot = checkpoints[restore.Path];
+        state.PendingRestore = null;
+        Check(NativeJson(snapshot) == primaryContinuation, "Missing optional exploration failed to restore the exact native primary continuation, including PC, variables and RNG.");
+        Check(snapshot.AutoPlay is null && state.Choice == parent, "Restoring the native continuation replaced its surviving exploration parent.");
     }
 
     private static Ff7SessionSave Fixture(long requestId, int pc, int first, int last)

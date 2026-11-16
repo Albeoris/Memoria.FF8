@@ -4,13 +4,13 @@ using Memoria.FF7.Formats;
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Shared autoplay lifecycle around a game-native FFVII policy and host-owned presentation.</summary>
-public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null, Action<bool>? advanceShop = null)
+public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDriver, Ff7AutoplayInput> chooseInput, Action? present = null, Action<Ff7SessionSave>? checkpoint = null, TimeProvider? clock = null, Action? advanceTick = null, Func<Ff7Dialogue, int?>? chooseDialogueSelection = null, Func<Ff7Dialogue, bool>? advanceDialoguePresentation = null, Func<bool>? hasReachedGoal = null, Action<bool>? advanceShop = null)
 {
     private readonly Ff7AutoplayDriver driver = new(session);
     private readonly List<string> recent = [];
     private readonly AutoPlayIdleDeadline deadline = new(clock ?? TimeProvider.System, TimeSpan.FromSeconds(10));
     private readonly Ff7AutoPlayTransitionGuard transitions = new();
-    private string? previousProgress;
+    private readonly Ff7AutoPlayProgressWatchdog progressWatchdog = new();
     private Ff7SessionSave lastSafe = session.Capture();
 
     public bool Running { get; private set; }
@@ -31,6 +31,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         Paused = false;
         deadline.Reset();
         transitions.Reset();
+        progressWatchdog.Reset();
         CaptureCheckpoint();
     }
 
@@ -48,10 +49,12 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
         }
         Paused = false;
         deadline.Reset();
+        progressWatchdog.Reset();
     }
 
     public void ResetIdleDeadline()
     {
+        // Host pauses exclude elapsed wall time; they do not establish native progress.
         deadline.Reset();
     }
 
@@ -77,17 +80,13 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                     lastSafe = session.Capture();
                     if (session.ChocoboRace is { } race)
                     {
-                        string raceProgress = $"chocobo:{race.Phase}:" + string.Join(';', race.Racers.Select(racer => $"{racer.Path},{racer.Position},{racer.Stamina},{racer.Placement}"));
-                        if (raceProgress != previousProgress)
-                        {
-                            previousProgress = raceProgress;
-                            deadline.Reset();
-                        }
-                        if (deadline.Expired)
-                        {
-                            throw new TimeoutException("FFVII autoplay made no native Chocobo race progress within its idle deadline.");
-                        }
+                        string raceProgress = $"chocobo:{race.Phase}:{race.Countdown}:{race.FadeAlpha}:{race.DisplayedFadeAlpha}:{race.RecoveryCount}:" + string.Join(';', race.Racers.Select(racer => $"{racer.Path},{racer.Position},{racer.Stamina},{racer.Placement}"));
+                        ObserveProgress(raceProgress);
                         session.SetChocoboInput(Ff7ChocoboAutoPlay.ChooseInput(race));
+                    }
+                    else
+                    {
+                        ObserveProgress("chocobo:pending");
                     }
                     long generation = session.FieldGeneration;
                     if (advanceTick is null)
@@ -109,16 +108,7 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                 {
                     present?.Invoke();
                     lastSafe = session.Capture();
-                    string shopProgress = $"shop:{shop.RequestId}:{shop.Phase}:{shop.Tick}";
-                    if (previousProgress != shopProgress)
-                    {
-                        previousProgress = shopProgress;
-                        deadline.Reset();
-                    }
-                    if (deadline.Expired)
-                    {
-                        throw new TimeoutException("FFVII autoplay made no native shop progress within its idle deadline.");
-                    }
+                    ObserveProgress($"shop:{shop.RequestId}:{shop.Phase}:{shop.Alpha}:{shop.DisplayedAlpha}:{shop.LastTransaction?.Transaction.Id}");
                     bool cancel = shop.Phase == Ff7ShopPhase.Interactive;
                     AutoPlayRecording.AppendRecent(recent, $"{session.Field.Name} shop {shop.ShopId}:{shop.Tick} {(cancel ? "cancel" : "native callback")}");
                     if (advanceShop is null)
@@ -155,19 +145,9 @@ public sealed class Ff7AutoPlayController(Ff7Session session, Func<Ff7AutoplayDr
                     + string.Join(";", observed.Process.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
                 if (observed.World is { } world)
                 {
-                    progress = $"world:{world.WorldId}:{world.MovementEnabled}:{world.MainState}:{world.FadeAlpha}:"
-                        + string.Join(";", world.Entities.Select(entity => $"{entity.Model},{entity.X},{entity.Y},{entity.Z},{entity.TerrainResolved}"))
-                        + string.Join(";", world.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
+                    progress = WorldProgress(world);
                 }
-                if (progress != previousProgress)
-                {
-                    previousProgress = progress;
-                    deadline.Reset();
-                }
-                if (deadline.Expired)
-                {
-                    throw new TimeoutException("FFVII autoplay made no native scene, dialogue or battle progress within its idle deadline.");
-                }
+                ObserveProgress(progress);
                 Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
                 string action = continuingTick ? "resume native cycle" : input.ToString();
                 AutoPlayRecording.AppendRecent(recent, AutoPlayRecording.LimitActionText($"{session.Field.Name}:{session.Host.Process.Tick} {action}"));

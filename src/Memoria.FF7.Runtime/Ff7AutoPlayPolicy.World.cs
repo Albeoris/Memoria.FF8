@@ -266,7 +266,7 @@ public sealed partial class Ff7AutoPlayPolicy
         planner.ObserveNavigation(worldVisit, navigation, events.Values.ToArray());
         visited.GlobalReads = visited.GlobalReads.Concat(worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).SelectMany(script => script.Analysis.Reads).Where(read => (read.Opcode & 3) == 0)).Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray();
         visited.GlobalFingerprint = world.Machine.ReadPredicateFingerprint(visited.GlobalReads);
-        bool ready = world.Process.Initialized && world.Process.MovementEnabled && world.Process.ControlLock == 0 && world.Process.MainState == 1 && world.Process.Dialogue is not { Completed: false };
+        bool ready = world.Process.Initialized && world.Process.MovementEnabled && world.Process.MainState == 1 && world.Process.Dialogue is not { Completed: false };
         return new(worldVisit, vm.ProgramIdentity, session.FieldGeneration, [], ready, true) { NavigationKey = navigation };
     }
 

@@ -32,7 +32,7 @@ public sealed partial class Ff7WorldRuntime
     internal Ff7AutoPlayWorldMovementPreview PreviewAutoPlayInput(Ff7AutoplayInput action, Ff7AutoPlayWorldMovementState? source = null)
     {
         EnsureHealthy();
-        if (!initialized || mainState != 1 || !movementEnabled || controlLock != 0 || controlledModel < 0 || mapTransfer is not null || fieldDeparture is not null || pendingWorldBattle is not null)
+        if (!initialized || mainState != 1 || !movementEnabled || controlledModel < 0 || mapTransfer is not null || fieldDeparture is not null || pendingWorldBattle is not null)
         {
             return new(false, "The current world phase cannot admit a physical input preview.");
         }

@@ -15,17 +15,19 @@ public sealed class Ff7AutoPlayChoiceWorkflow
     private readonly AutoPlayPlanner<Ff7AutoPlayDeferral> planner;
     private readonly Ff7AutoPlayState state;
     private readonly Func<string, Ff7SessionSave, string> writeCheckpoint;
+    private readonly Func<string, bool> checkpointExists;
 
-    public Ff7AutoPlayChoiceWorkflow(Ff7Session session, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint) : this(session.Capture, planner, state, writeCheckpoint)
+    public Ff7AutoPlayChoiceWorkflow(Ff7Session session, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint) : this(session.Capture, planner, state, writeCheckpoint, File.Exists)
     {
     }
 
-    internal Ff7AutoPlayChoiceWorkflow(Func<Ff7SessionSave> capture, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint)
+    internal Ff7AutoPlayChoiceWorkflow(Func<Ff7SessionSave> capture, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint, Func<string, bool>? checkpointExists = null)
     {
         this.capture = capture;
         this.planner = planner;
         this.state = state;
         this.writeCheckpoint = writeCheckpoint;
+        this.checkpointExists = checkpointExists ?? (_ => true);
     }
 
     public IReadOnlyList<AutoPlayChoiceSelection> Selections
@@ -115,6 +117,15 @@ public sealed class Ff7AutoPlayChoiceWorkflow
         }
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
+        if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is string beforeCheckpoint && !checkpointExists(beforeCheckpoint))
+        {
+            foreach (int option in Enumerable.Range(coverage.FirstOption, coverage.OptionCount).Where(option => !coverage.CompletedOptions.Contains(option)))
+            {
+                coverage.PolicyDeferredOptions.Add(option);
+            }
+            state.Status = "Optional choice exploration was deferred because its before-choice checkpoint is missing; preserving the recorded native continuation.";
+            next = planner.PlanChoice(choice.Key);
+        }
         if (next.Kind == AutoPlayChoiceStepKind.Replay)
         {
             state.Active = choice.BeforeActive;
