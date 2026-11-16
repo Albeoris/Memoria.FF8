@@ -14,7 +14,7 @@ public static partial class NativeBattleResonance49Controller
         {
             throw new InvalidDataException("Resonance activation requires its six inactive physical bank owners.");
         }
-        NativeBattleEffectHierarchy hierarchy = new(Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());
+        (frame, NativeBattleEffectHierarchy hierarchy) = InitializeHierarchy(frame, inputs);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x821690, 100);
         hierarchy = root.Hierarchy.Write(root.Address, NativeBattleEffectRootTask.Initialize(root.Hierarchy.Read(root.Address), Parameters(frame), inputs.Packets));
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x26464D8)?.ArenaOffset ?? throw new NotSupportedException("Resonance requires its executed texture initializer.");
@@ -50,7 +50,9 @@ public static partial class NativeBattleResonance49Controller
         {
             NativeBattleCureFamilyPool expected = Pools[index];
             NativeBattleEffectTaskPool actual = frame.Effect.Pools[index];
-            if (actual.DescriptorAddress != expected.Descriptor || actual.BankAddress != expected.Bank || actual.Stride != expected.Stride || actual.Slots.Length != expected.Capacity)
+            int capacity = index == ScreenReactionPoolIndex ? ScreenReactionCapacity(frame, inputs) : expected.Capacity;
+            bool located = capacity == expected.Capacity ? actual.BankAddress == expected.Bank : NativeBattlePresentationTaskStorage.IsHostedBank(actual.BankAddress, expected.Stride, capacity);
+            if (actual.DescriptorAddress != expected.Descriptor || !located || actual.Stride != expected.Stride || actual.Slots.Length != capacity)
             {
                 throw new InvalidDataException("Resonance physical task bank does not match its selected descriptor.");
             }

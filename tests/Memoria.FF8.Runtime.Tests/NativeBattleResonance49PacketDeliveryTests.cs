@@ -30,6 +30,15 @@ public sealed class NativeBattleResonance49PacketDeliveryTests
         Assert.Empty(result.Ordering.Proxies[1].VertexPayload4);
         Assert.Equal(0xE1000020u, U32(output.ReadCommonPacket(60, 4)));
         Assert.Equal((byte)0x2D, output.ReadCommonPacket(23, 1)[0]);
+        foreach (int offset in new[] { 4, 5, 6, 14, 15, 30, 31, 38, 39 })
+        {
+            var (bytes, known) = output.ReadCommonPacketSnapshot(16 + offset, 1);
+            Assert.Equal(retained, known[0]);
+            if (retained)
+            {
+                Assert.Equal((byte)0xA5, bytes[0]);
+            }
+        }
         if (retained)
         {
             Assert.Equal(new byte[] { 0xA5 }, output.ReadCommonPacket(20, 1));
@@ -112,7 +121,12 @@ public sealed class NativeBattleResonance49PacketDeliveryTests
         byte[] data = packet.Data.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(22), page);
         ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
-        return packet with { Data = data.ToImmutableArray(), WriteMask = Known(40).SetItem(4, NativeBattleGfPacketByteState.Untouched).SetItem(14, NativeBattleGfPacketByteState.Untouched), Primitive = new(17, words, []) };
+        NativeBattleGfPacketByteState[] mask = Known(40).ToArray();
+        foreach (int offset in new[] { 4, 5, 6, 14, 15, 30, 31, 38, 39 })
+        {
+            mask[offset] = NativeBattleGfPacketByteState.Untouched;
+        }
+        return packet with { Data = data.ToImmutableArray(), WriteMask = mask.ToImmutableArray(), Primitive = new(17, words, []) };
     }
 
     private static NativeBattleGfGeometryAttempt StaticPacket()

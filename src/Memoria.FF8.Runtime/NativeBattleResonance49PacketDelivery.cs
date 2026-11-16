@@ -145,13 +145,13 @@ public static class NativeBattleResonance49PacketDelivery
             }
             catch (NotSupportedException) when (UnconsumedScreenByte(bytes, offset))
             {
-                // Raw sixteen-bit screen textures consume neither RGB modulation nor a palette. Their physical bytes remain unobserved.
+                // Raw sixteen-bit screen textures consume neither RGB modulation, palette nor trailing UV padding. Physical bytes remain unobserved.
             }
         }
         return Enumerable.Range(0, primitive.Words.Length).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
     }
 
-    private static bool UnconsumedScreenByte(byte[] bytes, int offset) => bytes.Length == 40 && bytes[7] is 0x2D or 0x2F && (BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(22)) & 0x180) == 0x100 && offset is 4 or 5 or 6 or 14 or 15;
+    private static bool UnconsumedScreenByte(byte[] bytes, int offset) => bytes.Length == 40 && bytes[7] is 0x2D or 0x2F && (BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(22)) & 0x180) == 0x100 && offset is 4 or 5 or 6 or 14 or 15 or 30 or 31 or 38 or 39;
 
     private static void RequireStatic(uint address, int length)
     {

@@ -176,7 +176,7 @@ public static partial class NativeBattleResonance49Controller
         {
             throw new InvalidDataException("Resonance bank transfer requires closed queues and exclusive inactive owners.");
         }
-        ImmutableArray<NativeBattleEffectArena?> storage = frame.Effect.Pools.Select(pool => (NativeBattleEffectArena?)NativeBattleEffectTaskMemory.CaptureBank(pool)).ToImmutableArray();
+        ImmutableArray<NativeBattleEffectArena?> storage = frame.Effect.Pools.Select((pool, index) => (NativeBattleEffectArena?)CaptureInactiveBank(pool, index)).ToImmutableArray();
         return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { InactiveBanks = storage } };
     }
 

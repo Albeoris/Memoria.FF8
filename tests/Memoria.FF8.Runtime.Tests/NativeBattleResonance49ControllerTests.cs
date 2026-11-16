@@ -139,6 +139,9 @@ public sealed class NativeBattleResonance49ControllerTests
         Assert.All(frame.State.InactiveBanks, bank => Assert.NotNull(bank));
         Assert.Equal(new NativeCrtRandomState(123), frame.Random);
         var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleResonance49Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Null(restored.Effect.Parameters);
+        //Action parameters belong to the invocation; a fresh entry supplies them after restoring process storage.
+        restored = restored with { Effect = restored.Effect with { Parameters = frame.Effect.Parameters } };
         var warm = Initialize(restored, Resources(), inputs);
         Assert.Equal(0, Read(warm, RootBank).ReadByte(0x29));
         Assert.Equal(0, Read(warm, RootBank).ReadByte(0x62));
@@ -177,7 +180,7 @@ public sealed class NativeBattleResonance49ControllerTests
     {
         var frame = Frame(4, 0x824970, 4);
         uint address = Pools[4].Bank;
-        frame = Write(frame, address, Read(frame, address).WriteWord(0x78, 6).WriteByte(0x2B, 1));
+        frame = Write(frame, address, Read(frame, address).WriteWord(0x78, 6).WriteTraversalPosition(0x2B, 1));
         List<NativeBattleResonance49Operation> operations = [];
         var packets = Packets(unknownCount: true).RestartContactPublication();
         var inputs = Inputs(operations) with { Packets = packets, ReadModel = (_, actor) => Model(actor, sequence) };
@@ -247,6 +250,132 @@ public sealed class NativeBattleResonance49ControllerTests
         var effect = Frame(2, 0x821970, 3);
         effect = Write(effect, Pools[2].Bank, Read(effect, Pools[2].Bank).MarkPayloadUnknown(0x27, 1));
         Assert.Throws<NotSupportedException>(() => AdvanceTask(effect, Pools[2].Bank, Resources(), Inputs([])));
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(7)]
+    [InlineData(11)]
+    public void Expanded_single_header_reserves_only_its_screen_and_actual_reaction_count(int count)
+    {
+        List<NativeBattleResonance49Operation> operations = [];
+        var (inactive, inputs, recipients) = ExpandedFixture(count, operations);
+        NativeBattleResonance49Frame frame = Initialize(inactive, Resources(), inputs);
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[4];
+        Assert.Equal(Math.Max(8, count + 1), pool.Slots.Length);
+        Assert.Equal(Pools[4].Descriptor, pool.DescriptorAddress);
+        Assert.Equal(count <= 7, pool.BankAddress == Pools[4].Bank);
+        if (count > 7)
+        {
+            Assert.True(NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, 128, count + 1));
+        }
+        else
+        {
+            Assert.Equal(inactive.Memory.PresentationTaskNextAddress, frame.Memory.PresentationTaskNextAddress);
+        }
+        foreach (int index in new[] { 0, 1, 2, 3, 5 })
+        {
+            Assert.Equal(Pools[index].Bank, frame.Effect.Pools[index].BankAddress);
+            Assert.Equal(Pools[index].Capacity, frame.Effect.Pools[index].Slots.Length);
+        }
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        frame = Write(frame, RootBank, Read(frame, RootBank).WriteByte(0x29, 3));
+        for (int callback = 0; callback < 3; callback++)
+        {
+            frame = Advance(frame, Resources(), inputs);
+        }
+        pool = frame.Effect.Pools[4];
+        Assert.Equal(0x824260u, pool.Slots[0].Callback);
+        Assert.Equal(count + 1, pool.Slots.Count(task => (task.Flags & 1) != 0));
+        NativeBattleModulePoolTask[] reactions = pool.Slots.Where(task => (task.Flags & 1) != 0 && task.Callback == 0x824970).ToArray();
+        Assert.Equal(recipients, reactions.Select(task => task.ReadExecutionReference<BattleExecutionReference.Model>(0x2D, 1).Owner));
+        Assert.Equal(Enumerable.Range(0, count), reactions.Select(task => task.ReadTraversalPosition(0x2B)));
+        Assert.All(reactions, task => Assert.Equal(Pools[2].Bank, task.ReadDword(0x18)));
+        Assert.All(reactions, task => Assert.Equal(RootBank, task.ReadDword(0x10)));
+        Assert.Equal(count + 3, Read(frame, Pools[2].Bank).ReadByte(0x28));
+        Assert.Equal(2, frame.Effect.Pools[3].Slots.Count(task => (task.Flags & 1) != 0));
+        Assert.Equal(3, frame.Effect.Pools[3].Slots[0].ReadByte(0x2C));
+        Assert.Equal(4, frame.Effect.Pools[3].Slots[1].ReadByte(0x2C));
+        Assert.Equal(new NativeCrtRandomState(123), frame.Random);
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        operations.Clear();
+        for (int index = 0; index < count; index++)
+        {
+            uint address = checked(pool.BankAddress + (uint)((index + 1) * pool.Stride));
+            frame = Write(frame, address, Read(frame, address).WriteByte(0x29, 4).WriteWord(0x78, 6));
+            var step = AdvanceTask(frame, address, Resources(), inputs);
+            frame = step.Frame;
+            Assert.Equal(2, step.Result);
+        }
+        var contacts = operations.OfType<NativeBattleResonance49Contact506690>().ToArray();
+        Assert.Equal(count, contacts.Length);
+        Assert.Equal(recipients, contacts.Select(contact => inputs.Packets.ReadContact(contact.Occurrence).Primary.Recipient));
+        Assert.Equal(count, contacts.Select(contact => contact.Occurrence).Distinct().Count());
+        Assert.Equal(3, Read(frame, Pools[2].Bank).ReadByte(0x28));
+        Assert.Equal(new NativeCrtRandomState(123), frame.Random);
+    }
+
+    [Fact]
+    public void Original_reaction_bank_keeps_native_exhaustion_and_multi_header_growth_requires_its_lifetime_contract()
+    {
+        var (inactive, expanded, _) = ExpandedFixture(11, []);
+        NativeBattleResonance49Inputs original = expanded with { StorageContract = BattleContactTaskStorageContract.OriginalArena };
+        NativeBattleResonance49Frame frame = Initialize(inactive, Resources(), original);
+        Assert.Equal(Pools[4].Bank, frame.Effect.Pools[4].BankAddress);
+        Assert.Equal(8, frame.Effect.Pools[4].Slots.Length);
+        frame = Write(frame, RootBank, Read(frame, RootBank).WriteByte(0x29, 3));
+        frame = Advance(frame, Resources(), original);
+        frame = Advance(frame, Resources(), original);
+        Assert.Contains("exhausted native hierarchy", Assert.Throws<NotSupportedException>(() => Advance(frame, Resources(), original)).Message, StringComparison.Ordinal);
+        NativeBattleResonance49Inputs repeated = expanded with { Packets = expanded.Packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 2) };
+        Assert.Contains("single-header lifetime", Assert.Throws<NotSupportedException>(() => Initialize(inactive, Resources(), repeated)).Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hosted_reaction_drain_preserves_original_inactive_prefix_knownness_and_allows_fresh_entry()
+    {
+        var (inactive, inputs, _) = ExpandedFixture(11, []);
+        NativeBattleResonance49Frame frame = Initialize(inactive, Resources(), inputs);
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[4];
+        pool.Slots[7].WriteByte(126, 0xA5).MarkPayloadUnknown(127, 1);
+        pool.Slots[8].WriteByte(127, 0xB6);
+        frame = Write(frame, RootBank, Read(frame, RootBank).WriteByte(0x29, 9));
+        frame = Advance(frame, Resources(), inputs);
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Empty(frame.Effect.Pools);
+        frame.State.Validate();
+        NativeBattleEffectArena prefix = frame.State.InactiveBanks[4]!;
+        var (bytes, known) = prefix.ReadSnapshot(1022, 2);
+        Assert.Equal((byte)0xA5, bytes[0]);
+        Assert.True(known[0]);
+        Assert.False(known[1]);
+        prefix.ValidateExtent(1024);
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        NativeBattleResonance49Frame reentered = Initialize(frame, Resources(), inputs);
+        Assert.True(reentered.Effect.Pools[4].BankAddress > pool.BankAddress);
+        Assert.Equal((byte)0, reentered.Effect.Pools[4].Slots[7].ReadByte(126));
+        Assert.Equal((byte)0, reentered.Effect.Pools[4].Slots[7].ReadByte(127));
+        Assert.Equal((byte)0, reentered.Effect.Pools[4].Slots[8].ReadByte(127));
+        Assert.Equal(frame.Random, reentered.Random);
+    }
+
+    private static (NativeBattleResonance49Frame Frame, NativeBattleResonance49Inputs Inputs, BattleModelOwner[] Recipients) ExpandedFixture(int count, List<NativeBattleResonance49Operation> operations)
+    {
+        BattleModelOwner[] extra = Enumerable.Range(0, Math.Max(0, count - 3)).Select(index => (BattleModelOwner)new BattlePartyActorModel(new($"expanded-resonance-{index}"))).ToArray();
+        BattleModelOwner[] recipients = Enumerable.Range(0, Math.Min(3, count)).Select(OriginalOwner).Concat(extra).ToArray();
+        BattleModelRoster roster = new(OriginalRoster.Owners.Concat(extra));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, 7).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(OriginalOwner(3), 8, 13, -1, 121, 49, null));
+        foreach (BattleModelOwner recipient in recipients)
+        {
+            (packets, _) = packets.AppendContact(new(new(recipient, 4, 0, 0, 0, 7, 0), null));
+        }
+        (packets, _) = packets.Publish(count);
+        packets = packets.WritePlayerRepeatMode(header, 1);
+        NativeBattleResonance49Frame frame = Inactive(1);
+        frame = frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { Header = header, TargetActors = BattleModelTargets.From(recipients) } } };
+        return (frame, Inputs(operations) with { Packets = packets, StorageContract = BattleContactTaskStorageContract.ExpandableArena }, recipients);
     }
 
     private static NativeBattleResonance49Frame Frame(int pool, uint callback, byte phase)

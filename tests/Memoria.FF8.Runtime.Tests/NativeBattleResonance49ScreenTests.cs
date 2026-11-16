@@ -44,7 +44,7 @@ public sealed class NativeBattleResonance49ScreenTests
             Assert.Equal(5, pair.Quad.Primitive!.Bucket);
             Assert.Empty(pair.Quad.Primitive.VertexPayload4);
             Assert.Equal(new uint[] { 0x02000000, 0xE1000020, 0 }, pair.Mode.Primitive!.Words);
-            foreach (int offset in new[] { 4, 5, 6, 14, 15 })
+            foreach (int offset in new[] { 4, 5, 6, 14, 15, 30, 31, 38, 39 })
             {
                 Assert.Equal(NativeBattleGfPacketByteState.Untouched, pair.Quad.WriteMask[offset]);
             }
@@ -62,6 +62,36 @@ public sealed class NativeBattleResonance49ScreenTests
             random = random.Draw(out _);
         }
         Assert.Equal(random, actual.Random);
+    }
+
+    [Fact]
+    public void Actual_screen_emitter_delivers_all_pairs_into_cold_COMMON_without_observing_UV_padding()
+    {
+        var frame = InitializeScreen824300(Frame(4), 0x26467E8, Resources(), Inputs());
+        frame = frame with { Memory = frame.Memory with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { ByteCursor = 0 } } };
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        int pairs = 0;
+        var actual = DrawScreen8244E0(frame, 0x26467E8, 5, Resources(), Inputs((current, operation) =>
+        {
+            NativeBattleResonance49DeliverScreenPair pair = Assert.IsType<NativeBattleResonance49DeliverScreenPair>(operation);
+            NativeBattleResonance49PacketStep delivered = NativeBattleResonance49PacketDelivery.ScreenPair(current.Memory, current.State, ordering, pair.Quad, pair.Mode);
+            ordering = delivered.Ordering;
+            pairs++;
+            return current with { Memory = delivered.Memory, State = delivered.State };
+        }));
+        Assert.Equal(140, pairs);
+        Assert.Equal(280, ordering.Packets.Length);
+        Assert.Equal(7280, actual.Memory.PrimitiveProcess!.ByteCursor);
+        for (int pair = 0; pair < pairs; pair++)
+        {
+            Assert.Equal(pair * 52 + 40, ordering.Packets[pair * 2].Reference.ByteOffset);
+            Assert.Equal(pair * 52, ordering.Packets[pair * 2 + 1].Reference.ByteOffset);
+            foreach (int offset in new[] { 4, 5, 6, 14, 15, 30, 31, 38, 39 })
+            {
+                var (_, known) = actual.Memory.PrimitiveProcess.ReadCommonPacketSnapshot(pair * 52 + offset, 1);
+                Assert.False(known[0]);
+            }
+        }
     }
 
     [Fact]
