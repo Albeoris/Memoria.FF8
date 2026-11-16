@@ -7,6 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class InstalledEnemyGuestMessageTests
 {
     private const byte Flare = 15;
+    private const byte Death = 43;
 
     [Theory]
     [InlineData(509, true)]
@@ -99,7 +100,7 @@ public sealed class InstalledEnemyGuestMessageTests
             Assert.True(incumbent.NativeAi?.DeathSequenceReleasesAllocation);
             for (int cast = 0; cast < 10 && incumbent.IsAlive; cast++)
             {
-                CastFlare(battle, caster, incumbent, observer);
+                CastMagic(battle, caster, incumbent, observer, Flare);
             }
             TickUntil(battle, () => !incumbent.IsAlive && (!process.Graphics.ActorModels.TryGet(owner, out NativeBattleGraphicsModel? model) || (model.Flags0 & 1) == 0), "original model 125 death release");
         }
@@ -116,12 +117,15 @@ public sealed class InstalledEnemyGuestMessageTests
         BattleCombatant second = Assert.Single(battle.Combatants, actor => IsLoadedReserve(actor) && actor.SceneSlot == 5);
         Assert.Equal(4, first.NativeActorIndex);
         Assert.Equal(5, second.NativeActorIndex);
-        BattleCombatant messageTarget = battle.Combatants.Single(actor => actor.Id == "party-3");
-        if (messageTarget.IsAlive)
+        if (!battle.Combatants.Any(IsAllocatedKnockout))
         {
-            CastFlare(battle, caster, messageTarget, observer);
+            Assert.True(observer.IsActive && observer.IsAlive);
+            for (int attempt = 0; attempt < 3 && observer.IsAlive; attempt++)
+            {
+                CastMagic(battle, caster, observer, observer, Death);
+            }
         }
-        Assert.False(messageTarget.IsAlive);
+        Assert.Contains(battle.Combatants, IsAllocatedKnockout);
         BattleSnapshot before = battle.Capture();
         NativeBattleRetainedMemory retained = NativeBattleStorageSnapshots.Fork(battle.CaptureRetainedBattleMemory(before, NativeFieldRuntimeProfile.FF8EnExecutableHash));
         NativeBattleModelCpuResources cpu = retained.ModelCpuResources!;
@@ -135,20 +139,20 @@ public sealed class InstalledEnemyGuestMessageTests
         Assert.Equal(entry, secondRow.Require(12).NativePlacementAddress);
         Assert.Equal(new byte[] { 0x12, 0x00 }, NativeBattleModelEnemyHeap.ReadGuest(cpu, staging, section, entry, 2));
 
-        BattleEvent message = RunReserveTurn(battle, first.Id, observer);
+        BattleEvent message = RunReserveTurn(battle, first.Id, caster);
         Assert.Equal(entry, message.NativeAiHeapMessage!.EntryAddress);
         Assert.Equal(0x12, message.NativeAiHeapMessage.EntryOffset);
         Assert.Equal(entry + 0x12, message.NativeAiHeapMessage.TextAddress);
         Assert.Equal(new byte[] { 0 }, message.NativeAiHeapMessage.Encoded.ToArray());
     }
 
-    private static void CastFlare(BattleSession battle, BattleCombatant caster, BattleCombatant target, BattleCombatant observer)
+    private static void CastMagic(BattleSession battle, BattleCombatant caster, BattleCombatant target, BattleCombatant observer, byte spell)
     {
         SetReadyActor(battle, caster, observer);
-        TickUntil(battle, () => battle.CanChoosePlayerCommand(caster.Id), "player ready to cast Flare");
+        TickUntil(battle, () => battle.CanChoosePlayerCommand(caster.Id), "player ready to cast installed magic");
         int firstEvent = battle.Events.Count;
-        battle.QueueAction(caster.Id, target.Id, BattleAbility.Magic, Flare);
-        TickUntil(battle, () => Settled(battle) && battle.Events.Skip(firstEvent).Any(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id), "Flare and original contact completion");
+        battle.QueueAction(caster.Id, target.Id, BattleAbility.Magic, spell);
+        TickUntil(battle, () => Settled(battle) && battle.Events.Skip(firstEvent).Any(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id), "installed magic and original contact completion");
     }
 
     private static void PrepareParty(GameSession session, bool knockedOutAlly, ushort? survivorHpBonus = null)
@@ -165,6 +169,7 @@ public sealed class InstalledEnemyGuestMessageTests
             stats[2] = byte.MaxValue;
             NativeMagicStock[] spells = records[0].MagicInventory.ToArray();
             spells[0] = new(Flare, 20);
+            spells[1] = new(Death, 3);
             int magic = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2);
             Assert.True(magic >= 0);
             records[0] = records[0] with { HitPointBonus = bonus, StatBonuses = stats, BonusSources = null, MagicInventory = spells, Junction = records[0].Junction with { Commands = checked((uint)(20 + magic)) } };
@@ -212,6 +217,8 @@ public sealed class InstalledEnemyGuestMessageTests
     }
 
     private static bool IsLoadedReserve(BattleCombatant actor) => !actor.IsPlayer && actor.ModelId == 0 && actor.IsActive && actor.ResolvedNativeLevel is not null && !actor.NativeAllocationPendingStatistics;
+
+    private static bool IsAllocatedKnockout(BattleCombatant actor) => actor.IsPlayer && actor.IsActive && actor.NativeActorIndex is >= 0 and < 3 && (actor.NativeStatus0 & 1) != 0;
 
     private static bool Settled(BattleSession battle) => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null &&
         battle.NativeScriptState.AllocationControl?.ActionGate != true && battle.ExpandedPresentationProcess is not { HasActiveAction: true } and not { HasPendingModelLoad: true };

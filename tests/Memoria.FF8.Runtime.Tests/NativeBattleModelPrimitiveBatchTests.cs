@@ -49,16 +49,20 @@ public sealed class NativeBattleModelPrimitiveBatchTests
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         NativeBattleHostedModelPackets storage = new();
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
-        using NativeBattleLogicalOrderingTransaction transaction = new(ordering);
-        transaction.BeginCheckpoint();
-        storage.Append(process, transaction.View, first);
-        ImmutableArray<NativeBattleLogicalCommand> before = transaction.View.Traverse(Lengths());
-        NativeBattleLogicalOrdering.Delta delta = transaction.SuspendCheckpointDelta();
-        Assert.Empty(transaction.View.Traverse(Lengths()));
-        storage.ResetFrame();
-        storage.Append(process, NativeBattleLogicalOrdering.Clear(), second);
-        transaction.ResumeDelta(delta);
-        ImmutableArray<NativeBattleLogicalCommand> replayed = transaction.Freeze().Traverse(Lengths());
+        ImmutableArray<NativeBattleLogicalCommand> before;
+        ImmutableArray<NativeBattleLogicalCommand> replayed;
+        using (NativeBattleLogicalOrderingTransaction transaction = new(ordering))
+        {
+            transaction.BeginCheckpoint();
+            storage.Append(process, transaction.View, first);
+            before = transaction.View.Traverse(Lengths());
+            NativeBattleLogicalOrdering.Delta delta = transaction.SuspendCheckpointDelta();
+            Assert.Empty(transaction.View.Traverse(Lengths()));
+            storage.ResetFrame();
+            storage.Append(process, NativeBattleLogicalOrdering.Clear(), second);
+            transaction.ResumeDelta(delta);
+            replayed = transaction.Freeze().Traverse(Lengths());
+        }
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(replayed));
         for (int index = 0; index < replayed.Length; index++)
         {

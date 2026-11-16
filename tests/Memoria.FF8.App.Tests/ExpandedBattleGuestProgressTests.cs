@@ -131,24 +131,59 @@ public sealed class ExpandedBattleGuestProgressTests
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 3 });
             Assert.Equal(11, session.State.GameplayPreferences.BattleAllyCount);
             Assert.Equal(3, session.State.PendingGameplayPreferences!.BattleAllyCount);
-            for (int turn = 0; turn < 32 && !guest.IsReady; turn++)
+            for (int turn = 0; turn < 32 && !expanded.CanChoosePlayerCommand(guest.Id); turn++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
                 world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
             }
-            Assert.True(guest.IsReady);
-            world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = guest.Id, TargetId = "enemy-7", Ability = BattleAbility.Magic, ActionId = quake.ActionId });
-            for (int callback = 0; callback < 2048 && guest.IsBusy; callback++)
+            Assert.True(expanded.CanChoosePlayerCommand(guest.Id));
+            Assert.Contains(BattleAbility.Magic, guest.Abilities);
+            BattleCombatant target = Assert.Single(expanded.Combatants, actor => !actor.IsPlayer && actor.SceneSlot == 0 && actor.IsAlive);
+            BattleActionDefinition action = Assert.Single(expanded.ActionDefinitions, candidate => candidate.Ability == BattleAbility.Magic && candidate.Id == quake.ActionId);
+            Assert.True(BattleSession.IsValidSelectedActionTarget(guest, action, target));
+            world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = guest.Id, TargetId = target.Id, Ability = BattleAbility.Magic, ActionId = quake.ActionId });
+            for (int callback = 0; callback < 1200 && guest.IsBusy; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             Assert.False(guest.IsBusy);
             Assert.Equal(4, expanded.GetAvailableMagicCasts(guest.Id, quake.ActionId));
+            BattleCombatant attacker = Assert.Single(expanded.Combatants, actor => actor.Id == "party-0");
+            foreach (BattleCombatant survivor in expanded.Combatants.Where(actor => !actor.IsPlayer && actor.IsAlive).ToArray())
+            {
+                // Bound the cleanup turns while leaving each KO and reward record to the real Attack command.
+                Assert.False(survivor.Untargetable);
+                survivor.CurrentHp = 1;
+                for (int attempt = 0; attempt < 3 && survivor.IsAlive; attempt++)
+                {
+                    attacker.Atb = BattleSession.AtbMaximum;
+                    for (int callback = 0; callback < 1200 && !expanded.CanChoosePlayerCommand(attacker.Id); callback++)
+                    {
+                        world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    }
+                    Assert.True(expanded.CanChoosePlayerCommand(attacker.Id));
+                    world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: attacker.Id, TargetId: survivor.Id) { ForcePhysical = true });
+                    for (int callback = 0; callback < 1200 && attacker.IsBusy; callback++)
+                    {
+                        world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    }
+                    Assert.False(attacker.IsBusy);
+                }
+                Assert.False(survivor.IsAlive, $"Ordinary attacks did not defeat {survivor.Id} (model {survivor.ModelId}).");
+            }
+            for (int callback = 0; callback < 1200 && !expanded.CanReturnToField; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
             Assert.Equal(BattleOutcome.Victory, expanded.Outcome);
+            Assert.True(expanded.CanReturnToField);
             BattleRewardSummary reward = world.PreviewBattleRewards();
             Assert.True(reward.CharacterExperience[(byte)guestId] > 0);
+            ushort abilityPoints = reward.GuardianForceAbilityPoints[guardianForce];
+            Assert.True(abilityPoints > 0);
             experience += reward.CharacterExperience[(byte)guestId];
             world.ApplyBattleInput(new(BattleInputKind.Return));
+            Assert.Equal(abilityPoints, world.LastBattleRewards!.GuardianForceAbilityPoints[guardianForce]);
             Assert.Null(world.Battle);
             Assert.Equal(3, session.State.GameplayPreferences.BattleAllyCount);
             Assert.Null(session.State.PendingGameplayPreferences);
