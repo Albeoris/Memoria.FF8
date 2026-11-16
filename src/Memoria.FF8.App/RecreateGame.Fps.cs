@@ -47,6 +47,7 @@ internal sealed partial class RecreateGame
         TimeSpan now = Stopwatch.GetElapsedTime(presentationClockStarted);
         visualFrameRate?.Presented(now);
         AdvanceDiagnosticDriver(now);
+        ObserveDiagnosticIdlePresent(presentBegin, presentEnd, pacer, phases);
         if (effectPreview is not null)
         {
             diagnosticPresentedFrames++;

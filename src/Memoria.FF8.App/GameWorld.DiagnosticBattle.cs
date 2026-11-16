@@ -11,6 +11,8 @@ namespace Memoria.FF8;
 internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Encounter, [property: JsonRequired] byte Seed, [property: JsonRequired] ushort Flags, [property: JsonRequired] ushort FieldBattleMode, [property: JsonRequired] uint ElapsedCounter)
 {
     public DiagnosticBattleDriverRecipe? Driver { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticIdleBattleDeclaration? IdlePerformance { get; init; }
     public byte? BattleMusic { get; init; }
     public int? PrimaryMusicChannel { get; init; }
     public ushort? MusicFieldWord { get; init; }
@@ -26,6 +28,7 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     internal void Validate()
     {
         Driver?.Validate();
+        IdlePerformance?.Validate(this);
         if ((Driver?.ShotCycle is not null || Driver?.DuelCycle is not null || Driver?.CounterCycle is not null || Driver?.SlotsAdmission is not null || Driver?.FreshEntry is not null) && Prelude is not null)
         {
             throw new NotSupportedException("Timed Limit, Slots and fresh-entry diagnostics require ordinary initial admission without a preparation prelude.");
@@ -217,8 +220,9 @@ internal sealed partial class GameWorld
             NativeCharacterVitals preparedVitals = characters?.Vitals ?? initialVitals;
             if (request.Roster is not null)
             {
-                byte[] party = [.. preparedVitals.GetBattlePartyRows(3).Concat(Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row)).Distinct()];
-                preparedVitals = preparedVitals.WithBattleParty(party, NativeCharacterVitals.ExtendedRecordCount);
+                int partyCount = request.IdlePerformance?.PartyCount ?? NativeCharacterVitals.ExtendedRecordCount;
+                byte[] party = [.. preparedVitals.GetBattlePartyRows(3).Concat(Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row)).Distinct().Take(partyCount)];
+                preparedVitals = preparedVitals.WithBattleParty(party, partyCount);
             }
             if (characters is not null || request.Roster is not null)
             {

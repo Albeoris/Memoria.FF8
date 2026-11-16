@@ -168,7 +168,7 @@ internal sealed partial class GameWorld
         }
         else if (restoredDefinition is null && effectPreviewRequest is null)
         {
-            selectedParty = diagnosticRoster is not null ? entryVitals.GetBattlePartyRows(NativeCharacterVitals.ExtendedRecordCount) :
+            selectedParty = diagnosticRoster is not null ? entryVitals.GetBattlePartyRows(diagnosticBattle!.Request.IdlePerformance?.PartyCount ?? NativeCharacterVitals.ExtendedRecordCount) :
                 rosterAdmission.UsesPrimaryPartyOnly ? nativeParty : entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
         }
         byte[]? expandedParty = selectedParty is not null && !selectedParty.SequenceEqual(nativeParty) ? selectedParty : null;
