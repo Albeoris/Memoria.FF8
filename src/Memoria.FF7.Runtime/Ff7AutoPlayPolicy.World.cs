@@ -236,6 +236,7 @@ public sealed partial class Ff7AutoPlayPolicy
     {
         Ff7WorldProcess native = world.Process;
         WorldSnapshot vm = native.Vm;
+        bool ready = native.Initialized && native.ControlledModel >= 0 && native.MovementEnabled && native.MainState == 1 && native.Dialogue is not { Completed: false };
         worldVisit ??= $"ff7-world:{world.Resources.World}:{vm.ProgramIdentity}";
         if (!State.WorldVisits.TryGetValue(worldVisit, out Ff7AutoPlayWorldVisitState? visited))
         {
@@ -249,7 +250,8 @@ public sealed partial class Ff7AutoPlayPolicy
             vm.ProgramIdentity,
             Models = vm.Models.Select(model => new { model.Model, model.ScriptDisabled, model.Detached }).OrderBy(model => model.Model).ToArray()
         })));
-        if (ObserveWorldDiscoveryContext(visited, discoveryContext))
+        string knownGlobalFingerprint = world.Machine.ReadPredicateFingerprint(visited.GlobalReads);
+        if (ObserveWorldDiscoveryContext(visited, discoveryContext, ready, knownGlobalFingerprint))
         {
             // These are disposable catalog/search observations; shared execution coverage is retained.
             worldCatalogs.Clear();
@@ -295,8 +297,10 @@ public sealed partial class Ff7AutoPlayPolicy
         string navigation = worldVisit + ":nav:world";
         planner.ObserveNavigation(worldVisit, navigation, events.Values.ToArray());
         visited.GlobalReads = visited.GlobalReads.Concat(worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).SelectMany(script => script.Analysis.Reads).Concat(worldModelCatalog.Values.SelectMany(model => model.Analysis.Reads)).Where(read => (read.Opcode & 3) == 0)).Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray();
-        visited.GlobalFingerprint = world.Machine.ReadPredicateFingerprint(visited.GlobalReads);
-        bool ready = world.Process.Initialized && world.Process.MovementEnabled && world.Process.MainState == 1 && world.Process.Dialogue is not { Completed: false };
+        if (ready)
+        {
+            visited.GlobalFingerprint = world.Machine.ReadPredicateFingerprint(visited.GlobalReads);
+        }
         return new(worldVisit, vm.ProgramIdentity, session.FieldGeneration, [], ready, true) { NavigationKey = navigation };
     }
 
@@ -361,9 +365,9 @@ public sealed partial class Ff7AutoPlayPolicy
         return false;
     }
 
-    internal static bool ObserveWorldDiscoveryContext(Ff7AutoPlayWorldVisitState visited, string fingerprint)
+    internal static bool ObserveWorldDiscoveryContext(Ff7AutoPlayWorldVisitState visited, string fingerprint, bool ready = true, string? globalFingerprint = null)
     {
-        if (visited.DiscoveryContextFingerprint == fingerprint)
+        if (!ready || visited.DiscoveryContextFingerprint == fingerprint && (globalFingerprint is null || visited.GlobalFingerprint is null || visited.GlobalFingerprint == globalFingerprint))
         {
             return false;
         }
@@ -377,6 +381,10 @@ public sealed partial class Ff7AutoPlayPolicy
         if (!hasQueuedChunks || next is { IsTravel: false })
         {
             return false;
+        }
+        if (next is { IsTravel: true, RefreshVisitKey: not null })
+        {
+            return true;
         }
         AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == visitKey);
         return coverage is null || !coverage.Events.Any(item => item.Available && !item.Unavailable && !item.PolicyDeferred && item.BlockedReason is null && AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(item));
