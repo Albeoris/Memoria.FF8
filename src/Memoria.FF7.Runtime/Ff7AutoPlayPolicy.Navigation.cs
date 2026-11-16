@@ -44,36 +44,72 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    private bool NeedsNavigationRefresh(AutoPlayVisit visit, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, IReadOnlyDictionary<string, string> validatedPhysicalGuards, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
+    private bool NeedsNavigationRefresh(AutoPlayVisit visit, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
     {
         AutoPlayNavigationVisit? navigation = State.Coverage.NavigationVisits.SingleOrDefault(item => item.Key == visit.Key);
         if (navigation?.VisitKey != observation.VisitId)
         {
             return NeedsNavigationRefresh(State, visit);
         }
-        if (!componentGuards.TryGetValue(navigation.Key, out IReadOnlyDictionary<string, string>? projected))
+        AutoPlayVisitCoverage<Ff7AutoPlayDeferral> aggregate = State.Coverage.Visits.Single(item => item.Visit.Key == navigation.VisitKey);
+        foreach (AutoPlayEvent observed in navigation.Events)
         {
-            int? triangle = navigation.Key == observation.NavigationKey ? session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle : State.NavigationGuards.Values.FirstOrDefault(guard => guard.VisitId == navigation.VisitKey && guard.NavigationKey == navigation.Key && guard.SourceTriangle is int source && (uint)source < session.Field.Walkmesh.Count)?.SourceTriangle;
-            if (triangle is not null)
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral> item = aggregate.Events.Single(candidate => candidate.Event.Id == observed.Id);
+            if (item.UnavailableAttempts.Count == 0)
             {
-                Dictionary<string, string> facts = new(StringComparer.Ordinal);
-                foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == navigation.VisitKey))
-                {
-                    Ff7AutoPlayNavigationGuard guard = entry.Value;
-                    if (guard.EventId is not string eventId)
-                    {
-                        facts[entry.Key] = driver.ReadPhysicalAvailabilityFingerprint(guard.Entity, guard.BlockingEntities, triangle);
-                        continue;
-                    }
-                    Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == eventId);
-                    facts[entry.Key] = target is null ? $"{observation.ProgramIdentity}:absent:{eventId}" : driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
-                    facts[entry.Key] = ReadMovementFailureFingerprint(facts[entry.Key], guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities);
-                }
-                projected = facts;
+                continue;
             }
-            componentGuards[navigation.Key] = projected;
+            AutoPlayEventAvailability availability = ReadNavigationAvailability(navigation, observed, observation, driver, componentGuards)!;
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, Completed = item.Completed, Conditions = item.Conditions, Unavailable = availability.Unavailable, AvailabilityFingerprint = availability.Fingerprint, CompletedAvailabilityFingerprints = item.CompletedAvailabilityFingerprints };
+            if (!scoped.Unavailable && AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(scoped))
+            {
+                return true;
+            }
         }
-        return NeedsNavigationRefresh(State, visit, validatedPhysicalGuards, projected);
+        return false;
+    }
+
+    private AutoPlayEventAvailability? ReadNavigationAvailability(AutoPlayNavigationVisit navigation, AutoPlayEvent observed, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
+    {
+        if (navigation.VisitKey != observation.VisitId)
+        {
+            return null;
+        }
+        if (!componentGuards.TryGetValue(navigation.Key, out IReadOnlyDictionary<string, string>? facts))
+        {
+            var aggregate = State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey);
+            Dictionary<string, string> projected = aggregate.Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => State.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.Last().GuardFingerprint, StringComparer.Ordinal);
+            bool current = navigation.Key == observation.NavigationKey;
+            string configuration = observation.NavigationKey[..observation.NavigationKey.LastIndexOf(':')];
+            if (current || navigation.Key.StartsWith(configuration + ":", StringComparison.Ordinal))
+            {
+                int? triangle = current ? session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle : State.NavigationGuards.Values.FirstOrDefault(guard => guard.VisitId == navigation.VisitKey && guard.NavigationKey == navigation.Key && guard.SourceTriangle is int source && (uint)source < session.Field.Walkmesh.Count)?.SourceTriangle;
+                if (triangle is not null)
+                {
+                    foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == navigation.VisitKey && entry.Value.NavigationKey == navigation.Key))
+                    {
+                        Ff7AutoPlayNavigationGuard guard = entry.Value;
+                        Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == guard.EventId);
+                        if (target is null || !navigation.Events.Any(item => item.Id == target.Id && item.ConditionSignature == target.ConditionFingerprint))
+                        {
+                            continue;
+                        }
+                        string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
+                        projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, current ? null : true);
+                    }
+                }
+            }
+            facts = projected;
+            componentGuards[navigation.Key] = facts;
+        }
+        return ReadComponentAvailability(State, navigation, observed, facts!);
+    }
+
+    internal static AutoPlayEventAvailability ReadComponentAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, IReadOnlyDictionary<string, string> facts)
+    {
+        var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).ToList() };
+        return AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts);
     }
 
     internal static bool NeedsNavigationRefresh(Ff7AutoPlayState state, AutoPlayVisit visit, IReadOnlyDictionary<string, string>? validatedPhysicalGuards = null, IReadOnlyDictionary<string, string>? componentPhysicalGuards = null)

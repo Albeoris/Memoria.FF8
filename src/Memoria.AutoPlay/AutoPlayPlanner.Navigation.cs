@@ -94,10 +94,10 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         item.Routes.Remove(recorded);
     }
 
-    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null)
+    public AutoPlayPlanStep? PlanNavigation(string currentNavigationKey, Func<AutoPlayVisit, bool>? needsRefresh = null, string? refreshNavigationKey = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, bool allowRemoteConditionRoutes = false, IReadOnlySet<string>? avoidFirstEvents = null, Func<AutoPlayPlanStep, bool>? canTravel = null, AutoPlayTravelGoal? preferredGoal = null, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability = null)
     {
         FindNavigationVisit(currentNavigationKey);
-        AutoPlayPlanner<TDeferral> shadow = CreateNavigationView(isCurrent, allowRemoteConditionRoutes ? currentNavigationKey : null);
+        AutoPlayPlanner<TDeferral> shadow = CreateNavigationView(isCurrent, allowRemoteConditionRoutes ? currentNavigationKey : null, readAvailability);
         AutoPlayVisitCoverage<TDeferral>? current = shadow.State.Visits.SingleOrDefault(visit => visit.Visit.Key == currentNavigationKey);
         if (current is null)
         {
@@ -124,13 +124,13 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         do
         {
             rejectedFirstEvents.Clear();
-            planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsExecution(FindEvent(FindNavigationVisit(visit.Key).VisitKey, item.Id)) ? 0 : 1, canTravel is null ? null : CheckTravel, preferredGoal);
+            planned = shadow.Plan(currentNavigationKey, needsRefresh, refreshNavigationKey, (visit, item) => NeedsNavigationExecution(FindNavigationVisit(visit.Key), shadow.FindEvent(visit.Key, item.Id), readAvailability) ? 0 : 1, canTravel is null ? null : CheckTravel, preferredGoal);
             if (planned is { Route: null })
             {
                 AutoPlayNavigationVisit localSource = FindNavigationVisit(planned.VisitKey);
                 AutoPlayEvent localEvent = localSource.Events.Single(item => item.Id == planned.Event.Id);
-                AutoPlayEventCoverage<TDeferral> shared = FindEvent(localSource.VisitKey, localEvent.Id);
-                AutoPlayEventRoute? probe = NeedsExecution(shared) ? null : UnconfirmedNavigationRoutes(localSource, shadow.FindEvent(localSource.Key, localEvent.Id), shadow.State.Visits.Select(visit => visit.Visit.Key).ToHashSet(StringComparer.Ordinal)).FirstOrDefault();
+                AutoPlayEventCoverage<TDeferral> localCoverage = shadow.FindEvent(localSource.Key, localEvent.Id);
+                AutoPlayEventRoute? probe = NeedsNavigationExecution(localSource, localCoverage, readAvailability) ? null : UnconfirmedNavigationRoutes(localSource, localCoverage, shadow.State.Visits.Select(visit => visit.Visit.Key).ToHashSet(StringComparer.Ordinal), readAvailability).FirstOrDefault();
                 if (probe is null)
                 {
                     return planned with { VisitKey = localSource.VisitKey, Event = localEvent };
@@ -161,10 +161,10 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
     }
 
     /// <summary>Counts genuine gameplay frontiers, excluding navigation probes that only confirm map connectivity.</summary>
-    public int ReachableNavigationFrontierCount(string currentNavigationKey, string? excludedVisit = null, string? excludedEvent = null, Func<AutoPlayVisit, bool>? needsRefresh = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null)
+    public int ReachableNavigationFrontierCount(string currentNavigationKey, string? excludedVisit = null, string? excludedEvent = null, Func<AutoPlayVisit, bool>? needsRefresh = null, Func<AutoPlayNavigationVisit, bool>? isCurrent = null, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability = null)
     {
         FindNavigationVisit(currentNavigationKey);
-        AutoPlayPlanner<TDeferral> shadow = CreateNavigationView(isCurrent);
+        AutoPlayPlanner<TDeferral> shadow = CreateNavigationView(isCurrent, readAvailability: readAvailability);
         if (!shadow.State.Visits.Any(visit => visit.Visit.Key == currentNavigationKey))
         {
             return 0;
@@ -188,7 +188,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
             }
             foreach (AutoPlayEventCoverage<TDeferral> item in OrderedEvents(visit))
             {
-                if ((aggregateKey != excludedVisit || item.Event.Id != excludedEvent) && NeedsExecution(FindEvent(aggregateKey, item.Event.Id)) && countedEvents.Add((aggregateKey, item.Event.Id)))
+                if ((aggregateKey != excludedVisit || item.Event.Id != excludedEvent) && NeedsNavigationExecution(FindNavigationVisit(key), item, readAvailability) && countedEvents.Add((aggregateKey, item.Event.Id)))
                 {
                     count++;
                 }
@@ -201,7 +201,25 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         return count;
     }
 
-    private AutoPlayPlanner<TDeferral> CreateNavigationView(Func<AutoPlayNavigationVisit, bool>? isCurrent, string? hintOrigin = null)
+    private bool NeedsNavigationExecution(AutoPlayNavigationVisit observation, AutoPlayEventCoverage<TDeferral> scoped, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability)
+    {
+        AutoPlayEventCoverage<TDeferral> shared = FindEvent(observation.VisitKey, scoped.Event.Id);
+        AutoPlayEventAvailability? availability = readAvailability?.Invoke(observation, observation.Events.Single(item => item.Id == scoped.Event.Id));
+        if (availability is null)
+        {
+            return NeedsExecution(shared);
+        }
+        return NeedsExecution(new AutoPlayEventCoverage<TDeferral>
+        {
+            Event = scoped.Event,
+            Completed = scoped.Completed,
+            Conditions = scoped.Conditions,
+            AvailabilityFingerprint = availability.Fingerprint,
+            CompletedAvailabilityFingerprints = scoped.CompletedAvailabilityFingerprints
+        });
+    }
+
+    private AutoPlayPlanner<TDeferral> CreateNavigationView(Func<AutoPlayNavigationVisit, bool>? isCurrent, string? hintOrigin = null, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability = null)
     {
         AutoPlayPlannerState<TDeferral> view = new();
         Dictionary<string, AutoPlayNavigationVisit> navigationByKey = IndexVisits(State.NavigationVisits, visit => visit.Key);
@@ -217,6 +235,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
             foreach (AutoPlayEvent observed in observation.Events)
             {
                 AutoPlayEventCoverage<TDeferral> shared = aggregate.Events.Single(item => item.Event.Id == observed.Id);
+                AutoPlayEventAvailability? availability = readAvailability?.Invoke(observation, observed);
                 var key = (observation.Key, observed.Id);
                 IEnumerable<AutoPlayNavigationRoute> recorded = routesByEvent[key];
                 bool sameCondition = observed.ConditionSignature == shared.Event.ConditionSignature;
@@ -237,9 +256,9 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                     Conditions = hint ? null : shared.Conditions,
                     ObservedStoryChanged = shared.ObservedStoryChanged,
                     ObservedConditionSignature = shared.ObservedConditionSignature,
-                    Unavailable = shared.Unavailable,
-                    UnavailableVariants = shared.UnavailableVariants,
-                    AvailabilityFingerprint = hint ? null : shared.AvailabilityFingerprint,
+                    Unavailable = availability?.Unavailable ?? shared.Unavailable,
+                    UnavailableVariants = availability?.UnavailableVariants ?? shared.UnavailableVariants,
+                    AvailabilityFingerprint = hint ? null : availability is null ? shared.AvailabilityFingerprint : availability.Fingerprint,
                     CompletedAvailabilityFingerprints = shared.CompletedAvailabilityFingerprints,
                     PolicyDeferred = shared.PolicyDeferred,
                     PolicyDeferredVariants = shared.PolicyDeferredVariants,
@@ -249,7 +268,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                 };
                 if (shared.Completed && shared.Routes.Count != 0)
                 {
-                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey, historicalTravel).ToArray();
+                    AutoPlayEventRoute[] travel = NavigationTravelRoutes(observed, shared, aggregateByKey.ContainsKey, historicalTravel, availability).ToArray();
                     // Completion alone does not prove connectivity under a new
                     // source predicate. Reobserve a previously real connection
                     // without replaying choices authenticated for the old predicate.
@@ -265,7 +284,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                         if (!hint && CanProbeNavigation(local) && travel.Any(route => !IsNavigationRouteConfirmed(route, recorded, valid)))
                         {
                             local.RouteNeedsRediscovery = true;
-                            if (!NeedsExecution(shared))
+                            if (!NeedsNavigationExecution(observation, local, readAvailability))
                             {
                                 local.Event = observed with { ChangesStory = false };
                             }
@@ -294,7 +313,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         return new(view, (visit, item) => phaseOrder(AggregateVisit(visit), item), (visit, item) => progressionOrder(AggregateVisit(visit), item), normalizeLegacyRoutes: false, observationsCoverWholeVisit, candidateProgressionOrder is null ? null : (visit, _, candidate) => ProgressionOrder(AggregateVisit(visit), candidate));
     }
 
-    private IEnumerable<AutoPlayEventRoute> UnconfirmedNavigationRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage<TDeferral> scoped, IReadOnlySet<string> valid)
+    private IEnumerable<AutoPlayEventRoute> UnconfirmedNavigationRoutes(AutoPlayNavigationVisit observation, AutoPlayEventCoverage<TDeferral> scoped, IReadOnlySet<string> valid, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?>? readAvailability)
     {
         if (!CanProbeNavigation(scoped))
         {
@@ -303,7 +322,8 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         AutoPlayEvent observed = observation.Events.Single(item => item.Id == scoped.Event.Id);
         AutoPlayEventCoverage<TDeferral> shared = FindEvent(observation.VisitKey, observed.Id);
         IEnumerable<AutoPlayNavigationRoute> recorded = State.NavigationRoutes.Where(edge => edge.SourceKey == observation.Key && edge.EventId == scoped.Event.Id);
-        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key)).Where(route => !IsNavigationRouteConfirmed(route, recorded, valid));
+        AutoPlayEventAvailability? availability = readAvailability?.Invoke(observation, observed);
+        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key), availability: availability).Where(route => !IsNavigationRouteConfirmed(route, recorded, valid));
     }
 
     private static bool IsNavigationRouteConfirmed(AutoPlayEventRoute route, IEnumerable<AutoPlayNavigationRoute> recorded, IReadOnlySet<string> valid)
@@ -319,14 +339,18 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         return scoped.Available && !scoped.Unavailable && !scoped.PolicyDeferred && scoped.BlockedReason is null;
     }
 
-    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage<TDeferral> shared, Func<string, bool> visitExists, bool allowHistoricalConditions = false)
+    private static IEnumerable<AutoPlayEventRoute> NavigationTravelRoutes(AutoPlayEvent observed, AutoPlayEventCoverage<TDeferral> shared, Func<string, bool> visitExists, bool allowHistoricalConditions = false, AutoPlayEventAvailability? availability = null)
     {
+        if (availability?.Unavailable == true)
+        {
+            return [];
+        }
         AutoPlayEventCoverage<TDeferral> candidates = new()
         {
             Event = observed,
             Completed = shared.Completed,
             Routes = shared.Routes,
-            UnavailableVariants = shared.UnavailableVariants,
+            UnavailableVariants = availability?.UnavailableVariants ?? shared.UnavailableVariants,
             PolicyDeferredVariants = shared.PolicyDeferredVariants,
             AllowHistoricalTravelConditions = allowHistoricalConditions
         };

@@ -109,7 +109,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         TrackControllableFrontierProgress();
         driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
-        Dictionary<string, string> validatedPhysicalGuards = new(StringComparer.Ordinal);
         foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId).ToArray())
         {
             Ff7AutoPlayNavigationGuard guard = entry.Value;
@@ -130,8 +129,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (target is not null && guard.SourceTriangle is int triangle && (uint)triangle < session.Field.Walkmesh.Count)
             {
-                validatedPhysicalGuards[entry.Key] = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
-                validatedPhysicalGuards[entry.Key] = ReadMovementFailureFingerprint(validatedPhysicalGuards[entry.Key], guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities);
                 if (guard.NavigationKey == observation.NavigationKey)
                 {
                     if (currentFailure)
@@ -141,7 +138,16 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 }
             }
         }
-        planner.RefreshUnavailable(observation.VisitId, physicalGuards);
+        Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal) { [observation.NavigationKey] = physicalGuards };
+        AutoPlayNavigationVisit currentNavigation = State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
+        foreach (var item in State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Where(item => item.Available))
+        {
+            AutoPlayEvent observed = currentNavigation.Events.Single(target => target.Id == item.Event.Id);
+            AutoPlayEventAvailability availability = ReadNavigationAvailability(currentNavigation, observed, observation, driver, componentGuards)!;
+            item.Unavailable = availability.Unavailable;
+            item.UnavailableVariants = availability.UnavailableVariants;
+            item.AvailabilityFingerprint = availability.Fingerprint;
+        }
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
@@ -172,8 +178,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal);
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), preferredGoal: State.NavigationGoal);
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, componentGuards), preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
             if (next is null)
             {
                 if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
