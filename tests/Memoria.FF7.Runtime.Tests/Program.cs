@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-facing-search-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldFacingSearchTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-watchdog-only", StringComparer.Ordinal))
 {
     AutoPlayWatchdogTests.Run();

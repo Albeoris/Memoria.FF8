@@ -124,7 +124,7 @@ public sealed partial class Ff7AutoplayDriver
         inputs.Add(input);
     }
 
-    private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, double Cost, double Distance);
+    private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, string SearchKey, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, double Cost, double Distance);
 
     internal static Ff7AutoPlayWorldRoute SearchWorldRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, IReadOnlyList<Vector3> departureHints, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null)
     {
@@ -136,8 +136,9 @@ public sealed partial class Ff7AutoplayDriver
             return rearming ? departureHints.Select(point => WorldPointDistance(state.Player, point)).DefaultIfEmpty(0).Min() : waypoint is Vector3 point ? WorldPointDistance(state.Player, point) : target.Faces.Select(face => WorldFaceDistance(state.Player, face)).Min();
         }
         string initial = WorldMovementKey(source);
-        List<WorldSearchNode> nodes = [new(source, initial, -1, default, null, 0, Distance(source))];
-        Dictionary<string, double> costs = new(StringComparer.Ordinal) { [initial] = 0 };
+        string initialSearch = WorldSearchKey(source);
+        List<WorldSearchNode> nodes = [new(source, initial, initialSearch, -1, default, null, 0, Distance(source))];
+        Dictionary<string, double> costs = new(StringComparer.Ordinal) { [initialSearch] = 0 };
         PriorityQueue<int, (double Score, double Distance, int Order)> open = new();
         open.Enqueue(0, (nodes[0].Distance, nodes[0].Distance, 0));
         int expanded = 0;
@@ -146,7 +147,7 @@ public sealed partial class Ff7AutoplayDriver
         while (open.TryDequeue(out int current, out _) && expanded < nodeBudget)
         {
             WorldSearchNode node = nodes[current];
-            if (costs[node.Key] != node.Cost)
+            if (costs[node.SearchKey] != node.Cost)
             {
                 continue;
             }
@@ -170,20 +171,21 @@ public sealed partial class Ff7AutoplayDriver
                     continue;
                 }
                 string key = WorldMovementKey(step.State);
+                string searchKey = WorldSearchKey(step.State);
                 double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
                 bool reached = rearming ? step.State.Input.TerrainScript != target.Script && step.TerrainBoundary is null : targetBoundary;
-                if (!reached && costs.TryGetValue(key, out double prior) && prior <= cost)
+                if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
                 {
                     continue;
                 }
                 double distance = Distance(step.State);
                 int index = nodes.Count;
-                nodes.Add(new(step.State, key, current, input, step.TerrainBoundary, cost, distance));
+                nodes.Add(new(step.State, key, searchKey, current, input, step.TerrainBoundary, cost, distance));
                 if (reached)
                 {
                     return new(rearming ? Ff7AutoPlayWorldNavigationStatus.Rearming : Ff7AutoPlayWorldNavigationStatus.Step, ReconstructWorldRoute(nodes, index), expanded, null);
                 }
-                costs[key] = cost;
+                costs[searchKey] = cost;
                 open.Enqueue(index, (cost + distance, distance, index));
                 if (step.Moved && (best < 0 || distance < nodes[best].Distance || distance == nodes[best].Distance && cost < nodes[best].Cost))
                 {
@@ -284,9 +286,20 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static string WorldMovementKey(Ff7AutoPlayWorldMovementState state)
     {
+        return WorldMovementKey(state, includePresentationFacing: true);
+    }
+
+    internal static string WorldSearchKey(Ff7AutoPlayWorldMovementState state)
+    {
+        // Admitted navigation inputs exclude transport dismounts. Current facing and visual turn smoothing do not feed their motion.
+        return WorldMovementKey(state, includePresentationFacing: false);
+    }
+
+    private static string WorldMovementKey(Ff7AutoPlayWorldMovementState state, bool includePresentationFacing)
+    {
         Ff7WorldEntity p = state.Player;
         Ff7WorldInputState i = state.Input;
-        StringBuilder key = new($"{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.Direction}:{p.TargetDirection}:{p.TurnOffset}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
+        StringBuilder key = new($"{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{(includePresentationFacing ? p.Direction : 0)}:{p.TargetDirection}:{(includePresentationFacing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
         foreach (Ff7WorldTerrainReference cached in i.TerrainCache ?? [])
         {
             key.Append($"|{cached.ChunkX},{cached.ChunkZ},{cached.Triangle}");
