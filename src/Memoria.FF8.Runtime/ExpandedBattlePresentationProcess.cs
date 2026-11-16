@@ -76,7 +76,6 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal long? ActiveActionToken => presentation.HostedActiveActionToken;
     internal long? LastStepActionToken { get; private set; }
     internal NativeBattleModelLifecycleServices? LastFrameServices { get; private set; }
-    internal bool LastPostUiVitalsAdmitted { get; private set; }
     internal NativeBattleTriggerWidget? TriggerWidget => Graphics.TriggerWidget;
     internal NativeBattleTriggerReceipt? PendingTrigger => Graphics.PendingTrigger;
     internal NativeBattlePresentationCompletionRequested? PendingCompletion => presentation.PendingHostedCompletion;
@@ -311,7 +310,6 @@ public sealed partial class ExpandedBattlePresentationProcess
         try
         {
             PublishEntryMusic(ReadPendingEntryMusic());
-            LastPostUiVitalsAdmitted = false;
             presentation.ImportHostedPresentationSharedState(logicalOwner);
             presentation.SetGunbladeMode(logicalOwner.GunbladeMode);
             try
@@ -379,12 +377,8 @@ public sealed partial class ExpandedBattlePresentationProcess
                     DispatchSharedState(logicalOwner.ActivateExpandedHostedClock);
                 }
 
-                void DispatchClockPoll(NativeBattleUiServices ui, bool postCore)
+                void DispatchClockPoll(NativeBattleUiServices ui)
                 {
-                    if (postCore)
-                    {
-                        LastPostUiVitalsAdmitted = !ui.PauseDE9 && (ui.Flags942 & 0x40) != 0;
-                    }
                     DispatchSharedState(() => logicalOwner.AdvanceExpandedUiAtbService(ui));
                 }
 

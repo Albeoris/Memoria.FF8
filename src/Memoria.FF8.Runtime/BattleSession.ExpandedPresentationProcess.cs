@@ -48,22 +48,11 @@ public sealed partial class BattleSession
             NativeExamTimerState? presentedTimer = process.Timer;
             RequireSameHostedTimerClock(presentedTimer, NativeExamTimer);
             NativeExamTimer = presentedTimer;
-            if (process.LastPostUiVitalsAdmitted)
-            {
-                AdvanceExpandedPresentedVitals4B0500();
-            }
             RefreshPreparedPresentation();
 
             void DispatchExpandedCore()
             {
                 DispatchExpandedGuardianBoost(process);
-                if (process.Graphics.UiServices is { PauseDE9: false } ui && (ui.Flags942 & 0x40) != 0)
-                {
-                    for (int poll = 0; poll < 3; poll++)
-                    {
-                        AdvanceExpandedPresentedVitals4B0500();
-                    }
-                }
                 if (process.EntryReady && Outcome == BattleOutcome.Active && !HasPendingExpandedTerminal)
                 {
                     DispatchTurnBasedFrameCore();

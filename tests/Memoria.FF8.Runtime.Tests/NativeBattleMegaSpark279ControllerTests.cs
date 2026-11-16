@@ -234,9 +234,9 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         Harness harness = new();
         var frame = MainAt(40);
         ushort expected = frame.StackBytes!.ReadUInt16(-0x76);
-        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleMegaSpark279Frame>(NativeBattleTestSnapshots.Json(frame))!;
-        cold = cold with { Memory = cold.Memory with { Arena = cold.Memory.Arena!.Write(LinkedRowsOffset + 6, new byte[] { 255, 255 }) } };
-        var actual = AdvanceMain(cold, Pools[6].Bank, Resources(), harness.Inputs()).Frame;
+        var restoredStack = NativeBattleTestSnapshots.RestoreJson<NativeBattleStackBytes>(NativeBattleTestSnapshots.Json(frame.StackBytes))!;
+        frame = frame with { StackBytes = restoredStack, Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(LinkedRowsOffset + 6, new byte[] { 255, 255 }) } };
+        var actual = AdvanceMain(frame, Pools[6].Bank, Resources(), harness.Inputs()).Frame;
         Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena!.Read(LinkedRowsOffset + 6, 2)));
         Assert.Equal(NativeBattleTestSnapshots.Json(frame.StackBytes), NativeBattleTestSnapshots.Json(actual.StackBytes));
     }
@@ -248,8 +248,11 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         (var main, _) = pools[6].Append(MainCallback);
         (var root, _) = pools[0].Append(RootCallback);
         pools = pools.SetItem(6, main).SetItem(0, root);
-        var frame = before with { Effect = before.Effect with { Pools = pools, ReturnedDescriptor = RootDescriptor }, State = before.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(3)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null } };
-        var task = Read(frame, Pools[6].Bank).WriteWord(12, age).WriteWord(14, 1).WriteWord(16, 1000).WriteDword(20, ModelAddress(0)).WriteWord(32, 500).WriteWord(34, 0).WriteWord(36, 1000).WriteWord(38, 123);
+        var state = before.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteModelOwner(CasterGlobal, OriginalOwner(3), OriginalAliases).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null };
+        var frame = before with { Effect = before.Effect with { Pools = pools, ReturnedDescriptor = RootDescriptor }, State = state };
+        var packets = Packets(0);
+        var task = Read(frame, Pools[6].Bank).WriteWord(12, age).WriteWord(14, 1).WriteWord(16, 1000).WriteWord(32, 500).WriteWord(34, 0).WriteWord(36, 1000).WriteWord(38, 123);
+        task = task.WriteOrderedContactRecipients(20, 3, packets, packets.ReadHeader(new BattleActionHeaderReference(0)));
         frame = Write(frame, Pools[6].Bank, task);
         NativeBattleGfAnimationWorkspace workspace = new(new byte[ProgrammeAWorkspaceLength].ToImmutableArray());
         workspace = workspace.Initialize7016B0(Resources().ProgrammeA, ProgrammeAWorkspaceLength);

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -35,20 +36,35 @@ public sealed partial class BattleSession
         return unchecked((short)stack.ReadUInt16(offset));
     }
 
-    private void ObserveNativeMegaSpark279UiStack(NativeBattleUiWindows windows, bool normalPreCore)
+    private void ObserveNativeMegaSpark279UiStack(NativeBattleUiWindows windows, bool normalPreCore, BattleSession? logicalVitalsOwner)
     {
         if (nativeMegaSpark279Stack is not { } stack || !normalPreCore)
         {
             return;
         }
+        if (logicalVitalsOwner is not null && NativeGraphics?.OriginalEffect?.Binding.MegaSpark279Resources is null)
+        {
+            return;
+        }
         windows.Validate();
+        BattleSession owner = logicalVitalsOwner ?? this;
+        NativeBattlePartyPresentation? presentation = owner.nativePartyPresentation;
+        if (logicalVitalsOwner?.expandedPartyPresentation is { } expanded)
+        {
+            var rows = new NativeBattlePartyPresentedVital?[NativeBattleSlots.AllyCount];
+            foreach (BattleCombatant actor in owner.allies.Where(actor => actor.NativeActorIndex is >= 0 and < NativeBattleSlots.AllyCount))
+            {
+                rows[actor.RequireNativeActorIndex()] = RequireExpandedPartyPresentedRow(expanded, actor.Id);
+            }
+            presentation = new(rows.ToImmutableArray());
+        }
         foreach (NativeBattleUiWindow window in windows.Rows)
         {
             if (window.Update0 == 0)
             {
                 continue;
             }
-            if (window.Update0 != 0x4B0500 || nativePartyPresentation is not { } presentation)
+            if (window.Update0 != 0x4B0500 || presentation is null)
             {
                 stack = stack.Invalidate(-0xAC, 8, window.Update0, "UI window callback");
                 continue;
@@ -62,13 +78,13 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                BattleCombatant? actor = combatants.SingleOrDefault(actor => actor.IsPlayer && actor.NativeActorIndex == index);
+                BattleCombatant? actor = owner.allies.SingleOrDefault(actor => actor.NativeActorIndex == index);
                 if (actor is null)
                 {
                     supported = false;
                     break;
                 }
-                guardian[index] = guardianForceCasts.ContainsKey(actor.Id);
+                guardian[index] = owner.guardianForceCasts.ContainsKey(actor.Id);
             }
             stack = supported ? NativeBattleMegaSpark279Stack.ObserveVitals(stack, presentation, guardian, NativeEffectMemory?.ExecutionStack) : stack.Invalidate(-0xAC, 8, 0x4B0500, "Missing current party UI row");
         }

@@ -132,11 +132,18 @@ public sealed partial class BattleSession
         }
     }
 
-    private void AdvanceNativeUiWindowCallbacks(NativeBattleUiServices services)
+    private void AdvanceNativeUiWindowCallbacks(NativeBattleUiServices services, BattleSession? logicalVitalsOwner = null)
     {
         NativeBattleUiWindows windows = services.Windows ?? throw new NotSupportedException("Native UI callbacks require their retained physical window bank; migrate the named snapshot explicitly.");
-        ObserveNativeMegaSpark279UiStack(windows, nativePreCoreUiStack);
-        AdvanceNativePresentedVitals4B0500();
+        ObserveNativeMegaSpark279UiStack(windows, nativePreCoreUiStack, logicalVitalsOwner);
+        if (logicalVitalsOwner is null)
+        {
+            AdvanceNativePresentedVitals4B0500();
+        }
+        else
+        {
+            logicalVitalsOwner.AdvanceExpandedPresentedVitals4B0500();
+        }
         services = services with { Windows = windows.AdvanceVitals4B0450().CommitDraw4B9DB0(services.Frame33 == true, services.Flags942) };
         NativeGraphics = NativeGraphics! with { UiServices = services };
         AdvanceNativeTriggerWidget();

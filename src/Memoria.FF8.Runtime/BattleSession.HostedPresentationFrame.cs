@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         presentationActivations.Clear();
     }
 
-    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices, bool>? clockPoll = null, Action? clockReady = null, Action<NativeBattleModelLifecycleServices>? afterGraphics = null,
+    internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(BattleSession logicalOwner, NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices>? clockPoll = null, Action? clockReady = null, Action<NativeBattleModelLifecycleServices>? afterGraphics = null,
         Action<ImmutableArray<NativeBattleRenzokukenWidgetStepped>, long>? renzokukenUi = null)
     {
         RequireHostedCompletionAcknowledged();
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
             BeginHostedRenzokukenUi(services.Renzokuken);
             for (int pre = 0; pre < 3; pre++)
             {
-                AdvanceHostedUiPublication(clockPoll, postCore: false);
+                AdvanceHostedUiPublication(logicalOwner, clockPoll);
             }
             nativePreCoreUiStack = false;
             DrainHostedRenzokukenUi(renzokukenUi);
@@ -131,7 +131,7 @@ public sealed partial class BattleSession
                 }
             }
             BeginHostedRenzokukenUi(logicalOwner.CaptureExpandedHostedRenzokukenFrame());
-            AdvanceHostedUiPublication(clockPoll, postCore: true);
+            AdvanceHostedUiPublication(logicalOwner, clockPoll);
             DrainHostedRenzokukenUi(renzokukenUi);
             AdvanceNativeScanText537A30();
             PublishNativeScanInputFrame();
@@ -149,7 +149,7 @@ public sealed partial class BattleSession
         return services;
     }
 
-    private void AdvanceHostedUiPublication(Action<NativeBattleUiServices, bool>? clockPoll, bool postCore)
+    private void AdvanceHostedUiPublication(BattleSession logicalOwner, Action<NativeBattleUiServices>? clockPoll)
     {
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
@@ -158,9 +158,9 @@ public sealed partial class BattleSession
             NativeGraphics = graphics with { UiServices = ui with { HeldButtons16 = (ushort)(scanButtons | hostedGuardianBoostMappedButtons) } };
             if (!ui.PauseDE9 && (ui.Flags942 & 0x40) != 0)
             {
-                AdvanceNativeUiWindowCallbacks(NativeGraphics.UiServices!);
+                AdvanceNativeUiWindowCallbacks(NativeGraphics.UiServices!, clockPoll is null ? null : logicalOwner);
             }
-            clockPoll?.Invoke(NativeGraphics!.UiServices!, postCore);
+            clockPoll?.Invoke(NativeGraphics!.UiServices!);
         }
     }
 }

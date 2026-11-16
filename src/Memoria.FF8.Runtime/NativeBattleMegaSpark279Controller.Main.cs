@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleMegaSpark279Controller
 {
+    private const int OriginalTargetCells279 = 3;
+
     private static (NativeBattleMegaSpark279Frame Frame, int Result) AdvanceRoot(NativeBattleMegaSpark279Frame frame, uint address, NativeBattleMegaSpark279Resources resources, NativeBattleMegaSpark279Inputs inputs)
     {
         NativeBattleModulePoolTask root = Read(frame, address);
@@ -29,19 +31,17 @@ public static partial class NativeBattleMegaSpark279Controller
             }
             frame = ResetLinkedRows67F310(frame);
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-            int count = Header(frame, packets).ReadContactCount();
-            frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
+            NativeBattleActionHeaderSlot header = Header(frame, packets);
+            int count = header.ReadContactCount();
+            NativeBattleModulePoolTask director = Read(frame, main).WriteWord(14, checked((ushort)count)).WriteOrderedContactRecipients(20, OriginalTargetCells279, packets, header);
+            short summedDepth = 0;
             for (int index = 0; index < count; index++)
             {
-                packets = inputs.ReadPackets(frame);
-                BattleModelOwner target = packets.ReadContact(Header(frame, packets).FirstContact.Advance(index)).Primary.Recipient;
-                NativeBattleModulePoolTask task = Read(frame, main);
-                task.WriteExecutionReference(20 + index * 4, 4, new BattleExecutionReference.Model(target), packets.ModelAliases.EncodeAddress(target));
+                BattleModelOwner target = packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
                 short z = ModelTransform279(inputs.ReadModel(frame, target)).Position28.Z;
-                frame = Write(frame, main, task.WriteWord(16, unchecked((ushort)(Signed(task, 16) + z))));
+                summedDepth = unchecked((short)(summedDepth + z));
             }
-            NativeBattleModulePoolTask current = Read(frame, main);
-            frame = Write(frame, main, current.WriteWord(16, unchecked((ushort)(Signed(current, 16) / count))));
+            frame = Write(frame, main, director.WriteWord(16, unchecked((ushort)(summedDepth / count))));
             NativeBattleModelTransform transform = ModelTransform279(inputs.ReadModel(frame, frame.State.ReadModelOwner(CasterGlobal)));
             frame = WriteBytes(frame, main + 32, PointView(transform.Position28, transform.Vertical34), 8);
         }
@@ -139,9 +139,10 @@ public static partial class NativeBattleMegaSpark279Controller
         int targetPhase = unchecked(age - 40);
         if ((uint)targetPhase < 15)
         {
-            int count = Signed(Read(frame, address), 14);
+            NativeBattleModulePoolTask targeting = Read(frame, address);
+            int count = Signed(targeting, 14);
             int ordinal = checked((int)((uint)targetPhase % (uint)count));
-            BattleModelOwner target = Read(frame, address).ReadExecutionReference<BattleExecutionReference.Model>(20 + ordinal * 4, 4).Owner;
+            BattleModelOwner target = targeting.ReadExecutionReference<BattleExecutionReference.OrderedContactRecipients>(20, 4).Recipients[ordinal].Owner;
             if (targetPhase == 0)
             {
                 frame = inputs.Execute(frame, new NativeBattleMegaSpark279Flash5712C0(0, 1, 2, 128));
