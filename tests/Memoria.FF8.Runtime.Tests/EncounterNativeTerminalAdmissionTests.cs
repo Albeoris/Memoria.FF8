@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -16,7 +15,7 @@ public sealed class EncounterNativeTerminalAdmissionTests
         Assert.DoesNotContain(battle.QueuedActions, action => action.NativeQueuedCommand is not null);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EncounterPolicy");
 
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.True(Admit(restored, "original"));
         BattleAttackCommand terminal = Assert.Single(restored.QueuedActions, action => action.NativeQueuedCommand == 8);
         Assert.Equal((ushort)207, terminal.NativeAction!.ActionId);
@@ -48,12 +47,12 @@ public sealed class EncounterNativeTerminalAdmissionTests
     }
 
     [Fact]
-    public void TerminalAdmissionBlocksFurtherOriginalAndCopyPolicyActionsAcrossJsonRestore()
+    public void TerminalAdmissionBlocksFurtherOriginalAndCopyPolicyActionsAcrossPrivateRestore()
     {
         BattleSession battle = Create(0, 1);
         Assert.True(Admit(battle, "original"));
         Assert.True(Admit(battle, "original"));
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         int commands = restored.QueuedActions.Count;
         Assert.True(Admit(restored, "original"));
         Assert.True(Admit(restored, "copy"));

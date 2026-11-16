@@ -106,10 +106,6 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        if (OwnsExpandedHostedInvocation)
-        {
-            throw new NotSupportedException("Hosted party defeat requires admission of the original encounter terminal callback.");
-        }
         _ = RequireEncounterNativeEventResources(actor);
         if (EvaluateNativeAiCondition(actor, 221, 200, 0, 0))
         {
@@ -120,7 +116,14 @@ public sealed partial class BattleSession
         // Additional policy actors can exhaust the party before the original's next main callback.
         // At that boundary this composed encounter retains its genuine low-HP cinematic body.
         // Party incapacity need not lower Squall's raw HP, so no HP or status owner is rewritten.
-        DispatchNativeCallback(new(checked((byte)actor.RequireNativeActorIndex()), 1), () => QueueEncounterNativeTerminal(actor));
+        if (OwnsExpandedHostedInvocation)
+        {
+            QueueEncounterNativeTerminal(actor);
+        }
+        else
+        {
+            DispatchNativeCallback(new(checked((byte)actor.RequireNativeActorIndex()), 1), () => QueueEncounterNativeTerminal(actor));
+        }
         return true;
     }
 

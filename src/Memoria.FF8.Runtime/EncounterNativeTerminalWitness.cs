@@ -42,9 +42,30 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (!state.TerminalStarted || definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod || !byId.TryGetValue(mod.OriginalActorId, out BattleCombatant? original) || (NativeSavedStatusBits(original) & 1) == 0 || (original.NativeCombatantFlags & 0x40) == 0 || FindNativeOriginalGraphicsBinding(original.Id) is null)
+        if (!state.TerminalStarted || definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod || !byId.TryGetValue(mod.OriginalActorId, out BattleCombatant? original) || (NativeSavedStatusBits(original) & 1) == 0 || (original.NativeCombatantFlags & 0x40) == 0 || !HasEncounterNativeTerminalBinding(mod, original))
         {
             throw new InvalidDataException("The captured native encounter terminal witness requires its original bound actor, native KO/suspension flags and an admitted terminal owner.");
         }
+    }
+
+    private bool HasEncounterNativeTerminalBinding(EncounterCompiledDefinition mod, BattleCombatant original)
+    {
+        if (!UsesExpandedRoster)
+        {
+            return FindNativeOriginalGraphicsBinding(original.Id) is not null;
+        }
+        EncounterBindingResult binding = EncounterBindingResolver.Resolve(mod.Encounter, definition, new(mod.SourceProfile));
+        return binding.OriginalActorId == original.Id && original.NativeActorIndex is >= NativeBattleSlots.AllyCount and < NativeBattleSlots.Count;
+    }
+
+    private bool HasPendingExpandedEncounterNativeTerminal()
+    {
+        if (!UsesExpandedRoster || encounterPolicies is not { TerminalStarted: true, TerminalReached: false } ||
+            definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod)
+        {
+            return false;
+        }
+        return ActiveAction is { NativeQueuedCommand: 8, ActionId: 207, NativeSequence: 15, NativeAiCallbackStage: 1 } active && active.ActorId == mod.OriginalActorId && active.TargetId == mod.OriginalActorId ||
+            actions.Any(action => action is { NativeQueuedCommand: 8, ActionId: 207, NativeSequence: 15, NativeAiCallbackStage: 1 } && action.ActorId == mod.OriginalActorId && action.TargetId == mod.OriginalActorId);
     }
 }

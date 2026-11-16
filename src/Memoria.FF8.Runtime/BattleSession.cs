@@ -1238,12 +1238,16 @@ public sealed partial class BattleSession
             }
             return BattleOutcome.ScriptedExit;
         }
+        if (encounterPolicies?.TerminalReached == true)
+        {
+            return BattleOutcome.Victory;
+        }
+        if (HasPendingExpandedEncounterNativeTerminal())
+        {
+            return BattleOutcome.Active;
+        }
         if (NativeGraphics is not null)
         {
-            if (encounterPolicies?.TerminalReached == true)
-            {
-                return BattleOutcome.Victory;
-            }
             if (!allies.Any(actor => actor.Slot is { Position: < NativeBattleSlots.AllyCount } && (actor.NativeCombatantFlags & 1) != 0 && (NativeSavedStatusBits(actor) & 5) == 0))
             {
                 return BattleOutcome.Defeat;
@@ -1253,10 +1257,6 @@ public sealed partial class BattleSession
         if (!allies.Any(IsNativeBattleCapable))
         {
             return BattleOutcome.Defeat;
-        }
-        if (encounterPolicies?.TerminalReached == true)
-        {
-            return BattleOutcome.Victory;
         }
         return enemies.Any(actor => IsNativeBattleCapable(actor) && (UsesExpandedRoster || !actor.Untargetable)) ? BattleOutcome.Active : BattleOutcome.Victory;
     }
@@ -1792,6 +1792,7 @@ public sealed partial class BattleSession
         RestoreDebugOutcome(snapshot);
         Outcome = snapshot.Outcome;
         RestoreDiagnosticTerminalHold(snapshot);
+        RestoreEncounterPolicies(snapshot.EncounterPolicies);
         BattleOutcome expectedOutcome = DetermineOutcome();
         // Native graphics can release the last action after this host frame's outcome admission pass.
         bool awaitingNativeOutcomeAdmission = DebugOutcome is null && snapshot.Outcome == BattleOutcome.Active && NativeGraphics is not null && NativeGraphics.NativeOutcome?.ResultByte6E7 is null or 0 && expectedOutcome is BattleOutcome.Victory or BattleOutcome.Defeat;
@@ -1874,7 +1875,6 @@ public sealed partial class BattleSession
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
         RestoreScanKnowledge(snapshot.ScanKnowledge);
         RestoreEncounterAllocation(snapshot.EncounterAllocation);
-        RestoreEncounterPolicies(snapshot.EncounterPolicies);
         RestoreEncounterArrivals(snapshot.EncounterArrivals);
         RestoreEncounterNativeEvents(snapshot.EncounterNativeEvents);
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);

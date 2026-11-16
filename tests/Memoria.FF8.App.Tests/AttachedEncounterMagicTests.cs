@@ -30,6 +30,61 @@ public sealed class AttachedEncounterMagicTests
         Assert.Equal(original.Random, hosted.Random);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Installed_Edea_reaches_its_own_terminal_after_party_incapacity(bool petrified)
+    {
+        RunTerminal(attached: false);
+        RunTerminal(attached: true);
+
+        void RunTerminal(bool attached)
+        {
+            string directory = TestResources.GameDirectory;
+            using GameAssets game = new(directory);
+            using BattleAssets assets = new(directory);
+            NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
+            GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+            session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+            using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, resource)) { UseAttachedBattlePresentation = attached };
+            ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+            BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+            battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+            TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null);
+            BattleCombatant[] party = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
+            int[] initialHp = party.Select(actor => actor.CurrentHp).ToArray();
+            foreach (BattleCombatant actor in party)
+            {
+                if (!petrified)
+                {
+                    actor.CurrentHp = 0;
+                    actor.Atb = 0;
+                }
+                actor.NativeStatus0 |= petrified ? (ushort)4 : (ushort)1;
+            }
+            string casterId = battle.ReadDefinition().EncounterMod!.OriginalActorId;
+            BattleModelOwner source = battle.ReadPresentationModelOwner(casterId);
+            TickUntil(world, () => battle.EncounterPolicies?.TerminalStarted == true);
+            Assert.Equal(BattleOutcome.Active, battle.Outcome);
+            Assert.False(battle.EncounterPolicies!.TerminalReached);
+            bool sawTerminal = false;
+            TickUntil(world, () =>
+            {
+                NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+                sawTerminal |= packets.PublishedHeaders().Any(entry => entry.Slot is { Command: 8, Action: 207, Sequence: 15 } && entry.Slot.Source == source);
+                return battle.Outcome != BattleOutcome.Active;
+            });
+            Assert.True(sawTerminal);
+            Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+            Assert.Equal((byte)4, battle.NativeResult);
+            Assert.True(battle.EncounterPolicies.TerminalReached);
+            Assert.True(battle.EncounterPolicies.CleanedUp);
+            Assert.Equal(petrified ? initialHp : new int[party.Length], party.Select(actor => actor.CurrentHp).ToArray());
+            TickUntil(world, () => battle.CanReturnToField && (battle.ExpandedPresentationProcess?.TerminalFinished ?? true));
+        }
+    }
+
     private sealed record BattleRun((byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts, byte Repeats)[] Headers,
         (string? Target, int Amount)[] Damage, byte[] Random, EncounterNativeEventState? Opening);
 
@@ -45,9 +100,7 @@ public sealed class AttachedEncounterMagicTests
         {
             if (nativeTaunt)
             {
-                NativeCharacterVitals vitals = current.CharacterVitals!.WithGuestBattleRecords();
-                NativeCharacterVital[] records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray();
-                current.SetCharacterVitals((vitals with { Records = records }).Rest().WithBattleParty([0, 2, 4], 3));
+                PrepareEdeaParty(current);
             }
         }, nativeTaunt ? (ushort)136 : (ushort)94, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
@@ -151,6 +204,13 @@ public sealed class AttachedEncounterMagicTests
         EncounterCompiledAction cast = new(EncounterCompiledActionKind.Cast, [new("Fire", fire, 0, true, false)], EncounterCompiledTargetKind.RandomOpponent, null, true, false, null, []);
         EncounterCompiledPolicy policy = new(policyId, [new("normal", 1, 1, 0, cast)]);
         return definition with { EncounterMod = mod with { Policies = mod.Policies.Add(policyId, policy), NormalActionPolicies = mod.NormalActionPolicies.Add("original", policyId) } };
+    }
+
+    private static void PrepareEdeaParty(GameSession session)
+    {
+        NativeCharacterVitals vitals = session.CharacterVitals!.WithGuestBattleRecords();
+        NativeCharacterVital[] records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray();
+        session.SetCharacterVitals((vitals with { Records = records }).Rest().WithBattleParty([0, 2, 4], 3));
     }
 
     private static void TickUntil(GameWorld world, Func<bool> condition)
