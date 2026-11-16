@@ -127,6 +127,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 guard = RestorePhysicalGuard(guard, observation.NavigationKey, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle, driver.CaptureSpatialBoundaryTriangles());
                 State.NavigationGuards[entry.Key] = guard;
             }
+            if (guard.NavigationKey == observation.NavigationKey)
+            {
+                State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = physicalGuards[entry.Key] };
+            }
             if (target is not null && guard.SourceTriangle is int triangle && (uint)triangle < session.Field.Walkmesh.Count)
             {
                 if (guard.NavigationKey == observation.NavigationKey)

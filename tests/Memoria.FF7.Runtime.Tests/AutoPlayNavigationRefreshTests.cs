@@ -17,6 +17,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckOriginalExhaustedHistoricalTravel();
         CheckOriginalCurrentFieldRefresh();
         CheckOriginalForeignRefresh();
+        CheckOriginalRetainedGuardObservation();
         CheckScopedPhysicalTravel();
     }
 
@@ -221,10 +222,12 @@ internal static class AutoPlayNavigationRefreshTests
         state.NavigationGuards["legacy"] = new("visit", 1);
         state.NavigationGuards["empty"] = new("visit", 1, SpatialBoundaryTriangles: []);
         state.NavigationGuards["bounded"] = new("visit", 1, SpatialBoundaryTriangles: [4, 7]);
+        state.NavigationGuards["observed"] = new("visit", 1, ObservedFingerprint: "new-native-observation");
         Ff7AutoPlayState cold = state.Clone();
         Check(cold.NavigationGuards["legacy"].SpatialBoundaryTriangles is null, "An older guard fabricated an empty source boundary domain.");
         Check(cold.NavigationGuards["empty"].SpatialBoundaryTriangles is { Length: 0 }, "A proved empty source boundary domain was lost on restore.");
         Check(cold.NavigationGuards["bounded"].SpatialBoundaryTriangles!.SequenceEqual([4, 7]), "Cold restoration changed the source boundary domain.");
+        Check(cold.NavigationGuards["legacy"].ObservedFingerprint is null && cold.NavigationGuards["observed"].ObservedFingerprint == "new-native-observation", "Cold restoration fabricated or discarded an optional latest native guard observation.");
         var upgraded = Ff7AutoPlayPolicy.RestorePhysicalGuard(state.NavigationGuards["legacy"], "current", 2, [3]);
         Check(upgraded.SpatialBoundaryTriangles!.SequenceEqual([3]), "Current native revalidation did not upgrade optional source boundary evidence.");
     }
@@ -383,11 +386,55 @@ internal static class AutoPlayNavigationRefreshTests
         for (int step = 0; step < 800 && controller.Running && !reached; step++)
         {
             controller.Advance(1);
-            reached = session.MapId == 530 && policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Entity: 5, Accepted: true };
+            reached = session.FieldGeneration > source.FieldGeneration && policy.State.NavigationGoal != inherited && policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Accepted: true };
         }
         Check(controller.Failure is null && reached && policy.State.NavigationGoal != inherited, $"A duplicate foreign physical inspection still starved native event admission: {controller.Error}");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Foreign refresh validation changed the original standalone.");
         Console.WriteLine($"PASS original stale foreign inspection yields to native actor admission after {controller.Steps} ordinary callbacks; source unchanged.");
+    }
+
+    private static void CheckOriginalRetainedGuardObservation()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_RETAINED_GUARD_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        var sourceGuard = source.AutoPlay!.NavigationGuards.First(entry => entry.Value.EventId == "actor:9:script:1" && entry.Value.NavigationKey!.StartsWith("ff7:525:", StringComparison.Ordinal) && entry.Value.NavigationKey.EndsWith(":16", StringComparison.Ordinal));
+        string failure = source.AutoPlay.Coverage.Visits.SelectMany(visit => visit.Events).SelectMany(item => item.UnavailableAttempts).Last(attempt => attempt.GuardKey == sourceGuard.Key).GuardFingerprint;
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        int checkpoints = 0;
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) =>
+        {
+            checkpoints++;
+            throw new ExpectedChoiceBoundary();
+        });
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool retainedOutside = false;
+        for (int step = 0; step < 800 && controller.Running && checkpoints == 0; step++)
+        {
+            controller.Advance(1);
+            string? observed = policy.State.NavigationGuards[sourceGuard.Key].ObservedFingerprint;
+            if (!retainedOutside && session.MapId != 525 && observed is not null && observed != failure)
+            {
+                retainedOutside = true;
+                Check(policy.State.Clone().NavigationGuards[sourceGuard.Key].ObservedFingerprint == observed, "Cold state lost the released native source proof while travelling outside its field.");
+            }
+        }
+        Check(retainedOutside && checkpoints == 1 && controller.Failure is ExpectedChoiceBoundary, $"Latest source eligibility did not survive departure through the next native choice frontier: {controller.Error}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Retained guard validation changed its original standalone.");
+        Console.WriteLine($"PASS original latest guard observation survives foreign travel and reaches a new native choice after {controller.Steps} callbacks; source unchanged.");
+    }
+
+    private sealed class ExpectedChoiceBoundary : Exception
+    {
     }
 
     private static void Check(bool condition, string message)

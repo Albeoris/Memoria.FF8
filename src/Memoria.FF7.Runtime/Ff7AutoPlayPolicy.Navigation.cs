@@ -53,7 +53,7 @@ public sealed partial class Ff7AutoPlayPolicy
         if (!componentGuards.TryGetValue(navigation.Key, out IReadOnlyDictionary<string, string>? facts))
         {
             var aggregate = State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey);
-            Dictionary<string, string> projected = aggregate.Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => State.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.Last().GuardFingerprint, StringComparer.Ordinal);
+            Dictionary<string, string> projected = aggregate.Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => State.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => State.NavigationGuards[group.Key].ObservedFingerprint ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
             bool current = navigation.Key == observation.NavigationKey;
             string configuration = observation.NavigationKey[..observation.NavigationKey.LastIndexOf(':')];
             if (current || navigation.Key.StartsWith(configuration + ":", StringComparison.Ordinal))
@@ -61,7 +61,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 int? triangle = current ? session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle : State.NavigationGuards.Values.FirstOrDefault(guard => guard.VisitId == navigation.VisitKey && guard.NavigationKey == navigation.Key && guard.SourceTriangle is int source && (uint)source < session.Field.Walkmesh.Count)?.SourceTriangle;
                 if (triangle is not null)
                 {
-                    foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == navigation.VisitKey && entry.Value.NavigationKey == navigation.Key))
+                    foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == navigation.VisitKey && entry.Value.NavigationKey == navigation.Key).ToArray())
                     {
                         Ff7AutoPlayNavigationGuard guard = entry.Value;
                         if (!current && guard.SpatialBoundaryTriangles is null)
@@ -76,6 +76,7 @@ public sealed partial class Ff7AutoPlayPolicy
                         }
                         string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle, current ? null : guard.SpatialBoundaryTriangles!.ToHashSet());
                         projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, current ? null : true);
+                        State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = projected[entry.Key] };
                     }
                 }
             }
