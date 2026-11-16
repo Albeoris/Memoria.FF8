@@ -77,6 +77,12 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
+        if (TryApplyAutoPlayFieldRecovery(Session!))
+        {
+            autoPlay!.ResetIdleDeadline();
+            SaveAutoPlayCheckpoint(Session!.Capture());
+            return;
+        }
         autoPlay!.Advance(1);
         if (autoPlay.Failure is Exception failure)
         {
