@@ -6,6 +6,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed class SharedAutoPlayBattlePolicyTests
 {
     [Fact]
+    public void RetreatPreservesRecoveryAndNativeEscapePermissions()
+    {
+        AutoPlayBattleRecoveryTarget[] critical = [new(10, 100, false), new(25, 100, false), new(0, 100, true)];
+        Assert.True(AutoPlayBattlePolicy.ShouldRetreat(true, false, critical));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(false, false, critical));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, true, critical));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, false, [new(26, 100, false)]));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, false, [new(0, 100, true)]));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, false, [new(1, 0, false)]));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, false, [new(uint.MaxValue, uint.MaxValue, false)]));
+    }
+
+    [Fact]
     public void OrdinaryAttackPreservesReadyActorAndCombatantOrder()
     {
         AutoPlayBattleActor[] actors =

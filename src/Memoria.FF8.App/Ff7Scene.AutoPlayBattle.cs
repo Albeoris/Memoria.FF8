@@ -67,10 +67,16 @@ internal sealed partial class Ff7Scene
         {
             battle.AdvanceTurn();
         }
-        if (battle.ReadyPlayer is int owner)
+        bool escapeHeld = battle.EscapeInProgress && battle.CanAttemptEscape;
+        if (!escapeHeld && battle.ReadyPlayer is int owner)
         {
             var choice = PlanAutoPlayBattleCommand(battle.AutoPlayCommands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null, (command, target) => battle.DescribeRecovery(owner, command, target));
-            if (choice is { } action)
+            if (ShouldAutoPlayBattleRetreat(battle, choice))
+            {
+                escapeHeld = true;
+                autoPlay.ResetIdleDeadline();
+            }
+            else if (choice is { } action)
             {
                 selectedBattleCommand = null;
                 battleCommandPage = null;
@@ -85,8 +91,15 @@ internal sealed partial class Ff7Scene
             }
         }
         pendingLimitConfirm = battle.BeatRushSelecting;
-        AdvanceBattleTime(gameTime, battle, escapeHeld: false);
+        AdvanceBattleTime(gameTime, battle, escapeHeld);
         return true;
+    }
+
+    internal static bool ShouldAutoPlayBattleRetreat(Ff7BattleSession battle, (Ff7BattleCommandOption Command, int TargetSlot)? choice)
+    {
+        bool recovery = choice is { Command.Command: Ff7BattleCommand.Item or Ff7BattleCommand.Magic };
+        AutoPlayBattleRecoveryTarget[] targets = battle.Actors.Where(actor => actor.Actor.Slot < 3).Select(actor => new AutoPlayBattleRecoveryTarget(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.HitPoints == 0 || (actor.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0)).ToArray();
+        return AutoPlayBattlePolicy.ShouldRetreat(battle.CanAttemptEscape, recovery, targets);
     }
 
     internal static (Ff7BattleCommandOption Command, int TargetSlot)? PlanAutoPlayBattleCommand(IReadOnlyList<Ff7BattleCommandOption> commands, IReadOnlyList<Ff7BattleActorState> actors, Func<Ff7BattleCommandOption, int, bool>? targetSupported = null, Func<Ff7BattleCommandOption, int, Ff7BattleRecoveryKind>? recoveryKind = null)

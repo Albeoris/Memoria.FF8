@@ -305,6 +305,10 @@ public sealed partial class Ff7BattleSession
 
     public string SceneAttackName(int slot) => ReadBattleText(Data.Attacks.Single(attack => attack.Slot == slot).Name.Span);
     public bool EscapeBlocked => state.EscapeBlocked;
+    public bool EscapeInProgress => state.EscapePoseStarted is not null;
+    private bool EscapePartyCanMove => state.Actors.Any(actor => actor.Actor.Slot < 3 && CanAct(actor) && (actor.Actor.Statuses & 0x400) == 0);
+    private bool EscapePincerBlocked => Ff7NativeAtb.BattleTypeForLayout(Layout) == 4 && state.Actors.Where(actor => actor.Actor.Slot >= 4 && IsAlive(actor)).Select(actor => FacingGroup(actor.Actor)).Distinct().Count() > 1;
+    public bool CanAttemptEscape => Outcome == Ff7BattleOutcome.Fighting && Ff7NativeBattleEscape.IsAllowed(Formation, (state.RequestFlags & 8) != 0) && EscapePartyCanMove && !EscapePincerBlocked;
     public bool ReturnsAfterDefeat => state.RequestMode != 0;
     public int? MusicTrack => Outcome switch
     {
@@ -449,8 +453,8 @@ public sealed partial class Ff7BattleSession
         }
         bool won = !HasLivingEnemy();
         bool lost = !HasLivingParty();
-        bool pincer = Ff7NativeAtb.BattleTypeForLayout(Layout) == 4 && state.Actors.Where(actor => actor.Actor.Slot >= 4 && IsAlive(actor)).Select(actor => FacingGroup(actor.Actor)).Distinct().Count() > 1;
-        bool partyCanMove = state.Actors.Any(actor => actor.Actor.Slot < 3 && CanAct(actor) && (actor.Actor.Statuses & 0x400) == 0);
+        bool pincer = EscapePincerBlocked;
+        bool partyCanMove = EscapePartyCanMove;
         Ff7BattleEscapeInput escape = Ff7NativeBattleEscape.UpdatePresentation(state.Escape, escapeHeld, Ff7NativeBattleEscape.IsAllowed(Formation, (state.RequestFlags & 8) != 0), partyCanMove, pincer, won || lost, random);
         long? escapePose = escapeHeld && !escape.ShowBlockedMessage && !won && !lost ? state.EscapePoseStarted ?? PresentationTick : null;
         state = state with { Escape = escape.State, EscapeBlocked = escape.ShowBlockedMessage, EscapePoseStarted = escapePose };

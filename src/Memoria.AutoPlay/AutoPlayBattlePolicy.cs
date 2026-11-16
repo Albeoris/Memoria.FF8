@@ -16,6 +16,28 @@ public readonly record struct AutoPlayBattleRecoveryOption(int CommandIndex, int
 /// <summary>Selects the first available ordinary attack in the host's native actor and target order.</summary>
 public static class AutoPlayBattlePolicy
 {
+    public static bool ShouldRetreat(bool canEscape, bool recoveryAvailable, IReadOnlyList<AutoPlayBattleRecoveryTarget> targets)
+    {
+        if (!canEscape || recoveryAvailable)
+        {
+            return false;
+        }
+        bool living = false;
+        foreach (AutoPlayBattleRecoveryTarget target in targets)
+        {
+            if (target.KnockedOut || target.HitPoints == 0)
+            {
+                continue;
+            }
+            if (target.MaximumHitPoints == 0 || (ulong)target.HitPoints * 4 > target.MaximumHitPoints)
+            {
+                return false;
+            }
+            living = true;
+        }
+        return living;
+    }
+
     /// <summary>Stabilizes critical living allies, then restores knocked-out allies, then heals injured allies.</summary>
     public static AutoPlayBattleRecoveryOption? ChooseRecovery(IReadOnlyList<AutoPlayBattleRecoveryTarget> targets, IReadOnlyList<AutoPlayBattleRecoveryOption> options)
     {
