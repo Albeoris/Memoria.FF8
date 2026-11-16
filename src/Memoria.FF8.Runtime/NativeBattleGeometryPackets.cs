@@ -38,6 +38,11 @@ public static class NativeBattleGeometryPackets
 
     public static NativeBattleGeometryPrimitive? EmitRaw50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36 = null, NativeBattleSummonColors? colorRules = null, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates = null)
     {
+        return BuildRaw50FDF0(polygon, vertices, quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules, projectedCoordinates)?.ToPrimitive();
+    }
+
+    internal static RawPacket? BuildRaw50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates)
+    {
         int baseLength = quad ? 20 : 16;
         bool perPolygonColor = polygon.Length == baseLength + 4;
         if (polygon.Length != baseLength && !perPolygonColor || depthShift > 31)
@@ -122,7 +127,24 @@ public static class NativeBattleGeometryPackets
         {
             depths[corner] = bias + corners[corner].Depth;
         }
-        return new(checked(tableBaseBucket + (minDepth >> depthShift)), ImmutableCollectionsMarshal.AsImmutableArray(words), ImmutableCollectionsMarshal.AsImmutableArray(depths)) { PhysicalWriteMask = quad ? QuadMask : TriangleMask, ProjectedCoordinates = coordinates is null ? null : ImmutableCollectionsMarshal.AsImmutableArray(coordinates) };
+        return new(checked(tableBaseBucket + (minDepth >> depthShift)), ImmutableCollectionsMarshal.AsImmutableArray(words), ImmutableCollectionsMarshal.AsImmutableArray(depths), quad ? QuadMask : TriangleMask, coordinates is null ? null : ImmutableCollectionsMarshal.AsImmutableArray(coordinates));
+    }
+
+    internal readonly record struct RawPacket(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4, ImmutableArray<NativeBattleGfPacketByteState> PhysicalWriteMask, ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates)
+    {
+        public NativeBattleGeometryPrimitive ToPrimitive(NativeBattlePilotVisualGeometry? geometry = null, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+        {
+            NativeBattleSceneCapture? sceneCapture = NativeBattleSceneCapture.Current;
+            return new(Bucket, Words, VertexPayload4)
+            {
+                PhysicalWriteMask = PhysicalWriteMask,
+                ProjectedCoordinates = ProjectedCoordinates,
+                PilotGeometry = geometry,
+                SceneCapture = sceneCapture,
+                PresentationActorId = actorId,
+                ModelTextureOwner = sceneCapture is null && geometry?.ForeignSurface is null ? material : null
+            };
+        }
     }
 
     private static ImmutableArray<NativeBattleGfPacketByteState> PhysicalMask(bool quad)

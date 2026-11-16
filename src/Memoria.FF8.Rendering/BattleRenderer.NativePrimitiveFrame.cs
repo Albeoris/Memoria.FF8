@@ -176,6 +176,7 @@ public sealed partial class BattleRenderer
         nativeDirectTextureFormat = capabilities?.DirectTextureFormat;
         DrawNativePcUi(uiFrame, uiTexture, false);
         // Offscreen source packets have already populated VRAM and do not cover the visible framebuffer.
+        Span<NativeBattlePrimitiveDepthVertex> projected = stackalloc NativeBattlePrimitiveDepthVertex[4];
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
             if (resolved.Pass == 0 || resolved.Command.Opcode is >= 0xE1 and <= 0xE6 || resolved.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Source } capture && (capture.X >= 320 || capture.Y >= 216))
@@ -261,7 +262,7 @@ public sealed partial class BattleRenderer
             }
             NativeBattlePrimitiveDepthState state = frame.LastDepthState ?? throw new NotSupportedException("Native polygon rendering requires its retained460B60 depth owner.");
             NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native polygon rendering requires its retained PC diffuse-color dispatch owner.");
-            ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
+            state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4, projected);
             PixelImage? texture = null;
             Vector2 prefixUvScale = Vector2.One;
             if (capturedSurface is not null)
@@ -283,7 +284,7 @@ public sealed partial class BattleRenderer
                     ? ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, resolved, capabilities, colorState);
             }
-            PrimitiveVertex At(int corner)
+            PrimitiveVertex At(int corner, NativeBattlePrimitiveDepthVertex selectedDepth)
             {
                 int coordinateWord = 1 + corner * stride;
                 uint coordinate = command.Words[coordinateWord];
@@ -310,7 +311,6 @@ public sealed partial class BattleRenderer
                 Vector2 position = command.ProjectedCoordinates is { } points
                     ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
                     : NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
-                NativeBattlePrimitiveDepthVertex selectedDepth = projected[corner];
                 if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, resolved.DrawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
                 {
                     position = sampledPosition;
@@ -329,9 +329,9 @@ public sealed partial class BattleRenderer
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = (command.PilotGeometry?.ForeignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
-            PrimitiveVertex a = At(0);
-            PrimitiveVertex b = At(1);
-            PrimitiveVertex c = At(2);
+            PrimitiveVertex a = At(0, projected[0]);
+            PrimitiveVertex b = At(1, projected[1]);
+            PrimitiveVertex c = At(2, projected[2]);
             if (capturedSurface is null && command.PilotGeometry?.ForeignSurface is { } foreign)
             {
                 NativeBattleForeignRenderMaterial? hostMaterial = foreign.Material as NativeBattleForeignRenderMaterial ?? ForeignMaterialResolver?.Invoke(foreign.Material);
@@ -355,7 +355,7 @@ public sealed partial class BattleRenderer
                 }
                 if (quad)
                 {
-                    PrimitiveVertex d = At(3);
+                    PrimitiveVertex d = At(3, projected[3]);
                     float secondArea = (d.X - b.X) * (c.Y - b.Y) - (d.Y - b.Y) * (c.X - b.X);
                     if (!hostMaterial.Cull || secondArea >= 0)
                     {
@@ -377,7 +377,7 @@ public sealed partial class BattleRenderer
             }
             if (quad)
             {
-                PrimitiveVertex d = At(3);
+                PrimitiveVertex d = At(3, projected[3]);
                 submitted = DrawnTriangles;
                 QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
                 if (DrawnTriangles > submitted)

@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model) };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(model, source);
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native502D40 requires its observed linked geometry presence.");
-        ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        ImmutableArray<NativeBattleGeometryPrimitive> bodyPrimitives = [];
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native linked geometry requires its original507BF0/507E20 resource shape."));
         bool bodyDraw = ResetAndEnterNativeModelRenderer5099D0(color);
         if (bodyDraw && shared)
@@ -131,6 +131,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native507E20 shared-skeleton geometry requires its original single weapon object and body directory slot1.");
             }
+            ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
             for (int index = 0; index < geometry.Length; index++)
             {
                 if ((mask & (1u << (index & 31))) == 0)
@@ -139,25 +140,25 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
                 NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, index)).Select(primitive => BindNativeModelMaterial(primitive, actorId, material)));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, index), actorId: actorId, material: material));
             }
+            bodyPrimitives = primitives.ToImmutable();
         }
         else if (bodyDraw)
         {
-            primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner)).Select(primitive => BindNativeModelMaterial(primitive, actorId, material)));
+            bodyPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(geometry, matrices, projection, color, mask, null, 17, 4, resource.GeometryRelocated507550 ? null : binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner), actorId: actorId, material: material);
         }
         if (bodyDraw)
         {
             bool selected = Enumerable.Range(0, geometry.Length).Any(index => (mask & (1u << (index & 31))) != 0);
-            graphics = AppendNativeModelRendererPackets(graphics, primitives.ToImmutable(), selected);
+            graphics = AppendNativeModelRendererPackets(graphics, bodyPrimitives, selected);
         }
         if (!shared && !linked.IsEmpty && (model.Flags0 & 0x200) == 0)
         {
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedDrawGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native linked geometry requires its original independent skeleton."), view, actualCameraEye);
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
-                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x507BF0, owner));
-                linkedPrimitives = linkedPrimitives.Select(primitive => BindNativeModelMaterial(primitive, actorId, material)).ToImmutableArray();
+                ImmutableArray<NativeBattleGeometryPrimitive> linkedPrimitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x507BF0, owner), actorId: actorId, material: material);
                 graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
             }
         }

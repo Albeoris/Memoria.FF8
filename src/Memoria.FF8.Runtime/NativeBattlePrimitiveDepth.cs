@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -20,6 +21,17 @@ public sealed record NativeBattlePrimitiveDepthState(float BucketMix, float Rema
 
     public ImmutableArray<NativeBattlePrimitiveDepthVertex> Project461220(int bucket, bool descriptorPerspective, ushort flags20, ImmutableArray<int> vertexDepths)
     {
+        NativeBattlePrimitiveDepthVertex[] result = new NativeBattlePrimitiveDepthVertex[4];
+        Project461220(bucket, descriptorPerspective, flags20, vertexDepths, result);
+        return ImmutableCollectionsMarshal.AsImmutableArray(result);
+    }
+
+    public void Project461220(int bucket, bool descriptorPerspective, ushort flags20, ImmutableArray<int> vertexDepths, Span<NativeBattlePrimitiveDepthVertex> output)
+    {
+        if (output.Length != 4)
+        {
+            throw new ArgumentException("Native461220 requires four output corners.", nameof(output));
+        }
         if ((uint)bucket >= NativeBattlePrimitiveOrdering.BattleTableLength || vertexDepths.IsDefault || vertexDepths.Length is not (0 or 4) || !float.IsFinite(BucketMix) || !float.IsFinite(RemainingWeight))
         {
             throw new InvalidDataException("Native461220 requires its actual OT bucket, bounded proxy depths and retained depth blend.");
@@ -27,24 +39,20 @@ public sealed record NativeBattlePrimitiveDepthState(float BucketMix, float Rema
         float step = (float)(0.9985 / (2 * NativeBattlePrimitiveOrdering.BattleTableLength));
         step = Math.Max(step, 1f / 65536);
         float bucketDepth = (float)((double)bucket * step);
-        ImmutableArray<NativeBattlePrimitiveDepthVertex>.Builder result = ImmutableArray.CreateBuilder<NativeBattlePrimitiveDepthVertex>(4);
         if (!descriptorPerspective || vertexDepths.IsEmpty || vertexDepths[0] == 0)
         {
             float depth = (float)((double)bucketDepth + DepthBias);
-            for (int index = 0; index < 4; index++)
-            {
-                result.Add(new(depth, 1));
-            }
-            return result.MoveToImmutable();
+            output.Fill(new(depth, 1));
+            return;
         }
         //45D310 invokes460B20(65536) before dispatching its primitives.
         float vertexWeight = (float)((RemainingWeight < 0.99999999 ? RemainingWeight : (double)RemainingWeight - DepthBias) / 65536);
         double weightedBucket = (double)BucketMix * bucketDepth;
-        foreach (int vertex in vertexDepths)
+        for (int corner = 0; corner < output.Length; corner++)
         {
+            int vertex = vertexDepths[corner];
             float depth = (flags20 & 4) != 0 ? (float)((double)vertex * VertexDepthScale + DepthBias) : (float)((double)vertexWeight * vertex + weightedBucket + DepthBias);
-            result.Add(new(depth, (float)(1d / vertex)));
+            output[corner] = new(depth, (float)(1d / vertex));
         }
-        return result.MoveToImmutable();
     }
 }

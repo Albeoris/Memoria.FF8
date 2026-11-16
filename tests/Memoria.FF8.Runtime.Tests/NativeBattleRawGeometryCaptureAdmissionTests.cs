@@ -87,6 +87,37 @@ public sealed class NativeBattleRawGeometryCaptureAdmissionTests
         Assert.Throws<InvalidOperationException>(() => NativeBattleRawGeometryPackets.Emit5099D0([mesh], [nativeMatrix], projection, 0x808080, 1, null, 17, 4, null, pilotIdentity: new(0, 0x502D40, 0, 3, 0)));
     }
 
+    [Fact]
+    public void Actor_material_is_published_with_native_geometry_but_capture_keeps_its_own_texture()
+    {
+        NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleActionMatrix composed = view with { Z = 1000 };
+        NativeBattleCameraProjection projection = new(view, 512, 160, 108);
+        NativeBattleRawMesh mesh = Mesh();
+        NativeBattleModelTextureOwner material = new("party-10");
+        NativeBattlePilotVisualIdentity identity = new(0, 0x502D40, 9, 3, 0);
+        ImmutableArray<NativeBattleGeometryPrimitive> body = NativeBattleRawGeometryPackets.Emit5099D0([mesh], [composed], projection, 0x808080, 1, null, 17, 4, null, pilotIdentity: identity, actorId: "party-10", material: material);
+        using var scope = NativeBattleSceneCapture.Begin(NativeBattleSceneCaptureKind.Image);
+        NativeBattleSceneCapture capture = NativeBattleSceneCapture.Current!;
+        ImmutableArray<NativeBattleGeometryPrimitive> captured = NativeBattleRawGeometryPackets.Emit5099D0([mesh], [composed], projection, 0x808080, 1, null, 17, 4, null, pilotIdentity: identity, actorId: "party-10", material: material);
+        Assert.Equal(2, body.Length);
+        Assert.Equal(body.Length, captured.Length);
+        for (int index = 0; index < body.Length; index++)
+        {
+            Assert.Same(material, body[index].ModelTextureOwner);
+            Assert.Null(body[index].SceneCapture);
+            Assert.Equal("party-10", body[index].PresentationActorId);
+            Assert.NotNull(body[index].PilotGeometry);
+            Assert.Equal(body[index].PilotGeometry, captured[index].PilotGeometry);
+            Assert.Equal(body[index].Words.ToArray(), captured[index].Words.ToArray());
+            Assert.Equal(body[index].VertexPayload4.ToArray(), captured[index].VertexPayload4.ToArray());
+            Assert.Equal(body[index].PhysicalWriteMask, captured[index].PhysicalWriteMask);
+            Assert.Null(captured[index].ModelTextureOwner);
+            Assert.Same(capture, captured[index].SceneCapture);
+            Assert.Equal("party-10", captured[index].PresentationActorId);
+        }
+    }
+
     private static NativeBattleRawMesh Mesh()
     {
         NativeBattleRawPolygon Face(bool quad)

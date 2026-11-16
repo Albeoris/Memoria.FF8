@@ -51,6 +51,21 @@ public sealed class NativeBattlePrimitiveDepthTests
         Assert.Equal(vertices, restored.Project461220(300, true, 0, [1024, 2048, 4096, 8192]));
     }
 
+    [Fact]
+    public void Reusing_caller_corners_replaces_each_depth_without_changing_retained_projection()
+    {
+        NativeBattlePrimitiveDepthState state = NativeBattlePrimitiveDepthState.FromColdProcess().SetBucketMix460B60(0.8f);
+        ImmutableArray<int> triangleDepths = [1024, 2048, 4096, 0];
+        Span<NativeBattlePrimitiveDepthVertex> reusable = stackalloc NativeBattlePrimitiveDepthVertex[4];
+        ImmutableArray<NativeBattlePrimitiveDepthVertex> first = state.Project461220(100, true, 4, triangleDepths);
+        state.Project461220(100, true, 4, triangleDepths, reusable);
+        Assert.Equal(first.ToArray(), reusable.ToArray());
+        state.Project461220(200, false, 0, [], reusable);
+        Assert.Equal(state.Project461220(200, false, 0, []).ToArray(), reusable.ToArray());
+        Assert.Equal(1f / 1024, first[0].ReciprocalW);
+        Assert.Equal(float.PositiveInfinity, first[3].ReciprocalW);
+    }
+
     [Theory]
     [InlineData(-1, 0)]
     [InlineData(0.5f, 0.5f)]
