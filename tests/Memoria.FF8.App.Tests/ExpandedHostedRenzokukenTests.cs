@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -9,6 +10,73 @@ public sealed class ExpandedHostedRenzokukenTests
     private const string Squall = "party-0";
     private const int CallbackBudget = 3200;
     private const int CrisisSelectionBudget = 64;
+
+    [Fact]
+    public void Installed_Renzokuken141_waits_for_its_own_visible_widget_close()
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        (int Formation, int Slot)[] placements = [(343, 0), (284, 0), (279, 0), (22, 0), (76, 0), (106, 0), (227, 0), (115, 0), (129, 0), (80, 0), (360, 1), (220, 0)];
+        ImmutableArray<BattleEnemyRosterSource> donors = placements.Select(row => new BattleEnemyRosterSource(row.Formation, row.Slot, world.BattleResources.FormationSourceHash(row.Formation))).ToImmutableArray();
+        DiagnosticCharacterPreparation squall = new(0, 0, [], [0]) { HitPoints = 1, Weapon = 0, MagicCommand = new(0, 20) };
+        BattleInput command = new(BattleInputKind.Action, ActorId: Squall, TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 5 << 16);
+        DiagnosticBattleRequest request = new(36, 0, 128, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([new(0, true)], [squall], true),
+            Target = new("enemy-0", 7, 17, 0, 3, 0xC3u, 1, null, null),
+            Roster = new(donors, 0) { DonorCount = 4 },
+            Driver = new(command, 141) { ExpectedNativeCommand = 5, ExpectedNativeAction = 65533, LimitSelection = new(1, 1, 256) }
+        };
+        BattleSession battle = world.StartDiagnosticBattle(request);
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        List<HostedRenzokukenContact> impacts = [];
+        bool widgetStillClosingAfterEffect = false;
+        int eventStart = battle.Events.Count;
+        long observedCallback = 0;
+        try
+        {
+            TickUntil(() => RecreateGame.DiagnosticCommandReady(battle, request.Driver!));
+            Assert.True(battle.SelectDiagnosticLimit(Squall, request.Driver!.LimitSelection!).Accepted);
+            world.ApplyBattleInput(command);
+            TickUntil(() => battle.Events.Skip(eventStart).Any(entry => entry is { Kind: "ActionComplete", ActorId: Squall }));
+            Assert.Equal(Enumerable.Range(1, 5), impacts.Select(impact => (int)impact.Index));
+            Assert.All(impacts, impact => Assert.Equal((ushort)141, impact.Owner.MagicId));
+            Assert.True(widgetStillClosingAfterEffect);
+            Assert.Null(process.TriggerWidget);
+            Assert.Null(process.ActiveActionToken);
+            Assert.Null(battle.GetNativeRenzokuken(Squall));
+        }
+        catch
+        {
+            world.AbandonFaultedDiagnosticBattle();
+            throw;
+        }
+
+        void TickUntil(Func<bool> condition)
+        {
+            for (int frame = 0; frame < CallbackBudget && !condition(); frame++)
+            {
+                if (battle.NativeEntryReady && battle.ObserveDiagnosticDrainBlockers().Count == 0)
+                {
+                    battle.AdvanceTurn();
+                }
+                battle.Tick();
+                widgetStillClosingAfterEffect |= process.ActiveActionToken is not null &&
+                    process.Graphics.OriginalEffect is { RequestedEffect: 141, ReturnedDescriptor: 0 } &&
+                    process.TriggerWidget is { SourceMagicId: 141, ClosingPhase: >= 8 };
+                if (process.LastFrameServices is { } services && observedCallback != process.Graphics.Callback)
+                {
+                    observedCallback = process.Graphics.Callback;
+                    impacts.AddRange(services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Renzokuken).OfType<HostedRenzokukenContact>());
+                }
+            }
+            Assert.True(condition(), $"Renzokuken phase {process.TriggerWidget?.ClosingPhase}, effect {process.Graphics.OriginalEffect?.RequestedEffect}, hits {impacts.Count}.");
+        }
+    }
 
     [Theory]
     [InlineData(159, 92, 9)]

@@ -413,7 +413,7 @@ public sealed partial class BattleSession
                     completed = true;
                     break;
                 case NativeBattleDescriptorTaskKind.Action104:
-                    (graphics, phase, completed) = PollNativeActionGraphics(graphics, phase);
+                    (graphics, phase, completed) = PollNativeRenzokukenAction104(graphics, slot, packet, phase);
                     break;
                 case NativeBattleDescriptorTaskKind.DeferredCompletion500BC0:
                     if (phase == 0)

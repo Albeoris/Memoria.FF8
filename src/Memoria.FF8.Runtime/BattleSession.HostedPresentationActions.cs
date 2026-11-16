@@ -4,7 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed record HostedPresentationInvocation(long Token, int DescriptorSlot, byte DescriptorSerial, BattleActionHeaderReference Header);
+    internal sealed record HostedPresentationInvocation(long Token, int DescriptorSlot, byte DescriptorSerial, BattleActionHeaderReference Header)
+    {
+        internal bool AwaitingRenzokukenWidgetClose { get; init; }
+        internal bool RenzokukenWidgetClosed { get; init; }
+    }
 
     private HostedPresentationInvocation? hostedPresentationInvocation;
     private long lastHostedActionIssued;
