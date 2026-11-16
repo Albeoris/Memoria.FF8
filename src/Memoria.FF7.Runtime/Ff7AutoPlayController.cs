@@ -145,7 +145,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                     + string.Join(";", observed.Process.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
                 if (observed.World is { } world)
                 {
-                    progress = WorldProgress(world);
+                    progress = $"{session.FieldGeneration}:{WorldProgress(world)}";
                 }
                 ObserveProgress(progress);
                 driver.BeginPlanningStep();
