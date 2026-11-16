@@ -77,6 +77,7 @@ internal static class AutoPlayDirectSpatialTransitionTests
 
     internal static void CheckChangedSpatialCatalog()
     {
+        CheckLateParticipants();
         Ff7AutoPlayActiveEvent active = new("source-visit", "line:0:entity:2:script:5", "condition", 4, 2, 5, Ff7AutoPlayTargetKind.LineEnter, 10, 0, "before");
         Ff7AutoPlayState state = new() { Active = active, NavigationGoal = new("navigation", active.EventId) };
         state.Coverage.Visits.Add(new() { Visit = new("source-visit", "program"), Events = [new() { Event = new("completed", AutoPlayEventKind.Interaction), Completed = true }, new() { Event = new(active.EventId, AutoPlayEventKind.Interaction) }] });
@@ -84,19 +85,71 @@ internal static class AutoPlayDirectSpatialTransitionTests
         Ff7AutoPlayObservation observation = new("source-visit", "program", 4, [target], true, true);
         string retainedCoverage = JsonSerializer.Serialize(state.Coverage);
         Ff7AutoPlayState replanned = state.Clone();
-        Check(Ff7AutoPlayPolicy.ReplanForNewSpatialTargets(replanned, observation) && replanned.Active is null && replanned.NavigationGoal is null, "A newly discovered native automatic boundary did not replan an unaccepted movement target.");
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(replanned, observation) && replanned.Active is null && replanned.NavigationGoal is null, "A newly discovered native automatic boundary did not replan an unaccepted movement target.");
         Check(JsonSerializer.Serialize(replanned.Coverage) == retainedCoverage && replanned.Status is not null, "Spatial catalog replanning altered completed coverage or omitted its status.");
         Ff7AutoPlayState stale = state.Clone();
         stale.Active = active with { Generation = 3 };
-        Check(Ff7AutoPlayPolicy.ReplanForNewSpatialTargets(stale, observation) && stale.Active is null && stale.NavigationGoal is null, "New automatic boundaries retained a stale unaccepted movement plan or its preferred goal.");
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(stale, observation) && stale.Active is null && stale.NavigationGoal is null, "New automatic boundaries retained a stale unaccepted movement plan or its preferred goal.");
         foreach (Ff7AutoPlayActiveEvent preserved in new[] { active with { Accepted = true }, active with { Returned = true }, active with { TransitionOwned = true }, active with { CompletionRecorded = true }, active with { Kind = Ff7AutoPlayTargetKind.AutonomousSpatial }, active with { Generation = 3, Kind = Ff7AutoPlayTargetKind.Gateway }, active with { VisitId = "different-visit" } })
         {
             Ff7AutoPlayState retained = state.Clone();
             retained.Active = preserved;
-            Check(!Ff7AutoPlayPolicy.ReplanForNewSpatialTargets(retained, observation) && retained.Active == preserved && retained.NavigationGoal == state.NavigationGoal, "New spatial metadata discarded accepted, native-owned or unrelated work.");
+            Check(!Ff7AutoPlayPolicy.ReplanForNewNativeTargets(retained, observation) && retained.Active == preserved && retained.NavigationGoal == state.NavigationGoal, "New spatial metadata discarded accepted, native-owned or unrelated work.");
         }
         state.Coverage.Visits[0].Events.Add(new() { Event = new(target.Id, AutoPlayEventKind.Interaction) });
-        Check(!Ff7AutoPlayPolicy.ReplanForNewSpatialTargets(state, observation) && state.Active == active, "An unchanged spatial catalog repeatedly discarded the current unaccepted route.");
+        Check(!Ff7AutoPlayPolicy.ReplanForNewNativeTargets(state, observation) && state.Active == active, "An unchanged spatial catalog repeatedly discarded the current unaccepted route.");
+    }
+
+    private static void CheckLateParticipants()
+    {
+        Ff7AutoPlayActiveEvent exit = new("visit", "line:0:entity:2:script:5", "exit-condition", 4, 2, 5, Ff7AutoPlayTargetKind.LineEnter, 10, 0, "before");
+        Ff7AutoPlayTarget participant = new("actor:6:script:1", 6, 1, Ff7AutoPlayTargetKind.ActorTalk, "new-condition", true, System.Numerics.Vector3.Zero);
+        Ff7AutoPlayObservation observation = new("visit", "program", 4, [participant], true, true);
+        Ff7AutoPlayState source = new() { Active = exit, NavigationGoal = new("remote", "remote-event") };
+        source.Coverage.Visits.Add(new() { Visit = new("visit", "program") });
+
+        Ff7AutoPlayState newlyExposed = source.Clone();
+        string coverage = JsonSerializer.Serialize(newlyExposed.Coverage);
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(newlyExposed, observation) && newlyExposed.Active is null && newlyExposed.NavigationGoal is null, "A newly exposed native participant did not interrupt an unaccepted departure.");
+        Check(JsonSerializer.Serialize(newlyExposed.Coverage) == coverage, "Late participant replanning changed native event coverage.");
+
+        source.Coverage.Visits[0].Events.Add(new()
+        {
+            Event = new(participant.Id, AutoPlayEventKind.Interaction, ConditionSignature: "old-condition"),
+            Available = false,
+            Completed = true,
+            Conditions = new() { ConsumedEntries = ["old-condition"], ConsumedExits = [participant.ConditionFingerprint] }
+        });
+        Ff7AutoPlayState newlyAvailable = source.Clone();
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(newlyAvailable, observation), "An unavailable completed participant's unconsumed current entry was hidden by its old completion or recorded exit predicate.");
+        Ff7AutoPlayTarget line = participant with { Id = "line:1:entity:6:script:1", Kind = Ff7AutoPlayTargetKind.LineTalk };
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(source.Clone(), observation with { Events = [line] }), "A newly exposed native LINE participant did not interrupt departure.");
+
+        Ff7AutoPlayState consumed = source.Clone();
+        consumed.Coverage.Visits[0].Events[0].Conditions!.ConsumedEntries.Add(participant.ConditionFingerprint);
+        Check(!Ff7AutoPlayPolicy.ReplanForNewNativeTargets(consumed, observation) && consumed.Active == exit, "A participant already executed under its current predicate interrupted departure again.");
+        Ff7AutoPlayState available = source.Clone();
+        available.Coverage.Visits[0].Events[0].Available = true;
+        Check(!Ff7AutoPlayPolicy.ReplanForNewNativeTargets(available, observation) && available.Active == exit && available.NavigationGoal == source.NavigationGoal, "An unchanged available participant repeatedly preempted the departure plan.");
+
+        foreach (Ff7AutoPlayObservation excluded in new[] { observation with { CanAcceptInput = false }, observation with { Generation = 5 }, observation with { VisitId = "other" }, observation with { Events = [participant with { AnalysisComplete = false }] } })
+        {
+            Ff7AutoPlayState retained = source.Clone();
+            Check(!Ff7AutoPlayPolicy.ReplanForNewNativeTargets(retained, excluded) && retained.Active == exit && retained.NavigationGoal == source.NavigationGoal, "Unready, unsupported or unrelated participant metadata discarded departure ownership.");
+        }
+        foreach (Ff7AutoPlayActiveEvent excluded in new[] { exit with { Accepted = true }, exit with { Returned = true }, exit with { TransitionOwned = true }, exit with { CompletionRecorded = true }, exit with { DestinationField = null }, exit with { Kind = Ff7AutoPlayTargetKind.AutonomousSpatial } })
+        {
+            Ff7AutoPlayState retained = source.Clone();
+            retained.Active = excluded;
+            Check(!Ff7AutoPlayPolicy.ReplanForNewNativeTargets(retained, observation) && retained.Active == excluded && retained.NavigationGoal == source.NavigationGoal, "Late participants interrupted native-owned work or an ordinary local interaction.");
+        }
+        Ff7AutoPlayState gateway = source.Clone();
+        gateway.Active = exit with { Kind = Ff7AutoPlayTargetKind.Gateway, DestinationField = null };
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(gateway, observation), "A gateway without a retained destination ignored a newly exposed participant.");
+        Ff7AutoPlayState multipleDestinations = source.Clone();
+        multipleDestinations.Active = exit with { DestinationField = null };
+        Ff7AutoPlayTarget exitTarget = participant with { Id = exit.EventId, Entity = exit.Entity, Script = exit.Script, Kind = exit.Kind, ChangesField = true };
+        Check(Ff7AutoPlayPolicy.ReplanForNewNativeTargets(multipleDestinations, observation with { Events = [exitTarget, participant] }), "A native departure with multiple possible destinations ignored a newly exposed participant.");
     }
 
     internal static void CheckDirectOwnership()

@@ -208,6 +208,7 @@ if (args.Contains("--blocked-source-navigation-only", StringComparer.Ordinal))
 if (args.Contains("--autoplay-spatial-only", StringComparer.Ordinal))
 {
     NativeAutoPlaySpatialTests.Run();
+    AutoPlayDirectSpatialTransitionTests.CheckChangedSpatialCatalog();
     return 0;
 }
 

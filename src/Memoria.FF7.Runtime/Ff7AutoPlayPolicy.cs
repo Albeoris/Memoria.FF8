@@ -390,7 +390,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return ObserveWorldPlanner(world);
         }
         Ff7AutoPlayObservation observation = discovery.Observe();
-        bool spatialCatalogChanged = ReplanForNewSpatialTargets(State, observation);
+        bool nativeCatalogChanged = ReplanForNewNativeTargets(State, observation);
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField is not null))
         {
             nativeDestinationHints[(observation.VisitId, target.Id)] = target.DestinationField!.Value;
@@ -403,27 +403,41 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             ObserveNavigationProbes(State, observation);
         }
         ObserveVisitGuard(observation);
-        if (spatialCatalogChanged)
+        if (nativeCatalogChanged)
         {
             Publish();
         }
         return observation;
     }
 
-    internal static bool ReplanForNewSpatialTargets(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
+    internal static bool ReplanForNewNativeTargets(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
         if (state.Active is not { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } active || active.Kind is Ff7AutoPlayTargetKind.AutonomousSpatial or Ff7AutoPlayTargetKind.WorldMesh || active.Generation != observation.Generation && active.Kind == Ff7AutoPlayTargetKind.Gateway || active.VisitId != observation.VisitId)
         {
             return false;
         }
-        HashSet<string> known = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.Select(item => item.Event.Id).ToHashSet(StringComparer.Ordinal) ?? [];
-        if (!observation.Events.Any(target => target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && target.AnalysisComplete && !known.Contains(target.Id)))
+        var known = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.ToDictionary(item => item.Event.Id, StringComparer.Ordinal) ?? [];
+        bool newSpatial = observation.Events.Any(target => target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && target.AnalysisComplete && !known.ContainsKey(target.Id));
+        bool departure = active.Kind == Ff7AutoPlayTargetKind.Gateway || active.DestinationField is not null || observation.Events.Any(target => target.Id == active.EventId && target.ChangesField);
+        bool newParticipant = observation.CanAcceptInput && active.Generation == observation.Generation && departure && observation.Events.Any(target =>
+        {
+            if (!target.AnalysisComplete || target.Id == active.EventId || target.Kind is Ff7AutoPlayTargetKind.Gateway or Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.AutonomousSpatial)
+            {
+                return false;
+            }
+            if (!known.TryGetValue(target.Id, out var previous))
+            {
+                return true;
+            }
+            return !previous.Available && (!previous.Completed || previous.Conditions is not null && !previous.Conditions.HasExecutedEntry(target.ConditionFingerprint));
+        });
+        if (!newSpatial && !newParticipant)
         {
             return false;
         }
         state.Active = null;
         state.NavigationGoal = null;
-        state.Status = "Replanning the unaccepted route after discovering native automatic spatial boundaries";
+        state.Status = "Replanning the unaccepted route after native events became available";
         return true;
     }
 
