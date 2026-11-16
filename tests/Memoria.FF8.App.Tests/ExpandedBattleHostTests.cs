@@ -319,7 +319,8 @@ public sealed class ExpandedBattleHostTests
         else
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
-            int fireElement = System.Numerics.BitOperations.TrailingZeroCount((uint)(fire.Element ?? throw new InvalidDataException("Fire requires its installed element.")));
+            Assert.NotEqual((byte)0, fire.Element);
+            int fireElement = System.Numerics.BitOperations.TrailingZeroCount((uint)fire.Element);
             int fireTargetIndex = Array.FindLastIndex(enemies, enemy => enemy.IsAlive && !enemy.Untargetable && enemy.ElementDefenses[fireElement] < 900);
             Assert.InRange(fireTargetIndex, 0, enemies.Length - 1);
             BattleCombatant fireTarget = enemies[fireTargetIndex];
