@@ -124,6 +124,7 @@ internal static class AutoPlayDirectSpatialEffectTests
         {
             controller.Advance(1);
             Check(controller.Error is null, controller.Error ?? "The original direct-effect route failed.");
+            Check(session.Battle is null && !session.Host.HasUnfinishedBattle, $"An intervening native battle interrupted the field-only direct-effect regression before its source was reached; field={session.Field.Name}, tick={session.Host.Process.Tick}, callbacks={controller.Steps}, active={policy.State.Active?.EventId}. The original full-game battle adapter must own that continuation.");
         }
         Check(accepted is not null, $"No exact direct spatial choice owner was admitted within 1024 ordinary callbacks; field={session.Field.Name}, tick={session.Host.Process.Tick}, active={policy.State.Active?.EventId}, status={policy.Status}.");
         FieldHostRequest packet = accepted!;

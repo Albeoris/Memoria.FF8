@@ -52,6 +52,10 @@ public sealed partial class Ff7Session
 
     private void ObserveNativeHostOperation(FieldHostRequest request, FieldHostReply reply)
     {
+        if (AutoPlayState?.Active is not { Kind: Ff7AutoPlayTargetKind.AutonomousSpatial, Accepted: false, DirectEffectOwner: { } owner } active || active.Generation != FieldGeneration || !Ff7AutoPlayPolicy.MatchesDirectSpatialEffect(owner, request))
+        {
+            return;
+        }
         ObserveNativeScriptActivity(new(HostOperation: new(request, reply)));
     }
 
