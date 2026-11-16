@@ -56,7 +56,7 @@ public static class NativeBattleHeroController
                     root = root.WriteByte(15, 1);
                 }
                 int ordinal = profile.Effect == 309 ? 0 : root.ReadByte(14);
-                if (profile.Effect == 309 || ordinal < header.ReadContactCount())
+                if (profile.Effect == 309 || (ordinal < header.ReadContactCount() && current.Effect.Pools[1].Slots.Any(task => (task.Flags & 1) == 0)))
                 {
                     BattleContactCursor first = header.FirstContact;
                     BattleModelOwner actor = inputs.Packets.ReadContact(first.Advance(ordinal)).Primary.Recipient;
@@ -82,7 +82,7 @@ public static class NativeBattleHeroController
                 current = WithPool(current, 1, children.Pool);
                 survivors = children.Survivors;
             }
-            if (root.ReadByte(15) != 0 && survivors == 0)
+            if (root.ReadByte(15) != 0 && survivors == 0 && (profile.Effect == 309 || root.ReadByte(14) == header.ReadContactCount()))
             {
                 return new(current.Effect.Pools[0], 2);
             }

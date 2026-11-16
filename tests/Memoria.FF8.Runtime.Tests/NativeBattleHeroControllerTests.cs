@@ -145,7 +145,7 @@ public sealed class NativeBattleHeroControllerTests
             Assert.Equal(tick == 41 ? 0u : frame.Profile.MainDescriptor, frame.Effect.ReturnedDescriptor);
             if (tick == 20)
             {
-                NativeBattleHeroFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleHeroFrame restored = NativeBattleTestSnapshots.Independent(frame);
                 Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(restored, fixture.Resources, fixture.Inputs)));
             }
         }
@@ -207,6 +207,69 @@ public sealed class NativeBattleHeroControllerTests
             }
         }
         Assert.Equal(new[] { (34, 0), (34, 1), (39, 0), (39, 1), (44, 2) }, contacts);
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.All(frame.Effect.Pools, pool => Assert.Null(pool.Head));
+    }
+
+    [Fact]
+    public void HolyWar_restores_a_full_bank_and_retries_pending_targets_on_the_original_birth_wheel()
+    {
+        var fixture = Fixture(310, [3]);
+        BattleModelOwner[] additions = Enumerable.Range(0, 5).Select(index => (BattleModelOwner)new BattlePartyActorModel(new($"extended-party-{index}"))).ToArray();
+        BattleModelOwner[] targets = [OriginalOwner(0), OriginalOwner(1), OriginalOwner(2), .. additions];
+        BattleModelRoster roster = new(OriginalRoster.Owners.Concat(additions));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        NativeBattleActionPacketsState packets = OriginalPackets().WithRoster(roster, aliases);
+        (packets, _) = packets.Prepare(new(OriginalOwner(0), 0, 0, 0, 18, 310, null));
+        foreach (BattleModelOwner target in targets)
+        {
+            (packets, _) = packets.AppendContact(new(new(target, 1, 0, 0, 0, 100, 0), null));
+        }
+        (packets, _) = packets.Publish(targets.Length);
+
+        List<(int Tick, BattleModelOwner Owner)> births = [];
+        List<(int Tick, int Ordinal)> contacts = [];
+        int tick = 0;
+        NativeBattleHeroInputs inputs = fixture.Inputs with
+        {
+            Packets = packets,
+            ObserveAnchor571400 = (current, actor) =>
+            {
+                births.Add((tick, actor));
+                return current;
+            },
+            Execute = (current, operation) =>
+            {
+                if (operation is NativeBattleHeroContact contact)
+                {
+                    contacts.Add((tick, contact.Index.Ordinal));
+                }
+                return current;
+            }
+        };
+        NativeBattleHeroFrame frame = fixture.Frame;
+        for (tick = 1; tick <= 90; tick++)
+        {
+            NativeCrtRandomState before = frame.Random;
+            frame = NativeBattleHeroController.Advance(frame, fixture.Resources, inputs);
+            if (tick == 32)
+            {
+                Assert.Equal(6, frame.Effect.Pools[1].Slots.Length);
+                Assert.All(frame.Effect.Pools[1].Slots, task => Assert.Equal(1, task.Flags & 1));
+                Assert.Equal(6, frame.Effect.Pools[0].Slots[0].ReadByte(14));
+                Assert.Equal(before, frame.Random);
+                frame = NativeBattleTestSnapshots.Independent(frame);
+            }
+        }
+        int[] birthTicks = [2, 7, 12, 17, 22, 27, 42, 47];
+        Assert.Equal(birthTicks.Zip(targets), births);
+        Assert.Equal(birthTicks.Select((birth, ordinal) => (birth + 32, ordinal)), contacts);
+        NativeCrtRandomState expectedRandom = fixture.Frame.Random;
+        for (int index = 0; index < targets.Length * 48; index++)
+        {
+            expectedRandom = expectedRandom.Draw(out ushort _);
+        }
+        Assert.Equal(expectedRandom, frame.Random);
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.All(frame.Effect.Pools, pool => Assert.Null(pool.Head));
     }
@@ -299,14 +362,14 @@ public sealed class NativeBattleHeroControllerTests
     [InlineData((ushort)309, NativeBattleHeroCrtStackContract.Win32X86UpdatedProfile)]
     [InlineData((ushort)310, NativeBattleHeroCrtStackContract.Win32X86Profile)]
     [InlineData((ushort)310, NativeBattleHeroCrtStackContract.Win32X86UpdatedProfile)]
-    public void Explicit_CRT_environment_survives_JSON_and_covers_only_creation_callbacks(ushort effect, string profile)
+    public void Explicit_CRT_environment_survives_execution_snapshot_and_covers_only_creation_callbacks(ushort effect, string profile)
     {
         var fixture = Fixture(effect, effect == 309 ? new byte[] { 3 } : new byte[] { 3, 4 });
         NativeBattleExecutionStack execution = fixture.Inputs.Stack.Execution!;
         NativeBattleHeroCrtStackContract contract = new(profile, execution.CaptureSha256, execution.CapturedThreadId);
         execution = execution with { HeroCrtStack = contract };
         NativeBattleHeroFrame frame = fixture.Frame with { Memory = fixture.Frame.Memory with { ExecutionStack = execution, HeroCrtStack = contract } };
-        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        frame = NativeBattleTestSnapshots.Independent(frame);
         Assert.Equal(contract, frame.Memory.HeroCrtStack);
         Assert.Equal(contract, frame.Memory.ExecutionStack!.HeroCrtStack);
         int precreationReads = 0;
@@ -325,8 +388,8 @@ public sealed class NativeBattleHeroControllerTests
             frame = NativeBattleHeroController.Advance(frame, fixture.Resources, inputs);
             if (tick == 6)
             {
-                NativeBattleHeroFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(frame))!;
-                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(frame, fixture.Resources, inputs)), NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(restored, fixture.Resources, inputs)));
+                NativeBattleHeroFrame restored = NativeBattleTestSnapshots.Independent(frame);
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, inputs)), NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(restored, fixture.Resources, inputs)));
                 frame = restored;
             }
         }
