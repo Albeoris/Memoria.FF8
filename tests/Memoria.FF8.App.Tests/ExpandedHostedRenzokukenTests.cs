@@ -107,6 +107,50 @@ public sealed class ExpandedHostedRenzokukenTests
     }
 
     [Theory]
+    [InlineData(794, 105, 286, 14, 308)]
+    [InlineData(216, 103, 191, 16, 314)]
+    public void Installed_death_transition_retires_its_original_neutral_headers(ushort formation, int model, ushort action, byte sequence, ushort effect)
+    {
+        RunWorld(false, ExpandedBattleInstalledEntry.Seed, (world, battle, process, caster, target) =>
+        {
+            int eventStart = battle.Events.Count;
+            BattleModelOwner owner = battle.ReadPresentationModelOwner(target.Id);
+            target.CurrentHp = 1;
+            caster.Atb = BattleSession.AtbMaximum;
+            world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: caster.Id, TargetId: target.Id));
+            bool supportingHeader = false;
+            bool focalHeader = false;
+            bool invoked = false;
+            for (int callback = 0; callback < CallbackBudget && (!invoked || !IsIdle(battle, process)); callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                invoked |= process.Graphics.OriginalEffect is { ReturnedDescriptor: > 0 } owned && owned.RequestedEffect == effect;
+                foreach (var published in process.ActionPackets.PublishedHeaders().Where(row => row.Slot is { Command: 8 } && row.Slot.Source == owner))
+                {
+                    if (model == 105 && published.Slot.Action == 74)
+                    {
+                        Assert.Equal((byte)12, published.Slot.Sequence);
+                        Assert.Equal((ushort)0, published.Slot.Effect);
+                        Assert.Equal(1, published.Slot.ReadContactCount());
+                        supportingHeader = true;
+                    }
+                    if (published.Slot.Action == action)
+                    {
+                        Assert.Equal(sequence, published.Slot.Sequence);
+                        Assert.Equal(effect, published.Slot.Effect);
+                        Assert.Equal(1, published.Slot.ReadContactCount());
+                        focalHeader = true;
+                    }
+                }
+            }
+            Assert.Equal(model == 105, supportingHeader);
+            Assert.True(focalHeader && invoked && IsIdle(battle, process));
+            Assert.False(target.IsAlive);
+            Assert.DoesNotContain(battle.Events.Skip(eventStart), item => item.Kind == "EffectContact" && item.ActorId == target.Id);
+        }, formation: formation, targetModel: model);
+    }
+
+    [Theory]
     [InlineData(159, 92, 9)]
     [InlineData(161, 131, 738)]
     [InlineData(335, 77, 63)]

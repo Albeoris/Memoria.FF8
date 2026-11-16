@@ -198,10 +198,14 @@ public sealed partial class BattleSession
         {
             // NORG's death dialogue marks its side models unavailable without consuming the neutral self contact.
             0 when header is { Command: 8, Action: 289 } => ((ushort)289, (byte)19, 77, true),
+            0 when header is { Command: 8, Action: 74, Sequence: 12 } && command.NativeAiCallbackStage is 1 or 3 && GetActor(command.ActorId).ModelId == 105 => ((ushort)74, (byte)12, 105, false),
+            0 when header is { Command: 8, Action: 74, Sequence: 13 } && command.NativeAiCallbackStage == 1 && GetActor(command.ActorId).ModelId == 105 => ((ushort)74, (byte)13, 105, false),
             NativeBattleMorph172Profile.Effect => ((ushort)53, (byte)13, 29, false),
             // Trauma's death sequence keeps its neutral self contact for setup and never calls 506690 for it.
             NativeBattleEffect290Profile.Effect => ((ushort)291, (byte)14, 109, true),
             NativeBattleEffect298Profile.Effect => ((ushort)119, (byte)14, 102, true),
+            NativeBattleEffect308Profile.Effect => ((ushort)286, (byte)14, 105, true),
+            NativeBattleEffect314Profile.Effect => ((ushort)191, (byte)16, 103, true),
             NativeBattleEffect316Profile.Effect => ((ushort)203, (byte)15, 130, true),
             276 => ((ushort)145, (byte)19, 92, true),
             _ => null
