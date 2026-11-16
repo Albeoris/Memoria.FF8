@@ -167,11 +167,17 @@ public sealed class NativeBattleEffect80ControllerTests
     private static NativeBattleEffect80Frame Frame()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 0xA0, 1);
-        pool.WriteSlot(0, pool.Slots[0].WriteByte(0x28, 1).UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, pool.Slots[0].Next, ControlCallback));
+        BattleModelOwner actor = OriginalOwner(0);
+        NativeBattleModulePoolTask task = pool.Slots[0].WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(actor), OriginalAliases.EncodeOperand(actor, 1));
+        pool.WriteSlot(0, task.WriteByte(0x28, 1).UpdateHeader(task.Flags, task.State, task.Next, ControlCallback));
         NativeBattleOriginalEffectState effect = new(80, 79, new(80, Entry, Initializer), null, null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), NativeBattleEffect80State.FromColdProcess());
     }
 
-    private static NativeBattleEffect80Inputs Inputs(NativeBattleEffectArena point) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, null!, null!, (_, _) => point, null!, null!, null!);
+    private static NativeBattleEffect80Inputs Inputs(NativeBattleEffectArena point) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, null!, null!, (_, actor) =>
+    {
+        Assert.Equal(OriginalOwner(0), actor);
+        return point;
+    }, null!, null!, null!);
     private static NativeBattleEffect80Resources Resources() => new(new("texture", []), new("camera", []), new("vibration", []), ImmutableDictionary<uint, NativeBattleEffect80NodeResourceBank>.Empty, InitializedSourceLengths.ToImmutableDictionary(pair => pair.Key, pair => pair.Key == TrailPointerAddress ? BitConverter.GetBytes(TrailAddress).ToImmutableArray() : new byte[pair.Value].ToImmutableArray()), [], ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, ImmutableDictionary<uint, uint>.Empty, ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, TargetAddress);
 }
