@@ -54,8 +54,39 @@ internal static class AutoPlayWorldNavigationTests
         CheckPhysicalCycle();
         CheckTerrainGuidance();
         CheckForeignMatchingScript();
+        OriginalGuideCycle();
         OriginalWorldPreview();
         OriginalDisconnectedGuide();
+    }
+
+    private static void OriginalGuideCycle()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_GUIDE_CYCLE_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original guide cycle: configure original resources and MEMORIA_FF7_WORLD_GUIDE_CYCLE_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, writable: false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
+        Ff7WorldRuntime world = session.World!;
+        string[] id = saved.AutoPlay!.Active!.EventId.Split(':');
+        var target = world.ReadAutoPlayFrontierCatalog(int.Parse(id[1]), int.Parse(id[2])).Scripts.Single(script => script.Script == int.Parse(id[4]));
+        Ff7AutoplayDriver driver = new(session);
+        HashSet<string> positions = [];
+        for (int step = 0; step < 32; step++)
+        {
+            var result = driver.ChooseWorldInput(target);
+            Check(result.HasInput, "The original guide-cycle fixture lost native input admission.");
+            driver.Apply(result.Input);
+            session.AdvanceTick();
+            positions.Add(Ff7AutoplayDriver.WorldPositionKey(world.CaptureAutoPlayMovementState()));
+        }
+        Check(positions.Count > 20, "Changing intermediate guide faces erased repeated-input memory and trapped original movement in a physical cycle.");
+        Check(File.ReadAllBytes(path).SequenceEqual(bytes), "Guide-cycle continuation changed the original standalone source.");
     }
 
     private static void CheckForeignMatchingScript()

@@ -23,6 +23,7 @@ public sealed partial class Ff7AutoplayDriver
     private readonly Queue<Ff7AutoPlayWorldRouteStep> worldRoute = new();
     private readonly Dictionary<string, HashSet<Ff7AutoplayInput>> worldRepeatedInputs = [];
     private string? worldRouteTarget;
+    private string? worldRepeatedTarget;
     private bool worldRouteRearming;
     private Ff7AutoPlayWorldGuide? worldTerrainGuide;
     private Ff7WorldRuntime? worldTerrainGuideOwner;
@@ -47,6 +48,11 @@ public sealed partial class Ff7AutoplayDriver
         string sourceKey = WorldMovementKey(source);
         string positionKey = WorldPositionKey(source);
         string identity = $"{source.WorldId}:{source.WorldMapState}:{source.Player.Model}:{target.Id}:{target.Script}:{target.GeometryFingerprint}:{target.PredicateFingerprint}";
+        if (worldRepeatedTarget != identity)
+        {
+            worldRepeatedInputs.Clear();
+            worldRepeatedTarget = identity;
+        }
         bool rearming = RequiresWorldTargetRearming(source, target);
         Vector3? guidePoint = null;
         if (!rearming)
@@ -76,7 +82,6 @@ public sealed partial class Ff7AutoplayDriver
         if (worldRouteTarget != identity || worldRouteRearming != rearming)
         {
             worldRoute.Clear();
-            worldRepeatedInputs.Clear();
             worldRouteTarget = identity;
             worldRouteRearming = rearming;
         }
