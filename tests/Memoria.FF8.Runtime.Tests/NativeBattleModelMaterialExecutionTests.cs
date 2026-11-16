@@ -164,6 +164,31 @@ public sealed class NativeBattleModelMaterialExecutionTests
         Assert.Empty(execution.TextureSnapshots);
     }
 
+    [Fact]
+    public void Warm_presentation_leaf_does_not_validate_different_records_or_storage_modes()
+    {
+        string actorId = First.RequireActorId();
+        NativeBattleEffectTextureState child = Pixels(2, 0x1234);
+        NativeBattleEffectTextureState parent = Pixels(1, 0x001F).WithPresentationTexture(actorId, new(child, EmptyCache()));
+        NativeBattlePresentationTextureBank bank = parent.RequirePresentationTexture(actorId);
+        Assert.Same(child, parent.RequirePresentationTexture(actorId).Textures);
+
+        NativeBattleEffectTextureState malformed = child with { Count = 32 };
+        Assert.Same(child.VramPublicationIdentity, malformed.VramPublicationIdentity);
+        NativeBattleEffectTextureState invalidParent = parent with { PresentationTextures = parent.PresentationTextures!.SetItem(actorId, bank with { Textures = malformed }) };
+        Assert.Throws<InvalidDataException>(() => invalidParent.RequirePresentationTexture(actorId));
+        Assert.Throws<InvalidDataException>(() => invalidParent.Validate());
+
+        NativeBattleEffectTextureState updated = child.PublishVramSpan(0, [3, 0]);
+        NativeBattleEffectTextureState updatedParent = parent.WithPresentationTexture(actorId, bank with { Textures = updated });
+        Assert.Equal((ushort)3, updatedParent.RequirePresentationTexture(actorId).Textures.ReadVramWord(0, 0));
+        Assert.Equal((ushort)2, parent.RequirePresentationTexture(actorId).Textures.ReadVramWord(0, 0));
+
+        NativeBattleEffectTextureState detachedParent = NativeBattleStorageSnapshots.Capture(parent);
+        NativeBattlePresentationTextureBank detachedBank = detachedParent.RequirePresentationTexture(actorId);
+        NativeBattleEffectTextureState wrongOwner = parent with { PresentationTextures = parent.PresentationTextures.SetItem(actorId, detachedBank) };
+        Assert.Throws<InvalidDataException>(() => wrongOwner.RequirePresentationTexture(actorId));
+    }
     private static NativeBattleSoftwarePrimitiveExecution Execution(NativeBattleEffectTextureState textures)
     {
         NativeBattleSoftwarePrimitiveState state = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer();

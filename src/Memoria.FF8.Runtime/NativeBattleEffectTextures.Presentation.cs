@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -7,6 +8,8 @@ public sealed record NativeBattlePresentationTextureBank(NativeBattleEffectTextu
 
 public sealed partial record NativeBattleEffectTextureState
 {
+    private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, object> validatedPresentationLeaves = new();
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<string, NativeBattlePresentationTextureBank>? PresentationTextures { get; init; }
 
@@ -65,7 +68,13 @@ public sealed partial record NativeBattleEffectTextureState
         {
             throw new InvalidDataException("A presentation texture bank requires a texture leaf and cache with matching storage ownership.");
         }
-        textures.Validate();
+        // A leaf record captures its immutable metadata and a fixed VRAM publication.
+        // Any new record still validates independently, including one sharing its VRAM owner.
+        _ = validatedPresentationLeaves.GetValue(textures, static leaf =>
+        {
+            leaf.Validate();
+            return new object();
+        });
         cache.Validate();
     }
 
