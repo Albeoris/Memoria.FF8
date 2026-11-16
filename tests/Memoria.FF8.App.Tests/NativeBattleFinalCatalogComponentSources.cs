@@ -46,6 +46,7 @@ internal static class NativeBattleFinalCatalogComponentSources
             BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effect);
             definition = original with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), Combatants = [original.Combatants[0], original.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) }] };
         }
+        definition = definition with { NativeCommandNames = assets.ReadNativeCommandNames() };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         battle.AttachNativeEffectResourceResolver(selected => game.ReadNativeEffectCatalogForEffects([selected])[selected - 1]);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
