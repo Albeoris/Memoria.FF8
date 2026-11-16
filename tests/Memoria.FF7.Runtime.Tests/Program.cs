@@ -352,6 +352,12 @@ if (args.Contains("--autoplay-world-navigation-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-semantic-availability-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldSemanticAvailabilityTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-world-policy-only", StringComparer.Ordinal))
 {
     AutoPlayWorldPolicyTests.Run();
@@ -897,6 +903,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay physical availability guards", NativeAutoPlayPhysicalAvailabilityTests.Run),
     ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
     ("native autoplay gateway topology", AutoPlayGatewayTopologyTests.Run),
+    ("native world semantic completion availability", AutoPlayWorldSemanticAvailabilityTests.Run),
     ("native autoplay destination novelty", NativeAutoPlayDestinationPreferenceTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),

@@ -100,7 +100,7 @@ public sealed partial class Ff7AutoPlayPolicy
             var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
             AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts };
             Dictionary<string, string> facts = aggregate.UnavailableAttempts.GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => world.ObservedPhysicalGuards.GetValueOrDefault(group.Key) ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
-            return AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts);
+            return ReadWorldSemanticAvailability(aggregate, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts));
         }
         if (!state.VisitGuards.ContainsKey(navigation.VisitKey))
         {

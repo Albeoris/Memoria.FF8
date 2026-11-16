@@ -27,7 +27,7 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new NotSupportedException("The shared world plan has no currently offered native model dispatch source.");
         }
         var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
-        string? availability = AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards).Fingerprint;
+        string? availability = ReadWorldSemanticAvailability(coverage, coverage.Event, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards)).Fingerprint;
         planner.BeginEvent(observation.VisitId, target.Id);
         State.NavigationGoal = next.Goal;
         State.Active = new(observation.VisitId, target.Id, WorldModelCondition(target), session.FieldGeneration, target.Model, target.Event, Ff7AutoPlayTargetKind.WorldModel, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, EntryAvailabilityFingerprint: availability, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
