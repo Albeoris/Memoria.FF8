@@ -68,7 +68,7 @@ public sealed class NativeBattleResonance49Smooth60Tests
     {
         const uint address = 0x2646BF0;
         var frame = Frame(3, 20);
-        frame = Write(frame, address, Read(frame, address).WriteDword(0x74, second ? 0x17B656Cu : 0x17B329Cu).WriteDword(0x78, second ? 712u : 724u));
+        frame = Write(frame, address, BindProgrammeActor(Read(frame, address).WriteDword(0x74, second ? 0x17B656Cu : 0x17B329Cu).WriteDword(0x78, second ? 712u : 724u), second ? 4 : 3));
         NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(49, Read(frame, address));
         List<NativeBattleResonance49DrawMesh104> draws = [];
         var result = InitializeProgramme(frame, address, Resources(), Inputs((current, operation) =>

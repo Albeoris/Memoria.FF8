@@ -22,7 +22,7 @@ public sealed class NativeBattleResonance49ProgrammeTests
     public void Initializer_uses_current_actor_F0_and_exact_clear_before_first_draw(bool second, int actor, int clear)
     {
         var frame = Frame(3, 20);
-        var task = Read(frame, 0x2646BF0).WriteDword(0x74, second ? 0x17B656Cu : 0x17B329Cu).WriteDword(0x78, (uint)clear).WriteByte(0x2C, (byte)actor).WriteWord(0x22, 0xBEEF).MarkPayloadUnknown(0x94, 724);
+        var task = BindProgrammeActor(Read(frame, 0x2646BF0).WriteDword(0x74, second ? 0x17B656Cu : 0x17B329Cu).WriteDword(0x78, (uint)clear).WriteWord(0x22, 0xBEEF).MarkPayloadUnknown(0x94, 724), actor);
         frame = Write(frame, 0x2646BF0, task);
         int draws = 0;
         var actual = InitializeProgramme(frame, 0x2646BF0, Resources(), Inputs((current, operation) =>
@@ -58,7 +58,7 @@ public sealed class NativeBattleResonance49ProgrammeTests
     public void Programme_uses_actual_remaining_count_and_preserves_known_suffix_across_JSON()
     {
         var frame = Frame(3, 20);
-        frame = Write(frame, 0x2646BF0, Read(frame, 0x2646BF0).WriteDword(0x74, 0x17B656C).WriteDword(0x78, 712).WriteWord(0x94 + 712, 0xCAFE));
+        frame = Write(frame, 0x2646BF0, BindProgrammeActor(Read(frame, 0x2646BF0).WriteDword(0x74, 0x17B656C).WriteDword(0x78, 712).WriteWord(0x94 + 712, 0xCAFE), 4));
         var resources = Resources();
         frame = InitializeProgramme(frame, 0x2646BF0, resources, Inputs());
         Assert.Equal((ushort)0xCAFE, Read(frame, 0x2646BF0).ReadWord(0x94 + 712));
@@ -141,9 +141,16 @@ public sealed class NativeBattleResonance49ProgrammeTests
         var task = Read(frame, pool.BankAddress).WriteWord(0x24, age);
         if (poolIndex == 3)
         {
-            task = task.WriteDword(0x74, 0x17B329C).WriteDword(0x78, 724).WriteByte(0x2C, 3).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
+            task = BindProgrammeActor(task.WriteDword(0x74, 0x17B329C).WriteDword(0x78, 724).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096), 3);
         }
         return Write(frame, pool.BankAddress, task);
+    }
+
+    internal static NativeBattleModulePoolTask BindProgrammeActor(NativeBattleModulePoolTask task, int slot)
+    {
+        BattleModelOwner actor = OriginalOwner(slot);
+        task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(actor), OriginalAliases.EncodeOperand(actor, 1));
+        return task;
     }
 
     internal static NativeBattleResonance49Inputs Inputs(Func<NativeBattleResonance49Frame, NativeBattleResonance49Operation, NativeBattleResonance49Frame>? execute = null) => new(OriginalPackets(), NativeBattleGteColorInterpolation.CodeConstants45F270, 0, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, actor) => new(0) { Rotation14 = 0 }, (current, _, _, _) => new(current, PointView(new(0, 0, 0))), (_, _) => NativeBattleEffectArena.Clear(), _ => 1, execute ?? ((current, _) => current));
