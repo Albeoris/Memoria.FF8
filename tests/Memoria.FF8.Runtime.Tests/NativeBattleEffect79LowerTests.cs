@@ -152,11 +152,12 @@ public sealed class NativeBattleEffect79LowerTests
     public void Actor_anchor_hook_runs_only_for_selector_two_before_rotated_source_offset(int selector, int expectedCalls)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 676, 1);
-        NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(0x34 + 0x1E, 4).WriteDword(0x34 + 0x1D4, 10u << 16).WriteDword(0x34 + 0x1E4, 20u << 16).WriteDword(0x34 + 0x1F4, 30u << 16).WriteTraversalPosition(0x6B, 0);
+        NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(0x34 + 0x1E, 4).WriteDword(0x34 + 0x1D4, 10u << 16).WriteDword(0x34 + 0x1E4, 20u << 16).WriteDword(0x34 + 0x1F4, 30u << 16);
         task.WriteExecutionReference(NativeBattleEffectNodeContext.ReferenceOffset, 4, new BattleExecutionReference.NodeContext(OriginalOwner(4), []));
         pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null) { Pools = [pool] };
         NativeBattleEffectNodeMemory memory = new(Memory(), effect, 0x200, 0, 0x870, 0x870, 0x9D80);
+        memory.WriteTraversalPosition(0x6B, 0);
         int calls = 0;
         NativeBattleEffectNodeInputs inputs = new(NativeBattleCuragaMatrices.Identity8DD770(), _ => throw new InvalidOperationException(), (_, _, _) => null, (_, _) => null)
         {
