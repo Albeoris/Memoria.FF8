@@ -28,6 +28,8 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     public long? AftercareTailPrecedingTimestamp { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticInvocationTail? PostReleaseTail { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleComponentHeldScreenBlendCertificate? HeldScreenBlendCertificate { get; init; }
     public int ReflectionDispatchCount => Dispatches.Count(dispatch => dispatch.Reflection is not null);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticVisualChangesSummary? VisualChanges { get; init; }
@@ -201,7 +203,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         traffic?.Record(siteId, (TelemetryTrafficKind)kind, payloadBytes);
     }
 
-    internal void MarkDrained(long timestamp)
+    internal void MarkEffectCompleted(long timestamp)
     {
         if (Active && effectStartedTicks != 0)
         {
@@ -280,7 +282,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         executions[sealedExecutionIndex] = executions[sealedExecutionIndex] with { TerminalTextureAdmission = admission.CaptureDetached() };
     }
 
-    internal void Complete(long frame, bool completed, int tailFrames, string? error)
+    internal void Complete(long frame, bool completed, int tailFrames, string? error, BattleComponentHeldScreenBlendCertificate? heldScreenBlend = null)
     {
         if (start is null)
         {
@@ -306,7 +308,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
         TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { InvocationRelease = invocationRelease, TerminalTextureAttempt = battle.LastDiagnosticTerminalTextureAttempt, PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
+        executions.Add(new(executions.Count + 1, completed, completed && heldScreenBlend is null, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { InvocationRelease = invocationRelease, TerminalTextureAttempt = battle.LastDiagnosticTerminalTextureAttempt, PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), HeldScreenBlendCertificate = heldScreenBlend, SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
         start = null;
         pacing = null;
         visualChanges = null;

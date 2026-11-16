@@ -117,6 +117,11 @@ public sealed partial class ExpandedBattlePresentationProcess
         return presentation.ReadDiagnosticHostedDuelTargets(dispatch);
     }
 
+    internal BattleComponentHeldScreenBlendObservation? ObserveComponentHeldScreenBlend(ushort expectedEffect)
+    {
+        return presentation.ObserveComponentHeldScreenBlend(expectedEffect);
+    }
+
     internal void AppendDiagnosticPresentationBlockers(List<string> blockers)
     {
         if (HasActiveAction || PendingCompletion is not null)

@@ -20,6 +20,7 @@ internal sealed partial class RecreateGame
     private DiagnosticBattleDriverRecipe? diagnosticDriverRecipe;
     private BattleSession? diagnosticDriverBattle;
     private DiagnosticLiveTelemetry? diagnosticTelemetry;
+    private EffectComponentHeldScreenBlendTracker? diagnosticHeldScreenBlend;
     private GpuTriangleRenderer? diagnosticRenderer;
     private bool diagnosticTargetVerified;
     private bool diagnosticHostWasActive = true;
@@ -66,6 +67,7 @@ internal sealed partial class RecreateGame
         diagnosticSlotsAdmissions.Clear();
         diagnosticDriverStartedSeconds = Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds;
         diagnosticDriver = new(recipe, diagnosticDriverStartedSeconds);
+        diagnosticHeldScreenBlend = null;
         diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.SlotsAdmission is not null ? (byte)16 : recipe.ShotCycle is not null ? (byte)237 : recipe.CounterCycle is not null ? (byte)8 : null, recipe.SlotsAdmission is not null ? world.DiagnosticReceipt.SlotsSource : null);
         diagnosticCounterPreparationRepair = null;
         SubscribeDiagnosticCounter(diagnosticDriverBattle);
@@ -219,7 +221,8 @@ internal sealed partial class RecreateGame
                     }
                     diagnosticFreshEntryInitializationPublished = true;
                 }
-                DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers);
+                BattleComponentHeldScreenBlendCertificate? heldBlend = ObserveDiagnosticHeldScreenBlend(active, driver, blockers, presentedTimestamp);
+                DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers, heldBlend);
                 if (diagnosticVisualDispatch is { } visualDispatch && !diagnosticVisualStartedPublished)
                 {
                     diagnosticPresentation!.Write("visual-started", observation.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: visualDispatch, dispatchUtc: diagnosticVisualDispatchUtc);
@@ -298,7 +301,12 @@ internal sealed partial class RecreateGame
                 }
                 if (diagnosticDriverRecipe.FreshEntry is null && previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
                 {
-                    diagnosticTelemetry.MarkDrained(presentedTimestamp);
+                    diagnosticTelemetry.MarkEffectCompleted(presentedTimestamp);
+                }
+                if (heldBlend is not null && driver.Stage == DiagnosticDriverStage.Completed)
+                {
+                    diagnosticTelemetry.MarkEffectCompleted(diagnosticHeldScreenBlend!.BoundaryTimestamp!.Value);
+                    diagnosticTelemetry.Complete(diagnosticPresentedFrames, true, checked((int)heldBlend.TailPresentedFrames), null, heldBlend);
                 }
                 if (previousStage == DiagnosticDriverStage.Tail && driver.Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Completed or DiagnosticDriverStage.PresentationHold)
                 {
@@ -335,6 +343,24 @@ internal sealed partial class RecreateGame
         {
             PublishDiagnosticDriverProgress();
         }
+    }
+
+    private BattleComponentHeldScreenBlendCertificate? ObserveDiagnosticHeldScreenBlend(BattleSession active, DiagnosticBattleDriver driver, string[] blockers, long timestamp)
+    {
+        if (active.EncounterId != 796 || driver.HeldScreenBlendDispatch is not { } dispatch)
+        {
+            return null;
+        }
+        DiagnosticBattleDriverRecipe recipe = diagnosticDriverRecipe!;
+        diagnosticHeldScreenBlend ??= new();
+        BattleComponentHeldScreenBlendObservation? blend = blockers is ["effect-or-auxiliary-task"] &&
+            active.Combatants.Any(actor => !actor.IsPlayer && actor.ModelId == 113 && actor.SceneSlot == 1 && actor.NativeActorIndex == 4)
+            ? active.ObserveComponentHeldScreenBlend(recipe.ExpectedEffect) : null;
+        if (!diagnosticHeldScreenBlend.Observe(blend, diagnosticPresentedFrames, timestamp, recipe.TailFrames))
+        {
+            return null;
+        }
+        return diagnosticHeldScreenBlend.Certificate(recipe.ExpectedEffect, recipe.EnemyTrigger!.ScriptSha256, dispatch, null);
     }
 
     private void FinalizeDiagnosticDriver(DiagnosticBattleDriver driver)

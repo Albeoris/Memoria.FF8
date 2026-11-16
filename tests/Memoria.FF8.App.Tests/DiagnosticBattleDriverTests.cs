@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Tests;
@@ -72,6 +74,103 @@ public sealed class DiagnosticBattleDriverTests
         Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
         driver.Advance(Observation(0.6, 6));
         Assert.Equal(DiagnosticDriverStage.Readiness, driver.Stage);
+    }
+
+    [Fact]
+    public void Authored_Adel_death_can_complete_with_a_certified_resident_screen_blend()
+    {
+        string source = new('a', 64);
+        DiagnosticBattleDriverRecipe recipe = Recipe with
+        {
+            Input = Recipe.Input with { Ability = BattleAbility.Attack, ActionId = 0 },
+            ExpectedEffect = 211,
+            ExpectedNativeCommand = 8,
+            ExpectedNativeAction = 317,
+            EnemyTrigger = new("enemy-0", 112, 0, null, 3, source)
+        };
+        DiagnosticBattleDriver driver = new(recipe, 0);
+        driver.Advance(Observation(0, 0));
+        Assert.True(driver.Advance(Observation(0.1, 1)));
+        BattleDiagnosticEffectDispatch dispatch = new(1, 1, "enemy-0", BattleAbility.EnemyAbility, 317, 211, 211, 8)
+        {
+            NativeActorIndex = 3,
+            NativeAiCallbackStage = 3,
+            NativeAiScriptSha256 = source
+        };
+        driver.ObserveDispatch(dispatch);
+        Assert.Equal(dispatch, driver.HeldScreenBlendDispatch);
+        BattleDiagnosticInvocationOwners owners = EffectComponentTerminalTextureTrackerTests.Observation(1).Owners;
+        BattleComponentHeldScreenBlendTask task = new(0, 1, 0, null, NativeBattleAuxiliaryKind.ScreenBlend501E80, 0, false,
+            [2, 0, 2, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        string[] blockers = ["effect-or-auxiliary-task"];
+        BattleComponentHeldScreenBlendObservation first = new(211, 2, 0, 0, owners, true, 1, 0, 0, task, task.Fingerprint, [..blockers]);
+        EffectComponentHeldScreenBlendTracker tracker = new();
+        Assert.False(tracker.Observe(first, 2, 20));
+        Assert.False(tracker.Observe(first with { GraphicsCallback = 3 }, 3, 30));
+        DiagnosticDriverObservation observation = new(0.3, 3, 3, true, false, false, blockers);
+        Assert.False(driver.Advance(observation));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        Assert.True(tracker.Observe(first with { GraphicsCallback = 4 }, 4, 40));
+        BattleComponentHeldScreenBlendCertificate certificate = tracker.Certificate(211, source, dispatch, null);
+        DiagnosticDriverObservation tail = observation with { Seconds = 0.4, Callback = 4, PresentedFrame = 4, HeldScreenBlend = certificate };
+        Assert.Throws<InvalidDataException>(() => driver.Advance(tail with { DrainBlockers = ["effect-or-auxiliary-task", "action-or-command"] }));
+        Assert.Throws<InvalidDataException>(() => driver.Advance(tail with { HeldScreenBlend = certificate with { NativeDispatch = dispatch with { Serial = 2 } } }));
+        Assert.False(driver.Advance(tail));
+        Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
+        Assert.Equal(blockers, driver.LastDrainBlockers);
+        Assert.False(certificate.Drained);
+        Assert.True(certificate.ResidentTasksRemain);
+    }
+
+    [Fact]
+    public void Installed_Adel_death_leaves_the_authored_screen_blend_with_hosted_owners_released()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_ADEL_RECIPE");
+        Assert.SkipUnless(directory is not null && path is not null && File.Exists(path), "Select installed game resources and the authored Adel recipe.");
+        JsonSerializerOptions options = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true, Converters = { new JsonStringEnumConverter() } };
+        DiagnosticBattleRequest request = JsonSerializer.Deserialize<DiagnosticBattleRequest>(File.ReadAllText(path!), options)!;
+        request.Validate();
+        DiagnosticBattleDriverRecipe recipe = Assert.IsType<DiagnosticBattleDriverRecipe>(request.Driver);
+        Assert.Equal((ushort)211, recipe.ExpectedEffect);
+        GameSession session = GameWorld.CreateColdProcess(directory!);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory!);
+        BattleSession battle = world.StartDiagnosticBattle(request);
+        ExpandedBattlePresentationProcess hosted = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        world.PrepareDiagnosticEntryBeforePresentation(request);
+        List<BattleDiagnosticEffectDispatch> dispatches = [];
+        battle.DiagnosticEffectDispatched += dispatches.Add;
+        recipe.EnemyTrigger!.Prepare(battle);
+        world.ApplyBattleInput(recipe.Input);
+        for (int frame = 0; frame < 900; frame++)
+        {
+            battle.Tick();
+            audio.Update(battle);
+            if (battle.ObserveComponentHeldScreenBlend(211) is { } observation)
+            {
+                BattleDiagnosticEffectDispatch dispatch = Assert.Single(dispatches, value => value.ExecutedEffect == 211);
+                Assert.Equal(317, dispatch.ActionId);
+                Assert.Equal(3, dispatch.NativeAiCallbackStage);
+                Assert.Equal(796, battle.EncounterId);
+                BattleCombatant rinoa = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 113);
+                Assert.Equal(1, rinoa.SceneSlot);
+                Assert.Equal(4, rinoa.NativeActorIndex);
+                Assert.True(observation.IsEligible);
+                Assert.Equal(new[] { "effect-or-auxiliary-task" }, battle.ObserveDiagnosticDrainBlockers());
+                return;
+            }
+        }
+        object facts = new
+        {
+            battle.EncounterId, battle.Outcome, Dispatches = dispatches, Blockers = battle.ObserveDiagnosticDrainBlockers(),
+            hosted.Memory.Active, Selected = hosted.Graphics.OriginalEffect?.RequestedEffect,
+            ReturnedTask = hosted.Memory.ReadReturnedTask5044B0(), hosted.Graphics.Auxiliary.Head, hosted.Graphics.Auxiliary.Tail,
+            Tasks = hosted.Graphics.Auxiliary.Slots.Select((task, index) => new { Index = index, task.Flags, task.State, task.Kind, task.Next, task.UnknownByteMask, Payload = Convert.ToHexString(task.Payload.AsSpan()) }).Where(task => (task.Flags & 1) != 0).ToArray(),
+            Rinoa = battle.Combatants.Where(actor => !actor.IsPlayer && actor.ModelId == 113).Select(actor => new { actor.SceneSlot, actor.NativeActorIndex, actor.IsActive }).ToArray()
+        };
+        Assert.Fail(JsonSerializer.Serialize(facts, options));
     }
 
     [Fact]

@@ -31,6 +31,10 @@ public sealed partial class BattleSession
     /// <summary>Observe the original resident constant screen blend; neither release it nor stop its native rectangle publication.</summary>
     public BattleComponentHeldScreenBlendObservation? ObserveComponentHeldScreenBlend(ushort expectedEffect)
     {
+        if (expandedPresentationProcess is { } hosted)
+        {
+            return ObserveDiagnosticDrainBlockers() is ["effect-or-auxiliary-task"] ? hosted.ObserveComponentHeldScreenBlend(expectedEffect) : null;
+        }
         if (NativeGraphics is not { OriginalEffect: { ReturnedDescriptor: 0 } selected } graphics || selected.RequestedEffect != expectedEffect || selected.Binding.Effect != expectedEffect || NativeEffectMemory is not { Active: 0 } memory)
         {
             return null;

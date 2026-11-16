@@ -177,7 +177,7 @@ internal enum DiagnosticDriverStage
     Blocked
 }
 
-internal sealed record DiagnosticDriverObservation(double Seconds, long Callback, long PresentedFrame, bool Ready, bool Drained, bool Terminal, string[] DrainBlockers);
+internal sealed record DiagnosticDriverObservation(double Seconds, long Callback, long PresentedFrame, bool Ready, bool Drained, bool Terminal, string[] DrainBlockers, BattleComponentHeldScreenBlendCertificate? HeldScreenBlend = null);
 
 /// <summary>Ordinary two-use diagnostics, with an explicit fresh-entry single-use protocol; completion is a candidate rather than acceptance.</summary>
 internal sealed class DiagnosticBattleDriver
@@ -196,6 +196,9 @@ internal sealed class DiagnosticBattleDriver
     private readonly List<BattleDiagnosticEffectDispatch> dispatches = [];
     private readonly List<BattleDiagnosticEffectDispatch> reflectionDispatches = [];
     private BattleDiagnosticEffectDispatch? currentFocalDispatch;
+    internal BattleDiagnosticEffectDispatch? HeldScreenBlendDispatch => Stage == DiagnosticDriverStage.Drain &&
+        recipe is { ExpectedEffect: 211, TerminalHold: null, EnemyTrigger: { Model: 112, SceneSlot: 0, Callback: 3, AllocatedFocus: null, MaximumAttempts: 1 } } &&
+        currentFocalDispatch is { ActorId: "enemy-0", NativeActorIndex: 3, NativeCommand: 8, ActionId: 317 } ? currentFocalDispatch : null;
     private readonly List<DiagnosticShotCycleDriver> shotCycles = [];
     internal DiagnosticShotCycleDriver? ShotCycle => shotCycles.LastOrDefault();
     internal DiagnosticShotCycleReceipt[] ShotReceipts => shotCycles.Select(cycle => cycle.Receipt).ToArray();
@@ -498,6 +501,19 @@ internal sealed class DiagnosticBattleDriver
         }
         if (!CheckDeadlines(observation.Seconds))
         {
+            return false;
+        }
+        if (observation.HeldScreenBlend is { } blend)
+        {
+            if (HeldScreenBlendDispatch is not { } dispatch || blend.NativeDispatch != dispatch || blend.NativeAdmission is not null ||
+                observation.Drained || observation.DrainBlockers is not ["effect-or-auxiliary-task"] ||
+                blend.LastPresentedFrame != observation.PresentedFrame || blend.TailPresentedFrames < recipe.TailFrames)
+            {
+                throw new InvalidDataException("Held screen blend does not close the current authored death invocation.");
+            }
+            BattleComponentHeldScreenBlendCertificateValidation.Validate(blend, recipe.ExpectedEffect, recipe.EnemyTrigger!.ScriptSha256);
+            Stage = DiagnosticDriverStage.Completed;
+            Execution = 2;
             return false;
         }
         if (Stage == DiagnosticDriverStage.Readiness)

@@ -11,7 +11,7 @@ internal sealed class EffectComponentHeldScreenBlendTracker
 
     internal long? BoundaryTimestamp { get; private set; }
 
-    internal bool Observe(BattleComponentHeldScreenBlendObservation? observation, long presentedFrame, long timestamp)
+    internal bool Observe(BattleComponentHeldScreenBlendObservation? observation, long presentedFrame, long timestamp, int tailFrames = 2)
     {
         if (observation is null || !observation.IsEligible)
         {
@@ -35,7 +35,7 @@ internal sealed class EffectComponentHeldScreenBlendTracker
         }
         last = observation;
         lastFrame = presentedFrame;
-        return lastFrame - firstFrame >= 2 && last.GraphicsCallback - first.GraphicsCallback >= 1;
+        return lastFrame - firstFrame >= tailFrames && last.GraphicsCallback - first.GraphicsCallback >= 1;
     }
 
     internal BattleComponentHeldScreenBlendCertificate Certificate(ushort effect, string sourceSha256, BattleDiagnosticEffectDispatch? dispatch, BattleComponentAdmissionIdentity? admission)
