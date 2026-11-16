@@ -47,6 +47,12 @@ public sealed partial class BattleSession
 
     private void CleanupDefeatedEncounterAllocations()
     {
+        if (preparingExpandedHostedAction)
+        {
+            return;
+        }
+        ExpandedBattlePresentationProcess? process = expandedPresentationProcess;
+        NativeBattleGraphicsState? graphics = NativeGraphics ?? process?.Graphics;
         foreach (NativeBattleEnemyAllocation allocation in nativeAllocations.Where(allocation => allocation.EncounterBatchId is not null && allocation.Retirement is null).ToArray())
         {
             BattleCombatant actor = GetActor(allocation.Id);
@@ -56,7 +62,7 @@ public sealed partial class BattleSession
             }
             // A copy retains the source's body sequences, but not its scripted boss death callback.
             // Finish every accepted contact and effect before releasing this summoned allocation through105.
-            if (NativeGraphics is { } graphics && new EncounterAllocationRetirement(actor.RequireNativeActorIndex()).HasAcceptedConsumers(actor.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask))
+            if (graphics is not null && new EncounterAllocationRetirement(actor.RequireNativeActorIndex()).HasAcceptedConsumers(actor.Id, process?.ActionPackets ?? nativeActionPackets, graphics, ActiveAction, (process?.Memory ?? NativeEffectMemory)?.DetachedReturnedTask))
             {
                 continue;
             }
@@ -94,7 +100,8 @@ public sealed partial class BattleSession
             return;
         }
         int? physical = actor.NativeActorIndex;
-        if (NativeGraphics is { } graphics)
+        NativeBattleGraphicsState? graphics = NativeGraphics ?? expandedPresentationProcess?.Graphics;
+        if (graphics is not null)
         {
             BattleModelOwner owner = CreatePresentationModelOwner(actor);
             if (!graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte original) || (graphics.ActorModels.Get(owner).Flags0 & 3) == 0)
@@ -107,10 +114,10 @@ public sealed partial class BattleSession
         {
             return;
         }
-        nativeAllocations[index] = allocation with { Retirement = new(physical.Value, ResourcesReleased: NativeGraphics is null) };
+        nativeAllocations[index] = allocation with { Retirement = new(physical.Value, ResourcesReleased: graphics is null && !preparingExpandedHostedAction) };
     }
 
-    private NativeBattleGraphicsState AdvanceEncounterAllocationRetirements(NativeBattleGraphicsState graphics)
+    private NativeBattleGraphicsState AdvanceEncounterAllocationRetirements(NativeBattleGraphicsState graphics, ExpandedBattlePresentationProcess? process = null)
     {
         for (int index = 0; index < nativeAllocations.Count; index++)
         {
@@ -150,7 +157,8 @@ public sealed partial class BattleSession
                 continue;
             }
             // Physical resource release follows accepted contacts and native effect completion, never their preparation.
-            if (retirement.HasAcceptedConsumers(allocation.Id, nativeActionPackets, graphics, ActiveAction, NativeEffectMemory?.DetachedReturnedTask) || graphics.ModelLoadCount != 0 || NativeModelLoader?.Task is not null)
+            if (retirement.HasAcceptedConsumers(allocation.Id, process?.ActionPackets ?? nativeActionPackets, graphics, ActiveAction, (process?.Memory ?? NativeEffectMemory)?.DetachedReturnedTask) ||
+                graphics.ModelLoadCount != 0 || (process?.HasPendingModelLoad ?? NativeModelLoader?.Task is not null))
             {
                 continue;
             }
@@ -163,7 +171,21 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            graphics = QueueNativeModelDescriptor(graphics, 105, 0, owner);
+            if (process is null)
+            {
+                graphics = QueueNativeModelDescriptor(graphics, 105, 0, owner);
+            }
+            else
+            {
+                if (process.HasActiveAction || !process.IsControlPrefixRetired || process.PendingCompletion is not null)
+                {
+                    continue;
+                }
+                PreparedHostedDispatch retirementDispatch = process.PrepareDispatch([], controls: new([new HostedDispatchControl.Model(105, owner)], []));
+                process.ValidatePreparedDispatch(retirementDispatch);
+                process.CommitDispatch(retirementDispatch);
+                graphics = process.Graphics;
+            }
             nativeAllocations[index] = allocation with { Retirement = retirement with { RemovalQueued = true } };
         }
         return graphics;
@@ -180,7 +202,8 @@ public sealed partial class BattleSession
             bool slotValid = retirement.PhysicalIndex is >= 3 and <= 6;
             bool retainsOwner = slotValid && graphics is not null &&
                 graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode((byte)retirement.PhysicalIndex), graphics.ActorModels) == owner;
-            if (actor.IsActive || !slotValid || !retirement.ResourcesReleased && (graphics is null || !retainsOwner && !retirement.RemovalQueued) ||
+            bool retainsHostedSlot = UsesExpandedRoster && graphics is null && actor.NativeActorIndex == retirement.PhysicalIndex;
+            if (actor.IsActive || !slotValid || !retirement.ResourcesReleased && !retainsHostedSlot && (graphics is null || !retainsOwner && !retirement.RemovalQueued) ||
                 retirement.ResourcesReleased && retainsOwner && (graphics!.ActorModels.Get(owner).Flags0 & 3) != 0)
             {
                 throw new InvalidDataException("Encounter retirement snapshot disagrees with its inactive allocation and resource generation.");

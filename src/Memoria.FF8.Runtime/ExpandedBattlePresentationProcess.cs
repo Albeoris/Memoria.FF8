@@ -73,6 +73,7 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal NativeCrtRandomState? CurrentCrtRandom => presentation.CurrentCrtRandom;
     internal NativeBattleModelCpuResources ModelCpuResources => presentation.NativeModelCpuResources!;
     internal NativeBattleModelTextureCache ModelTextureCache => presentation.NativeModelTextureCache!;
+    internal bool HasPendingModelLoad => presentation.NativeModelLoader?.Task is not null;
     internal void AdvanceEncounterPolicySpawn(BattleSession logicalOwner)
     {
         RequireLogicalOwner(logicalOwner);

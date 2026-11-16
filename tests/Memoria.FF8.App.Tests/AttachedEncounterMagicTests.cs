@@ -88,7 +88,7 @@ public sealed class AttachedEncounterMagicTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Installed_Edea_summon_loads_the_full_batch_before_its_arrival(bool attached)
+    public void Installed_Edea_summon_loads_the_full_batch_and_releases_a_defeated_copy(bool attached)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
@@ -158,6 +158,37 @@ public sealed class AttachedEncounterMagicTests
         Assert.Equal(battle.EncounterAllocation, restored.EncounterAllocation);
         Assert.Equal(battle.EncounterAllocation.ActorIds.Select(id => battle.Combatants.Single(actor => actor.Id == id).NativeActorIndex),
             restored.EncounterAllocation!.ActorIds.Select(id => restored.Combatants.Single(actor => actor.Id == id).NativeActorIndex));
+
+        string defeatedId = battle.EncounterAllocation.ActorIds[0];
+        string livingId = battle.EncounterAllocation.ActorIds[1];
+        BattleCombatant defeated = battle.Combatants.Single(actor => actor.Id == defeatedId);
+        BattleModelOwner defeatedOwner = battle.ReadPresentationModelOwner(defeatedId);
+        BattleModelOwner livingOwner = battle.ReadPresentationModelOwner(livingId);
+        int defeatedRow = ReadGraphics().ActorModels.Get(defeatedOwner).TextureResourceIndex!.Value;
+        int livingRow = ReadGraphics().ActorModels.Get(livingOwner).TextureResourceIndex!.Value;
+        defeated.CurrentHp = 1;
+        readyParty.Atb = BattleSession.AtbMaximum;
+        TickUntil(world, () => battle.CanChoosePlayerCommand(readyParty.Id));
+        int attackStart = battle.Events.Count;
+        world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: readyParty.Id, TargetId: defeatedId) { ForcePhysical = true });
+        bool sawRemoval = false;
+        TickUntil(world, () =>
+        {
+            NativeBattleGraphicsState graphics = ReadGraphics();
+            sawRemoval |= graphics.Descriptors.Packets.Any(packet => packet.Command == 105 && packet.ModelSubject is NativeBattleDescriptorModelSubject.ExplicitModel model && model.Owner == defeatedOwner);
+            return battle.Capture().NativeAllocations.Single(allocation => allocation.Id == defeatedId).Retirement is { ResourcesReleased: true };
+        });
+        Assert.True(sawRemoval);
+        Assert.False(defeated.IsActive);
+        Assert.True(battle.Combatants.Single(actor => actor.Id == livingId).IsActive);
+        Assert.Equal(0, ReadGraphics().ActorModels.Get(defeatedOwner).Flags0 & 3);
+        NativeBattleModelTextureCache cache = battle.ExpandedPresentationProcess?.ModelTextureCache ?? battle.NativeModelTextureCache!;
+        Assert.Equal((byte)0, cache.Rows[defeatedRow].Kind);
+        Assert.Equal((byte)3, cache.Rows[livingRow].Kind);
+        Assert.Single(battle.Events.Skip(attackStart), entry => entry.Kind == "NativeModelRemoved" && entry.ActorId == defeatedId);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+
+        NativeBattleGraphicsState ReadGraphics() => battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
     }
 
     private sealed record BattleRun((byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts, byte Repeats)[] Headers,

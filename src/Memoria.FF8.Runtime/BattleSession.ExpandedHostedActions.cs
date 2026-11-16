@@ -371,6 +371,11 @@ public sealed partial class BattleSession
             }
         }
         AdvanceExpandedHostedInvocation(actionToken);
-        AdvanceHostedEncounterAllocation(expandedPresentationProcess!);
+        ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
+        AdvanceHostedEncounterAllocation(process);
+        if (HasPendingEncounterRetirements)
+        {
+            _ = AdvanceEncounterAllocationRetirements(process.Graphics, process);
+        }
     }
 }

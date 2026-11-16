@@ -1273,6 +1273,10 @@ public sealed partial class BattleSession
         }
         CleanupDefeatedEncounterAllocations();
         CleanupEncounterPoliciesAtTerminal();
+        if (OwnsExpandedHostedInvocation && HasPendingEncounterRetirements)
+        {
+            return;
+        }
         BattleOutcome outcome = DetermineOutcome();
         if (outcome == BattleOutcome.Active)
         {
