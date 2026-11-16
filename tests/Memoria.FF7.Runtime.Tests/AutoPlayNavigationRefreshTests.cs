@@ -16,6 +16,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckOriginalRemoteBoundaryProjection();
         CheckOriginalDestinationGoal();
         CheckOriginalExhaustedHistoricalTravel();
+        CheckOriginalCurrentFieldRefresh();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
         AutoPlayEvent ladder = new("ladder", AutoPlayEventKind.Interaction, ConditionSignature: "ladder-entry");
@@ -367,6 +368,43 @@ internal static class AutoPlayNavigationRefreshTests
         Check(controller.Failure is null && restoredEntryMode && session.MapId == 531, $"The ordinary policy did not restore native entry mode and leave the exhausted local field cycle: {controller.Error}");
         Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "Historical travel replayed a checkpoint or changed the original standalone.");
         Console.WriteLine($"PASS original exhausted-route fallback restores native entry mode and reaches an outside field after {controller.Steps} ordinary callbacks; source unchanged.");
+    }
+
+    private static void CheckOriginalCurrentFieldRefresh()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_CURRENT_REFRESH_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        AutoPlayTravelGoal inherited = source.AutoPlay!.NavigationGoal!;
+        string visit = source.AutoPlay.Active!.VisitId;
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice during the bounded current-field refresh check."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool inheritedFinished = false;
+        bool retriedRefresh = false;
+        bool actorAttempted = false;
+        bool actorFinished = false;
+        for (int step = 0; step < 512 && controller.Running && session.FieldGeneration == source.FieldGeneration; step++)
+        {
+            controller.Advance(1);
+            inheritedFinished |= policy.State.NavigationGoal != inherited;
+            retriedRefresh |= inheritedFinished && policy.State.NavigationGoal is { EventId: null } goal && goal.NavigationKey.StartsWith(visit + ":", StringComparison.Ordinal);
+            bool actorActive = policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Entity: 6 };
+            actorAttempted |= actorActive;
+            actorFinished |= actorAttempted && !actorActive;
+        }
+        Check(controller.Failure is null && inheritedFinished && !retriedRefresh && actorFinished && session.FieldGeneration > source.FieldGeneration, $"Duplicate current-field refresh still starved native execution: {controller.Error}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Current-field refresh validation changed its original standalone.");
+        Console.WriteLine($"PASS original inherited arrival finishes, native actor frontier resolves and normal travel continues without duplicate same-field refresh after {controller.Steps} callbacks; source unchanged.");
     }
 
     private static void Check(bool condition, string message)

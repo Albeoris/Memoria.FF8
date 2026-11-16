@@ -44,29 +44,11 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    private bool NeedsNavigationRefresh(AutoPlayVisit visit, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
+    private bool NeedsNavigationRefresh(AutoPlayVisit visit, Ff7AutoPlayObservation observation)
     {
         AutoPlayNavigationVisit? navigation = State.Coverage.NavigationVisits.SingleOrDefault(item => item.Key == visit.Key);
-        if (navigation?.VisitKey != observation.VisitId)
-        {
-            return NeedsNavigationRefresh(State, visit);
-        }
-        AutoPlayVisitCoverage<Ff7AutoPlayDeferral> aggregate = State.Coverage.Visits.Single(item => item.Visit.Key == navigation.VisitKey);
-        foreach (AutoPlayEvent observed in navigation.Events)
-        {
-            AutoPlayEventCoverage<Ff7AutoPlayDeferral> item = aggregate.Events.Single(candidate => candidate.Event.Id == observed.Id);
-            if (item.UnavailableAttempts.Count == 0)
-            {
-                continue;
-            }
-            AutoPlayEventAvailability availability = ReadNavigationAvailability(navigation, observed, observation, driver, componentGuards)!;
-            AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, Completed = item.Completed, Conditions = item.Conditions, Unavailable = availability.Unavailable, AvailabilityFingerprint = availability.Fingerprint, CompletedAvailabilityFingerprints = item.CompletedAvailabilityFingerprints };
-            if (!scoped.Unavailable && AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(scoped))
-            {
-                return true;
-            }
-        }
-        return false;
+        // Current-field events and component eligibility are already observed directly by the planner.
+        return navigation?.VisitKey != observation.VisitId && NeedsNavigationRefresh(State, visit);
     }
 
     private AutoPlayEventAvailability? ReadNavigationAvailability(AutoPlayNavigationVisit navigation, AutoPlayEvent observed, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
