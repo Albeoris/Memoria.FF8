@@ -116,7 +116,18 @@ public sealed class ExpandedHostedRenzokukenTests
             int eventStart = battle.Events.Count;
             BattleModelOwner owner = battle.ReadPresentationModelOwner(target.Id);
             target.CurrentHp = 1;
+            if (effect == 308)
+            {
+                foreach (BattleCombatant actor in battle.Combatants)
+                {
+                    actor.Atb = 0;
+                }
+            }
             caster.Atb = BattleSession.AtbMaximum;
+            if (effect == 308)
+            {
+                Assert.True(battle.CanChoosePlayerCommand(caster.Id), $"The fixture attacker {caster.Id} has HP={caster.CurrentHp}, active={caster.IsActive}, busy={caster.IsBusy}, outcome={battle.Outcome}.");
+            }
             world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: caster.Id, TargetId: target.Id));
             bool supportingHeader = false;
             bool focalHeader = false;
@@ -147,7 +158,7 @@ public sealed class ExpandedHostedRenzokukenTests
             Assert.True(focalHeader && invoked && IsIdle(battle, process));
             Assert.False(target.IsAlive);
             Assert.DoesNotContain(battle.Events.Skip(eventStart), item => item.Kind == "EffectContact" && item.ActorId == target.Id);
-        }, formation: formation, targetModel: model);
+        }, formation: formation, targetModel: model, startInCrisis: effect != 308);
     }
 
     [Theory]
@@ -718,7 +729,7 @@ public sealed class ExpandedHostedRenzokukenTests
     }
 
     private static void RunWorld(bool automatic, byte seed, Action<GameWorld, BattleSession, ExpandedBattlePresentationProcess, BattleCombatant, BattleCombatant> run, byte? finisher = null,
-        ushort formation = ExpandedBattleInstalledEntry.Formation, int? targetModel = null)
+        ushort formation = ExpandedBattleInstalledEntry.Formation, int? targetModel = null, bool startInCrisis = true)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
@@ -737,9 +748,10 @@ public sealed class ExpandedHostedRenzokukenTests
                 NativeCharacterVital[] records = vitals.Records.ToArray();
                 foreach (int ally in new[] { 1, 2, 3 })
                 {
-                    records[ally] = records[ally] with { MemberFlags = (ushort)(records[ally].MemberFlags | 1), HitPoints = new(0, 0), Status = 1 };
+                    NativeCharacterVital record = records[ally];
+                    records[ally] = record with { MemberFlags = (ushort)(record.MemberFlags | 1), HitPoints = startInCrisis ? new(0, 0) : record.HitPoints, Status = startInCrisis ? (ushort)1 : (ushort)0 };
                 }
-                records[0] = records[0] with { MemberFlags = (ushort)(records[0].MemberFlags | 1), HitPoints = new(1, 1), Status = 0 };
+                records[0] = records[0] with { MemberFlags = (ushort)(records[0].MemberFlags | 1), HitPoints = startInCrisis ? new(1, 1) : records[0].HitPoints, Status = 0 };
                 if (finisher is byte selected)
                 {
                     NativeCharacterVital squall = records[0];
@@ -750,7 +762,8 @@ public sealed class ExpandedHostedRenzokukenTests
                             return (assets.ReadPlayerNativeStatRules(vitals with { Records = records }, 0).WeaponRecord[2] & (1 << selected)) != 0;
                         });
                 }
-                current.SetCharacterVitals((vitals with { Records = records }).WithBattleParty(selectedRows, 4));
+                NativeCharacterVitals party = (vitals with { Records = records }).WithBattleParty(selectedRows, 4);
+                current.SetCharacterVitals(startInCrisis ? party : party.Rest());
                 NativeLimitProgress limits = current.State.LimitProgress!;
                 ushort options = Assert.IsType<ushort>(limits.Options978);
                 current.SetLimitProgress(limits with { Options978 = (ushort)((options & ~0x8001) | (automatic ? 1 : 0)) });
@@ -759,13 +772,17 @@ public sealed class ExpandedHostedRenzokukenTests
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: seed));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-            for (int frame = 0; frame < CallbackBudget && (!process.EntryReady || process.ActiveActionToken is not null || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+            for (int frame = 0; frame < CallbackBudget && (!process.EntryReady || process.ActiveActionToken is not null || battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || !startInCrisis && battle.ObserveDiagnosticDrainBlockers().Count != 0); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             Assert.True(process.EntryReady);
             Assert.Null(battle.ActiveAction);
             Assert.Empty(battle.QueuedActions);
+            if (!startInCrisis)
+            {
+                Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
+            }
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == Squall);
             Assert.Equal(admission.UsesPrimaryPartyOnly, process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(caster.Id), out _));
             BattleCombatant target;
@@ -773,7 +790,10 @@ public sealed class ExpandedHostedRenzokukenTests
             {
                 caster.CurrentHp = caster.MaximumHp;
                 target = SelectSpecialTarget(world, battle, process, caster, formation, model);
-                caster.CurrentHp = 1;
+                if (startInCrisis)
+                {
+                    caster.CurrentHp = 1;
+                }
             }
             else
             {
