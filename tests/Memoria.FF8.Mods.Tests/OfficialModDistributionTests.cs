@@ -26,8 +26,16 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.False(Directory.Exists(plan.Destination));
         Assert.True(Assert.Single(Installer("Classic/en/other-profile").RecoverAndApply()).Installed);
         Assert.True(Assert.Single(Installer().CompleteStartupApplications([plan.PackageId])).Installed);
-        Assert.Contains("keep=example", File.ReadAllText(Path.Combine(plan.Destination, "mod.ini")));
-        Assert.Contains("enabled=0", File.ReadAllText(Path.Combine(plan.Destination, "mod.ini")).Replace(" ", ""));
+        string playerIni = Path.Combine(plan.Destination, "mod.ini");
+        Assert.False(File.Exists(playerIni));
+        using (ModRuntime fresh = new(root, watch: false, modsDirectory: Mods))
+        {
+            Assert.True(fresh.PreparePending(force: true));
+            Assert.True(fresh.CommitPending());
+            Assert.True(Assert.Single(fresh.InstalledPackages).RequestedEnabled);
+        }
+        const string playerSettings = "enabled = 0\nkeep=example\n";
+        File.WriteAllText(playerIni, playerSettings);
 
         string preferences = Path.Combine(Mods, "Memoria", "memoria-settings.json");
         File.WriteAllText(preferences, """{"components":{"Fixture":false,"Other":false},"meltdown":{}}""");
@@ -51,6 +59,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.Equal("1.10.0", ModPackageInstaller.ReadOfficialInstallation(Mods, release.Official!)!.Version);
         Assert.Contains("\"Fixture\":true", File.ReadAllText(preferences));
         Assert.Contains("\"Other\":false", File.ReadAllText(preferences));
+        Assert.Equal(playerSettings, File.ReadAllText(playerIni));
 
         var (_, incompatible) = Package("1.11.0", "[99.0.0,)");
         Assert.Contains("99.0.0", Installer().CompatibilityError(incompatible));
@@ -166,6 +175,16 @@ public sealed class OfficialModDistributionTests : IDisposable
         throw new TimeoutException("The mod library did not reach the expected state.");
     }
 
+    [Theory]
+    [InlineData("mod.ini")]
+    [InlineData("settings/MOD.INI")]
+    public async Task OfficialPackageCannotSupplyPlayerSettings(string settingsPath)
+    {
+        var (path, entry) = Package("1.0.0", settingsPath: settingsPath);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Installer().InspectAsync(path, entry, Token));
+        Assert.False(Directory.Exists(Mods));
+    }
+
     [Fact]
     public async Task NativeInspectionRejectsModifiedArchiveAndUnownedDestination()
     {
@@ -197,13 +216,18 @@ public sealed class OfficialModDistributionTests : IDisposable
         throw new TimeoutException("The download did not complete.");
     }
 
-    private (string Path, RemoteModEntry Entry) Package(string version, string? engineRange = null)
+    private (string Path, RemoteModEntry Entry) Package(string version, string? engineRange = null, string? settingsPath = null)
     {
         Directory.CreateDirectory(root);
         engineRange ??= Range;
         OfficialModTarget target = new("FFVIII", ["Classic"], ["*"]);
         byte[] payload = Encoding.UTF8.GetBytes("fixture " + version);
-        byte[] ini = "enabled = 1\nkeep=example\n"u8.ToArray();
+        byte[] ini = "enabled = 0\n"u8.ToArray();
+        List<OfficialModFile> files = [new("asset.txt", payload.Length, Hash(payload), false)];
+        if (settingsPath is not null)
+        {
+            files.Add(new(settingsPath, ini.Length, Hash(ini), false));
+        }
         var manifest = new
         {
             schemaVersion = 1,
@@ -213,7 +237,7 @@ public sealed class OfficialModDistributionTests : IDisposable
             version,
             engineVersionRange = engineRange,
             target,
-            files = new[] { new OfficialModFile("asset.txt", payload.Length, Hash(payload), false), new OfficialModFile("mod.ini", ini.Length, Hash(ini), true) }
+            files
         };
         byte[] metadata = JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         string path = Path.Combine(root, version + ".zip");
@@ -221,9 +245,12 @@ public sealed class OfficialModDistributionTests : IDisposable
         {
             Write(zip, "mod.manifest.json", metadata);
             Write(zip, "payload/asset.txt", payload);
-            Write(zip, "payload/mod.ini", ini);
+            if (settingsPath is not null)
+            {
+                Write(zip, "payload/" + settingsPath, ini);
+            }
         }
-        OfficialModArtifact artifact = new("https://example.test/mod.zip", new FileInfo(path).Length, metadata.Length + payload.Length + ini.Length, Hash(File.ReadAllBytes(path)));
+        OfficialModArtifact artifact = new("https://example.test/mod.zip", new FileInfo(path).Length, metadata.Length + payload.Length + (settingsPath is null ? 0 : ini.Length), Hash(File.ReadAllBytes(path)));
         OfficialModComponent descriptor = new("fixture", "Memoria", "Memoria/Fixture", "Fixture", "Fixture", "Test artwork", "Items", "memoria-native", "download", true, target, new(version, engineRange, "fixture-v" + version, "New", artifact));
         return (path, Entry(descriptor));
     }

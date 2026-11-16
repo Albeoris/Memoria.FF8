@@ -76,7 +76,7 @@ public sealed partial class ModPackageInstaller
         using FileStream input = File.OpenRead(artwork);
         string digest = Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
         bool known = digest == originalDigest && SafeFiles(destination).All(file => file == artwork || file == Path.Combine(destination, "mod.ini"));
-        Receipt receipt = new(1, Guid.NewGuid(), OfficialModCatalog.SourceId, component.CatalogId, known ? "1.0.0" : "", "", name, Fingerprint(destination, false), true)
+        Receipt receipt = new(1, Guid.NewGuid(), OfficialModCatalog.SourceId, component.CatalogId, known ? "1.0.1" : "", "", name, Fingerprint(destination, false), true)
         {
             Official = component,
             EngineVersionRange = known ? "[0.8.10,)" : null,
@@ -163,20 +163,16 @@ public sealed partial class ModPackageInstaller
         }
     }
 
-    private void ValidateNativeFiles(string payload, IReadOnlyList<OfficialModFile> inventory, CancellationToken token, bool verifyMutable = true)
+    private void ValidateNativeFiles(string payload, IReadOnlyList<OfficialModFile> inventory, CancellationToken token, string? preservedSettingsHash = null)
     {
         HashSet<string> expected = new(StringComparer.OrdinalIgnoreCase);
         foreach (OfficialModFile file in inventory)
         {
             token.ThrowIfCancellationRequested();
             if (file is null || file.Path is null || SafeRelative(file.Path) != file.Path || !expected.Add(file.Path) || file.Size < 0 || !OfficialModCatalog.IsDigest(file.Sha256)
-                || file.Mutable != file.Path.Equals("mod.ini", StringComparison.Ordinal))
+                || file.Mutable || file.Path.Split('/').Contains("mod.ini", StringComparer.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("Invalid native payload file inventory.");
-            }
-            if (file.Mutable && !verifyMutable)
-            {
-                continue;
             }
             string path = Path.Combine(payload, file.Path.Replace('/', Path.DirectorySeparatorChar));
             using FileStream content = File.OpenRead(path);
@@ -185,9 +181,17 @@ public sealed partial class ModPackageInstaller
                 throw new InvalidDataException("Official payload file does not match its inventory.");
             }
         }
-        if (!expected.Contains("mod.ini") || inventory.All(file => file.Mutable) || SafeFiles(payload).Any(path => !expected.Contains(Path.GetRelativePath(payload, path).Replace('\\', '/'))))
+        if (Directory.EnumerateDirectories(payload, "*", SearchOption.AllDirectories).Any(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidDataException("The native inventory must include every payload file and mod.ini defaults.");
+            throw new InvalidDataException("Official mod packages cannot contain mod.ini.");
+        }
+        foreach (string path in SafeFiles(payload))
+        {
+            string relative = Path.GetRelativePath(payload, path).Replace('\\', '/');
+            if (!expected.Contains(relative) && !(relative == "mod.ini" && preservedSettingsHash is not null && SettingsHash(path) == preservedSettingsHash))
+            {
+                throw new InvalidDataException("The native payload contains an unlisted file or bundled settings.");
+            }
         }
     }
 
@@ -232,13 +236,6 @@ public sealed partial class ModPackageInstaller
             return "The download is unavailable. Refresh the official catalog when online.";
         }
         return OfficialModCatalog.CompatibilityError(component, EngineBuildMetadata.CompatibilityVersion, edition, language);
-    }
-
-    private static string NativeDefaultSettings(string payload, bool enabled)
-    {
-        string path = Path.Combine(payload, "mod.ini");
-        ModConfiguration.WriteBoolean(path, "enabled", enabled);
-        return File.ReadAllText(path);
     }
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, long Modified, string Digest)> verifiedFiles = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);

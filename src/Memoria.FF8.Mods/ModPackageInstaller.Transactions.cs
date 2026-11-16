@@ -56,7 +56,7 @@ public sealed partial class ModPackageInstaller
                     return Result(previous, false, true);
                 }
                 string settingsPath = Configuration(destination, Directory.Exists(item.Payload));
-                string settings = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : "[Mod]\nenabled=" + (autoEnableNewMods ? "1" : "0") + "\n";
+                string settings = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : plan.Entry.Official is null ? "[Mod]\nenabled=" + (autoEnableNewMods ? "1" : "0") + "\n" : "";
                 if (previous is not null && plan.Entry.Official is null)
                 {
                     ValidatePackage(item.Payload, plan.Entry, ModConfiguration.ReadJunctionOptions(settingsPath));
@@ -64,10 +64,6 @@ public sealed partial class ModPackageInstaller
                 if (CompatibilityError(plan.Entry) is { } unavailable)
                 {
                     throw new NotSupportedException(unavailable);
-                }
-                if (plan.Entry.Official is not null && !File.Exists(settingsPath))
-                {
-                    settings = NativeDefaultSettings(item.Payload, enableOnAcceptance || autoEnableNewMods && plan.Entry.Official.DefaultEnabled);
                 }
                 Receipt next = new(1, previous?.InstallationId ?? Guid.NewGuid(), plan.Entry.SourceId, plan.Entry.Id, plan.Version, plan.Entry.Official is null ? targetProfile : "", name, item.Hash, Directory.Exists(item.Payload))
                 {
@@ -253,7 +249,7 @@ public sealed partial class ModPackageInstaller
             }
             else
             {
-                ValidateNativeFiles(payload, next.Files!, CancellationToken.None, verifyMutable: false);
+                ValidateNativeFiles(payload, next.Files!, CancellationToken.None, journal.ExpectedSettingsHash);
             }
             if (journal.Previous is null)
             {
@@ -276,7 +272,7 @@ public sealed partial class ModPackageInstaller
             {
                 throw new InvalidDataException("The previous installation or its verified backup is missing.");
             }
-            if (next.Folder)
+            if (next.Folder && (next.Official is null || journal.ExpectedSettingsHash != "missing"))
             {
                 File.WriteAllText(Path.Combine(payload, "mod.ini"), journal.Settings);
             }

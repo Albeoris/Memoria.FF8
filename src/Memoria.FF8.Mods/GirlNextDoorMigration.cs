@@ -83,7 +83,7 @@ public static class GirlNextDoorMigration
             }
             PackageManifest.EnsureNoReparsePoints(source);
             using FileStream input = File.OpenRead(source);
-            CopyAtomically(input, target, state);
+            CopyLegacyResource(input, target, state);
         }
 
         if (missing.Count != 0)
@@ -96,7 +96,7 @@ public static class GirlNextDoorMigration
                 if (path is not null)
                 {
                     using MemoryStream source = new(backup[path], writable: false);
-                    CopyAtomically(source, Path.Combine(destination, name), state);
+                    CopyLegacyResource(source, Path.Combine(destination, name), state);
                 }
             }
         }
@@ -132,6 +132,21 @@ public static class GirlNextDoorMigration
     }
 
     private static string CompletionPath(string modsRoot) => Path.Combine(ModPackageInstaller.StateDirectoryFor(modsRoot), "girl-next-door-migration-v1");
+
+    private static void CopyLegacyResource(Stream input, string target, string state)
+    {
+        if (Path.GetFileName(target) == "mod.ini" && input.Length is 12 or 13)
+        {
+            Span<byte> settings = stackalloc byte[(int)input.Length];
+            input.ReadExactly(settings);
+            if (settings.SequenceEqual("enabled = 1\n"u8) || settings.SequenceEqual("enabled = 1\r\n"u8))
+            {
+                return;
+            }
+            input.Position = 0;
+        }
+        CopyAtomically(input, target, state);
+    }
 
     private static void CopyAtomically(Stream input, string target, string state)
     {

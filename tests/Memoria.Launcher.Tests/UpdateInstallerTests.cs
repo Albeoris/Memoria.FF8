@@ -78,6 +78,23 @@ public sealed class UpdateInstallerTests : IDisposable
         Assert.Single(ModPackageInstaller.ReadOfficialInventory(Path.Combine(root, "Mods")));
     }
 
+    [Theory]
+    [InlineData("enabled = 1\n")]
+    [InlineData("enabled = 1\r\n")]
+    public void MigrationSkipsTheOriginalBundledDefault(string settings)
+    {
+        const string old = "Data/BundledMods/Memoria/Girl Next Door/";
+        const string local = "Mods/Memoria/Girl Next Door/";
+        AddPackageFile(root, old + "GirlNextDoor.png", "legacy artwork");
+        AddPackageFile(root, old + "mod.ini", settings);
+        UpdateInstaller.Apply(root);
+
+        GirlNextDoorMigration.FromLauncher(root);
+        Assert.True(GirlNextDoorMigration.IsComplete(Path.Combine(root, "Mods")));
+        Assert.Equal("legacy artwork", Read(local + "GirlNextDoor.png"));
+        Assert.False(File.Exists(Path.Combine(root, local, "mod.ini")));
+    }
+
     [Fact]
     public void InvalidCommittedBackupPreventsPrepareFromDeletingTheMigrationSource()
     {

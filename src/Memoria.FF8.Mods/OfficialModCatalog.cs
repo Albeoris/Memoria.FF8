@@ -132,7 +132,7 @@ public static class OfficialModCatalog
         foreach (OfficialModComponent component in document.Components)
         {
             if (component is null || component.Id is null || !Regex.IsMatch(component.Id, @"^[a-z0-9]+(-[a-z0-9]+)*$") || component.Id.Length > 80 || !ids.Add(component.Id)
-                || !IsRuntimeId(component.RuntimePackageId) || !runtimeIds.Add(component.RuntimePackageId) || component.GroupId != "Memoria" || component.Format != "memoria-native" || component.Delivery != "download"
+                || !IsRuntimeId(component.RuntimePackageId) || !runtimeIds.Add(component.RuntimePackageId) || component.GroupId != "Memoria" || component.Format != "memoria-native" || component.Delivery != "download" || !component.DefaultEnabled
                 || string.IsNullOrWhiteSpace(component.Name) || string.IsNullOrWhiteSpace(component.Description) || string.IsNullOrWhiteSpace(component.Category) || string.IsNullOrWhiteSpace(component.SettingsKey) || !settingsKeys.Add(component.SettingsKey))
             {
                 throw new InvalidDataException("Invalid or duplicate official component identity or descriptor.");
