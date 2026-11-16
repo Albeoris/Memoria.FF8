@@ -11,12 +11,15 @@ internal sealed record DiagnosticBattleRoster([property: JsonRequired] Immutable
     public int? DonorCount { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? MountedReserveSceneSlot { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AuthoredFormationHash { get; init; }
 
     internal void Validate()
     {
         int count = DonorCount ?? (Donors.IsDefault ? 0 : Donors.Length);
-        if (Donors.IsDefaultOrEmpty || Donors.Length > (DonorCount.HasValue ? 256 : ExpandedBattleFormation.MaximumAddedEnemies) ||
-            count < 1 || count > ExpandedBattleFormation.MaximumAddedEnemies || count > Donors.Length || Donors.Any(source => source is null) ||
+        bool authoredOnly = DonorCount == 0 && AuthoredFormationHash is not null && !Donors.IsDefault && Donors.IsEmpty;
+        if (Donors.IsDefault || !authoredOnly && count < 1 || Donors.Length > (DonorCount.HasValue ? 256 : ExpandedBattleFormation.MaximumAddedEnemies) ||
+            count > ExpandedBattleFormation.MaximumAddedEnemies || count > Donors.Length || Donors.Any(source => source is null) ||
             Donors.Select(source => (source.Formation, source.SceneSlot)).Distinct().Count() != Donors.Length ||
             OriginalSceneSlot is < 0 or >= ExpandedBattleFormation.OriginalEnemyPrototypeCount ||
             MountedReserveSceneSlot is < 0 or >= ExpandedBattleFormation.OriginalEnemyPrototypeCount || MountedReserveSceneSlot == OriginalSceneSlot)
@@ -26,6 +29,10 @@ internal sealed record DiagnosticBattleRoster([property: JsonRequired] Immutable
         foreach (BattleEnemyRosterSource source in Donors)
         {
             source.Validate();
+        }
+        if (AuthoredFormationHash is { } hash && (hash.Length != 64 || !hash.All(Uri.IsHexDigit) || MountedReserveSceneSlot is not null))
+        {
+            throw new InvalidDataException("Diagnostic authored roster requires an installed formation hash and no separate mounted reserve.");
         }
     }
 }
@@ -40,6 +47,10 @@ internal sealed partial class GameWorld
 {
     private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectDiagnosticRosterDonors(BattleEncounter encounter, DiagnosticBattleRoster roster, HashSet<int> reserveSlots)
     {
+        if (roster.DonorCount == 0)
+        {
+            return ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty;
+        }
         IEnumerable<BattleEnemyRosterSource> selected = roster.Donors;
         if (roster.DonorCount is int count)
         {
@@ -78,6 +89,14 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("The diagnostic allocation target must have its original referenced inactive enemy prototype.");
         }
+        if (roster.AuthoredFormationHash is { } hash)
+        {
+            if (!BattleResources.FormationSourceHash(encounter.Id).Equals(hash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The diagnostic authored roster differs from its installed formation.");
+            }
+            return AuthoredEnemyPlacements(encounter).Where(enemy => enemy.Enabled).Concat(prototypes).OrderBy(enemy => enemy.Slot).ToArray();
+        }
         if (roster.MountedReserveSceneSlot is not int reserveSlot)
         {
             return [caster, .. prototypes];
@@ -90,7 +109,7 @@ internal sealed partial class GameWorld
 
     private static int? DiagnosticOriginalEnemyOrdinal(BattleEncounter encounter, DiagnosticBattleRoster? roster, BattleEnemyPlacement enemy, bool original)
     {
-        if (!original || !enemy.Enabled || roster?.MountedReserveSceneSlot is null)
+        if (!original || !enemy.Enabled || roster is not ({ MountedReserveSceneSlot: not null } or { AuthoredFormationHash: not null }))
         {
             return null;
         }

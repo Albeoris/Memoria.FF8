@@ -197,6 +197,8 @@ public sealed partial class BattleSession
         (ushort Action, byte Sequence, int Model, bool Death)? transition = header.Effect switch
         {
             NativeBattleMorph172Profile.Effect => ((ushort)53, (byte)13, 29, false),
+            // Trauma's death sequence keeps its neutral self contact for setup and never calls 506690 for it.
+            NativeBattleEffect290Profile.Effect => ((ushort)291, (byte)14, 109, true),
             NativeBattleEffect298Profile.Effect => ((ushort)119, (byte)14, 102, true),
             NativeBattleEffect316Profile.Effect => ((ushort)203, (byte)15, 130, true),
             276 => ((ushort)145, (byte)19, 92, true),

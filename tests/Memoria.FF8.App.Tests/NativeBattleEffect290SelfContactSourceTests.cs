@@ -13,18 +13,12 @@ public sealed class NativeBattleEffect290SelfContactSourceTests
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for the original109 self-target component.");
         string output = Path.Combine(Path.GetTempPath(), "self-contact290-" + Guid.NewGuid().ToString("N"));
-        string variable = "MEMORIA_FF8_EFFECT290_SOURCE_SNAPSHOT";
-        string? previous = Environment.GetEnvironmentVariable(variable);
         try
         {
-            NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(NativeBattleEffect290PresentationTests.CreateOriginalRequest(), directory!, output);
-            Assert.NotEqual("blocked", exported.Status);
-            string path = Path.Combine(output, "after-entry.battle.json");
-            BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
-            Environment.SetEnvironmentVariable(variable, path);
+            BattleSnapshot original = NativeBattleEffectFixtureExporter.Prepare(NativeBattleEffect290PresentationTests.CreateOriginalRequest(), directory!, output, "after-entry").Snapshot;
             using GameAssets game = new(directory!);
             using BattleAssets assets = new(directory!);
-            BattleSnapshot source = NativeBattleEffect290PresentationTests.PrepareSource(game, assets, output);
+            BattleSnapshot source = NativeBattleEffect290PresentationTests.PrepareFromEntry(game, assets, output, original);
             NativeBattleActionPacketsState packets = source.NativeActionPackets!;
             int headerIndex = original.NativeActionPackets!.ActionCount;
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
@@ -44,7 +38,7 @@ public sealed class NativeBattleEffect290SelfContactSourceTests
             Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
             string frozen = JsonSerializer.Serialize(source);
             BattleSession direct = BattleSession.Restore(source);
-            BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozen)!);
+            BattleSession cold = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(source));
             direct.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
             cold.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
             using IDisposable scope = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
@@ -56,7 +50,6 @@ public sealed class NativeBattleEffect290SelfContactSourceTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable(variable, previous);
             if (Directory.Exists(output))
             {
                 Directory.Delete(output, true);

@@ -44,9 +44,9 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new InvalidDataException("Preparing an equipped saved command slot requires one explicit independent expanded diagnostic invocation.");
         }
-        if (Roster is not null && Prelude is not null && (!Prelude.RequireNativeAllocation || Roster.OriginalSceneSlot != Prelude.DefeatedSceneSlot))
+        if (Roster is not null && Prelude is not null && (Roster.OriginalSceneSlot != Prelude.DefeatedSceneSlot || !Prelude.RequireNativeAllocation && Roster.AuthoredFormationHash is null))
         {
-            throw new InvalidDataException("An expanded diagnostic prelude requires the declared original predecessor and a distinct native allocation target.");
+            throw new InvalidDataException("An expanded diagnostic prelude requires the declared original predecessor and a native allocation or an authenticated authored roster for activation.");
         }
         if (Driver is { PassiveNativeSupport: true } && (PrepareEntryBeforePresentation || Prelude is not null || AtbMode != BattleAtbMode.Normal || Fixture is not { HoldEnemyCommands: true }))
         {

@@ -8,19 +8,44 @@ internal sealed record DiagnosticBattlePrelude([property: JsonRequired] BattleIn
 {
     public int MaximumAttacks { get; init; } = 256;
     public int MaximumCallbacks { get; init; } = 18000;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticSupportingInvocation? ActivationInvocation { get; init; }
 
     internal void Validate(DiagnosticBattleRequest request)
     {
         Input.Validate();
-        if (!request.PrepareEntryBeforePresentation || request.AtbMode is not (BattleAtbMode.Normal or BattleAtbMode.TurnBased) || request.Target is null || request.Driver?.EnemyAbility is null || request.Fixture?.HoldEnemyCommands != true || Input.Kind != BattleInputKind.Action || Input.Ability != BattleAbility.Attack || Input.ActionId != 0 || Input.DrawCast || !Input.MagicTargets.IsEmpty || Input.SmartAttackPreview is not null || Input.ActorId == Input.TargetId || Input.ActorId == request.Driver.Input.ActorId || DefeatedModel is < 0 or > 238 || DefeatedSceneSlot is < 0 or > 7 || MaximumAttacks is < 1 or > 1024 || MaximumCallbacks is < 1 or > 18000 || DeathScriptSha256 is null || DeathScriptSha256.Length != 64 || DeathScriptSha256.Any(character => !Uri.IsHexDigit(character)))
+        if (!request.PrepareEntryBeforePresentation || request.AtbMode is not (BattleAtbMode.Normal or BattleAtbMode.TurnBased) || request.Target is null || request.Driver is null || request.Fixture?.HoldEnemyCommands != true || Input.Kind != BattleInputKind.Action || Input.Ability != BattleAbility.Attack || Input.ActionId != 0 || Input.DrawCast || !Input.MagicTargets.IsEmpty || Input.SmartAttackPreview is not null || Input.ActorId == Input.TargetId || Input.TargetId == request.Target.ActorId || DefeatedModel is < 0 or > 238 || DefeatedSceneSlot is < 0 or > 7 || MaximumAttacks is < 1 or > 1024 || MaximumCallbacks is < 1 or > 18000 || DeathScriptSha256 is null || DeathScriptSha256.Length != 64 || DeathScriptSha256.Any(character => !Uri.IsHexDigit(character)))
         {
-            throw new InvalidDataException("An ordinary attack prelude requires explicit held-enemy setup, a distinct original opponent, a declared enemy invocation and finite attack/callback bounds.");
+            throw new InvalidDataException("An ordinary attack prelude requires explicit held-enemy setup, a distinct original opponent, a declared focal invocation and finite attack/callback bounds.");
         }
-        if (request.Target.Model != request.Driver.EnemyAbility.Model || request.Target.SceneSlot != request.Driver.EnemyAbility.SceneSlot || request.Target.ActorId != request.Driver.Input.ActorId)
+        bool authoredActivation = !RequireNativeAllocation && request.Roster is not null;
+        if (authoredActivation != (ActivationInvocation is not null))
         {
-            throw new InvalidDataException("Prelude target and declared focal enemy must identify the same original resource owner.");
+            throw new InvalidDataException("An authored activation prelude requires its exact original death invocation.");
+        }
+        if (ActivationInvocation is { } activation)
+        {
+            activation.Validate();
+            if (activation.ActorId != Input.TargetId || activation.CallbackStage != 3 || activation.EffectId == request.Driver.ExpectedEffect || !activation.ScriptSha256.Equals(DeathScriptSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Activation invocation must identify the declared predecessor and its original death script.");
+            }
+        }
+        if (request.Driver.EnemyAbility is { } enemy)
+        {
+            if (request.Target.Model != enemy.Model || request.Target.SceneSlot != enemy.SceneSlot || request.Target.ActorId != request.Driver.Input.ActorId || Input.ActorId == request.Driver.Input.ActorId)
+            {
+                throw new InvalidDataException("Prelude target and declared focal enemy must identify the same original resource owner.");
+            }
+        }
+        else if (request.Driver.Input.ActorId != Input.ActorId || request.Driver.Input.TargetId != request.Target.ActorId || request.Driver.Input.Kind != BattleInputKind.Action || request.Driver.Input.Ability == BattleAbility.EnemyAbility)
+        {
+            throw new InvalidDataException("A player focal invocation must retain the ordinary attacker and target the original successor.");
         }
     }
 }
 
-internal sealed record DiagnosticBattlePreludeReceipt(DiagnosticBattlePrelude Declaration, Guid BattleInstanceId, Guid LifecycleId, long StartCallback, long EndCallback, long RestoreCount, long ResetCount, int Attacks, double Milliseconds, int PredecessorPhysicalIndex, int PredecessorHitPointsBefore, int PredecessorHitPointsAfter, BattleInput OriginalInput, BattleInput ResolvedInput, DiagnosticTargetExpectation OriginalTarget, DiagnosticTargetExpectation ResolvedTarget, BattleDiagnosticTarget Target, BattleEvent[] Events, BattleDiagnosticEffectDispatch[] Dispatches, string Scope);
+internal sealed record DiagnosticBattlePreludeReceipt(DiagnosticBattlePrelude Declaration, Guid BattleInstanceId, Guid LifecycleId, long StartCallback, long EndCallback, long RestoreCount, long ResetCount, int Attacks, double Milliseconds, int PredecessorPhysicalIndex, int PredecessorHitPointsBefore, int PredecessorHitPointsAfter, BattleInput OriginalInput, BattleInput ResolvedInput, DiagnosticTargetExpectation OriginalTarget, DiagnosticTargetExpectation ResolvedTarget, BattleDiagnosticTarget Target, BattleEvent[] Events, BattleDiagnosticEffectDispatch[] Dispatches, string Scope)
+{
+    public uint PredecessorFlagsAfter { get; init; }
+}

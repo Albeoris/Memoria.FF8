@@ -89,6 +89,21 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
         Assert.Throws<InvalidDataException>(() => (request with { Target = request.Target! with { Model = 99 } }).Validate());
     }
 
+    [Fact]
+    public void Player_focal_prelude_preserves_the_attacker_and_requires_the_original_successor_as_target()
+    {
+        DiagnosticBattleRequest request = Request();
+        DiagnosticBattleDriverRecipe driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: "enemy-2", Ability: BattleAbility.LimitBreak, ActionId: 5 << 16), 343)
+        {
+            LimitSelection = new(1, 1, 8),
+            ExpectedNativeCommand = 5,
+            ExpectedNativeAction = 65533
+        };
+        (request with { Driver = driver }).Validate();
+        Assert.Throws<InvalidDataException>(() => (request with { Driver = driver with { Input = driver.Input with { ActorId = "party-1" } } }).Validate());
+        Assert.Throws<InvalidDataException>(() => (request with { Driver = driver with { Input = driver.Input with { TargetId = "enemy-1" } } }).Validate());
+    }
+
     [Theory]
     [InlineData(120, 100, 87, false, 5)]
     [InlineData(511, 122, 121, true, 5)]

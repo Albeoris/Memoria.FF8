@@ -11,7 +11,7 @@ internal sealed record DiagnosticIdleBattleDeclaration([property: JsonRequired] 
     internal void Validate(DiagnosticBattleRequest request)
     {
         if (PartyCount is not (3 or 11) || SettlePresents is < 30 or > 240 || SamplePresents is < 120 or > 1200 ||
-            request.Roster is not { DonorCount: 4, MountedReserveSceneSlot: null } || request.Driver is not null || request.Prelude is not null ||
+            request.Roster is not { DonorCount: 4, MountedReserveSceneSlot: null, AuthoredFormationHash: null } || request.Driver is not null || request.Prelude is not null ||
             request.Target is not null || request.PrepareEntryBeforePresentation || request.AtbMode != BattleAtbMode.Normal ||
             request.Fixture is not { HoldEnemyCommands: true, Characters.Length: 0, GuardianForces.Length: 0, Limits: null, PocketStation: null, CombatParty.Length: 3 })
         {
