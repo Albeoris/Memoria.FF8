@@ -6,7 +6,7 @@ using Memoria.FF7.Runtime;
 
 internal static class AutoPlayDirectSpatialTransitionTests
 {
-    internal static void Run()
+    internal static void Run(bool navigationOnly = false)
     {
         CheckDirectOwnership();
         CheckChangedSpatialCatalog();
@@ -43,6 +43,13 @@ internal static class AutoPlayDirectSpatialTransitionTests
             {
                 firstSelection = $"{selected.Kind}:{selected.EventId}";
             }
+        }
+        if (navigationOnly)
+        {
+            Check(controller.Error is null && session.Battle is not null, $"The recorded navigation continuation failed before its native encounter: {controller.Error ?? policy.State.Status}");
+            Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The native navigation source changed.");
+            Console.WriteLine($"PASS original spatial navigation continuation to its native encounter after {controller.Steps} steps; source unchanged");
+            return;
         }
         if (policy.State.PendingRestore is { } restore)
         {

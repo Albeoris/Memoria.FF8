@@ -219,7 +219,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "movement-cycle", failure);
             State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, [], selectedTarget.Id, observation.NavigationKey, player.Triangle, failure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget), failure, session.Host.Process.Actors);
-            planner.MarkUnavailable(current.VisitId, current.EventId, new(current.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
+            planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
             State.Status = "Replanning after a native navigation cycle";
             Publish();
@@ -245,7 +245,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
             State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle, absence.MovementFailure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
-            planner.MarkUnavailable(current.VisitId, current.EventId, new(current.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
+            planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
             State.Status = "Deferred a native contact until its physical availability changes";
             Publish();
