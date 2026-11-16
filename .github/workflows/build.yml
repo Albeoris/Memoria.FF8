@@ -18,8 +18,65 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  prepare-nuget:
+    name: Prepare shared NuGet feed
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && 'desktop-nuget-trusted' || format('desktop-nuget-{0}', github.run_id) }}
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      cache-key: ${{ steps.nuget.outputs.cache-primary-key }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Find the shared NuGet cache
+        id: nuget
+        uses: actions/cache/restore@v6
+        continue-on-error: true
+        with:
+          path: .nuget/feed
+          key: desktop-nuget-feed-v1-${{ hashFiles('.github/nuget/packages.lock.json', '.github/scripts/Prepare-NuGetCache.ps1', 'global.json', 'NuGet.Config', '.config/dotnet-tools.json') }}
+          enableCrossOsArchive: true
+          lookup-only: true
+      - name: Download locked NuGet packages
+        if: steps.nuget.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./.github/scripts/Prepare-NuGetCache.ps1 -Directory .nuget/feed
+      # Only pushes to main populate the persistent cache. A cold run can
+      # transfer the same feed to every platform even if cache saving fails.
+      - name: Save the shared NuGet cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.nuget.outputs.cache-hit != 'true' && steps.nuget.outputs.cache-primary-key != ''
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: .nuget/feed
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+          enableCrossOsArchive: true
+      - name: Confirm the cache was saved
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.nuget.outputs.cache-hit != 'true' && steps.nuget.outputs.cache-primary-key != ''
+        id: saved-nuget
+        uses: actions/cache/restore@v6
+        continue-on-error: true
+        with:
+          path: .nuget/feed
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+          enableCrossOsArchive: true
+          lookup-only: true
+      - name: Upload the cold NuGet feed for this run
+        if: steps.nuget.outputs.cache-hit != 'true' && steps.saved-nuget.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-nuget-feed
+          path: .nuget/feed/*.nupkg
+          include-hidden-files: true
+          if-no-files-found: error
+          overwrite: true
+          compression-level: 0
+          retention-days: 1
+
   package:
     name: Validate ${{ matrix.rid }}
+    needs: prepare-nuget
     strategy:
       fail-fast: false
       matrix:
@@ -72,13 +129,40 @@ jobs:
         if: steps.distribution.outputs.reuse != 'true' && steps.sdk.outputs.available != 'true'
         with:
           global-json-file: global.json
-      - uses: actions/cache/restore@v6
-        if: steps.distribution.outputs.reuse != 'true'
+      - name: Restore the shared NuGet cache
+        if: steps.distribution.outputs.reuse != 'true' && needs.prepare-nuget.outputs.cache-key != ''
         id: nuget
+        uses: actions/cache/restore@v6
+        continue-on-error: true
         with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.*', '**/Directory.Packages.props', '**/packages.lock.json', 'global.json') }}
-          restore-keys: ${{ runner.os }}-nuget-
+          path: .nuget/feed
+          key: ${{ needs.prepare-nuget.outputs.cache-key }}
+          enableCrossOsArchive: true
+      - name: Download the NuGet feed from this run
+        if: steps.distribution.outputs.reuse != 'true' && steps.nuget.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-nuget-feed
+          path: .nuget/feed
+      - name: Use the shared feed for NuGet restore
+        if: steps.distribution.outputs.reuse != 'true'
+        shell: pwsh
+        run: |
+          ./.github/scripts/Prepare-NuGetCache.ps1 -Directory .nuget/feed -VerifyOnly
+          $feed = (Resolve-Path -LiteralPath .nuget/feed).Path
+          $config = Join-Path (Split-Path -Parent $feed) 'offline.config'
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="ci-feed" value="feed" />
+            </packageSources>
+          </configuration>
+          '@ | Set-Content -LiteralPath $config -Encoding ascii
+          "MEMORIA_NUGET_FEED=$feed" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "MEMORIA_NUGET_CONFIG=$config" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "RestoreSources=$feed" | Add-Content -LiteralPath $env:GITHUB_ENV
       - name: Identify the native runtime cache
         if: matrix.native-path && steps.distribution.outputs.reuse != 'true'
         id: native
@@ -157,13 +241,6 @@ jobs:
         shell: pwsh
         run: |
           ./Build.ps1 -Scope Portable -RuntimeIdentifier ${{ matrix.rid }} -Test
-      # PRs consume the main cache without uploading another large copy. Only
-      # trusted main builds populate it; immutable tested payloads remain separate.
-      - uses: actions/cache/save@v6
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.distribution.outputs.reuse != 'true' && steps.nuget.outputs.cache-hit != 'true'
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ steps.nuget.outputs.cache-primary-key }}
       - uses: actions/cache/save@v6
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.native-path && steps.distribution.outputs.reuse != 'true' && steps.native-cache.outputs.cache-hit != 'true'
         with:

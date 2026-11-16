@@ -35,6 +35,12 @@
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>
   <Import Project="../../tools/packaging/MacBundleLauncher.targets" />
+  <!-- Native package symbols are separate from the single-file Windows launcher. -->
+  <Target Name="ExcludeWindowsLauncherNativeSymbols" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' == 'win-x64' And '$(PublishSingleFile)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'libSkiaSharp.pdb' Or '%(ResolvedFileToPublish.RelativePath)' == 'libHarfBuzzSharp.pdb'" />
+    </ItemGroup>
+  </Target>
   <!-- Released Linux updaters accept root companion libraries ending in .so.
        The SDL binding loads libSDL3.so. The native package also includes byte-identical
        versioned copies. The optional .NET crash-dump helper is unused by the launcher. -->

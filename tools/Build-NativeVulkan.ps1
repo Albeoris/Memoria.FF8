@@ -141,9 +141,19 @@ function Convert-BuildPath([string]$Path) {
     }
     return $converted.Trim()
 }
+$offlineArguments = @()
+if ($env:MEMORIA_NUGET_FEED) {
+    if (!(Test-Path -LiteralPath $env:MEMORIA_NUGET_FEED -PathType Container)) {
+        throw 'MEMORIA_NUGET_FEED must be an existing shared NuGet feed directory.'
+    }
+    if (!$env:MEMORIA_NUGET_CONFIG -or !(Test-Path -LiteralPath $env:MEMORIA_NUGET_CONFIG -PathType Leaf)) {
+        throw 'Set MEMORIA_NUGET_CONFIG to the offline NuGet configuration for the shared feed.'
+    }
+    $offlineArguments = @((Convert-BuildPath (Convert-Path -LiteralPath $env:MEMORIA_NUGET_FEED)), (Convert-BuildPath (Convert-Path -LiteralPath $env:MEMORIA_NUGET_CONFIG)))
+}
 $workerArguments = @((Convert-BuildPath (Join-Path $recipe 'build.sh')), (Convert-BuildPath $recipe), (Convert-BuildPath $OutputDirectory), (Convert-BuildPath $BuildDirectory), $lock.upstream.repository, $lock.upstream.commit, $lock.version, $reference.sha512, (Convert-BuildPath $dependencyPlan), $RuntimeIdentifier, $reference.name)
 if ($useWsl) {
-    & wsl.exe -d $Distro --exec bash @workerArguments
+    & wsl.exe -d $Distro --exec bash @workerArguments @offlineArguments
 } elseif ($IsWindows) {
     $gitRoot = Split-Path (Split-Path (Get-Command git.exe).Source -Parent) -Parent
     $gitBash = Join-Path $gitRoot 'bin/bash.exe'
@@ -163,13 +173,13 @@ if ($useWsl) {
     $toolset = Get-ChildItem -LiteralPath (Join-Path $installation.installationPath 'VC/Tools/MSVC') -Directory | Sort-Object Name -Descending | Select-Object -First 1
     $dumpbin = Join-Path $toolset.FullName 'bin/Hostx64/x64/dumpbin.exe'
     $workerArguments += @((Convert-BuildPath $dumpbin), $generator, (Convert-BuildPath $installation.installationPath))
-    & $gitBash --noprofile --norc @workerArguments
+    & $gitBash --noprofile --norc @workerArguments @offlineArguments
 }
 else {
     if ($isMacRuntime) {
         & (Join-Path $PSScriptRoot 'Get-MoltenVK.ps1') -Destination (Join-Path $BuildDirectory 'moltenvk') -BuildSupport
     }
-    & bash @workerArguments
+    & bash @workerArguments @offlineArguments
 }
 if ($LASTEXITCODE -ne 0) {
     throw "The native Vulkan source build failed with exit code $LASTEXITCODE."

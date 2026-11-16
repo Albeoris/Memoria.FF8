@@ -20,7 +20,7 @@ wsl --install -d Ubuntu-24.04
 
 Restart if Windows requests it, launch Ubuntu once, and create its Linux user. Confirm `wsl --list --verbose` reports version 2. The testing script does not enable Windows features, install a distro, update graphics drivers, restart WSL or change Windows settings.
 
-The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The distro needs a .NET 10 SDK on PATH, CMake 3.20 or later, a C compiler and make, plus ordinary desktop runtime libraries. The SDK runs the staged test modules through `dotnet test`; Python is not required. Install the SDK using the supported instructions for your distribution before running this workflow. To explicitly authorize installing Ubuntu runtime and diagnostic packages from its configured standard repositories:
+The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The distro needs the same SDK version pinned in [global.json](../../global.json) on PATH, CMake 3.20 or later, a C compiler and make, plus ordinary desktop runtime libraries. The SDK runs the staged test modules through `dotnet test`. If your distro feed offers a different version, install the pinned SDK with Microsoft's Linux SDK installer. To explicitly authorize installing Ubuntu runtime and diagnostic packages from its configured standard repositories:
 
 ```powershell
 pwsh ./tools/Test-Linux.ps1 -SetupDependencies
@@ -77,7 +77,7 @@ pwsh ./tools/Test-Linux.ps1 -Mode Hardware -Target SteamDeck -Vulkan Hardware
 
 ## Steam Deck or another native Linux host
 
-The target must already have an x64 Linux graphical session, OpenSSH access, a .NET 10 SDK on PATH and the required runtime libraries. Windows needs OpenSSH `ssh` and `scp` supporting SFTP (`-s`). Configure authentication and host-key trust using normal OpenSSH configuration first. The script uses batch authentication and does not store passwords, alter host keys, unlock SteamOS, install packages or start a streaming server.
+The target must already have an x64 Linux graphical session, OpenSSH access, the .NET SDK version in [global.json](../../global.json) on PATH and the required runtime libraries. Windows needs OpenSSH `ssh` and `scp` supporting SFTP (`-s`). Configure authentication and host-key trust using normal OpenSSH configuration first. The script uses batch authentication and does not store passwords, alter host keys, unlock SteamOS, install packages or start a streaming server.
 
 Add entries under `Targets` in local settings. `-Target SteamDeck` selects `Targets.SteamDeck`; another name selects that exact entry. Each entry may set `SshHost` (an SSH alias), `TargetDirectory`, `HardwareGameDirectory`, `HardwareDlsPath`, `HardwareSgtPath`, `GraphicalEnvironment`, `StreamCommand` and `ScreenshotCommand`. The sample has no machine-specific account or path.
 

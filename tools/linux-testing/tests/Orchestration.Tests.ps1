@@ -31,11 +31,11 @@ Assert-True ((Select-WslDistribution "  Ubuntu-22.04 Остановлено 2`n 
 Assert-True ((Select-WslDistribution "* Debian Stopped 2" '') -eq 'Debian') 'Generic existing WSL2 distributions should be reusable.'
 Assert-True ((Select-WslDistribution '' 'Explicit distro') -eq 'Explicit distro') 'Explicit distro selection is validated by its actual host probe.'
 Assert-Throws { Select-WslDistribution 'Ubuntu Stopped 1' '' } 'A WSL1-only installation must not pass WSL2 detection.'
-$hostProbe = ConvertFrom-LinuxHostProbe "x86_64`n6.6-microsoft-standard-WSL2`n/home/test user`n9.0.100 [/usr/share/dotnet/sdk]`n10.0.100 [/usr/share/dotnet/sdk]`n"
+$hostProbe = ConvertFrom-LinuxHostProbe "x86_64`n6.6-microsoft-standard-WSL2`n/home/test user`n10.0.100 [/usr/share/dotnet/sdk]`n10.0.401 [/usr/share/dotnet/sdk]`n" '10.0.401'
 Assert-True ($hostProbe.machine -eq 'x86_64' -and $hostProbe.home -eq '/home/test user') 'Shell host probing must preserve architecture and home path spaces.'
-Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`n/home/test`n9.0.100 [/usr/share/dotnet/sdk]" } 'The target must have a .NET 10 SDK, not only an older SDK.'
-Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`n/home/test`n" } 'An absent SDK must fail before bootstrap.'
-Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`nrelative-home`n10.0.100 [/usr/share/dotnet/sdk]" } 'A relative target home path must fail.'
+Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`n/home/test`n10.0.100 [/usr/share/dotnet/sdk]" '10.0.401' } 'The target must have the pinned SDK version.'
+Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`n/home/test`n" '10.0.401' } 'An absent SDK must fail before bootstrap.'
+Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`nrelative-home`n10.0.401 [/usr/share/dotnet/sdk]" '10.0.401' } 'A relative target home path must fail.'
 Assert-True (((Get-LinuxHostProbeCommand) -join ' ').Contains('dotnet --list-sdks')) 'The shell bootstrap probe must check the installed SDK.'
 $changed = Get-ChangedPayloadFiles @{ 'same' = 'a'; 'changed' = 'new'; 'new file' = 'c' } @{ 'same' = 'a'; 'changed' = 'old' }
 Assert-True (($changed -join ',') -eq 'changed,new file') 'Only changed payload files should transfer.'

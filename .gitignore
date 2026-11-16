@@ -3,6 +3,7 @@
 **/.tools/
 TestResults/
 artifacts/
+.nuget/
 .vs/
 .idea/
 *.user

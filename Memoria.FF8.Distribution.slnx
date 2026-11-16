@@ -2,13 +2,13 @@
   <Project Path="src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
   <Project Path="src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj" />
   <Project Path="src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" />
-  <Project Path="src/Memoria.Launcher/Memoria.Launcher.csproj" />
   <Project Path="tools/Memoria.FF8.Distribution.Check/Memoria.FF8.Distribution.Check.csproj" />
   <Project Path="tools/Memoria.FF8.Updater.Compatibility/Memoria.FF8.Updater.Compatibility.csproj" />
   <Project Path="tests/Memoria.FF8.Platform.Tests/Memoria.FF8.Platform.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Bootstrap.Tests/Memoria.FF8.Bootstrap.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Audio.Tests/Memoria.FF8.Audio.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Presentation.Tests/Memoria.FF8.Presentation.Tests.csproj" />
+  <!-- Launcher is built through this reference so there is one Avalonia compiler writing its output. -->
   <Project Path="tests/Memoria.Launcher.Tests/Memoria.Launcher.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.LinuxTesting.Tests/Memoria.FF8.LinuxTesting.Tests.csproj" />
 </Solution>

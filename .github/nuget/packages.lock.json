@@ -1,0 +1,500 @@
+{
+  "sdkVersion": "10.0.401",
+  "packages": [
+    {
+      "id": "avalonia",
+      "version": "11.3.9",
+      "sha512": "a93325785a42c90cdc7fd3a659f0bf4d713973f51461768faa67b4ae79759f2e4dbcab9089fe9989035a9ce0c9c1fd0ad826ee919c6a6a439072820c102a8845"
+    },
+    {
+      "id": "avalonia.angle.windows.natives",
+      "version": "2.1.25547.20250602",
+      "sha512": "5cf4ba739c4fe0bf9e36ad2b4d481338239ea98216e6188f8c2f7af5efbdcb8926ce7d6af2df951071f8d9294d4d25ce1e52835f2bf4ac08c3dceba5e503ae60"
+    },
+    {
+      "id": "avalonia.buildservices",
+      "version": "11.3.2",
+      "sha512": "233f868e74ab91e56818004ad0aa7d0bb6e978044ddcf0061e373ada06a1846b17a82e94c777ab907ba484c1873d2212b47d3539d2694e89a415f1af047c3045"
+    },
+    {
+      "id": "avalonia.desktop",
+      "version": "11.3.9",
+      "sha512": "92c5cf43b931c191cd52573c8af24deae1ecdafda51ba000905af42ef6ccaff9a514644b68c834fcd99538924219f17dc6cfe5b3db9874dca380d51b85bad149"
+    },
+    {
+      "id": "avalonia.freedesktop",
+      "version": "11.3.9",
+      "sha512": "825a9b5dfafe4e8fc1c47217a5f58b1905bc554cfb25b0a71dccad098383067909f643981ae248e8acf550336e1fd11dc1f273c7e65e4598356b67077efaa2f0"
+    },
+    {
+      "id": "avalonia.native",
+      "version": "11.3.9",
+      "sha512": "4e475c045418ae8b0a725401275ac68655bf911c53e7976d691814bc316eac4f35fb4e96af43e1fefcf4f4702f32c055d13b380bc25fc2a96115d506f394945c"
+    },
+    {
+      "id": "avalonia.remote.protocol",
+      "version": "11.3.9",
+      "sha512": "0cdba0b6e40d5b74003b5ac7abbe937ad4b822767e533c162c62babf134f2e02fea1ba34ac21caa4b887a514ba3559c99d0ec7c317fd25daa94ba3828fb739b9"
+    },
+    {
+      "id": "avalonia.skia",
+      "version": "11.3.9",
+      "sha512": "a29564f5b0f0cc4ebd5d15fbb18b07d74e2c9418cd9899c8b04ae35ad79c4c65ebab3005a863305121fa09e191c12914a064a1025f2d43bd7aedfb96f99be20c"
+    },
+    {
+      "id": "avalonia.themes.fluent",
+      "version": "11.3.9",
+      "sha512": "d0448936dbfb54f2ae2da4ccf9e8bac8116a9b7b561ca90486f61d5e1cee9e07faa36dfe187b27ab6223d2fb6e7457c8a356484ca430ba14525e1388dfc40eb1"
+    },
+    {
+      "id": "avalonia.win32",
+      "version": "11.3.9",
+      "sha512": "bfb97e33d2c2c0382337a32a9e6c9c91142330a208398b61c1d8170b6151eaff53907d0f1fa1e4522bcd54d1c8628e90ce8d66e0a8dfe16d9ffe3eb332de093f"
+    },
+    {
+      "id": "avalonia.x11",
+      "version": "11.3.9",
+      "sha512": "6afca81d44ddcc5babbdbd661bfb7984703d33b162b5dcb2ea9ed6477bf233764b0427386e2418f15596c35ce7892c3b286c0606ce46acbff6cedce0639ad629"
+    },
+    {
+      "id": "bcnencoder.net",
+      "version": "2.3.0",
+      "sha512": "4a09f616dc7f390b17ed65d341d4529d6e6ad23565f0de9f8863d2be4fb9b3a289b58200c1b2869cde38e2eb75e70051aebddafa8616d503f59b683584d265f4"
+    },
+    {
+      "id": "communitytoolkit.highperformance",
+      "version": "8.4.0",
+      "sha512": "d262aef945498d4699e96229a6e0ac661f9856960b942b6df7690915c699a10f018aae2133bba63968daab503209de07abd3ae4770ec1f96c519257b9df699a8"
+    },
+    {
+      "id": "documentformat.openxml",
+      "version": "3.5.1",
+      "sha512": "2ae8e450cc92072b4f7c01f0c179d4d33f0bbc22d65231b7906a9e3bcc4c6f67d299568e705ec802750d5ccae3bf18803b90ef084a71014504573271062606f6"
+    },
+    {
+      "id": "documentformat.openxml.framework",
+      "version": "3.5.1",
+      "sha512": "13cd67d00e3dc63804b5d4e5432049f555847b6a2a63253057e182b8430d658562d6f04c931c323be1dd1f660cfe86d742dc106ba2f96e696561edc5a6f973f8"
+    },
+    {
+      "id": "dotnet-mgfxc",
+      "version": "3.8.5.1",
+      "sha512": "9b381bd3201be5bbf25eacc567eb688bf2a04d5c1024c11a31eb1809418fff25430011ac650a4a1a14d76caf922a195fc6fae303683357ace3301079ee292504"
+    },
+    {
+      "id": "harfbuzzsharp",
+      "version": "8.3.1.5",
+      "sha512": "4c604cc1221304044eed65dc4d752dfacef1a8f093a6fe6816d6cf2d5c6b12bc051a07a0ed6e12ef344ed255643ff3f72e414e63a19201b7c3914b99b5a90a07"
+    },
+    {
+      "id": "harfbuzzsharp.nativeassets.linux",
+      "version": "8.3.1.5",
+      "sha512": "876d691f7e218ff6ac5302e0f6bf60f685248409883657977f3d5d56f70f3abd01bced1807bf71599d7cafdc633bd108d134a712e4e97b174b2dc7027cc6290b"
+    },
+    {
+      "id": "harfbuzzsharp.nativeassets.macos",
+      "version": "8.3.1.5",
+      "sha512": "cc0f50a6c583074b829eda9eafe40952d150a1124ef613e86fb7c16f80f3588d3c72ab2700b1244919df4b8c7f98aeca5aa1c84f6e00b3bb786bb8541badb604"
+    },
+    {
+      "id": "harfbuzzsharp.nativeassets.webassembly",
+      "version": "8.3.1.1",
+      "sha512": "746d52bf1820d897211982b466d274477dc2e698a97827cb6dc5303b2355ad9ec7929902d484be205282bec2ebaad2824952d7096ae3b03c4a9be5ee8384d9db"
+    },
+    {
+      "id": "harfbuzzsharp.nativeassets.win32",
+      "version": "8.3.1.5",
+      "sha512": "e8f9a57e0def9fea23ae1b3a9e0944fca30e89604e66d302b5ca16d3c90a4a2e94eb6611aca43a33948bbc958684f7423bf1f754c79ecdb537c6cdd1d4d847dc"
+    },
+    {
+      "id": "magick.net-q8-anycpu",
+      "version": "14.16.0",
+      "sha512": "842fe12934c2b3b690c7e1c274bb69016722a8cb719acf389de197112b2ec4268d064667706048d9cd9faf0548e7cd90cb61a93cabbe4f83faeebe70f6336317"
+    },
+    {
+      "id": "magick.net.core",
+      "version": "14.16.0",
+      "sha512": "0b9787006853675b1ebe216dc119f386fa525484e2df0332e0c6e5948877a94bc0e4133267ac80d3204df146905c2d925e036ba5ccd97c45a6efcc41201fbc52"
+    },
+    {
+      "id": "microcom.runtime",
+      "version": "0.11.0",
+      "sha512": "c00731176e34ea7b936ad58a38639843c790b027b714ed5d3ea828b85ea94b14a502ded52ca7f60bb10c0ac0e744bd6e62fdcce0108ebaaf9731c408eece031e"
+    },
+    {
+      "id": "microsoft.applicationinsights",
+      "version": "2.23.0",
+      "sha512": "dd497bfad0c65e54a4f78d2a1644f3d0854d4cd01dd83ba506f8d5d53635e28152c7c13210dd5dd3985780aab146a7620de3ebaead8ef12c6f87088676c2157f"
+    },
+    {
+      "id": "microsoft.aspnetcore.app.runtime.linux-x64",
+      "version": "10.0.12",
+      "sha512": "33771945bb6b0a3155d5a274780d8c6c805ed820775cee7a764a81a118c8ca100aa3796e0b393b02a4adcabe6ee3feda9f6fd217ee9e8e16b35ad88071d4e5b0"
+    },
+    {
+      "id": "microsoft.aspnetcore.app.runtime.osx-arm64",
+      "version": "10.0.12",
+      "sha512": "cb188d1aa1d03f053979c7715d7f1e234ed4690e7de9342fc9d531f1ff77a77585daf272ca7c3b53dcd42b442ca73362c7637398dc4ca2e523bd70083bee014f"
+    },
+    {
+      "id": "microsoft.aspnetcore.app.runtime.osx-x64",
+      "version": "10.0.12",
+      "sha512": "f9ab5c7f64eedb3ea14fe32e2501dc1eccac1e76f0f0c4b87e538b68f973861b6ce8fca0a8af60e500cead21633ac3282eeadb71ccabe0cc5a9c83f45041a990"
+    },
+    {
+      "id": "microsoft.aspnetcore.app.runtime.win-x64",
+      "version": "10.0.12",
+      "sha512": "9fca92913dca9245d2a6ef5453be3cc3311bac3c0b3890a4386c58d03fedbd63b051751b4b6a9193989c606d92ba447bfa2d5e3bc605e2c3a5fa2bdba218513c"
+    },
+    {
+      "id": "microsoft.bcl.asyncinterfaces",
+      "version": "6.0.0",
+      "sha512": "221a05a0c910f7a87b620d8f3831ed392b4eb95d112bee274d35f27009ad2a26445de9d7cd235fe6fb4a03f2550874bda3be3dddd96edaf9c0852a9c23d7b099"
+    },
+    {
+      "id": "microsoft.net.illink.tasks",
+      "version": "10.0.12",
+      "sha512": "a294f93f5a7e086ef4c466af79382add0e4e64a77b319d11b35d31e137b097a6dc3dbbb848ba381749fa4410889ef04ac68475d13d75f97d0cf5d8232847ee73"
+    },
+    {
+      "id": "microsoft.netcore.app",
+      "version": "2.1.30",
+      "sha512": "ae35df05e5d964e8b17932178bc17e1e47d749ffa26ae4d0834c0ef8265bcea0ce9b95cf7ac7361b2a58434a2d14e05b7db14fe1ac19ad9c0d6bad0b69856f61"
+    },
+    {
+      "id": "microsoft.netcore.app.host.linux-x64",
+      "version": "10.0.12",
+      "sha512": "b688f494f44dee80c97b4d8ec93603064456ea6516467f0b79441603ba394639dbb7eede25407c0139702ae6d5a83627b8e23202440ca03c260c2de0741d7266"
+    },
+    {
+      "id": "microsoft.netcore.app.host.osx-arm64",
+      "version": "10.0.12",
+      "sha512": "dac601a24c51d3b7fbb97e17c9551992fdc1f37d7d36d25f02ca5fda26aeaa8fc7aeb4eeee3471e5b6b2630c2da2176c4a2ed6e67cc736a8d85bfb765168b7dd"
+    },
+    {
+      "id": "microsoft.netcore.app.host.osx-x64",
+      "version": "10.0.12",
+      "sha512": "6168f46bb37f2dee5ff7439b113bc8fd3047f0984d1bf29ed9ebb2d42bb56fcef64f61b715634e7f3360bb5ccaa123ee2943ebf6ab432f76c3457d8d4b0f2af1"
+    },
+    {
+      "id": "microsoft.netcore.app.host.win-x64",
+      "version": "10.0.12",
+      "sha512": "33c2760f5936e1eb30609fc368974761bc331eb720fa0593bf92f9f050c6d91d67f673a22783160ab84c16d6736e8c02c10066ced6c06cceed378f5cbaa78588"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.linux-x64",
+      "version": "10.0.12",
+      "sha512": "15627c8b1b1f73eb27ce8c18c805254461de84f8c7f71b662e0d28c160d5d49bbd7547997fe38ab816a013e13f7e5304e47871eeb39b81c4954d741a93fc2f1a"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.osx-arm64",
+      "version": "10.0.12",
+      "sha512": "f2b0edf50a31c17b00e9ad2d565f5be1f0f99b2d0466d5ef2677421051127ff1f985296abe2dba441c1f9efca2cf76fcc12da974ff06e87ef1a9d4496d2564c2"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.osx-x64",
+      "version": "10.0.12",
+      "sha512": "88fa4714c72b1fc29d90da26813017fd3dd2a0105359bf62595205847a857d4e25c17a3aed02b425b300f641b9de2d5511832b75b850c11ce81f200a178be806"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.win-x64",
+      "version": "10.0.12",
+      "sha512": "39afcb222032eabebe2c7fa51a37c491c6b0f456796ad7888431971b8eef4f689caee5454260398ce0ffafe491c565891b35e73afc67585a3e4c4bde995710ee"
+    },
+    {
+      "id": "microsoft.netcore.dotnetapphost",
+      "version": "2.1.30",
+      "sha512": "51e3847a001e2aff1dd2b3a1458cee6f268549372b57745e1d1ae7a5cc18567a912dbc42aac98682fc399942b58924a4e5db933cfa7739f23ee3e121154210d0"
+    },
+    {
+      "id": "microsoft.netcore.dotnethostpolicy",
+      "version": "2.1.30",
+      "sha512": "a75cdcee96e4ec30c8ec6dac58f2a022d1e151603a67e45e691852cfdeb300dd77b95de693e6ea6b73b0de1c2c7f75f9cf3a20a813814cd43d80b780184d6a7a"
+    },
+    {
+      "id": "microsoft.netcore.dotnethostresolver",
+      "version": "2.1.30",
+      "sha512": "0790c547a5533ba17ccd7a0df6628490a19e4e5b30bf59564466a3b801a01380b082049038905a98cb4d1e5d0ad26f4ae43465c3da475ea01c7236bcab208aca"
+    },
+    {
+      "id": "microsoft.netcore.jit",
+      "version": "2.0.8",
+      "sha512": "a756adba342337558949bcfd2b372cf57f5ccce2af91b19744bdfa0071516dec3606ae8aecea1b794005d21126ac553c153ce8c687972c6a36caf656d383e44c"
+    },
+    {
+      "id": "microsoft.netcore.platforms",
+      "version": "2.1.14",
+      "sha512": "95d46d27d949ded9d87c1e875a217d90a3bb3fb2adcf284b313d8136d1adba7050fb7f191bd7b7e737263beb026761e2af7371ed88b1189ccf3626487cde62e3"
+    },
+    {
+      "id": "microsoft.netcore.targets",
+      "version": "2.0.0",
+      "sha512": "9899c232805f58bd25c71941149ffc7192937cfa48f364de919914aaf48206dba751a6aaaf62d5796975cd061d6a701d9380dd7f51c2c1bf3e0cd61a345064d7"
+    },
+    {
+      "id": "microsoft.testing.extensions.telemetry",
+      "version": "2.4.0",
+      "sha512": "493ddac3032b82f378e6fecb4fd07163746ad369235c270be0e67a756d3a3d9bbc0d1d1f25f1f89cae8f537c95e0f9c688f27ad87d694a6b26f0544ceb4f0c4a"
+    },
+    {
+      "id": "microsoft.testing.extensions.trxreport.abstractions",
+      "version": "2.4.0",
+      "sha512": "dc636209efc00f142d85d7154fa3a906551aa8b75c510b15d765483ef56146ad86862698b962c8eb0c09f8f1fe3382b472bdbb792c3689a9b3a5ce69d969d5c4"
+    },
+    {
+      "id": "microsoft.testing.platform",
+      "version": "2.4.0",
+      "sha512": "36103b3aed647ea427a35868bb8321e4257286f7449f8777b63f040ea8183291b223b372090eda957537f089cd9d87e560b889758d40ae6f8f413f5b571f690e"
+    },
+    {
+      "id": "microsoft.testing.platform.msbuild",
+      "version": "2.4.0",
+      "sha512": "08d93413536bf47f1aa4bdeb69ea1735852b700b3ffe26f323ff6b6fb36a82835d74f475f169fa726fe657937c2687926cbaf32c07ebd6d00e1fd5f00d1820a8"
+    },
+    {
+      "id": "microsoft.win32.registry",
+      "version": "5.0.0",
+      "sha512": "471e66567ce59cc86475aece7815d05261264ce114e0c1688ba2551dd51494901fa72dd7a8f74f8e8f0f3dba74af8595f177552f3c06abb4bfce76692197076e"
+    },
+    {
+      "id": "microsoft.windowsdesktop.app.runtime.win-x64",
+      "version": "10.0.12",
+      "sha512": "05e188fca4c105c6b8a5dbaed677dfeb556f640c25cd5c2a366a3e795a93dba96db0026c42c17ffc308f26cb30f9f5e9011abe150ee954a89079de6282ff0a61"
+    },
+    {
+      "id": "monogame.framework.native",
+      "version": "3.8.5.1",
+      "sha512": "cfb3c9d83efc8fd9238fca6c2c226e319b6069a2f0f01637dbeee85057fe2f0df20cc4fadf54eb8c434c6fdb54deb2484b06c3505d4606b7b5d27175cdefb0b9"
+    },
+    {
+      "id": "monogame.framework.windowsdx",
+      "version": "3.8.5.1",
+      "sha512": "9ab8fd61670a3b89cc0c6cff98fd147c37cbf6c9998744ac0fb3c91eab0f74f01ba6d8e30487be745701f22d7780c9b6a38ec88a4c687e0d7862e809ad1eb4e2"
+    },
+    {
+      "id": "monogame.runtime.linux.vulkan",
+      "version": "3.8.5.1",
+      "sha512": "687a88a163aeba07e8d5b1f7a4c8786d8b171cb226a501d81943a032e89cde15996b3c842d4ef19aae6425eb9d59de638cb176bc547dfc5b8746b11fd77b2513"
+    },
+    {
+      "id": "monogame.runtime.mac.vulkan",
+      "version": "3.8.5.1",
+      "sha512": "bf63418fb6b1ddcf9f918613af0b4c816cce33ff8245fe892d63da995c680ce3152aa7d71a81eb1afefcc85ecb0b27a77a4ca36bf580763edb79a5f3b07dbb14"
+    },
+    {
+      "id": "monogame.runtime.windows.dx12",
+      "version": "3.8.5.1",
+      "sha512": "2a982c629d4e410aa88eb0690fea4037601e679e25e3fdd0d02f54ad302f0bc49408226368d7289fa02ec4a71e476c7361fcdb49bbfb815018ab4126bbc55ec6"
+    },
+    {
+      "id": "monogame.runtime.windows.vulkan",
+      "version": "3.8.5.1",
+      "sha512": "225c80d336589ff0932d53c6b6ec9dd2ab0690d14562e87088e226d6717efdf0bbac4baf921fc3d60b0b1f91f6389845591ad6241c7b3ceff8c62dae483d387d"
+    },
+    {
+      "id": "netstandard.library",
+      "version": "2.0.3",
+      "sha512": "e78f0cea69c14895b1b089644077dbce8631a626055d96522f4d29e061d8bfc3e48aa1419e74faf265b998612c03f721f5f0cef4690f824150a5689764dee601"
+    },
+    {
+      "id": "runtime.win-x64.microsoft.netcore.app",
+      "version": "2.1.30",
+      "sha512": "b10f4f0171c8bc8c581eef391e3a5b226182acb2cef3654fae419c302a0527b6115671c6383d6002bf2522dc8582f3845909956b8ae9eae46ed35b8e33e75100"
+    },
+    {
+      "id": "runtime.win-x64.microsoft.netcore.dotnetapphost",
+      "version": "2.1.30",
+      "sha512": "3714d358e8f09cae9574a0c5ebc255fbd2cf182fe284caec2672d1e2026702a4f1b84b9483b276fa700279cec3dd5491c255b17cb423f744c8e70911d6f5e8bf"
+    },
+    {
+      "id": "runtime.win-x64.microsoft.netcore.dotnethostpolicy",
+      "version": "2.1.30",
+      "sha512": "b0f593a5e5abe37d0fb96a88d739a63c47b995a2a0823086f71f3142ad02c376f62fc80f81a39e03d0b8513952b52986e270c81a5efab62b5dadba33f7b90690"
+    },
+    {
+      "id": "runtime.win-x64.microsoft.netcore.dotnethostresolver",
+      "version": "2.1.30",
+      "sha512": "249375d9e161dc9a5bf97f8cf768a51192782960f8f1099ec61f43be1e1e4637f6673c5a858e3f8ec428c88a286b2747b332c218bbcfb641ee78ca325152efc1"
+    },
+    {
+      "id": "runtime.win-x64.microsoft.netcore.jit",
+      "version": "2.0.8",
+      "sha512": "1ace46e7b72a3abd9209d8c9a43df37bbb8ba80c62691fe9764fe99e8acc5d527924f4d8f505a80ac2fe33135c4d5943d2a28cf5b26d338c398c30200cdb4f42"
+    },
+    {
+      "id": "sdl3-cs",
+      "version": "3.4.18",
+      "sha512": "b1d05651865a904a625ac32db87f58347bd7ea7a881eb33457f8ce3b951e1cc7215e610872d4672703fc7be40ce3be8c5a10e3fd83492b5f53be588f91b76239"
+    },
+    {
+      "id": "sdl3-cs.linux",
+      "version": "3.4.18",
+      "sha512": "8059ae3597f93fb1143a08243bda6ca381586be8721677fe8f1dc6d810bf5d8812232474ac4cc8ba71f4274293afe3cc57bfaad2a96e6282dd0cc3460d24c7cd"
+    },
+    {
+      "id": "sdl3-cs.macos",
+      "version": "3.4.18",
+      "sha512": "a0f2b17ba6b4d1208b283075c84233fb317a5d51019d86250f490598f21c61f8b4b9401fcb2e2e4e34b5ead18b37094da8aa172d1eef94836165169483dac4ea"
+    },
+    {
+      "id": "sdl3-cs.windows",
+      "version": "3.4.18",
+      "sha512": "00aa43f2bfef6af7941f731c1eb610526b679d1f8886cb3bd33afa902a937edbbe60488963bd34a9da4961b40c6b956a975acc8f870551350fd6da1acba34a4b"
+    },
+    {
+      "id": "sharpcompress",
+      "version": "0.48.1",
+      "sha512": "f494108380de31779145601e358647cca06e6a06facb30972a0bbd04958dd59f5be349ffaaa9d4f2e35acd17489b649bc55345d9ef2a04736aa95e5aa8e9d3c1"
+    },
+    {
+      "id": "sharpdx",
+      "version": "4.0.1",
+      "sha512": "d41f4038aa8b5de52a541db5e9347fae835c6adfd91385ed998a7c4c242b69e8caa961b8fb3ec76b6c4b8a897a64ace9ab64778c2f120d6c39bfaa18cc368965"
+    },
+    {
+      "id": "sharpdx.direct2d1",
+      "version": "4.0.1",
+      "sha512": "eb164979442f7106c96ea186414309d29671bc0eb68ad5ed0581f80b698de01c72f6deb78aca7cb67363eb0058f3a144070f2a2ae84537b7b9559d20c7e38798"
+    },
+    {
+      "id": "sharpdx.direct3d11",
+      "version": "4.0.1",
+      "sha512": "cd8db2621998300428223cb7bca7b8d381ec72a35aa3d85e273ccfeeffbcfe6a6035051cd3e27668e0ac567ce78c931f78e031964a9e41ff4ddbb3e9d0c786f9"
+    },
+    {
+      "id": "sharpdx.direct3d9",
+      "version": "4.0.1",
+      "sha512": "86bf2a213166bfb75ead72127d7012360084a360bf57323516d2810be188805aa5192cd2550eeebf62d0764ce1a42e5b6ab602a299f6ea64051ba360422cff5f"
+    },
+    {
+      "id": "sharpdx.dxgi",
+      "version": "4.0.1",
+      "sha512": "5f4ff6924997374b20d99dea8089dc95cd03d45fd5b518c429b61a26be187f0d97ceafc8db0eaf26a43f2b61065ca9ae37b9b207c416b8a6fa75d4fb7fd89d09"
+    },
+    {
+      "id": "sharpdx.mathematics",
+      "version": "4.0.1",
+      "sha512": "75345c2198428a057ef04f9d4a26365519338c8ba03e41b65fff29b2e35f53e782292b7b94f02de91a909a0e498a124efc3b21c34de768b111503f13c590d8eb"
+    },
+    {
+      "id": "sharpdx.mediafoundation",
+      "version": "4.0.1",
+      "sha512": "f589e2bf0ce9c2107fe579685ed560fb9997078695e08d09c3b2bee4c93407924aaa0505b3d26c3cc003d912721de4e025e537eeebca4e448f0a94c1ae08d0fe"
+    },
+    {
+      "id": "sharpdx.xaudio2",
+      "version": "4.0.1",
+      "sha512": "f40f93332b0f18b9739cb8844cbe156598cd9bbf38eff9b60a0504a469d22545adb395b11aa81ef53f9c8714f34083de51ca3b57e313578627b9fab4c0742898"
+    },
+    {
+      "id": "sharpdx.xinput",
+      "version": "4.0.1",
+      "sha512": "74bf559e4112b297d2e0a3401461cd38bc68deac1e1b00445a70fc4284d0a0d06f4de74b83b2f62b2942986f42603bee03ea0b09d4a7cb46f124d43835a53268"
+    },
+    {
+      "id": "skiasharp",
+      "version": "3.119.4",
+      "sha512": "712925fbacdfbd34c5d7c06bce5b2ae19c5062dcf4000aa57ec2c446b4b6cd6827c58153027e1c6090ec264f0997b347f4459995c88c21db094c4d9240ca95a5"
+    },
+    {
+      "id": "skiasharp.harfbuzz",
+      "version": "3.119.4",
+      "sha512": "20f810855cb1cbed5d940b08fd643d1377e78f80a49652a91494e1588aaf0c1eca611af0e63fcb814bc9871a49aebd28e79849e0ebf040f76f199cfd0161fb59"
+    },
+    {
+      "id": "skiasharp.nativeassets.linux",
+      "version": "3.119.4",
+      "sha512": "f839cc35826b865ad45180427a16e2d7797be838192335aafcf3dcfda8b110ca04d7cf1aebf5f300c4adbf875454638d476fe8c44e9b32b388562bde0d558f72"
+    },
+    {
+      "id": "skiasharp.nativeassets.macos",
+      "version": "3.119.4",
+      "sha512": "518871337537a3fa204530d70265b8fdcc81be29de8c8871b6a20526982372cc4f56e218e552e0c6cf3778fb8e05f341bbbb7f59e85317ec3810be6c7620640e"
+    },
+    {
+      "id": "skiasharp.nativeassets.webassembly",
+      "version": "2.88.9",
+      "sha512": "c1815d86904c25e1bc3e43b22cc4b2db0ec931c13dd4d9505a2b6cb0ca1d24329f725bce650af1b0dc12bc70d8352cc19f2ac452aab462e7af4787d4601e0e0a"
+    },
+    {
+      "id": "skiasharp.nativeassets.win32",
+      "version": "3.119.4",
+      "sha512": "445bfd7c9305522e385110a672a43f15acbfb36b5c985c5af540db534f99ceb3a7ddf933a20587ee0527b14edf1b19cb9b167e781bea275ca2b3b77d9a0259cf"
+    },
+    {
+      "id": "system.io.hashing",
+      "version": "10.0.12",
+      "sha512": "6a398cdcfa9db790ce4712ef0eb4ea219524dbf6ca5b84a4dcd059269d993e513dbe4defda958fe0c0da1157d7419bf5387d5875391cc0ef428bee1d5a9d7707"
+    },
+    {
+      "id": "system.io.packaging",
+      "version": "10.0.2",
+      "sha512": "d917755a3005a8ce0c5068b16d956edc73b774844d71bd84c8fa4c493016561ee84348aafb6421f844997a5f8599e118bf342b6b22a8bd5b5cd2cd983488576d"
+    },
+    {
+      "id": "system.security.accesscontrol",
+      "version": "6.0.1",
+      "sha512": "e1beba70b45f8cc5ae06fdecf365f0bb5b58b9af6d7c79accfef15b5a7c7bbef65e10cf9f299418eb413aac86ffefaa0eab9d91650ce77cc398d390f0597ed42"
+    },
+    {
+      "id": "tmds.dbus.protocol",
+      "version": "0.21.3",
+      "sha512": "f0ef19dd98225a5881462f891183c394d8aa8925b3a64084a6bdca15af9bf8bbd98c017fd226c8f99aa922f4887abbad6f920ac90ac61972447b92e1b5ffe834"
+    },
+    {
+      "id": "valvekeyvalue",
+      "version": "0.11.0.378",
+      "sha512": "141206f99e770eef1ac695173a0a901b1c9b66eacf1e34efe9a9a48ba3454549771a37e5c16c964d0023073ab5b28986d54458d112cfeb269009d62a90e5220d"
+    },
+    {
+      "id": "xunit.analyzers",
+      "version": "2.1.0",
+      "sha512": "07b2897501b4a4c53435cf4c851b72e1b6a080da653ab90ea4f70033795617209dd10dd604070d890c6d86848cd806514cc9d57c7d18b33b39bb28e9b4374c38"
+    },
+    {
+      "id": "xunit.runner.visualstudio",
+      "version": "4.0.0",
+      "sha512": "faeab211942dd46fed5a34b25e4bc2b3b5e7dd75db9cfc91cfaf3c6c835a254cc4c1f9581c66577092b613d755557c490d8a0e75797340e523c25d79c4a69e39"
+    },
+    {
+      "id": "xunit.v3",
+      "version": "4.0.1",
+      "sha512": "db45f6d50cce89d77cbbe0348179bc9099b16badb691a42f149edfe280913339d9d2af1d01b5cb4b24ea49da762d9738b90d2d817f32736856fe6c6701f63c49"
+    },
+    {
+      "id": "xunit.v3.assert",
+      "version": "4.0.1",
+      "sha512": "1a83aac30ef23406a5bbda19756ccd56a348eb18b573ec837b5ab812ba7b4c6ce045b6c93a31d8404c5dc22f11c3f9ef1bd1b2635be37d193a6a96f4196cf705"
+    },
+    {
+      "id": "xunit.v3.common",
+      "version": "4.0.1",
+      "sha512": "880a8bbb813ad4d9f0f0d134b3f1e1720d451834295527f55e0e223b41225a724cd686af72d0b655b466e109e499ce93247c64a77c720357a0faae842d45455e"
+    },
+    {
+      "id": "xunit.v3.core.mtp-v2",
+      "version": "4.0.1",
+      "sha512": "98e0b1cd39d9002ed6c385592f27e503834bfbeb079b5761eeb4363ab0205432cdedd2eea5c630c733ab12da624b02da7a8f3aed07f155b0cabdbd8c303b04a2"
+    },
+    {
+      "id": "xunit.v3.extensibility.core",
+      "version": "4.0.1",
+      "sha512": "52519af4388a9fd8def98bab5314ce6f2dc91efff8e3e2b4576c052ae56a69ae1b1f81b8fad3aeb4c691e8f902185b2be8dfaac3320932567a523655553e524a"
+    },
+    {
+      "id": "xunit.v3.mtp-v2",
+      "version": "4.0.1",
+      "sha512": "ba20c62e9a4a0748519c2369d1e131902f3e9759ccb5bb47146154a38c39943f9452e753daed387f3566b66a8e4adb9b575357f422828bb529ce204f3cb6529e"
+    },
+    {
+      "id": "xunit.v3.runner.common",
+      "version": "4.0.1",
+      "sha512": "6752469c0ab994e666a447cdb83d86cd83d64209e4d4e9225642c75f6d3aad3291f9ac69d67ae091df0087a5f3794860c945a029110b24675043182d9b48e6f3"
+    },
+    {
+      "id": "xunit.v3.runner.inproc.console",
+      "version": "4.0.1",
+      "sha512": "281e334912a140ab2d918c10b271931fd64d4ce96caa2fe0a8ba900b5d05a577e4f252e2a998346050e27abc093e1ef2ae1322af21385b4e9adc3bb033fe9ed6"
+    }
+  ]
+}

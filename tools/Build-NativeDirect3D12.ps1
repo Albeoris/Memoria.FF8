@@ -28,6 +28,21 @@ if ((Test-Path -LiteralPath (Join-Path $OutputDirectory 'mgruntime.dll')) -and (
         Write-Host 'The cached Direct3D 12 native runtime is invalid; rebuilding it from the pinned recipe.'
     }
 }
+$toolRestoreArguments = @('tool', 'restore')
+$referencePackageName = $lock.package.ToLowerInvariant()
+$referencePackageFile = "$referencePackageName.$($lock.version).nupkg"
+$offlineReferencePackage = $null
+if ($env:MEMORIA_NUGET_FEED) {
+    if (!$env:MEMORIA_NUGET_CONFIG -or !(Test-Path -LiteralPath $env:MEMORIA_NUGET_CONFIG -PathType Leaf)) {
+        throw 'Set MEMORIA_NUGET_CONFIG to the offline NuGet configuration for the shared feed.'
+    }
+    $toolRestoreArguments += @('--configfile', (Convert-Path -LiteralPath $env:MEMORIA_NUGET_CONFIG))
+    $offlineReferencePackage = Join-Path $env:MEMORIA_NUGET_FEED $referencePackageFile
+    if (!(Test-Path -LiteralPath $offlineReferencePackage -PathType Leaf)) {
+        throw "The shared NuGet feed is missing $referencePackageFile."
+    }
+    $offlineReferencePackage = Convert-Path -LiteralPath $offlineReferencePackage
+}
 $source = Join-Path $BuildDirectory 'source'
 $nativeBuild = Join-Path $BuildDirectory 'build'
 $patch = Join-Path $recipe 'RenderTargetMSAA.patch'
@@ -114,7 +129,7 @@ if ($tools.tools.'dotnet-mgfxc'.version -cne $lock.shaderCompiler.version) {
 }
 Push-Location $source
 try {
-    Invoke-Checked dotnet @('tool', 'restore')
+    Invoke-Checked dotnet $toolRestoreArguments
     foreach ($shader in Get-ChildItem 'MonoGame.Framework/Platform/Graphics/Effect/Resources' -Filter '*.fx' | Sort-Object Name) {
         Invoke-Checked dotnet @('mgfxc', ('MonoGame.Framework/Platform/Graphics/Effect/Resources/' + $shader.Name), ('native/monogame/directx12/' + $shader.BaseName + '.dx12.mgfxo.h'), '/Profile:DirectX_12')
     }
@@ -140,8 +155,10 @@ foreach ($prefix in @($source, $nativeBuild, [Environment]::GetFolderPath('UserP
     }
 }
 $referencePackage = Join-Path $BuildDirectory 'reference.nupkg'
-if (!(Test-Path -LiteralPath $referencePackage)) {
-    Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/monogame.runtime.windows.dx12/$($lock.version)/monogame.runtime.windows.dx12.$($lock.version).nupkg" -OutFile $referencePackage
+if ($offlineReferencePackage) {
+    Copy-Item -LiteralPath $offlineReferencePackage -Destination $referencePackage -Force
+} elseif (!(Test-Path -LiteralPath $referencePackage)) {
+    Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/$referencePackageName/$($lock.version)/$referencePackageFile" -OutFile $referencePackage
 }
 $referenceHash = [Convert]::ToBase64String([Security.Cryptography.SHA512]::HashData([IO.File]::ReadAllBytes($referencePackage)))
 if ($referenceHash -cne $lock.referencePackageSha512) {

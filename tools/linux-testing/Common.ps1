@@ -8,10 +8,11 @@ function Get-LinuxHostProbeCommand {
     return @('sh', '-c', 'uname -m && uname -r && printf ''%s\n'' "$HOME" && dotnet --list-sdks')
 }
 
-function ConvertFrom-LinuxHostProbe([string]$Output) {
+function ConvertFrom-LinuxHostProbe([string]$Output, [string]$SdkVersion) {
     $lines = @($Output.TrimEnd().Split("`n") | ForEach-Object { $_.TrimEnd("`r") })
-    if ($lines.Count -lt 4 -or !(@($lines | Select-Object -Skip 3) -match '^10\.\d+\.\d+\s+\[')) {
-        throw 'The Linux target requires an existing .NET 10 SDK on PATH. Install a supported .NET 10 SDK using your distribution/vendor instructions, then retry. SDK installation is never performed by this workflow.'
+    $expected = '^' + [Regex]::Escape($SdkVersion) + '\s+\['
+    if ($lines.Count -lt 4 -or !(@($lines | Select-Object -Skip 3) -match $expected)) {
+        throw "The Linux target requires .NET SDK $SdkVersion on PATH. Install the version pinned by global.json, then retry. SDK installation is never performed by this workflow."
     }
     if (!$lines[2].StartsWith('/')) {
         throw 'The Linux target did not report an absolute home directory.'

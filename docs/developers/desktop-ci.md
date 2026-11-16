@@ -57,10 +57,32 @@ files and the assembled app with free ad hoc signatures, and verify signatures
 again after archive extraction. No Apple account or signing secret is used.
 Ad hoc signing does not provide Developer ID trust or notarization.
 
-Fresh builds first ask the installed SDK to resolve the unchanged `global.json`.
-`setup-dotnet` runs only if that resolution fails. Jobs restore the NuGet cache;
-only pushes to `main` save new entries. Build outputs and tested distribution
-artifacts are separate from this dependency cache. Main, tags and manual runs
+Fresh builds use the exact SDK in `global.json`, installing it with
+`setup-dotnet` when the runner lacks it. One Ubuntu job prepares the shared
+NuGet feed for all four RIDs. The feed contains one original `.nupkg` per ID,
+with its version and archive SHA-512 locked in
+[`packages.lock.json`](../../.github/nuget/packages.lock.json). Only pushes to
+`main` can save the shared cross-OS cache. On a cold run without a saved cache,
+the producer transfers the same feed through a one-day workflow artifact.
+Fresh matrix jobs verify the shared files and resolve their local build assets
+from that feed. They have no NuGet package source fallback. Jobs that already
+have a tested distribution skip reading the feed. Build outputs and tested
+distribution artifacts are separate from this dependency cache.
+
+Change exact direct pins in `Directory.Packages.props` and exact transitive
+pins in `Directory.TransitivePackages.props` together when needed. Refresh the
+shared lock from the product root with:
+
+```powershell
+./.github/scripts/Update-NuGetLock.ps1
+```
+
+The refresh resolves the complete four-RID graphs and both additional Windows
+graphics backends. It includes the SDK runtime packs, native reference packages
+and pinned shader tools, and fails if a package ID resolves to different versions
+across profiles.
+
+Main, tags and manual runs
 use `Build.ps1 -TestPortable`. Its distribution solution builds the payload,
 distribution checkers and selected test executables together with two MSBuild
 workers. The portable tests run from those outputs. Pull requests also compile

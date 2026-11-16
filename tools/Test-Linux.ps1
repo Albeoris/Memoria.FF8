@@ -20,6 +20,7 @@ if ($Phase -eq 'Test' -and !$PSBoundParameters.ContainsKey('TimeoutSeconds')) {
 }
 . (Join-Path $PSScriptRoot 'linux-testing/Common.ps1')
 $product = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$sdkVersion = (Get-Content -LiteralPath (Join-Path $product 'global.json') -Raw | ConvertFrom-Json).sdk.version
 if (!$Config) {
     $Config = Join-Path $PSScriptRoot 'linux-testing/local.settings.json'
 }
@@ -69,9 +70,9 @@ try {
             $probe = Invoke-WslCommand $settings.Distro (Get-LinuxHostProbeCommand) -AllowFailure -TimeoutSeconds 30
             ($probe.Output + $probe.Error) | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.txt') -Encoding utf8
             if ($probe.ExitCode -ne 0) {
-                throw "Distro '$($settings.Distro)' is unavailable or lacks a .NET 10 SDK on PATH. Complete the distro setup and install a supported .NET 10 SDK, then retry. See docs/developers/linux-testing.md."
+                throw "Distro '$($settings.Distro)' is unavailable or lacks .NET SDK $sdkVersion on PATH. Complete the distro setup and install the pinned SDK, then retry. See docs/developers/linux-testing.md."
             }
-            $hostInfo = ConvertFrom-LinuxHostProbe $probe.Output
+            $hostInfo = ConvertFrom-LinuxHostProbe $probe.Output $sdkVersion
             if ($hostInfo.machine -ne 'x86_64' -or $hostInfo.release -notmatch '(?i)microsoft.*wsl2') {
                 throw 'This workflow requires an x86_64 WSL2 distro, not WSL1 or ARM emulation.'
             }
@@ -88,14 +89,14 @@ try {
         else {
             Assert-SshHost $settings.SshHost
             if ($SetupDependencies) {
-                throw 'Hardware setup does not install packages or change SteamOS. Configure an existing .NET 10 SDK/OpenSSH and a graphical session; use the target vendor supported setup.'
+                throw "Hardware setup does not install packages or change SteamOS. Configure .NET SDK $sdkVersion, OpenSSH and a graphical session using the target vendor's supported setup."
             }
             $probe = Invoke-SshCommand $settings.SshHost (Get-LinuxHostProbeCommand) -AllowFailure -TimeoutSeconds 30
             ($probe.Output + $probe.Error) | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.txt') -Encoding utf8
             if ($probe.ExitCode -ne 0) {
-                throw 'The hardware target is unavailable or lacks a .NET 10 SDK on PATH. Check SSH access and install a supported .NET 10 SDK using your vendor instructions, then retry. See docs/developers/linux-testing.md.'
+                throw "The hardware target is unavailable or lacks .NET SDK $sdkVersion on PATH. Check SSH access and install the pinned SDK using your vendor instructions, then retry. See docs/developers/linux-testing.md."
             }
-            $hostInfo = ConvertFrom-LinuxHostProbe $probe.Output
+            $hostInfo = ConvertFrom-LinuxHostProbe $probe.Output $sdkVersion
             if ($hostInfo.machine -ne 'x86_64') {
                 throw 'Hardware testing requires an x86_64 Linux target.'
             }

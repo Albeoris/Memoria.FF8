@@ -10,16 +10,18 @@ reference_hash=$7
 dependencies=$8
 rid=$9
 reference_package_name=${10}
+shift 10
 export LC_ALL=C
 case "$rid" in
     win-x64)
         export MSYS2_ARG_CONV_EXCL='*'
-        dumpbin=${11}
-        configuration=(-G "${12}" -A x64 "-DCMAKE_GENERATOR_INSTANCE=${13}")
+        dumpbin=$1
+        configuration=(-G "$2" -A x64 "-DCMAKE_GENERATOR_INSTANCE=$3")
         library=mgruntime.dll
         build_library=Release/$library
         reference_rid=win-x64
         platform_tools=("$dumpbin")
+        shift 3
         ;;
     osx-x64|osx-arm64)
         arch=x86_64
@@ -39,7 +41,18 @@ case "$rid" in
         ;;
     *) exit 1 ;;
 esac
-for tool in git cmake dotnet curl unzip openssl "${platform_tools[@]}"; do
+offline_feed=${1:-}
+offline_config=${2:-}
+tool_restore_arguments=()
+reference_package_file="$reference_package_name.$version.nupkg"
+if [[ -n "$offline_feed" ]]; then
+    [[ -f "$offline_config" ]] || { echo 'The offline NuGet configuration is missing.' >&2; exit 1; }
+    [[ -f "$offline_feed/$reference_package_file" ]] || { echo "The shared NuGet feed is missing $reference_package_file." >&2; exit 1; }
+    tool_restore_arguments+=(--configfile "$offline_config")
+else
+    platform_tools+=(curl)
+fi
+for tool in git cmake dotnet unzip openssl "${platform_tools[@]}"; do
     command -v "$tool" >/dev/null || { echo "Required build tool is missing: $tool" >&2; exit 1; }
 done
 mkdir -p "$build" "$output"
@@ -95,7 +108,7 @@ mkdir -p "$source/.config"
 cp "$recipe/../../.config/dotnet-tools.json" "$source/.config/dotnet-tools.json"
 (
     cd "$source"
-    dotnet tool restore
+    dotnet tool restore "${tool_restore_arguments[@]}"
     for shader in MonoGame.Framework/Platform/Graphics/Effect/Resources/*.fx; do
         name=$(basename "$shader" .fx)
         dotnet mgfxc "$shader" "native/monogame/vulkan/$name.vk.mgfxo.h" /Profile:Vulkan
@@ -106,8 +119,10 @@ cmake -S "$source" -B "$build/build" -DCMAKE_BUILD_TYPE=Release "${configuration
 cmake --build "$build/build" --config Release --target mgruntime --parallel
 candidate="$build/build/$build_library"
 reference_package="$build/reference.nupkg"
-if [[ ! -f "$reference_package" ]]; then
-    curl --fail --location --retry 3 "https://api.nuget.org/v3-flatcontainer/$reference_package_name/$version/$reference_package_name.$version.nupkg" --output "$reference_package"
+if [[ -n "$offline_feed" ]]; then
+    cp "$offline_feed/$reference_package_file" "$reference_package"
+elif [[ ! -f "$reference_package" ]]; then
+    curl --fail --location --retry 3 "https://api.nuget.org/v3-flatcontainer/$reference_package_name/$version/$reference_package_file" --output "$reference_package"
 fi
 [[ $(openssl dgst -sha512 -binary "$reference_package" | openssl base64 -A) == "$reference_hash" ]] || { echo 'Reference NuGet SHA-512 mismatch.' >&2; exit 1; }
 mkdir -p "$build/reference"
