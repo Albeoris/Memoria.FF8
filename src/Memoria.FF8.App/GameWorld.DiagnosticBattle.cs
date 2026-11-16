@@ -45,6 +45,10 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new InvalidDataException("An expanded diagnostic prelude requires the declared original predecessor and a distinct native allocation target.");
         }
+        if (Driver is { PassiveNativeSupport: true } && (PrepareEntryBeforePresentation || Prelude is not null || AtbMode != BattleAtbMode.Normal || Fixture is not { HoldEnemyCommands: true }))
+        {
+            throw new InvalidDataException("Passive entry support requires scored live Normal ATB with ordinary enemy turns held.");
+        }
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
@@ -232,8 +236,9 @@ internal sealed partial class GameWorld
             {
                 session.SetDiagnosticPocketStation(pocketStation.State);
             }
+            ImmutableArray<DiagnosticPreparationChange> support = PrepareDiagnosticNativeSupport(request.Driver);
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, request.AtbMode, preparedMusic);
-            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Prelude?.Input.ActorId ?? request.Driver?.Input.ActorId);
+            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Prelude?.Input.ActorId ?? request.Driver?.Input.ActorId, observeAutomaticSupport: request.Driver is { PassiveNativeSupport: true, ExpectedNativeCommand: 245 });
             if (request.Driver?.TerminalHold is { } terminalHold)
             {
                 prepared.Battle.ConfigureDiagnosticTerminalHold(terminalHold);
@@ -241,7 +246,7 @@ internal sealed partial class GameWorld
             battle = CommitPreparedBattleEntry(prepared);
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
-            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? []] };
+            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? [], .. support] };
             if (request.Roster is not null)
             {
                 DiagnosticReceipt = DiagnosticReceipt with

@@ -26,6 +26,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
     public DiagnosticEnemyTrigger? EnemyTrigger { get; init; }
     public bool IndependentRosterEntry { get; init; }
+    public bool PassiveNativeSupport { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool DoomExpiration { get; init; }
     public int? ExpectedNativeAction { get; init; }
@@ -76,6 +77,12 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             !IndependentRosterEntry || EnemyAbility is not null || EnemyTrigger is not null || SupportingEffects is not { Length: 0 } || SupportingInvocations is not { Length: 0 }))
         {
             throw new InvalidDataException("Doom expiration requires a genuine equipped Doom submission and its distinct recipient's original 246/43 expiry in one independent entry.");
+        }
+        if (PassiveNativeSupport && (!IndependentRosterEntry || BaselineSeconds != 0 || Input.Kind != BattleInputKind.Action || Input.Ability != BattleAbility.NativeCommand ||
+            Input.ActionId != ExpectedNativeAction || Input.ActorId is null || Input.TargetId is null || !MatchesPassiveSupportInvocation() ||
+            EnemyAbility is not null || EnemyTrigger is not null || LimitSelection is not null || DoomExpiration || ShotCycle is not null || CounterCycle is not null || DuelCycle is not null || SlotsAdmission is not null || SupportingEffects is not { Length: 0 } || SupportingInvocations is not { Length: 0 }))
+        {
+            throw new InvalidDataException("Passive support requires one independent native clock invocation with its exact original effect and owner.");
         }
         if (IndependentRosterEntry && (FreshEntry is not null || Presentation is not null || TerminalHold is not null && !independentVictoryHold || Repairs is not { Length: 0 }))
         {
@@ -145,6 +152,12 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             throw new InvalidDataException("Diagnostic driver requires finite positive deadlines, an installed effect identity and at least two presented tail frames.");
         }
     }
+
+    private bool MatchesPassiveSupportInvocation() => (ExpectedNativeCommand, ExpectedNativeAction, ExpectedEffect) switch
+    {
+        (245, 0, 187) or (245, 7, 329) or (245, 8, 330) or (245, 9, 328) or (245, 10, 327) => true,
+        _ => false
+    };
 }
 
 internal enum DiagnosticDriverStage
@@ -237,6 +250,11 @@ internal sealed class DiagnosticBattleDriver
         recipe.Validate();
         this.recipe = recipe;
         started = stageStarted = seconds;
+        if (recipe.PassiveNativeSupport)
+        {
+            Stage = DiagnosticDriverStage.AwaitDispatch;
+            executionStarted = seconds;
+        }
     }
 
     internal DiagnosticDriverStage Stage { get; private set; }

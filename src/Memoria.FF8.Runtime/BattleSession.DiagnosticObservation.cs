@@ -67,10 +67,10 @@ public sealed partial class BattleSession
     private bool diagnosticInstantGuardianForceCharge;
     private BattleCombatant? diagnosticReadinessActor;
 
-    public void ConfigureDiagnosticScheduling(bool holdEnemyCommands, bool instantGuardianForceCharge = false, string? readinessActorId = null)
+    public void ConfigureDiagnosticScheduling(bool holdEnemyCommands, bool instantGuardianForceCharge = false, string? readinessActorId = null, bool observeAutomaticSupport = false)
     {
         // Construction queues participant initialization before scheduling can be configured.
-        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Any(action => action.ExpandedAiCallback?.Stage != 0) || nativeCommandBanks.BoundCommands.Any(command => command.NativeCallback?.Stage != 0) || guardianForceCasts.Count != 0)
+        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Any(action => action.ExpandedAiCallback?.Stage != 0 && (!observeAutomaticSupport || !IsExpandedAutomaticGuardian(action.NativeAction, action.NativePlayerReaction))) || nativeCommandBanks.BoundCommands.Any(command => command.NativeCallback?.Stage != 0) || guardianForceCasts.Count != 0)
         {
             throw new InvalidOperationException("Diagnostic scheduling must be declared before the first battle callback or command.");
         }

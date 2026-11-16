@@ -69,6 +69,11 @@ internal sealed partial class RecreateGame
         diagnosticCounterPreparationRepair = null;
         SubscribeDiagnosticCounter(diagnosticDriverBattle);
         diagnosticDriverBattle.DiagnosticEffectDispatched += ObserveDiagnosticDriverDispatch;
+        if (recipe.PassiveNativeSupport)
+        {
+            diagnosticRenderer = battleGpu ?? throw new NotSupportedException("Passive support measurement requires the current GPU renderer.");
+            diagnosticTelemetry.Begin(Stopwatch.GetTimestamp(), diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
+        }
         if (recipe.ShotCycle is not null)
         {
             diagnosticDriverBattle.DiagnosticEventPublished += ObserveDiagnosticShotImpact;
@@ -429,7 +434,7 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
-        return recipe.EnemyAbility is { } enemy ? active.CanSubmitDiagnosticEnemyAbility(recipe.Input.ActorId!, enemy) : active.CanChoosePlayerCommand(recipe.Input.ActorId!);
+        return recipe.PassiveNativeSupport || (recipe.EnemyAbility is { } enemy ? active.CanSubmitDiagnosticEnemyAbility(recipe.Input.ActorId!, enemy) : active.CanChoosePlayerCommand(recipe.Input.ActorId!));
     }
 
     private static void ReleaseDiagnosticTerminalHold(BattleSession active)
