@@ -91,7 +91,6 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidDataException("Switch to the save's game world before copying it.");
         }
-        EnsureCurrentWorldTarget(destination);
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         bool temporaryCreated = false;

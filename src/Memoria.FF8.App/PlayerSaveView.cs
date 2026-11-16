@@ -242,7 +242,7 @@ internal sealed partial class PlayerSaveView : UiElement
             UiThickness columnGap = new(0, 0, 6 * textScale, 0);
             metadata.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
             metadata.Children.Add(new UiLabel { GridRow = 1, Text = entry.Details, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
-            metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad ? entry.PlayTimeText : "", FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+            metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad || entry.PlayTime.HasValue ? entry.PlayTimeText : "", FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
             metadata.Children.Add(new UiLabel { GridRow = 1, GridColumn = 1, Text = entry.SavedAtText, FontSize = 16 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
             UiGrid portraits = new() { GridColumn = 2, GridRowSpan = 2, Margin = new UiThickness(4), Gap = 4 };
             portraits.RowDefinitions.Add(UiGridLength.Star());

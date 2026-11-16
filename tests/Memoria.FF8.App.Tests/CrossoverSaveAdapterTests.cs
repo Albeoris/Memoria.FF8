@@ -76,7 +76,7 @@ public sealed class CrossoverSaveAdapterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FF8_slots_hide_active_FF7_envelopes_and_reject_implicit_world_loading(bool suspendedFf8)
+    public void FF8_slots_display_active_FF7_envelopes_and_reject_implicit_world_loading(bool suspendedFf8)
     {
         string directory = Path.Combine(Path.GetTempPath(), "Memoria-crossover-isolation-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -96,7 +96,11 @@ public sealed class CrossoverSaveAdapterTests
             PlayerSaveEntry entry = Assert.Single(store.ReadEntries(false), item => item.Slot == 1);
             Assert.False(entry.CanLoad);
             Assert.False(entry.CanCopy);
-            Assert.Equal("save.slot.empty", entry.DetailsSystemId);
+            Assert.Null(entry.DetailsSystemId);
+            Assert.Equal(SessionGame.Ff7, entry.ActiveGame);
+            Assert.Contains("FFVII", entry.Details);
+            Assert.NotNull(entry.SavedAt);
+            Assert.NotNull(entry.PlayTime);
             Assert.Throws<InvalidDataException>(() => store.Load(1));
             Assert.Equal(before, File.ReadAllBytes(store.GetPath(1)));
         }

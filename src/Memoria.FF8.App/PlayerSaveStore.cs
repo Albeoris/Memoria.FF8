@@ -177,7 +177,6 @@ internal sealed partial class PlayerSaveStore
         if (slot != 0)
         {
             string target = GetPath(slot);
-            EnsureCurrentWorldTarget(target);
             if (slot > MemoriaSlotCount)
             {
                 GameState snapshot = session.PrepareSnapshot();
@@ -285,7 +284,7 @@ internal sealed partial class PlayerSaveStore
     private PlayerSaveEntry ReadEntry(int slot, string path, DateTime? savedAt)
     {
         string label = SlotLabel(slot);
-        if (Game == SessionGame.Ff7)
+        if (Game == SessionGame.Ff7 && slot > MemoriaSlotCount)
         {
             return ReadFf7Entry(slot, path, savedAt);
         }
@@ -312,12 +311,12 @@ internal sealed partial class PlayerSaveStore
                 CombinedSessionSave? combined = slot <= MemoriaSlotCount ? CrossoverSaveAdapter.ReadEnvelope(path) : null;
                 if (combined?.ActiveGame == SessionGame.Ff7)
                 {
-                    return new PlayerSaveEntry(slot, label, null, "Empty", false) { DetailsSystemId = "save.slot.empty" };
+                    entry = ReadFf7Summary(slot, label, path, savedAt, combined);
                 }
                 else
                 {
                     summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
-                    GameState state = summary?.ToLocationState() ?? LoadPath(path);
+                    GameState state = summary?.ToLocationState() ?? (Game == SessionGame.Ff8 ? LoadPath(path) : GameSession.Load(path));
                     if (state.Scene == SceneKind.Title)
                     {
                         throw new InvalidDataException("This save contains no active game.");
@@ -325,9 +324,10 @@ internal sealed partial class PlayerSaveStore
                     GameState locationState = summary?.ToLocationState() ?? new GameState { Scene = state.Scene, FieldId = state.FieldId, FieldName = state.FieldName, EventState = state.EventState, World = state.World is { } world ? new WorldState { X = world.X, Z = world.Z } : null };
                     string location = locationName?.Invoke(locationState) ?? "Unavailable";
                     NativePlaytimeState? playtime = summary?.Playtime ?? state.Playtime;
-                    entry = new PlayerSaveEntry(slot, label, savedAt, location, true)
+                    entry = new PlayerSaveEntry(slot, label, savedAt, Game == SessionGame.Ff7 ? "FFVIII · " + location : location, Game == SessionGame.Ff8)
                     {
-                        ReadLocation = () => locationName?.Invoke(locationState),
+                        ActiveGame = SessionGame.Ff8,
+                        ReadLocation = Game == SessionGame.Ff8 ? () => locationName?.Invoke(locationState) : null,
                         SavedAtUtc = savedAtUtc,
                         SavedLocalAt = summary?.SavedLocalAt,
                         PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,

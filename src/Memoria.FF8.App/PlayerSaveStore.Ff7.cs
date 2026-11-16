@@ -103,8 +103,8 @@ internal sealed partial class PlayerSaveStore
         {
             string path = Path.Combine(directory, $"slot-{slot:00}.json");
             ValidatePath(path);
-            EnsureCurrentWorldTarget(path);
             CombinedSessionCodec.Save(path, saved);
+            entries.Remove(path);
             return;
         }
         List<QuickSaveFile> files = FindQuickSaves();
@@ -184,30 +184,35 @@ internal sealed partial class PlayerSaveStore
                 return new(slot, label, null, "Empty", false) { DetailsSystemId = "save.slot.empty" };
             }
             savedAt ??= File.GetLastWriteTime(path);
-            if (slot > MemoriaSlotCount)
-            {
-                Ff7NativeSaveSlot native = Ff7NativeSaveBank.Decode(File.ReadAllBytes(path)).GetSlot((slot - MemoriaSlotCount - 1) % 15);
-                if (native.IsEmpty)
-                {
-                    return new(slot, label, null, "Empty", false) { DetailsSystemId = "save.slot.empty" };
-                }
-                if (!native.ChecksumValid)
-                {
-                    throw new InvalidDataException("The FFVII slot checksum is invalid.");
-                }
-                return new(slot, label, savedAt, native.Location + " · " + native.Name + (native.Module == 1 ? "" : " · Native import for this game module is unsupported."), native.Module == 1) { CanCopy = true, ActiveGame = SessionGame.Ff7, SavedAtUtc = File.GetLastWriteTimeUtc(path), PlayTime = TimeSpan.FromSeconds(native.ElapsedSeconds) };
-            }
-            CombinedSessionSave? saved = CrossoverSaveAdapter.ReadEnvelope(path);
-            if (saved?.ActiveGame != SessionGame.Ff7)
+            Ff7NativeSaveSlot native = Ff7NativeSaveBank.Decode(File.ReadAllBytes(path)).GetSlot((slot - MemoriaSlotCount - 1) % 15);
+            if (native.IsEmpty)
             {
                 return new(slot, label, null, "Empty", false) { DetailsSystemId = "save.slot.empty" };
             }
-            return new(slot, label, savedAt, saved.Ff7!.World is null ? saved.Ff7.FieldName : "World map", true) { ActiveGame = SessionGame.Ff7, SavedAtUtc = File.GetLastWriteTimeUtc(path) };
+            if (!native.ChecksumValid)
+            {
+                throw new InvalidDataException("The FFVII slot checksum is invalid.");
+            }
+            return new(slot, label, savedAt, native.Location + " · " + native.Name + (native.Module == 1 ? "" : " · Native import for this game module is unsupported."), native.Module == 1) { CanCopy = true, ActiveGame = SessionGame.Ff7, SavedAtUtc = File.GetLastWriteTimeUtc(path), PlayTime = TimeSpan.FromSeconds(native.ElapsedSeconds) };
         }
         catch (Exception error) when (IsUnavailable(error))
         {
             return new(slot, label, savedAt, "Unavailable: " + error.Message, false) { DetailsSystemId = "save.slot.unavailable", DetailsError = error.Message };
         }
+    }
+
+    private PlayerSaveEntry ReadFf7Summary(int slot, string label, string path, DateTime? savedAt, CombinedSessionSave saved)
+    {
+        Ff7SessionSave state = saved.Ff7!;
+        string location = state.World is null ? state.FieldName : "World map";
+        Ff7ClockState clock = state.Progress.Clock ?? Ff7NativeClock.RestoreRecorded(new(state.Vm.PersistentVariables, new byte[256]));
+        string party = string.Join(", ", state.Progress.Party.Where(id => id != 255).Select(id => state.Progress.Characters.FirstOrDefault(character => character.Id == id)?.Name).OfType<string>());
+        return new(slot, label, savedAt, $"FFVII · {location}" + (party.Length > 0 ? $" · {party}" : ""), Game == SessionGame.Ff7)
+        {
+            ActiveGame = SessionGame.Ff7,
+            SavedAtUtc = File.GetLastWriteTimeUtc(path),
+            PlayTime = TimeSpan.FromSeconds(clock.ElapsedSeconds)
+        };
     }
 
     private void EnsureFf7()
@@ -243,14 +248,6 @@ internal sealed partial class PlayerSaveStore
             }
         }
         throw new InvalidOperationException("The quick save sequence is exhausted.");
-    }
-
-    private void EnsureCurrentWorldTarget(string path)
-    {
-        if (File.Exists(path) && !IsCurrentWorldSave(path))
-        {
-            throw new InvalidOperationException("This filename belongs to the other game's bank. Choose a different slot to preserve that save.");
-        }
     }
 
     private bool IsCurrentWorldSave(string path)

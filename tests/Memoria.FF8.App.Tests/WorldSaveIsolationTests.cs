@@ -10,7 +10,7 @@ public sealed class WorldSaveIsolationTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "memoria-world-save-isolation-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void Legacy_FF7_slots_remain_readable_without_mutating_or_exposing_them_in_FF8()
+    public void Legacy_FF7_slots_remain_readable_and_visible_without_mutating_them_in_FF8()
     {
         PlayerSaveStore ff8 = Store(SessionGame.Ff8);
         PlayerSaveStore ff7 = Store(SessionGame.Ff7);
@@ -73,7 +73,7 @@ public sealed class WorldSaveIsolationTests : IDisposable
     }
 
     [Fact]
-    public void Saving_FF8_cannot_overwrite_hidden_legacy_FF7_manual_or_quick_files()
+    public void Saving_FF8_overwrites_selected_FF7_manual_slot_and_preserves_unselected_quick_files()
     {
         PlayerSaveStore ff8 = Store(SessionGame.Ff8);
         CombinedSessionSave legacy = new() { ActiveGame = SessionGame.Ff7, Ff7 = Ff7Fixture() };
@@ -81,14 +81,60 @@ public sealed class WorldSaveIsolationTests : IDisposable
         string quick = Path.Combine(directory, "quick-0000000001.json");
         CombinedSessionCodec.Save(manual, legacy);
         CombinedSessionCodec.Save(quick, legacy);
-        byte[] manualBytes = File.ReadAllBytes(manual);
         byte[] quickBytes = File.ReadAllBytes(quick);
         GameSession session = new(new GameState { Scene = SceneKind.Field, X = 8 });
-        Assert.Throws<InvalidOperationException>(() => ff8.Save(1, session));
+        PlayerSaveEntry entry = Assert.Single(ff8.ReadEntries(false), entry => entry.Slot == 1);
+        Assert.Equal(SessionGame.Ff7, entry.ActiveGame);
+        Assert.Contains("FFVII", entry.Details);
+        Assert.Contains("md1stin", entry.Details);
+        Assert.Contains("Cloud", entry.Details);
+        Assert.NotNull(entry.SavedAt);
+        Assert.Equal("01:01:01", entry.PlayTimeText);
+        Assert.False(entry.CanLoad);
+        PlayerSaveMenu menu = new(ff8);
+        menu.Open(PlayerSaveMenuMode.Save);
+        menu.SelectSlot(1);
+        menu.RequestConfirm();
+        menu.Update(default, slot => ff8.Save(slot, session), _ => Assert.Fail("Unexpected load."));
+        Assert.True(menu.ConfirmOverwrite);
+        Assert.Equal(SessionGame.Ff7, CrossoverSaveAdapter.ReadEnvelope(manual)!.ActiveGame);
+        menu.RequestConfirm();
+        menu.Update(default, slot => ff8.Save(slot, session), _ => Assert.Fail("Unexpected load."));
+        Assert.False(menu.IsOpen);
+        Assert.Equal(8, ff8.Load(1).X);
+        Assert.Equal(SessionGame.Ff8, Assert.Single(ff8.ReadEntries(false), entry => entry.Slot == 1).ActiveGame);
         ff8.Save(0, session);
         Assert.Equal(Path.Combine(directory, "quick-0000000002.json"), ff8.GetPath(0));
-        Assert.Equal(manualBytes, File.ReadAllBytes(manual));
         Assert.Equal(quickBytes, File.ReadAllBytes(quick));
+    }
+
+    [Fact]
+    public void Saving_FF7_overwrites_an_FF8_file_in_its_selected_manual_slot()
+    {
+        PlayerSaveStore ff7 = Store(SessionGame.Ff7);
+        string path = ff7.GetPath(1);
+        new GameSession(new GameState { Scene = SceneKind.Field, FieldName = "ff8" }).Save(path, compact: true);
+        PlayerSaveEntry entry = Assert.Single(ff7.ReadEntries(false), entry => entry.Slot == 1);
+        Assert.Equal(SessionGame.Ff8, entry.ActiveGame);
+        Assert.Contains("FFVIII", entry.Details);
+        Assert.NotNull(entry.SavedAt);
+        Assert.False(entry.CanLoad);
+        CombinedSessionSave saved = new() { ActiveGame = SessionGame.Ff7, Ff7 = Ff7Fixture() };
+        ff7.SaveFf7(1, saved);
+        Assert.Equal("md1stin", ff7.LoadFf7(1).Ff7!.FieldName);
+        Assert.Equal(SessionGame.Ff7, Assert.Single(ff7.ReadEntries(false), entry => entry.Slot == 1).ActiveGame);
+    }
+
+    [Fact]
+    public void FF8_copy_overwrites_an_FF7_destination_and_refreshes_its_summary()
+    {
+        PlayerSaveStore ff8 = Store(SessionGame.Ff8);
+        ff8.Save(1, new GameSession(new GameState { Scene = SceneKind.Field, X = 42 }));
+        CombinedSessionCodec.Save(ff8.GetPath(2), new() { ActiveGame = SessionGame.Ff7, Ff7 = Ff7Fixture() });
+        Assert.Equal(SessionGame.Ff7, Assert.Single(ff8.ReadEntries(false), entry => entry.Slot == 2).ActiveGame);
+        ff8.Transfer(1, 2);
+        Assert.Equal(42, ff8.Load(2).X);
+        Assert.Equal(SessionGame.Ff8, Assert.Single(ff8.ReadEntries(false), entry => entry.Slot == 2).ActiveGame);
     }
 
     [Fact]
@@ -217,6 +263,7 @@ public sealed class WorldSaveIsolationTests : IDisposable
                 Party = [0, 255, 255],
                 Inventory = [new(0, 2)],
                 Materia = [],
+                Clock = new(3661),
                 Gil = 240
             },
             Vm = machine.Capture(),
