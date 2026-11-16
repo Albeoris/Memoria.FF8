@@ -191,10 +191,17 @@ public sealed partial class BattleSession
 
     private bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
-        if (header.Effect is NativeBattleMorph172Profile.Effect or NativeBattleEffect298Profile.Effect)
+        (ushort Action, byte Sequence, int Model, bool Death)? transition = header.Effect switch
         {
-            bool death = header.Effect == NativeBattleEffect298Profile.Effect;
-            (ushort action, byte sequence, int model) = death ? ((ushort)119, (byte)14, 102) : ((ushort)53, (byte)13, 29);
+            NativeBattleMorph172Profile.Effect => ((ushort)53, (byte)13, 29, false),
+            NativeBattleEffect298Profile.Effect => ((ushort)119, (byte)14, 102, true),
+            NativeBattleEffect316Profile.Effect => ((ushort)203, (byte)15, 130, true),
+            276 => ((ushort)145, (byte)19, 92, true),
+            _ => null
+        };
+        if (transition is { } expected)
+        {
+            var (action, sequence, model, death) = expected;
             if (header is not { Command: 8, Source: BattleEnemyActorModel source } || header.Action != action || header.Sequence != sequence ||
                 command is not { Ability: BattleAbility.EnemyAbility, NativeAction: { KernelSection: 3 } native } || native.KernelIndex != action ||
                 command.ActorId != command.TargetId || source.Actor.ActorId != command.ActorId || GetActor(command.ActorId).ModelId != model ||

@@ -190,6 +190,7 @@ internal sealed class DiagnosticBattleDriver
     private long previousCallback = -1;
     private long tailStarted;
     private long lastDispatchSerial;
+    private string? allocatedFocalActor;
     private string? blockedCampaignStage;
     private readonly List<BattleDiagnosticEffectDispatch> dispatches = [];
     private readonly List<BattleDiagnosticEffectDispatch> reflectionDispatches = [];
@@ -329,6 +330,15 @@ internal sealed class DiagnosticBattleDriver
     internal bool Finished => Stage is DiagnosticDriverStage.Completed or DiagnosticDriverStage.Blocked;
     internal string CampaignStage => Stage == DiagnosticDriverStage.Blocked ? blockedCampaignStage ?? "initialization" : Stage == DiagnosticDriverStage.Completed ? "teardown" : Execution == 1 ? Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Baseline ? "initialization" : "action_one" : Stage is DiagnosticDriverStage.Readiness ? "cleanup_rearm" : "action_two";
 
+    internal void BindAllocatedFocalActor(string actorId)
+    {
+        if (recipe.EnemyTrigger?.AllocatedFocus is null || Stage != DiagnosticDriverStage.AwaitDispatch || allocatedFocalActor is not null)
+        {
+            throw new InvalidOperationException("An allocated focal actor must bind once at its actual awaited initialization dispatch.");
+        }
+        allocatedFocalActor = actorId;
+    }
+
     internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch) => ObserveDispatch(dispatch, null);
 
     internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof) => ObserveDispatch(dispatch, packetProof, null);
@@ -372,7 +382,13 @@ internal sealed class DiagnosticBattleDriver
             }
             return;
         }
-        string? focalActor = recipe.DoomExpiration ? recipe.Input.TargetId : recipe.EnemyTrigger?.ActorId ?? recipe.Input.ActorId;
+        string? focalActor = recipe switch
+        {
+            { DoomExpiration: true } => recipe.Input.TargetId,
+            { EnemyTrigger.AllocatedFocus: not null } => allocatedFocalActor,
+            { EnemyTrigger: { } reaction } => reaction.ActorId,
+            _ => recipe.Input.ActorId
+        };
         if (dispatch.ActorId != focalActor)
         {
             return;
@@ -439,7 +455,8 @@ internal sealed class DiagnosticBattleDriver
             return;
         }
         if (recipe.EnemyTrigger is { } trigger &&
-            (dispatch.NativeAiCallbackStage != trigger.Callback || !trigger.ScriptSha256.Equals(dispatch.NativeAiScriptSha256, StringComparison.OrdinalIgnoreCase)))
+            (dispatch.NativeAiCallbackStage != (trigger.AllocatedFocus is null ? trigger.Callback : 0) ||
+                !(trigger.AllocatedFocus?.ScriptSha256 ?? trigger.ScriptSha256).Equals(dispatch.NativeAiScriptSha256, StringComparison.OrdinalIgnoreCase)))
         {
             Fail("ENEMY_TRIGGER_CALLBACK_IDENTITY_MISMATCH");
             return;

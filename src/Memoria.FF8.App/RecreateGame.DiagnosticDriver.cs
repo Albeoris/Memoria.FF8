@@ -36,6 +36,7 @@ internal sealed partial class RecreateGame
     private readonly List<BattleDiagnosticEnemySubmission> diagnosticEnemySubmissions = [];
     private readonly List<BattleDiagnosticEnemyTriggerReceipt> diagnosticEnemyTriggers = [];
     private DiagnosticMountedReserveReceipt? diagnosticMountedReserve;
+    private DiagnosticAllocatedEnemyFocusReceipt? diagnosticAllocatedFocus;
     private bool diagnosticFreshEntryInitializationPublished;
 
     private static readonly string[] DiagnosticCampaignStages = ["initialization", "action_one", "cleanup_rearm", "action_two", "teardown"];
@@ -79,6 +80,7 @@ internal sealed partial class RecreateGame
             diagnosticDriverBattle.DiagnosticEventPublished += ObserveDiagnosticShotImpact;
         }
         diagnosticMountedReserve = null;
+        diagnosticAllocatedFocus = null;
         if (world.DiagnosticReceipt.Preparation.Roster?.MountedReserveSceneSlot is not null)
         {
             diagnosticDriverBattle.DiagnosticEventPublished += ObserveDiagnosticMountedReserveActivation;
@@ -494,6 +496,7 @@ internal sealed partial class RecreateGame
                 enemy_submissions = diagnosticEnemySubmissions.ToArray(),
                 enemy_trigger = diagnosticEnemyTriggers.ToArray(),
                 mounted_reserve = diagnosticMountedReserve,
+                allocated_focus = diagnosticAllocatedFocus,
                 gunblade_triggers = diagnosticGunbladeTriggers.ToArray(),
                 repairs = diagnosticRepairs.ToArray(),
                 terminal_holds = diagnosticDriverBattle?.DiagnosticTerminalHoldReceipts.ToArray(),

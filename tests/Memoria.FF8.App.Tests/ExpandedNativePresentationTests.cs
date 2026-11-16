@@ -58,6 +58,12 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(298, world => EnemyScenario(world, 298), expectedContacts: 0);
     }
 
+    [Fact]
+    public void Installed_red_giant_death_drains_its_dissolve_without_publishing_an_impact()
+    {
+        VerifyScenario(316, world => EnemyScenario(world, 316), expectedContacts: 0);
+    }
+
     [Theory]
     [InlineData(71, 1)]
     [InlineData(72, 5)]
@@ -264,16 +270,25 @@ public sealed class ExpandedNativePresentationTests
             226 => (548, 107, 46, 6, 276, 11, 205, [(408, 0), (574, 1), (370, 2), (527, 1), (36, 0)]),
             304 => (133, 75, 79, 3, 159, 13, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
             298 => (194, 52, 102, 0, 119, 14, 200, [(374, 3), (822, 0), (448, 1), (324, 0), (680, 1)]),
+            316 => (441, 124, 130, 3, 203, 15, 200, [(321, 0), (397, 0), (356, 0), (148, 0), (368, 0)]),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
         };
         var (formation, stage, model, abilitySlot, action, sequence, selector, donorSlots) = scenario;
         ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(donor => new BattleEnemyRosterSource(donor.Formation, donor.Slot, world.BattleResources.FormationSourceHash(donor.Formation))).ToImmutableArray();
-        DiagnosticCharacterPreparation character = new(0, 0, [], [0]) { HitPoints = 486, Level = 7, MagicCommand = new(0, 20) };
+        DiagnosticCharacterPreparation character = new(0, 0, effect == 316 ? [new(1, 2)] : [], [0]) { HitPoints = 486, Level = effect == 316 ? null : 7, MagicCommand = new(0, 20) };
         const string caster = "enemy-0";
-        bool death = effect == 298;
-        BattleInput command = death
-            ? new(BattleInputKind.Action, ActorId: "party-10", TargetId: caster, Ability: BattleAbility.Attack, ActionId: 0)
-            : new(BattleInputKind.Action, ActorId: caster, TargetId: selector == 204 ? "party-0" : caster, Ability: BattleAbility.EnemyAbility, ActionId: action);
+        string? deathScript = effect switch
+        {
+            298 => "766F805929FC3E1E689A966A5CE95F46D512DC996D5974B205169054D0CE89A6",
+            316 => "CE81CE501CDF73D852E4BC4105D16D76F1C0E44A2BC3EF0F33AB8323B576FA28",
+            _ => null
+        };
+        BattleInput command = effect switch
+        {
+            298 => new(BattleInputKind.Action, ActorId: "party-10", TargetId: caster, Ability: BattleAbility.Attack, ActionId: 0),
+            316 => new(BattleInputKind.Action, ActorId: "party-0", TargetId: caster, Ability: BattleAbility.Magic, ActionId: 1),
+            _ => new(BattleInputKind.Action, ActorId: caster, TargetId: selector == 204 ? "party-0" : caster, Ability: BattleAbility.EnemyAbility, ActionId: action)
+        };
         return new(formation, 0, 128, 0, 0)
         {
             BattleMusic = 5,
@@ -285,8 +300,8 @@ public sealed class ExpandedNativePresentationTests
             {
                 ExpectedNativeCommand = 8,
                 ExpectedNativeAction = action,
-                EnemyAbility = death ? null : new(model, 0, 0, abilitySlot, 8, action, sequence, selector),
-                EnemyTrigger = death ? new(caster, model, 0, null, 3, "766F805929FC3E1E689A966A5CE95F46D512DC996D5974B205169054D0CE89A6") : null
+                EnemyAbility = deathScript is null ? new(model, 0, 0, abilitySlot, 8, action, sequence, selector) : null,
+                EnemyTrigger = deathScript is null ? null : new(caster, model, 0, null, 3, deathScript)
             }
         };
     }
