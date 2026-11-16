@@ -5,6 +5,7 @@ internal static class NativeScriptedInputTests
 {
     public static void Run()
     {
+        NativeNavigationEntryProofTests.Run();
         CheckSkippableEntryProof();
         CheckTimedPollingLoop();
         CheckEvenTimedEdgePolling();

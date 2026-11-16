@@ -56,6 +56,25 @@ public sealed partial class FieldMachine
 
     private InstructionInspection? inspection;
 
+    private sealed class NavigationInvariantInspection(IReadOnlySet<FieldVariableRead> immutableBytes, IReadOnlySet<FieldNavigationEntryPoint> coveredEntries)
+    {
+        public IReadOnlySet<FieldVariableRead> ImmutableBytes { get; } = immutableBytes;
+        public HashSet<FieldVariableRead> Writes { get; } = [];
+        public int Instructions { get; set; }
+
+        public bool CoversAllocation(int owner, FieldCommand command)
+        {
+            return command switch
+            {
+                FieldActorBind or FieldPartyCharacter => coveredEntries.Contains(new(owner, 2)),
+                FieldActorProperty { Property: FieldActorPropertyKind.PlayerCharacter } control => coveredEntries.Contains(new(control.Value, 2)),
+                FieldLineCommand { Operation: FieldLineOperation.Define or FieldLineOperation.Replace } => Enumerable.Range(2, 5).All(script => coveredEntries.Contains(new(owner, script))),
+                FieldPartyJoin or FieldPartySplit => false,
+                _ => true
+            };
+        }
+    }
+
     private sealed class InspectionHost : IFieldHost
     {
         public FieldHostReply Execute(FieldHostRequest request) => throw new InvalidOperationException("Read-only instruction inspection must suppress host dispatch.");
@@ -110,7 +129,7 @@ public sealed partial class FieldMachine
         return result with { Fingerprint = fingerprint };
     }
 
-    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership)
+    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null)
     {
         byte[] persistent = Variables.CopyPersistent();
         byte[] map = Variables.CopyMap();
@@ -165,6 +184,10 @@ public sealed partial class FieldMachine
                 break;
             }
             visited.Add(location);
+            if (navigationInvariant is not null)
+            {
+                navigationInvariant.Instructions++;
+            }
             try
             {
                 int pc = location.Pc;
@@ -202,6 +225,17 @@ public sealed partial class FieldMachine
                             throw new InvalidDataException("Party request targets an invalid script-party slot.");
                         }
                         reads.Add(new(FieldBank.Persistent1Byte, (ushort)(9 + target), false));
+                        if (navigationInvariant is not null)
+                        {
+                            // A producer can change either script-party storage or model registration.
+                            // Include every recipient rather than assuming the captured allocation persists.
+                            for (int recipient = 0; recipient < entities.Length; recipient++)
+                            {
+                                pending.Enqueue((recipient, program.Entry(recipient, Byte(2) & 31), controls, physicalValid));
+                            }
+                            Enqueue(pc + 3);
+                            continue;
+                        }
                         int character = persistent[256 + 9 + target];
                         target = character == 255 ? -1 : Array.FindIndex(entities, value => value.PartyCharacter == character);
                     }
@@ -235,6 +269,16 @@ public sealed partial class FieldMachine
                     }
                     reads.Add(new(left, word ? Word(2) : Byte(2), word));
                     reads.Add(new(right, word ? Word(4) : Byte(3), word));
+                    FieldVariableRead leftRead = new(left, word ? Word(2) : Byte(2), word);
+                    FieldVariableRead rightRead = new(right, word ? Word(4) : Byte(3), word);
+                    if (navigationInvariant is not null && Variables.SpatialSourceBytes(leftRead).Concat(Variables.SpatialSourceBytes(rightRead)).All(navigationInvariant.ImmutableBytes.Contains))
+                    {
+                        FieldMachine predicate = new(program, new FieldVariables(persistent, map));
+                        predicate.entities[owner].Pc = pc;
+                        FieldConditional condition = predicate.ReadConditional(owner, opcode);
+                        Enqueue(predicate.Compare(condition.Left, condition.Right, condition.Operation) ? condition.MatchedPc : condition.UnmatchedPc);
+                        continue;
+                    }
                     Enqueue(pc + branch + (wide ? 2 : 1));
                     Enqueue(pc + branch + (wide ? unchecked((short)Word(branch)) : Byte(branch)));
                     continue;
@@ -265,10 +309,18 @@ public sealed partial class FieldMachine
                 FieldVariables variables = new(persistent, map);
                 HashSet<FieldVariableRead> instructionReads = [];
                 HashSet<FieldVariableRead> instructionWrites = [];
-                variables.ReadObserved = read => instructionReads.Add(read);
+                variables.ReadObserved = read =>
+                {
+                    instructionReads.Add(read);
+                    if (navigationInvariant is not null && Variables.SpatialSourceBytes(read).Any(source => source.Bank == FieldBank.Persistent1Byte && source.Operand is >= 9 and <= 11 && !navigationInvariant.ImmutableBytes.Contains(source)))
+                    {
+                        throw new NotSupportedException("A producer requires a mutable native script-party query selector.");
+                    }
+                };
                 variables.WriteObserved = write =>
                 {
                     instructionWrites.Add(write);
+                    navigationInvariant?.Writes.UnionWith(Variables.SpatialSourceBytes(write));
                     if (variables.SpatialSourceBytes(write).Any(physicalBytes.Contains))
                     {
                         physicalValid = false;
@@ -281,7 +333,7 @@ public sealed partial class FieldMachine
                 FieldMachine detached = new(program, variables, host: new InspectionHost()) { inspection = new() };
                 for (int index = 0; index < entities.Length; index++)
                 {
-                    detached.entities[index].ModelBound = entities[index].ModelBound;
+                    detached.entities[index].ModelBound = navigationInvariant is not null || entities[index].ModelBound;
                     detached.entities[index].PartyCharacter = entities[index].PartyCharacter;
                 }
                 detached.entities[owner].Pc = pc;
@@ -305,6 +357,10 @@ public sealed partial class FieldMachine
                 }
                 foreach (FieldCommand command in detached.inspection.Commands)
                 {
+                    if (navigationInvariant is not null && !navigationInvariant.CoversAllocation(owner, command))
+                    {
+                        throw new NotSupportedException("A producer can change the external script-trigger allocation.");
+                    }
                     if (exitBoundaries is not null && command is FieldControlCommand control && control.Property is FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled)
                     {
                         byte domain = control.Property == FieldControlKind.PlayerLocked ? (byte)1 : (byte)2;

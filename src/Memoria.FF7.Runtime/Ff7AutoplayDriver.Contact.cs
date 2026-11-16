@@ -42,7 +42,8 @@ public sealed partial class Ff7AutoplayDriver
 
     private Ff7AutoPlayTarget[]? navigationLineTargets;
     private FieldInputState? navigationLineInput;
-    private readonly Dictionary<(int Entity, int Script, FieldInputState Input), bool> navigationLineSkips = [];
+    private readonly Dictionary<(int Entity, int Script, FieldInputState Input, bool Talk), bool> navigationLineSkips = [];
+    private bool navigationLineTalk;
     private bool navigationLineRejected;
     private bool? navigationRunMode;
     private bool? navigationActionProgress;
@@ -91,6 +92,7 @@ public sealed partial class Ff7AutoplayDriver
         int? selectedLine = target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? target.Entity : null;
         Ff7AutoPlayTarget[]? retainedTargets = navigationLineTargets;
         FieldInputState? retainedInput = navigationLineInput;
+        bool retainedTalk = navigationLineTalk;
         IReadOnlySet<int>? retainedGateways = admittedGateways;
         navigationLineTargets = offeredTargets.Where(candidate => candidate.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (candidate.ChangesField || candidate.MayChangeNavigation) && candidate.Entity != selectedLine && !(target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField == candidate.DestinationField)).ToArray();
         navigationLineSkips.Clear();
@@ -113,6 +115,7 @@ public sealed partial class Ff7AutoplayDriver
                     navigationRunMode = run;
                 }
                 navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);
+                navigationLineTalk = false;
                 navigationLineRejected = false;
                 navigationActionProgress = null;
                 navigationEscapeAction = false;
@@ -175,6 +178,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             navigationLineTargets = retainedTargets;
             navigationLineInput = retainedInput;
+            navigationLineTalk = retainedTalk;
             admittedGateways = retainedGateways;
         }
     }
@@ -207,10 +211,15 @@ public sealed partial class Ff7AutoplayDriver
     private bool CanSkipNavigationLine(Ff7AutoPlayTarget target)
     {
         FieldInputState input = navigationLineInput ?? throw new InvalidOperationException("Native navigation line input was not scoped.");
-        var key = (target.Entity, target.Script, input);
+        var key = (target.Entity, target.Script, input, navigationLineTalk);
         if (!navigationLineSkips.TryGetValue(key, out bool skip))
         {
             skip = session.Machine.CanSkipScriptEntryForInput(target.Entity, target.Script, input);
+            if (!skip && !navigationLineTalk)
+            {
+                FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(target.Entity, target.Script, input);
+                skip = proof.Complete && proof.HasNoEffect;
+            }
             navigationLineSkips.Add(key, skip);
         }
         return skip;
@@ -233,11 +242,13 @@ public sealed partial class Ff7AutoplayDriver
     private bool AllowsBoundaryInput(Ff7AutoplayInput input)
     {
         FieldInputState? retainedInput = navigationLineInput;
+        bool retainedTalk = navigationLineTalk;
         try
         {
             if (navigationLineTargets is not null)
             {
                 navigationLineInput = ProjectNavigationInput(input, session.Machine.Input);
+                navigationLineTalk = input.Talk;
                 foreach (Ff7AutoPlayTarget target in navigationLineTargets)
                 {
                     Ff7Line line = session.Host.Process.Lines.Last(line => line.Entity == target.Entity);
@@ -261,6 +272,7 @@ public sealed partial class Ff7AutoplayDriver
         finally
         {
             navigationLineInput = retainedInput;
+            navigationLineTalk = retainedTalk;
         }
     }
 

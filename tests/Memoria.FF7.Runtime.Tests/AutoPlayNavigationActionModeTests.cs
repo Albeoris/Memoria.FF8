@@ -48,6 +48,7 @@ internal static class AutoPlayNavigationActionModeTests
         CheckSelectedPushAdmission();
         Check(before == JsonSerializer.Serialize(machine.Capture()), "Mode and skip planning must preserve authoritative VM, input and variables.");
         OriginalPlannedWalk();
+        OriginalReadOnlyNavigationEntry();
     }
 
     private static void CheckProgressRankedModes()
@@ -148,6 +149,38 @@ internal static class AutoPlayNavigationActionModeTests
         Check(guardedLines.All(candidate => session.Machine.CanSkipScriptEntryForInput(candidate.Entity, candidate.Script, walking)) && guardedLines.Any(candidate => !session.Machine.CanSkipScriptEntryForInput(candidate.Entity, candidate.Script, running)), "The original walk must prove native RET while the equivalent run still reaches its native effect boundary.");
         Check(native == JsonSerializer.Serialize(session.Capture()) && bytes.SequenceEqual(File.ReadAllBytes(path)), "Original action-mode planning changed native pose, VM, RNG or fixture bytes.");
         Console.WriteLine($"PASS original gateway {target.Id}, blocked run then admitted walk {planned.Horizontal},{planned.Vertical}; exact native skip proof and unchanged source.");
+    }
+
+    private static void OriginalReadOnlyNavigationEntry()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_READONLY_NAVIGATION_SAVE");
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP original read-only navigation entry: configure original resources and MEMORIA_FF7_READONLY_NAVIGATION_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream source = new(bytes, false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(source).Ff7 ?? throw new InvalidDataException("The configured fixture has no native session.");
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
+        Check(saved.FieldName == "cos_btm", "The configured fixture must contain the original no-effect line boundary.");
+        string before = JsonSerializer.Serialize(session.Capture());
+        FieldInputState input = Ff7AutoplayDriver.ProjectNavigationInput(new(Horizontal: 1), session.Machine.Input);
+        Check(!session.Machine.CanSkipScriptEntryForInput(16, 5, input), "The original input-only proof must remain conservative about variable predicates.");
+        System.Diagnostics.Stopwatch proofTime = System.Diagnostics.Stopwatch.StartNew();
+        FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(16, 5, input);
+        proofTime.Stop();
+        Check(proof.Complete && proof.HasNoEffect, $"The original conditional return requires a stable producer proof: {proof.Reason}");
+        Check(proof.Reads.Length > 0, "The original predicate proof must retain its typed read dependencies.");
+        Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
+        Ff7AutoPlayTarget gateway = observation.Events.Single(target => target.Id == "gateway:5");
+        Ff7AutoplayDriver driver = new(session);
+        driver.ConfigureSpatialBoundaries(observation.Events, gateway);
+        Ff7AutoplayInput action = driver.ChooseTargetInput(gateway, observation.Events, run => driver.GatewayAt(gateway.GatewayIndex!.Value, run));
+        Check(action.Horizontal != 0 || action.Vertical != 0, "The proved no-effect owner must admit the native gateway approach without clearing its line or skipping its script.");
+        Check(JsonSerializer.Serialize(session.Capture()) == before && File.ReadAllBytes(path).SequenceEqual(bytes), "Read-only native entry and route planning must preserve the fixture, VM, RNG and progress.");
+        Console.WriteLine($"PASS original conditional-return producer proof ({proofTime.ElapsedMilliseconds}ms) and admitted gateway approach; native source unchanged.");
     }
 
     private static void Check(bool condition, string message)
