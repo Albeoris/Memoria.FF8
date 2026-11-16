@@ -212,6 +212,12 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!result.HasInput)
         {
+            if (driver.PlanningPending)
+            {
+                State.Status = $"World {world.Resources.World}: {selected.EventId}, bounded planning";
+                Publish();
+                return default;
+            }
             throw new NotSupportedException(result.Reason ?? "The bounded native world search did not establish an advancing physical input.");
         }
         State.Status = $"World {world.Resources.World}: {selected.EventId}, {result.Status}";

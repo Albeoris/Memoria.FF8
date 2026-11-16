@@ -174,6 +174,34 @@ internal static class AutoPlayWorldNavigationTests
         byte[] bytes = File.ReadAllBytes(path);
         using MemoryStream stream = new(bytes, writable: false);
         Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7!;
+        using (Ff7Session policySession = Ff7Session.Restore(Ff7Installation.Discover(root), saved))
+        using (Ff7AutoPlayPolicy policy = new(policySession, (_, _) => throw new InvalidOperationException("The planning regression unexpectedly requested a choice checkpoint.")))
+        {
+            policy.State.FrontierProgressKey = null;
+            policy.State.FrontierIdleSteps = 0;
+            bool pending = false;
+            Ff7AutoPlayController livePolicy = new(policySession, pendingDriver =>
+            {
+                Ff7AutoplayInput input = policy.ChooseInput(pendingDriver);
+                pending = pendingDriver.PlanningPending;
+                return input;
+            });
+            livePolicy.Start();
+            for (int callback = 0; callback < 64 && !pending; callback++)
+            {
+                Ff7SessionSave nativeBefore = policySession.Capture();
+                long stepsBefore = livePolicy.Steps;
+                livePolicy.Advance(1);
+                if (pending)
+                {
+                    Ff7SessionSave nativeAfter = policySession.Capture();
+                    Check(livePolicy.Running && livePolicy.Error is null && livePolicy.Steps == stepsBefore, "The actual policy rejected or executed a pending planning slice.");
+                    Check(JsonSerializer.Serialize(nativeBefore.World) == JsonSerializer.Serialize(nativeAfter.World) && JsonSerializer.Serialize(nativeBefore.Progress) == JsonSerializer.Serialize(nativeAfter.Progress) && JsonSerializer.Serialize(nativeBefore.Vm) == JsonSerializer.Serialize(nativeAfter.Vm), "Policy planning advanced native World execution, progress or script state.");
+                }
+            }
+            Check(pending, "The original policy fixture did not exercise pending physical planning.");
+            livePolicy.SaveAndStop();
+        }
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
         Ff7WorldRuntime world = session.World!;
         string[] id = saved.AutoPlay!.Active!.EventId.Split(':');
