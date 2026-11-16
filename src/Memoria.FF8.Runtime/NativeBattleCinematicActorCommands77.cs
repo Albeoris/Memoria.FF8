@@ -7,16 +7,23 @@ public sealed record NativeBattleCinematicActorCommandServices(Func<NativeBattle
 
 public static class NativeBattleCinematicActorCommands77
 {
-    public static NativeBattleWaterExecutionFrame BranchBE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<BattleModelOwner, byte> readModelFlags)
+    public static NativeBattleWaterExecutionFrame BranchBE(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, Func<BattleModelOwner, byte> readModelFlags, Func<NativeBattleModelSlot, byte>? readOriginalFlags = null)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         if ((instruction & 0x1FF) != 0xBE)
         {
             throw new InvalidDataException("Native cinematic actor branch requires instructionBE.");
         }
-        bool loaded = (instruction & 0xF000) == 0 && (readModelFlags(SelectedActor(frame)) & 2) != 0;
+        bool loaded = (instruction & 0xF000) == 0 && (ReadFlags() & 2) != 0;
         uint delta = loaded ? 4u : unchecked((uint)(int)BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2)));
         return NativeBattleScriptedCommandReads.Advance(frame, delta);
+
+        byte ReadFlags()
+        {
+            return NativeBattleCinematicActorAccess.ResolveSlotOriginalCell(frame) is { } slot
+                ? (readOriginalFlags ?? throw new NotSupportedException("Native cinematic actor branch requires its current original model cell."))(slot)
+                : readModelFlags(SelectedActor(frame));
+        }
     }
 
     public static NativeBattleWaterExecutionFrame ExecuteC1(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicActorCommandServices services)

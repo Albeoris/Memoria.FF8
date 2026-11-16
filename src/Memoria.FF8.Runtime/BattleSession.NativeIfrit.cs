@@ -291,7 +291,7 @@ public sealed partial class BattleSession
                 case 0xB9 when selectedHandler == 0xB2CA80:
                     return NativeBattleCinematicNegateB9.Execute(current, program, bank, index, UpdateSlot);
                 case 0xBE when selectedHandler == 0xB3A9B0:
-                    return NativeBattleCinematicActorCommands77.BranchBE(current, program, actor => unchecked((byte)graphics.ActorModels.Get(actor).Flags0));
+                    return NativeBattleCinematicActorCommands77.BranchBE(current, program, actor => unchecked((byte)graphics.ActorModels.Get(actor).Flags0), slot => unchecked((byte)graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels).Flags0));
                 case 0xC1 when selectedHandler == 0xB3AA00:
                     return NativeBattleCinematicActorCommands77.ExecuteC1(current, new(frame =>
                     {

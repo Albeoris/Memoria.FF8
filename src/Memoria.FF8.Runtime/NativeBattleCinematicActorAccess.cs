@@ -26,9 +26,18 @@ public static class NativeBattleCinematicActorAccess
         return frame with { Arena = frame.Arena.WriteExecutionReference(SlotOffset(frame, 0x1B, 1), 1, new BattleExecutionReference.CinematicOriginalCell(slot), [slot.Offset]) };
     }
 
-    internal static NativeBattleModelSlot? ReadSlotOriginalCell(NativeBattleWaterExecutionFrame frame)
+    internal static NativeBattleModelSlot? ResolveSlotOriginalCell(NativeBattleWaterExecutionFrame frame, uint? headerAddress = null)
     {
-        return frame.Arena.TryReadExecutionReference<BattleExecutionReference.CinematicOriginalCell>(SlotOffset(frame, 0x1B, 1), 1, out var selected) ? selected.Slot : null;
+        if (!frame.Arena.TryReadExecutionReference<BattleExecutionReference.CinematicOriginalCell>(SlotOffset(frame, 0x1B, 1), 1, out var selected))
+        {
+            return null;
+        }
+        uint header = headerAddress ?? CoreDword(frame, HeaderPointer);
+        if (CoreDword(frame, header + 0x60 + 4u * selected.Slot.Offset) != NativeBattleGraphicsModelAddress.EncodeOriginalCell(selected.Slot))
+        {
+            throw new InvalidDataException("Native cinematic actor selection disagrees with its captured model cell pointer.");
+        }
+        return selected.Slot;
     }
 
     internal static NativeBattleEffectArena WriteActorOperand(NativeBattleEffectArena arena, int offset, BattleModelOwner actor, ImmutableArray<byte>? encoded)

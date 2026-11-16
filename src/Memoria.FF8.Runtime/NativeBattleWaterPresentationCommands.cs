@@ -66,13 +66,8 @@ public static class NativeBattleWaterPresentationCommands
                 {
                     throw new NotSupportedException("Native selected actor flags require modes zero, one or eight.");
                 }
-                if (NativeBattleCinematicActorAccess.ReadSlotOriginalCell(frame) is { } cell)
+                if (NativeBattleCinematicActorAccess.ResolveSlotOriginalCell(frame, flagHeader) is { } cell)
                 {
-                    uint address = CoreDword(frame, flagHeader + 0x60 + 4u * cell.Offset);
-                    if (address != NativeBattleGraphicsModelAddress.EncodeOriginalCell(cell))
-                    {
-                        throw new InvalidDataException("Native cinematic flags require their captured original model cell pointer.");
-                    }
                     ushort savedFlags = CoreWord(frame, flagHeader + 0x4E + 2u * cell.Offset);
                     if (mode != 1 || (mask & savedFlags) == 0)
                     {

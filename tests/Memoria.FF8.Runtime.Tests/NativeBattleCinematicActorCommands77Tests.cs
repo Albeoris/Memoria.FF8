@@ -41,6 +41,25 @@ public sealed class NativeBattleCinematicActorCommands77Tests
     }
 
     [Theory]
+    [InlineData(0, 12)]
+    [InlineData(2, 4)]
+    public void Actor_branch_reads_the_current_flags_of_an_unbound_original_cell(byte flags, uint advance)
+    {
+        const uint basis = NativeBattleEffectNodeMemory.ArenaAddress;
+        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(1);
+        NativeBattleWaterExecutionFrame frame = Frame(0xBE);
+        frame = NativeBattleCinematicActorAccess.WriteSlotOriginalCell(frame, slot);
+        frame = WaterSchedulerFixture.CoreDword(frame, NativeBattleScriptedEffectMemory.Address + 0x64, NativeBattleGraphicsModelAddress.EncodeOriginalCell(slot));
+        frame = frame with { Arena = frame.Arena.Write(0x1002, [12, 0]) };
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorCommands77.BranchBE(frame, new(0x1000, 4, basis + 0x1000), _ => throw new InvalidOperationException(), selected =>
+        {
+            Assert.Equal(slot, selected);
+            return flags;
+        });
+        Assert.Equal(basis + 0x1000u + advance, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -73,10 +92,11 @@ public sealed class NativeBattleCinematicActorCommands77Tests
 
     private static NativeBattleWaterExecutionFrame Frame(ushort instruction)
     {
-        const uint directory = NativeBattleScriptedEffectMemory.Address;
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, NativeBattleEffectNodeMemory.ArenaAddress + 0x1000);
-        frame = WaterSchedulerFixture.CoreDword(frame, directory + 0x60 + 4 * 250, 0x1D97494);
-        return frame with { Arena = frame.Arena.Write(0x201B, new byte[] { 250 }) };
+        BattleModelOwner actor = OriginalOwner(3);
+        BattleActorModels models = new([new BattleModelEntry<BattleModelOwner>(actor, new(2))]);
+        frame = frame with { Core = frame.Core with { PresentationActors = NativeBattleCinematicActorContext.FromGraphics(models) } };
+        return NativeBattleCinematicActorAccess.WriteSlotActor(frame, actor, OriginalAliases);
     }
 }
