@@ -44,6 +44,8 @@ public sealed partial class Ff7AutoplayDriver
     private readonly Dictionary<(int Entity, int Script, FieldInputState Input), bool> navigationLineSkips = [];
     private bool navigationLineRejected;
     private bool? navigationRunMode;
+    private bool? navigationActionProgress;
+    internal bool? PlannedActionAdvances => navigationActionProgress;
 
     internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose)
     {
@@ -55,6 +57,7 @@ public sealed partial class Ff7AutoplayDriver
         navigationLineSkips.Clear();
         admittedGateways = ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways);
         Ff7AutoplayInput? idle = null;
+        Ff7AutoplayInput? detour = null;
         Ff7AutoPlayNavigationUnavailableException? failure = null;
         bool rejected = false;
         try
@@ -71,6 +74,7 @@ public sealed partial class Ff7AutoplayDriver
                 }
                 navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);
                 navigationLineRejected = false;
+                navigationActionProgress = null;
                 try
                 {
                     Ff7AutoplayInput action = choose(run);
@@ -86,6 +90,15 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     if (action.Horizontal != 0 || action.Vertical != 0 || action.Held != 0 || action.Talk)
                     {
+                        if (detour is Ff7AutoplayInput retained)
+                        {
+                            return PreferAdvancingNavigationInput(retained, action, navigationActionProgress == true);
+                        }
+                        if (ShouldTryWalkingAction(action, navigationLineRejected, navigationActionProgress))
+                        {
+                            detour = action;
+                            continue;
+                        }
                         return action;
                     }
                     idle ??= action;
@@ -100,6 +113,10 @@ public sealed partial class Ff7AutoplayDriver
                     rejected = true;
                 }
             }
+            if (detour is Ff7AutoplayInput retainedDetour)
+            {
+                return retainedDetour;
+            }
             if (idle is Ff7AutoplayInput waiting && !rejected)
             {
                 return waiting;
@@ -112,6 +129,16 @@ public sealed partial class Ff7AutoplayDriver
             navigationLineInput = retainedInput;
             admittedGateways = retainedGateways;
         }
+    }
+
+    internal static bool ShouldTryWalkingAction(Ff7AutoplayInput action, bool lineRejected, bool? advances)
+    {
+        return lineRejected && advances == false && action.Held == 0 && !action.Talk;
+    }
+
+    internal static Ff7AutoplayInput PreferAdvancingNavigationInput(Ff7AutoplayInput fallback, Ff7AutoplayInput candidate, bool advances)
+    {
+        return advances || candidate.Held != 0 || candidate.Talk ? candidate : fallback;
     }
 
     internal static FieldInputState ProjectNavigationInput(Ff7AutoplayInput action, FieldInputState previous)

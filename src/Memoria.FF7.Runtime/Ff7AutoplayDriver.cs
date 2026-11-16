@@ -282,6 +282,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         float best = float.PositiveInfinity;
         int bestRouteDistance = int.MaxValue;
         Ff7AutoplayInput result = default;
+        bool resultAdvances = false;
         List<(Ff7AutoplayInput Input, int[] Entities)> blockedInputs = [];
         bool advancing = false;
         bool LocalProgress(Ff7Actor actor)
@@ -313,6 +314,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 best = distance;
                 bestRouteDistance = remaining;
                 result = new(direction.X, direction.Y);
+                resultAdvances = LocalProgress(probe.Actor);
             }
         }
         bool blockedForward = blockedInputs.Count > 0 && !advancing;
@@ -330,7 +332,13 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 }
             }
         }
-        return TryObstacleEscape(controlled, target, waypoint, destination, next, routeDistance, blockedForward, blockers.ToArray(), movement, out Ff7AutoplayInput escape) ? escape with { Run = run } : result with { Run = run };
+        if (TryObstacleEscape(controlled, target, waypoint, destination, next, routeDistance, blockedForward, blockers.ToArray(), movement, out Ff7AutoplayInput escape))
+        {
+            navigationActionProgress = true;
+            return escape with { Run = run };
+        }
+        navigationActionProgress = resultAdvances;
+        return result with { Run = run };
     }
 
     internal static (int[] Previous, int[] Distance) ReadApproachRoutes(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, int source, int destination, IReadOnlySet<int>? spatialBoundaries = null, int? admittedSpatialTriangle = null)
