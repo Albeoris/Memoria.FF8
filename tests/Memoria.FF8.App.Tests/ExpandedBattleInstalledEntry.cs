@@ -23,12 +23,17 @@ internal static class ExpandedBattleInstalledEntry
     {
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        WaitForEntry(world, battle);
+        return battle;
+    }
+
+    public static void WaitForEntry(GameWorld world, BattleSession battle)
+    {
         ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.True(process.EntryReady);
-        return battle;
     }
 }

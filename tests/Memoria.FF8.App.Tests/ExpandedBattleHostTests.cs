@@ -215,6 +215,7 @@ public sealed class ExpandedBattleHostTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.UsesExpandedRoster);
+        ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
         Assert.Equal(guardianFormsEnabled, battle.ReadDefinition().GuardianFormsEnabled);
         BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         int enemyCount = enemies.Length;

@@ -107,7 +107,7 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
     [Theory]
     [InlineData(120, 100, 87, false, 5)]
     [InlineData(511, 122, 121, true, 5)]
-    public void Installed_original_phase_entry_serializes_and_continues_its_first_native_callback_without_owner_fabrication(int encounter, int model, int predecessor, bool allocation, int physical)
+    public void Installed_original_phase_entry_restores_and_continues_its_first_native_callback_without_owner_fabrication(int encounter, int model, int predecessor, bool allocation, int physical)
     {
         string directory = InstalledGame();
         GameSession session = GameWorld.CreateColdProcess(directory);
@@ -125,7 +125,7 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
         BattleSession original = world.StartDiagnosticBattle(request);
         try
         {
-            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(original.Capture()))!;
+            BattleSnapshot snapshot = NativeBattleStorageSnapshots.Capture(original.Capture());
             BattleSession clone = BattleSession.Restore(snapshot);
             clone.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             clone.ConfigureDiagnosticScheduling(true, request.InstantGuardianForceCharge, request.Prelude!.Input.ActorId);

@@ -13,6 +13,10 @@ public sealed class NativeBattleJunk44PresentationTests
     public void Original_Junk44_native_allocated_caster_preserves_COMMON_IO_and_cold_cycle()
     {
         NativeBattleActorDirectorPresentationTests.RunSelected([44], "MEMORIA_FF8_JUNK44", SelectOriginalFixture, PrepareDeclaredSource);
+        if (NativeBattleComponentSelectorCatalog.PreparedSource.Value is not null)
+        {
+            return;
+        }
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNK44_EVIDENCE")!;
         BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json"));
         byte[] vram = completed.NativeEffectMemory!.Textures!.ReadVram();

@@ -32,7 +32,7 @@ public sealed class ExpandedBattleContactOrderTests
         BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], ActionDefinitions = [action], NativeActions = [native], Items = [new(actionId, 2)] }, BattleAtbMode.Normal);
         Assert.True(battle.SupportsExpandedAction(action));
         battle.QueueAction(allies[^1].Id, enemies[^1].Id, ability, actionId);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
         for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
         {
             battle.Tick();
