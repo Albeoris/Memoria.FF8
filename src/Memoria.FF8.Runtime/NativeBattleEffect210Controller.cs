@@ -25,9 +25,13 @@ public static partial class NativeBattleEffect210Controller
         return inputs.Execute(frame, new NativeBattleEffect210RegisterCamera5099A0(CameraAddress));
     }
 
-    private static NativeBattleEffectTaskPool InitializePayload(NativeBattleCureFamilyPool shape, NativeBattleEffectArena bank)
+    private static NativeBattleEffectTaskPool InitializePayload(NativeBattleCureFamilyPool shape, NativeBattleEffectArena bank, NativeBattleEffectArena? storage = null)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity);
+        if (storage is not null)
+        {
+            pool.BindStorage(storage, shape.Bank);
+        }
         for (int slot = 0; slot < shape.Capacity; slot++)
         {
             int offset = slot * shape.Stride + 12;

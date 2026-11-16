@@ -30,15 +30,16 @@ public static partial class NativeBattleEffect210Controller
         NativeBattleEffectArena retained = CopyBytes(NativeBattleEffectTaskMemory.CaptureBank(pool), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, bytes), 0, original.Stride * original.Capacity);
         (NativeBattleEffectMemory memory, uint bank) = NativeBattlePresentationTaskStorage.Reserve(frame.Memory, frame.Effect, inputs.ReadPackets(frame).Roster, original.Stride, count);
         frame = DetachCommonPool(frame with { Memory = memory }, ActDescriptor, false);
-        NativeBattleEffectTaskPool hosted = InitializePayload(original with { Bank = bank, Capacity = checked((ushort)count) }, retained);
-        return frame with { State = frame.State.DetachCommonQueue(ActDescriptor) with { TargetRecords = records with { FinalPoolAdmitted = true } }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(hosted) } };
+        NativeBattleEffectArena storage = NativeBattleEffectArena.BorrowWorking(new NativeBattleWorkingMemory(bytes), 0, bytes);
+        NativeBattleEffectTaskPool hosted = InitializePayload(original with { Bank = bank, Capacity = checked((ushort)count) }, retained, storage);
+        return frame with { State = frame.State.DetachCommonQueue(ActDescriptor) with { TargetRecords = records with { FinalPoolAdmitted = true, FinalArena = storage } }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(hosted) } };
     }
 
     private static NativeBattleEffect210Frame DetachHostedFinalPool(NativeBattleEffect210Frame frame, NativeBattleEffectTaskPool pool)
     {
         NativeBattleCureFamilyPool original = CommonPools.Single(shape => shape.Descriptor == ActDescriptor);
         NativeBattleEffect210TargetRecords records = frame.State.TargetRecords ?? throw new InvalidDataException("Effect210 hosted final tasks lost their captured owner.");
-        if (!records.FinalPoolAdmitted || pool.DescriptorAddress != ActDescriptor || pool.Stride != original.Stride || pool.Slots.Length != records.Count || !NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, pool.Stride, pool.Slots.Length) || pool.Head is not null || pool.Tail is not null || pool.Slots.Any(task => (task.Flags & 1) != 0))
+        if (!records.FinalPoolAdmitted || records.FinalArena is null || !pool.IsBoundToStorage(records.FinalArena, pool.BankAddress) || pool.DescriptorAddress != ActDescriptor || pool.Stride != original.Stride || pool.Slots.Length != records.Count || !NativeBattlePresentationTaskStorage.IsHostedBank(pool.BankAddress, pool.Stride, pool.Slots.Length) || pool.Head is not null || pool.Tail is not null || pool.Slots.Any(task => (task.Flags & 1) != 0))
         {
             throw new InvalidDataException("Effect210 hosted final task detachment requires its fully drained admitted bank.");
         }

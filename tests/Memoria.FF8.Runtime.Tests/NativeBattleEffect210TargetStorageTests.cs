@@ -119,7 +119,11 @@ public sealed class NativeBattleEffect210TargetStorageTests
         (changedPackets, _) = changedPackets.Prepare(new(OriginalOwner(3), 8, 54, -1, 315, 210, null));
         (changedPackets, _) = changedPackets.Publish(0);
         NativeBattleEffect210Inputs currentHeader = fixture.Inputs with { ReadPackets = _ => changedPackets };
-        frame = AdvanceMain6F7310(frame, Main, resources, currentHeader).Frame;
+        using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
+        {
+            frame = AdvanceMain6F7310(frame, Main, resources, currentHeader).Frame;
+            operation.Commit();
+        }
         NativeBattleEffectTaskPool final = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ActDescriptor);
         Assert.Equal(count, final.Slots.Length);
         Assert.Equal(count, final.Slots.Count(task => (task.Flags & 1) != 0));
@@ -135,9 +139,23 @@ public sealed class NativeBattleEffect210TargetStorageTests
             Assert.Throws<InvalidDataException>(() => DetachCommonPool(frame, ActDescriptor, false));
         }
         frame = NativeBattleStorageSnapshots.Fork(frame);
-        (frame, int survivors) = AdvancePool(frame, ActDescriptor, resources, fixture.Inputs);
-        Assert.Equal(0, survivors);
-        frame = DetachCommonPool(frame, ActDescriptor, false);
+        final = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ActDescriptor);
+        using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
+        {
+            (NativeBattleEffect210Frame tentative, int survivors) = AdvancePool(frame, ActDescriptor, resources, fixture.Inputs);
+            Assert.Equal(0, survivors);
+            _ = DetachCommonPool(tentative, ActDescriptor, false);
+            Assert.Throws<InvalidOperationException>(() => final.Validate());
+        }
+        Assert.Equal(count, final.Slots.Count(task => (task.Flags & 1) != 0));
+        using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
+        {
+            (frame, int survivors) = AdvancePool(frame, ActDescriptor, resources, fixture.Inputs);
+            Assert.Equal(0, survivors);
+            frame = DetachCommonPool(frame, ActDescriptor, false);
+            operation.Commit();
+        }
+        Assert.Throws<InvalidOperationException>(() => final.Validate());
         Assert.DoesNotContain(frame.Effect.Pools, pool => pool.DescriptorAddress == ActDescriptor);
         for (int index = 0; index < 3; index++)
         {

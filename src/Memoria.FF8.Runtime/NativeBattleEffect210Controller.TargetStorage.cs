@@ -6,6 +6,7 @@ internal sealed record NativeBattleEffect210TargetRecords(uint MainAddress, uint
     internal const ushort Stride = 24;
     internal int Length => checked((Count - OriginalCount) * Stride);
     internal bool FinalPoolAdmitted { get; init; }
+    internal NativeBattleEffectArena? FinalArena { get; init; }
 
     internal void Validate()
     {
@@ -16,6 +17,16 @@ internal sealed record NativeBattleEffect210TargetRecords(uint MainAddress, uint
         Rows.Validate();
         Rows.RequireRange(0, Length);
         Rows.ValidateExtent(Length);
+        if (FinalPoolAdmitted != (FinalArena is not null))
+        {
+            throw new InvalidDataException("Effect210 final tasks require their admitted physical storage owner.");
+        }
+        if (FinalArena is { } final)
+        {
+            int finalLength = checked(Count * 0x714);
+            final.RequireRange(0, finalLength);
+            final.ValidateExtent(finalLength);
+        }
     }
 
     internal bool Contains(uint address, int length)
