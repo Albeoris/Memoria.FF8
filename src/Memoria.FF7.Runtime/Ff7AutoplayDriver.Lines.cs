@@ -142,6 +142,38 @@ public sealed partial class Ff7AutoplayDriver
         return new(direction.X, direction.Y, Held: talk ? (ushort)0x20 : (ushort)0, Talk: talk, Run: run);
     }
 
+    private HashSet<(int From, int To)> ReadNavigationOwnedPortals(IReadOnlyList<PcWalkmeshTriangle> mesh)
+    {
+        HashSet<int> owners = navigationLineTargets?.Where(target => !CanSkipNavigationLine(target)).Select(target => target.Entity).ToHashSet() ?? [];
+        return ReadOwnedLinePortals(mesh, session.Host.Process.Lines.Where(line => line.Enabled == 1 && (owners.Contains(line.Entity) || avoidedLineGeneration == session.FieldGeneration && avoidedLineEntities.Contains(line.Entity))).ToArray());
+    }
+
+    internal static HashSet<(int From, int To)> ReadOwnedLinePortals(IReadOnlyList<PcWalkmeshTriangle> mesh, IReadOnlyList<Ff7Line> lines)
+    {
+        HashSet<(int From, int To)> owned = [];
+        foreach (PcWalkmeshTriangle triangle in mesh)
+        {
+            foreach (var edge in new[] { (triangle.A, triangle.B, triangle.AdjacentAB), (triangle.B, triangle.C, triangle.AdjacentBC), (triangle.C, triangle.A, triangle.AdjacentCA) })
+            {
+                if (edge.Item3 < 0 || edge.Item3 <= triangle.Index)
+                {
+                    continue;
+                }
+                foreach (Ff7Line line in lines)
+                {
+                    Vector3 a = new(line.X1, line.Y1, line.Z1);
+                    Vector3 b = new(line.X2, line.Y2, line.Z2);
+                    if (edge.Item1 == a && edge.Item2 == b || edge.Item1 == b && edge.Item2 == a)
+                    {
+                        owned.Add((triangle.Index, edge.Item3));
+                        owned.Add((edge.Item3, triangle.Index));
+                    }
+                }
+            }
+        }
+        return owned;
+    }
+
     private bool AllowsPlannedMove(Ff7Actor from, Ff7NativeMoveResult move)
     {
         if (spatialBoundaryGeneration == session.FieldGeneration && !AllowsSpatialMove(from, move.Actor, spatialBoundaryTriangles, admittedSpatialTriangle))

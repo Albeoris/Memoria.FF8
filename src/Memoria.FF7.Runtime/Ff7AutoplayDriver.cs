@@ -254,7 +254,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             finalTarget = target;
         }
         finalApproach |= player.Triangle == destination;
-        var (previous, routeDistance) = ReadApproachRoutes(mesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle);
+        var (previous, routeDistance) = ReadApproachRoutes(mesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle, ReadNavigationOwnedPortals(mesh));
         int next = previous[player.Triangle];
         if (next < 0 && !finalApproach)
         {
@@ -342,7 +342,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         return result with { Run = run };
     }
 
-    internal static (int[] Previous, int[] Distance) ReadApproachRoutes(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, int source, int destination, IReadOnlySet<int>? spatialBoundaries = null, int? admittedSpatialTriangle = null)
+    internal static (int[] Previous, int[] Distance) ReadApproachRoutes(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, int source, int destination, IReadOnlySet<int>? spatialBoundaries = null, int? admittedSpatialTriangle = null, IReadOnlySet<(int From, int To)>? ownedPortals = null)
     {
         int[] previous = Enumerable.Repeat(-1, mesh.Count).ToArray();
         int[] distance = Enumerable.Repeat(int.MaxValue, mesh.Count).ToArray();
@@ -366,7 +366,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             PcWalkmeshTriangle triangle = mesh[current];
             foreach (int adjacent in new int[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
             {
-                if (adjacent < 0 || previous[adjacent] >= 0 || adjacent != source && IsRestricted(adjacent))
+                if (adjacent < 0 || previous[adjacent] >= 0 || adjacent != source && IsRestricted(adjacent) || ownedPortals?.Contains((adjacent, current)) == true)
                 {
                     continue;
                 }

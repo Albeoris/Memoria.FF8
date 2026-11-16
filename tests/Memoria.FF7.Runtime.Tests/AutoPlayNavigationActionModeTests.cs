@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Numerics;
 using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
@@ -43,6 +44,7 @@ internal static class AutoPlayNavigationActionModeTests
         FieldInputState readyNative = Ff7AutoplayDriver.ProjectNavigationInput(ready, new());
         Check(ready.Horizontal == 1 && ready.Vertical == -1 && ready.Run && readyNative.Held == 0x40 && !machine.CanSkipScriptEntryForInput(0, 4, readyNative), "A selected ready run-button gate must retain its transient movement admission with a coherent actual run mode rather than letting walking clear its required bit.");
         CheckProgressRankedModes();
+        CheckOwnedPortals();
         CheckSelectedPushAdmission();
         Check(before == JsonSerializer.Serialize(machine.Capture()), "Mode and skip planning must preserve authoritative VM, input and variables.");
         OriginalPlannedWalk();
@@ -65,6 +67,19 @@ internal static class AutoPlayNavigationActionModeTests
         bool boundedEscapeAdvances = Ff7AutoplayDriver.HasPhysicalRouteProgress(source, source with { X4096 = 8 * 4096 }, waypoint, _ => 0);
         Check(boundedEscapeAdvances && !Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, escapePlanned: true), "A proved bounded escape must retain its plan even when its first physical prefix retreats.");
         Check(Ff7AutoplayDriver.PreferAdvancingNavigationInput(run, walk with { Held = 0x40 }, false).Held == 0x40, "The selected owner's explicit entry input must retain admission priority over geometric detour ranking.");
+    }
+
+    private static void CheckOwnedPortals()
+    {
+        PcWalkmeshTriangle[] mesh = [new(0, new(0, 0, 0), new(10, 0, 0), new(0, 10, 0), -1, 1, -1), new(1, new(10, 0, 0), new(10, 10, 0), new(0, 10, 0), -1, -1, 0)];
+        Ff7Line owner = new(0, 2, 0, 10, 0, 10, 0, 0);
+        var owned = Ff7AutoplayDriver.ReadOwnedLinePortals(mesh, [owner]);
+        Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, [0], 0, 1).Distance[0] == 1 && Ff7AutoplayDriver.ReadApproachRoutes(mesh, [0], 0, 1, ownedPortals: owned).Previous[0] == -1, "An unselected native owner covering the shared portal must prevent an ordinary route through that boundary.");
+        Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, [0], 1, 0, ownedPortals: owned).Previous[1] == -1, "A fully owned portal must remain protected in both traversal directions.");
+        Check(Ff7AutoplayDriver.ReadOwnedLinePortals(mesh, [owner with { Z1 = 100, Z2 = 100 }]).Count == 0, "A line on another native floor must not own the portal.");
+        Check(Ff7AutoplayDriver.ReadOwnedLinePortals(mesh, [owner with { X2 = 5, Y2 = 5 }]).Count == 0, "A partial line overlap must retain the existing native physical-search admission.");
+        Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, [0], 0, 1, ownedPortals: Ff7AutoplayDriver.ReadOwnedLinePortals(mesh, [])).Distance[0] == 1, "Selected or proved-skipped owners must leave their ordinary portal available.");
+        Check(!Ff7AutoplayDriver.ShouldTryWalkingAction(new(1, 0, Held: 0x40), true, false) && !Ff7AutoplayDriver.ShouldTryWalkingAction(new(Talk: true), true, false), "Comparing movement modes must preserve explicit owner buttons and talk admission.");
     }
 
     private static void CheckSelectedPushAdmission()
