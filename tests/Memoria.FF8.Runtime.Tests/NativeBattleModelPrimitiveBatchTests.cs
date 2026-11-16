@@ -62,10 +62,11 @@ public sealed class NativeBattleModelPrimitiveBatchTests
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(replayed));
         for (int index = 0; index < replayed.Length; index++)
         {
-            Assert.Same(before[index].PilotGeometry, replayed[index].PilotGeometry);
+            Assert.Equal(before[index].Pilot, replayed[index].Pilot);
+            Assert.True(replayed[index].Pilot.IsModel);
             Assert.Equal(first[first.Count - index - 1].Words.Skip(1), replayed[index].Words);
         }
-        NativeBattleLogicalOrdering detached = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(ordering))!;
+        NativeBattleLogicalOrdering detached = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)))!;
         Assert.Equal(JsonSerializer.Serialize(replayed), JsonSerializer.Serialize(detached.Traverse(Lengths())));
     }
 
@@ -93,8 +94,8 @@ public sealed class NativeBattleModelPrimitiveBatchTests
         }
         long objectBytes = Measure(objects);
         long pageBytes = Measure(pages);
-        Assert.True(pageBytes < objectBytes - 16 * mesh.Polygons.Length, $"Model pages allocated {pageBytes} bytes; object packets allocated {objectBytes} bytes.");
-        Assert.NotNull(EmitBatch(mesh)[2047].PilotGeometry);
+        Assert.True(pageBytes < objectBytes - 80 * mesh.Polygons.Length, $"Model pages allocated {pageBytes} bytes; object packets allocated {objectBytes} bytes.");
+        Assert.True(EmitBatch(mesh)[2047].Pilot.IsModel);
     }
 
     private static long Measure(Func<object> emit)

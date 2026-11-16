@@ -9,7 +9,7 @@ public static class NativeBattleArenaDrawing
     public static NativeBattleLogicalOrdering BindCaptureRegion(NativeBattleLogicalOrdering ordering, NativeBattleArenaCaptureMaterial material)
     {
         material.Validate();
-        ImmutableArray<NativeBattleLogicalPacket> packets = ordering.Packets.Select(packet => packet.PilotGeometry is { } geometry && SamplesCapture(packet.Words, material) ? packet with { PilotGeometry = BindCapture(geometry, packet.Words, material) } : packet).ToImmutableArray();
+        ImmutableArray<NativeBattleLogicalPacket> packets = ordering.Packets.Select(packet => !packet.Pilot.IsEmpty && SamplesCapture(packet.Words, material) ? packet with { PilotGeometry = BindCapture(packet.PilotGeometry!, packet.Words, material) } : packet).ToImmutableArray();
         return new(ordering.Table.ToImmutableArray(), ordering.Proxies.ToImmutableArray(), packets, ordering.ProxyCursor, ordering.TableBuffer, ordering.OtherTable?.ToImmutableArray());
     }
 

@@ -18,7 +18,13 @@ public sealed record NativeBattleLogicalPacket(NativeBattlePrimitiveReference Re
     // Presentation coordinates belong to the current physical packet, including all of its proxy aliases.
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
     [JsonIgnore]
-    public NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }
+    public NativeBattlePilotGeometryReference Pilot { get; init; }
+    [JsonIgnore]
+    public NativeBattlePilotVisualGeometry? PilotGeometry
+    {
+        get => Pilot.ToGeometry();
+        init => Pilot = value;
+    }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? PresentationActorId { get; init; }
     public string? TextureSourceOwner { get; init; }
@@ -63,7 +69,13 @@ public sealed record NativeBattleLogicalCommand(NativeBattlePrimitiveReference P
     public int? OrderingBucket { get; init; }
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
     [JsonIgnore]
-    public NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }
+    public NativeBattlePilotGeometryReference Pilot { get; init; }
+    [JsonIgnore]
+    public NativeBattlePilotVisualGeometry? PilotGeometry
+    {
+        get => Pilot.ToGeometry();
+        init => Pilot = value;
+    }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? PresentationActorId { get; init; }
     public string? TextureSourceOwner { get; init; }
@@ -660,7 +672,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             try
             {
                 NativeBattleModelPrimitive primitive = insertion.Primitive;
-                PrependCore(primitive.Bucket, insertion.Reference, primitive.Words, insertion.Flags20, primitive.VertexPayload4, insertion.ModuleDraw, primitive.ProjectedCoordinates, insertion.TextureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId, primitive.ScreenCoverage, primitive.SceneCapture, primitive.ModelTextureOwner);
+                PrependCore(primitive.Bucket, insertion.Reference, primitive.Words, insertion.Flags20, primitive.VertexPayload4, insertion.ModuleDraw, primitive.ProjectedCoordinates, insertion.TextureSourceOwner, primitive.Pilot, primitive.PresentationActorId, primitive.ScreenCoverage, primitive.SceneCapture, primitive.ModelTextureOwner);
                 CompleteMutation(new(null, insertion));
             }
             finally
@@ -687,13 +699,13 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 int index = node.Key.Index;
                 PacketSlot packet = Packets[index];
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
-                if ((!packet.ReadsPhysicalBytes(drawGeneration) || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null || packet.ModelTextureOwner is { Invalidated: false } || packet.PilotGeometry is not null || packet.PresentationActorId is not null || packet.ScreenCoverage is not null || packet.SceneCapture is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
+                if ((!packet.ReadsPhysicalBytes(drawGeneration) || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null || packet.ModelTextureOwner is { Invalidated: false } || !packet.Pilot.IsEmpty || packet.PresentationActorId is not null || packet.ScreenCoverage is not null || packet.SceneCapture is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
                 {
                     if (HasMarks)
                     {
                         packetUndo.Add((Packets, index, packet));
                     }
-                    Packets[index] = packet with { Observation = null, RequiresPhysicalRead = true, AddressedNextAddress = null, ProjectedCoordinates = null, TextureSourceOwner = null, ModelTextureOwner = packet.ModelTextureOwner is null ? null : NativeBattleModelTextureOwner.InvalidatedOwner, PilotGeometry = null, PresentationActorId = null, ScreenCoverage = null, SceneCapture = null };
+                    Packets[index] = packet with { Observation = null, RequiresPhysicalRead = true, AddressedNextAddress = null, ProjectedCoordinates = null, TextureSourceOwner = null, ModelTextureOwner = packet.ModelTextureOwner is null ? null : NativeBattleModelTextureOwner.InvalidatedOwner, Pilot = default, PresentationActorId = null, ScreenCoverage = null, SceneCapture = null };
                     changed = true;
                 }
             }
@@ -702,7 +714,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
 
         private void RegisterPacketRange(in PacketSlot packet, int index)
         {
-            if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null && packet.TextureSourceOwner is null && packet.ModelTextureOwner is null && packet.PilotGeometry is null && packet.PresentationActorId is null && packet.ScreenCoverage is null && packet.SceneCapture is null)
+            if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null && packet.TextureSourceOwner is null && packet.ModelTextureOwner is null && packet.Pilot.IsEmpty && packet.PresentationActorId is null && packet.ScreenCoverage is null && packet.SceneCapture is null)
             {
                 return;
             }
@@ -720,7 +732,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             maximumPacketBytes = Math.Max(maximumPacketBytes, checked(packet.Words.Length * 4));
         }
 
-        private void PrependCore(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotVisualGeometry? pilotGeometry = null, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null)
+        private void PrependCore(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotGeometryReference pilotGeometry = default, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null)
         {
             (List<NativeBattlePrimitiveLink> roots, int rootIndex, byte rootBuffer) = ResolveInsertionRoot(bucket);
             ValidateInsertion(roots.Count, rootIndex, reference, words, vertexPayload4);
@@ -765,11 +777,11 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, new(false, -1), 0, previousAddress, !retainAuthoredPayload, pilotGeometry: pilotGeometry, screenCoverage: screenCoverage, sceneCapture: sceneCapture, projectedCoordinates: projectedCoordinates, modelTextureOwner: modelTextureOwner, addressedNextAddress: retainAuthoredPayload ? previousAddress : null);
         }
 
-        private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotVisualGeometry? pilotGeometry = null, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null, uint? addressedNextAddress = null)
+        private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotGeometryReference pilotGeometry = default, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null, uint? addressedNextAddress = null)
         {
             InvalidatePacketRange(reference, words.Length * 4);
             lastHeaderLink = previousAddress;
-            PacketSlot packet = new(reference, words, next, drawGeneration) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead, AddressedNextAddress = addressedNextAddress, ProjectedCoordinates = projectedCoordinates, TextureSourceOwner = textureSourceOwner, ModelTextureOwner = modelTextureOwner, PilotGeometry = pilotGeometry, PresentationActorId = presentationActorId, ScreenCoverage = screenCoverage, SceneCapture = sceneCapture };
+            PacketSlot packet = new(reference, words, next, drawGeneration) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead, AddressedNextAddress = addressedNextAddress, ProjectedCoordinates = projectedCoordinates, TextureSourceOwner = textureSourceOwner, ModelTextureOwner = modelTextureOwner, Pilot = pilotGeometry, PresentationActorId = presentationActorId, ScreenCoverage = screenCoverage, SceneCapture = sceneCapture };
             NativeBattlePrimitiveReference identity = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (bank.Indices.TryGetValue(identity, out int existing))
             {
@@ -1423,7 +1435,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 }
                 if (opcode != 0)
                 {
-                    commands.Add(new(packet.Reference, word, opcode, packet.Words, count, proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw) { OrderingBucket = bucket, ProjectedCoordinates = MatchingProjectedCoordinates(packet, word, count), TextureSourceOwner = packet.TextureSourceOwner, ModelTextureOwner = packet.ModelTextureOwner, PilotGeometry = packet.PilotGeometry, PresentationActorId = packet.PresentationActorId, ScreenCoverage = packet.ScreenCoverage, SceneCapture = packet.SceneCapture });
+                    commands.Add(new(packet.Reference, word, opcode, packet.Words, count, proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw) { OrderingBucket = bucket, ProjectedCoordinates = MatchingProjectedCoordinates(packet, word, count), TextureSourceOwner = packet.TextureSourceOwner, ModelTextureOwner = packet.ModelTextureOwner, Pilot = packet.Pilot, PresentationActorId = packet.PresentationActorId, ScreenCoverage = packet.ScreenCoverage, SceneCapture = packet.SceneCapture });
                 }
                 remaining -= count;
                 word += count;
@@ -1563,8 +1575,8 @@ public static class NativeBattleLogicalPasses
             foreach (NativeBattleLogicalCommand command in commands)
             {
                 // Captured pixels keep native consumer state while their image remains owned by the host renderer.
-                bool capturedSurface = command.PilotGeometry?.ForeignSurface?.Material is NativeBattleArenaCaptureMaterial;
-                if (command.PilotGeometry?.ForeignSurface is not null && !capturedSurface)
+                bool capturedSurface = command.Pilot.ForeignSurface?.Material is NativeBattleArenaCaptureMaterial;
+                if (command.Pilot.ForeignSurface is not null && !capturedSurface)
                 {
                     // A host material participates in ordering and depth, but owns no native page, palette or software command.
                     bool enabled = tables.FlaggedCommands[command.Opcode] == 0 || ((context?.LiveMode ?? drawFlags) & 1) != 0;
@@ -1680,7 +1692,7 @@ public static class NativeBattleLogicalPasses
 
     private static (NativeBattlePcTextureWindowSelection? Selection, NativeBattlePcTextureWindowCache Cache) SelectTexture(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowCache cache)
     {
-        if (command.PilotGeometry?.ForeignSurface is not null)
+        if (command.Pilot.ForeignSurface is not null)
         {
             return (null, cache);
         }

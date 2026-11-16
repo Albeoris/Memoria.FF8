@@ -67,7 +67,7 @@ public sealed partial class BattleRenderer
 
         void ObserveLine()
         {
-            if (!PilotDiagnosticsEnabled || command.PilotGeometry is not { } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
+            if (!PilotDiagnosticsEnabled || command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
             {
                 return;
             }

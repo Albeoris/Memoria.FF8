@@ -32,7 +32,7 @@ public sealed partial class BattleRenderer
     private void ObservePilotSubmittedTriangle(NativeBattleLogicalResolvedCommand resolved, PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, int cornerA, int cornerB, int cornerC)
     {
         NativeBattleLogicalCommand command = resolved.Command;
-        if (command.PilotGeometry is not { } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
+        if (command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
             return;
         }
@@ -52,13 +52,13 @@ public sealed partial class BattleRenderer
 
     private void ObservePilotSubmittedCorner(NativeBattleLogicalCommand command, int corner, Vector2 position, NativeBattlePrimitiveDepthVertex depth, Vector2 uv, Vector3 color, float alpha)
     {
-        if (!PilotDiagnosticsEnabled || command.PilotGeometry is not { } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
+        if (!PilotDiagnosticsEnabled || command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
             return;
         }
         Vector3 world = geometry.Corner(corner);
         bool covered = false;
-        if (pilotProjection is not null && geometry.Continuous && pilotNextGeometry.TryGetValue(geometry.Identity, out NativeBattlePilotVisualGeometry? next) && next.Continuous && geometry.CornerCount == next.CornerCount)
+        if (pilotProjection is not null && geometry.Continuous && pilotNextGeometry.TryGetValue(geometry.Identity, out NativeBattlePilotGeometryReference next) && next.Continuous && geometry.CornerCount == next.CornerCount)
         {
             world = NativeBattlePilotVisualGeometry.SampleCorner(geometry, next, corner, pilotAlpha);
             covered = true;
@@ -96,7 +96,7 @@ public sealed partial class BattleRenderer
     private static ulong PilotHash(ulong hash, float value) => PilotHash(hash, BitConverter.SingleToUInt32Bits(value));
     private static ulong PilotHash(ulong hash, ulong value) => unchecked((hash ^ value) * 1099511628211UL);
 
-    private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotVisualGeometry> pilotNextGeometry = [];
+    private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference> pilotNextGeometry = [];
     private NativeBattleCameraProjection? pilotProjection;
     private float pilotAlpha;
     public string? LastPilotFallbackReason { get; private set; }
@@ -132,7 +132,7 @@ public sealed partial class BattleRenderer
                 bool tile = (command.Opcode & 0xFC) is 0x60 or 0x68;
                 bool line = (command.Opcode & 0xF8) is 0x40 or 0x50;
                 int corners = line ? 2 : tile || (command.Opcode & 8) != 0 ? 4 : 3;
-                if ((polygon || tile || line) && command.PilotGeometry is { } geometry && geometry.CornerCount == corners)
+                if ((polygon || tile || line) && command.Pilot is { IsEmpty: false } geometry && geometry.CornerCount == corners)
                 {
                     continue;
                 }
@@ -166,7 +166,7 @@ public sealed partial class BattleRenderer
         pilotNextGeometry.Clear();
         foreach (NativeBattleLogicalResolvedCommand resolved in later.Primitives.LastCommands)
         {
-            if (resolved.Command.PilotGeometry is { } geometry)
+            if (resolved.Command.Pilot is { IsEmpty: false } geometry)
             {
                 pilotNextGeometry[geometry.Identity] = geometry;
             }
@@ -186,12 +186,12 @@ public sealed partial class BattleRenderer
     {
         position = default;
         depthVertex = default;
-        if (pilotProjection is null || command.PilotGeometry is not { } earlier)
+        if (pilotProjection is null || command.Pilot is not { IsEmpty: false } earlier)
         {
             return false;
         }
         Vector3 world = earlier.Corner(corner);
-        if (earlier.Continuous && pilotNextGeometry.TryGetValue(earlier.Identity, out NativeBattlePilotVisualGeometry? later) && later.Continuous && earlier.CornerCount == later.CornerCount)
+        if (earlier.Continuous && pilotNextGeometry.TryGetValue(earlier.Identity, out NativeBattlePilotGeometryReference later) && later.Continuous && earlier.CornerCount == later.CornerCount)
         {
             world = NativeBattlePilotVisualGeometry.SampleCorner(earlier, later, corner, pilotAlpha);
         }

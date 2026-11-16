@@ -118,6 +118,11 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
 
     public static Vector3 SampleCorner(NativeBattlePilotVisualGeometry earlier, NativeBattlePilotVisualGeometry later, int corner, float alpha)
     {
+        return SampleCorner(new NativeBattlePilotGeometryReference(earlier), new NativeBattlePilotGeometryReference(later), corner, alpha);
+    }
+
+    public static Vector3 SampleCorner(NativeBattlePilotGeometryReference earlier, NativeBattlePilotGeometryReference later, int corner, float alpha)
+    {
         if (alpha >= 1)
         {
             return later.Corner(corner);

@@ -235,7 +235,7 @@ public sealed partial class BattleRenderer
             bool gouraud = (command.Opcode & 16) != 0;
             bool quad = (command.Opcode & 8) != 0;
             bool semi = (command.Opcode & 2) != 0;
-            NativeBattleForeignSurface? foreignSurface = command.PilotGeometry?.ForeignSurface;
+            NativeBattleForeignSurface? foreignSurface = command.Pilot.ForeignSurface;
             NativeBattleForeignSurface? capturedSurface = foreignSurface?.Material is NativeBattleArenaCaptureMaterial ? foreignSurface : null;
             if ((foreignSurface is null || capturedSurface is not null) && (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi))
             {

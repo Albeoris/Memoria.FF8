@@ -11,7 +11,7 @@ public sealed partial record NativeBattleLogicalOrdering
         internal bool RequiresPhysicalRead { get; init; }
         internal uint? AddressedNextAddress { get; init; }
         internal ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
-        internal NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }
+        internal NativeBattlePilotGeometryReference Pilot { get; init; }
         internal string? PresentationActorId { get; init; }
         internal string? TextureSourceOwner { get; init; }
         internal NativeBattleModelTextureOwner? ModelTextureOwner { get; init; }
@@ -25,7 +25,7 @@ public sealed partial record NativeBattleLogicalOrdering
             RequiresPhysicalRead = packet.RequiresPhysicalRead;
             AddressedNextAddress = packet.AddressedNextAddress;
             ProjectedCoordinates = packet.ProjectedCoordinates;
-            PilotGeometry = packet.PilotGeometry;
+            Pilot = packet.Pilot;
             PresentationActorId = packet.PresentationActorId;
             TextureSourceOwner = packet.TextureSourceOwner;
             ModelTextureOwner = packet.ModelTextureOwner;
@@ -47,7 +47,7 @@ public sealed partial record NativeBattleLogicalOrdering
                 RequiresPhysicalRead = RequiresPhysicalRead || reset,
                 AddressedNextAddress = reset ? null : AddressedNextAddress,
                 ProjectedCoordinates = ProjectedCoordinates,
-                PilotGeometry = PilotGeometry,
+                Pilot = Pilot,
                 PresentationActorId = PresentationActorId,
                 TextureSourceOwner = TextureSourceOwner,
                 ModelTextureOwner = ModelTextureOwner,

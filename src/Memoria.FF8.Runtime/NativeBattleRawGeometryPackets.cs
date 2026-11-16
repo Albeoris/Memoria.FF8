@@ -127,7 +127,7 @@ public static class NativeBattleRawGeometryPackets
             NativeBattleGeometryPackets.RawPacket? packet = NativeBattleGeometryPackets.BuildRaw50FDF0(source.AsSpan(), projected, polygon.Quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules, projectedCoordinates);
             if (packet is { } accepted)
             {
-                NativeBattlePilotVisualGeometry? pilotGeometry = null;
+                NativeBattlePilotGeometryReference pilotGeometry = default;
                 if (pilotIdentity is { } identity && (pilotWorldVertices is not null || pilotScreenSpace))
                 {
                     System.Numerics.Vector3 Corner(int corner)
@@ -141,7 +141,15 @@ public static class NativeBattleRawGeometryPackets
                         }
                         return pilotWorldVertices![index];
                     }
-                    pilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace };
+                    NativeBattlePilotVisualIdentity polygonIdentity = identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) };
+                    if (modelResult is not null)
+                    {
+                        pilotGeometry = modelResult.AddPilot(new(polygonIdentity, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous, pilotScreenSpace));
+                    }
+                    else
+                    {
+                        pilotGeometry = new NativeBattlePilotVisualGeometry(polygonIdentity, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace };
+                    }
                 }
                 if (modelResult is not null)
                 {
@@ -149,7 +157,7 @@ public static class NativeBattleRawGeometryPackets
                 }
                 else
                 {
-                    result!.Add(accepted.ToPrimitive(pilotGeometry, actorId, material));
+                    result!.Add(accepted.ToPrimitive(pilotGeometry.ToGeometry(), actorId, material));
                 }
             }
         }

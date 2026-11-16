@@ -7,23 +7,24 @@ internal readonly record struct NativeBattleModelPrimitive(int Bucket, Immutable
 {
     internal ImmutableArray<NativeBattleGfPacketByteState>? PhysicalWriteMask { get; init; }
     internal ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
-    internal NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }
+    internal NativeBattlePilotGeometryReference Pilot { get; init; }
+    internal NativeBattlePilotVisualGeometry? PilotGeometry => Pilot.ToGeometry();
     internal string? PresentationActorId { get; init; }
     internal NativeBattleModelTextureOwner? ModelTextureOwner { get; init; }
     internal NativeBattleScreenCoverage? ScreenCoverage { get; init; }
     internal NativeBattleSceneCapture? SceneCapture { get; init; }
 
-    internal static NativeBattleModelPrimitive FromRaw(NativeBattleGeometryPackets.RawPacket packet, NativeBattlePilotVisualGeometry? geometry, string? actorId, NativeBattleModelTextureOwner? material)
+    internal static NativeBattleModelPrimitive FromRaw(NativeBattleGeometryPackets.RawPacket packet, NativeBattlePilotGeometryReference geometry, string? actorId, NativeBattleModelTextureOwner? material)
     {
         NativeBattleSceneCapture? sceneCapture = NativeBattleSceneCapture.Current;
         return new(packet.Bucket, packet.Words, packet.VertexPayload4)
         {
             PhysicalWriteMask = packet.PhysicalWriteMask,
             ProjectedCoordinates = packet.ProjectedCoordinates,
-            PilotGeometry = geometry,
+            Pilot = geometry,
             SceneCapture = sceneCapture,
             PresentationActorId = actorId,
-            ModelTextureOwner = sceneCapture is null && geometry?.ForeignSurface is null ? material : null
+            ModelTextureOwner = sceneCapture is null && geometry.ForeignSurface is null ? material : null
         };
     }
 
@@ -34,7 +35,7 @@ internal readonly record struct NativeBattleModelPrimitive(int Bucket, Immutable
         {
             PhysicalWriteMask = primitive.PhysicalWriteMask,
             ProjectedCoordinates = primitive.ProjectedCoordinates,
-            PilotGeometry = primitive.PilotGeometry,
+            Pilot = primitive.PilotGeometry,
             PresentationActorId = primitive.PresentationActorId,
             ModelTextureOwner = primitive.ModelTextureOwner,
             ScreenCoverage = primitive.ScreenCoverage,
@@ -77,6 +78,20 @@ internal sealed class NativeBattleModelPrimitiveBatch
         private readonly List<NativeBattleModelPrimitive[]> pages = [];
         private int count;
         private bool frozen;
+        private NativeBattleModelPilotPage? pilotPage;
+
+        internal NativeBattlePilotGeometryReference AddPilot(in NativeBattleModelPilotGeometry geometry)
+        {
+            if (frozen)
+            {
+                throw new InvalidOperationException("Published pilot geometry pages cannot be modified.");
+            }
+            if (pilotPage is null || pilotPage.IsFull)
+            {
+                pilotPage = new();
+            }
+            return pilotPage.Append(geometry);
+        }
 
         internal void Add(NativeBattleModelPrimitive primitive)
         {

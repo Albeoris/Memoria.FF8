@@ -230,7 +230,15 @@ internal abstract class NativeBattleStorageContext
         try
         {
             object result;
-            if (value is INativeBattleStorageNode node)
+            if (value is NativeBattlePilotGeometryReference pilot)
+            {
+                // Model pages contain only immutable identities and corners. Rich host materials
+                // retain their existing recursive storage capture/restore contract.
+                NativeBattlePilotVisualGeometry? original = pilot.AuthoredGeometry;
+                NativeBattlePilotVisualGeometry? mapped = original is null ? null : (NativeBattlePilotVisualGeometry?)MapObject(original);
+                result = ReferenceEquals(original, mapped) ? value : new NativeBattlePilotGeometryReference(mapped);
+            }
+            else if (value is INativeBattleStorageNode node)
             {
                 result = MapStorage(node);
             }
