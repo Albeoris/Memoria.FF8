@@ -120,6 +120,7 @@ public sealed partial class BattleSession
     private void ResolveNativeMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
+        List<NativeMagicReflectionReceipt>? reflections = actor.IsPlayer && command.MagicCasts.Length > 1 && nativeDispatchCommandLocation is not null && SupportsHostedNativeMagicRepeat(action.NativeAction!, definition.NativeEffectCatalog) ? [] : null;
         ResolveMagicGroupInvocations(actor, command, action, (invocation, index) =>
         {
             BattleCombatant target = ReadMagicPreflightAnchor(invocation, requireActive: true);
@@ -129,8 +130,13 @@ public sealed partial class BattleSession
             }
             BattleActionPresentation cast = MagicGroupInvocation(command, action, invocation, target);
             //485610 submits one104 for the group; the effect consumes the following headers itself.
-            return ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0);
+            return ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0,
+                collectReflection: reflections is null ? null : reflector => reflections.Add(new(cast, reflector)));
         });
+        if (reflections is { Count: > 0 })
+        {
+            WriteNativeRepeatReflectionPacket(actor, action.NativeAction!, reflections);
+        }
     }
 
     private void ResolveMagicGroupInvocations(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, Func<BattleMagicCastInvocation, int, bool> publish)
@@ -214,6 +220,7 @@ public sealed partial class BattleSession
         List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts = [];
         bool producedContacts = false;
         int firstOperation = expandedOperationCursor.Operations.Length;
+        List<NativeMagicReflectionReceipt>? reflections = hosted && actor.IsPlayer && SupportsHostedNativeMagicRepeat(action.NativeAction!, definition.NativeEffectCatalog) ? [] : null;
 
         //485610 produces the whole group before484180 post-action status work or pending reactions.
         if (!producingExpandedAiCallback)
@@ -240,7 +247,7 @@ public sealed partial class BattleSession
                     return false;
                 }
                 BattleActionPresentation cast = MagicGroupInvocation(command, action, invocation, target);
-                (bool hasContacts, bool completed) = PublishExpandedMagicGroupInvocation(actor, cast, action, hosted, componentImpacts);
+                (bool hasContacts, bool completed) = PublishExpandedMagicGroupInvocation(actor, cast, action, hosted, componentImpacts, reflections);
                 producedContacts |= hasContacts;
                 return completed;
             });
@@ -251,6 +258,10 @@ public sealed partial class BattleSession
                 {
                     throw new NotSupportedException("The compiled repeat requires its contiguous native spell headers and a supported presentation group.");
                 }
+            }
+            if (reflections is { Count: > 0 })
+            {
+                StageExpandedRepeatReflection(actor, action, reflections);
             }
             if (!hosted && producedContacts)
             {
@@ -294,7 +305,7 @@ public sealed partial class BattleSession
         CompleteActionPresentation(command, "Repeated magic completed.");
     }
 
-    private bool TryGroupNativeMagicCasts(int firstOperation, BattleNativeAction native)
+    private bool TryGroupNativeMagicCasts(int firstOperation, BattleNativeAction native, byte command = 2)
     {
         ImmutableArray<ExpandedHostedOperation> operations = expandedOperationCursor.Operations;
         if (operations.Length - firstOperation <= 1)
@@ -302,7 +313,7 @@ public sealed partial class BattleSession
             return true;
         }
         if (!SupportsHostedNativeMagicRepeat(native, definition.NativeEffectCatalog) ||
-            operations[firstOperation] is not ExpandedHostedInvocation { Header.Command: 2 } first)
+            operations[firstOperation] is not ExpandedHostedInvocation first || first.Header.Command != command)
         {
             return false;
         }
@@ -310,7 +321,7 @@ public sealed partial class BattleSession
         ImmutableArray<ExpandedHostedInvocation>.Builder following = ImmutableArray.CreateBuilder<ExpandedHostedInvocation>(operations.Length - firstOperation - 1);
         foreach (ExpandedHostedOperation operation in operations.Skip(firstOperation + 1))
         {
-            if (operation is not ExpandedHostedInvocation next || next.Header.Command != 2 || next.Header.Source != first.Header.Source ||
+            if (operation is not ExpandedHostedInvocation next || next.Header.Command != command || next.Header.Caster != first.Header.Caster ||
                 next.Header.Effect != first.Header.Effect || next.Header.Action != first.Header.Action || next.EnemyDraw is not null)
             {
                 return false;
@@ -339,7 +350,7 @@ public sealed partial class BattleSession
     }
 
     private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, bool hosted,
-        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts)
+        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts, List<NativeMagicReflectionReceipt>? reflections)
     {
         BattleNativeAction native = action.NativeAction!;
         var hitPlan = PlanNativeHits(actor, cast, native);
@@ -363,7 +374,8 @@ public sealed partial class BattleSession
         int operationStart = expandedOperationCursor.Operations.Length;
         ReserveExpandedAiInvocation(cast, hostedHeader);
         deferringExpandedImpacts = hosted;
-        NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, cast, action, native, hitPlan);
+        NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, cast, action, native, hitPlan,
+            collectReflection: reflections is null ? null : reflector => reflections.Add(new(cast, reflector)));
         deferringExpandedImpacts = false;
         if (produced.Contacts.IsEmpty)
         {
@@ -375,6 +387,12 @@ public sealed partial class BattleSession
             return (false, false);
         }
         ImmutableArray<ExpandedBattleContact> contacts = ToHostedContacts(produced);
+        if (reflections is not null)
+        {
+            StageExpandedHostedInvocation(cast, hostedHeader!, contacts, TakePendingHostedEnemyDraw());
+            return (true, !produced.RepeatAborted && produced.PublishedCount != 0);
+        }
+
         (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, NativeBattleActionHeaderPreparation? reflectionHeader) =
             ResolveExpandedReflection(actor, cast, action, produced.Reflector, reflected);
         if (hostedHeader is not null)

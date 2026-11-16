@@ -13,9 +13,9 @@ public sealed partial class BattleSession
         return native with { Command = 0, ActionId = 9, KernelSection = -1, KernelIndex = -1, MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null };
     }
 
-    private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context, bool miniMogFailed)
+    private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context, bool miniMogFailed, Action<BattleCombatant>? collectReflection = null)
     {
-        if (header.Source != CreatePresentationModelOwner(actor) || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (header.Caster != CreatePresentationModelOwner(actor) || header.Command != (miniMogFailed ? 0 : NativeHeaderCommand(actor, command, action.NativeAction!)) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
@@ -39,12 +39,12 @@ public sealed partial class BattleSession
         {
             QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
         }
-        NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, formulaCommand, formulaAction, context);
+        NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, formulaCommand, formulaAction, context, collectReflection);
         int count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } && !failedSpecial && !silencedMagic ? produced.PublishedCount : 0;
         return new(header, produced.Contacts, count, produced.DeferredContact, produced.Reflector) { RepeatAborted = produced.RepeatAborted };
     }
 
-    private NativeProducedContacts ProduceNativeInstalledContacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionProductionContext? context = null)
+    private NativeProducedContacts ProduceNativeInstalledContacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionProductionContext? context = null, Action<BattleCombatant>? collectReflection = null)
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         }
         var plan = PlanNativeHits(actor, command, native);
         NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
-        NativeContactPlanResult result = ExecuteNativeContactPlan(actor, command, action, native, plan, deferred != NativeBattleDeferredContactKind.None, context);
+        NativeContactPlanResult result = ExecuteNativeContactPlan(actor, command, action, native, plan, deferred != NativeBattleDeferredContactKind.None, context, collectReflection);
         return new(result.Contacts, result.PublishedCount, deferred, result.Reflector is { } reflector ? CreatePresentationModelOwner(reflector) : null, result.RepeatAborted);
     }
 
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
         return plan;
     }
 
-    private NativeContactPlanResult ExecuteNativeContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary, NativeBattleActionProductionContext? context = null)
+    private NativeContactPlanResult ExecuteNativeContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary, NativeBattleActionProductionContext? context = null, Action<BattleCombatant>? collectReflection = null)
     {
         foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.Slot is not null))
         {
@@ -111,6 +111,7 @@ public sealed partial class BattleSession
                     {
                         DecrementNativeRemainingHits(recipient);
                         firstReflector ??= recipient;
+                        collectReflection?.Invoke(recipient);
                         recipient.NativeCombatantFlags |= 0x4000;
                         recipient.LastNativeHealing = 1;
                         RecordNativeActionMemory(actor, recipient, command);

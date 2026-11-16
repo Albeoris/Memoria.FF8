@@ -80,19 +80,16 @@ public sealed partial class BattleSession
         }
         if (initializeNativeAi)
         {
-            if (UsesExpandedRoster)
+            foreach (BattleCombatant ally in allies)
             {
-                foreach (BattleCombatant ally in allies)
+                // 48B310 records whether the entry inventory contains any magic.
+                if (NativeAiDrawInventory(ally).Any(stock => stock.SpellId != 0))
                 {
-                    // 48B310 records whether the entry inventory contains any magic.
-                    if (NativeAiDrawInventory(ally).Any(stock => stock.SpellId != 0))
-                    {
-                        ally.NativeStatus1 |= 1u << 30;
-                    }
-                    else
-                    {
-                        ally.NativeStatus1 &= ~(1u << 30);
-                    }
+                    ally.NativeStatus1 |= 1u << 30;
+                }
+                else
+                {
+                    ally.NativeStatus1 &= ~(1u << 30);
                 }
             }
             RefreshNativeEnemyDrawSlots();

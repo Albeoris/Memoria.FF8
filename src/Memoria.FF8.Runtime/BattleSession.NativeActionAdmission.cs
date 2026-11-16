@@ -232,7 +232,7 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattleActionHeaderSlot slot = nativeActionPackets.ReadHeader(reference);
-        if (slot.Source != CreatePresentationModelOwner(actor))
+        if (slot.Caster != CreatePresentationModelOwner(actor))
         {
             throw new InvalidDataException("The factual action header belongs to another battle actor.");
         }

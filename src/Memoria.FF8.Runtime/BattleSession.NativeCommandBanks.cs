@@ -32,6 +32,11 @@ public sealed partial class BattleSession
             return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot);
         }
 
+        if (!command.SecondaryReflectionCasts.IsEmpty)
+        {
+            return command.SecondaryReflectionCasts.Select(cast => Project(cast.Command.TargetRequest)).ToArray();
+        }
+
         return command.NativeSlots is { } slots
             ? Enumerable.Repeat(Project(command.TargetRequest), slots.Repetitions).ToArray()
             : command.MagicCasts.IsDefaultOrEmpty ? [Project(command.TargetRequest)] : command.MagicCasts.Select(cast => Project(cast.Targets)).ToArray();

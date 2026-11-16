@@ -98,11 +98,15 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, bool queueGraphics = true)
+    private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, bool queueGraphics = true, Action<BattleCombatant>? collectReflection = null, BattleModelOwner? reflectionSource = null)
     {
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
         int? miniMogFailure = action.NativeAction!.Command == 38 ? PrepareNativeMiniMog() : null;
         NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction, miniMogFailure is not null);
+        if (reflectionSource is { } source)
+        {
+            header = PrepareReflectedHeader(header, source);
+        }
         if (NativeGraphics is { } entryGraphics && header.Command == 241 && command.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
         {
             //48D200 publishes the input callback before the corresponding effect header.
@@ -119,7 +123,7 @@ public sealed partial class BattleSession
         diagnosticCounterProducingHeader = ObservingDiagnosticCounter ? headerIndex : null;
         try
         {
-            produced = ProduceNativeActionFacts(actor, target, command, action, header, context, miniMogFailure is not null);
+            produced = ProduceNativeActionFacts(actor, target, command, action, header, context, miniMogFailure is not null, collectReflection);
         }
         finally
         {
@@ -159,7 +163,7 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
         }
-        if (produced.Reflector is { } reflector)
+        if (collectReflection is null && produced.Reflector is { } reflector)
         {
             ResolveNativeReflection(actor, GetActor(RequireCanonicalGraphicsActorId(reflector)), command, action.NativeAction!, headerIndex);
         }

@@ -520,7 +520,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeContactPlanResult ExecuteHostedContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary = false)
+    private NativeContactPlanResult ExecuteHostedContactPlan(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, (BattleCombatant[] Targets, BattleModelOwner? CoverSource)[] plan, bool preliminary = false, Action<BattleCombatant>? collectReflection = null)
     {
         BattleModelRoster roster = ReadBattlePresentationRoster();
         _ = RequirePresentationModelOwner(roster, actor);
@@ -528,7 +528,7 @@ public sealed partial class BattleSession
         {
             _ = RequirePresentationModelOwner(roster, recipient);
         }
-        return ExecuteNativeContactPlan(actor, command, action, native, plan, preliminary);
+        return ExecuteNativeContactPlan(actor, command, action, native, plan, preliminary, collectReflection: collectReflection);
     }
 
     private static ImmutableArray<ExpandedBattleContact> ToHostedContacts(NativeContactPlanResult produced)

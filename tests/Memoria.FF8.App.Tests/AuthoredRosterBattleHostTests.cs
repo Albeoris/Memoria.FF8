@@ -68,7 +68,23 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.Equal(original.Random, hosted.Random);
     }
 
-    private static (NativeBattleContactHalf[] Contacts, (string? Target, int Amount)[] Damage, byte[] Random) RunPlayerRepeatFire(bool attached, int casts, uint nativeStatus)
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Player_repeat_Fire_publishes_reflectors_in_one_stock_free_secondary_group(int reflectionMask)
+    {
+        var original = RunPlayerRepeatFire(attached: false, 2, 0x20000, reflectionMask);
+        var hosted = RunPlayerRepeatFire(attached: true, 2, 0x20000, reflectionMask);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.Equal(original.Reflections, hosted.Reflections);
+        (string? Target, int Amount)[] reflectedDamage = reflectionMask == 3 ? [("party-3", 108), ("party-0", 102)] : [("party-0", 108)];
+        Assert.Equal(reflectedDamage, hosted.Damage.Where(hit => hit.Target?.StartsWith("party-", StringComparison.Ordinal) == true));
+        Assert.Equal(original.Damage, hosted.Damage);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    private static (NativeBattleContactHalf[] Contacts, NativeBattleContactHalf[] Reflections, (string? Target, int Amount)[] Damage, byte[] Random) RunPlayerRepeatFire(bool attached, int casts, uint nativeStatus, int reflectionMask = 0)
     {
         const string casterId = "party-0";
         const int fire = 1;
@@ -99,6 +115,13 @@ public sealed class AuthoredRosterBattleHostTests
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
         BattleCombatant[] targets = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         Assert.Equal(2, targets.Length);
+        for (int index = 0; index < targets.Length; index++)
+        {
+            if ((reflectionMask & (1 << index)) != 0)
+            {
+                targets[index].NativeStatus1 |= 0x80;
+            }
+        }
         caster.NativeStatus1 |= nativeStatus;
         Ready(world, caster);
         Assert.Contains(casts, battle.GetNativeMagicCastCounts(casterId, fire));
@@ -107,6 +130,8 @@ public sealed class AuthoredRosterBattleHostTests
         BattleModelOwner owner = battle.ReadPresentationModelOwner(casterId);
         ushort effect = battle.ReadDefinition().NativeActions.Single(action => action.Command == 2 && action.ActionId == fire).MagicId;
         NativeBattleContactHalf[] contacts = [];
+        NativeBattleContactHalf[] reflections = [];
+        BattleModelOwner[] reflectors = targets.Where((_, index) => (reflectionMask & (1 << index)) != 0).Select(target => battle.ReadPresentationModelOwner(target.Id)).ToArray();
         HashSet<BattleActionHeaderReference> entered = [];
         int eventStart = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: casterId, TargetId: targetIds[0], Ability: BattleAbility.Magic, ActionId: fire) { MagicTargets = targetIds });
@@ -121,23 +146,48 @@ public sealed class AuthoredRosterBattleHostTests
                 Assert.All(headers, entry => Assert.Equal(1, entry.Slot.ReadContactCount()));
                 contacts = headers.Select(entry => packets.ReadContact(entry.Slot.FirstContact).Primary).ToArray();
             }
+            if (reflectionMask != 0)
+            {
+                var reflectedHeaders = packets.PublishedHeaders().Where(entry => entry.Slot is { Command: 247, Action: fire }).ToArray();
+                if (reflectedHeaders.Length == reflectors.Length)
+                {
+                    Assert.Equal(reflectors, reflectedHeaders.Select(entry => entry.Slot.Source));
+                    Assert.Equal(reflectors.Length - 1, reflectedHeaders[0].Slot.ReadRepeatModeMinusOne());
+                    Assert.All(reflectedHeaders, entry =>
+                    {
+                        Assert.Equal(owner, entry.Slot.Caster);
+                        Assert.Equal(0, entry.Slot.Sequence);
+                        Assert.Equal(1, entry.Slot.ReadContactCount());
+                    });
+                    if (headers.Length == casts)
+                    {
+                        Assert.Equal(headers[^1].Reference.Advance(1), reflectedHeaders[0].Reference);
+                    }
+                    reflections = reflectedHeaders.Select(entry => packets.ReadContact(entry.Slot.FirstContact).Primary).ToArray();
+                }
+            }
             NativeBattleGraphicsState graphics = process?.Graphics ?? battle.NativeGraphics!;
-            if (graphics.OriginalEffect is { Parameters: { } parameters } original && original.RequestedEffect == effect && parameters.Source == owner)
+            if (graphics.OriginalEffect is { Parameters: { } parameters } original && original.RequestedEffect == effect &&
+                (parameters.Source == owner || reflectors.Contains(parameters.Source)))
             {
                 entered.Add(parameters.Header);
             }
             return Completed(battle, eventStart, casterId) && battle.ActiveAction is null && process?.HasActiveAction != true;
         }, "native repeat Fire completion");
         Assert.Equal(targetIds.Select(battle.ReadPresentationModelOwner), contacts.Select(contact => contact.Recipient));
-        Assert.Single(entered);
+        Assert.Equal(reflectors.Length != 0 ? 2 : 1, entered.Count);
+        Assert.Equal(reflectors.Length, reflections.Length);
         Assert.Equal(10 - casts, battle.GetAvailableMagicCasts(casterId, fire));
         var damage = battle.Events.Skip(eventStart).Where(entry => entry is { Kind: "Damage", ActorId: casterId }).Select(entry => (entry.TargetId, entry.Amount)).ToArray();
-        Assert.Equal(targetIds, damage.Select(entry => entry.TargetId));
+        if (reflectionMask == 0)
+        {
+            Assert.Equal(targetIds, damage.Select(entry => entry.TargetId));
+        }
         if (attached)
         {
-            Assert.Equal(casts, battle.Events.Skip(eventStart).Count(entry => entry is { Kind: "EffectContact", ActorId: casterId }));
+            Assert.Equal(casts + reflectors.Length, battle.Events.Skip(eventStart).Count(entry => entry is { Kind: "EffectContact", ActorId: casterId }));
         }
-        return (contacts, damage, battle.Capture().Random!.Indexes.ToArray());
+        return (contacts, reflections, damage, battle.Capture().Random!.Indexes.ToArray());
     }
 
     [Theory]

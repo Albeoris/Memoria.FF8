@@ -267,6 +267,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
 {
     [JsonIgnore]
     internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
+    [JsonIgnore]
+    internal ImmutableArray<NativeMagicReflectionCast> SecondaryReflectionCasts { get; init; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleExpandedAiDescriptor? ExpandedAiDescriptor { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }

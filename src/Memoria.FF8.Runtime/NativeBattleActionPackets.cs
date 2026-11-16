@@ -4,6 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleActionHeaderSlot(BattleModelOwner Source, byte Command, byte Sequence, sbyte CameraChoice, ushort Action, ushort Effect, BattleContactCursor FirstContact, NativeBattleActionDataReference? Data, int? ContactCount, byte? RepeatModeMinusOne)
 {
+    internal BattleModelOwner? ReflectedCaster { get; init; }
+    internal BattleModelOwner Caster => ReflectedCaster ?? Source;
+
     public int ReadContactCount()
     {
         return ContactCount ?? throw new NotSupportedException("The action header's contact count has no observed writer.");
@@ -74,13 +77,21 @@ public sealed class NativeBattleActionPacketsState
     {
         ArgumentNullException.ThrowIfNull(preparation);
         RequireOwner(preparation.Source);
+        if (preparation.ReflectedCaster is { } caster)
+        {
+            if (preparation.Command != 247)
+            {
+                throw new InvalidDataException("Only a reflected command can bind a separate formula caster.");
+            }
+            RequireOwner(caster);
+        }
         int index = ActionCount;
         ImmutableArray<NativeBattleActionHeaderSlot?> grown = EnsureCapacity(headers, checked(index + 1));
         NativeBattleActionHeaderSlot? previous = grown[index];
         NativeBattleRetainedActionHeaderSlot? retained = index < RetainedStorage.Headers.Length ? RetainedStorage.Headers[index] : null;
         int? count = previous is null ? retained?.ReadKnownByte(16) : previous.ContactCount;
         byte? repeat = previous is null ? retained?.ReadKnownByte(17) : previous.RepeatModeMinusOne;
-        NativeBattleActionHeaderSlot slot = new(preparation.Source, preparation.Command, preparation.Sequence, preparation.CameraChoice, preparation.Action, preparation.Effect, new(ContactCount), preparation.Data, count, repeat);
+        NativeBattleActionHeaderSlot slot = new(preparation.Source, preparation.Command, preparation.Sequence, preparation.CameraChoice, preparation.Action, preparation.Effect, new(ContactCount), preparation.Data, count, repeat) { ReflectedCaster = preparation.ReflectedCaster };
         BattleActionHeaderReference reference = new(index);
         NativeBattleRetainedActionPackets raw = NativeBattleActionPacketBoundary.PrepareHeader(RetainedStorage, reference, slot, aliases);
         return (new(Roster, aliases, raw, grown.SetItem(index, slot), contacts, ActionCount, ContactCount, ActiveHeader, ActiveContact), reference);
@@ -225,7 +236,7 @@ public sealed class NativeBattleActionPacketsState
             BattleContactOccurrence occurrence = current[relative].Occurrence!.Value;
             ValidateContact(replacement);
             if (replacement.Primary.Recipient != current[relative].Primary.Recipient ||
-                replacement.Secondary is { } secondary && secondary.Recipient != header.Source ||
+                replacement.Secondary is { } secondary && secondary.Recipient != header.Caster ||
                 replacement.Occurrence is { } supplied && supplied != occurrence)
             {
                 throw new InvalidDataException("A replacement must retain the primary recipient and occurrence, and any secondary must name the header source.");

@@ -1,7 +1,151 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
+
+internal sealed record NativeMagicReflectionCast(BattleActionPresentation Command, BattleModelOwner Reflector);
 
 public sealed partial class BattleSession
 {
+    private sealed record NativeMagicReflectionReceipt(BattleActionPresentation Source, BattleCombatant Reflector);
+
+    private ImmutableArray<NativeMagicReflectionCast> PrepareNativeRepeatReflections(BattleNativeAction source, List<NativeMagicReflectionReceipt> receipts)
+    {
+        BattleNativeAction reflected = FindInstalledNativeAction(247, unchecked((byte)source.ActionId));
+        byte flags = reflected.TargetFlags.GetValueOrDefault();
+        var result = ImmutableArray.CreateBuilder<NativeMagicReflectionCast>();
+        bool canPublish = true;
+        //485610 samples the targets after the direct casts have produced their complete receipt list.
+        foreach (NativeMagicReflectionReceipt receipt in receipts)
+        {
+            BattleSide side = receipt.Reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies;
+            BattleCombatant redirected;
+            BattleTargetRequest request;
+            if (!UsesExpandedRoster || originalParticipantSlotsInitialized && Roster(side).All(actor => !actor.IsActive || HasNativeRosterSlot(actor)))
+            {
+                if (ChooseOriginalRandomActionTarget(side) is not NativeBattleTargetRequestAdapter.DeferredOperands selected ||
+                    NativeBattleTargetRequestAdapter.ReadAuthoredTargets(selected, ReadOriginalTargetOccupant).SingleOrDefault() is not { } reference)
+                {
+                    canPublish = false;
+                    continue;
+                }
+                redirected = FindTargetActor(reference)!;
+                request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(new(selected, Random: (flags & 2) != 0), BattleTargetEligibility.SavedStatus, (flags & 1) != 0);
+            }
+            else
+            {
+                BattleCombatant[] available = ExpandedRandomTargets(side);
+                if (available.Length == 0)
+                {
+                    canPublish = false;
+                    continue;
+                }
+                redirected = available[NextRandomByte() % available.Length];
+                request = (flags & 2) != 0
+                    ? new(new BattleTargetSelection.RandomOnSide(side), BattleTargetEligibility.Living, (flags & 1) != 0, BattleTargetReplacement.None)
+                    : SelectBattleTarget(redirected, (flags & 1) != 0);
+            }
+            if (!canPublish)
+            {
+                //485610 fills the remaining WORDs even though the secondary cast loop stops at the first zero.
+                continue;
+            }
+            BattleActionPresentation command = receipt.Source with
+            {
+                ActionId = reflected.ActionId,
+                TargetId = redirected.Id,
+                TargetRequest = request,
+                NativeSequence = 0,
+                NativeQueuedCommand = 247,
+                NativeAction = reflected,
+                FreeNativeMagic = true,
+                MagicReservationId = null
+            };
+            result.Add(new(command, CreatePresentationModelOwner(receipt.Reflector)));
+        }
+        return result.ToImmutable();
+    }
+
+    private void WriteNativeRepeatReflectionPacket(BattleCombatant actor, BattleNativeAction source, List<NativeMagicReflectionReceipt> receipts)
+    {
+        ImmutableArray<NativeMagicReflectionCast> casts = PrepareNativeRepeatReflections(source, receipts);
+        if (casts.IsEmpty)
+        {
+            return;
+        }
+        BattleActionPresentation first = casts[0].Command;
+        BattleAttackCommand secondary = new(actor.Id, first.TargetId, first.TargetRequest, BattleAbility.Magic, first.ActionId)
+        {
+            NativeQueuedCommand = 247,
+            NativeAction = first.NativeAction,
+            FreeNativeMagic = true,
+            NativeEventOwner = first.NativeEventOwner,
+            SecondaryReflectionCasts = casts
+        };
+        if (!TryWriteNativeSecondCommand(secondary))
+        {
+            throw new InvalidDataException("Native repeated reflection lost its selected secondary command bank.");
+        }
+    }
+
+    private BattleAttackCommand ProduceNativeRepeatReflectionPacket(BattleAttackCommand secondary)
+    {
+        BattleCombatant actor = GetActor(secondary.ActorId);
+        BattleNativeAction reflected = secondary.NativeAction!;
+        BattleActionHeaderReference first = nativeActionPackets.NextHeader;
+        BattleActionHeaderReference? previousEncounterCommand = encounterProducingCommandFirstHeader;
+        encounterProducingCommandFirstHeader ??= first;
+        nativeAffinityAction = null;
+        try
+        {
+            int count = 0;
+            foreach (NativeMagicReflectionCast cast in secondary.SecondaryReflectionCasts)
+            {
+                BattleCombatant target = GetActor(cast.Command.TargetId);
+                var action = new BattleActionDefinition(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? "Reflected magic", BattleActionEffect.Native, reflected.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = reflected };
+                ResolveInstalledNativeAction(actor, target, cast.Command, action, queueGraphics: count == 0, reflectionSource: cast.Reflector);
+                count++;
+            }
+            nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(first, checked((byte)count));
+            ObserveDiagnosticCounterPublishedHeaders(first);
+            return secondary with { NativeHeader = first, NativeSequence = nativeActionPackets.ReadHeader(first).Sequence, SecondaryReflectionCasts = [] };
+        }
+        finally
+        {
+            encounterProducingCommandFirstHeader = previousEncounterCommand;
+        }
+    }
+
+    private void StageExpandedRepeatReflection(BattleCombatant actor, BattleActionDefinition source, List<NativeMagicReflectionReceipt> receipts)
+    {
+        int firstOperation = expandedOperationCursor.Operations.Length;
+        foreach (NativeMagicReflectionCast cast in PrepareNativeRepeatReflections(source.NativeAction!, receipts))
+        {
+            BattleActionPresentation command = cast.Command;
+            BattleNativeAction reflected = command.NativeAction!;
+            BattleCombatant target = GetActor(command.TargetId);
+            var action = new BattleActionDefinition(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? source.Name, BattleActionEffect.Native, reflected.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = reflected };
+            var plan = PlanNativeHits(actor, command, reflected);
+            NativeBattleActionHeaderPreparation header = PrepareReflectedHeader(BuildExpandedActionHeaderPreparation(command, reflected), cast.Reflector);
+            ReserveExpandedAiInvocation(command, header);
+            resolvingNativeAction = command;
+            nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
+            deferringExpandedImpacts = true;
+            NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, command, action, reflected, plan);
+            deferringExpandedImpacts = false;
+            StageExpandedHostedInvocation(command, header, ToHostedContacts(produced), null);
+        }
+        if (!TryGroupNativeMagicCasts(firstOperation, source.NativeAction!, command: 247))
+        {
+            throw new InvalidDataException("Hosted repeat reflection requires the prepared secondary spell headers.");
+        }
+    }
+
+    private static NativeBattleActionHeaderPreparation PrepareReflectedHeader(NativeBattleActionHeaderPreparation header, BattleModelOwner reflector)
+    {
+        //The secondary485610 calls 48D200 with sequence0 and substitutes the retained reflector at header BYTE0.
+        return header with { Source = reflector, ReflectedCaster = header.Source, Sequence = 0 };
+    }
+
     private static bool NativeActionReflects(BattleCombatant recipient, BattleNativeAction native)
     {
         return NativeBattleReflectionRules.CanReflect(native.Command, native.AttackFlags, native.AttackType) && (recipient.NativeStatus1 & 0x80) != 0;
@@ -80,7 +224,9 @@ public sealed partial class BattleSession
         nativeProductionContext = new(0, lane, true, 0x47DE70);
         try
         {
-            BattleAttackCommand produced = ProduceNativeQueuedCommand(GetActor(command.ActorId), GetActor(command.TargetId), command);
+            BattleAttackCommand produced = command.SecondaryReflectionCasts.IsEmpty
+                ? ProduceNativeQueuedCommand(GetActor(command.ActorId), GetActor(command.TargetId), command)
+                : ProduceNativeRepeatReflectionPacket(command);
             actions.Enqueue(produced);
             FlushEncounterCounterCommands();
         }

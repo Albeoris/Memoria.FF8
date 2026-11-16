@@ -7,7 +7,11 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleActionDataReference([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] ushort Argument, string? FormattedText = null);
 
 /// <summary>Only the fields actually written by48D200 before48E830 publishes a20-byte physical header.</summary>
-public sealed record NativeBattleActionHeaderPreparation([property: JsonRequired] BattleModelOwner Source, [property: JsonRequired] byte Command, [property: JsonRequired] byte Sequence, [property: JsonRequired] sbyte CameraChoice, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, NativeBattleActionDataReference? Data);
+public sealed record NativeBattleActionHeaderPreparation([property: JsonRequired] BattleModelOwner Source, [property: JsonRequired] byte Command, [property: JsonRequired] byte Sequence, [property: JsonRequired] sbyte CameraChoice, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, NativeBattleActionDataReference? Data)
+{
+    internal BattleModelOwner? ReflectedCaster { get; init; }
+    internal BattleModelOwner Caster => ReflectedCaster ?? Source;
+}
 
 /// <summary>Caller-owned1D28DF0/E0C inputs; headerBYTE17 is written separately by485610 after the dispatch group.</summary>
 public sealed record NativeBattleActionProductionContext([property: JsonRequired] byte RepeatMode, [property: JsonRequired] byte MultiCastMode, [property: JsonRequired] bool DrawFollowUp, [property: JsonRequired] uint CompletionCallback);

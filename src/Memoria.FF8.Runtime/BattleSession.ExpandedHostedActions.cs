@@ -136,8 +136,13 @@ public sealed partial class BattleSession
 
     private bool IsStagedExpandedAiInvocation(ExpandedAiInvocationReservation reservation)
     {
-        return expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().Any(invocation => ReferenceEquals(invocation.Reservation, reservation) &&
-            invocation.Header.Source == reservation.Source && ReferenceEquals(invocation.Command, reservation.Command) && !invocation.Contacts.IsDefault);
+        return expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().Any(invocation => Matches(invocation) || invocation.FollowingCasts.Any(Matches));
+
+        bool Matches(ExpandedHostedInvocation invocation)
+        {
+            return ReferenceEquals(invocation.Reservation, reservation) && invocation.Header.Source == reservation.Source &&
+                ReferenceEquals(invocation.Command, reservation.Command) && !invocation.Contacts.IsDefault;
+        }
     }
 
     private ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
@@ -222,17 +227,22 @@ public sealed partial class BattleSession
         }
         foreach (ExpandedHostedInvocation invocation in expandedOperationCursor.Operations.Skip(expandedOperationCursor.Current ?? expandedOperationCursor.Next).OfType<ExpandedHostedInvocation>())
         {
-            BattleCombatant actor = GetActor(invocation.Command.ActorId);
-            _ = GetActor(invocation.Command.TargetId);
-            if (invocation.Header.Source != CreatePresentationModelOwner(actor) || !roster.Contains(invocation.Header.Source) || invocation.Contacts.IsDefault)
-            {
-                throw new InvalidDataException("Hosted invocation header does not identify its canonical caster.");
-            }
-            ValidateExpandedEffectContacts(invocation.Header.Source, invocation.Contacts, roster);
+            ValidateCast(invocation);
             foreach (ExpandedHostedInvocation cast in invocation.FollowingCasts)
             {
-                ValidateExpandedEffectContacts(invocation.Header.Source, cast.Contacts, roster);
+                ValidateCast(cast);
             }
+        }
+
+        void ValidateCast(ExpandedHostedInvocation cast)
+        {
+            BattleCombatant actor = GetActor(cast.Command.ActorId);
+            _ = GetActor(cast.Command.TargetId);
+            if (cast.Header.Caster != CreatePresentationModelOwner(actor) || !roster.Contains(cast.Header.Source) || cast.Contacts.IsDefault)
+            {
+                throw new InvalidDataException("Hosted invocation header does not identify its canonical caster and graphics source.");
+            }
+            ValidateExpandedEffectContacts(cast.Header.Caster, cast.Contacts, roster);
         }
     }
 

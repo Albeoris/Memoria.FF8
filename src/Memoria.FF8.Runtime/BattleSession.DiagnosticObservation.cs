@@ -177,7 +177,9 @@ public sealed partial class BattleSession
         {
             return;
         }
-        string? actorId = effect.Parameters is { } parameters ? ReadGraphicsPresentationId(parameters.Source) : graphics.ActionActorId;
+        NativeBattleActionHeaderSlot? enteredHeader = effect.Parameters is { } entered ? nativeActionPackets.ReadHeader(entered.Header) : null;
+        string? actorId = enteredHeader?.ReflectedCaster is { } caster ? ReadGraphicsPresentationId(caster) :
+            effect.Parameters is { } parameters ? ReadGraphicsPresentationId(parameters.Source) : graphics.ActionActorId;
         BattleActionPresentation? action = owner.resolvingNativeAction ?? owner.ActiveAction;
         if (action?.ActorId != actorId)
         {
@@ -187,11 +189,10 @@ public sealed partial class BattleSession
         BattleAbility? ability = action?.Ability ?? bound?.Ability;
         int? actionId = action?.NativeAction?.ActionId ?? action?.ActionId ?? bound?.NativeAction?.ActionId ?? bound?.ActionId;
         byte? nativeCommand = action?.NativeAction?.Command ?? bound?.NativeAction?.Command;
-        if (effect.Parameters is { } entered)
+        if (enteredHeader is { } enteredSlot)
         {
-            NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(entered.Header);
-            actionId = header.Action;
-            nativeCommand = header.Command;
+            actionId = enteredSlot.Action;
+            nativeCommand = enteredSlot.Command;
             if (actorId is not null && owner.byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
             {
                 ability = ResolveDiagnosticHeaderAbility(selectedActor.IsPlayer, ability, selectedActor.NativeLimit?.Command, nativeCommand.Value);
