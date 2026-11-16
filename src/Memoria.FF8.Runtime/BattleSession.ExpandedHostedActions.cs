@@ -194,6 +194,20 @@ public sealed partial class BattleSession
 
     private bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (header.Effect == NativeBattleEffect101Profile.Effect)
+        {
+            // Trauma's counter uses the dormant Droma packet for model setup. Its recipient sequence has no contact event.
+            if (header is not { Command: 8, Action: 290, Sequence: 13, Source: BattleEnemyActorModel source } || definition.EncounterId != 431 ||
+                command is not { Ability: BattleAbility.EnemyAbility, NativeAiCallbackStage: 2, NativeAction: { KernelSection: 3, KernelIndex: 290 } } ||
+                source.Actor.ActorId != command.ActorId || GetActor(command.ActorId) is not { ModelId: 109, SceneSlot: 1 } ||
+                command.TargetRequest.Selection is not NativeBattleTargetRequestAdapter.DeferredOperands { Slots: [var slot], ReservedPositions.IsEmpty: true } ||
+                ResolveLastNativeAllocation() is not { ModelId: 110, SceneSlot: 0 or 2, IsActive: true, Hidden: true, Suspended: true, Untargetable: true } droma ||
+                ReadOriginalTargetOccupant(slot) != TargetActorReference(droma))
+            {
+                throw new InvalidDataException("Hosted Trauma counter requires its original dormant Droma recipient.");
+            }
+            return true;
+        }
         (ushort Action, byte Sequence, int Model, bool Death)? transition = header.Effect switch
         {
             // NORG's death dialogue marks its side models unavailable without consuming the neutral self contact.

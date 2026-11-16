@@ -35,7 +35,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        (string status, string detail) = RunExpandedRenzokuken(directory, PrepareField(directory), game, assets, 337);
+        (string status, string detail) = RunExpandedRenzokuken(directory, PrepareField(directory, game.ReadColdProcessNativeBattleMemory()), game, assets, 337);
         Assert.True(status == "logical", detail);
     }
 
@@ -186,10 +186,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     private static bool AdvanceSorceressAllocations(GameWorld world, BattleSession battle, int finalModel)
     {
         BattleCombatant attacker = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
         HashSet<string> defeated = [];
         for (int step = 0; step < 40 && battle.Outcome == BattleOutcome.Active; step++)
         {
-            BattleCombatant? enemy = battle.Combatants.FirstOrDefault(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable);
+            BattleCombatant? enemy = Assert.SingleOrDefault(battle.Combatants.Where(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable &&
+                process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(candidate.Id), out _)));
             if (enemy?.ModelId == finalModel)
             {
                 Assert.Equal(10, defeated.Count);
