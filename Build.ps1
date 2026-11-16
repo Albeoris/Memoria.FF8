@@ -6,11 +6,16 @@ param(
     [string]$Scope = 'Distribution',
     [ValidateSet('', 'win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')]
     [string]$RuntimeIdentifier = '',
-    [switch]$Test
+    [switch]$Test,
+    [switch]$TestPortable
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+if ($TestPortable -and ($Scope -ne 'Distribution' -or $Test)) {
+    throw 'TestPortable requires the Distribution scope without Test.'
+}
 
 if (!$RuntimeIdentifier) {
     $RuntimeIdentifier = if ([OperatingSystem]::IsWindows()) { 'win-x64' } elseif ([OperatingSystem]::IsLinux()) { 'linux-x64' } elseif ([OperatingSystem]::IsMacOS()) { if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'osx-arm64' } else { 'osx-x64' } } else { throw 'Unsupported desktop host.' }
@@ -39,6 +44,21 @@ function Invoke-DotNet {
     }
 }
 
+function Invoke-PortableTests {
+    $testProjects = @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.LinuxTesting.Tests')
+    & (Join-Path $root 'tests/Shared/Report-TestResources.ps1') -Projects $testProjects
+    $previousFixtureNotice = $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED
+    try {
+        $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = '1'
+        foreach ($project in $testProjects) {
+            Invoke-DotNet (@('run', '--project', "tests/$project", '-c', $Configuration, '--no-build') + $graphArguments)
+        }
+    }
+    finally {
+        $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = $previousFixtureNotice
+    }
+}
+
 $root = $PSScriptRoot
 $graphBuild = Join-Path $root ('artifacts/build/' + $RuntimeIdentifier + '/graph')
 $graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaBuildRuntimeIdentifier=' + $RuntimeIdentifier), '-p:SelfContained=true', ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', '-p:ShouldUnsetParentConfigurationAndPlatform=false')
@@ -53,20 +73,7 @@ if ($Scope -ne 'Distribution') {
             # after packaging, while still building on a standalone invocation.
             Invoke-DotNet (@('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-m:1') + $graphArguments)
             if ($Test) {
-                $testProjects = @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.LinuxTesting.Tests')
-                & (Join-Path $root 'tests/Shared/Report-TestResources.ps1') -Projects $testProjects
-                $previousFixtureNotice = $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED
-                try {
-                    $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = '1'
-                    foreach ($project in $testProjects) {
-                        Invoke-DotNet (@('run', '--project', "tests/$project", '-c', $Configuration, '--no-build') + $graphArguments)
-                    }
-                    # This selection uses no optional game fixtures.
-                    Invoke-DotNet (@('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--filter-class', '*SteamAchievementBackendTests'))
-                }
-                finally {
-                    $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = $previousFixtureNotice
-                }
+                Invoke-PortableTests
             }
         }
         else {
@@ -120,7 +127,9 @@ try {
     $nativeVulkan = Join-Path $artifacts "native-vulkan/$RuntimeIdentifier"
     & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
     $nativeVulkanArguments = @(('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan), '-p:MemoriaNativeVulkanPrepared=true')
-    Invoke-DotNet (@('build', 'Memoria.FF8.Native.slnx', '-c', $Configuration, '-m:1') + $graphArguments + $nativeVulkanArguments)
+    $solution = if ($TestPortable) { 'Memoria.FF8.Distribution.slnx' } else { 'Memoria.FF8.Native.slnx' }
+    $buildNodes = if ($TestPortable) { '-m:2' } else { '-m:1' }
+    Invoke-DotNet (@('build', $solution, '-c', $Configuration, $buildNodes) + $graphArguments + $nativeVulkanArguments)
     $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
     if ($RuntimeIdentifier -eq 'win-x64') {
         & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12
@@ -193,6 +202,7 @@ try {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Ui.Tests', '-c', $Configuration)
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Assets.Tests', '-c', $Configuration, '--', '--filter-class', '*FieldPoseInterpolationTests', '--filter-class', '*FieldRenderInterpolationTests')
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
+        Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Platform.Tests', '-c', $Configuration, '--', '--filter-class', '*SteamAchievementBackendTests')
     }
 
     foreach ($relative in @($executable, ('audio-host/Memoria.FF8.Music' + $extension)) + @($backends | ForEach-Object { 'Game/' + $_.Directory + '/' + $executable; 'Game/' + $_.Directory + '/Memoria.PsfDecoder' + $extension })) {
@@ -313,6 +323,9 @@ try {
         Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--create-tar', $package, $archive))
     }
     & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $archive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -BuildArguments $graphArguments
+    if ($TestPortable) {
+        Invoke-PortableTests
+    }
     Write-Host "Distribution: $package"
     Write-Host "Archive: $archive"
 }

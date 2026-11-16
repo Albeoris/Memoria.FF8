@@ -60,11 +60,12 @@ Ad hoc signing does not provide Developer ID trust or notarization.
 Fresh builds first ask the installed SDK to resolve the unchanged `global.json`.
 `setup-dotnet` runs only if that resolution fails. Jobs restore the NuGet cache;
 only pushes to `main` save new entries. Build outputs and tested distribution
-artifacts are separate from this dependency cache. Portable tests reuse the
-assemblies built by their graph. The portable subset uses the native graph's
-output directory and build properties, so it updates that graph incrementally
-after packaging rather than compiling a second copy. A standalone portable run
-still builds its full subset before testing. Repeated packaging checks reuse
+artifacts are separate from this dependency cache. Main, tags and manual runs
+use `Build.ps1 -TestPortable`. Its distribution solution builds the payload,
+distribution checkers and selected test executables together with two MSBuild
+workers. The portable tests run from those outputs. Pull requests also compile
+the complete Native solution and build the portable subset incrementally in its
+output directory. Repeated packaging checks reuse
 their compiled checker by invoking its assembly directly, without starting MSBuild for each assertion.
 
 Artifact reuse, orchestration, archive packaging, release publication, native macOS signing and project coverage have separate validation steps with individual time limits. Packaging tests print each checker operation before executing it, so a stalled operation remains visible in the log.

@@ -1,6 +1,6 @@
 using Memoria.FF8.Runtime;
 
-namespace Memoria.FF8.Runtime.Tests;
+namespace Memoria.FF8.Platform.Tests;
 
 public sealed class SteamAchievementBackendTests
 {

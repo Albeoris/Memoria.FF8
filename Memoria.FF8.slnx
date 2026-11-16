@@ -28,6 +28,7 @@
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/Memoria.ApplicationIcons/Memoria.ApplicationIcons.csproj" />
     <Project Path="tools/Memoria.FF8.Distribution.Check/Memoria.FF8.Distribution.Check.csproj" />
     <Project Path="tools/Memoria.FF8.Updater.Compatibility/Memoria.FF8.Updater.Compatibility.csproj" />
   </Folder>

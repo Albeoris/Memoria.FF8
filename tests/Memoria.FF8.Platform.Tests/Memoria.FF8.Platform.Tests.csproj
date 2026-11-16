@@ -10,5 +10,6 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
   </ItemGroup>
 </Project>

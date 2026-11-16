@@ -19,6 +19,7 @@
   <Project Path="src/Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
   <Project Path="src/Memoria.FF8.Ui/Memoria.FF8.Ui.csproj" />
   <Project Path="src/Memoria.Launcher/Memoria.Launcher.csproj" />
+  <Project Path="tools/Memoria.ApplicationIcons/Memoria.ApplicationIcons.csproj" />
   <Project Path="tools/Memoria.FF8.BattleEffects/Memoria.FF8.BattleEffects.csproj" />
   <Project Path="tools/Memoria.FF8.Distribution.Check/Memoria.FF8.Distribution.Check.csproj" />
   <Project Path="tools/Memoria.FF8.Localization/Memoria.FF8.Localization.csproj" />

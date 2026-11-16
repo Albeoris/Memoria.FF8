@@ -147,9 +147,13 @@ jobs:
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
         run: |
-          ./Build.ps1 -RuntimeIdentifier ${{ matrix.rid }}
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            ./Build.ps1 -RuntimeIdentifier ${{ matrix.rid }}
+          } else {
+            ./Build.ps1 -RuntimeIdentifier ${{ matrix.rid }} -TestPortable
+          }
       - name: Build portable graph and run selected tests
-        if: steps.distribution.outputs.reuse != 'true'
+        if: github.event_name == 'pull_request' && steps.distribution.outputs.reuse != 'true'
         shell: pwsh
         run: |
           ./Build.ps1 -Scope Portable -RuntimeIdentifier ${{ matrix.rid }} -Test
