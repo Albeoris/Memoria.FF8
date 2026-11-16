@@ -932,7 +932,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private ModFile? FindInventoryBookArtwork(int itemId) => resourceHost is { } host ? InventoryBookArtwork.Find(host.Mods.Catalog, itemId) : null;
+    private ModFile? FindInventoryBookArtwork(int itemId) => resourceHost?.BookArtwork.Find(itemId);
 
     private void DrawGameUi(Rectangle bounds)
     {

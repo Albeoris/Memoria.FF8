@@ -52,6 +52,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
     public ResourceService Resources { get; }
+    public BookArtworkMods BookArtwork { get; private set; } = BookArtworkMods.Empty;
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
@@ -326,18 +327,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.Equals(BehaviorMods.PayloadPath, StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
-        if (InventoryBookArtwork.Find(catalog, InventoryBookArtwork.GirlNextDoorItemId) is { } bookArtwork)
+        if (!BookArtworkMods.TryPrepare(catalog, out BookArtworkMods bookArtwork, out IReadOnlyList<ModDiagnostic> bookDiagnostics))
         {
-            try
-            {
-                ModImageDecoder.Decode(bookArtwork);
-                usable.Add(bookArtwork.PackageId);
-            }
-            catch (ModTextureLoadException exception)
-            {
-                return new ModPreparationResult(false, Diagnostics: [new ModDiagnostic("Memoria.InvalidBookArtwork", exception.Message, bookArtwork.PackageId, bookArtwork.RelativePath)]);
-            }
+            return new ModPreparationResult(false, Diagnostics: bookDiagnostics);
         }
+        usable.AddRange(bookArtwork.PackageIds);
         if (gameplayPolicy.ExtendedRosterEnabled)
         {
             usable.Add(GameplayTuningPolicy.ExtendedRosterPackageId);
@@ -430,6 +424,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             EncounterMods = encounterMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
+            BookArtwork = bookArtwork;
             StartupPolicy = startupPolicy;
             GameplayPolicy = gameplayPolicy;
             LastLocalizationChangedKeys = localization.ChangedKeys;

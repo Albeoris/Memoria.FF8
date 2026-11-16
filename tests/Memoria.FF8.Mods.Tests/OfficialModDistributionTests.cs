@@ -175,6 +175,27 @@ public sealed class OfficialModDistributionTests : IDisposable
         throw new TimeoutException("The mod library did not reach the expected state.");
     }
 
+    [Fact]
+    public async Task OfficialInstallerChecksBookBindingsBeforeStaging()
+    {
+        const string descriptor = "items/book-artwork.json";
+        var (validPath, validEntry) = Package("1.1.0", extraFiles: new Dictionary<string, byte[]>
+        {
+            [descriptor] = """{"schemaVersion":1,"items":[{"itemId":222,"image":"art/cover.png"}]}"""u8.ToArray(),
+            ["art/cover.png"] = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAYAAAC56t6BAAAAFElEQVR4nGNgYGBgMEhY8B9EozIAR20GjgleNaUAAAAASUVORK5CYII=")
+        });
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan valid = await installer.InspectAsync(validPath, validEntry, Token);
+        await installer.DiscardAsync(valid, Token);
+
+        var (missingPath, missingEntry) = Package("1.2.0", extraFiles: new Dictionary<string, byte[]>
+        {
+            [descriptor] = """{"schemaVersion":1,"items":[{"itemId":222,"image":"art/cover.png"}]}"""u8.ToArray()
+        });
+        await Assert.ThrowsAsync<InvalidDataException>(() => installer.InspectAsync(missingPath, missingEntry, Token));
+        Assert.False(Directory.Exists(Mods));
+    }
+
     [Theory]
     [InlineData("mod.ini")]
     [InlineData("settings/MOD.INI")]
@@ -216,7 +237,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         throw new TimeoutException("The download did not complete.");
     }
 
-    private (string Path, RemoteModEntry Entry) Package(string version, string? engineRange = null, string? settingsPath = null)
+    private (string Path, RemoteModEntry Entry) Package(string version, string? engineRange = null, string? settingsPath = null, IReadOnlyDictionary<string, byte[]>? extraFiles = null)
     {
         Directory.CreateDirectory(root);
         engineRange ??= Range;
@@ -227,6 +248,10 @@ public sealed class OfficialModDistributionTests : IDisposable
         if (settingsPath is not null)
         {
             files.Add(new(settingsPath, ini.Length, Hash(ini), false));
+        }
+        if (extraFiles is not null)
+        {
+            files.AddRange(extraFiles.Select(item => new OfficialModFile(item.Key, item.Value.Length, Hash(item.Value), false)));
         }
         var manifest = new
         {
@@ -245,12 +270,16 @@ public sealed class OfficialModDistributionTests : IDisposable
         {
             Write(zip, "mod.manifest.json", metadata);
             Write(zip, "payload/asset.txt", payload);
+            foreach ((string name, byte[] bytes) in extraFiles ?? new Dictionary<string, byte[]>())
+            {
+                Write(zip, "payload/" + name, bytes);
+            }
             if (settingsPath is not null)
             {
                 Write(zip, "payload/" + settingsPath, ini);
             }
         }
-        OfficialModArtifact artifact = new("https://example.test/mod.zip", new FileInfo(path).Length, metadata.Length + payload.Length + (settingsPath is null ? 0 : ini.Length), Hash(File.ReadAllBytes(path)));
+        OfficialModArtifact artifact = new("https://example.test/mod.zip", new FileInfo(path).Length, metadata.Length + files.Sum(file => file.Size), Hash(File.ReadAllBytes(path)));
         OfficialModComponent descriptor = new("fixture", "Memoria", "Memoria/Fixture", "Fixture", "Fixture", "Test artwork", "Items", "memoria-native", "download", true, target, new(version, engineRange, "fixture-v" + version, "New", artifact));
         return (path, Entry(descriptor));
     }

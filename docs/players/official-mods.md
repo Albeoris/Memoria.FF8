@@ -6,6 +6,6 @@ Use **Download & enable** in Settings, or **Download & check** followed by **Ins
 
 The launcher lists new components, updates and minimum engine versions. If a newer mod release requires an engine update, the installed compatible version remains available. A public GitHub account is unnecessary. Cached catalog information and installed mods remain available offline.
 
-Existing Girl Next Door files and settings are preserved during the move to optional distribution, including recognized files in committed engine-update backups. Check the package details before choosing repair for a locally edited or incomplete copy. The installer preserves a recoverable backup when replacing an owned generation.
+Existing Girl Next Door files and settings are preserved during the move to optional distribution, including recognized files in committed engine-update backups. If you migrated a copy from an older engine, install the catalog update once to add the item's binding. Check the package details before choosing repair for a locally edited or incomplete copy. The installer preserves a recoverable backup when replacing an owned generation.
 
 Maintainers can put an independently published mod under one `mods/<id>/` directory in Memoria.Mods and push the commit to `main`. The repository builds and publishes each changed mod automatically. [Authoring and publication instructions](https://github.com/Albeoris/Memoria.Mods#publishing).

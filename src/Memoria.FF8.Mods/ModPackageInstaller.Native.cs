@@ -1,6 +1,4 @@
-using System.Buffers.Binary;
 using System.Security.Cryptography;
-using ImageMagick;
 using System.Text;
 using Memoria.FF8.Platform;
 
@@ -142,10 +140,7 @@ public sealed partial class ModPackageInstaller
                 throw new InvalidDataException("Native manifest game target does not match the catalog.");
             }
             ValidateNativeFiles(payload, manifest.Files, cancellationToken);
-            if (component.Id == OfficialModCatalog.GirlNextDoor.Id)
-            {
-                VerifyCover(payload);
-            }
+            ValidateBookArtwork(payload, component.RuntimePackageId, manifest.Files);
             string stable = Path.Combine(root, "content");
             Directory.Move(payload, stable);
             Directory.Delete(extracted, true);
@@ -195,31 +190,29 @@ public sealed partial class ModPackageInstaller
         }
     }
 
-    private static void VerifyCover(string payload)
+    private static void ValidateBookArtwork(string payload, string packageId, IReadOnlyList<OfficialModFile> inventory)
     {
-        using FileStream artwork = File.OpenRead(Path.Combine(payload, "GirlNextDoor.png"));
-        Span<byte> header = stackalloc byte[24];
-        artwork.ReadExactly(header);
-        uint width = BinaryPrimitives.ReadUInt32BigEndian(header[16..20]);
-        uint height = BinaryPrimitives.ReadUInt32BigEndian(header[20..24]);
-        if (width is 0 or > 8192 || height is 0 or > 8192 || (ulong)width * height > 32_000_000 || !header[..8].SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }) || !header.Slice(12, 4).SequenceEqual("IHDR"u8))
+        OfficialModFile? descriptor = inventory.FirstOrDefault(file => file.Path.Equals(BookArtworkMods.ManifestPath, StringComparison.OrdinalIgnoreCase));
+        if (descriptor is null)
         {
-            throw new InvalidDataException("Girl Next Door artwork is not a supported PNG image.");
+            return;
         }
-        artwork.Position = 0;
-        try
+        if (descriptor.Path != BookArtworkMods.ManifestPath)
         {
-            using MagickImage decoded = new(artwork, new MagickReadSettings { Format = MagickFormat.Png });
-            if (decoded.Width != width || decoded.Height != height)
-            {
-                throw new InvalidDataException("Girl Next Door PNG dimensions are inconsistent.");
-            }
+            throw new InvalidDataException($"Use the exact manifest path '{BookArtworkMods.ManifestPath}'.");
         }
-        catch (MagickException exception)
+        Dictionary<string, ModFile> files = new(StringComparer.Ordinal);
+        ModFile FileFromInventory(OfficialModFile file) => new(packageId, ModFormat.Memoria, file.Path, 0, () => File.ReadAllBytes(Path.Combine(payload, file.Path.Replace('/', Path.DirectorySeparatorChar))))
         {
-            throw new InvalidDataException("Girl Next Door artwork is damaged.", exception);
+            ContentStamp = (file.Size, 0)
+        };
+        foreach (OfficialModFile file in inventory)
+        {
+            files.Add(file.Path, FileFromInventory(file));
         }
+        BookArtworkMods.Read(files[descriptor.Path], path => files.GetValueOrDefault(path));
     }
+
 
     public string? CompatibilityError(RemoteModEntry entry)
     {
