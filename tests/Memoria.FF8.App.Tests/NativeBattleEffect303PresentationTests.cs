@@ -38,8 +38,7 @@ public sealed class NativeBattleEffect303PresentationTests
     private static BattleSnapshot PrepareDeclaredSource(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request)
     {
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT303_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original effect303 component.");
-        // Entry preparation loads the original complete pair. The declared component header below selects the actual latent recipient.
-        BattleSnapshot source = NativeBattleEffectFixtureExporter.Prepare(request with { TargetActorIndex = 0 }, game.GameDirectory, Path.Combine(output, "fixture")).Snapshot;
+        BattleSnapshot source = NativeBattleEffectFixtureExporter.Prepare(request, game.GameDirectory, Path.Combine(output, "fixture")).Snapshot;
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([303])[302];
         Assert.Equal(NativeBattleEffect303Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleEffect303Profile.Initializer, binding.Initializer);
@@ -95,10 +94,9 @@ public sealed class NativeBattleEffect303PresentationTests
         Assert.Equal((byte)13, header.Sequence);
         Assert.Equal((int?)0, header.FirstContact.Ordinal);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 258 && action.MagicId == 303).DamagePresentation;
-        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(4), reaction, 1, 0, status.Saved, 7, status.Battle), null);
-        packets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [contact]);
-        packets.Validate();
-        source = source with { NativeActionPackets = packets };
+        NativeBattleContactPacket contact = Assert.Single(packets.ReadHeaderContacts(new BattleActionHeaderReference(0)));
+        Assert.Equal(new NativeBattleContactHalf(packets.ModelAliases.DecodeLiteral(4), reaction, 1, 0, status.Saved, 7, status.Battle), contact.Primary);
+        Assert.Null(contact.Secondary);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleStorageSnapshots.Capture(source)).Capture()));
         File.WriteAllText(Path.Combine(output, "original-loaded-pair.json"), JsonSerializer.Serialize(new { Scenario = "Original formation363 pair after actual loading; declared first physical recipient4 remains latent until selected effect activation; logical HP/status retained", Loaded = loaded, Latent = latent, Header = header, Contact = contact }));
         return source;

@@ -52,9 +52,9 @@ internal static class NativeBattleEffectFixtureExporter
         {
             throw new InvalidDataException("A fixture request requires identity, native effect, positive entry callback budget and external process deadline.");
         }
-        if (request.TargetActorIndex is not (0 or 3) && !(request.RevivalContact && request.TargetActorIndex == 1))
+        if (request.TargetActorIndex is not (0 or 3) && !(request.RevivalContact && request.TargetActorIndex == 1) && !(request.PreserveOriginalFormationEnemies && request.TargetActorIndex == 4))
         {
-            throw new InvalidDataException("This two-actor component supports explicit party0 or enemy3 contact targets only.");
+            throw new InvalidDataException("The component target must be a supported party or original formation recipient.");
         }
         if (request.ControlledDrainContact && (request.Command != 32 || request.Effect != 56 || request.ControlledContactValue is not null || request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.HealingContact || request.RevivalContact))
         {
@@ -397,7 +397,7 @@ internal static class NativeBattleEffectFixtureExporter
                     before = before with { NativeGraphics = priorGraphics with { ActorModels = priorGraphics.ActorModels.Set(RequireOriginalModelOwner(priorGraphics, 1), targetModel with { Flags8 = flags, StatusTimers = timers }) } };
                 }
             }
-            else
+            else if (request.TargetActorIndex == 3)
             {
                 // Reuse the authenticated fresh manual-header input from the existing guardian fixture.
                 byte remainingHits = NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game);
@@ -442,7 +442,7 @@ internal static class NativeBattleEffectFixtureExporter
                 }
                 secondary = new(packets.ModelAliases.DecodeLiteral(request.CasterActorIndex), 0, 0, 1, casterStatus.Saved, checked((ushort)Math.Min(9999, 7 * Math.Max(0, native.StatusAttack - status.Resistances[23]) / 100)), casterStatus.Battle);
             }
-            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(request.TargetActorIndex), native.DamagePresentation, request.TargetActorIndex == 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, request.ControlledContactValue ?? 7, status.Battle), secondary));
+            (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(request.TargetActorIndex), native.DamagePresentation, request.TargetActorIndex >= 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, request.ControlledContactValue ?? 7, status.Battle), secondary));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = before.NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
