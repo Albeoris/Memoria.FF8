@@ -23,6 +23,7 @@ public sealed partial class BattleSession
             ReadPosition8 = (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.ActorModels.Get(actor)), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8),
             ReadAnchor571400 = Anchor,
             SelectIo5342C0 = PollIo,
+            ReadModelBank = _ => (graphics.ActorModels, graphics.NativeBindings),
             ReadSavedFocal = _ => unchecked((ushort)(Camera().CapturedPose?.FocalLength ?? throw new NotSupportedException("Effect70 requires its actual captured focal WORD.")))
         };
         frame = initialize ? NativeBattleEffect70Controller.Initialize(frame, resources, inputs) : NativeBattleEffect70Controller.Advance(frame, resources, inputs);
@@ -116,6 +117,10 @@ public sealed partial class BattleSession
                     NativeBattleGraphicsModel model = graphics.ActorModels.Get(flags.Actor);
                     ushort mask = flags.WordWidth ? flags.AndMask : (ushort)(0xFF00 | (byte)flags.AndMask);
                     graphics = graphics with { ActorModels = graphics.ActorModels.Set(flags.Actor, model with { Flags0 = (ushort)((model.Flags0 & mask) | flags.OrMask) }) };
+                    return current;
+                case NativeBattleEffect70UnboundModelFlags flags:
+                    NativeBattleGraphicsModel retained = graphics.NativeBindings.ReadOriginalCell(flags.Slot, graphics.ActorModels);
+                    graphics = graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(flags.Slot, retained with { Flags0 = (ushort)((retained.Flags0 & flags.AndMask) | flags.OrMask) }) };
                     return current;
                 case NativeBattleEffect70ModelPositionWord position:
                     NativeBattleGraphicsModel changed = NativeBattleRaldo19ModelMemory.Apply(graphics.ActorModels.Get(position.Actor), position.Offset, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(position.Value)), 0, 2);

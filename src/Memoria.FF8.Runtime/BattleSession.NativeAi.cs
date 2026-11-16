@@ -161,7 +161,10 @@ public sealed partial class BattleSession
                         sequenceOverride = instruction[0];
                         break;
                     case 6:
-                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
+                        if (!QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected))
+                        {
+                            return;
+                        }
                         break;
                     case 7:
                         preparedCommand = 8;
@@ -197,12 +200,18 @@ public sealed partial class BattleSession
                         if (chosen != 253)
                         {
                             PrepareNativeAiAbility(actor, chosen, ref preparedCommand, ref preparedId, ref sequenceOverride);
-                            QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
+                            if (!QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected))
+                            {
+                                return;
+                            }
                         }
                         break;
                     case 12:
                         PrepareNativeAiAbility(actor, instruction[0], ref preparedCommand, ref preparedId, ref sequenceOverride);
-                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected);
+                        if (!QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, selected))
+                        {
+                            return;
+                        }
                         break;
                     case 14:
                     case 15:
@@ -533,22 +542,15 @@ public sealed partial class BattleSession
         return status < 16 ? (NativeSavedStatusBits(actor) & (1u << status)) != 0 : (NativeBattleStatusBits(actor) & (1u << (status - 16))) != 0;
     }
 
-    private void QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
+    private bool QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
     {
         //487DF0 LABEL374 skips a zero prepared WORD ID, including zero-filled ability rows.
         //This guard belongs to the AI interpreter: ordinary player physical command1 legitimately uses ID0.
         if (id == 0)
         {
-            return;
+            return true;
         }
-        if (UsesExpandedRoster)
-        {
-            QueueExpandedAiAction(actor, command, id, sequence, selected);
-        }
-        else
-        {
-            QueueNativeCommand(actor, command, id, sequence, selected);
-        }
+        return UsesExpandedRoster ? QueueExpandedAiAction(actor, command, id, sequence, selected) : QueueNativeCommand(actor, command, id, sequence, selected);
     }
 
     private static bool NativeAiPathOnlyReturns(byte[] code, int pc)

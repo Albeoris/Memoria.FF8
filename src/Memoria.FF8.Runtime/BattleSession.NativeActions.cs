@@ -47,7 +47,7 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(command, id, crisis);
     }
 
-    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
+    private bool QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         ValidateNativeActionContract(native);
@@ -56,7 +56,12 @@ public sealed partial class BattleSession
         BattleTargetRequest request = ApplyOriginalAiTargetFlags(selected, flags, EnemyActionTargetsKnockedOutAllies(native));
         BattleCombatant target = ReadOriginalAiAnchor(selected) ?? actor;
         BattleAttackCommand queued = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence };
-        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", diagnosticSelection: selected.Request);
+        return EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", diagnosticSelection: selected.Request);
+    }
+
+    private bool NativeAiRejectedEmptyTarget(byte? callback, BattleTargetRequest request)
+    {
+        return callback is not null && request.Selection is NativeBattleTargetRequestAdapter.DeferredOperands { IsEmpty: true } && nativeActionScratch.TargetUnavailableB0E == true;
     }
 
     private BattleCombatant? ReadOriginalAiAnchor(AiTargetSelection selection)
@@ -135,10 +140,19 @@ public sealed partial class BattleSession
             (nativeActionPackets, BattleContactOccurrence occurrence) = nativeActionPackets.AppendContact(packet);
             ObserveDiagnosticCounterAppend(packet, occurrence);
         }
-        PublishNativeSingleActionHeader(produced.PublishedTargetCount);
+        bool rejectedEmptyAiTarget = NativeAiRejectedEmptyTarget(command.NativeAiCallbackStage, command.TargetRequest);
+        if (rejectedEmptyAiTarget)
+        {
+            (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
+        }
+        else
+        {
+            PublishNativeSingleActionHeader(produced.PublishedTargetCount);
+        }
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);
         RecordPublishedNativeTargetCount(produced.PublishedTargetCount);
-        if (queueGraphics && NativeGraphics is { } graphics)
+        //487DF0 calls 485F00 (descriptor104) only after 48E830 publishes a header and B0E is clear.
+        if (queueGraphics && !rejectedEmptyAiTarget && NativeGraphics is { } graphics)
         {
             graphics = QueueNativeActionDescriptor(graphics, headerIndex);
             if (header.Command == 14 && command.NativeLimitCallback == NativeLimitCallback.ShotOpening)

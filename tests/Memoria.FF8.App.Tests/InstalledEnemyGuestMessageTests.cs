@@ -10,6 +10,7 @@ public sealed class InstalledEnemyGuestMessageTests
     private const byte Death = 43;
 
     [Theory]
+    [InlineData(509, false)]
     [InlineData(509, true)]
     [InlineData(510, false)]
     [InlineData(510, true)]
@@ -22,16 +23,54 @@ public sealed class InstalledEnemyGuestMessageTests
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, assets.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
         using GameWorld world = new(session, directory, sharedAssets: assets) { UsePhysicalBattlePresentation = !attached };
-        ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, knockedOutAlly: formation == 981), formation, allies: 3, additionalEnemies: 0);
+        ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, knockedOutAlly: formation == 981, survivorHpBonus: formation == 509 ? (ushort)9999 : null), formation, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: ExpandedBattleInstalledEntry.Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.Equal(attached, battle.ExpandedPresentationProcess is not null);
         TickUntil(battle, () => Settled(battle) && (formation != 981 || battle.Combatants.Any(IsLoadedReserve)), "original formation entry");
 
-        if (formation != 981)
+        if (formation == 509)
         {
-            int[] originalModels = formation == 509 ? [122] : [124, 125, 125];
-            Assert.Equal(originalModels, battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).Select(actor => actor.ModelId));
+            BattleCombatant hidden = Assert.Single(battle.Combatants, actor => actor.ModelId == 123 && actor.IsActive);
+            BattleCombatant initial = Assert.Single(battle.Combatants, actor => actor.ModelId == 122 && actor.IsActive);
+            Assert.Equal(3, hidden.NativeActorIndex);
+            Assert.Equal(4, initial.NativeActorIndex);
+            Assert.True(hidden.Untargetable);
+            Assert.DoesNotContain(battle.Events, item => item.Kind == "Queued" && item.ActorId == hidden.Id && item.Amount == 352);
+
+            BattleSnapshot? initialTurnSnapshot = attached ? null : battle.Capture();
+            byte initialTurn = initial.AiTurnCount;
+            SetReadyActor(battle, initial);
+            TickUntil(battle, () => initial.AiTurnCount > initialTurn && Settled(battle), "model 122 original Turn");
+            Assert.Equal(initialTurn + 1, initial.AiTurnCount);
+            Assert.True(hidden.IsActive);
+            if (initialTurnSnapshot is not null)
+            {
+                BattleSession restored = BattleSession.Restore(initialTurnSnapshot);
+                restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+                BattleCombatant restoredInitial = Assert.Single(restored.Combatants, actor => actor.Id == initial.Id);
+                Assert.Contains(restored.Combatants, actor => actor.Id == hidden.Id && actor.IsActive && actor.Untargetable);
+                SetReadyActor(restored, restoredInitial);
+                TickUntil(restored, () => restoredInitial.AiTurnCount > initialTurn && Settled(restored), "model 122 restored Turn");
+                Assert.Equal(initial.AiTurnCount, restoredInitial.AiTurnCount);
+                Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), restored.Capture().Random!.Indexes.ToArray());
+            }
+
+            BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party-0");
+            BattleCombatant observer = battle.Combatants.Single(actor => actor.Id == "party-1");
+            for (int cast = 0; cast < 10 && initial.IsActive && initial.IsAlive; cast++)
+            {
+                CastMagic(battle, caster, initial, observer, Flare);
+            }
+            TickUntil(battle, () => !initial.IsActive && Settled(battle) && battle.Combatants.Any(IsLoadedReserve), "model 122 Death and original reserve allocation");
+            BattleCombatant replacement = Assert.Single(battle.Combatants, IsLoadedReserve);
+            Assert.Equal(3, replacement.SceneSlot);
+            Assert.Equal(5, replacement.NativeActorIndex);
+            return;
+        }
+        if (formation == 510)
+        {
+            Assert.Equal(new[] { 124, 125, 125 }, battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).Select(actor => actor.ModelId));
             return;
         }
 

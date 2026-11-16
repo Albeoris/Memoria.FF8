@@ -142,6 +142,27 @@ public sealed class NativeBattleEffect70ControllerTests
         Assert.Equal(new NativeBattleEffect70ModelFlags(OriginalOwner(0), 0xFFFB, 4, true), operation);
     }
 
+    [Fact]
+    public void Visibility_uses_live_models_and_retained_original_cells_while_an_allocation_is_planned()
+    {
+        Harness harness = new();
+        BattleModelOwner participant = OriginalOwner(0);
+        NativeBattleModelSlot retainedSlot = NativeBattleModelSlot.Decode(6);
+        BattleModelRoster roster = new([participant]);
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, new(roster, [(NativeBattleModelSlot.Decode(0), participant)]), _ => new(2));
+        NativeBattleModelBoundary boundary = graphics.NativeBindings.WriteUnboundCell(retainedSlot, new(6));
+        var inputs = harness.Inputs() with { ReadModelBank = _ => (graphics.ActorModels, boundary) };
+
+        NativeBattleEffect70Frame frame = CaptureFlags(Active(), inputs);
+        Assert.Single(frame.State.SavedFlags);
+        Assert.Equal(2u, frame.State.ReadDword(SavedFlagsAddress));
+        Assert.Equal(6u, frame.State.ReadDword(SavedFlagsAddress + 24));
+
+        _ = HideEnabled(frame, inputs);
+        Assert.Equal(new NativeBattleEffect70ModelFlags(participant, 0xFFFF, 4, true), Assert.Single(harness.Operations.OfType<NativeBattleEffect70ModelFlags>()));
+        Assert.Equal(new NativeBattleEffect70UnboundModelFlags(retainedSlot, 0xFFFF, 4), Assert.Single(harness.Operations.OfType<NativeBattleEffect70UnboundModelFlags>()));
+    }
+
     private static NativeBattleEffect70Frame Common()
     {
         NativeBattleEffect70Frame frame = InitializeCommonPool(InitializeCommonPool(Active(), 1), 2);
@@ -171,6 +192,12 @@ public sealed class NativeBattleEffect70ControllerTests
             return frame;
         })
         {
+            ReadModelBank = _ =>
+            {
+                NativeBattleActionPacketsState packets = OriginalPackets();
+                NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(packets.Roster, packets.ModelAliases, actor => new(actor == OriginalOwner(0) ? (ushort)2 : (ushort)1));
+                return (graphics.ActorModels, graphics.NativeBindings);
+            },
             ReadSavedFocal = frame => 512,
             SelectIo5342C0 = (frame, index) =>
             {

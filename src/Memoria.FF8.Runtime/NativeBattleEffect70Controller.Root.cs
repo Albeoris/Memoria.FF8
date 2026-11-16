@@ -72,40 +72,51 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Frame CaptureFlags(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs)
     {
-        NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        ImmutableDictionary<BattleModelOwner, ushort>.Builder saved = ImmutableDictionary.CreateBuilder<BattleModelOwner, ushort>();
-        foreach (BattleModelOwner actor in packets.Roster.Owners)
+        (BattleActorModels models, NativeBattleModelBoundary bindings) = inputs.RequireModelBank(frame);
+        var saved = models.Entries.ToImmutableDictionary(entry => entry.Owner, entry => entry.State.Flags0);
+        //6DDCC0 captures the seven current cells, including unbound retained cells.
+        for (byte index = 0; index < NativeBattleModelBoundary.CellCount; index++)
         {
-            ushort flags = inputs.ReadModel(frame, actor).Flags0;
-            saved.Add(actor, flags);
-            if (packets.ModelAliases.TryEncodeExact(actor, out byte originalSlot))
-            {
-                frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)originalSlot * 4, flags) };
-            }
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(index);
+            ushort flags = bindings.ReadOriginalCell(slot, models).Flags0;
+            frame = frame with { State = frame.State.WriteDword(SavedFlagsAddress + (uint)index * 4, flags) };
         }
-        return frame with { State = frame.State with { SavedFlags = saved.ToImmutable() } };
+        return frame with { State = frame.State with { SavedFlags = saved } };
     }
 
     public static NativeBattleEffect70Frame HideEnabled(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs)
     {
-        foreach (BattleModelOwner actor in inputs.ReadPackets(frame).Roster.Owners)
-        {
-            if ((inputs.ReadModel(frame, actor).Flags0 & 2) != 0)
-            {
-                frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFF, 4, true));
-            }
-        }
-        return frame;
+        return UpdateEnabledFlags(frame, inputs, restore: false);
     }
 
     public static NativeBattleEffect70Frame RestoreFlags(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs)
     {
-        foreach (BattleModelOwner actor in inputs.ReadPackets(frame).Roster.Owners)
+        return UpdateEnabledFlags(frame, inputs, restore: true);
+    }
+
+    private static NativeBattleEffect70Frame UpdateEnabledFlags(NativeBattleEffect70Frame frame, NativeBattleEffect70Inputs inputs, bool restore)
+    {
+        (BattleActorModels models, NativeBattleModelBoundary bindings) = inputs.RequireModelBank(frame);
+        NativeBattleModelAliases aliases = bindings.CaptureAliases(models);
+        ushort andMask = restore ? (ushort)0xFFFB : ushort.MaxValue;
+        for (byte index = 0; index < NativeBattleModelBoundary.CellCount; index++)
         {
-            if ((inputs.ReadModel(frame, actor).Flags0 & 2) != 0)
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(index);
+            if ((bindings.ReadOriginalCell(slot, models).Flags0 & 2) != 0)
             {
-                ushort saved = frame.State.SavedFlags.TryGetValue(actor, out ushort flags) ? flags : throw new InvalidDataException("The current model has no retained effect flags.");
-                frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(actor, 0xFFFB, (ushort)(saved & 4), true));
+                ushort orMask = restore ? (ushort)(frame.State.ReadDword(SavedFlagsAddress + (uint)index * 4) & 4) : (ushort)4;
+                NativeBattleEffect70Operation operation = bindings.FindOriginalOwner(slot, models) is { } actor
+                    ? new NativeBattleEffect70ModelFlags(actor, andMask, orMask, true)
+                    : new NativeBattleEffect70UnboundModelFlags(slot, andMask, orMask);
+                frame = inputs.Execute(frame, operation);
+            }
+        }
+        foreach (BattleModelEntry<BattleModelOwner> entry in models.Entries)
+        {
+            if ((entry.State.Flags0 & 2) != 0 && !aliases.TryEncodeExact(entry.Owner, out _))
+            {
+                ushort saved = restore ? frame.State.SavedFlags[entry.Owner] : (ushort)4;
+                frame = inputs.Execute(frame, new NativeBattleEffect70ModelFlags(entry.Owner, andMask, (ushort)(saved & 4), true));
             }
         }
         return frame;

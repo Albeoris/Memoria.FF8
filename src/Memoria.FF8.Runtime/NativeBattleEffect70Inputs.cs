@@ -18,6 +18,12 @@ public sealed partial record NativeBattleEffect70Inputs(NativeBattleSummonColors
     public Func<NativeBattleEffect70Frame, BattleModelOwner, NativeBattleEffect70PointStep>? ReadAnchor571400 { get; init; }
     public Func<NativeBattleEffect70Frame, int, NativeBattleEffect70Step>? SelectIo5342C0 { get; init; }
     public Func<NativeBattleEffect70Frame, ushort>? ReadSavedFocal { get; init; }
+    internal Func<NativeBattleEffect70Frame, (BattleActorModels Models, NativeBattleModelBoundary Bindings)>? ReadModelBank { get; init; }
+
+    internal (BattleActorModels Models, NativeBattleModelBoundary Bindings) RequireModelBank(NativeBattleEffect70Frame frame)
+    {
+        return ReadModelBank?.Invoke(frame) ?? throw new NotSupportedException("Effect70 requires its current graphics model bank.");
+    }
 }
 
 public abstract record NativeBattleEffect70Operation
@@ -27,6 +33,7 @@ public abstract record NativeBattleEffect70Operation
 }
 public sealed record NativeBattleEffect70UploadTim(uint Source) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70ModelFlags(BattleModelOwner Actor, ushort AndMask, ushort OrMask, bool WordWidth) : NativeBattleEffect70Operation;
+internal sealed record NativeBattleEffect70UnboundModelFlags(NativeBattleModelSlot Slot, ushort AndMask, ushort OrMask) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70ModelPositionWord(BattleModelOwner Actor, int Offset, short Value) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70ModelPositionPacked(BattleModelOwner Actor, NativeBattleEffectArena Position8) : NativeBattleEffect70Operation;
 public sealed record NativeBattleEffect70CaptureBounds6DFD90(BattleModelOwner Actor, uint Destination) : NativeBattleEffect70Operation;

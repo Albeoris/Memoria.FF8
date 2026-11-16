@@ -94,7 +94,8 @@ public sealed partial class BattleSession
     private AiTargetSelection ResolveExpandedModelTarget(int selector)
     {
         BattleCombatant? target = UsesOriginalEnemySlots ? ExpandedAiModelActor(selector) : combatants.FirstOrDefault(candidate => IsExpandedAiTarget(candidate) && NativeModelId(candidate) == selector);
-        return SelectAiActors(target is null ? [] : [target]);
+        AiTargetSelection selected = SelectAiActors(target is null ? [] : [target]);
+        return selected with { MissingOriginalModel = UsesOriginalEnemySlots && target is null };
     }
 
     private BattleCombatant? ExpandedAiModelActor(int model)
@@ -153,14 +154,22 @@ public sealed partial class BattleSession
         EnqueueExpandedAiAction(actor, 252, 1, sequence, selected, graphic: new(magicId));
     }
 
-    private void QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
+    private bool QueueExpandedAiAction(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
+        bool randomTarget = command is 2 or 4 && (native.TargetFlags.GetValueOrDefault() & 2) != 0;
+        if (selected.MissingOriginalModel && !randomTarget && !nativeScriptState.DisableAutomaticTargetReplacement)
+        {
+            //487DF0's failed model lookup contributes zero target bits to 48EEB0 and returns on B0E.
+            actor.PreviousAiTarget = selected.PreviousTarget;
+            return false;
+        }
         if (!NativeBattleExpandedAi.SupportsAction(native, UsesOriginalEnemySlots))
         {
             throw new NotSupportedException($"Expanded AI command {command}/{id} requires an unsupported combat service.");
         }
         EnqueueExpandedAiAction(actor, native.Command, native.ActionId, sequence, selected, native);
+        return true;
     }
 
     private void EnqueueExpandedAiAction(BattleCombatant actor, byte command, ushort actionId, byte sequence, AiTargetSelection selected, BattleNativeAction? native = null, BattleNativeGraphicCommand? graphic = null, BattleTargetEligibility eligibility = BattleTargetEligibility.SavedStatus)

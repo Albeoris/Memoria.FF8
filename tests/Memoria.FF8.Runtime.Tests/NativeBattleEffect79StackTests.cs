@@ -161,6 +161,7 @@ public sealed class NativeBattleEffect79StackTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x25E5100, 0x25E5110, 180, 2);
         NativeBattleModulePoolTask task = pool.Slots[0].UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, pool.Slots[0].Next, 0x7BCF10).WriteByte(0x29, 1);
         task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(OriginalOwner(4)), OriginalAliases.EncodeOperand(OriginalOwner(4), 1));
+        task.WriteExecutionReference(0x2D, 1, new BattleExecutionReference.Model(OriginalOwner(3)), OriginalAliases.EncodeOperand(OriginalOwner(3), 1));
         task = task.WriteWord(0x24, 1);
         pool.WriteSlot(0, task);
         pool.UpdateLinks(0, 0);

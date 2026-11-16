@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private readonly record struct AiTargetSelection(BattleTargetRequest Request, BattlePreviousTarget? PreviousTarget);
+    private readonly record struct AiTargetSelection(BattleTargetRequest Request, BattlePreviousTarget? PreviousTarget, bool MissingOriginalModel = false);
     private bool SamplesOriginalAiSlots => !UsesExpandedRoster ||
         UsesOriginalEnemySlots && definition.AddedEnemySources is not { Count: > 0 } && allies.All(HasNativeRosterSlot);
 

@@ -34,15 +34,20 @@ public sealed partial class BattleSession
         return command;
     }
 
-    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, BattleTargetRequest? diagnosticSelection = null)
+    private bool EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, BattleTargetRequest? diagnosticSelection = null)
     {
         if (CaptureEncounterCounterCommand(actor, command, name, playerInput, diagnosticSelection))
         {
-            return;
+            return true;
         }
         command = PrepareNativeEventCommand(actor, command);
+        if (command is { NativeHeader: not null, NativeGraphic: null } && NativeAiRejectedEmptyTarget(command.NativeAiCallbackStage, command.TargetRequest))
+        {
+            return false;
+        }
         NativeBattleCommandBanks? input = playerInput ? PrepareNativeInputCommand(command) : null;
         PublishNativePacket(actor, command, name, input, diagnosticSelection);
+        return true;
     }
 
     private void PublishNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, NativeBattleCommandBanks? input, BattleTargetRequest? diagnosticSelection = null)

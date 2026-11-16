@@ -136,11 +136,16 @@ public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBa
 
     public NativeBattleEffect79State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
+        return WriteView(address, source, 0, length);
+    }
+
+    internal NativeBattleEffect79State WriteView(uint address, NativeBattleEffectArena source, int sourceOffset, int length)
+    {
         if (InMutableSource(address, length))
         {
-            return Write(address, source.Read(0, length));
+            return Write(address, source.Read(sourceOffset, length));
         }
-        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length);
+        NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, Storage, Require(address, length), length);
         return this;
     }
 

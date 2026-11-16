@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, NativeBattleEffect79Frame Frame) DrawNativeEffect79Body(NativeBattleGraphicsState graphics, NativeBattleEffect79Frame frame, uint bodyAddress, Func<NativeBattleEffect79Frame, NativeBattleGfGeometryBatch, uint, ushort, NativeBattleEffect79Frame> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = NativeBattleEffect79Controller.ReadBytes(frame, bodyAddress, BodyContextLength);
-        BattleModelOwner actor = frame.State.ReadModelReference(checked(bodyAddress + 0x64), 4);
+        BattleModelOwner actor = frame.State.ReadModelReference(checked(bodyAddress + 0xA8), 2);
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new NotSupportedException("Effect79 requires its current target skeleton.");
         _ = resource.LinkedGeometry ?? throw new NotSupportedException("Effect79 requires observed linked geometry presence.");
@@ -40,7 +40,8 @@ public sealed partial class BattleSession
             context = context.Write(0x54 + row * 4, BitConverter.GetBytes(registers.Colors.Mac[row] ?? throw new NotSupportedException("Effect79 matrix translation requires full current MAC.")));
         }
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
-        frame = NativeBattleEffect79Controller.WriteBytes(frame, bodyAddress, context, BodyContextLength);
+        //7BD020 writes the world and composed matrix lanes while the context's model bindings stay live.
+        frame = frame with { State = frame.State.WriteView(bodyAddress + 0x20, context, 0x20, 32).WriteView(bodyAddress + 0x40, context, 0x40, 18).WriteView(bodyAddress + 0x54, context, 0x54, 12) };
         Draw(false, NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), pose));
         if (graphics.ActorModels.Get(actor).LinkedTransform is not null)
         {
