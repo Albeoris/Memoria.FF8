@@ -30,7 +30,9 @@ public sealed partial class Ff7WorldRuntime
         WorldSnapshot execution = Machine.Capture() with { Tick = 0, NextRequestId = 1 };
         string executionFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(execution)));
         int controlledOwner = ControlledModel;
-        int? ReadHost(WorldHostDependency dependency) => ProjectAutoPlayHostDependency(dependency, controlledOwner);
+        Ff7WorldEntity[] hostEntities = entities.Values.ToArray();
+        Ff7WorldEntity[] hostFreeEntities = freeEntities.ToArray();
+        int? ReadHost(WorldHostDependency dependency) => ProjectAutoPlayHostDependency(dependency, controlledOwner, hostEntities, hostFreeEntities);
         WorldScriptAnalysis Analyze(int script)
         {
             var key = (chunkX, chunkZ, script, instructionBudget);
@@ -56,9 +58,30 @@ public sealed partial class Ff7WorldRuntime
         return BuildAutoPlayFrontierCatalog(Resources.World, execution.ProgramIdentity, chunkX, chunkZ, mesh, Analyze, Machine.ReadPredicateFingerprint, selector => (fieldTable ??= Resources.ReadFieldTable()).Select(selector));
     }
 
-    internal static int? ProjectAutoPlayHostDependency(WorldHostDependency dependency, int controlledModel)
+    internal static int? ProjectAutoPlayHostDependency(WorldHostDependency dependency, int controlledModel, IReadOnlyList<Ff7WorldEntity>? entities = null, IReadOnlyList<Ff7WorldEntity>? freeEntities = null)
     {
-        return dependency.Kind == WorldHostDependencyKind.Special && dependency.Selector == 8 ? Math.Max(0, controlledModel) : null;
+        if (dependency.Kind != WorldHostDependencyKind.Special)
+        {
+            return null;
+        }
+        if (dependency.Selector == 8)
+        {
+            return Math.Max(0, controlledModel);
+        }
+        Ff7WorldEntity? entity;
+        if (dependency.Model == -1)
+        {
+            entity = new(-1);
+        }
+        else if (dependency.FreeModelIndex is int index)
+        {
+            entity = (uint)index < (uint)(freeEntities?.Count ?? 0) && freeEntities![index].Model == dependency.Model ? freeEntities[index] : null;
+        }
+        else
+        {
+            entity = entities?.SingleOrDefault(entity => entity.Model == dependency.Model);
+        }
+        return entity is null ? null : ReadEntitySpecial(entity, dependency.Selector);
     }
 
     internal static Ff7AutoPlayWorldFrontierCatalog BuildAutoPlayFrontierCatalog(int worldId, string programIdentity, int chunkX, int chunkZ, PcWorldMesh mesh, Func<int, WorldScriptAnalysis> analyze, Func<IReadOnlyList<WorldVariableRead>, string> readPredicate, Func<ushort, PcWorldFieldEntry> selectField)

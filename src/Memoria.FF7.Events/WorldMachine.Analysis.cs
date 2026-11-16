@@ -74,7 +74,8 @@ public sealed partial class WorldMachine
         public WorldHostReply Execute(WorldHostRequest request)
         {
             observation.Commands.Add(request);
-            if (request.Command.Operation is WorldOperation.RunChocoboPath or WorldOperation.WaitWindow or WorldOperation.WaitChocoboPath or WorldOperation.WaitChocoboRuns)
+            // Blocking acknowledgements only retry their PC; they do not return a value to the script.
+            if (request.Command.Operation == WorldOperation.RunChocoboPath)
             {
                 observation.Unknown(new(WorldHostDependencyKind.OperationResult, request.ActiveModel, (int)request.Command.Operation, request.FreeModelIndex));
             }

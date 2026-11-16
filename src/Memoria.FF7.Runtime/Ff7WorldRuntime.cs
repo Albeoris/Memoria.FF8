@@ -267,13 +267,8 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
     public int ReadSpecial(int selector, int activeModel, int? freeModelIndex)
     {
         Ff7WorldEntity entity = activeModel == -1 ? new(-1) : ResolveHostEntity(activeModel, freeModelIndex);
-        return selector switch
+        return ReadEntitySpecial(entity, selector) ?? (selector switch
         {
-            0 => entity.X >> 13,
-            1 => entity.Z >> 13,
-            2 => entity.X & 8191,
-            3 => entity.Z & 8191,
-            4 => entity.TargetDirection >> 4 & 255,
             5 => entryModule,
             6 => entrySelector,
             7 => viewMode | radarMode << 2,
@@ -282,15 +277,28 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
             10 => escapedWorldBattle ? 1 : 0,
             11 => marsh.InMarsh ? 1 : 0,
             12 => dialogue is { Completed: false } ? -1 : lastSelection,
-            13 => entity.Terrain >> 5 & 7,
             14 => playerModel,
-            15 => entity.Model,
             16 => WorldRandom.Next(),
             17 => partyChange?.Joined0 ?? 0,
             18 => partyChange?.Joined1 ?? 0,
             19 => partyChange?.Left0 ?? 0,
             20 => partyChange?.Left1 ?? 0,
             _ => throw new NotSupportedException($"Unsupported FFVII world special selector {selector:X4}.")
+        });
+    }
+
+    private static int? ReadEntitySpecial(Ff7WorldEntity entity, int selector)
+    {
+        return selector switch
+        {
+            0 => entity.X >> 13,
+            1 => entity.Z >> 13,
+            2 => entity.X & 8191,
+            3 => entity.Z & 8191,
+            4 => entity.TargetDirection >> 4 & 255,
+            13 => entity.Terrain >> 5 & 7,
+            15 => entity.Model,
+            _ => null
         };
     }
 

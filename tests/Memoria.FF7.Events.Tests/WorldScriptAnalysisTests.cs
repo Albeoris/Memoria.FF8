@@ -9,6 +9,7 @@ internal static class WorldScriptAnalysisTests
         BranchesAndTypedGuards();
         RequestsReuseNativeExecution();
         HostDependenciesRemainIncomplete();
+        BlockingAcknowledgementsDoNotReadAValue();
         ReloadAndAmbientClassification();
         PureFieldTransferProof();
         BoundsAndSourcePreservation();
@@ -72,6 +73,50 @@ internal static class WorldScriptAnalysisTests
         WorldMachine distance = Machine([0, 0x110, 2, 0x18, 0x201, 7, 0x203, 0x110, 1, 0x110, 0, 0x318, 0x203], new byte[1280], host);
         WorldScriptAnalysis zone = distance.AnalyzeMeshDispatch(0, 0, 3);
         Check(!zone.Complete && zone.HostReads.Any(read => read.Kind == WorldHostDependencyKind.ZoneDistance) && host.Calls == 0, "A zone-distance dependency must remain explicit instead of changing native selected-light state.");
+    }
+
+    private static void BlockingAcknowledgementsDoNotReadAValue()
+    {
+        foreach (WorldOperation operation in new[] { WorldOperation.CloseWindow, WorldOperation.WaitWindow, WorldOperation.WaitChocoboPath, WorldOperation.WaitChocoboRuns })
+        {
+            ushort[] code = [0, (ushort)operation, 0x110, 1, 0x110, 0, 0x318, 0x203];
+            RejectHost rejected = new();
+            WorldMachine source = Machine(code, new byte[1280], rejected);
+            string before = JsonSerializer.Serialize(source.Capture());
+            WorldScriptAnalysis analysis = source.AnalyzeMeshDispatch(0, 0, 3);
+            Check(analysis.Complete && analysis.MayEnterField && !analysis.IsPureFieldTransfer && analysis.HostReads.Length == 0, $"The scheduling acknowledgement {operation} was treated as an unobserved value or a pure transfer.");
+            Check(before == JsonSerializer.Serialize(source.Capture()) && rejected.Calls == 0, "Inspecting a scheduling acknowledgement advanced the native host or source VM.");
+            AcknowledgementHost host = new(operation);
+            WorldMachine native = Machine(code, new byte[1280], host);
+            native.StartMesh(0, 0, 0);
+            native.Tick();
+            native.Tick();
+            Check(native.Capture().System.ProgramCounter == 1 && !host.Transferred, "The native blocking host operation advanced before acknowledgement.");
+            host.Ready = true;
+            native.Tick();
+            Check(host.Transferred, "The native blocking operation did not continue to its field handoff after acknowledgement.");
+        }
+        WorldScriptAnalysis mutation = Machine([0, 0x110, 0, 0x340, 0x203], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3);
+        Check(!mutation.Complete && mutation.HostReads.Any(read => read.Kind == WorldHostDependencyKind.OperationResult), "A host-mutating path command was silently treated as a scheduling acknowledgement.");
+    }
+
+    private sealed class AcknowledgementHost(WorldOperation operation) : IWorldHost
+    {
+        public bool Ready { get; set; }
+        public bool Transferred { get; private set; }
+
+        public WorldHostReply Execute(WorldHostRequest request)
+        {
+            if (request.Command.Operation == operation)
+            {
+                return new(Ready);
+            }
+            Check(request.Command.Operation == WorldOperation.FieldTransition, "The authored native wait unexpectedly dispatched another command.");
+            Transferred = true;
+            return new(true);
+        }
+
+        public int ReadSpecial(int selector, int activeModel) => throw new InvalidOperationException("A scheduling acknowledgement read an external value.");
     }
 
     private static void ReloadAndAmbientClassification()
