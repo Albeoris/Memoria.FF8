@@ -7,6 +7,7 @@ public sealed record FieldSpatialSample(int Id, FieldActorPosition Position);
 public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int TargetEntity, int TargetScript, int SampleId, int[] DestinationFields, bool ChangesStory, string Fingerprint, FieldVariableRead[] Reads, FieldHostRead[] HostReads)
 {
     public bool TriangleOnly { get; init; }
+    public bool Stochastic { get; init; }
 }
 public sealed record FieldSpatialObservation(FieldSpatialDemand[] Demands, FieldVariableRead[] Reads, string Fingerprint);
 
@@ -49,7 +50,7 @@ public sealed partial class FieldMachine
         Stochastic = 8
     }
 
-    private readonly record struct SpatialScalarTaint(SpatialTaint Taint, int Scalar, int Width);
+    private readonly record struct SpatialScalarTaint(SpatialTaint Taint, int Scalar, int Width, int? RandomDraw = null);
 
     private sealed class SpatialInspectionQueryException : Exception
     {
@@ -60,7 +61,7 @@ public sealed partial class FieldMachine
     }
 
     /// <summary>Projects current autonomous spatial predicates onto supplied physical samples without dispatching scripts or hosts.</summary>
-    public FieldSpatialObservation ReadCurrentSpatialDemands(int controlledEntity, IReadOnlyList<FieldSpatialSample> samples, int instructionBudget = 128)
+    public FieldSpatialObservation ReadCurrentSpatialDemands(int controlledEntity, IReadOnlyList<FieldSpatialSample> samples, int instructionBudget = 128, FieldSpatialRandomDomain? randomDomain = null)
     {
         ArgumentNullException.ThrowIfNull(samples);
         if ((uint)controlledEntity >= entities.Length || instructionBudget is < 1 or > 4096 || samples.Select(sample => sample.Id).Distinct().Count() != samples.Count)
@@ -82,13 +83,18 @@ public sealed partial class FieldMachine
                 {
                     continue;
                 }
-                if (!Project(entity, null))
+                if (!Project(entity, null, [], null))
                 {
                     continue;
                 }
                 foreach (FieldSpatialSample sample in samples)
                 {
-                    Project(entity, sample);
+                    Queue<byte[]> alternatives = new();
+                    alternatives.Enqueue(randomDomain?.Phases ?? [0]);
+                    while (alternatives.TryDequeue(out byte[]? phases))
+                    {
+                        Project(entity, sample, phases, alternatives);
+                    }
                 }
             }
         }
@@ -98,9 +104,10 @@ public sealed partial class FieldMachine
         }
         FieldVariableRead[] observed = observationReads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
         string observationFacts = $"{ReadScriptAnalysisAllocationFingerprint()}|{string.Join(';', source.Entities.Select(entity => $"{entity.Priority}:{entity.ProgramCounter}"))}|{ReadScriptAnalysisFingerprint(controlledEntity, 0, observed)}";
-        return new(demands.ToArray(), observed, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(observationFacts))));
+        FieldSpatialDemand[] distinct = demands.GroupBy(demand => (demand.Entity, demand.ProgramCounter, demand.TargetEntity, demand.TargetScript, demand.SampleId, demand.Fingerprint)).Select(group => group.First()).ToArray();
+        return new(distinct, observed, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(observationFacts))));
 
-        bool Project(int entity, FieldSpatialSample? sample)
+        bool Project(int entity, FieldSpatialSample? sample, byte[] phases, Queue<byte[]>? alternatives)
         {
             FieldMachine detached = Restore(program, source, new InspectionHost());
             HashSet<FieldVariableRead> dependencies = [];
@@ -114,6 +121,9 @@ public sealed partial class FieldMachine
             FieldActorQueryKind? queryKind = null;
             int queryWrites = 0;
             int scalar = 0;
+            int randomDraw = 0;
+            int? instructionRandomDraw = null;
+            bool stochasticPredicate = false;
             HashSet<int> visited = [];
             detached.inspection = new()
             {
@@ -164,7 +174,7 @@ public sealed partial class FieldMachine
                     }
                     queryWrites++;
                 }
-                SpatialScalarTaint value = new(result, ++scalar, bytes.Length);
+                SpatialScalarTaint value = new(result, ++scalar, bytes.Length, instructionRandomDraw);
                 foreach (FieldVariableRead address in bytes)
                 {
                     taints[address] = value;
@@ -183,6 +193,7 @@ public sealed partial class FieldMachine
                 instructionTaint = SpatialTaint.None;
                 queryKind = null;
                 queryWrites = 0;
+                instructionRandomDraw = null;
                 try
                 {
                     byte opcode = program.Read(pc);
@@ -211,11 +222,49 @@ public sealed partial class FieldMachine
                         owner.Wait = 0;
                         continue;
                     }
-                    if (opcode is 0x99 or 0x33 or 0x4A)
+                    if (opcode is >= 0x14 and <= 0x19)
+                    {
+                        FieldConditional condition = detached.ReadConditional(entity, opcode);
+                        if ((instructionTaint & SpatialTaint.Stochastic) != 0)
+                        {
+                            if (!sampled)
+                            {
+                                break;
+                            }
+                            if (randomDomain is null || alternatives is null)
+                            {
+                                throw new SpatialStochasticPredicateException(entity, pc);
+                            }
+                            int? leftDraw = ReadRandomDraw(condition.LeftSource, pc);
+                            int? rightDraw = ReadRandomDraw(condition.RightSource, pc);
+                            List<byte> matched = [];
+                            List<byte> unmatched = [];
+                            foreach (byte phase in phases)
+                            {
+                                int left = leftDraw is int firstDraw ? randomDomain.Value(phase, firstDraw) : condition.Left;
+                                int right = rightDraw is int secondDraw ? randomDomain.Value(phase, secondDraw) : condition.Right;
+                                (detached.Compare(left, right, condition.Operation) ? matched : unmatched).Add(phase);
+                            }
+                            if (matched.Count != 0 && unmatched.Count != 0)
+                            {
+                                alternatives.Enqueue(unmatched.ToArray());
+                            }
+                            phases = matched.Count != 0 ? matched.ToArray() : unmatched.ToArray();
+                            owner.Pc = matched.Count != 0 ? condition.MatchedPc : condition.UnmatchedPc;
+                            stochasticPredicate = true;
+                        }
+                        else
+                        {
+                            owner.Pc = detached.Compare(condition.Left, condition.Right, condition.Operation) ? condition.MatchedPc : condition.UnmatchedPc;
+                        }
+                        predicateTaint |= instructionTaint & ~SpatialTaint.Stochastic;
+                    }
+                    else if (opcode is 0x99 or 0x33 or 0x4A)
                     {
                         if (opcode == 0x99)
                         {
                             instructionTaint = SpatialTaint.Stochastic;
+                            instructionRandomDraw = ++randomDraw;
                         }
                         InstructionInspection prior = detached.inspection;
                         detached.inspection = new() { ActorReply = prior.ActorReply };
@@ -229,18 +278,6 @@ public sealed partial class FieldMachine
                             break;
                         }
                         detached.Execute(entity);
-                    }
-                    if (opcode is >= 0x14 and <= 0x19)
-                    {
-                        if ((instructionTaint & SpatialTaint.Stochastic) != 0)
-                        {
-                            if (sampled && ((predicateTaint | instructionTaint) & (SpatialTaint.Coordinates | SpatialTaint.Triangle)) != 0)
-                            {
-                                throw new SpatialStochasticPredicateException(entity, pc);
-                            }
-                            break;
-                        }
-                        predicateTaint |= instructionTaint;
                     }
                     // Stores own their result; only preceding source reads can define their dependencies.
                     dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read) && !instructionWrites.Contains(read)));
@@ -259,6 +296,20 @@ public sealed partial class FieldMachine
             }
             observationReads.UnionWith(dependencies);
             return false;
+
+            int? ReadRandomDraw(FieldVariableRead read, int pc)
+            {
+                FieldVariableRead[] bytes = detached.Variables.SpatialSourceBytes(read).ToArray();
+                if (!bytes.Any(value => (taints.GetValueOrDefault(value).Taint & SpatialTaint.Stochastic) != 0))
+                {
+                    return null;
+                }
+                if (bytes.Length != 1 || taints.GetValueOrDefault(bytes[0]).RandomDraw is not int draw)
+                {
+                    throw new SpatialStochasticPredicateException(entity, pc);
+                }
+                return draw;
+            }
 
             void AddDemand(int pc, byte opcode)
             {
@@ -299,9 +350,9 @@ public sealed partial class FieldMachine
             {
                 dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read)));
                 FieldVariableRead[] reads = dependencies.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
-                string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, Math.Max(0, script), reads)}";
+                string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, Math.Max(0, script), reads)}|{(stochasticPredicate ? randomDomain?.Fingerprint : null)}";
                 string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
-                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle });
+                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate });
             }
         }
     }

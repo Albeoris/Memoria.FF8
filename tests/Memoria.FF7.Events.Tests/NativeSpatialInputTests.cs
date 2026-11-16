@@ -15,7 +15,70 @@ internal static class NativeSpatialInputTests
         ByteAliasesRetainSourceDependencies();
         TrianglePredicateTaint();
         DirectSpatialTransitions();
+        StochasticSpatialTransitions();
+        ConditionalDecodeWidths();
         Console.WriteLine("PASS native read-only autonomous spatial demands");
+    }
+
+    private static void StochasticSpatialTransitions()
+    {
+        byte[] table = Enumerable.Range(0, 256).Select(value => (byte)value).ToArray();
+        FieldSpatialRandomDomain domain = new(table, 1, 0);
+        Check(domain.Fingerprint == new FieldSpatialRandomDomain(table, 1, 127).Fingerprint, "A full-cycle domain changed with the current native random phase.");
+        FieldSpatialSample[] positions = [new(1, new(-3, 5, 0, 0))];
+        for (byte operation = 0; operation <= 10; operation++)
+        {
+            byte right = operation >= 9 ? (byte)4 : (byte)36;
+            (_, FieldMachine machine, RejectHost host) = Create(Main([0x99, 5, 30], [0x14, 0x50, 30, right, operation, 12]), [0]);
+            string before = JsonSerializer.Serialize(machine.Capture());
+            FieldSpatialDemand[] demands = machine.ReadCurrentSpatialDemands(1, positions, randomDomain: domain).Demands;
+            int[] destinations = demands.SelectMany(demand => demand.DestinationFields).Order().ToArray();
+            Check(destinations.SequenceEqual(operation == 8 ? new[] { 99 } : new[] { 99, 100 }), $"Native stochastic comparison {operation} lost a feasible branch or fabricated one.");
+            Check(demands.All(demand => demand.Stochastic) && host.Calls == 0 && before == JsonSerializer.Serialize(machine.Capture()), "Stochastic projection changed source state or sampled the native host.");
+        }
+        (_, FieldMachine restricted, _) = Create(Main([0x99, 5, 30], [0x14, 0x50, 30, 36, 0, 12]), [0]);
+        Check(restricted.ReadCurrentSpatialDemands(1, positions, randomDomain: new(table, 16, 0)).Demands.Single().DestinationFields.Single() == 100, "An unreachable random-table phase fabricated a feasible outcome.");
+        (_, FieldMachine correlated, _) = Create(Main([0x99, 5, 30, 0x99, 5, 31], [0x14, 0x55, 30, 31, 0, 12]), [0]);
+        Check(correlated.ReadCurrentSpatialDemands(1, positions, randomDomain: domain).Demands.Single().DestinationFields.Single() == 100, "Consecutive native table draws were incorrectly treated as independent.");
+
+        static byte[] Main(byte[] random, byte[] condition)
+        {
+            byte[] body = [.. random, .. condition, .. Transition(99), .. Transition(100)];
+            return [0xB8, 0x66, 1, 17, 19, 0x16, 0x60, 19, 0, 5, 0, 0, checked((byte)(body.Length + 1)), .. body, 0];
+        }
+    }
+
+    private static void ConditionalDecodeWidths()
+    {
+        for (byte opcode = 0x14; opcode <= 0x19; opcode++)
+        {
+            bool word = opcode >= 0x16;
+            bool wide = (opcode & 1) != 0;
+            List<byte> condition = [opcode, 0];
+            condition.AddRange(word ? new byte[] { 255, 255, 0, 0 } : new byte[] { 255, 0 });
+            condition.Add(2);
+            condition.Add(wide ? (byte)13 : (byte)12);
+            if (wide)
+            {
+                condition.Add(0);
+            }
+            FieldProgram program = new([0, .. condition, .. Transition(99), .. Transition(100)], [new ushort[32]]);
+            RecordingHost host = new();
+            FieldMachine machine = new(program, host: host);
+            machine.Initialize();
+            machine.AdvanceTick();
+            Check(host.Destination == (opcode is 0x16 or 0x17 ? 100 : 99), $"Conditional {opcode:X2} changed native operand signedness or branch displacement.");
+        }
+    }
+
+    private sealed class RecordingHost : IFieldHost
+    {
+        public int? Destination { get; private set; }
+        public FieldHostReply Execute(FieldHostRequest request)
+        {
+            Destination ??= ((FieldTransitionCommand)request.Command).Map;
+            return new(true);
+        }
     }
 
     private static void DirectSpatialTransitions()

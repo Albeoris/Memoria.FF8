@@ -162,6 +162,27 @@ public sealed partial class FieldMachine
         };
     }
 
+    private readonly record struct FieldConditional(int Left, int Right, int Operation, FieldVariableRead LeftSource, FieldVariableRead RightSource, ushort MatchedPc, ushort UnmatchedPc);
+
+    private FieldConditional ReadConditional(int id, byte opcode)
+    {
+        bool word = opcode >= 0x16;
+        bool unsigned = opcode >= 0x18;
+        bool longBranch = (opcode & 1) != 0;
+        int left = word ? R16(id, 1, 2) : R8(id, 1, 2);
+        int right = word ? R16(id, 2, 4) : R8(id, 2, 3);
+        if (unsigned)
+        {
+            left = (ushort)left;
+            right = (ushort)right;
+        }
+        int branchOffset = word ? 7 : 5;
+        int length = branchOffset + (longBranch ? 2 : 1);
+        int distance = longBranch ? S(id, branchOffset) : B(id, branchOffset);
+        int pc = entities[id].Pc;
+        return new(left, right, B(id, word ? 6 : 4), new(Bank(id, 1), word ? W(id, 2) : B(id, 2), word), new(Bank(id, 2), word ? W(id, 4) : B(id, 3), word), unchecked((ushort)(pc + length)), unchecked((ushort)(pc + branchOffset + distance)));
+    }
+
     private bool ExecuteExtended(int id, byte opcode)
     {
         switch (opcode)
@@ -266,21 +287,8 @@ public sealed partial class FieldMachine
             }
             case >= 0x14 and <= 0x19:
             {
-                bool word = opcode >= 0x16;
-                bool unsigned = opcode >= 0x18;
-                bool longBranch = (opcode & 1) != 0;
-                int left = word ? R16(id, 1, 2) : R8(id, 1, 2);
-                int right = word ? R16(id, 2, 4) : R8(id, 2, 3);
-                if (unsigned)
-                {
-                    left = (ushort)left;
-                    right = (ushort)right;
-                }
-                int branchOffset = word ? 7 : 5;
-                int length = branchOffset + (longBranch ? 2 : 1);
-                bool matched = Compare(left, right, B(id, word ? 6 : 4));
-                int distance = longBranch ? S(id, branchOffset) : B(id, branchOffset);
-                Advance(id, matched ? length : branchOffset + distance);
+                FieldConditional condition = ReadConditional(id, opcode);
+                entities[id].Pc = Compare(condition.Left, condition.Right, condition.Operation) ? condition.MatchedPc : condition.UnmatchedPc;
                 return false;
             }
             default:

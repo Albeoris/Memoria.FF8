@@ -116,6 +116,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return default;
         }
+        TrackFrontierProgress(State, Story());
         if (State.Active is null && State.Choice is not null && choices.CompleteAtControlReturn())
         {
             Publish();

@@ -18,8 +18,10 @@ public sealed class Ff7AutoPlayRetreatTests
         CombinedSessionSave source = CombinedSessionCodec.Read(stream);
         Ff7Installation installation = Ff7Installation.Discover(ff7!);
         using Ff7Session session = Ff7Session.Restore(installation, source.Ff7!);
-        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice before the supplied encounter."));
-        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        Ff7AutoPlayActiveEvent intent = Assert.IsType<Ff7AutoPlayActiveEvent>(source.Ff7!.AutoPlay?.Active);
+        Assert.True(intent.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave, "The supplied combat fixture needs its recorded unexecuted movement intent.");
+        // Reproduce the supplied combat entry independently of later exploration-policy improvements.
+        Ff7AutoPlayController controller = new(session, driver => session.Machine.HasCompletedInitialCycle ? driver.ApproachLine(intent.Entity, intent.Kind) : default);
         controller.Start();
         for (int step = 0; step < 256 && session.Battle is null && controller.Running; step++)
         {

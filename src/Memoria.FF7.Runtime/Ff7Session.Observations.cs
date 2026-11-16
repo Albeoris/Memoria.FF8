@@ -15,6 +15,7 @@ public sealed partial class Ff7Session
     public event Action<int, int, bool>? InteractionScriptRequested;
     public event Action? WorldBattleStarting;
     internal event Action<Ff7WorldFieldDeparture, short>? WorldFieldDeparting;
+    internal FieldSpatialRandomDomain ReadSpatialRandomDomain() => new(executable.NativeFieldRandomTable, Progress.FieldRandomStride ?? executable.FieldRandomStep, Progress.FieldRandomIndex);
     public AutoPlayEventCoverageState? EventCoverage { get; internal set; }
     internal Ff7AutoPlayEventCoverage? CoverageOwner { get; set; }
 

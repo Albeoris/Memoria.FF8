@@ -103,6 +103,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
+        TrackFrontierProgress(State, Story());
         driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         Dictionary<string, string> validatedPhysicalGuards = new(StringComparer.Ordinal);
@@ -163,6 +164,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         if (State.Active is null)
         {
+            if (State.Choice is not null && choices.CompleteAtControlReturn())
+            {
+                Publish();
+                return default;
+            }
             Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal);
             string topologyPrefix = observation.NavigationKey[..(observation.NavigationKey.LastIndexOf(':') + 1)];
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), isCurrent: vertex => vertex.VisitKey != observation.VisitId || vertex.Key.StartsWith(topologyPrefix, StringComparison.Ordinal), allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal);
@@ -264,7 +270,22 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     internal static bool IsSpatialTransitionCompletion(Ff7AutoPlayActiveEvent active, int actualMap)
     {
-        return active.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && (active.DestinationField == actualMap || active.SpatialDestinations?.Contains(actualMap) == true);
+        return active.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && (!IsDirectSpatialTarget(active) || active.TransitionOwned) && (active.DestinationField == actualMap || active.SpatialDestinations?.Contains(actualMap) == true);
+    }
+
+    private static bool IsDirectSpatialTarget(Ff7AutoPlayActiveEvent active)
+    {
+        return active.EventId.StartsWith("spatial:", StringComparison.Ordinal) && active.EventId.Contains(":direct:", StringComparison.Ordinal);
+    }
+
+    private static bool IsDirectSpatialTransition(Ff7NativeTickObservation observation, Ff7AutoPlayActiveEvent active)
+    {
+        if (active.Kind != Ff7AutoPlayTargetKind.AutonomousSpatial || active.Script != -1 || active.Returned || active.Generation != observation.Generation || observation.Transition is not { } transition || observation.TransitionOwner is not { Priority: 7 } owner || owner.Entity != active.Entity || owner.Command != transition || active.DestinationField != transition.Map && active.SpatialDestinations?.Contains(transition.Map) != true)
+        {
+            return false;
+        }
+        string[] identity = active.EventId.Split(':');
+        return identity is ["spatial", var entity, var pc, "direct", "triangle", _] && int.TryParse(entity, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int expectedEntity) && expectedEntity == active.Entity && int.TryParse(pc, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int programCounter) && programCounter == owner.ProgramCounter;
     }
 
     internal static bool SourceStoryChanged(Ff7AutoPlayTargetKind kind, int before, int after)
@@ -346,6 +367,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return ObserveWorldPlanner(world);
         }
         Ff7AutoPlayObservation observation = discovery.Observe();
+        bool spatialCatalogChanged = ReplanForNewSpatialTargets(State, observation);
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField is not null))
         {
             nativeDestinationHints[(observation.VisitId, target.Id)] = target.DestinationField!.Value;
@@ -358,7 +380,28 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             ObserveNavigationProbes(State, observation);
         }
         ObserveVisitGuard(observation);
+        if (spatialCatalogChanged)
+        {
+            Publish();
+        }
         return observation;
+    }
+
+    internal static bool ReplanForNewSpatialTargets(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
+    {
+        if (state.Active is not { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } active || active.Kind is Ff7AutoPlayTargetKind.AutonomousSpatial or Ff7AutoPlayTargetKind.WorldMesh || active.Generation != observation.Generation && active.Kind == Ff7AutoPlayTargetKind.Gateway || active.VisitId != observation.VisitId)
+        {
+            return false;
+        }
+        HashSet<string> known = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.Select(item => item.Event.Id).ToHashSet(StringComparer.Ordinal) ?? [];
+        if (!observation.Events.Any(target => target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && target.AnalysisComplete && !known.Contains(target.Id)))
+        {
+            return false;
+        }
+        state.Active = null;
+        state.NavigationGoal = null;
+        state.Status = "Replanning the unaccepted route after discovering native automatic spatial boundaries";
+        return true;
     }
 
     internal static string NavigationProbeKey(string navigationKey, Ff7AutoPlayTarget target)
@@ -383,6 +426,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     internal static bool IsOwnedTransition(Ff7NativeTickObservation observation, Ff7AutoPlayActiveEvent active)
     {
+        if (IsDirectSpatialTarget(active))
+        {
+            return IsDirectSpatialTransition(observation, active);
+        }
         return active is { Accepted: true, Returned: false } && active.Generation == observation.Generation && observation.Transition is not null && observation.TransitionOwner is { } owner && owner.Command == observation.Transition && observation.TransitionOwnership is { } proof && proof.RootEntity == active.Entity && proof.RootScript == active.Script && proof.OwnerEntity == owner.Entity && proof.OwnerPriority == owner.Priority;
     }
 

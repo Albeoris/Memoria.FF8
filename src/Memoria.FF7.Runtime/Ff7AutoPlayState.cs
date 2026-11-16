@@ -26,6 +26,8 @@ public sealed class Ff7AutoPlayState
     public Ff7AutoPlayWorldDispatchReceipt? WorldDispatch { get; set; }
     public WorldHostRequest? WorldDialogueOwner { get; set; }
     public string? Status { get; set; }
+    public string? FrontierProgressKey { get; set; }
+    public int FrontierIdleSteps { get; set; }
 
     public Ff7AutoPlayState Clone()
     {
@@ -34,7 +36,7 @@ public sealed class Ff7AutoPlayState
 
     public void Validate()
     {
-        if (Version != 1 || Coverage is null || Coverage.Visits.Count > 4096 || Coverage.Choices.Count > 4096 || Coverage.Visits.Any(visit => visit.Events.Count > 4096))
+        if (Version != 1 || Coverage is null || Coverage.Visits.Count > 4096 || Coverage.Choices.Count > 4096 || Coverage.Visits.Any(visit => visit.Events.Count > 4096) || FrontierIdleSteps is < 0 or > Ff7AutoPlayPolicy.FrontierIdleLimit)
         {
             throw new InvalidDataException("The automatic play observation state is unsupported or corrupt.");
         }

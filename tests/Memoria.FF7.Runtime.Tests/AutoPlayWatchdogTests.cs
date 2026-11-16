@@ -6,6 +6,7 @@ internal static class AutoPlayWatchdogTests
 {
     public static void Run()
     {
+        FrontierProgressSurvivesLifecycleRestores();
         Ff7WorldProcess world = World();
         Ff7AutoPlayProgressWatchdog stalled = new();
         AutoPlayIdleDeadline deadline = new(TimeProvider.System, TimeSpan.FromSeconds(10));
@@ -45,6 +46,25 @@ internal static class AutoPlayWatchdogTests
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { TokenPosition = 1 } }), "Native dialogue reveal was omitted from semantic progress.");
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { WaitTicks = 1 } }), "Native dialogue waiting was omitted from semantic progress.");
         Console.WriteLine("PASS autoplay semantic watchdog, repeated cycles and bounded host batches.");
+    }
+
+    private static void FrontierProgressSurvivesLifecycleRestores()
+    {
+        Ff7AutoPlayState state = new();
+        state.Coverage.Visits.Add(new() { Visit = new("field", "program"), Events = [new() { Event = new("native", AutoPlayEventKind.Interaction) }] });
+        Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10);
+        for (int step = 1; step < Ff7AutoPlayPolicy.FrontierIdleLimit; step++)
+        {
+            state.Coverage.Visits[0].Events[0].Event = state.Coverage.Visits[0].Events[0].Event with { ConditionSignature = step.ToString() };
+            Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10);
+        }
+        state = state.Clone();
+        ExpectTimeout(() => Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10));
+        state.Coverage.Visits[0].Events[0].Completed = true;
+        Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10);
+        Check(state.FrontierIdleSteps == 0, "A newly completed frontier did not reopen the progress budget.");
+        Ff7AutoPlayPolicy.TrackFrontierProgress(state, 11);
+        Check(state.FrontierIdleSteps == 0, "Native story progress did not reopen the progress budget.");
     }
 
     private static Ff7WorldProcess World()
