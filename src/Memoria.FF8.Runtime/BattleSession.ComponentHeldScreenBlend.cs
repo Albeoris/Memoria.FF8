@@ -49,7 +49,12 @@ public sealed partial class BattleSession
         }
         int index = active[0];
         NativeBattleAuxiliaryTask task = auxiliary.Slots[index];
-        BattleComponentHeldScreenBlendTask held = new(index, task.Flags, task.State, task.Next, task.Kind, task.UnknownByteMask, task.Program is not null, task.Payload);
+        if (task.Kind != NativeBattleAuxiliaryKind.ScreenBlend501E80)
+        {
+            return null;
+        }
+        // The blend reads only the timing and color lanes. A reused slot can still retain another callback's operand program.
+        BattleComponentHeldScreenBlendTask held = new(index, task.Flags, task.State, task.Next, task.Kind, task.UnknownByteMask, false, task.Payload);
         if (!held.IsHeld)
         {
             return null;

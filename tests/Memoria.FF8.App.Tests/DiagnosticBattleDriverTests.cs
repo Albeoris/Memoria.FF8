@@ -158,6 +158,10 @@ public sealed class DiagnosticBattleDriverTests
                 Assert.Equal(1, rinoa.SceneSlot);
                 Assert.Equal(4, rinoa.NativeActorIndex);
                 Assert.True(observation.IsEligible);
+                NativeBattleAuxiliaryTask slot = hosted.Graphics.Auxiliary.Slots[observation.ScreenBlend.Slot];
+                Assert.NotNull(slot.Program);
+                Assert.False(observation.ScreenBlend.HasProgram);
+                Assert.Equal(slot.Payload, observation.ScreenBlend.Payload);
                 Assert.Equal(new[] { "effect-or-auxiliary-task" }, battle.ObserveDiagnosticDrainBlockers());
                 return;
             }
@@ -167,7 +171,7 @@ public sealed class DiagnosticBattleDriverTests
             battle.EncounterId, battle.Outcome, Dispatches = dispatches, Blockers = battle.ObserveDiagnosticDrainBlockers(),
             hosted.Memory.Active, Selected = hosted.Graphics.OriginalEffect?.RequestedEffect,
             ReturnedTask = hosted.Memory.ReadReturnedTask5044B0(), hosted.Graphics.Auxiliary.Head, hosted.Graphics.Auxiliary.Tail,
-            Tasks = hosted.Graphics.Auxiliary.Slots.Select((task, index) => new { Index = index, task.Flags, task.State, task.Kind, task.Next, task.UnknownByteMask, Payload = Convert.ToHexString(task.Payload.AsSpan()) }).Where(task => (task.Flags & 1) != 0).ToArray(),
+            Tasks = hosted.Graphics.Auxiliary.Slots.Select((task, index) => new { Index = index, task.Flags, task.State, task.Kind, task.Next, task.UnknownByteMask, HasRetainedProgram = task.Program is not null, Payload = Convert.ToHexString(task.Payload.AsSpan()) }).Where(task => (task.Flags & 1) != 0).ToArray(),
             Rinoa = battle.Combatants.Where(actor => !actor.IsPlayer && actor.ModelId == 113).Select(actor => new { actor.SceneSlot, actor.NativeActorIndex, actor.IsActive }).ToArray()
         };
         Assert.Fail(JsonSerializer.Serialize(facts, options));

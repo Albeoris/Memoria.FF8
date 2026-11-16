@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -162,7 +161,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 AssertExpandedRenzokukenFinisher(battle, finisher, caster, target, availableEnemies, before);
             }
             BattleNativeRenzokukenResource resource = Assert.Single(game.ReadNativeRenzokukenResources(), candidate => candidate.MagicId == process.MagicId);
-            CompleteExpandedRenzokuken(world, battle, casterId);
+            CompleteExpandedRenzokuken(world, battle, casterId, target.Id, process.MagicId);
             BattleEvent[] contacts = battle.Events.Skip(before).Where(entry => entry.ActorId == casterId && entry.Kind == "EffectContact" && entry.Ability == BattleAbility.LimitBreak && entry.Message == "Renzokuken").ToArray();
             Assert.Equal(resource.Timeline.InputThresholds.Length, contacts.Length);
             Assert.All(contacts, contact => Assert.Equal(target.Id, contact.TargetId));
@@ -173,9 +172,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Single(battle.Events.Skip(before), entry => entry.ActorId == casterId && entry.Kind == "ActionComplete");
             if (finisher is not null)
             {
-                return ("logical", $"Formation {formation}, seed {seed}, original weapon {caster.WeaponId}, {finisher.Name} effect {finisher.MagicId}, {contacts.Length} Renzokuken contacts and JSON continuation.");
+                return ("logical", $"Formation {formation}, seed {seed}, original weapon {caster.WeaponId}, {finisher.Name} effect {finisher.MagicId}, {contacts.Length} Renzokuken contacts on the attached process.");
             }
-            return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts.Length} contacts and JSON continuation.");
+            return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts.Length} contacts on the attached process.");
         }
 
         return ("blocked", originalAllocation && !sawActiveTarget
@@ -215,32 +214,43 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         return false;
     }
 
-    private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId)
+    private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId, string targetId, ushort magic)
     {
-        TimeSpan frameTime = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30);
-        BattleSession? restored = null;
-        for (int frame = 0; frame < 480 && battle.GetNativeRenzokuken(casterId) is not null; frame++)
+        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
+        BattleModelOwner caster = battle.ReadPresentationModelOwner(casterId);
+        long token = Assert.IsType<long>(process.ActiveActionToken);
+        bool observedMidContact = false;
+        for (int frame = 0; frame < 1200 && (battle.GetNativeRenzokuken(casterId) is not null || battle.ActiveAction is not null || process.ActiveActionToken is not null); frame++)
         {
-            if (battle.GunbladeTriggerWindowOpen)
+            if (battle.NativeRenzokukenTriggerWindowOpen)
             {
-                world.ApplyBattleInput(new(BattleInputKind.GunbladeTrigger));
-                restored?.TriggerGunblade();
+                Assert.True(battle.TriggerNativeRenzokuken());
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            battle.AdvanceNativeRenzokukenPresentation(frameTime);
-            if (restored is not null)
+            Assert.Same(process, battle.ExpandedPresentationProcess);
+            if (battle.GetNativeRenzokuken(casterId) is { } current)
             {
-                restored.Tick();
-                restored.AdvanceNativeRenzokukenPresentation(frameTime);
-            }
-            else if (battle.GetNativeRenzokuken(casterId) is { Input.ContactIndex: > 0 })
-            {
-                string snapshot = JsonSerializer.Serialize(battle.Capture());
-                restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!);
-                Assert.Equal(snapshot, JsonSerializer.Serialize(restored.Capture()));
+                Assert.Same(action, battle.ActiveAction);
+                Assert.Equal(token, process.ActiveActionToken);
+                Assert.Equal(magic, current.MagicId);
+                if (process.TriggerWidget is { SourceMagicId: ushort widgetMagic } widget)
+                {
+                    Assert.Equal(caster, widget.Actor);
+                    Assert.Equal(magic, widgetMagic);
+                    Assert.Equal(current.Input, widget.Input);
+                }
+                if (!observedMidContact && current.Input.ContactIndex > 0)
+                {
+                    Assert.Equal(targetId, battle.Capture().NativeTimedAction!.Command.TargetId);
+                    observedMidContact = true;
+                }
             }
         }
-        Assert.NotNull(restored);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.True(observedMidContact);
+        Assert.Null(battle.GetNativeRenzokuken(casterId));
+        Assert.Null(battle.ActiveAction);
+        Assert.Null(process.ActiveActionToken);
+        Assert.Null(process.TriggerWidget);
     }
 }

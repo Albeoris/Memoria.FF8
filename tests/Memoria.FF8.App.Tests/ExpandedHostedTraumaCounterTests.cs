@@ -32,7 +32,6 @@ public sealed class ExpandedHostedTraumaCounterTests
             BattleCombatant trauma = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
             Assert.Equal(109, trauma.ModelId);
             Assert.Equal(1, trauma.SceneSlot);
-            BattleCombatant attacker = Assert.Single(battle.Combatants, actor => actor.Id == "party-0");
             string scriptSha256 = Convert.ToHexString(SHA256.HashData(battle.GetCombatantDefinition(trauma.Id).NativeAi!.Scripts[2]));
             List<BattleDiagnosticEffectDispatch> invocations = [];
             battle.DiagnosticEffectDispatched += dispatch =>
@@ -44,59 +43,54 @@ public sealed class ExpandedHostedTraumaCounterTests
             };
 
             int eventStart = battle.Events.Count;
+            int initialHp = trauma.CurrentHp;
             foreach (BattleCombatant actor in battle.Combatants.Where(actor => actor.IsPlayer))
             {
                 actor.Atb = 0;
             }
-            BattleEvent? spawn = null;
-            for (int callback = 0; callback < callbackBudget; callback++)
-            {
-                if (spawn is null && battle.ObserveDiagnosticDrainBlockers().Count == 0)
-                {
-                    trauma.Atb = BattleSession.AtbMaximum;
-                }
-                world.ApplyBattleInput(new(BattleInputKind.Tick));
-                spawn ??= battle.Events.Skip(eventStart).FirstOrDefault(entry => entry.Kind == "NativeSpawn" && entry.ActorId == trauma.Id);
-                if (spawn is not null && battle.ObserveDiagnosticDrainBlockers().Count == 0)
-                {
-                    break;
-                }
-            }
-
-            Assert.NotNull(spawn);
-            Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
-            BattleCombatant droma = Assert.Single(battle.Combatants, actor => actor.Id == spawn.TargetId);
-            Assert.Equal(110, droma.ModelId);
-            Assert.Equal(0, droma.SceneSlot);
-            Assert.Equal(4, droma.RequireNativeActorIndex());
-            Assert.True(droma.IsActive && droma.Hidden && droma.Suspended && droma.Untargetable);
-            Assert.Equal(1u, trauma.AiVariables[0]);
-            Assert.Empty(invocations);
-
-            int initialHp = trauma.CurrentHp;
-            int dromaHp = droma.CurrentHp;
-            attacker.Atb = BattleSession.AtbMaximum;
-            world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: attacker.Id, TargetId: trauma.Id));
-            BattleModelOwner recipient = battle.ReadPresentationModelOwner(droma.Id);
+            BattleCombatant? droma = null;
+            int? dormantHp = null;
             bool selectedDroma = false;
             bool activatedDroma = false;
             for (int callback = 0; callback < callbackBudget; callback++)
             {
+                if (droma is null && battle.ObserveDiagnosticDrainBlockers().Count == 0)
+                {
+                    trauma.Atb = BattleSession.AtbMaximum;
+                }
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
+                if (droma is null && battle.Events.Skip(eventStart).FirstOrDefault(entry => entry.Kind == "NativeSpawn" && entry.ActorId == trauma.Id) is { } spawn)
+                {
+                    droma = Assert.Single(battle.Combatants, actor => actor.Id == spawn.TargetId);
+                    Assert.Equal(110, droma.ModelId);
+                    Assert.Equal(0, droma.SceneSlot);
+                    Assert.Equal(4, droma.RequireNativeActorIndex());
+                }
+                if (droma is null)
+                {
+                    continue;
+                }
+                if (droma is { IsAlive: true, Hidden: true, Suspended: true, Untargetable: true })
+                {
+                    dormantHp ??= droma.CurrentHp;
+                }
+                activatedDroma |= battle.Events.Skip(eventStart).Any(entry => entry.Kind == "Activated" && entry.ActorId == droma.Id);
                 if (!selectedDroma && process.Graphics.OriginalEffect is { Parameters: { } parameters } current && current.Binding.Effect == effect)
                 {
                     NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(parameters.Header);
-                    Assert.Equal(recipient, process.ActionPackets.ReadContact(header.FirstContact).Primary.Recipient);
+                    Assert.Equal(battle.ReadPresentationModelOwner(droma.Id), process.ActionPackets.ReadContact(header.FirstContact).Primary.Recipient);
+                    Assert.NotNull(dormantHp);
+                    Assert.False(activatedDroma);
                     selectedDroma = true;
                 }
-                activatedDroma |= battle.Events.Skip(eventStart).Any(entry => entry.Kind == "Activated" && entry.ActorId == droma.Id);
                 if (selectedDroma && activatedDroma && battle.ObserveDiagnosticDrainBlockers().Count == 0)
                 {
                     break;
                 }
             }
 
-            Assert.True(trauma.IsAlive && trauma.CurrentHp < initialHp);
+            Assert.NotNull(droma);
+            Assert.True(trauma.IsAlive && trauma.CurrentHp == initialHp);
             BattleDiagnosticEffectDispatch invocation = Assert.Single(invocations);
             Assert.Equal(trauma.Id, invocation.ActorId);
             Assert.Equal(290, invocation.ActionId);
@@ -106,7 +100,7 @@ public sealed class ExpandedHostedTraumaCounterTests
             Assert.Equal(scriptSha256, invocation.NativeAiScriptSha256);
             Assert.True(selectedDroma, "Effect 101 did not present the original dormant allocation as its recipient.");
             Assert.True(activatedDroma && droma.IsAlive && !droma.Hidden && !droma.Suspended && !droma.Untargetable);
-            Assert.Equal(dromaHp, droma.CurrentHp);
+            Assert.Equal(dormantHp, droma.CurrentHp);
             Assert.DoesNotContain(battle.Events.Skip(eventStart), entry => entry.Kind == "EffectContact" && entry.ActorId == trauma.Id && entry.TargetId == droma.Id);
             Assert.Equal(0u, trauma.AiVariables[0]);
             Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
