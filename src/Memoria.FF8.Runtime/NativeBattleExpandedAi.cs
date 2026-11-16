@@ -355,6 +355,11 @@ public static class NativeBattleExpandedAi
             // Enemy AI provides the target and dispatches the Item record without a party inventory reservation.
             return (flags & 3) == 0 && ExpandedBattleActionRules.SupportsContacts(action);
         }
+        if (action.Command == 236)
+        {
+            //48D200/48FE20 share enemy records and formulas with command8. The special graphics route uses the authored placement.
+            return originalEnemySlots && action is { KernelSection: 3, TargetFlags: null } && ExpandedBattleActionRules.SupportsEnemyContacts(action);
+        }
         return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
             ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 } ||
              originalEnemySlots && action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } && (action.TargetFlags.GetValueOrDefault() & 3) == 1);

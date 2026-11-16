@@ -12,7 +12,7 @@ internal static class ExpandedBattleActionRules
 
     public static bool SupportsEnemyContacts(BattleNativeAction action)
     {
-        return SupportsContacts(action) || action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } ||
+        return SupportsContacts(action) || action is { Command: 8 or 236, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } ||
             action is { Command: 8, KernelSection: 3, AttackType: 0, Power: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 0 or 1, HitCount: 1, PresentationOnly: false, CrisisLevel: null } ||
             IsEnemyEjection(action);
     }

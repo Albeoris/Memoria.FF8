@@ -57,6 +57,111 @@ public sealed class AuthoredRosterBattleHostTests
     }
 
     [Theory]
+    [InlineData(329, 52, 326, true)]
+    [InlineData(330, 53, 218, false)]
+    public void Seifer_original_command_236_uses_the_authored_self_target(ushort action, byte sequence, ushort effect, bool firstTurn)
+    {
+        var original = RunSeiferAction(attached: false, action, sequence, effect, firstTurn);
+        var hosted = RunSeiferAction(attached: true, action, sequence, effect, firstTurn);
+        if (firstTurn)
+        {
+            Assert.Equal(original.Contacts, hosted.Contacts);
+            Assert.Equal(original.Random, hosted.Random);
+            Assert.Equal((original.Hp, original.Status), (hosted.Hp, hosted.Status));
+        }
+        else
+        {
+            Assert.Equal(0, Assert.Single(original.Contacts).PresentedAmount);
+            Assert.Equal(0, Assert.Single(hosted.Contacts).PresentedAmount);
+        }
+    }
+
+    private static (NativeBattleContactHalf[] Contacts, byte[] Random, int Hp, ushort Status) RunSeiferAction(bool attached, ushort action, byte sequence, ushort effect, bool firstTurn)
+    {
+        const ushort formation = 795;
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game) { UseAttachedBattlePresentation = attached };
+        ExpandedBattleInstalledEntry.Prepare(world, session, current =>
+        {
+            if (firstTurn)
+            {
+                PrepareParty(current, 1);
+                current.SetNativeOdin();
+            }
+            else
+            {
+                DiagnosticBattlePreparation preparation = new([new(0, true)], [new(0, 0, [], [0]) { MagicCommand = new(0, 20), HitPoints = 486, Level = 7 }], true);
+                current.SetCharacterVitals(GameWorld.PrepareDiagnosticCharacters(current.State.CharacterVitals!, preparation, game.ReadNativeBattleExperienceDefinition()).Vitals);
+            }
+        }, formation, allies: 3, additionalEnemies: 0);
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: firstTurn ? Seed : (byte)0));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleCombatant seifer = Assert.Single(battle.Combatants, actor => actor is { IsPlayer: false, ModelId: 128 });
+        BattleCombatant companion = Assert.Single(battle.Combatants, actor => actor is { IsPlayer: false, ModelId: 82 });
+        Assert.True(companion.Suspended);
+        Assert.Equal(3, seifer.NativeActorIndex);
+        Assert.Equal(4, companion.NativeActorIndex);
+        BattleModelOwner caster = battle.ReadPresentationModelOwner(seifer.Id);
+        ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
+        Assert.Equal(firstTurn ? 2 : 0, battle.ReadDefinition().NativeSavedBattleFlags.GetValueOrDefault() & 2);
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: seifer.Id);
+        TickUntil(world, () => battle.NativeEntryReady && !seifer.IsBusy, "Seifer entry");
+        NativeBattleAiDefinition ai = battle.GetCombatantDefinition(seifer.Id).NativeAi!;
+        int slot = firstTurn ? 1 : 2;
+        int pc = firstTurn ? 31 : 66;
+        Assert.Equal(new byte[] { 4, 200, 12, checked((byte)slot) }, ai.Scripts[1].AsSpan(pc, 4).ToArray());
+        BattleDiagnosticEnemyAbility selection = new(128, 0, ai.LevelBand, firstTurn ? -1 : slot, 236, action, sequence, firstTurn ? null : (byte)200)
+        {
+            UseTurnScript = firstTurn,
+            TurnScriptSha256 = firstTurn ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ai.Scripts[1])) : null
+        };
+        seifer.Atb = BattleSession.AtbMaximum;
+        TickUntil(world, () => battle.CanSubmitDiagnosticEnemyAbility(seifer.Id, selection), "original Seifer turn readiness");
+        Assert.Equal(0, seifer.AiTurnCount);
+        int eventStart = battle.Events.Count;
+        battle.SubmitDiagnosticEnemyAbility(seifer.Id, selection, effect);
+        NativeBattleContactHalf[]? contacts = null;
+        BattleActionHeaderReference? actionHeader = null;
+        HashSet<string> trace = [];
+        bool entered = false;
+        bool retired = false;
+        for (int frame = 0; frame < 1500 && !retired && world.Battle is not null; frame++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            NativeBattleActionPacketsState packets = process?.ActionPackets ?? battle.NativeActionPackets;
+            foreach (var (reference, header) in packets.PublishedHeaders())
+            {
+                trace.Add($"header {header.Command}/{header.Action}/{header.Sequence}/{header.Effect}");
+                if (header.Command == 236 && header.Action == action)
+                {
+                    Assert.Equal(firstTurn ? 1 : 0, seifer.AiTurnCount);
+                    Assert.Equal(sequence, header.Sequence);
+                    Assert.Equal(caster, header.Source);
+                    contacts = packets.ReadHeaderContacts(reference).Select(packet => packet.Primary).ToArray();
+                    Assert.Equal(caster, Assert.Single(contacts).Recipient);
+                    actionHeader = reference;
+                }
+            }
+            NativeBattleGraphicsState graphics = process?.Graphics ?? battle.NativeGraphics!;
+            if (graphics.OriginalEffect is { Parameters: { } parameters } native)
+            {
+                trace.Add($"effect {native.RequestedEffect}/{packets.ReadHeader(parameters.Header).Action}");
+                entered |= actionHeader == parameters.Header && native.RequestedEffect == effect;
+            }
+            retired = entered && Completed(battle, eventStart, seifer.Id) && battle.ActiveAction is null && process?.HasActiveAction != true;
+        }
+        Assert.True(retired, $"Seifer {(attached ? "attached" : "physical")} turn {seifer.AiTurnCount}: {string.Join(", ", trace)}");
+        if (firstTurn)
+        {
+            Assert.True(seifer.IsAlive);
+        }
+        return (contacts!, battle.Capture().Random!.Indexes.ToArray(), seifer.CurrentHp, seifer.NativeStatus0);
+    }
+
+    [Theory]
     [InlineData(2, 0x20000u)]
     [InlineData(3, 0x40000u)]
     public void Player_repeat_Fire_owns_one_native_graphics_group_and_spends_only_casts(int casts, uint nativeStatus)

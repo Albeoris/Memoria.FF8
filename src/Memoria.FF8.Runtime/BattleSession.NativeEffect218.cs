@@ -219,10 +219,7 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { Flags = (byte)((group.Flags & flags.AndMask) | flags.OrMask) }).ToImmutableArray() };
                     return current;
                 case NativeBattleEffect218Text4876F0 text:
-                    BattleCombatant actor = GraphicsActor(graphics, text.Actor);
-                    string message = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new NotSupportedException("Effect218 requires its original recipient text resource.")).Resource.ReadText91(text.Text);
-                    StopTurnAdvance();
-                    graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", actor.Id, null, text.Duration, message) { NativeMessageMode = 3 }, 0, 240);
+                    graphics = QueueNativeEffectActorText4876F0(graphics, text.Actor, text.Text, text.Duration);
                     return current;
                 case NativeBattleEffect218SelectSequence505C00 sequence:
                     graphics = ScheduleNativeRingSequence505C00(graphics, sequence.Model, sequence.Sequence);
