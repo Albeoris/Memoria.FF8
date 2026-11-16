@@ -171,7 +171,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal);
             string topologyPrefix = observation.NavigationKey[..(observation.NavigationKey.LastIndexOf(':') + 1)];
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), isCurrent: vertex => vertex.VisitKey != observation.VisitId || vertex.Key.StartsWith(topologyPrefix, StringComparison.Ordinal), allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal);
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), isCurrent: vertex => vertex.VisitKey != observation.VisitId || vertex.Key.StartsWith(topologyPrefix, StringComparison.Ordinal), preferredGoal: State.NavigationGoal);
             if (next is null)
             {
                 if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))

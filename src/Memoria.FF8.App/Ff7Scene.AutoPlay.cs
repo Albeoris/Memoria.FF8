@@ -21,7 +21,7 @@ internal sealed partial class Ff7Scene
         autoPlayCheckpointPath = Path.GetFullPath(path);
     }
 
-    public void ApplyAutoPlayCommand(string command)
+    public void ApplyAutoPlayCommand(string command, bool continueAttempt = false)
     {
         switch (command.ToLowerInvariant())
         {
@@ -46,6 +46,11 @@ internal sealed partial class Ff7Scene
                             SaveAutoPlayCheckpoint(state);
                         }
                     });
+                    if (!continueAttempt)
+                    {
+                        autoPlayPolicy.State.FrontierProgressKey = null;
+                        autoPlayPolicy.State.FrontierIdleSteps = 0;
+                    }
                     autoPlay = new Ff7AutoPlayController(Session, autoPlayPolicy.ChooseInput, present: PrepareAutoPlayDialogue, checkpoint: SaveAutoPlayCheckpoint, advanceTick: AdvanceFieldTick, chooseDialogueSelection: ChooseAutoPlayDialogueSelection, advanceDialoguePresentation: AdvanceCommonDialogue, advanceShop: cancel => Session.AdvanceShop(cancel));
                     autoPlay.Start();
                 }
@@ -124,7 +129,7 @@ internal sealed partial class Ff7Scene
         }
         Ff7SessionSave native = saved.Ff7 ?? throw new InvalidDataException("The automatic choice checkpoint contains no native FFVII continuation.");
         Continue(saved with { Ff7 = native with { AutoPlay = state } });
-        ApplyAutoPlayCommand("start");
+        ApplyAutoPlayCommand("start", continueAttempt: true);
         string root = AutoPlayChoiceDirectory();
         foreach (string retired in request.RetiredPaths ?? [])
         {

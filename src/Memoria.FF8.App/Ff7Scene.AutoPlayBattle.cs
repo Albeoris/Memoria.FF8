@@ -58,7 +58,7 @@ internal sealed partial class Ff7Scene
             sharedInput.SuppressHeldUiInput();
             if (Session is not null && autoPlay is null)
             {
-                ApplyAutoPlayCommand("start");
+                ApplyAutoPlayCommand("start", continueAttempt: true);
             }
             autoPlay?.ResetIdleDeadline();
             return true;
