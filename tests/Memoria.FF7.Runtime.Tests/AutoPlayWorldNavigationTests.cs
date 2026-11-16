@@ -53,8 +53,41 @@ internal static class AutoPlayWorldNavigationTests
         Check(exploring.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && exploring.Steps.Length == 1 && exploring.Steps[0].Input == new Ff7AutoplayInput(0, 1, Run: true), "A bounded physical cycle preference failed to retain a freshly admitted away detour or misclassified the search limit as absence.");
         CheckPhysicalCycle();
         CheckTerrainGuidance();
+        CheckForeignMatchingScript();
         OriginalWorldPreview();
         OriginalDisconnectedGuide();
+    }
+
+    private static void CheckForeignMatchingScript()
+    {
+        Ff7WorldTerrainReference destination = new(1, 0, 1);
+        Ff7AutoPlayWorldFrontierFace face = new(destination, new(175, 0, -5), new(185, 0, -5), new(180, 0, 5), 0, 0);
+        Ff7AutoPlayWorldScriptObservation target = new("matching-script", 3, [face], new(true, null, 0, 0, [], [], [], []), "conditions", "geometry", [], true, null);
+        Ff7AutoPlayWorldMovementState source = new(0, 0, new(0, 0, 0, 0), new() { TerrainScript = 3, GroundTriangle = new(0, 0, 0) }, new(), 0, 0, null, 0);
+        Ff7AutoPlayWorldMovementPreview Preview(Ff7AutoplayInput input, Ff7AutoPlayWorldMovementState state)
+        {
+            int x = state.Player.X + input.Horizontal * 60;
+            if (input.Vertical != 0 || x is < 0 or > 240)
+            {
+                return new(true, null, state);
+            }
+            bool goal = x == 180;
+            int script = x == 240 ? 0 : 3;
+            Ff7AutoPlayWorldMovementState next = state with { Player = state.Player with { X = x }, Input = state.Input with { TerrainScript = script, GroundTriangle = goal ? destination : new(0, 0, 0) } };
+            Ff7AutoPlayWorldTerrainBoundary? boundary = goal && state.Input.TerrainScript != script ? new(1, 0, 0, false) : null;
+            return new(true, null, next, x != state.Player.X, boundary);
+        }
+        var approach = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 64);
+        Check(approach.Status == Ff7AutoPlayWorldNavigationStatus.Step && approach.Steps.Length == 3 && approach.Steps.All(step => step.Input.Horizontal == 1 && step.Boundary is null), "A foreign matching script caused rearming instead of native staging at the actual target face.");
+        foreach (var step in approach.Steps)
+        {
+            source = Preview(step.Input, source).State!;
+        }
+        var departure = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [new(240, 0, 0)], 64);
+        Check(departure.Status == Ff7AutoPlayWorldNavigationStatus.Rearming && departure.Steps.Length == 1 && departure.Steps[0].Input.Horizontal == 1, "Staging at the target did not require a safe native departure.");
+        source = Preview(departure.Steps[0].Input, source).State!;
+        var arrival = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 64);
+        Check(arrival.Status == Ff7AutoPlayWorldNavigationStatus.Step && arrival.Steps.Length == 1 && arrival.Steps[0].Boundary is { ChunkX: 1, Script: 0 }, "A staged matching-script route failed to trigger the actual target boundary after native rearming.");
     }
 
     private static void CheckPhysicalCycle()

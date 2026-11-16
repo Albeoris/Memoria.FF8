@@ -47,7 +47,7 @@ public sealed partial class Ff7AutoplayDriver
         string sourceKey = WorldMovementKey(source);
         string positionKey = WorldPositionKey(source);
         string identity = $"{source.WorldId}:{source.WorldMapState}:{source.Player.Model}:{target.Id}:{target.Script}:{target.GeometryFingerprint}:{target.PredicateFingerprint}";
-        bool rearming = source.Input.TerrainScript == target.Script;
+        bool rearming = RequiresWorldTargetRearming(source, target);
         Vector3? guidePoint = null;
         if (!rearming)
         {
@@ -126,11 +126,16 @@ public sealed partial class Ff7AutoplayDriver
 
     private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, string SearchKey, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, double Cost, double Distance);
 
+    private static bool RequiresWorldTargetRearming(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target)
+    {
+        return source.Input.TerrainScript == target.Script && target.Faces.Any(face => face.Source == source.Input.GroundTriangle);
+    }
+
     internal static Ff7AutoPlayWorldRoute SearchWorldRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, IReadOnlyList<Vector3> departureHints, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(nodeBudget, 16384);
-        bool rearming = source.Input.TerrainScript == target.Script;
+        bool rearming = RequiresWorldTargetRearming(source, target);
         double Distance(Ff7AutoPlayWorldMovementState state)
         {
             return rearming ? departureHints.Select(point => WorldPointDistance(state.Player, point)).DefaultIfEmpty(0).Min() : waypoint is Vector3 point ? WorldPointDistance(state.Player, point) : target.Faces.Select(face => WorldFaceDistance(state.Player, face)).Min();
@@ -173,7 +178,7 @@ public sealed partial class Ff7AutoplayDriver
                 string key = WorldMovementKey(step.State);
                 string searchKey = WorldSearchKey(step.State);
                 double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
-                bool reached = rearming ? step.State.Input.TerrainScript != target.Script && (step.TerrainBoundary is null || step.TerrainBoundary.Inert) : targetBoundary;
+                bool reached = rearming ? step.State.Input.TerrainScript != target.Script && (step.TerrainBoundary is null || step.TerrainBoundary.Inert) : targetBoundary || RequiresWorldTargetRearming(step.State, target);
                 if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
                 {
                     continue;
