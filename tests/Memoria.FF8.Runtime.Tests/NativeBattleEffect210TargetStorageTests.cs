@@ -117,7 +117,7 @@ public sealed class NativeBattleEffect210TargetStorageTests
         NativeCrtRandomState random = frame.Random;
         NativeBattleActionPacketsState changedPackets = NativeBattleActionPacketsState.Create(fixture.Packets.Roster, NativeBattleRetainedActionPackets.Fresh(), fixture.Packets.ModelAliases);
         (changedPackets, _) = changedPackets.Prepare(new(OriginalOwner(3), 8, 54, -1, 315, 210, null));
-        (changedPackets, _) = changedPackets.Publish(1);
+        (changedPackets, _) = changedPackets.Publish(0);
         NativeBattleEffect210Inputs currentHeader = fixture.Inputs with { ReadPackets = _ => changedPackets };
         frame = AdvanceMain6F7310(frame, Main, resources, currentHeader).Frame;
         NativeBattleEffectTaskPool final = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == ActDescriptor);
@@ -184,7 +184,7 @@ public sealed class NativeBattleEffect210TargetStorageTests
             {
                 (packets, _) = packets.AppendContact(new(new(actor, 0, 0, 0, 0, 7, 0), null));
             }
-            (packets, _) = packets.Publish(1);
+            (packets, _) = packets.Publish(Targets.Length);
             Packets = packets;
             Inputs = new NativeBattleEffect210ControllerTests.Harness().Inputs() with
             {
@@ -204,7 +204,8 @@ public sealed class NativeBattleEffect210TargetStorageTests
         internal NativeBattleEffect210Frame Capture(BattleContactTaskStorageContract storage = BattleContactTaskStorageContract.ExpandableArena)
         {
             NativeBattleEffect210Frame frame = NativeBattleEffect210ControllerTests.Frame(1, false);
-            frame = frame with { State = frame.State.WriteModelAddress(CasterGlobal, OriginalOwner(3), Packets.ModelAliases) };
+            NativeBattleEffectParameters parameters = frame.Effect.Parameters! with { TargetActors = BattleModelTargets.From(Targets) };
+            frame = frame with { State = frame.State.WriteModelAddress(CasterGlobal, OriginalOwner(3), Packets.ModelAliases), Effect = frame.Effect with { Parameters = parameters } };
             return AdvanceRoot6F6890(frame, RootBank, null!, Inputs with { StorageContract = storage }).Frame;
         }
 
