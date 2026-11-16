@@ -671,7 +671,7 @@ public sealed partial class EventEngine
             return [];
         }
         ActorState? player = PlayerActor;
-        if (player is not { Active: true, Visible: true })
+        if (player is not { Visible: true })
         {
             return [];
         }

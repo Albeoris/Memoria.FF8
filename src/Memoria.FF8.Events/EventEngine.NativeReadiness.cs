@@ -10,7 +10,8 @@ public sealed partial class EventEngine
 
     private bool CanAcceptFieldMovement => !services.IsMoviePlaying && CanAcceptPlayerMovement;
 
-    private bool CanAcceptPlayerMovement => Scene.NativeTutorial is null && IsUserControlEnabled && !IsMovementBlockedByDialogue && PlayerActor is { Active: true, Visible: true };
+    // Ordinary input uses the retained player binding; later UNUSE does not remove that body.
+    private bool CanAcceptPlayerMovement => Scene.NativeTutorial is null && IsUserControlEnabled && !IsMovementBlockedByDialogue && PlayerActor is { Visible: true };
 
     private Fiber? SelectScheduledFiber(int objectId)
     {
