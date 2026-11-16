@@ -29,6 +29,9 @@ public sealed class NativeBattleGenericSpriteRuntimeTests
         Assert.Equal((ushort)0x7FFF, cache.Rows[64].AlternateClut);
         cache = cache.Prepare464BD0().Cache;
         NativeBattlePcTextureWindowResolve resolved = cache.ResolveSprite462DF0(opcode, 0x140, 0xFFFF, 0);
+        var value = cache.ResolveSprite462DF0Core(opcode, 0x140, 0xFFFF, 0);
+        Assert.Equal(resolved.Selection, value.Selection);
+        Assert.Same(resolved.Cache, value.Cache);
         Assert.Equal(64, resolved.Selection.Row);
         Assert.False(resolved.Selection.Windowed);
         Assert.Equal(1f / 256, resolved.Selection.ScaleU);
@@ -40,8 +43,10 @@ public sealed class NativeBattleGenericSpriteRuntimeTests
         NativeBattlePcTextureWindowCache unknown = NativeBattlePcTextureWindowCache.Reset4647A0(null);
         Assert.Throws<NotSupportedException>(() => unknown.PreprocessSprite463120(0x64, 0x80, 0));
         Assert.Throws<NotSupportedException>(() => unknown.ResolveSprite462DF0(0x66, 0x80, 0, 0));
+        Assert.Throws<NotSupportedException>(() => unknown.ResolveSprite462DF0Core(0x66, 0x80, 0, 0));
         NativeBattlePcTextureWindowCache prepared = (unknown with { SpriteTileCacheControl1CCFD90 = 0 }).PreprocessSprite463120(0x66, 0x80, 0).Prepare464BD0().Cache;
         Assert.Equal(32, prepared.ResolveSprite462DF0(0x66, 0x80, 0, 0).Selection.Row);
+        Assert.Equal(prepared.ResolveSprite462DF0(0x66, 0x80, 0, 0).Selection, prepared.ResolveSprite462DF0Core(0x66, 0x80, 0, 0).Selection);
         Assert.All(unknown.Rows, row => Assert.Equal(0u, row.UsedMask));
     }
 

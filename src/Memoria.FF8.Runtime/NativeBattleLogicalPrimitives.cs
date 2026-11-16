@@ -1708,7 +1708,7 @@ public static class NativeBattleLogicalPasses
             return (null, sprite ? cache.PreprocessSprite463120(command.Opcode, page, clut) : cache.Preprocess462F90(page, clut));
         }
         uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
-        NativeBattlePcTextureWindowResolve resolved = sprite ? cache.ResolveSprite462DF0(command.Opcode, page, clut, window) : cache.Resolve465CE0(page, clut, window);
+        var resolved = sprite ? cache.ResolveSprite462DF0Core(command.Opcode, page, clut, window) : cache.Resolve465CE0Core(page, clut, window);
         return (resolved.Selection, resolved.Cache);
     }
 

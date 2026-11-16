@@ -10,8 +10,14 @@ public sealed partial record NativeBattlePcTextureWindowCache
 
     public NativeBattlePcTextureWindowResolve ResolveSprite462DF0(byte opcode, ushort texturePage, ushort clut, uint windowBits)
     {
+        var resolved = ResolveSprite462DF0Core(opcode, texturePage, clut, windowBits);
+        return new(resolved.Cache, resolved.Selection);
+    }
+
+    internal (NativeBattlePcTextureWindowCache Cache, NativeBattlePcTextureWindowSelection Selection) ResolveSprite462DF0Core(byte opcode, ushort texturePage, ushort clut, uint windowBits)
+    {
         RequireSpriteBaseCache(opcode, texturePage);
-        return Resolve465CE0(texturePage, (ushort)(clut & 0x7FFF), windowBits);
+        return Resolve465CE0Core(texturePage, (ushort)(clut & 0x7FFF), windowBits);
     }
 
     private void RequireSpriteBaseCache(byte opcode, ushort texturePage)

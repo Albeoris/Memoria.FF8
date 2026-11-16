@@ -91,6 +91,12 @@ public sealed partial record NativeBattlePcTextureWindowCache([property: JsonReq
 
     public NativeBattlePcTextureWindowPixels? PixelWords(NativeBattlePcTextureWindowSelection selection)
     {
+        return PixelWords(selection, out _);
+    }
+
+    internal NativeBattlePcTextureWindowPixels? PixelWords(NativeBattlePcTextureWindowSelection selection, out NativeBattlePrimitiveTextureWindow? validatedRectangle)
+    {
+        validatedRectangle = null;
         selection.Validate();
         NativeBattlePcTextureWindowRow row = Rows[selection.Row];
         if (selection.Slot >= row.Count)
@@ -98,7 +104,7 @@ public sealed partial record NativeBattlePcTextureWindowCache([property: JsonReq
             throw new InvalidDataException("Native rendered texture selection has no retained cache region.");
         }
         NativeBattlePcTextureWindowRegion region = row.Regions[selection.Slot];
-        if (region.Rectangle != new NativeBattlePrimitiveTextureWindow(selection.X, selection.Y, selection.Width, selection.Height))
+        if (region.Rectangle is not { } rectangle || rectangle.X != selection.X || rectangle.Y != selection.Y || rectangle.Width != selection.Width || rectangle.Height != selection.Height)
         {
             throw new InvalidDataException("Native rendered texture selection disagrees with its retained cache rectangle.");
         }
@@ -109,10 +115,12 @@ public sealed partial record NativeBattlePcTextureWindowCache([property: JsonReq
             {
                 throw new InvalidDataException("Native rendered current-pixel selection refers to a stale cache region.");
             }
+            validatedRectangle = rectangle;
             return null;
         }
         NativeBattlePcTextureWindowPixels pixels = region.RetainedPixels ?? throw new NotSupportedException("Native stale cached texture requires its retained prior pixel words.");
-        pixels.ValidateMapping(selection.Row, region.Rectangle);
+        pixels.ValidateMapping(selection.Row, rectangle);
+        validatedRectangle = rectangle;
         return pixels;
     }
 
@@ -202,6 +210,12 @@ public sealed partial record NativeBattlePcTextureWindowCache([property: JsonReq
 
     public NativeBattlePcTextureWindowResolve Resolve465CE0(ushort texturePage, ushort clut, uint windowBits)
     {
+        var resolved = Resolve465CE0Core(texturePage, clut, windowBits);
+        return new(resolved.Cache, resolved.Selection);
+    }
+
+    internal (NativeBattlePcTextureWindowCache Cache, NativeBattlePcTextureWindowSelection Selection) Resolve465CE0Core(ushort texturePage, ushort clut, uint windowBits)
+    {
         Validate();
         int index = RowIndex(texturePage);
         NativeBattlePcTextureWindowRow row = Rows[index];
@@ -250,7 +264,7 @@ public sealed partial record NativeBattlePcTextureWindowCache([property: JsonReq
         NativeBattlePrimitiveTextureWindow result = selected.Rectangle;
         NativeBattlePcTextureWindowSelection selection = new(index, slot, result.X, result.Y, result.Width, result.Height, actualU, actualV, windowBits != 0, fallback) { UsesRetainedPixelWords = !selected.CurrentPixels };
         NativeBattlePcTextureWindowCache cache = ReferenceEquals(Rows[index], row) && ScaleU == scaleU && ScaleV == scaleV ? this : this with { Rows = Rows.SetItem(index, row), ScaleU = scaleU, ScaleV = scaleV };
-        return new(cache, selection);
+        return (cache, selection);
     }
 
     private static int RowIndex(ushort texturePage)

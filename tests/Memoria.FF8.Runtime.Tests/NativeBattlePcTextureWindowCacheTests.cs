@@ -275,6 +275,47 @@ public sealed class NativeBattlePcTextureWindowCacheTests
         Assert.Throws<InvalidDataException>(() => (pixels with { Data = [] }).Validate());
     }
 
+    [Fact]
+    public void Value_result_preserves_wrapper_selection_cache_writes_stale_scales_and_retained_pixels()
+    {
+        uint bits = Window(8, 0, 64, 32);
+        Compare(Prepared(0x40), 0x40, 0xFFFF, bits);
+        Compare(Prepared(), 0, 0, 0);
+        NativeBattlePcTextureWindowCache full = Full().Preprocess462F90(1, 0).Prepare464BD0().Cache.Resolve465CE0(1, 0, Window(0, 8, 32, 16)).Cache;
+        Compare(full, 0, 0, Window(64, 0, 128, 64));
+        NativeBattleEffectTextureState before = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(4, [0x21, 0x43])] };
+        NativeBattlePcTextureWindowCache retained = Prepared().Resolve465CE0(0, 0, bits).Cache.Flush465930().Invalidate464850(0, 0, 63, 255, before).Preprocess462F90(0, 0).Prepare464BD0().Cache;
+        Compare(retained, 0, 0, bits);
+        Assert.True(retained.Resolve465CE0Core(0, 0, bits).Selection.UsesRetainedPixelWords);
+        NativeBattlePcTextureWindowCache unknownScales = Full() with { ScaleU = null, ScaleV = null };
+        Assert.Throws<NotSupportedException>(() => unknownScales.Resolve465CE0Core(0, 0, Window(64, 0, 128, 64)));
+
+        static void Compare(NativeBattlePcTextureWindowCache cache, ushort page, ushort clut, uint window)
+        {
+            NativeBattlePcTextureWindowResolve wrapped = cache.Resolve465CE0(page, clut, window);
+            var value = cache.Resolve465CE0Core(page, clut, window);
+            Assert.Equal(wrapped.Selection, value.Selection);
+            Assert.Equal(JsonSerializer.Serialize(wrapped.Cache), JsonSerializer.Serialize(value.Cache));
+            Assert.Equal(ReferenceEquals(cache, wrapped.Cache), ReferenceEquals(cache, value.Cache));
+            NativeBattlePcTextureWindowPixels? pixels = value.Cache.PixelWords(value.Selection, out NativeBattlePrimitiveTextureWindow? rectangle);
+            Assert.Same(value.Cache.Rows[value.Selection.Row].Regions[value.Selection.Slot].Rectangle, rectangle);
+            Assert.Same(wrapped.Cache.PixelWords(wrapped.Selection), pixels);
+        }
+    }
+
+    [Fact]
+    public void Reusable_rectangle_requires_the_same_valid_selection_region_and_pixel_version()
+    {
+        NativeBattlePcTextureWindowCache cache = Prepared();
+        NativeBattlePcTextureWindowSelection selection = cache.Resolve465CE0(0, 0, 0).Selection;
+        Assert.Throws<InvalidDataException>(() => cache.PixelWords(selection with { Width = 128 }, out _));
+        Assert.Throws<InvalidDataException>(() => cache.PixelWords(selection with { Slot = 1 }, out _));
+        Assert.Throws<InvalidDataException>(() => cache.PixelWords(selection with { Row = 96 }, out _));
+        Assert.Throws<NotSupportedException>(() => cache.PixelWords(selection with { UsesRetainedPixelWords = true }, out _));
+        NativeBattlePcTextureWindowCache stale = cache.Invalidate464850(0, 0, 63, 255, NativeBattleEffectTextureState.FromColdProcess());
+        Assert.Throws<InvalidDataException>(() => stale.PixelWords(selection, out _));
+    }
+
     private static NativeBattlePcTextureWindowCache Prepared(ushort texturePage = 0)
     {
         return NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(texturePage, 0).Prepare464BD0().Cache;
