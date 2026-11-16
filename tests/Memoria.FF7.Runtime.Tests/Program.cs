@@ -224,6 +224,12 @@ if (args.Contains("--world-dialogue-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-navigation-refresh-only", StringComparer.Ordinal))
+{
+    AutoPlayNavigationRefreshTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-discovery-refresh-only", StringComparer.Ordinal))
 {
     AutoPlayWorldDiscoveryRefreshTests.Run();

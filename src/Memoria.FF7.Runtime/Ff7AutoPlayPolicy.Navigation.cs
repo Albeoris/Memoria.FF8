@@ -91,6 +91,27 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static AutoPlayEventAvailability? ReadRetainedNavigationAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed)
     {
+        return ReadRetainedNavigationAvailability(state, navigation, observed, null);
+    }
+
+    internal static Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> CreateRetainedNavigationAvailabilityReader(Ff7AutoPlayState state)
+    {
+        Dictionary<string, IReadOnlyDictionary<string, string>> componentFacts = new(StringComparer.Ordinal);
+        Dictionary<(string NavigationKey, AutoPlayEvent Event), AutoPlayEventAvailability?> availability = [];
+        return (navigation, observed) =>
+        {
+            var key = (navigation.Key, observed);
+            if (!availability.TryGetValue(key, out AutoPlayEventAvailability? result))
+            {
+                result = ReadRetainedNavigationAvailability(state, navigation, observed, componentFacts);
+                availability.Add(key, result);
+            }
+            return result;
+        };
+    }
+
+    private static AutoPlayEventAvailability? ReadRetainedNavigationAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, Dictionary<string, IReadOnlyDictionary<string, string>>? componentFacts)
+    {
         if (state.WorldVisits.TryGetValue(navigation.VisitKey, out Ff7AutoPlayWorldVisitState? world))
         {
             var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
@@ -98,7 +119,20 @@ public sealed partial class Ff7AutoPlayPolicy
             Dictionary<string, string> facts = aggregate.UnavailableAttempts.GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => world.ObservedPhysicalGuards.GetValueOrDefault(group.Key) ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
             return AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts);
         }
-        return state.VisitGuards.ContainsKey(navigation.VisitKey) ? ReadComponentAvailability(state, navigation, observed, ReadRetainedNavigationGuardFacts(state, navigation)) : null;
+        if (!state.VisitGuards.ContainsKey(navigation.VisitKey))
+        {
+            return null;
+        }
+        if (componentFacts is null)
+        {
+            return ReadComponentAvailability(state, navigation, observed, ReadRetainedNavigationGuardFacts(state, navigation));
+        }
+        if (!componentFacts.TryGetValue(navigation.Key, out IReadOnlyDictionary<string, string>? retainedFacts))
+        {
+            retainedFacts = ReadRetainedNavigationGuardFacts(state, navigation);
+            componentFacts.Add(navigation.Key, retainedFacts);
+        }
+        return ReadComponentAvailability(state, navigation, observed, retainedFacts);
     }
 
     private static Dictionary<string, string> ReadRetainedNavigationGuardFacts(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation)

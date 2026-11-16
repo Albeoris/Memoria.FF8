@@ -145,7 +145,8 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (State.Active is null)
         {
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => navigation.VisitKey == observation.VisitId ? null : ReadRetainedNavigationAvailability(State, navigation, target));
+            var readRetainedAvailability = CreateRetainedNavigationAvailabilityReader(State);
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => navigation.VisitKey == observation.VisitId ? null : readRetainedAvailability(navigation, target));
             if (ShouldDiscoverWorldChunk(State, observation.VisitId, next, !visited.DiscoveryComplete && worldChunkQueue.Count != 0) && ObserveNextWorldChunk(world))
             {
                 State.Status = "Discovering the next native world collision chunk";
@@ -353,11 +354,17 @@ public sealed partial class Ff7AutoPlayPolicy
     private bool ObserveNextWorldChunk(Ff7WorldRuntime world)
     {
         Ff7AutoPlayWorldVisitState visited = State.WorldVisits[worldVisit!];
-        while (worldChunkQueue.TryDequeue(out Ff7AutoPlayWorldChunk? chunk))
+        return ObserveNextWorldChunk(visited, worldChunkQueue, worldCatalogs.ContainsKey, chunk => ObserveWorldChunk(world, chunk));
+    }
+
+    internal static bool ObserveNextWorldChunk(Ff7AutoPlayWorldVisitState visited, Queue<Ff7AutoPlayWorldChunk> chunks, Func<Ff7AutoPlayWorldChunk, bool> isObserved, Action<Ff7AutoPlayWorldChunk> observe)
+    {
+        while (chunks.TryDequeue(out Ff7AutoPlayWorldChunk? chunk))
         {
-            if (!worldCatalogs.ContainsKey(chunk))
+            if (!isObserved(chunk))
             {
-                ObserveWorldChunk(world, chunk);
+                observe(chunk);
+                visited.DiscoveryComplete = chunks.Count == 0;
                 return true;
             }
         }

@@ -165,7 +165,7 @@ internal static class AutoPlayNavigationRefreshTests
 
         AutoPlayPlanStep? Plan(Ff7AutoPlayState selected)
         {
-            return new AutoPlayPlanner<Ff7AutoPlayDeferral>(selected.Coverage).PlanNavigation("world-node", preferredGoal: preferred, readAvailability: (visit, observed) => Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(selected, visit, observed));
+            return new AutoPlayPlanner<Ff7AutoPlayDeferral>(selected.Coverage).PlanNavigation("world-node", preferredGoal: preferred, readAvailability: Ff7AutoPlayPolicy.CreateRetainedNavigationAvailabilityReader(selected));
         }
     }
 

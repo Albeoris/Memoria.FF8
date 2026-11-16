@@ -9,6 +9,7 @@ internal static class AutoPlayWorldDiscoveryRefreshTests
         CheckSettledContext();
         CheckGlobalContext();
         CheckRefreshDiscoveryAdmission();
+        CheckLastChunkCompletesBeforeRefresh();
         Console.WriteLine("PASS settled world discovery context, typed global invalidation and remote refresh admission.");
     }
 
@@ -65,6 +66,32 @@ internal static class AutoPlayWorldDiscoveryRefreshTests
         Check(!Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", new("world", local, false), hasQueuedChunks: true), "Catalog completion blocked the actual selected local native interaction.");
         Check(!Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", refresh with { RefreshVisitKey = null }, hasQueuedChunks: true), "Ordinary event travel lost the existing local native frontier admission rule.");
         Check(JsonSerializer.Serialize(state) == before, "Reading discovery admission changed coverage, receipts or another source's catalog state.");
+    }
+
+    private static void CheckLastChunkCompletesBeforeRefresh()
+    {
+        Ff7AutoPlayState state = new();
+        Ff7AutoPlayWorldVisitState visited = new() { ObservedChunks = [new(9, 9)] };
+        state.WorldVisits["world"] = visited;
+        Ff7AutoPlayWorldChunk first = new(0, 0);
+        Ff7AutoPlayWorldChunk second = new(1, 0);
+        Queue<Ff7AutoPlayWorldChunk> chunks = new([first]);
+        HashSet<Ff7AutoPlayWorldChunk> observed = [];
+        AutoPlayEvent exit = new("exit", AutoPlayEventKind.Transition);
+        AutoPlayPlanStep refresh = new("world", exit, true, RefreshVisitKey: "foreign", Goal: new("foreign"));
+        void Observe(Ff7AutoPlayWorldChunk chunk)
+        {
+            observed.Add(chunk);
+            if (chunk == first)
+            {
+                chunks.Enqueue(second);
+            }
+        }
+        Check(Ff7AutoPlayPolicy.ObserveNextWorldChunk(visited, chunks, observed.Contains, Observe) && !visited.DiscoveryComplete, "A chunk which queued another native neighbor prematurely completed discovery.");
+        Check(Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", refresh, hasQueuedChunks: !visited.DiscoveryComplete && chunks.Count != 0), "Remote refresh interrupted the remaining current discovery queue.");
+        Check(Ff7AutoPlayPolicy.ObserveNextWorldChunk(visited, chunks, observed.Contains, Observe) && visited.DiscoveryComplete && chunks.Count == 0 && observed.SetEquals([first, second]), "The last real chunk did not publish discovery completion before the next remote refresh decision.");
+        Check(!Ff7AutoPlayPolicy.ShouldDiscoverWorldChunk(state, "world", refresh, hasQueuedChunks: !visited.DiscoveryComplete && chunks.Count != 0), "Completed native discovery retained a remote-refresh discovery prerequisite.");
+        Check(state.Clone().WorldVisits["world"].DiscoveryComplete && visited.ObservedChunks.SequenceEqual([new Ff7AutoPlayWorldChunk(9, 9)]), "Queue completion was lost on cold restoration or rewritten from historical chunk counts.");
     }
 
     private static void Check(bool condition, string message)
