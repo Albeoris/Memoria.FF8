@@ -368,8 +368,6 @@ internal sealed partial class BattleHudElement : UiElement
         drawnPartyLayout = (Bounds, controller.TextScale);
         drewExpandedParty = true;
 
-        UiRect panel = ScaleRect(partyList.Panel);
-        canvas.Fill(panel, new UiColor(theme.BorderDark.R, theme.BorderDark.G, theme.BorderDark.B, 178));
         foreach (int index in partyList.VisibleIndices())
         {
             UiRect bounds = partyList.Row(index);

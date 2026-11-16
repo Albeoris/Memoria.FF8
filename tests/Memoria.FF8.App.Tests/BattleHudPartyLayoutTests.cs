@@ -85,6 +85,7 @@ public sealed class BattleHudPartyLayoutTests
         Assert.Equal(count > 6, layout.TwoColumns);
         Assert.Equal(textScale > 1f, layout.Scrolls);
         UiRect panel = Scale(layout.Panel);
+        Assert.DoesNotContain(canvas.Fills, fill => fill.Bounds == panel);
         Assert.Equal(width - 26 * viewport.Scale, panel.Right, 2);
         Assert.Equal(660, layout.Panel.Bottom, 3);
         UiRect command = Assert.Single(canvas.TextDraws, draw => draw.Text == "Attack").Bounds;
@@ -101,6 +102,7 @@ public sealed class BattleHudPartyLayoutTests
             Assert.Equal(2, hp.Length);
             Assert.All(hp, number => Assert.True(canvas.MeasureText(number.Text, layout.FontSize * viewport.Scale, float.PositiveInfinity).Width < number.Bounds.Width));
             Assert.True(hp[0].Bounds.Right < hp[1].Bounds.X && hp[1].Bounds.Right < row.Right);
+            Assert.Contains(canvas.Fills, fill => fill.Color == new UiColor(22, 22, 27) && row.Contains(fill.Bounds.X, fill.Bounds.Y));
         }
         if (count > 6)
         {
