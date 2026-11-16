@@ -1,13 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Memoria.FF8;
 using Memoria.FF8.Mods;
 
 namespace Memoria.Launcher.Tests;
 
 public sealed class UpdateInstallerTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "Memoria.Updater.Tests", Guid.NewGuid().ToString("N"));
+    private readonly string root = DistributionPaths.GetFullPath(Path.Combine(Path.GetTempPath(), "Memoria.Updater.Tests", Guid.NewGuid().ToString("N")));
     private string Work => Path.Combine(root, UpdateInstaller.WorkDirectory);
     private string Staged => Path.Combine(Work, "new");
 
@@ -69,8 +70,8 @@ public sealed class UpdateInstallerTests : IDisposable
         UpdateInstaller.Apply(root);
         Assert.False(File.Exists(Path.Combine(root, old, "GirlNextDoor.png")));
 
-        GirlNextDoorMigration.FromLauncher(root);
-        GirlNextDoorMigration.FromLauncher(root);
+        MigrateLooseInstallArtwork();
+        MigrateLooseInstallArtwork();
         Assert.True(GirlNextDoorMigration.IsComplete(Path.Combine(root, "Mods")));
         Assert.Equal("legacy artwork", Read(local + "GirlNextDoor.png"));
         Assert.Equal("enabled = 0\ncustom = keep", Read(local + "mod.ini"));
@@ -89,7 +90,7 @@ public sealed class UpdateInstallerTests : IDisposable
         AddPackageFile(root, old + "mod.ini", settings);
         UpdateInstaller.Apply(root);
 
-        GirlNextDoorMigration.FromLauncher(root);
+        MigrateLooseInstallArtwork();
         Assert.True(GirlNextDoorMigration.IsComplete(Path.Combine(root, "Mods")));
         Assert.Equal("legacy artwork", Read(local + "GirlNextDoor.png"));
         Assert.False(File.Exists(Path.Combine(root, local, "mod.ini")));
@@ -104,7 +105,14 @@ public sealed class UpdateInstallerTests : IDisposable
         string backup = Path.Combine(Work, "backup", artwork);
         File.WriteAllText(backup, "altered backup");
 
-        Assert.Throws<InvalidDataException>(() => UpdateInstaller.Prepare(root));
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Throws<InvalidDataException>(MigrateLooseInstallArtwork);
+        }
+        else
+        {
+            Assert.Throws<InvalidDataException>(() => UpdateInstaller.Prepare(root));
+        }
         Assert.True(File.Exists(backup));
         Assert.False(File.Exists(Path.Combine(root, "Mods/Memoria/Girl Next Door/GirlNextDoor.png")));
     }
@@ -435,6 +443,21 @@ public sealed class UpdateInstallerTests : IDisposable
 
         AssertOriginalPackage();
         Assert.Empty(Directory.EnumerateFileSystemEntries(Work));
+    }
+
+    private void MigrateLooseInstallArtwork()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            GirlNextDoorMigration.FromLauncher(root);
+            return;
+        }
+
+        // Loose fixtures use a private Mods directory on every host.
+        string modsRoot = Path.Combine(root, "Mods");
+        using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(modsRoot, requestWriter: true);
+        Assert.True(lease.IsWriter);
+        GirlNextDoorMigration.FromGame(Path.Combine(root, "Data"), modsRoot);
     }
 
     private void AssertOriginalPackage()
