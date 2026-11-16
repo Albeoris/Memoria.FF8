@@ -15,6 +15,7 @@ public static class Ff7GuestBattleStatuses
 
     public const uint SupportedHost = Ff7NativeBattleActionResolver.Death | Ff7NativeBattleActionResolver.Sleep | Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleActionResolver.Slow | Ff7NativeBattleActionResolver.Darkness | Silence | Haste | Stop | Petrify | Barrier | MagicBarrier | Berserk | Ff7NativeBattleStatuses.Confusion | Ff7NativeBattleStatuses.SlowNumb | Ff7NativeBattleStatuses.Regen | Ff7NativeBattleStatuses.Reflect | Ff7NativeBattleStatuses.DeathSentence | Ff7NativeBattleStatuses.Peerless;
     public const uint SupportedNativeOnly = Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Fury;
+    public const uint SupportedBattleStatuses = SupportedHost | SupportedNativeOnly | Ff7NativeBattleStatuses.SupportedRecordStatuses;
     public const ushort SupportedOrigin = 0x3F;
     public const uint SupportedOriginBattle = 0x5CFF;
     public const uint OriginAura = 0x100;
@@ -107,7 +108,7 @@ public static class Ff7GuestBattleStatuses
     }
 
     internal static Ff7BattleAttack? ProjectIncoming(Ff7BattleAttack? record)
-        => record is { StatusChange: < 0xC0 } && (record.StatusMask & Ff7NativeBattleStatuses.Imprisoned) == 0 ? record with { StatusMask = record.StatusMask & (SupportedHost | SupportedNativeOnly | Ff7NativeBattleStatuses.SupportedRecordStatuses) } : record;
+        => record is { StatusChange: < 0xC0 } && (record.StatusMask & Ff7NativeBattleStatuses.Imprisoned) == 0 ? record with { StatusMask = record.StatusMask & SupportedBattleStatuses } : record;
 
     internal static uint ResistIncoming(uint mask, uint present, IReadOnlyList<byte> defenses, Ff7BattleRng random)
     {

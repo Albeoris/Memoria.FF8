@@ -191,6 +191,7 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
         ushort expectedHp = checked((ushort)GuestHp(battle));
         Assert.InRange(expectedHp, 1, binding.InitialHp - 1);
         CombinedSessionSave terminal = source with { Ff7 = cold.Capture() };
+        CheckTerminalStatusSettlement(terminal, installation, installed, binding, gunblade.Capture(), expectedReward);
         string before = JsonSerializer.Serialize(terminal);
         byte[] wrongOrigin = (byte[])sourcePayload.Clone();
         wrongOrigin[^1] ^= 1;
@@ -265,6 +266,49 @@ public sealed class CrossoverBattleVitalsSettlementTests(ITestOutputHelper outpu
             Assert.Same(escaped.Save, CrossoverBattleVitalsSettlement.PrepareResult(escaped.Save, installation, installed).Save);
         }
         output.WriteLine($"Squall HP {binding.InitialHp} -> {binding.InitialHp - incoming.Damage.Damage} -> {binding.MaximumHp} -> {expectedHp}; native opening result {staged.Receipt.RequestId}");
+    }
+
+    private static void CheckTerminalStatusSettlement(CombinedSessionSave terminal, Ff7Installation installation, NativeCharacterVitals installed, Ff7BattleGuestVitalsBinding binding, CrossoverGunbladeHostSnapshot presentation, Ff7BattleReward reward)
+    {
+        Ff7SessionSave host = terminal.Ff7!;
+        Ff7BattleSnapshot battle = host.Battle!;
+        Ff7BattleActorState guest = battle.Actors.Single(actor => actor.Actor.Slot == binding.HostSlot);
+        uint statuses = Ff7NativeBattleActionResolver.Poison | Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Paralysis;
+        CombinedSessionSave WithActor(Ff7BattleAiActor actor)
+        {
+            return terminal with { Ff7 = host with { Battle = battle with { Actors = battle.Actors.Select(candidate => candidate.Actor.Slot == binding.HostSlot ? candidate with { Actor = actor } : candidate).ToArray() } } };
+        }
+        CombinedSessionSave carrying = WithActor(guest.Actor with { Statuses = statuses });
+        string before = JsonSerializer.Serialize(carrying);
+        CrossoverBattleVitalsSettlementResult settled = CrossoverBattleVitalsSettlement.PrepareVictory(carrying, installation, installed, presentation: presentation);
+        Assert.Equal(before, JsonSerializer.Serialize(carrying));
+        NativeCharacterVital origin = CrossoverSaveAdapter.ReadFf8(terminal).Characters.Records[binding.OriginRow];
+        NativeCharacterVital changed = CrossoverSaveAdapter.ReadFf8(settled.Save).Characters.Records[binding.OriginRow];
+        Assert.Equal(origin with { HitPoints = new(checked((ushort)guest.Actor.HitPoints), checked((ushort)guest.Actor.HitPoints)), Status = (ushort)((origin.Status & ~Ff7GuestBattleStatuses.SupportedOrigin) | 2) }, changed);
+        Assert.Equal(Ff7NativeBattleActionResolver.Poison, Ff7GuestBattleStatuses.FromOrigin(changed.Status));
+        Ff7CharacterState originalHost = host.Progress.Characters.Single(character => character.Id == binding.StoryCharacter);
+        Ff7CharacterState expectedHost = Ff7NativeBattlePartyRecord.ProjectStatusesAndRow(originalHost, guest.Actor with { Statuses = statuses });
+        Assert.Equal(JsonSerializer.Serialize(expectedHost), JsonSerializer.Serialize(settled.Save.Ff7!.Progress.Characters.Single(character => character.Id == binding.StoryCharacter)));
+        Assert.Equal(Ff7NativeBattleStatuses.Sadness, (uint)(expectedHost.NativeRecord[31] & 0x30));
+        Assert.Equal(JsonSerializer.Serialize(reward), JsonSerializer.Serialize(Assert.Single(settled.Save.Ff7.Progress.CompletedBattles).Reward));
+        Assert.Single(settled.Save.GuestBattleSettlements!);
+        Assert.Same(settled.Save, CrossoverBattleVitalsSettlement.PrepareVictory(settled.Save, installation, installed).Save);
+        Assert.Single(settled.Save.Ff7.Progress.CompletedBattles);
+        foreach (Ff7BattleAiActor invalid in new[]
+        {
+            guest.Actor with { Statuses = statuses | 0x40000000 },
+            guest.Actor with { Statuses = statuses | 1 },
+            guest.Actor with { Statuses = statuses, HitPoints = 0 },
+            guest.Actor with { Statuses = statuses, MaxHitPoints = guest.Actor.MaxHitPoints + 1 }
+        })
+        {
+            CombinedSessionSave rejected = WithActor(invalid);
+            string rejectedBefore = JsonSerializer.Serialize(rejected);
+            Assert.Throws<InvalidDataException>(() => CrossoverBattleVitalsSettlement.PrepareVictory(rejected, installation, installed, presentation: presentation));
+            Assert.Equal(rejectedBefore, JsonSerializer.Serialize(rejected));
+            Assert.Empty(rejected.Ff7!.Progress.CompletedBattles);
+            Assert.Empty(rejected.GuestBattleSettlements ?? []);
+        }
     }
 
     private static uint GuestHp(Ff7BattleSession battle) => battle.Actors.Single(actor => actor.Actor.Slot == 0).Actor.HitPoints;

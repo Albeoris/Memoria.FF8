@@ -142,9 +142,9 @@ internal static class CrossoverBattleVitalsSettlement
             Ff7BattleAiActor projected = battle.Actors.Single(actor => actor.Actor.Slot == binding.HostSlot && actor.Identity == binding.StoryCharacter).Actor;
             ushort maximumHp = CrossoverGuestRecord.MaximumHitPoints(finalStock, row, binding.OriginCharacter);
             ushort hp = checked((ushort)projected.HitPoints);
-            if (maximumHp != (slot.Projection?.MaximumHp ?? binding.MaximumHp) || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~(Ff7GuestBattleStatuses.SupportedHost | Ff7GuestBattleStatuses.SupportedNativeOnly)) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
+            if (maximumHp != (slot.Projection?.MaximumHp ?? binding.MaximumHp) || projected.MaxHitPoints != maximumHp || hp > maximumHp || (projected.Statuses & ~Ff7GuestBattleStatuses.SupportedBattleStatuses) != 0 || (hp == 0) != ((projected.Statuses & 1) != 0))
             {
-                throw new InvalidDataException("Guest settlement requires consistent HP and mapped statuses for every admitted slot.");
+                throw new InvalidDataException("Guest settlement requires consistent HP and supported battle statuses for every admitted slot.");
             }
             rows[row] = rows[row] with { HitPoints = new(hp, hp), Status = Ff7GuestBattleStatuses.ToOrigin(projected.Statuses, original.Records[row].Status) };
             guests.Add(new(binding.StoryCharacter, row, hp, ExpectedCharacterHash(host.Progress.Characters.Single(character => character.Id == binding.StoryCharacter), projected)));
