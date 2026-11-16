@@ -55,7 +55,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     {
         var fixture = Fixture();
         NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets.ActivateHeader(new BattleActionHeaderReference(0)).ResetCounts();
-        packets = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(packets))!;
+        packets = NativeBattleStorageSnapshots.Capture(packets);
         Field("nativeActionPackets").SetValue(fixture.Session, packets);
         Complete(fixture.Session, fixture.Graphics, 0x47DDA0);
         Assert.Null(fixture.Session.ActiveAction);
@@ -198,7 +198,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         };
         captured.Session.ConfigureDiagnosticInvocationCompletion(1, "party", 252, 1);
         Field("diagnosticDispatchSerial").SetValue(captured.Session, 1L);
-        Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
+        Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [new BattleActionHeaderReference(0)]);
         BattleDiagnosticEffectDispatch focal = new(1, 10, "party", BattleAbility.EnemyAbility, 1, 1, 1, 252) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = fault == "generation" ? 2 : 1 };
         Method("PublishDiagnosticEffectDispatch").Invoke(captured.Session, [new Action<BattleDiagnosticEffectDispatch>(_ =>
         {
@@ -331,7 +331,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             (laterPackets, _) = laterPackets.AppendContact(new(new(laterPackets.ModelAliases.DecodeLiteral(3), 0, 0, 0, 0, 0, 0), null));
             (laterPackets, _) = laterPackets.Publish(1);
             Field("nativeActionPackets").SetValue(captured.Session, laterPackets);
-            Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
+            Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [new BattleActionHeaderReference(0)]);
             Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(captured.Session, 40L);
             SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 1, NativeGraphic = new(1) });
             NativeBattleDescriptorState laterDescriptors = capturedResult.Descriptors.RemoveFirst().Enqueue(10, 128, 0x47DDA0).State;

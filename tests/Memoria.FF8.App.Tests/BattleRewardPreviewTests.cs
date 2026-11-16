@@ -25,8 +25,7 @@ public sealed class BattleRewardPreviewTests
         BattleDefinition original = setup.CreateEncounterBattle(512);
         // Explicit component combat inputs shorten this test without fabricating any defeat/reward receipts.
         BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
-        string? resumeSnapshot = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_COMPONENT_SNAPSHOT");
-        BattleSession active = resumeSnapshot is null ? GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal) : BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(resumeSnapshot))!);
+        BattleSession active = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_FIX_EVIDENCE");
         if (evidence is not null)
         {
@@ -47,7 +46,7 @@ public sealed class BattleRewardPreviewTests
         // Preserve the original HP owner while supplying the completed component's death/revival state.
         BattleSnapshot completed = active.Capture();
         completed = completed with { GuardianForces = completed.GuardianForces.Select(gf => gf.Id == 1 ? gf with { HitPoints = checked((ushort)shivaHpAfter) } : gf).ToArray() };
-        active = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(completed))!);
+        active = BattleSession.Restore(completed);
         BattleEncounterOccurrence occurrence = new("reward-preview-component", 512, setup.BattleResources.FormationSourceHash(512), SceneKind.Field, 999, 0, new string('A', 64), null);
         session.SetPendingBattleEncounter(occurrence);
         session.SetBattle(active.Capture());

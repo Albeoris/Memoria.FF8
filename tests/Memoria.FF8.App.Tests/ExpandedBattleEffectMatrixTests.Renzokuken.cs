@@ -161,10 +161,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 AssertExpandedRenzokukenFinisher(battle, finisher, caster, target, availableEnemies, before);
             }
             BattleNativeRenzokukenResource resource = Assert.Single(game.ReadNativeRenzokukenResources(), candidate => candidate.MagicId == process.MagicId);
-            CompleteExpandedRenzokuken(world, battle, casterId, target.Id, process.MagicId);
-            BattleEvent[] contacts = battle.Events.Skip(before).Where(entry => entry.ActorId == casterId && entry.Kind == "EffectContact" && entry.Ability == BattleAbility.LimitBreak && entry.Message == "Renzokuken").ToArray();
-            Assert.Equal(resource.Timeline.InputThresholds.Length, contacts.Length);
-            Assert.All(contacts, contact => Assert.Equal(target.Id, contact.TargetId));
+            int contacts = resource.Timeline.InputThresholds.Length;
+            CompleteExpandedRenzokuken(world, battle, casterId, target.Id, process.MagicId, contacts);
             Assert.True(target.CurrentHp < initialHp);
             Assert.False(caster.IsBusy);
             Assert.Null(battle.GetNativeRenzokuken(casterId));
@@ -172,9 +170,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Single(battle.Events.Skip(before), entry => entry.ActorId == casterId && entry.Kind == "ActionComplete");
             if (finisher is not null)
             {
-                return ("logical", $"Formation {formation}, seed {seed}, original weapon {caster.WeaponId}, {finisher.Name} effect {finisher.MagicId}, {contacts.Length} Renzokuken contacts on the attached process.");
+                return ("logical", $"Formation {formation}, seed {seed}, original weapon {caster.WeaponId}, {finisher.Name} effect {finisher.MagicId}, {contacts} Renzokuken contacts on the attached process.");
             }
-            return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts.Length} contacts on the attached process.");
+            return ("logical", $"Formation {formation}, seed {seed}, {target.Id}, original Renzokuken effect {effect}, {contacts} contacts on the attached process.");
         }
 
         return ("blocked", originalAllocation && !sawActiveTarget
@@ -214,13 +212,17 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         return false;
     }
 
-    private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId, string targetId, ushort magic)
+    private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId, string targetId, ushort magic, int expectedContacts)
     {
         ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
         BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         BattleModelOwner caster = battle.ReadPresentationModelOwner(casterId);
+        BattleModelOwner target = battle.ReadPresentationModelOwner(targetId);
         long token = Assert.IsType<long>(process.ActiveActionToken);
         bool observedMidContact = false;
+        long observedCallback = process.Graphics.Callback;
+        List<NativeBattlePresentationContactReceived> contacts = [];
+        List<NativeBattlePresentationCompletionRequested> completions = [];
         for (int frame = 0; frame < 1200 && (battle.GetNativeRenzokuken(casterId) is not null || battle.ActiveAction is not null || process.ActiveActionToken is not null); frame++)
         {
             if (battle.NativeRenzokukenTriggerWindowOpen)
@@ -229,6 +231,21 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
             Assert.Same(process, battle.ExpandedPresentationProcess);
+            if (process.Graphics.Callback != observedCallback && process.LastFrameServices is { } services)
+            {
+                observedCallback = process.Graphics.Callback;
+                foreach (NativeBattlePresentationReceipt receipt in services.ReadOrderedReceipts())
+                {
+                    if (receipt is NativeBattlePresentationContactReceived { Renzokuken: { } hit } contact && hit.Token == token)
+                    {
+                        contacts.Add(contact);
+                    }
+                    else if (receipt is NativeBattlePresentationCompletionRequested { Callback: 0x47DE70 } completion && completion.Owner == caster)
+                    {
+                        completions.Add(completion);
+                    }
+                }
+            }
             if (battle.GetNativeRenzokuken(casterId) is { } current)
             {
                 Assert.Same(action, battle.ActiveAction);
@@ -248,6 +265,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             }
         }
         Assert.True(observedMidContact);
+        Assert.Equal(Enumerable.Range(1, expectedContacts), contacts.Select(contact => (int)contact.Renzokuken!.Index));
+        Assert.All(contacts, contact =>
+        {
+            Assert.Equal(caster, contact.Renzokuken!.Owner.Actor);
+            Assert.Equal(target, contact.Packet.Primary.Recipient);
+            Assert.NotNull(contact.Packet.Occurrence);
+        });
+        Assert.Single(completions);
         Assert.Null(battle.GetNativeRenzokuken(casterId));
         Assert.Null(battle.ActiveAction);
         Assert.Null(process.ActiveActionToken);

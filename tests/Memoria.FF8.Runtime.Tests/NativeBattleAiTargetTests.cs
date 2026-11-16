@@ -11,14 +11,28 @@ public sealed class NativeBattleAiTargetTests
     [InlineData(205, 0x80F8)]
     [InlineData(206, 0x80FF)]
     [InlineData(208, 0xA007)]
-    [InlineData(209, 0)]
     [InlineData(17, 8)]
-    [InlineData(99, 0)]
     public void NativeTargetSelectorsRetainExactPhysicalMasks(byte selector, ushort expected)
     {
         BattleSession battle = Create([4, selector]);
 
         Assert.Equal(expected, ReadPublishedTargetMask(battle.Capture()));
+    }
+
+    [Theory]
+    [InlineData(209)]
+    [InlineData(99)]
+    public void EmptyNativeTargetSelectorsRetainTheFactualHeaderWithoutQueuingAnAction(byte selector)
+    {
+        BattleSnapshot snapshot = Create([4, selector]).Capture();
+
+        Assert.True(snapshot.NativeActionScratch!.TargetUnavailableB0E);
+        NativeBattleActionHeaderSlot header = snapshot.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal((byte)2, header.Command);
+        Assert.Equal((ushort)1, header.Action);
+        Assert.Equal(0, header.ReadContactCount());
+        Assert.Empty(snapshot.QueuedActions);
+        Assert.Null(snapshot.ActiveAction);
     }
 
     [Fact]

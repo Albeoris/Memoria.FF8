@@ -175,8 +175,9 @@ public sealed class NativeBattleAiDifficultyTests
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
         abilities[16 * band] = new(2, 7, 1);
         abilities[16 * band + 2] = new(2, 7, 2);
-        byte[][] scripts = [initial ?? [0], [0], [0], [0], [0]];
-        scripts[callback] = turn;
+        // Select party slot 0 without drawing RNG so the tests isolate ability choice.
+        byte[][] scripts = [initial is null ? [0] : [43, 0, .. initial], [0], [0], [0], [0]];
+        scripts[callback] = [43, 0, .. turn];
         NativeBattleAiDefinition ai = new(scripts, abilities, band, []);
         BattleNativeAction action = new(2, 1, 1, 1)
         {
