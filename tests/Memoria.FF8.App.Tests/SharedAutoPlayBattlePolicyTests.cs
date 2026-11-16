@@ -19,6 +19,17 @@ public sealed class SharedAutoPlayBattlePolicyTests
     }
 
     [Fact]
+    public void ExhaustedPartyRetreatsWithHealthyMinorityWhenRecoveryIsUnavailable()
+    {
+        AutoPlayBattleRecoveryTarget[] exhausted = [new(90, 100, false), new(0, 100, true), new(0, 100, true)];
+        Assert.True(AutoPlayBattlePolicy.ShouldRetreat(true, false, exhausted));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(false, false, exhausted));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, true, exhausted));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, false, [new(90, 100, false), new(90, 100, false), new(0, 100, true)]));
+        Assert.False(AutoPlayBattlePolicy.ShouldRetreat(true, false, [new(90, 100, false)]));
+    }
+
+    [Fact]
     public void OrdinaryAttackPreservesReadyActorAndCombatantOrder()
     {
         AutoPlayBattleActor[] actors =

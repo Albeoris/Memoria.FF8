@@ -22,20 +22,23 @@ public static class AutoPlayBattlePolicy
         {
             return false;
         }
-        bool living = false;
+        int livingCount = 0;
+        int knockedOutCount = 0;
+        bool critical = true;
         foreach (AutoPlayBattleRecoveryTarget target in targets)
         {
             if (target.KnockedOut || target.HitPoints == 0)
             {
+                knockedOutCount++;
                 continue;
             }
+            livingCount++;
             if (target.MaximumHitPoints == 0 || (ulong)target.HitPoints * 4 > target.MaximumHitPoints)
             {
-                return false;
+                critical = false;
             }
-            living = true;
         }
-        return living;
+        return livingCount > 0 && (critical || knockedOutCount > livingCount);
     }
 
     /// <summary>Stabilizes critical living allies, then restores knocked-out allies, then heals injured allies.</summary>
