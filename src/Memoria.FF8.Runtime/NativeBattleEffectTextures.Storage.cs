@@ -112,6 +112,8 @@ public sealed partial record NativeBattleEffectTextureState
 
 public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<NativeBattleEffectTextureState>
 {
+    private sealed record SharedPresentationTextureMember(string SourceActorId, NativeBattlePcTextureWindowCache Cache);
+
     private sealed record SnapshotData([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, [property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions)
     {
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -126,12 +128,27 @@ public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<
         public ImmutableArray<NativeBattleSceneCopyRegion>? SceneCopies { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableDictionary<string, NativeBattlePresentationTextureBank>? PresentationTextures { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ImmutableDictionary<string, SharedPresentationTextureMember>? SharedPresentationTextureMembers { get; init; }
     }
 
     public override NativeBattleEffectTextureState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         SnapshotData value = JsonSerializer.Deserialize<SnapshotData>(ref reader, options) ?? throw new JsonException("Texture snapshot is missing.");
-        return NativeBattleEffectTextureState.CreateSnapshot(value.Slots, value.Count, value.Animation, value.VramRegions, value.VramReadTail, value.LiveTextureSources, value.TextureRegistrations, value.TextureFileContext, value.SceneCopies, value.PresentationTextures);
+        var banks = value.PresentationTextures;
+        if (value.SharedPresentationTextureMembers is { } members)
+        {
+            foreach ((string actorId, SharedPresentationTextureMember member) in members)
+            {
+                if (banks is null || banks.ContainsKey(actorId) || member is null || string.IsNullOrWhiteSpace(member.SourceActorId) ||
+                    !value.PresentationTextures!.TryGetValue(member.SourceActorId, out NativeBattlePresentationTextureBank? source) || source?.EnemyAllocationId is null)
+                {
+                    throw new JsonException("Shared enemy texture member does not refer to a serialized allocation.");
+                }
+                banks = banks.Add(actorId, source with { Cache = member.Cache });
+            }
+        }
+        return NativeBattleEffectTextureState.CreateSnapshot(value.Slots, value.Count, value.Animation, value.VramRegions, value.VramReadTail, value.LiveTextureSources, value.TextureRegistrations, value.TextureFileContext, value.SceneCopies, banks);
     }
 
     public override void Write(Utf8JsonWriter writer, NativeBattleEffectTextureState value, JsonSerializerOptions options)
@@ -141,6 +158,34 @@ public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<
             throw new InvalidOperationException("Working textures require an explicit detached capture before serialization.");
         }
         value.Validate();
-        JsonSerializer.Serialize(writer, new SnapshotData(value.Slots, value.Count, value.Animation, value.VramRegions) { VramReadTail = value.VramReadTail, LiveTextureSources = value.LiveTextureSources, TextureRegistrations = value.TextureRegistrations, TextureFileContext = value.TextureFileContext, SceneCopies = value.SceneCopies, PresentationTextures = value.PresentationTextures }, options);
+        var banks = value.PresentationTextures;
+        var members = ImmutableDictionary.CreateBuilder<string, SharedPresentationTextureMember>(StringComparer.Ordinal);
+        if (banks is not null)
+        {
+            Dictionary<int, string> sources = new();
+            foreach ((string actorId, NativeBattlePresentationTextureBank bank) in banks.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            {
+                if (bank.EnemyAllocationId is not int allocation)
+                {
+                    continue;
+                }
+                if (sources.TryAdd(allocation, actorId))
+                {
+                    continue;
+                }
+                members.Add(actorId, new(sources[allocation], bank.Cache));
+                banks = banks.Remove(actorId);
+            }
+        }
+        JsonSerializer.Serialize(writer, new SnapshotData(value.Slots, value.Count, value.Animation, value.VramRegions)
+        {
+            VramReadTail = value.VramReadTail,
+            LiveTextureSources = value.LiveTextureSources,
+            TextureRegistrations = value.TextureRegistrations,
+            TextureFileContext = value.TextureFileContext,
+            SceneCopies = value.SceneCopies,
+            PresentationTextures = banks,
+            SharedPresentationTextureMembers = members.Count == 0 ? null : members.ToImmutable()
+        }, options);
     }
 }

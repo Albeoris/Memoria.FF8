@@ -17,7 +17,13 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
-        BattleModelOwner? owner = (graphics.ActionGraphics ?? throw new NotSupportedException("Native5064F0 requires its retained action owner.")).ResolveCameraActor(graphics);
+        // Old field continuations may lack the selector. Their staged R0WIN camera needs no actor or RNG draw.
+        BattleModelOwner? owner = graphics.ActionGraphics is { } action ? action.CameraActor switch
+        {
+            BattleRetainedModelReference.OriginalSlot original => ReadPartySlot(original.Slot.Offset),
+            BattleRetainedModelReference.CanonicalOwner { Owner: BattlePartyModelOwner } => action.ResolveCameraActor(graphics),
+            _ => null
+        } : definition.NativeRetainedMemory?.VictoryCameraActorSlot is byte retained ? ReadPartySlot(retained) : null;
         bool resourceCamera = true;
         if (owner is BattlePartyModelOwner party)
         {
@@ -43,5 +49,10 @@ public sealed partial class BattleSession
         NativeBattleGraphicsResource source = NativeActionResource(graphics, actor);
         NativeCamera = camera.Start(source.ActionCameraBank ?? throw new NotSupportedException("Native5064F0 requires the original actor's action camera bank."), selector);
         return graphics;
+
+        BattleModelOwner? ReadPartySlot(byte slot)
+        {
+            return slot < NativeBattleSlots.AllyCount ? graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(slot), graphics.ActorModels) : null;
+        }
     }
 }

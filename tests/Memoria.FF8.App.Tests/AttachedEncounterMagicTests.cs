@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class AttachedEncounterMagicTests
+public sealed partial class AttachedEncounterMagicTests
 {
     [Theory]
     [InlineData(false, 1)]
@@ -47,7 +47,7 @@ public sealed class AttachedEncounterMagicTests
             NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
             GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
             session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-            using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, resource)) { UseAttachedBattlePresentation = attached };
+            using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, resource)) { UsePhysicalBattlePresentation = !attached };
             ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -63,7 +63,7 @@ public sealed class AttachedEncounterMagicTests
         using BattleAssets assets = new(directory);
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
         GameSession session = new(GameSession.Load(TestResources.FixturePath("story-battle-136")));
-        using GameWorld world = new(session, directory, sharedAssets: game, expandedBattleAllyCount: 3, applyEncounterMods: (definition, context) => BindFirePolicy(definition, resource, context)) { UseAttachedBattlePresentation = true };
+        using GameWorld world = new(session, directory, sharedAssets: game, expandedBattleAllyCount: 3, applyEncounterMods: (definition, context) => BindFirePolicy(definition, resource, context));
         world.EnsureField();
 
         NativeBattleCompletion request = Assert.IsType<NativeBattleCompletion>(world.Events.PendingInteractiveBattle);
@@ -141,7 +141,7 @@ public sealed class AttachedEncounterMagicTests
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindSummonPolicy(definition, resource)) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindSummonPolicy(definition, resource)) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -252,7 +252,7 @@ public sealed class AttachedEncounterMagicTests
         NativeBattleGraphicsResource? tauntResource = nativeTaunt ? assets.ReadEnemyNativeGraphicsResource(88) : null;
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, tauntResource)) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, tauntResource)) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current =>
         {
             if (nativeTaunt)

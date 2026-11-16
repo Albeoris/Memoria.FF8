@@ -22,7 +22,7 @@ public sealed class OmegaCombatAcceptanceTests
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
         session.SetCharacterVitals(vitals);
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         BattleDefinition definition = world.CreateEncounterBattle(462);
         // An explicit diagnostic starting status; ordinary combat rules and enemy statistics are unchanged.
         definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor with { NativeStatus1 = actor.NativeStatus1 | 0x800 } : actor).ToArray() };

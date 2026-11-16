@@ -54,8 +54,14 @@ public sealed record NativeBattleModelAnimationCopy(int? DestinationOffset, Immu
 public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu, ImmutableArray<NativeBattleModelCpuResourceRow> Rows)
 {
     public const uint EnemyAddress = 0x1939018;
+    // The authenticated Classic image maps this entire range in the PE's zero-filled virtual tail.
+    private static readonly NativeBattleModelCpuBank ColdClassicEnemyGuestMemory = NativeBattleModelCpuBank.Unknown(int.MaxValue)
+        .WriteGuest(0, new byte[checked((int)(NativeBattlePartyCpuLayout.Classic.BaseAddress - EnemyAddress))]);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<int, NativeBattleModelCpuBank>? EnemyResources { get; init; }
+    // The guest publication retains vacated bytes the bounded model owners cannot address.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleModelCpuBank? EnemyGuestMemory { get; init; }
     public int NextEnemyResourceId { get; init; }
 
     public NativeBattleModelCpuBank GetResourceBank(NativeBattleModelCpuReference reference)
@@ -148,7 +154,14 @@ public sealed record NativeBattleModelCpuResources(NativeBattleModelCpuBanks Cpu
     {
         ImmutableDictionary<int, NativeBattleModelCpuReference?> pointers = new[] { 8, 12, 16, 20, 24, 28, 32, 40, 44, 48 }.ToImmutableDictionary(offset => offset, _ => (NativeBattleModelCpuReference?)null);
         NativeBattlePartyCpuLayout layout = NativeBattlePartyCpuLayout.ForImage(executableHash);
-        return Unknown() with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty, Cpu = NativeBattleModelCpuBanks.Unknown(layout), Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]), Rows = Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray() };
+        return Unknown() with
+        {
+            EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty,
+            EnemyGuestMemory = layout == NativeBattlePartyCpuLayout.Classic ? ColdClassicEnemyGuestMemory : null,
+            Cpu = NativeBattleModelCpuBanks.Unknown(layout),
+            Palettes = NativeBattleModelCpuBank.Unknown().Write(0, new byte[0xC00]),
+            Rows = Enumerable.Range(0, NativeBattleModelResourceRowAddress.NativeRowCount).Select(_ => new NativeBattleModelCpuResourceRow(pointers)).ToImmutableArray()
+        };
     }
 
     public NativeBattleModelCpuResources WithPresentationRoster(BattleModelRoster roster, NativeBattleModelAliases aliases)

@@ -17,6 +17,14 @@ public sealed partial class BattleSession
     private BattleEncounterAllocationState? encounterAllocation;
     private BattleSnapshot? encounterAllocationRollback;
     private ImmutableArray<HostedModelLoadAdmission> hostedEncounterLoadAdmissions = [];
+    private HostedEncounterLoadCheckpoint? hostedEncounterLoadCheckpoint;
+
+    internal sealed record HostedEncounterLoadCheckpoint(
+        BattleEncounterAllocationState Batch, HostedModelRegistry Registry, NativeBattleGraphicsState Graphics,
+        NativeBattleActionPacketsState Packets, ImmutableArray<HostedControlPacket> Controls,
+        NativeBattleModelCpuResources? Cpu, NativeBattleModelTextureCache? TextureCache, NativeBattleEffectMemory? Memory,
+        NativeBattleFileStaging? Staging, NativeBattleFileIoState? FileIo, int? IoResult, NativeBattleModelLoader? Loader,
+        NativeBattleCameraState? Camera, NativeBattleStageState? Stage);
 
     public BattleEncounterAllocationState? EncounterAllocation => encounterAllocation;
 
@@ -257,6 +265,7 @@ public sealed partial class BattleSession
         }
         if (next == batch.ActorIds.Length)
         {
+            process.CompleteEncounterLoad();
             encounterAllocation = batch with { Phase = BattleEncounterAllocationPhase.Ready, LoadingIndex = next };
             encounterAllocationRollback = null;
             hostedEncounterLoadAdmissions = [];
@@ -275,6 +284,81 @@ public sealed partial class BattleSession
         BindCurrentEncounterAllocation(nextActor, load.SceneSlot);
         encounterAllocation = batch with { LoadingIndex = next };
         process.CommitDispatch(dispatch);
+    }
+
+    internal HostedEncounterLoadCheckpoint? PrepareHostedEncounterLoad(BattleEncounterAllocationState? batch, PreparedHostedDispatch dispatch)
+    {
+        if (batch is not { Phase: BattleEncounterAllocationPhase.Loading, LoadingIndex: 0 } ||
+            hostedEncounterLoadCheckpoint is not null || dispatch.Registry is not { } registry ||
+            !registry.Replacement.Loads.Keys.Any(owner => owner.Actor.ActorId == batch.ActorIds[0]))
+        {
+            return null;
+        }
+        if (dispatch.Action is not null || dispatch.Completion is not null || NativeModelLoader?.Task is not null)
+        {
+            throw new InvalidOperationException("An attached encounter batch requires exclusive ownership of its native model load.");
+        }
+        // The summon action is already complete. Save its acknowledged packets together with the
+        // resource graph that existed before the first member's model registry was published.
+        return NativeBattleStorageSnapshots.CapturePrivate(new HostedEncounterLoadCheckpoint(
+            batch, registry.Original, dispatch.Graphics, dispatch.Acknowledgment?.AcknowledgedPackets ?? nativeActionPackets,
+            hostedControlPackets, NativeModelCpuResources, NativeModelTextureCache, NativeEffectMemory, NativeFileStaging,
+            NativeFileIo, NativeEffectIoResult, NativeModelLoader, NativeCamera, NativeStage));
+    }
+
+    internal void PublishHostedEncounterLoad(HostedEncounterLoadCheckpoint? checkpoint)
+    {
+        if (checkpoint is not null)
+        {
+            hostedEncounterLoadCheckpoint = checkpoint;
+        }
+    }
+
+    internal void CompleteHostedEncounterLoad()
+    {
+        hostedEncounterLoadCheckpoint = null;
+    }
+
+    internal bool RollbackHostedEncounterLoad()
+    {
+        if (hostedEncounterLoadCheckpoint is not { } saved)
+        {
+            return false;
+        }
+        HostedEncounterLoadCheckpoint checkpoint = NativeBattleStorageSnapshots.Restore(saved);
+        NativeBattleGraphicsState current = RequireNativeGraphics();
+        NativeGraphics = checkpoint.Graphics with
+        {
+            Callback = current.Callback,
+            PresentationSubticks = current.PresentationSubticks,
+            PresentationHalfSubtick = current.PresentationHalfSubtick
+        };
+        hostedModelRegistry = checkpoint.Registry;
+        nativeActionPackets = checkpoint.Packets;
+        hostedControlPackets = checkpoint.Controls;
+        NativeModelCpuResources = checkpoint.Cpu;
+        NativeModelTextureCache = checkpoint.TextureCache;
+        NativeEffectMemory = checkpoint.Memory;
+        NativeFileStaging = checkpoint.Staging;
+        NativeFileIo = checkpoint.FileIo;
+        NativeEffectIoResult = checkpoint.IoResult;
+        NativeModelLoader = checkpoint.Loader;
+        NativeCamera = checkpoint.Camera;
+        NativeStage = checkpoint.Stage;
+        hostedEncounterLoadCheckpoint = null;
+        hostedPreparationEpoch = checked(hostedPreparationEpoch + 1);
+        ClearHostedPresentationFrameOutputs();
+        return true;
+    }
+
+    private void ValidateHostedEncounterLoadResult(NativeBattleFileIoCompletion completion)
+    {
+        if (completion.Result < 0 && hostedEncounterLoadCheckpoint is { } checkpoint &&
+            NativeModelLoader?.Task is { Phase: 1, Owner: BattleEnemyActorModel owner, File: { } file } &&
+            checkpoint.Batch.ActorIds.Contains(owner.Actor.ActorId))
+        {
+            throw new IOException($"Native model file {file.Name} failed to load for {owner.Actor.ActorId} (result {completion.Result}).");
+        }
     }
 
     private NativeBattleGraphicsState CompleteEncounterAllocationLoad(NativeBattleGraphicsState graphics)
@@ -395,7 +479,41 @@ public sealed partial class BattleSession
         nativeAllocations.RemoveRange(rollback.NativeAllocations.Length, nativeAllocations.Count - rollback.NativeAllocations.Length);
         encounterAllocation = null;
         encounterAllocationRollback = null;
+        if (expandedPresentationProcess is { } process)
+        {
+            bool presentationRolledBack = process.RollbackEncounterLoad();
+            // Host time and the shared RNG/audio owners have progressed independently of the
+            // paused allocation. The completed summon command keeps its admitted turn.
+            rollback = rollback with
+            {
+                Frame = Frame,
+                NativeHostCallbacks = NativeHostCallbacks,
+                NativeExamTimer = NativeExamTimer,
+                NativeCrtRandom = nativeCrtRandom,
+                NativeBattleUiRandom = nativeBattleUiRandom,
+                NativeGlobalRandom = nativeGlobalRandom,
+                NativeGlobalRandomCalls = nativeGlobalRandomCalls,
+                NativeMusicProcess = NativeMusicProcess,
+                NativeGlobalSoundProcess = NativeGlobalSoundProcess,
+                NativeVibrationProcess = NativeVibrationProcess,
+                EncounterPolicies = rollback.EncounterPolicies is { } policies ? policies with { PendingSummon = null } : null
+            };
+            IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
+            CopyCandidateState(Restore(rollback, customHandlers), rollback);
+            ReleaseExpandedHostedFence();
+            if (presentationRolledBack)
+            {
+                process.RefreshRolledBackEncounter();
+            }
+            return;
+        }
         PublishCandidate(Restore(rollback));
+    }
+
+    internal void RefreshRolledBackHostedEncounter(BattleSession logicalOwner)
+    {
+        NativeBattleModelLifecycleServices services = logicalOwner.CaptureHostedModelLifecycleServices(HostedPlannedModelRoster, hostedModelRegistry);
+        RefreshHostedPreparedPresentation(logicalOwner, services);
     }
 
     private void RequireNoPendingEncounterAllocation()

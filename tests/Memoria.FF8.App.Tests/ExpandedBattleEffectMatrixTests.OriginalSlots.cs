@@ -14,7 +14,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
         using GameAssets assets = new(directory);
-        using GameWorld world = new(new GameSession(PrepareField(directory)), directory);
+        using GameWorld world = new(new GameSession(PrepareField(directory)), directory) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 29);
         BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
@@ -80,7 +80,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static void RunInstalledTowerEffect(string directory, GameState field, GameAssets assets, ushort requestedEffect)
     {
-        using GameWorld world = new(new GameSession(field), directory, expandedBattleAllyCount: 11, sharedAssets: assets);
+        using GameWorld world = new(new GameSession(field), directory, expandedBattleAllyCount: 11, sharedAssets: assets) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 29);
         Assert.False(battle.UsesExpandedRoster);
@@ -153,7 +153,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
         using GameAssets assets = new(directory);
         GameSession session = new(PrepareField(directory));
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 164);
         BattleCombatant owner = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);

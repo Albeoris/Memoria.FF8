@@ -77,7 +77,7 @@ internal sealed record NativeBattleModelResourceStorage(ImmutableArray<NativeBat
         {
             return this;
         }
-        return Replace(offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes.ToArray()), 0, bytes.Length);
+        return Replace(offset, bytes.Length, [new(offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes.ToArray()), 0, bytes.Length)]);
     }
 
     internal NativeBattleModelResourceStorage Bind(int offset, ImmutableArray<byte> source, int sourceOffset, int length, int capacity)
@@ -88,7 +88,30 @@ internal sealed record NativeBattleModelResourceStorage(ImmutableArray<NativeBat
         {
             throw new InvalidDataException("Native model resource binding exceeds its immutable source.");
         }
-        return length == 0 ? this : Replace(offset, source, sourceOffset, length);
+        return length == 0 ? this : Replace(offset, length, [new(offset, source, sourceOffset, length)]);
+    }
+
+    internal NativeBattleModelResourceStorage Copy(int source, int destination, int length, int capacity)
+    {
+        Validate(capacity);
+        RequireRange(source, length, capacity);
+        RequireRange(destination, length, capacity);
+        if (length == 0 || source == destination)
+        {
+            return this;
+        }
+        ImmutableArray<NativeBattleModelResourceSegment>.Builder moved = ImmutableArray.CreateBuilder<NativeBattleModelResourceSegment>();
+        foreach (NativeBattleModelResourceSegment segment in Segments)
+        {
+            int first = Math.Max(source, segment.Offset);
+            int end = Math.Min(source + length, segment.Offset + segment.Length);
+            if (end > first)
+            {
+                moved.Add(new(destination + (first - source), segment.Source, segment.SourceOffset + first - segment.Offset, end - first));
+            }
+        }
+        // Gaps in the source replace known destination bytes with unknown bytes.
+        return Replace(destination, length, moved.ToImmutable().AsSpan());
     }
 
     internal ImmutableArray<NativeBattleEffectMemoryRegion> CaptureKnownRanges(int capacity)
@@ -144,7 +167,7 @@ internal sealed record NativeBattleModelResourceStorage(ImmutableArray<NativeBat
         return observed == offset + bytes.Length;
     }
 
-    private NativeBattleModelResourceStorage Replace(int offset, ImmutableArray<byte> source, int sourceOffset, int length)
+    private NativeBattleModelResourceStorage Replace(int offset, int length, ReadOnlySpan<NativeBattleModelResourceSegment> replacements)
     {
         int end = offset + length;
         bool inserted = false;
@@ -163,7 +186,10 @@ internal sealed record NativeBattleModelResourceStorage(ImmutableArray<NativeBat
                 {
                     Append(segment with { Length = offset - segment.Offset });
                 }
-                Append(new(offset, source, sourceOffset, length));
+                foreach (NativeBattleModelResourceSegment replacement in replacements)
+                {
+                    Append(replacement);
+                }
                 inserted = true;
             }
             if (segment.Offset >= end)
@@ -177,7 +203,10 @@ internal sealed record NativeBattleModelResourceStorage(ImmutableArray<NativeBat
         }
         if (!inserted)
         {
-            Append(new(offset, source, sourceOffset, length));
+            foreach (NativeBattleModelResourceSegment replacement in replacements)
+            {
+                Append(replacement);
+            }
         }
         return new(result.ToImmutable());
 

@@ -168,7 +168,7 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
 
     private static BattleSession.HostedModelLoadAdmission Admission()
     {
-        return new(new(New, Slot, 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty);
+        return new(new(New, Slot, 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty, UsesOriginalSceneResource: true);
     }
 
     private static BattleSession Fixture()

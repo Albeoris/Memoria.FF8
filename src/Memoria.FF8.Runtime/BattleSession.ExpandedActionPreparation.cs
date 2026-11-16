@@ -44,6 +44,10 @@ public sealed partial class BattleSession
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.nativeAffinityAction = nativeAffinityAction;
+        if (expandedPresentationProcess is { } process)
+        {
+            candidate.readHostedAiHeapMessage = process.ReadAiHeapMessage;
+        }
         return candidate;
     }
 

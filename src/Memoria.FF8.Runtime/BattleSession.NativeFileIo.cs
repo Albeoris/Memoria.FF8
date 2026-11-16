@@ -23,6 +23,7 @@ public sealed partial class BattleSession
             switch (completion.Callback)
             {
                 case 0x508470:
+                    ValidateHostedEncounterLoadResult(completion);
                     NativeEffectIoResult = completion.Result;
                     break;
                 case 0x82AF90:

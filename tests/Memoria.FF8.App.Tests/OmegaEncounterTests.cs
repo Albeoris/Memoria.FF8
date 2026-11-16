@@ -99,7 +99,7 @@ public sealed class OmegaEncounterTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         BattleDefinition definition = world.CreateEncounterBattle(462);
         BattleCombatantDefinition omega = Assert.Single(definition.Combatants, actor => !actor.IsPlayer && actor.InitialActive);
         Assert.Equal(114, omega.ModelId);

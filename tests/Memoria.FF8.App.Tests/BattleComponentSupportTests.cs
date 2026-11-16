@@ -11,7 +11,7 @@ public sealed class BattleComponentSupportTests
     public void Live_turn_based_component_automatically_refills_after_queued_action_completion_and_restores_at_the_boundary()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
-        using GameWorld world = new(CreateSession(assets, 0), assets.GameDirectory);
+        using GameWorld world = new(CreateSession(assets, 0), assets.GameDirectory) { UsePhysicalBattlePresentation = true };
         BattleDefinition seed = ComponentDefinition(world, 512);
         BattleCombatantDefinition party = seed.Combatants.First(actor => actor.IsPlayer) with { Speed = 1_000 };
         BattleCombatantDefinition enemy = seed.Combatants.First(actor => !actor.IsPlayer) with { MaximumHp = 50_000, CurrentHp = 50_000 };
@@ -61,7 +61,7 @@ public sealed class BattleComponentSupportTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = CreateSession(assets, flags);
-        using GameWorld world = new(session, assets.GameDirectory);
+        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
         BattleDefinition definition = ComponentDefinition(world, 512);
         Assert.NotNull(definition.NativeSupportRules);
         Assert.Null(definition.NativeClockRules);
@@ -94,7 +94,7 @@ public sealed class BattleComponentSupportTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = CreateSession(assets, 0, rinoa: true);
-        using GameWorld world = new(session, assets.GameDirectory);
+        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
         BattleDefinition definition = ComponentDefinition(world, 512);
         BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 128 && (battle.QueuedActions.Count != 0 || battle.ActiveAction is not null || battle.Capture().NativeActionScratch!.ComponentCompletion is not null); callback++)

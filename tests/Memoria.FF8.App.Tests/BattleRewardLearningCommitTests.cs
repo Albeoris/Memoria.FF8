@@ -88,7 +88,7 @@ public sealed class BattleRewardLearningCommitTests
         vitals = vitals.AwardGuardianForceAbilityPoints(0, checked((ushort)(completing.RequiredPoints - 1 - completing.Progress)));
         GameSession session = new(new GameState { InputConfiguration = assets.ReadNewGameInputConfiguration(), NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom(), KnownMagic = assets.ReadNewGameKnownMagic() });
         BattleResult result;
-        using (GameWorld setup = new(session, assets.GameDirectory))
+        using (GameWorld setup = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true })
         {
             BattleDefinition original = setup.CreateEncounterBattle(512);
             // Explicit combat inputs accelerate a real victory and retain the native defeat and AP receipts.

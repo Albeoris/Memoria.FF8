@@ -141,7 +141,12 @@ public readonly struct NativeBattleModelResourceView
         RequireRange(offset, bytes.Length, view.Length);
         int destination = checked(reference.ResourceStorageOffset + offset);
         bank = reference.ResourceOnly ? bank.Write(destination, bytes) : bank.WriteGuest(destination, bytes);
-        return reference.EnemyResourceId is int id ? cpu with { EnemyResources = cpu.EnemyResources!.SetItem(id, bank) } : cpu with { Cpu = cpu.Cpu.WithBank(reference.Bank, bank) };
+        if (reference.EnemyResourceId is int id)
+        {
+            NativeBattleModelCpuBank guest = NativeBattleModelEnemyHeap.GuestMemory(cpu).WriteGuest(checked(reference.Offset + offset), bytes);
+            return cpu with { EnemyResources = cpu.EnemyResources!.SetItem(id, bank), EnemyGuestMemory = guest };
+        }
+        return cpu with { Cpu = cpu.Cpu.WithBank(reference.Bank, bank) };
     }
 
     private static NativeBattleModelResourceView OpenStaging(NativeBattleFileStaging staging, uint address, int length)

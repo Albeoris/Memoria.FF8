@@ -120,7 +120,7 @@ public sealed partial class BattleSession
     private void ResolveNativeMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
-        List<NativeMagicReflectionReceipt>? reflections = actor.IsPlayer && command.MagicCasts.Length > 1 && nativeDispatchCommandLocation is not null && SupportsHostedNativeMagicRepeat(action.NativeAction!, definition.NativeEffectCatalog) ? [] : null;
+        List<NativeMagicReflectionReceipt>? reflections = actor.IsPlayer && command.MagicCasts.Length > 1 && nativeDispatchCommandLocation is not null ? [] : null;
         ResolveMagicGroupInvocations(actor, command, action, (invocation, index) =>
         {
             BattleCombatant target = ReadMagicPreflightAnchor(invocation, requireActive: true);
@@ -220,7 +220,7 @@ public sealed partial class BattleSession
         List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts = [];
         bool producedContacts = false;
         int firstOperation = expandedOperationCursor.Operations.Length;
-        List<NativeMagicReflectionReceipt>? reflections = hosted && actor.IsPlayer && SupportsHostedNativeMagicRepeat(action.NativeAction!, definition.NativeEffectCatalog) ? [] : null;
+        List<NativeMagicReflectionReceipt>? reflections = hosted && actor.IsPlayer ? [] : null;
 
         //485610 produces the whole group before484180 post-action status work or pending reactions.
         if (!producingExpandedAiCallback)
@@ -253,10 +253,9 @@ public sealed partial class BattleSession
             });
             if (hosted && producedContacts && (actor.IsPlayer || HasEncounterPolicy(actor)))
             {
-                bool grouped = TryGroupNativeMagicCasts(firstOperation, action.NativeAction!);
-                if (!grouped && !actor.IsPlayer)
+                if (!TryGroupNativeMagicCasts(firstOperation, action.NativeAction!))
                 {
-                    throw new NotSupportedException("The compiled repeat requires its contiguous native spell headers and a supported presentation group.");
+                    throw new InvalidDataException("The repeated native spell requires contiguous action headers.");
                 }
             }
             if (reflections is { Count: > 0 })
@@ -312,21 +311,23 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        if (!SupportsHostedNativeMagicRepeat(native, definition.NativeEffectCatalog) ||
-            operations[firstOperation] is not ExpandedHostedInvocation first || first.Header.Command != command)
+        if (operations[firstOperation] is not ExpandedHostedInvocation first || first.Header.Command != command || first.Header.Action != native.ActionId || first.Header.Effect != native.MagicId)
         {
             return false;
         }
 
+        bool presentsFirstHeaderOnly = !definition.NativeEffectCatalog.IsDefaultOrEmpty &&
+            definition.NativeEffectCatalog.ElementAtOrDefault(first.Header.Effect - 1)?.PresentsFirstActionHeaderOnly == true;
         ImmutableArray<ExpandedHostedInvocation>.Builder following = ImmutableArray.CreateBuilder<ExpandedHostedInvocation>(operations.Length - firstOperation - 1);
         foreach (ExpandedHostedOperation operation in operations.Skip(firstOperation + 1))
         {
             if (operation is not ExpandedHostedInvocation next || next.Header.Command != command || next.Header.Caster != first.Header.Caster ||
-                next.Header.Effect != first.Header.Effect || next.Header.Action != first.Header.Action || next.EnemyDraw is not null)
+                next.Header.Effect != first.Header.Effect || next.Header.Action != first.Header.Action || next.EnemyDraw is not null ||
+                command == 2 && next.Header.Source != first.Header.Source)
             {
                 return false;
             }
-            following.Add(next);
+            following.Add(presentsFirstHeaderOnly ? next with { ContactDisposition = ExpandedHostedContactDisposition.ContextOnly } : next);
         }
 
         expandedOperationCursor.Operations = operations.SetItem(firstOperation, first with { FollowingCasts = following.MoveToImmutable() })
@@ -340,13 +341,13 @@ public sealed partial class BattleSession
         return action.Kind is EncounterCompiledActionKind.Cast or EncounterCompiledActionKind.CastFromPool &&
             !action.Spells.IsDefaultOrEmpty && action.Dispel is null &&
             action.Spells.All(spell => ExpandedBattleActionRules.SupportsContacts(spell.NativeAction) &&
-                (!action.NativeDouble || SupportsHostedNativeMagicRepeat(spell.NativeAction, catalog)));
+                (!action.NativeDouble || HasInstalledMagicBinding(spell.NativeAction, catalog)));
     }
 
-    private static bool SupportsHostedNativeMagicRepeat(BattleNativeAction action, ImmutableArray<NativeBattleEffectBinding> catalog)
+    private static bool HasInstalledMagicBinding(BattleNativeAction action, ImmutableArray<NativeBattleEffectBinding> catalog)
     {
         return action is { Command: 2, MagicId: > 0 } && !catalog.IsDefaultOrEmpty && action.MagicId <= catalog.Length &&
-            catalog[action.MagicId - 1].Entry == NativeBattleFireEffect.Entry;
+            catalog[action.MagicId - 1] is { Entry: not 0 } binding && binding.Effect == action.MagicId;
     }
 
     private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, bool hosted,
@@ -362,7 +363,7 @@ public sealed partial class BattleSession
         if (hitPlan.Any(hit => hit.Targets.Any(recipient => NativeActionReflects(recipient, native))))
         {
             reflected = definition.NativeActions.SingleOrDefault(candidate => candidate.Command == 247 && candidate.ActionId == native.ActionId && candidate.CrisisLevel is null);
-            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected))
+            if (reflected is null || !ExpandedBattleActionRules.SupportsContacts(reflected) && !ExpandedBattleActionRules.SupportsMagicCure(reflected))
             {
                 return (false, false);
             }

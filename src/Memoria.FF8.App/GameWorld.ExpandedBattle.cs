@@ -7,7 +7,7 @@ internal sealed partial class GameWorld
 {
     private readonly int defaultExpandedRandomAllyCount;
     private readonly int defaultAdditionalEnemyCount;
-    internal bool UseAttachedBattlePresentation { get; init; }
+    internal bool UsePhysicalBattlePresentation { get; init; }
     internal int ConfiguredBattleAllyCount => session.State.GameplayPreferences.BattleAllyCount == 0 ? defaultExpandedRandomAllyCount : session.State.GameplayPreferences.BattleAllyCount;
     internal int EffectiveBattleAllyCount => BattlePartySelectionPolicy.ResolveCapacity(session.State, ConfiguredBattleAllyCount == 0 ? 3 : ConfiguredBattleAllyCount);
 

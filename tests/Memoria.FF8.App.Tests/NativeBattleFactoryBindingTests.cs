@@ -29,7 +29,7 @@ public sealed class NativeBattleFactoryBindingTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             KnownMagic = assets.ReadNewGameKnownMagic()
         });
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
 
         BattleDefinition definition = world.CreateEncounterBattle(512);
 

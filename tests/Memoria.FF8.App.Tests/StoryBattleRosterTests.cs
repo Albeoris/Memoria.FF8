@@ -19,7 +19,7 @@ public sealed class StoryBattleRosterTests
         byte[] party = [5, 0, 1];
         GameSession session = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
         session.StartNewGame();
-        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3);
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         session.SetFullBattlePlaythrough(true);
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = party }).WithGuestBattleRecords();
@@ -225,8 +225,8 @@ public sealed class StoryBattleRosterTests
         string directory = TestResources.GameDirectory;
         GameSession original = new(GameSession.Load(path));
         GameSession expanded = new(GameSession.Load(path));
-        using GameWorld originalWorld = new(original, directory, expandedBattleAllyCount: 3);
-        using GameWorld expandedWorld = new(expanded, directory, expandedBattleAllyCount: 11);
+        using GameWorld originalWorld = new(original, directory, expandedBattleAllyCount: 3) { UsePhysicalBattlePresentation = true };
+        using GameWorld expandedWorld = new(expanded, directory, expandedBattleAllyCount: 11) { UsePhysicalBattlePresentation = true };
         originalWorld.EnsureField();
         expandedWorld.EnsureField();
         Assert.Equal(3, originalWorld.ConfiguredBattleAllyCount);
@@ -275,7 +275,7 @@ public sealed class StoryBattleRosterTests
     public void TowerStoryEntryPreservesOriginalSlotsWithAnEligibleFourthPartyMember(int expandedBattleAllyCount)
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.TowerEntry.1")));
-        using GameWorld world = new(session, TestResources.GameDirectory, expandedBattleAllyCount: expandedBattleAllyCount);
+        using GameWorld world = new(session, TestResources.GameDirectory, expandedBattleAllyCount: expandedBattleAllyCount) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         for (int frame = 0; frame < 3000 && !world.HasPendingBattle; frame++)
         {
@@ -308,7 +308,7 @@ public sealed class StoryBattleRosterTests
     {
         string directory = TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(TestResources.FixturePath("story-battle-136")));
-        using GameWorld original = new(session, directory, expandedBattleAllyCount: 3);
+        using GameWorld original = new(session, directory, expandedBattleAllyCount: 3) { UsePhysicalBattlePresentation = true };
         original.EnsureField();
         Assert.Equal((ushort)136, original.Events.PendingInteractiveBattle!.Encounter);
         original.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
@@ -351,8 +351,8 @@ public sealed class StoryBattleRosterTests
         string directory = TestResources.GameDirectory;
         GameSession original = new(GameSession.Load(path));
         GameSession expanded = new(GameSession.Load(path));
-        using GameWorld originalWorld = new(original, directory);
-        using GameWorld expandedWorld = new(expanded, directory);
+        using GameWorld originalWorld = new(original, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld expandedWorld = new(expanded, directory) { UsePhysicalBattlePresentation = true };
         BattleSession originalBattle = EnterMagicalLampBattle(originalWorld, original, 3);
         BattleSession expandedBattle = EnterMagicalLampBattle(expandedWorld, expanded, 11);
         Assert.Equal(originalWorld.Events.PendingMenuBattle, expandedWorld.Events.PendingMenuBattle);

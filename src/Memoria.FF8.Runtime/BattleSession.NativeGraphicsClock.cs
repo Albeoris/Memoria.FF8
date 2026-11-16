@@ -227,15 +227,28 @@ public sealed partial class BattleSession
         NativeBattleEffectTextureState published = drain.State;
         if (published.PresentationTextures is { } banks)
         {
+            HashSet<int>? drainedAllocations = null;
             foreach ((string actorId, NativeBattlePresentationTextureBank bank) in banks.OrderBy(entry => entry.Key, StringComparer.Ordinal))
             {
-                if (bank.Textures.Count == 0)
+                if (bank.Textures.Count == 0 || bank.EnemyAllocationId is int allocation && !(drainedAllocations ??= new()).Add(allocation))
                 {
                     continue;
                 }
                 NativeBattleEffectTextureDrain actorDrain = Drain(bank.Textures, arena);
                 NativeBattlePcTextureWindowCache actorCache = InvalidateTextureUploads(bank.Cache, actorDrain.Uploads, bank.Textures);
                 published = published.WithPresentationTexture(actorId, bank with { Textures = actorDrain.State, Cache = actorCache });
+                if (bank.EnemyAllocationId is int shared)
+                {
+                    foreach ((string memberId, NativeBattlePresentationTextureBank member) in banks)
+                    {
+                        if (memberId == actorId || member.EnemyAllocationId != shared)
+                        {
+                            continue;
+                        }
+                        NativeBattlePcTextureWindowCache memberCache = InvalidateTextureUploads(member.Cache, actorDrain.Uploads, member.Textures);
+                        published = published.WithPresentationTexture(memberId, member with { Textures = actorDrain.State, Cache = memberCache });
+                    }
+                }
             }
         }
         return memory with { Textures = published, PrimitiveProcess = process, Arena = arena };

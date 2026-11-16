@@ -23,6 +23,9 @@ public sealed partial class BattleSession
         internal BattleContactCursor FirstContact { get; init; }
         internal ImmutableArray<NativeBattleContactPacket> RoutedGraphicsContacts { get; init; } = [];
         internal int ContactCount => Contacts.Length + FollowingCasts.Sum(cast => cast.Contacts.Length);
+        internal int RequiredContactCount => ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts
+            ? Contacts.Length + FollowingCasts.Where(cast => cast.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts).Sum(cast => cast.Contacts.Length)
+            : 0;
         internal IEnumerable<ExpandedBattleContact> AllContacts => Contacts.Concat(FollowingCasts.SelectMany(cast => cast.Contacts));
     }
 
@@ -35,7 +38,7 @@ public sealed partial class BattleSession
     private sealed class ExpandedInvocationProgress(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
     {
         internal BattleActionPresentation Command => invocation.Command;
-        internal int ExpectedContacts => invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts ? invocation.ContactCount : 0;
+        internal int ExpectedContacts { get; } = invocation.RequiredContactCount;
         internal BattleModelRoster Roster { get; } = roster;
         internal NativeBattleEffectContactBridge<string>? Bridge { get; set; } = bridge;
         internal HashSet<int> Occurrences { get; } = [];
@@ -309,6 +312,10 @@ public sealed partial class BattleSession
                     BattleActionPresentation command = progress.Command;
                     NativeBattleContactHalf? secondary = ReadExpandedSecondaryContact(command, contact.Packet);
                     (int impact, string recipient) = contactBridge.ResolveOccurrence(contact.Packet);
+                    if (impact >= progress.ExpectedContacts)
+                    {
+                        throw new InvalidDataException("Hosted graphics published a contact outside its action header traversal.");
+                    }
                     PublishExpandedEffectContact(progress, impact, recipient, contact.Packet.Primary);
                     PublishExpandedReadyContact(progress.Roster, contact.Packet.Primary, command.ActorId);
                     if (secondary is not null)

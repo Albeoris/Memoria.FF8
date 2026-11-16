@@ -152,7 +152,7 @@ public sealed class EncounterRosterAdmissionTests
         Assert.True(native.EncounterRosterAdmission.UsesPrimaryPartyOnly);
         Assert.Contains(native.EncounterRosterAdmission.Reasons, reason => reason.Restriction == BattleEncounterRosterRestriction.NativePartyReplacement);
         Assert.True(native.EncounterRosterAdmission.AllowsAdditionalEnemies);
-        Assert.False(native.UsesExpandedRoster);
+        Assert.True(native.UsesOriginalEnemySlots);
         Assert.Equal(new[] { "party-2", "party-0", "party-1" }, native.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
 
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { AdditionalEnemies = 1 });

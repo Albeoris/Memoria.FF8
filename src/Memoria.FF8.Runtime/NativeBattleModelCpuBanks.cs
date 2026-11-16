@@ -191,6 +191,12 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
         return ReferenceEquals(updated, storage) ? this : new(updated, Capacity, resourceStorage);
     }
 
+    internal NativeBattleModelCpuBank CopyGuest(int source, int destination, int length)
+    {
+        NativeBattleModelResourceStorage updated = storage.Copy(source, destination, length, Capacity);
+        return ReferenceEquals(updated, storage) ? this : new(updated, Capacity, resourceStorage);
+    }
+
     internal NativeBattleModelCpuBank BindResource(int offset, ImmutableArray<byte> source, int sourceOffset, int length)
     {
         NativeBattleModelResourceStorage updated = storage.Bind(offset, source, sourceOffset, length, Capacity);

@@ -107,11 +107,12 @@ public sealed partial class BattleSession
 
         PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(seed, customHandlers, proof));
         process.ValidatePreparedDispatch(dispatch);
+        HostedEncounterLoadCheckpoint? encounterLoad = process.PrepareEncounterLoad(candidate.EncounterAllocation, dispatch);
         publication.Publish();
         PublishStagedHostedOperations(candidate);
         expandedHostedEvent = nextEvent;
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
-        process.CommitDispatch(dispatch);
+        process.CommitDispatch(dispatch, encounterLoad);
         PublishHostedGuardianFormAudio(form);
     }
 

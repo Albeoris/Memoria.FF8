@@ -70,6 +70,10 @@ public sealed partial class BattleSession
                         (NativeModelCpuResources, NativeFileStaging) = NativeBattleModelEnemyHeap.Release(NativeModelCpuResources ?? throw new NotSupportedException("Native5080D0 requires its actual retained heap rows."), NativeFileStaging ?? throw new NotSupportedException("Native5080D0 requires its actual shared heap bytes."), cache, releasedRow);
                     }
                     NativeModelTextureCache = cache.Release5080D0(releasedRow);
+                    if (cache.PresentationActors is not null && cache.Rows[releasedRow] is { Kind: 3, EnemyTextureAllocationId: int allocation })
+                    {
+                        ReleaseHostedEnemyTexture(owner, allocation);
+                    }
                 }
                 if (removal.ReleaseParticipant)
                 {

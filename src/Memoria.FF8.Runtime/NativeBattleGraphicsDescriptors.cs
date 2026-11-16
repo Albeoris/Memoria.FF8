@@ -136,8 +136,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     public (NativeBattleDescriptorState State, int Slot) Enqueue(ushort command, byte priority, uint argument, ushort? index = null, ushort? value = null)
     {
-        NativeBattleDescriptorModelSubject? subject = command is 102 or 103 or 105 or 106 or 110 or 111 or 113 or 114 or 117 or 118 or 119 &&
-            index is ushort literal && literal < NativeBattleModelBoundary.CellCount
+        NativeBattleDescriptorModelSubject? subject = AcceptsModelDescriptor(command) && index is ushort literal && literal < NativeBattleModelBoundary.CellCount
             ? new NativeBattleDescriptorModelSubject.AuthoredOriginalSlot(NativeBattleModelSlot.Decode((byte)literal))
             : null;
         uint relative = unchecked(argument - NativeBattleEffectParameterWindow.HeaderBase);
@@ -180,11 +179,13 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     private static void RequireModelDescriptor(ushort command)
     {
-        if (command is not (102 or 103 or 105 or 106 or 110 or 111 or 113 or 114 or 117 or 118 or 119))
+        if (!AcceptsModelDescriptor(command))
         {
             throw new ArgumentOutOfRangeException(nameof(command), "The descriptor does not accept a model subject.");
         }
     }
+
+    private static bool AcceptsModelDescriptor(ushort command) => command is 102 or 103 or 105 or 106 or 110 or 111 or 113 or 114 or 117 or 118 or 119;
 
     private (NativeBattleDescriptorState State, int Slot) EnqueueCore(ushort command, byte priority, uint? argument, ushort? index, ushort? value, NativeBattleDescriptorModelSubject? subject, bool unknownOperand, BattleActionHeaderReference? header)
     {
@@ -225,7 +226,13 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
         {
             unknown |= 0x300;
         }
-        else
+        else if (command == 113 && (unknown & 0x300) == 0)
+        {
+            // 502F30 reads the current original row selected by retained WORD8.
+            ushort literal = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(8));
+            subject = literal < NativeBattleModelBoundary.CellCount ? new NativeBattleDescriptorModelSubject.AuthoredOriginalSlot(NativeBattleModelSlot.Decode((byte)literal)) : null;
+        }
+        else if (AcceptsModelDescriptor(command))
         {
             subject = previous.ModelSubject;
         }

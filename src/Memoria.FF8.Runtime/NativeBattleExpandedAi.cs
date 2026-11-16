@@ -107,7 +107,7 @@ public static class NativeBattleExpandedAi
                 }
                 switch (opcode)
                 {
-                    case 1 or 24 or 26 or 34 when originalEnemySlots && instruction[0] >= program.Texts.Length:
+                    case 1 or 24 or 26 or 34 when originalEnemySlots && instruction[0] >= program.Texts.Length && program.AdmittedHeapTextDirectory is null:
                         MarkMalformed($"text-operand:{opcode}/{instruction[0]}", callback, path.Offset);
                         break;
                     case 2:

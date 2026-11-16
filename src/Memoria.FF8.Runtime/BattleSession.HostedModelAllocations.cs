@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal sealed record HostedModelLoadAdmission(HostedDispatchControl.LoadEnemy Load, NativeBattleGraphicsBinding Binding, ImmutableHashSet<BattleModelOwner> LaterOwners);
+    internal sealed record HostedModelLoadAdmission(HostedDispatchControl.LoadEnemy Load, NativeBattleGraphicsBinding Binding, ImmutableHashSet<BattleModelOwner> LaterOwners, bool UsesOriginalSceneResource);
     internal sealed record HostedModelRegistry(BattleModelRoster Roster, ImmutableDictionary<BattleEnemyActorModel, HostedModelLoadAdmission> Loads);
     internal sealed record PreparedHostedModelRegistry(HostedModelRegistry Original, HostedModelRegistry Replacement, NativeBattleModelCpuResources Cpu, NativeBattleModelTextureCache Cache, NativeBattleEffectMemory Memory);
 
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("The installed model binding does not match its staged allocation.");
         }
         binding.Resource.Validate();
-        return new(load, binding, protectedOwners);
+        return new(load, binding, protectedOwners, allocation.ResolvedDefinition is null);
     }
 
     private PreparedHostedModelRegistry? PrepareHostedModelRegistry(NativeBattleGraphicsState graphics, ImmutableArray<HostedModelLoadAdmission> additions)
@@ -162,9 +162,17 @@ public sealed partial class BattleSession
         BattleEnemyModelOwner? retired = graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) as BattleEnemyModelOwner;
         if (retired is not null)
         {
-            if (retired == owner || admission.LaterOwners.Contains(retired) || HasFutureHostedModelWork(graphics, descriptorSlot, retired))
+            if (retired == owner)
             {
-                throw new InvalidDataException("Hosted native 102 would retire an original model before its later captured work.");
+                throw new InvalidDataException($"Hosted native 102 already bound its incoming generation {owner} to original slot {slot.Offset}.");
+            }
+            if (admission.LaterOwners.Contains(retired))
+            {
+                throw new InvalidDataException($"Hosted native 102 would retire {retired} in slot {slot.Offset} before its later captured work in staged operations.");
+            }
+            if (FindFutureHostedModelWork(graphics, descriptorSlot, retired) is { } pending)
+            {
+                throw new InvalidDataException($"Hosted native 102 would retire {retired} in slot {slot.Offset} before its later captured work in queued descriptor {pending.Command} serial {pending.Serial}.");
             }
             if (HasRunningHostedModelWork(graphics, retired))
             {
@@ -196,10 +204,10 @@ public sealed partial class BattleSession
         return true;
     }
 
-    private bool HasFutureHostedModelWork(NativeBattleGraphicsState graphics, int currentSlot, BattleModelOwner owner)
+    private NativeBattleDescriptorPacket? FindFutureHostedModelWork(NativeBattleGraphicsState graphics, int currentSlot, BattleModelOwner owner)
     {
         return graphics.Descriptors.Queue.Where(slot => slot != currentSlot).Select(slot => graphics.Descriptors.Packets[slot])
-            .Where(packet => (packet.PriorityState & 15) == 0).Any(packet =>
+            .Where(packet => (packet.PriorityState & 15) == 0).FirstOrDefault(packet =>
                 packet.Header is { } header && HostedHeaderUsesOwner(header, owner) ||
                 packet.ModelSubject is NativeBattleDescriptorModelSubject.ExplicitModel model && model.Owner == owner ||
                 packet.ModelSubject is NativeBattleDescriptorModelSubject.PlannedLoad load && load.Owner == owner);

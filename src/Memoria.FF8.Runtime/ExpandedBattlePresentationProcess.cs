@@ -73,6 +73,11 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal NativeCrtRandomState? CurrentCrtRandom => presentation.CurrentCrtRandom;
     internal NativeBattleModelCpuResources ModelCpuResources => presentation.NativeModelCpuResources!;
     internal NativeBattleModelTextureCache ModelTextureCache => presentation.NativeModelTextureCache!;
+    internal (NativeBattleAiHeapMessage Message, string Text) ReadAiHeapMessage(BattleModelOwner owner, int modelId, NativeBattleAiHeapTextDirectory directory, int index)
+    {
+        RequireAdmissionWindow();
+        return presentation.ReadNativeAiHeapMessage(owner, modelId, directory, index);
+    }
     internal bool HasPendingModelLoad => presentation.NativeModelLoader?.Task is not null;
     internal void AdvanceEncounterPolicySpawn(BattleSession logicalOwner)
     {
@@ -222,9 +227,36 @@ public sealed partial class ExpandedBattlePresentationProcess
         presentation.ValidatePreparedHostedDispatch(prepared);
     }
 
-    internal void CommitDispatch(BattleSession.PreparedHostedDispatch prepared)
+    internal BattleSession.HostedEncounterLoadCheckpoint? PrepareEncounterLoad(BattleEncounterAllocationState? batch, BattleSession.PreparedHostedDispatch dispatch)
     {
+        RequireAdmissionWindow();
+        return presentation.PrepareHostedEncounterLoad(batch, dispatch);
+    }
+
+    internal void CommitDispatch(BattleSession.PreparedHostedDispatch prepared, BattleSession.HostedEncounterLoadCheckpoint? encounterLoad = null)
+    {
+        presentation.PublishHostedEncounterLoad(encounterLoad);
         presentation.CommitHostedDispatch(prepared);
+    }
+
+    internal void CompleteEncounterLoad()
+    {
+        presentation.CompleteHostedEncounterLoad();
+    }
+
+    internal bool RollbackEncounterLoad()
+    {
+        return presentation.RollbackHostedEncounterLoad();
+    }
+
+    internal void RefreshRolledBackEncounter()
+    {
+        LastStep = new([], []);
+        LastStepActionToken = null;
+        LastFrameServices = null;
+        presentation.CopyHostedPresentationTimerFrom(logicalOwner);
+        presentation.RefreshRolledBackHostedEncounter(logicalOwner);
+        logicalOwner.RefreshPreparedPresentation();
     }
 
     internal BattleSession.PreparedHostedDispatch PrepareCompletion(uint callback, BattleModelOwner owner, string actorId)
@@ -412,6 +444,11 @@ public sealed partial class ExpandedBattlePresentationProcess
             {
                 presentation.ExportHostedPresentationSharedState(logicalOwner);
             }
+        }
+        catch
+        {
+            logicalOwner.AbortEncounterAllocation();
+            throw;
         }
         finally
         {

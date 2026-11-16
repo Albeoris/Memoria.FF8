@@ -118,7 +118,8 @@ public sealed partial class BattleAssets
         }
         return new NativeBattleAiDefinition(scripts, abilities, band, texts)
         {
-            NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks, DeathSequenceReleasesAllocation = deathSequenceReleasesAllocation
+            NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks, DeathSequenceReleasesAllocation = deathSequenceReleasesAllocation,
+            HeapTextDirectory = sections == 11 && textIndices == text && text == loadedEnd ? new(text - section, resources.Source.Language) : null
         };
     }
 

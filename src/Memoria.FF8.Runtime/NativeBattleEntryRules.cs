@@ -31,7 +31,7 @@ public static class NativeBattleEntryRules
         {
             return forced;
         }
-        if (activeEnemies is null || activeEnemies.Count is < 1 or > ExpandedBattleFormation.MaximumEnemies || activeEnemies.Any(enemy => enemy is null))
+        if (activeEnemies is null || activeEnemies.Count > ExpandedBattleFormation.MaximumEnemies || activeEnemies.Any(enemy => enemy is null))
         {
             throw new NotSupportedException("Expanded advantage requires one original saved-status/DAT254 owner for each active enemy.");
         }

@@ -85,7 +85,7 @@ public sealed class AuthoredRosterBattleHostTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current =>
         {
             if (firstTurn)
@@ -179,8 +179,8 @@ public sealed class AuthoredRosterBattleHostTests
     [InlineData(3, 0x40000u)]
     public void Player_repeat_Fire_owns_one_native_graphics_group_and_spends_only_casts(int casts, uint nativeStatus)
     {
-        var original = RunPlayerRepeatFire(attached: false, casts, nativeStatus);
-        var hosted = RunPlayerRepeatFire(attached: true, casts, nativeStatus);
+        var original = RunPlayerRepeatMagic(attached: false, casts, nativeStatus);
+        var hosted = RunPlayerRepeatMagic(attached: true, casts, nativeStatus);
         Assert.Equal(original.Contacts, hosted.Contacts);
         Assert.Equal(original.Damage, hosted.Damage);
         Assert.Equal(original.Random, hosted.Random);
@@ -192,8 +192,8 @@ public sealed class AuthoredRosterBattleHostTests
     [InlineData(3)]
     public void Player_repeat_Fire_publishes_reflectors_in_one_stock_free_secondary_group(int reflectionMask)
     {
-        var original = RunPlayerRepeatFire(attached: false, 2, 0x20000, reflectionMask);
-        var hosted = RunPlayerRepeatFire(attached: true, 2, 0x20000, reflectionMask);
+        var original = RunPlayerRepeatMagic(attached: false, 2, 0x20000, reflectionMask);
+        var hosted = RunPlayerRepeatMagic(attached: true, 2, 0x20000, reflectionMask);
         Assert.Equal(original.Contacts, hosted.Contacts);
         Assert.Equal(original.Reflections, hosted.Reflections);
         (string? Target, int Amount)[] reflectedDamage = reflectionMask == 3 ? [("party-3", 108), ("party-0", 102)] : [("party-0", 108)];
@@ -202,10 +202,59 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.Equal(original.Random, hosted.Random);
     }
 
-    private static (NativeBattleContactHalf[] Contacts, NativeBattleContactHalf[] Reflections, (string? Target, int Amount)[] Damage, byte[] Random) RunPlayerRepeatFire(bool attached, int casts, uint nativeStatus, int reflectionMask = 0)
+    [Theory]
+    [InlineData(2, 0x20000u, 0)]
+    [InlineData(3, 0x40000u, 0)]
+    [InlineData(2, 0x20000u, 1)]
+    [InlineData(2, 0x20000u, 3)]
+    public void Player_repeat_Fira_consumes_each_contiguous_direct_and_reflected_occurrence(int casts, uint nativeStatus, int reflectionMask)
+    {
+        const int fira = 2;
+        var original = RunPlayerRepeatMagic(attached: false, casts, nativeStatus, reflectionMask, fira);
+        var hosted = RunPlayerRepeatMagic(attached: true, casts, nativeStatus, reflectionMask, fira);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.Equal(original.Reflections, hosted.Reflections);
+        Assert.Equal(original.Damage, hosted.Damage);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    [Fact]
+    public void Player_repeat_Fira_rechecks_Triple_before_dispatch_and_retires_the_first_header()
+    {
+        const int fira = 2;
+        var original = RunPlayerRepeatMagic(attached: false, 3, 0x40000, spell: fira, loseRepeatStatus: true);
+        var hosted = RunPlayerRepeatMagic(attached: true, 3, 0x40000, spell: fira, loseRepeatStatus: true);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.Equal(original.Damage, hosted.Damage);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    [Fact]
+    public void Player_repeat_Esuna_publishes_its_reflected_cure_contacts()
+    {
+        const int esuna = 27;
+        var original = RunPlayerRepeatMagic(attached: false, 2, 0x20000, reflectionMask: 3, spell: esuna);
+        var hosted = RunPlayerRepeatMagic(attached: true, 2, 0x20000, reflectionMask: 3, spell: esuna);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.Equal(original.Reflections, hosted.Reflections);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    [Fact]
+    public void Player_repeat_Full_cure_heals_both_targets_and_presents_the_first_header()
+    {
+        const int fullCure = 51;
+        var original = RunPlayerRepeatMagic(attached: false, 2, 0x20000, spell: fullCure, firstHeaderHealing: true);
+        var hosted = RunPlayerRepeatMagic(attached: true, 2, 0x20000, spell: fullCure, firstHeaderHealing: true);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    private static (NativeBattleContactHalf[] Contacts, NativeBattleContactHalf[] Reflections, (string? Target, int Amount)[] Damage, byte[] Random) RunPlayerRepeatMagic(bool attached, int casts, uint nativeStatus, int reflectionMask = 0, int spell = 1, bool firstHeaderHealing = false, bool loseRepeatStatus = false)
     {
         const string casterId = "party-0";
-        const int fire = 1;
+        const int firstInjuredHp = 23;
+        const int secondInjuredHp = 31;
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
@@ -213,26 +262,37 @@ public sealed class AuthoredRosterBattleHostTests
         using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => definition with
         {
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { MaximumHpMultiplier = 32, MaximumHp = actor.MaximumHp * 32, CurrentHp = actor.MaximumHp * 32 }).ToArray()
-        }) { UseAttachedBattlePresentation = attached };
+        }) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current =>
         {
             PrepareParty(current, 2);
             NativeCharacterVitals vitals = current.State.CharacterVitals!;
             NativeCharacterVital[] records = vitals.Records.ToArray();
             NativeMagicStock[] inventory = records[0].MagicInventory.ToArray();
-            inventory[0] = new(fire, 10);
+            inventory[0] = new(checked((byte)spell), 10);
             int magic = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2);
             Assert.True(magic >= 0);
             records[0] = records[0] with { MagicInventory = inventory, Junction = records[0].Junction with { Commands = checked((uint)(20 + magic)) } };
+            if (firstHeaderHealing)
+            {
+                records[0] = records[0] with { HitPoints = new(firstInjuredHp, firstInjuredHp) };
+                records[3] = records[3] with { HitPoints = new(secondInjuredHp, secondInjuredHp) };
+            }
             current.SetCharacterVitals(vitals with { Records = records });
         }, 89, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
-        TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null, "repeat Fire entry");
+        TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null, "repeat magic entry");
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
-        BattleCombatant[] targets = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
+        BattleCombatant[] targets = battle.Combatants.Where(actor => actor.IsPlayer == firstHeaderHealing && actor.IsActive).ToArray();
         Assert.Equal(2, targets.Length);
+        int contactsPerCast = firstHeaderHealing ? targets.Length : 1;
+        if (firstHeaderHealing)
+        {
+            Assert.Equal(new[] { firstInjuredHp, secondInjuredHp }, targets.Select(target => target.CurrentHp));
+            Assert.Equal(targets.Select(target => target.CurrentHp), targets.Select(target => battle.ReadPresentedVital(target.Id).HitPoints));
+        }
         for (int index = 0; index < targets.Length; index++)
         {
             if ((reflectionMask & (1 << index)) != 0)
@@ -242,42 +302,52 @@ public sealed class AuthoredRosterBattleHostTests
         }
         caster.NativeStatus1 |= nativeStatus;
         Ready(world, caster);
-        Assert.Contains(casts, battle.GetNativeMagicCastCounts(casterId, fire));
-        Assert.Equal(10, battle.GetAvailableMagicCasts(casterId, fire));
+        Assert.Contains(casts, battle.GetNativeMagicCastCounts(casterId, spell));
+        Assert.Equal(10, battle.GetAvailableMagicCasts(casterId, spell));
         ImmutableArray<string> targetIds = Enumerable.Range(0, casts).Select(index => targets[index % targets.Length].Id).ToImmutableArray();
         BattleModelOwner owner = battle.ReadPresentationModelOwner(casterId);
-        ushort effect = battle.ReadDefinition().NativeActions.Single(action => action.Command == 2 && action.ActionId == fire).MagicId;
+        ushort effect = battle.ReadDefinition().NativeActions.Single(action => action.Command == 2 && action.ActionId == spell).MagicId;
         NativeBattleContactHalf[] contacts = [];
         NativeBattleContactHalf[] reflections = [];
         BattleModelOwner[] reflectors = targets.Where((_, index) => (reflectionMask & (1 << index)) != 0).Select(target => battle.ReadPresentationModelOwner(target.Id)).ToArray();
         HashSet<BattleActionHeaderReference> entered = [];
         int eventStart = battle.Events.Count;
-        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: casterId, TargetId: targetIds[0], Ability: BattleAbility.Magic, ActionId: fire) { MagicTargets = targetIds });
+        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: casterId, TargetId: targetIds[0], Ability: BattleAbility.Magic, ActionId: spell) { MagicTargets = targetIds });
+        int performedCasts = loseRepeatStatus ? 1 : casts;
+        if (loseRepeatStatus)
+        {
+            caster.NativeStatus1 &= ~nativeStatus;
+        }
         TickUntil(world, () =>
         {
             ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
             NativeBattleActionPacketsState packets = process?.ActionPackets ?? battle.NativeActionPackets;
-            var headers = packets.PublishedHeaders().Where(entry => entry.Slot is { Command: 2, Action: fire } && entry.Slot.Source == owner).ToArray();
-            if (headers.Length == casts)
+            var headers = packets.PublishedHeaders().Where(entry => entry.Slot.Command == 2 && entry.Slot.Action == spell && entry.Slot.Source == owner).ToArray();
+            if (headers.Length == performedCasts)
             {
-                Assert.Equal(casts - 1, headers[0].Slot.ReadRepeatModeMinusOne());
-                Assert.All(headers, entry => Assert.Equal(1, entry.Slot.ReadContactCount()));
-                contacts = headers.Select(entry => packets.ReadContact(entry.Slot.FirstContact).Primary).ToArray();
+                Assert.Equal(performedCasts - 1, headers[0].Slot.ReadRepeatModeMinusOne());
+                Assert.All(headers, entry => Assert.Equal(contactsPerCast, entry.Slot.ReadContactCount()));
+                Assert.Equal(headers.Select((_, index) => headers[0].Reference.Advance(index)), headers.Select(entry => entry.Reference));
+                NativeBattleContactPacket[] produced = headers.SelectMany(entry => packets.ReadHeaderContacts(entry.Reference)).ToArray();
+                Assert.Equal(produced.Select((_, index) => headers[0].Slot.FirstContact.Advance(index)), produced.Select(packet => packet.Occurrence!.Value.AsCursor()));
+                contacts = produced.Select(packet => packet.Primary).ToArray();
             }
             if (reflectionMask != 0)
             {
-                var reflectedHeaders = packets.PublishedHeaders().Where(entry => entry.Slot is { Command: 247, Action: fire }).ToArray();
+                var reflectedHeaders = packets.PublishedHeaders().Where(entry => entry.Slot.Command == 247 && entry.Slot.Action == spell).ToArray();
                 if (reflectedHeaders.Length == reflectors.Length)
                 {
                     Assert.Equal(reflectors, reflectedHeaders.Select(entry => entry.Slot.Source));
                     Assert.Equal(reflectors.Length - 1, reflectedHeaders[0].Slot.ReadRepeatModeMinusOne());
+                    Assert.Equal(reflectedHeaders.Select((_, index) => reflectedHeaders[0].Reference.Advance(index)), reflectedHeaders.Select(entry => entry.Reference));
+                    Assert.Equal(reflectedHeaders.Select((_, index) => reflectedHeaders[0].Slot.FirstContact.Advance(index)), reflectedHeaders.Select(entry => packets.ReadContact(entry.Slot.FirstContact).Occurrence!.Value.AsCursor()));
                     Assert.All(reflectedHeaders, entry =>
                     {
                         Assert.Equal(owner, entry.Slot.Caster);
                         Assert.Equal(0, entry.Slot.Sequence);
                         Assert.Equal(1, entry.Slot.ReadContactCount());
                     });
-                    if (headers.Length == casts)
+                    if (headers.Length == performedCasts)
                     {
                         Assert.Equal(headers[^1].Reference.Advance(1), reflectedHeaders[0].Reference);
                     }
@@ -291,21 +361,40 @@ public sealed class AuthoredRosterBattleHostTests
                 entered.Add(parameters.Header);
             }
             return Completed(battle, eventStart, casterId) && battle.ActiveAction is null && process?.HasActiveAction != true;
-        }, "native repeat Fire completion");
-        Assert.Equal(targetIds.Select(battle.ReadPresentationModelOwner), contacts.Select(contact => contact.Recipient));
+        }, "native repeat magic completion");
+        IEnumerable<string> expectedRecipients = firstHeaderHealing ? Enumerable.Range(0, performedCasts).SelectMany(_ => targets.Select(target => target.Id)) : targetIds.Take(performedCasts);
+        Assert.Equal(expectedRecipients.Select(battle.ReadPresentationModelOwner), contacts.Select(contact => contact.Recipient));
         Assert.Equal(reflectors.Length != 0 ? 2 : 1, entered.Count);
         Assert.Equal(reflectors.Length, reflections.Length);
-        Assert.Equal(10 - casts, battle.GetAvailableMagicCasts(casterId, fire));
+        Assert.Equal(10 - performedCasts, battle.GetAvailableMagicCasts(casterId, spell));
         var damage = battle.Events.Skip(eventStart).Where(entry => entry is { Kind: "Damage", ActorId: casterId }).Select(entry => (entry.TargetId, entry.Amount)).ToArray();
-        if (reflectionMask == 0)
+        if (firstHeaderHealing)
         {
-            Assert.Equal(targetIds, damage.Select(entry => entry.TargetId));
+            Assert.All(targets, target =>
+            {
+                Assert.Equal(target.MaximumHp, target.CurrentHp);
+                Assert.Equal(target.MaximumHp, battle.ReadPresentedVital(target.Id).HitPoints);
+            });
+        }
+        else if (reflectionMask == 0)
+        {
+            Assert.Equal(targetIds.Take(performedCasts), damage.Select(entry => entry.TargetId));
         }
         if (attached)
         {
-            Assert.Equal(casts + reflectors.Length, battle.Events.Skip(eventStart).Count(entry => entry is { Kind: "EffectContact", ActorId: casterId }));
+            BattleEvent[] presented = battle.Events.Skip(eventStart).Where(entry => entry is { Kind: "EffectContact", ActorId: casterId }).ToArray();
+            if (firstHeaderHealing)
+            {
+                Assert.Equal(targets.Select(target => target.Id), presented.Select(entry => entry.TargetId));
+            }
+            else
+            {
+                Assert.Equal(performedCasts + reflectors.Length, presented.Length);
+            }
         }
-        return (contacts, reflections, damage, battle.Capture().Random!.Indexes.ToArray());
+        BattleSnapshot snapshot = battle.Capture();
+        Assert.All(snapshot.Combatants.Where(actor => targetIds.Take(performedCasts).Contains(actor.Id)), actor => Assert.Equal(0, actor.NativeParticipant!.RemainingHits));
+        return (contacts, reflections, damage, snapshot.Random!.Indexes.ToArray());
     }
 
     [Theory]
@@ -326,7 +415,7 @@ public sealed class AuthoredRosterBattleHostTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition, recipientHpMultiplier: 64)) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition, recipientHpMultiplier: 64)) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current =>
         {
             PrepareParty(current, 3);
@@ -413,7 +502,7 @@ public sealed class AuthoredRosterBattleHostTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition)) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition)) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current =>
         {
             ExpandedBattleGuardianTests.PrepareParty(current, learnedBoost: false, guardianId: guardian);
@@ -494,7 +583,7 @@ public sealed class AuthoredRosterBattleHostTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition)) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition)) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, 2), formation, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -567,7 +656,7 @@ public sealed class AuthoredRosterBattleHostTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, partySize), formation, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);

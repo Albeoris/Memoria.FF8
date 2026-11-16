@@ -14,7 +14,7 @@ public sealed class BattleSavedMugTests
     {
         string input = TestResources.FixturePath("App.Tests.BattleSavedMugTests.1");
         GameSession session = new(GameplaySaveSessionLoader.Load(input, TestResources.GameDirectory));
-        using GameWorld world = new(session, TestResources.GameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         BattleDefinition definition = world.CreateEncounterBattle(formation) with { NativeGraphics = null, NativeClockRules = null };
         BattleCombatantDefinition equipped = Assert.Single(definition.Combatants, actor => actor.IsPlayer && actor.NativeCommandSlots[0] == 12);

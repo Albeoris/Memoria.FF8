@@ -32,7 +32,7 @@ public sealed class NativeTrainingDrawIntegrationTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             KnownMagic = assets.ReadNewGameKnownMagic()
         });
-        using GameWorld world = new(session, assets.GameDirectory);
+        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
         BattleDefinition installed = world.CreateEncounterBattle(59) with { NativeGraphics = null, NativeClockRules = null };
         Assert.Null(installed.NativeGraphics);
         BattleCombatantDefinition[] actors = installed.Combatants.ToArray();

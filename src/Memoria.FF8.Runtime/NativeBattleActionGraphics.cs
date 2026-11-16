@@ -194,6 +194,9 @@ public static class NativeBattleActionGraphics
 public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer)
 {
     [JsonIgnore]
+    internal bool PresentsFirstActionHeaderOnly => (Entry, Initializer) is (0x67E730, 0x67E740) or (0x5BC960, 0x5BC940) or (0x6791F0, 0x679200);
+
+    [JsonIgnore]
     public bool RequiresOriginalCasterCompanion { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleStatusMagicResources? StatusMagicResources { get; init; }

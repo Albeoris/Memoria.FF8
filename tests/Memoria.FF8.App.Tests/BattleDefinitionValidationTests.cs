@@ -56,7 +56,7 @@ public sealed class BattleDefinitionValidationTests
         world.EnsureField();
         BattleSnapshot original = world.Battle!.Capture();
         var request = world.Events.PendingInteractiveBattle!;
-        BattleDefinition current = world.CreateEncounterBattle(request.Encounter, original.Definition.NativeSeed, request.Flags);
+        BattleDefinition current = world.CreateEncounterBattle(request.Encounter, original.Definition.NativeSeed, request.Flags, restoredDefinition: original.Definition);
 
         Assert.True(session.State.GameplayPreferences.Tuning.UnrestrictedScanRotation);
         Assert.Equal(session.State.GameplayPreferences.Tuning, current.Tuning);

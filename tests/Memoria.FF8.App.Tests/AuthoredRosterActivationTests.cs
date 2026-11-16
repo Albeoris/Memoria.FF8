@@ -14,7 +14,7 @@ public sealed class AuthoredRosterActivationTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game) { UseAttachedBattlePresentation = attached };
+        using GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, 63, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -55,7 +55,7 @@ public sealed class AuthoredRosterActivationTests
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        GameWorld world = new(session, directory, sharedAssets: game) { UseAttachedBattlePresentation = attached };
+        GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
         try
         {
             ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, 511, allies: 3, additionalEnemies: 0);

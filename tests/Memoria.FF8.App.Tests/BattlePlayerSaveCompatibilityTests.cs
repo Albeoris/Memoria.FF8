@@ -56,7 +56,7 @@ public sealed class BattlePlayerSaveCompatibilityTests(ITestOutputHelper output)
 
         // An independent combat component from the selected original formation and the saved character rows.
         BattleSession battle = world.PrepareBattleEntry(115, 0, 41, BattleAtbMode.TurnBased).Battle;
-        Assert.False(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.ExpandedPresentationProcess);
         Assert.Equal(new[] { "party-4", "party-0", "party-5" }, battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party-4");
         BattleCombatant enemy = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);

@@ -14,7 +14,7 @@ public sealed class NativeBattleAiRegionalContinuationTests
         using GameAssets assets = new(directory);
         using WorldAssets worldAssets = new(directory);
         GameSession session = CreateSession(assets);
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         ushort[] formations = new byte[] { 6, 4, 10, 24 }.SelectMany(ground => worldAssets.ReadRandomEncounterDefinition(24576, -29406, ground, 1)!.Formations).Distinct().Order().ToArray();
         Assert.Equal(Enumerable.Range(512, 10).Select(id => (ushort)id), formations);
         NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(directory).ReadBattleEntryResources();

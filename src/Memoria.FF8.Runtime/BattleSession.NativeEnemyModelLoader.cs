@@ -14,20 +14,55 @@ public sealed partial class BattleSession
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native enemy load requires its eleven physical resource rows.");
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native enemy load requires its retained heap cursor and row aliases.");
         NativeBattleFileStaging staging = NativeFileStaging ?? NativeBattleFileStaging.Unknown();
-        if (cache.PresentationActors is null && task.Phase == 0 && task.Callback == 0x507120)
+        if (task.Phase == 0 && task.Callback == 0x507120)
         {
-            int existing = Array.FindIndex(cache.Rows.Take(NativeBattleModelResourceRowAddress.NativeRowCount).ToArray(), row => row.Kind == 3 && row.ModelId == task.ModelId);
+            bool hosted = cache.PresentationActors is not null;
+            NativeBattleModelDatSource? target = hosted && cache.Rows[cache.SelectHostedLoadAlias(task, task.Owner)].Kind == 0 ? FindAuthoredHostedEnemyCloneSource(graphics, task.Owner, task.ModelId) : null;
+            int existing = -1;
+            BattleModelOwner? sharedOwner = null;
+            for (int index = 0; index < NativeBattleModelResourceRowAddress.NativeRowCount; index++)
+            {
+                if (cache.Rows[index] is not { Kind: 3 } row || row.ModelId != task.ModelId)
+                {
+                    continue;
+                }
+                if (hosted)
+                {
+                    if (target is null || cache.PresentationActors!.GetValueOrDefault(index) is not { } candidateOwner || candidateOwner == task.Owner ||
+                        FindAuthoredHostedEnemyCloneSource(graphics, candidateOwner, task.ModelId) is not { } source ||
+                        graphics.ActorModels.Get(candidateOwner).ActiveResourceRow100 != index || source.FileId != target.FileId || source.Name != target.Name ||
+                        !source.Bytes.AsSpan().SequenceEqual(target.Bytes.AsSpan()))
+                    {
+                        continue;
+                    }
+                    sharedOwner = candidateOwner;
+                }
+                existing = index;
+                break;
+            }
             if (existing >= 0)
             {
-                NativeBattleModelTextureCacheLoad clone = cache.LoadEnemy(task.ModelId, new("unused-shared-pack", []));
-                NativeBattleModelDatSource source = NativeModelResourceSources().First(item => item.ModelId == task.ModelId && !item.Linked);
-                (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, clone.ResourceIndex, existing, false);
+                NativeBattleModelTextureCacheLoad clone = hosted ? cache.CloneHostedEnemy(task, existing) : cache.LoadEnemy(task.ModelId, new("unused-shared-pack", []));
+                (cpu, staging) = NativeBattleModelEnemyHeap.Clone(cpu, staging, clone.ResourceIndex, existing);
+                RequireHostedModelLoadAlias(cpu, clone.Cache, clone.ResourceIndex, task.Owner, 3, task.ModelId);
+                if (sharedOwner is not null)
+                {
+                    NativeBattleEffectMemory memory = NativeEffectMemory!;
+                    NativeBattleEffectTextureState textures = memory.Textures!;
+                    int allocation = clone.Cache.Rows[clone.ResourceIndex].EnemyTextureAllocationId!.Value;
+                    textures = textures.ClonePresentationEnemyTexture(ReadGraphicsPresentationId(sharedOwner), ReadGraphicsPresentationId(task.Owner), allocation);
+                    NativeEffectMemory = memory with { Textures = textures };
+                }
                 NativeModelCpuResources = cpu;
                 NativeFileStaging = staging;
                 NativeModelTextureCache = clone.Cache;
                 BindNativeEnemyModel(ref graphics, task, clone.ResourceIndex, clone.Binding);
                 NativeModelLoader = new(null);
                 return true;
+            }
+            if (hosted)
+            {
+                ReleaseHostedEnemyTexture(task.Owner);
             }
         }
         if (task.Callback != 0x507F80 || task.Phase != 1 || NativeEffectIoResult < 0)
@@ -62,7 +97,7 @@ public sealed partial class BattleSession
         (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, dat, destination, owner, true);
         cache = cache with
         {
-            Rows = cache.Rows.SetItem(destination, cache.Rows[destination] with { Kind = 3, ModelId = 143, TextureMask = 0, Binding = binding }),
+            Rows = cache.Rows.SetItem(destination, cache.Rows[destination] with { Kind = 3, ModelId = 143, TextureMask = 0, Binding = binding, EnemyTextureAllocationId = null }),
             PresentationActors = cache.PresentationActors?.SetItem(destination, task.Owner)
         };
         RequireHostedModelLoadAlias(cpu, cache, destination, task.Owner, 3, task.ModelId);
@@ -72,6 +107,43 @@ public sealed partial class BattleSession
         BindNativeEnemyModel(ref graphics, task, destination, binding);
         NativeModelLoader = new(null);
         return true;
+    }
+
+    private NativeBattleModelDatSource? FindAuthoredHostedEnemyCloneSource(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte modelId)
+    {
+        if (owner is not BattleEnemyActorModel enemy || !graphics.NativeBindings.TryEncodeExactActor(owner, graphics.ActorModels, out byte originalSlot))
+        {
+            return null;
+        }
+
+        NativeBattleGraphicsBinding? binding;
+        if (hostedModelRegistry?.Loads.TryGetValue(enemy, out HostedModelLoadAdmission? admission) == true)
+        {
+            binding = admission.UsesOriginalSceneResource && admission.Load.Slot.Offset == originalSlot ? admission.Binding : null;
+        }
+        else
+        {
+            binding = definition.NativeGraphics!.Bindings.SingleOrDefault(candidate => candidate.ActorId == enemy.Actor.ActorId && candidate.ModelId == modelId);
+        }
+        return binding is { } loaded && loaded.ModelId == modelId && loaded.Resource.ModelLoadSources is { } sources
+            ? sources.SingleOrDefault(source => source.ModelId == modelId && !source.Linked && source.Selector == 0 && source.FileId == modelId + 150)
+            : null;
+    }
+
+    private void ReleaseHostedEnemyTexture(BattleModelOwner owner, int? expectedAllocation = null)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory!;
+        NativeBattleEffectTextureState textures = memory.Textures!;
+        string id = ReadGraphicsPresentationId(owner);
+        if (expectedAllocation is int expected && textures.RequirePresentationTexture(id).EnemyAllocationId is int current && current != expected)
+        {
+            throw new InvalidDataException("Native5080D0 retirement disagrees with its shared enemy texture allocation.");
+        }
+        NativeBattleEffectTextureState released = textures.ReleasePresentationEnemyTexture(id);
+        if (!ReferenceEquals(textures, released))
+        {
+            NativeEffectMemory = memory with { Textures = released };
+        }
     }
 
     private void ReserveNativeEnemyResource(NativeBattleModelLoadTask task, NativeBattleModelTextureLoad upload)

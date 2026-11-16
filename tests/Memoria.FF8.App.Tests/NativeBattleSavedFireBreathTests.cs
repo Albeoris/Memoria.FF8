@@ -15,7 +15,7 @@ public sealed class NativeBattleSavedFireBreathTests
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         GameSession session = new(PlayerStateLoader.Load(input!, directory, sharedAssets: assets));
-        using GameWorld world = new(session, directory, sharedAssets: assets);
+        using GameWorld world = new(session, directory, sharedAssets: assets) { UsePhysicalBattlePresentation = true };
         BattleDefinition definition = world.CreateEncounterBattle(79, activeFlags: 128);
         definition = NativeBattleComponentInputs.PrepareMusic(definition, directory, 0, 5, -1);
         BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);

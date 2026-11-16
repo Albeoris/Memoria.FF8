@@ -186,7 +186,13 @@ internal sealed partial class GameWorld
                 addedEnemySources = SelectAdditionalEnemies(encounter, requested, nativeSeed);
             }
         }
-        bool expanded = restoredDefinition?.UsesExpandedRoster ?? (UseAttachedBattlePresentation || expandedParty is not null || addedEnemySources is { Count: > 0 });
+        bool hasRosterExtensions = expandedParty is not null || addedEnemySources is { Count: > 0 };
+        bool physicalDiagnostic = diagnosticBattle is not null && diagnosticRoster is null && !hasRosterExtensions;
+        bool expanded = restoredDefinition?.UsesExpandedRoster ?? !(UsePhysicalBattlePresentation || physicalDiagnostic || effectPreviewRequest is not null);
+        if (!expanded && hasRosterExtensions)
+        {
+            throw new NotSupportedException("The physical battle fixture requires an authored party and enemy roster.");
+        }
         if (expanded && restoredDefinition is null)
         {
             addedEnemySources ??= ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty;
@@ -195,7 +201,9 @@ internal sealed partial class GameWorld
         BattleEnemyPlacement[]? expandedEnemies = null;
         if (expanded && useOriginalEnemySlots)
         {
-            expandedEnemies = diagnosticRoster is null ? OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots) : SelectDiagnosticRosterOriginals(encounter, diagnosticRoster, reserveSlots);
+            expandedEnemies = diagnosticRoster is not null ? SelectDiagnosticRosterOriginals(encounter, diagnosticRoster, reserveSlots)
+                : restoredDefinition is not null ? OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots)
+                : AuthoredEnemyPlacements(encounter).Concat(encounter.Slots.Where(placement => reserveSlots.Contains(placement.Slot))).DistinctBy(placement => placement.Slot).OrderBy(placement => placement.Slot).ToArray();
             if (addedEnemySources is { Count: > 0 })
             {
                 expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: expandedEnemies, diagnosticRoster: diagnosticRoster is not null);
@@ -206,7 +214,7 @@ internal sealed partial class GameWorld
             expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources ?? throw new NotSupportedException("Legacy expanded combat requires admitted enemy placement provenance."));
         }
         bool validExpandedRoster = expandedEnemies is not null && (useOriginalEnemySlots
-            ? expandedEnemies.Length <= ExpandedBattleFormation.MaximumRewardSlots && ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Count(enemy => enemy.Enabled))
+            ? expandedEnemies.Length is >= 1 and <= ExpandedBattleFormation.MaximumRewardSlots && allyCount is >= 1 and <= ExpandedBattleFormation.MaximumAllies && expandedEnemies.Count(enemy => enemy.Enabled) <= ExpandedBattleFormation.MaximumEnemies
             : ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Length));
         if (expanded && !validExpandedRoster)
         {

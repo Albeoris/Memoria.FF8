@@ -30,7 +30,7 @@ public sealed class NativeScanSavedNamesTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         string squall = renamed ? "Leon" : "Squall";
         world.Events.Scene.Names[0] = squall;
         world.Events.Scene.Names[16] = "Quezacotl";
@@ -60,7 +60,7 @@ public sealed class NativeScanSavedNamesTests
         byte[] sourceBytes = File.ReadAllBytes(source!);
         string directory = TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(source!));
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         world.EnsureField();
         string names = JsonSerializer.Serialize(world.Events.Scene.Names);
         Assert.False(world.Events.Scene.Names.ContainsKey(1));

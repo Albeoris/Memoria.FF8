@@ -343,6 +343,8 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleTextIdentity? NativeTextIdentity { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleAiHeapMessage? NativeAiHeapMessage { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleLevelChange? LevelChange { get; init; }
     public NativeBattleSequenceSound? NativeSound { get; init; }
     public NativeBattleModuleSound? NativeModuleSound { get; init; }

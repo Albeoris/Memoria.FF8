@@ -61,7 +61,7 @@ public sealed class ActiveBattleResourceProfileCompatibilityTests
             Assert.Equal(world.Events.Frame, cold.Events.Frame);
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(returned.ExamTimer), JsonSerializer.SerializeToElement(coldSession.State.ExamTimer)));
             Assert.Equal(returned.CrtRandom, coldSession.State.CrtRandom);
-            Assert.Equal(assets.NativeExecutableHash, world.CreateEncounterBattle(occurrence.Formation).NativeGraphics?.Rules.ExecutableSha256);
+            Assert.Equal(assets.NativeExecutableHash, world.CreateEncounterBattle(occurrence.Formation).NativeRetainedMemory?.ModelCpuResources?.Cpu.EffectiveLayout.ExecutableHash);
             if (world.Events.IsUserControlEnabled && !world.HasPendingBattle)
             {
                 _ = world.CaptureGameplaySave();

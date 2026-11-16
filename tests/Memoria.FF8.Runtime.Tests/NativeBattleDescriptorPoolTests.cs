@@ -64,6 +64,37 @@ public sealed class NativeBattleDescriptorPoolTests
         Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Recycled113ResolvesTheRetainedPhysicalSlotOrTheUnaliasedTypedModel(bool unaliased)
+    {
+        BattleModelOwner oldOwner = new BattleEnemyActorModel(new("old-enemy"));
+        NativeBattleModelSlot physicalSlot = NativeBattleModelSlot.Decode(4);
+        NativeBattleDescriptorModelSubject.PlannedLoad previous = new(oldOwner, unaliased ? null : physicalSlot, new("old-enemy", 141, new([])));
+        (NativeBattleDescriptorState state, int priorSlot) = NativeBattleDescriptorState.Clear().EnqueuePlannedLoad(102, 128, 0, previous, 141);
+        (state, int callbackSlot) = state.RemoveFirst().Enqueue(113, 128, 0x48AD10);
+        Assert.Equal(priorSlot, callbackSlot);
+        NativeBattleDescriptorPacket callback = state.Packets[callbackSlot];
+        if (unaliased)
+        {
+            Assert.Same(previous, callback.ModelSubject);
+            Assert.Throws<NotSupportedException>(() => callback.ScalarWord8);
+        }
+        else
+        {
+            Assert.Equal(new NativeBattleDescriptorModelSubject.AuthoredOriginalSlot(physicalSlot), callback.ModelSubject);
+            Assert.Equal((short)4, callback.ScalarWord8);
+        }
+
+        (state, int controlSlot) = state.RemoveFirst().Enqueue(10, 128, 0x4876B0);
+        Assert.Equal(callbackSlot, controlSlot);
+        NativeBattleDescriptorPacket control = state.Packets[controlSlot];
+        Assert.Null(control.ModelSubject);
+        Assert.Equal(callback.UnknownByteMask, control.UnknownByteMask);
+        Assert.Equal(callback.Bytes.AsSpan()[8..].ToArray(), control.Bytes.AsSpan()[8..].ToArray());
+    }
+
     [Fact]
     public void QueueRotationAndSentinelOccupancyUseThePhysicalNodeBank()
     {

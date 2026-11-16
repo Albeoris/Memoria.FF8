@@ -33,7 +33,7 @@ public sealed class CrossEditionBattleReturnTests
         NativeBattleEffectMemory environment = NativeBattleEffectMemory.FromColdProcess() with { ExecutionStack = execution, HeroCrtStack = crt };
         GameSession sourceSession = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(sourceAssets, false), directory, sharedAssets: sourceAssets, executionEnvironment: environment));
         sourceSession.SetFullBattlePlaythrough(true);
-        using GameWorld source = new(sourceSession, directory, sharedAssets: sourceAssets);
+        using GameWorld source = new(sourceSession, directory, sharedAssets: sourceAssets) { UsePhysicalBattlePresentation = true };
         source.EnsureField();
         for (int callback = 0; callback < 4 && !source.HasPendingBattle; callback++)
         {
@@ -99,7 +99,7 @@ public sealed class CrossEditionBattleReturnTests
         Assert.Equal(targetAssets.NativeExecutableHash, target.Events.NativeRuntimeProfile?.ExecutableHash);
         Assert.Equal(targetAssets.NativeExecutableHash, projected.NativeBattleMemory?.ModelCpuResources?.Cpu.EffectiveLayout.ExecutableHash);
         Assert.Equal(targetAssets.ReadNewGameCharacterVitals().KernelSha256, projected.CharacterVitals?.KernelSha256);
-        Assert.Equal(targetAssets.NativeExecutableHash, target.CreateEncounterBattle(94).NativeGraphics?.Rules.ExecutableSha256);
+        Assert.Equal(targetAssets.NativeExecutableHash, target.CreateEncounterBattle(94).NativeRetainedMemory?.ModelCpuResources?.Cpu.EffectiveLayout.ExecutableHash);
         if (resume)
         {
             Assert.Equal(pending.Economy!.Gil + 13, projected.Economy!.Gil);
@@ -126,7 +126,7 @@ public sealed class CrossEditionBattleReturnTests
         byte[] hash = Hash(path);
         using GameAssets sourceAssets = new(sourceDirectory);
         GameSession sourceSession = new(PlayerStateLoader.Load(path, sourceDirectory, sharedAssets: sourceAssets));
-        using GameWorld source = new(sourceSession, sourceDirectory, sharedAssets: sourceAssets);
+        using GameWorld source = new(sourceSession, sourceDirectory, sharedAssets: sourceAssets) { UsePhysicalBattlePresentation = true };
         source.EnsureField();
         Assert.True(source.Apply(new(PlayerActionKind.UseFieldItem, 168, Quantity: 0)).Accepted);
         Assert.NotNull(source.Events.PendingMenuBattle);
@@ -168,7 +168,7 @@ public sealed class CrossEditionBattleReturnTests
         Assert.Equal(targetAssets.NativeExecutableHash, target.Events.NativeRuntimeProfile?.ExecutableHash);
         Assert.Equal(targetAssets.NativeExecutableHash, projected.NativeBattleMemory?.ModelCpuResources?.Cpu.EffectiveLayout.ExecutableHash);
         Assert.Equal(targetAssets.ReadNewGameCharacterVitals().KernelSha256, projected.CharacterVitals?.KernelSha256);
-        Assert.Equal(targetAssets.NativeExecutableHash, target.CreateEncounterBattle(occurrence.Formation).NativeGraphics?.Rules.ExecutableSha256);
+        Assert.Equal(targetAssets.NativeExecutableHash, target.CreateEncounterBattle(occurrence.Formation).NativeRetainedMemory?.ModelCpuResources?.Cpu.EffectiveLayout.ExecutableHash);
         GameSession coldSession = new(projected);
         using GameWorld cold = new(coldSession, targetDirectory!, sharedAssets: targetAssets);
         cold.EnsureField();

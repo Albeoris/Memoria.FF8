@@ -21,7 +21,7 @@ public sealed class AttachedEncounterCameraTests
             EncounterPatchComposition composition = EncounterPatchComposer.Compose(new("fixture.encounter", "Classic", ["original"]), []);
             EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new("fixture.encounter", original.Id, 11, 11, [], true));
             return definition with { EncounterMod = compiled with { Camera = new(degrees) } };
-        }) { UseAttachedBattlePresentation = attached };
+        }) { UsePhysicalBattlePresentation = !attached };
         ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, 92, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);

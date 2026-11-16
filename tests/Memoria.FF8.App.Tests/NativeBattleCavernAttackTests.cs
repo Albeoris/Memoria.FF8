@@ -71,7 +71,7 @@ public sealed class NativeBattleCavernAttackTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(session, directory);
+        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-formations", encounters.Formations.Distinct().Select(id => new { Formation = id, Enemies = world.BattleResources.LoadEncounter(id).Enemies.Select(enemy => new { enemy.ModelId, Name = world.BattleResources.ReadEnemyName(enemy.ModelId) }).ToArray() }).ToArray());
         Assert.Contains(formation, encounters.Formations);

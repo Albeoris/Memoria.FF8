@@ -1222,6 +1222,10 @@ public sealed partial class BattleSession
             BattleOutcome pending = PendingNativeOutcome;
             return Outcome == pending && NativeGraphics!.NativeOutcome!.FadeDurationB0C == 0 ? pending : BattleOutcome.Active;
         }
+        if (UsesOriginalEnemySlots && definition is { EncounterId: not null, NativeEntry: not null } && NativeGraphics is null && expandedPresentationProcess is null && Frame == 0 && NativeHostCallbacks == 0)
+        {
+            return BattleOutcome.Active;
+        }
         if (!NativeEntryReady || NativeScriptAllocationPending || nativeTimedAction is not null || ActiveAction?.NativeHeader is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => command.NativeHeader is not null || IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction) || IsNativeSupportCallback(command.NativeCallback)) ||
             UsesExpandedRoster && (expandedHostedEvent is not null || HasExpandedAiDescriptors || actions.Any(command => command.ExpandedAiCallback is not null) || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
         {
@@ -1434,7 +1438,10 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Explicit physical aliases require a distinct authored ordinal for each initially allocated original enemy.");
         }
-        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, activeEnemyCount) || source.Combatants.Any(actor => !actor.InitialActive && (actor.IsPlayer || !source.UsesOriginalEnemySlots))))
+        bool validExpandedRoster = source.UsesOriginalEnemySlots && activeEnemyCount == 0
+            ? enemyCount > 0 && source.Combatants.Length - enemyCount is >= 1 and <= ExpandedBattleFormation.MaximumAllies
+            : ExpandedBattleFormation.SupportsRoster(source.Combatants.Length - enemyCount, activeEnemyCount);
+        if (source.UsesExpandedRoster && (source.NativeGraphics is not null || !validExpandedRoster || source.Combatants.Any(actor => !actor.InitialActive && (actor.IsPlayer || !source.UsesOriginalEnemySlots))))
         {
             throw new NotSupportedException("The expanded battle host requires a supported roster and host-owned actions.");
         }
@@ -1443,11 +1450,11 @@ public sealed partial class BattleSession
             BattleCombatantDefinition[] enemyDefinitions = source.Combatants.Where(actor => !actor.IsPlayer).ToArray();
             BattleCombatantDefinition[] originalEnemies = enemyDefinitions.Where(actor => !IsAddedEnemy(actor)).ToArray();
             int activeOriginalEnemies = originalEnemies.Count(actor => actor.InitialActive);
-            if (!source.UsesExpandedRoster || activeOriginalEnemies is < 1 or > NativeBattleSlots.EnemyCount ||
+            if (!source.UsesExpandedRoster || originalEnemies.Length == 0 || activeOriginalEnemies > NativeBattleSlots.EnemyCount ||
                 originalEnemies.Any(actor => actor.SceneSlot is null or < 0 or >= NativeBattleSlots.FormationSlotCount || actor.NativeTemplate is null || actor.RewardSlot >= NativeBattleSlots.FormationSlotCount) ||
                 originalEnemies.Select(actor => actor.SceneSlot).Distinct().Count() != originalEnemies.Length)
             {
-                throw new InvalidDataException("Original enemy slots require unique formation prototypes, native templates and one to four initial enemy allocations.");
+                throw new InvalidDataException("Original enemy slots require unique formation prototypes, native templates and at most four initial enemy allocations.");
             }
             BattleCombatantDefinition[] addedEnemies = enemyDefinitions.Where(IsAddedEnemy).ToArray();
             if (addedEnemies.Length != addedCount || addedEnemies.Select(actor => actor.SceneSlot).Distinct().Count() != addedCount ||

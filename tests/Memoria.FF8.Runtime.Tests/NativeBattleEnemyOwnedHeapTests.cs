@@ -20,6 +20,8 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         Assert.Equal(0xE7, staging.ReadByte(NativeBattleModelCpuResources.EnemyAddress + 80));
         NativeBattleModelCpuReference geometry = cpu.Rows[0].Require(16);
         Assert.NotNull(geometry.EnemyResourceId);
+        Assert.Equal(source.Bytes[source.Section(0) + 80], Assert.Single(NativeBattleModelEnemyHeap.ReadGuest(cpu, staging, geometry, NativeBattleModelCpuResources.EnemyAddress + 80, 1)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModelEnemyHeap.ReadGuest(cpu with { EnemyGuestMemory = null }, staging, geometry, NativeBattleModelCpuResources.EnemyAddress + 80, 1));
         Assert.Null(geometry.TryPhysicalAddress());
         Assert.Throws<NotSupportedException>(() => geometry.SharedAddress);
         NativeBattleModelResourceView geometryView = NativeBattleModelResourceView.Open(cpu, staging, geometry, cpu.Rows[0].Lengths[16]);
@@ -46,12 +48,21 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         NativeBattleModelTextureBinding binding = new(Enumerable.Repeat<byte?>(null, 16).ToImmutableArray());
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
         cache = cache with { Rows = cache.Rows.SetItem(0, new(3, 16, 0, binding)).SetItem(1, new(3, 16, 0, binding)) };
-        int relativeSkeleton = cpu.Rows[1].Require(12).ResourceOffset;
+        NativeBattleModelCpuReference cloneSkeleton = cpu.Rows[1].Require(12);
+        int relativeSkeleton = cloneSkeleton.ResourceOffset;
+        uint vacatedTail = checked(cloneSkeleton.NativePlacementAddress + (uint)cpu.Rows[1].Lengths[12] - 1);
+        byte tail = Assert.Single(NativeBattleModelEnemyHeap.ReadGuest(cpu, staging, geometry, vacatedTail, 1));
+        NativeBattleModelCpuResources beforeCompaction = cpu;
         (cpu, staging) = NativeBattleModelEnemyHeap.Release(cpu, staging, cache, 0);
+        NativeBattleModelCpuReference moved = cpu.Rows[1].Require(16);
+        Assert.Equal(0xDD, Assert.Single(NativeBattleModelEnemyHeap.ReadGuest(cpu, staging, moved, moved.NativePlacementAddress + 9, 1)));
+        Assert.Equal(tail, Assert.Single(NativeBattleModelEnemyHeap.ReadGuest(cpu, staging, moved, vacatedTail, 1)));
+        Assert.Equal(0xDD, Assert.Single(NativeBattleModelEnemyHeap.ReadGuest(beforeCompaction, staging, geometry, geometry.NativePlacementAddress + 9, 1)));
         Assert.Equal(relativeSkeleton, cpu.Rows[1].Require(12).ResourceOffset);
         Assert.Equal(0, NativeBattleEffect319BoneCache.ResolveIndex(new(cpu.Rows[1].Require(12), null, cpu.Rows[1].Lengths[12]), 1, bone));
         Assert.Equal(0xDD, NativeBattleModelEnemyHeap.Read(cpu, staging, cpu.Rows[1].Require(16), 10)[9]);
         Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(cpu, staging, pin)));
+        Assert.Equal(tail, Assert.Single(NativeBattleModelEnemyHeap.ReadGuest(restored.Cpu, restored.Staging, moved, vacatedTail, 1)));
         Assert.Equal(held.Read(0, held.Owner.Length!.Value), NativeBattleModelResourceView.Open(restored.Cpu, restored.Staging, restored.Pin, restored.Pin.Length!.Value).Read(0, restored.Pin.Length.Value));
         cache = cache.Release5080D0(0);
         (cpu, staging) = NativeBattleModelEnemyHeap.Release(restored.Cpu, restored.Staging, cache, 1);
@@ -75,6 +86,35 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         Assert.Throws<InvalidDataException>(() => NativeBattleModelResourceView.Open(cpu, staging, pin, pin.Length!.Value + 1));
     }
 
+    [Fact]
+    public void Cold_Classic_enemy_heap_has_the_authenticated_zero_fill_and_reset_retains_later_writes()
+    {
+        NativeBattleModelCpuResources classic = NativeBattleModelCpuResources.FromColdProcess();
+        NativeBattleModelCpuBank initial = Assert.IsType<NativeBattleModelCpuBank>(classic.EnemyGuestMemory);
+        int last = checked((int)(NativeBattlePartyCpuLayout.Classic.BaseAddress - NativeBattleModelCpuResources.EnemyAddress) - 1);
+        Assert.Equal(new byte[2], initial.ReadGuest(0, 2));
+        Assert.Equal(0, Assert.Single(initial.ReadGuest(last, 1)));
+        Assert.Throws<NotSupportedException>(() => initial.ReadGuest(last + 1, 1));
+        NativeBattleModelCpuResources written = classic with { EnemyGuestMemory = initial.WriteGuest(7, [0x51]) };
+        Assert.Equal(0x51, Assert.Single(written.InvalidateResourceExtents().EnemyGuestMemory!.ReadGuest(7, 1)));
+        Assert.Equal(0, Assert.Single(initial.ReadGuest(7, 1)));
+        Assert.Null(NativeBattleModelCpuResources.FromColdProcess(NativeFieldRuntimeProfile.RemasteredEnImageHash).EnemyGuestMemory);
+    }
+
+    [Fact]
+    public void Guest_move_preserves_unknown_bytes_overlapping_known_slots_and_leaves_its_vacated_tail()
+    {
+        NativeBattleModelCpuBank before = NativeBattleModelCpuBank.Unknown(16)
+            .WriteGuest(0, [0x10, 0x11, 0x12])
+            .WriteGuest(4, [0x14, 0x15, 0x16, 0x17]);
+        NativeBattleModelCpuBank moved = before.CopyGuest(2, 0, 6);
+        Assert.Equal(0x12, Assert.Single(moved.ReadGuest(0, 1)));
+        Assert.Throws<NotSupportedException>(() => moved.ReadGuest(1, 1));
+        Assert.Equal(new byte[] { 0x14, 0x15, 0x16, 0x17 }, moved.ReadGuest(2, 4));
+        Assert.Equal(new byte[] { 0x16, 0x17 }, moved.ReadGuest(6, 2));
+        Assert.Equal(0x11, Assert.Single(before.ReadGuest(1, 1)));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -91,11 +131,11 @@ public sealed class NativeBattleEnemyOwnedHeapTests
         {
             Assert.Equal(source.Bytes, requested.Staging.ReadDat(NativeBattleFileStaging.Address));
         }
-        Loading phase1 = NativeBattleTestSnapshots.RestoreJson<Loading>(NativeBattleTestSnapshots.Json(new Loading(requested.State, requested.Staging)));
+        Loading phase1 = NativeBattleStorageSnapshots.Fork(new Loading(requested.State, requested.Staging));
         NativeBattleModelLoadStep prepared = phase1.Loader.Poll507070(source.Bytes.Length, [source], phase1.Staging);
         Assert.Equal(owned, prepared.State.Task!.ResourceSource is not null);
         Assert.Equal(owned ? 0xA7 : source.Bytes[0], prepared.Staging.ReadByte(NativeBattleFileStaging.Address));
-        Loading phase2 = NativeBattleTestSnapshots.RestoreJson<Loading>(NativeBattleTestSnapshots.Json(new Loading(prepared.State, prepared.Staging)));
+        Loading phase2 = NativeBattleStorageSnapshots.Fork(new Loading(prepared.State, prepared.Staging));
         NativeBattleModelLoadStep completed = phase2.Loader.Poll507070(source.Bytes.Length, [source], phase2.Staging);
         Assert.Null(completed.State.Task);
         Assert.Equal(source.ModelId, completed.Bind!.PreparedDat.ModelId);

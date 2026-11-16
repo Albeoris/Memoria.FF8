@@ -36,7 +36,7 @@ public sealed class ExpandedBattleGuestProgressTests
         world.Apply(new(PlayerActionKind.Wait, Frames: 4));
         session.SetCharacterVitals(session.State.CharacterVitals!.Rest() with { CombatParty = [0, 1, 2] });
         BattleSession original = Start(world, session, formation);
-        Assert.False(original.UsesExpandedRoster);
+        Assert.NotNull(original.ExpandedPresentationProcess);
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11 });
         Assert.Equal(11, session.State.PendingGameplayPreferences!.BattleAllyCount);
         Assert.Equal(8, session.State.CharacterVitals!.Records.Length);
@@ -47,7 +47,7 @@ public sealed class ExpandedBattleGuestProgressTests
         Assert.Equal(11, session.State.GameplayPreferences.BattleAllyCount);
         Assert.Equal(8, session.State.CharacterVitals!.Records.Length);
         BattleSession next = Start(world, session, formation);
-        Assert.False(next.UsesExpandedRoster);
+        Assert.NotNull(next.ExpandedPresentationProcess);
         Assert.Equal(3, next.Combatants.Count(actor => actor.IsPlayer));
     }
 
@@ -155,7 +155,7 @@ public sealed class ExpandedBattleGuestProgressTests
             AssertGuestProgress(session.State.CharacterVitals!);
 
             BattleSession small = Start(world, session, formation);
-            Assert.False(small.UsesExpandedRoster);
+            Assert.NotNull(small.ExpandedPresentationProcess);
             Assert.Equal(new[] { 0, 1, 2 }, small.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.ModelId));
             Assert.Equal(0, small.GetAvailableMagicCasts("party-0", quake.ActionId));
             world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
