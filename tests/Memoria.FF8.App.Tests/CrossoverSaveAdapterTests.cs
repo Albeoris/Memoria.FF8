@@ -194,9 +194,11 @@ public sealed class CrossoverSaveAdapterTests
             PlayerSaveEntry ff7Entry = Assert.Single(store.ReadEntries(false), item => item.Slot == 1);
             Assert.False(ff7Entry.CanLoad);
             Assert.False(ff7Entry.CanCopy);
-            Assert.Equal("save.slot.empty", ff7Entry.DetailsSystemId);
-            Assert.Null(ff7Entry.PlayTime);
-            Assert.Empty(ff7Entry.PartyPortraits);
+            Assert.Equal(SessionGame.Ff7, ff7Entry.ActiveGame);
+            Assert.Contains("md1stin", ff7Entry.Details);
+            Assert.Contains("Cloud", ff7Entry.Details);
+            Assert.Null(ff7Entry.DetailsSystemId);
+            Assert.NotNull(ff7Entry.PlayTime);
             Assert.Throws<InvalidDataException>(() => store.Load(1));
         }
         finally

@@ -70,9 +70,9 @@ public sealed class BattleHudShotTests
         }
         Assert.Equal(BattleNativeShotPhase.Ready, battle.GetNativeShot("irvine")!.Phase);
         battle.AdvanceNativeShotUi(3);
-        string readySnapshot = JsonSerializer.Serialize(battle.Capture());
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(readySnapshot)!);
-        Assert.Equal(readySnapshot, JsonSerializer.Serialize(battle.Capture()));
+        BattleSnapshot readySnapshot = battle.Capture();
+        battle = BattleSession.Restore(readySnapshot);
+        Assert.Equal(JsonSerializer.Serialize(readySnapshot), JsonSerializer.Serialize(battle.Capture()));
         hud = CreateHud(battle, directFire ? null : Execute);
         UiView view = hud.BuildView();
         view.Resize(960, 672);
@@ -109,7 +109,8 @@ public sealed class BattleHudShotTests
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true }, new() { Id = "enemy", Name = "Shot target" }] }, BattleAtbMode.TurnBased);
         Dictionary<string, BattleNativeShotState> shots = (Dictionary<string, BattleNativeShotState>)typeof(BattleSession).GetField("nativeShotProcesses", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
-        shots.Add("irvine", new(0, 8, 240, 180, 2, phase) { Ui = new(BattleTimedInputUiPhase.Active) });
+        BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        shots.Add("irvine", new(0, target, 240, 180, 2, phase) { Ui = new(BattleTimedInputUiPhase.Active) });
         List<BattleInput> inputs = [];
         BattleHudController hud = CreateHud(battle, inputs.Add);
         UiView view = hud.BuildView();
@@ -131,7 +132,8 @@ public sealed class BattleHudShotTests
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true }, new() { Id = "enemy", Name = "Shot target" }] }, BattleAtbMode.TurnBased);
         Dictionary<string, BattleNativeShotState> shots = (Dictionary<string, BattleNativeShotState>)typeof(BattleSession).GetField("nativeShotProcesses", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
-        shots.Add("irvine", new(0, 8, 240, 179, 2, BattleNativeShotPhase.Ready) { Ui = new(BattleTimedInputUiPhase.Active) });
+        BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        shots.Add("irvine", new(0, target, 240, 179, 2, BattleNativeShotPhase.Ready) { Ui = new(BattleTimedInputUiPhase.Active) });
         BattleHudController hud = CreateHud(battle);
         UiView view = hud.BuildView();
         BattleUiTests.TestCanvas canvas = new();

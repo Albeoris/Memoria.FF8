@@ -67,9 +67,12 @@ public sealed class BattleHudNativeCommandTests
         }
         Assert.False(hud.SelectingTarget);
         Assert.False(hud.SelectingAction);
-        Assert.Equal(accepted, Assert.Single(session.QueuedActions).NativeSlots);
-        string queued = JsonSerializer.Serialize(session.Capture());
-        Assert.Equal(queued, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(queued)!).Capture()));
+        BattleNativeSlotsRoll submitted = Assert.IsType<BattleNativeSlotsRoll>(Assert.Single(session.QueuedActions).NativeSlots);
+        Assert.Equal(accepted.MagicId, submitted.MagicId);
+        Assert.Equal(accepted.Repetitions, submitted.Repetitions);
+        Assert.NotNull(submitted.PreflightSelection);
+        BattleSnapshot queued = session.Capture();
+        Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(BattleSession.Restore(queued).Capture()));
     }
 
     [Theory]

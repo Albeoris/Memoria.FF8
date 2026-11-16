@@ -29,7 +29,7 @@ public sealed partial class BattleSession
 
     public IReadOnlyList<BattleCombatant> GetNativeShotTargets(string actorId)
     {
-        return GetNativeShot(actorId) is { } state ? Combatants.Where(target => target.IsActive && (state.TargetMask & (1 << target.NativeIndex)) != 0).ToArray() : [];
+        return GetNativeShot(actorId) is { } state ? ResolveBattleTargets(state.TargetRequest, sampleRandom: false) : [];
     }
 
     private static BattleTimedInputUi ShotUi(BattleNativeShotState state) => state.Ui ?? new(state.Phase == BattleNativeShotPhase.Ending ? BattleTimedInputUiPhase.Closing : state.Phase == BattleNativeShotPhase.Opening ? BattleTimedInputUiPhase.Opening : BattleTimedInputUiPhase.Active);
