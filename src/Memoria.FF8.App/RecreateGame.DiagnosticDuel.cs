@@ -19,6 +19,7 @@ internal sealed partial class RecreateGame
         NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
         diagnosticDriver.ObserveDuelDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
         {
+            AttachedPresentation = active.UsesExpandedRoster,
             Parameter80 = invocation.Parameter80,
             Parameter82 = invocation.Parameter82,
             HeaderEffect = (ushort)(header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8),

@@ -30,6 +30,7 @@ public static class DiagnosticDuelCycleValidation
         long previousSerial = 0;
         long previousCallback = receipt.BeforeOpening.Callback;
         HashSet<(int Header, long Generation)> owners = [];
+        bool attached = receipt.DispatchPackets[0].AttachedPresentation;
         for (int index = 0; index < receipt.Dispatches.Length; index++)
         {
             BattleDiagnosticEffectDispatch dispatch = receipt.Dispatches[index];
@@ -40,9 +41,11 @@ public static class DiagnosticDuelCycleValidation
             byte expectedCommand = first ? (byte)11 : (byte)241;
             ushort expectedHeaderEffect = last ? (ushort)0 : (ushort)274;
             byte expectedParameter = first ? (byte)0 : last ? (byte)8 : expectedAction is >= 0 and <= 5 ? (byte)(expectedAction + 2) : (byte)0;
-            // The initial secondary header can retain the ordinary opening's semantic owner;
-            // without that actor-matched owner, the header resolver reports NativeCommand.
-            bool abilityMatches = first ? dispatch.Ability == BattleAbility.LimitBreak : index == 1 ? dispatch.Ability is BattleAbility.LimitBreak or BattleAbility.NativeCommand : dispatch.Ability == BattleAbility.NativeCommand;
+            // Attached moves retain the logical Limit owner across the original command241 packet cycle.
+            // The original physical mode can also retain the opening's semantic owner for its first move.
+            bool abilityMatches = proof.AttachedPresentation == attached && (first
+                ? dispatch.Ability == BattleAbility.LimitBreak
+                : dispatch.Ability == BattleAbility.NativeCommand || (attached || index == 1) && dispatch.Ability == BattleAbility.LimitBreak);
             if (dispatch.Serial <= previousSerial || dispatch.Callback < previousCallback || dispatch.ActorId != receipt.ActorId || dispatch.NativeActorIndex != receipt.ActorIndex || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || dispatch.Reflection is not null || dispatch.NativeCommand != expectedCommand || dispatch.ActionId != expectedAction || (!first && !last && expectedAction is < 0 or > 5) || !abilityMatches || dispatch.Callback > completed.Callback || proof.Serial != dispatch.Serial || proof.Callback != dispatch.Callback || proof.HeaderIndex != dispatch.NativeHeaderIndex || proof.HeaderGeneration != dispatch.NativeHeaderGeneration || proof.HeaderGeneration <= 0 || proof.HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || !owners.Add((proof.HeaderIndex, proof.HeaderGeneration)) || proof.HeaderEffect != expectedHeaderEffect || proof.RetainedEffect != 274 || proof.Parameter80 != expectedParameter)
             {
                 throw new InvalidDataException($"Duel dispatch is outside its ordered original command11/241 owned cycle. execution={receipt.Execution}; row={index}/{receipt.Dispatches.Length}; serial={dispatch.Serial},previous={previousSerial},proof={proof.Serial}; callback={dispatch.Callback},previous={previousCallback},end={completed.Callback},proof={proof.Callback}; actor={dispatch.ActorId}/{dispatch.NativeActorIndex},expected={receipt.ActorId}/{receipt.ActorIndex}; ability={dispatch.Ability},expected={(first ? "LimitBreak" : index == 1 ? "LimitBreak|NativeCommand" : "NativeCommand")}; command={dispatch.NativeCommand},expected={expectedCommand}; action={dispatch.ActionId},expected={expectedAction}; requested={dispatch.RequestedEffect},executed={dispatch.ExecutedEffect},reflection={dispatch.Reflection is not null}; header={dispatch.NativeHeaderIndex}/{dispatch.NativeHeaderGeneration},proof={proof.HeaderIndex}/{proof.HeaderGeneration}; rawEffect={proof.HeaderEffect},expected={expectedHeaderEffect},retained={proof.RetainedEffect}; parameter80={proof.Parameter80},expected={expectedParameter},parameter82={proof.Parameter82}.");

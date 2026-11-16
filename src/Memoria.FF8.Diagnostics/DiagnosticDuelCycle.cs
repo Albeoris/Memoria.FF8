@@ -20,6 +20,8 @@ public sealed record DiagnosticDuelObservation(long Callback, BattleDiagnosticDu
 public sealed record DiagnosticDuelInputReceipt(BattleNativeDuelChoice Choice, DiagnosticDuelObservation Before, DiagnosticDuelObservation After);
 public sealed record DiagnosticDuelDispatchPackets(long Serial, long Callback, int HeaderIndex, long HeaderGeneration, NativeBattleRetainedActionPackets Packets)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AttachedPresentation { get; init; }
     public byte? Parameter80 { get; init; }
     public byte? Parameter82 { get; init; }
     public ushort? HeaderEffect { get; init; }

@@ -168,6 +168,7 @@ internal sealed class DiagnosticBattleDriver
 {
     private readonly DiagnosticBattleDriverRecipe recipe;
     private int enemyTriggerAttempts;
+    private bool renzokukenPreliminaryDispatched;
     private readonly double started;
     private double stageStarted;
     private double executionStarted;
@@ -397,6 +398,11 @@ internal sealed class DiagnosticBattleDriver
         }
         if (recipe.SupportingEffects.Contains(dispatch.RequestedEffect) && dispatch.ExecutedEffect == dispatch.RequestedEffect)
         {
+            if (recipe.Input is { Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } && recipe.ExpectedNativeCommand == 250 &&
+                dispatch.NativeCommand == 5 && dispatch.ActionId is 65533 or 65534)
+            {
+                renzokukenPreliminaryDispatched = true;
+            }
             return;
         }
         BattleAbility? ability = recipe.EnemyTrigger is not null || recipe.DoomExpiration ? BattleAbility.EnemyAbility : recipe.Input.Ability;
@@ -466,6 +472,7 @@ internal sealed class DiagnosticBattleDriver
             {
                 Stage = Execution == 1 ? DiagnosticDriverStage.Baseline : DiagnosticDriverStage.AwaitDispatch;
                 currentFocalDispatch = null;
+                renzokukenPreliminaryDispatched = false;
                 stageStarted = observation.Seconds;
                 if (Execution == 2)
                 {
@@ -521,6 +528,10 @@ internal sealed class DiagnosticBattleDriver
             }
             enemyTriggerAttempts++;
             return true;
+        }
+        else if (Stage == DiagnosticDriverStage.AwaitDispatch && renzokukenPreliminaryDispatched && observation.Drained)
+        {
+            Fail("RENZOKUKEN_FINISHER_NOT_SELECTED");
         }
         else if (Stage == DiagnosticDriverStage.Drain && drained)
         {
