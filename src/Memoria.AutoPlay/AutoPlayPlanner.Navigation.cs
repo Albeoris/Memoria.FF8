@@ -262,7 +262,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
                     if (travel.Length != 0)
                     {
                         travelByEvent.Add(key, (local, travel));
-                        if (!hint && CanProbeNavigation(local) && travel.Any(route => !recorded.Any(edge => valid.Contains(edge.DestinationKey) && SameTravelRoute(edge.Route, route))))
+                        if (!hint && CanProbeNavigation(local) && travel.Any(route => !IsNavigationRouteConfirmed(route, recorded, valid)))
                         {
                             local.RouteNeedsRediscovery = true;
                             if (!NeedsExecution(shared))
@@ -302,7 +302,16 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         }
         AutoPlayEvent observed = observation.Events.Single(item => item.Id == scoped.Event.Id);
         AutoPlayEventCoverage<TDeferral> shared = FindEvent(observation.VisitKey, observed.Id);
-        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key)).Where(route => !State.NavigationRoutes.Any(edge => valid.Contains(edge.SourceKey) && valid.Contains(edge.DestinationKey) && edge.SourceKey == observation.Key && edge.EventId == scoped.Event.Id && SameTravelRoute(edge.Route, route)));
+        IEnumerable<AutoPlayNavigationRoute> recorded = State.NavigationRoutes.Where(edge => edge.SourceKey == observation.Key && edge.EventId == scoped.Event.Id);
+        return NavigationTravelRoutes(observed, shared, key => State.Visits.Any(visit => visit.Visit.Key == key)).Where(route => !IsNavigationRouteConfirmed(route, recorded, valid));
+    }
+
+    private static bool IsNavigationRouteConfirmed(AutoPlayEventRoute route, IEnumerable<AutoPlayNavigationRoute> recorded, IReadOnlySet<string> valid)
+    {
+        // Choice observations can acquire a new identity after native local state changes.
+        // Connectivity is already proved when this source reached the same destination
+        // under the same entry predicate and target, regardless of the older choice key.
+        return recorded.Any(edge => valid.Contains(edge.DestinationKey) && edge.Route.DestinationVisitKey == route.DestinationVisitKey && edge.Route.ConditionSignature == route.ConditionSignature && edge.Route.TargetId == route.TargetId && edge.Route.ObservedStoryChanged == route.ObservedStoryChanged);
     }
 
     private static bool CanProbeNavigation(AutoPlayEventCoverage<TDeferral> scoped)

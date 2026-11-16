@@ -7,6 +7,8 @@ internal static class AutoPlayWatchdogTests
     public static void Run()
     {
         FrontierProgressSurvivesLifecycleRestores();
+        ReexecutingConsumedEventsDoesNotRenewFrontierBudget();
+        OriginalCompletedChoiceLeavesRepeatedFrontier();
         Ff7WorldProcess world = World();
         Ff7AutoPlayProgressWatchdog stalled = new();
         AutoPlayIdleDeadline deadline = new(TimeProvider.System, TimeSpan.FromSeconds(10));
@@ -65,6 +67,47 @@ internal static class AutoPlayWatchdogTests
         Check(state.FrontierIdleSteps == 0, "A newly completed frontier did not reopen the progress budget.");
         Ff7AutoPlayPolicy.TrackFrontierProgress(state, 11);
         Check(state.FrontierIdleSteps == 0, "Native story progress did not reopen the progress budget.");
+    }
+
+    private static void ReexecutingConsumedEventsDoesNotRenewFrontierBudget()
+    {
+        Ff7AutoPlayState state = new();
+        state.Coverage.Visits.Add(new() { Visit = new("field", "program"), Events = [new() { Event = new("native", AutoPlayEventKind.Interaction), Completed = true, Conditions = new() { ConsumedEntries = ["entry"] } }] });
+        Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10);
+        for (int step = 1; step < Ff7AutoPlayPolicy.FrontierIdleLimit; step++)
+        {
+            state.Coverage.Visits[0].Events[0].Completed = step % 2 == 0;
+            state = state.Clone();
+            Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10);
+        }
+        ExpectTimeout(() => Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10));
+        state.Coverage.Visits[0].Events[0].Conditions!.ConsumedEntries.Add("new-entry");
+        Ff7AutoPlayPolicy.TrackFrontierProgress(state, 10);
+        Check(state.FrontierIdleSteps == 0, "A newly authenticated condition did not renew the frontier budget.");
+    }
+
+    private static void OriginalCompletedChoiceLeavesRepeatedFrontier()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_COMPLETED_CHOICE_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        Ff7AutoPlayActiveEvent previous = source.AutoPlay?.Active ?? throw new InvalidOperationException("The fixture needs its completed native event.");
+        Check(previous.CompletionRecorded && previous.Returned, "The fixture must have reached native control return.");
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The completed native choice was unexpectedly reentered."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        controller.Advance(1);
+        Check(controller.Failure is null || controller.Failure is NotSupportedException { Message: "No reachable unconsumed native event remains in the observed frontier." }, $"Original completed choice failed: {controller.Error}");
+        Check(policy.State.Active?.EventId != previous.EventId, "Original completed choice reopened the same proved native frontier.");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The original completed-choice source changed.");
+        Console.WriteLine("PASS original completed choice leaves its proved frontier or stops at actual exhaustion.");
     }
 
     private static Ff7WorldProcess World()
