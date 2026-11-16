@@ -9,7 +9,7 @@ public sealed record Ff7AutoPlayVisitGuard(FieldVariableRead[] Reads, FieldHostR
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal const int CurrentDiscoveryRevision = 3;
+    internal const int CurrentDiscoveryRevision = 4;
 
     private void ObserveVisitGuard(Ff7AutoPlayObservation observation)
     {

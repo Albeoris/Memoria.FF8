@@ -4,6 +4,7 @@ using System.Text;
 namespace Memoria.FF7.Events;
 
 public sealed record FieldSpatialSample(int Id, FieldActorPosition Position);
+public sealed record FieldSpatialInputGuard(FieldScriptInputDemand Demand, bool Matched);
 public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int TargetEntity, int TargetScript, int SampleId, int[] DestinationFields, bool ChangesStory, string Fingerprint, FieldVariableRead[] Reads, FieldHostRead[] HostReads)
 {
     public bool MayChangeNavigation { get; init; }
@@ -12,6 +13,7 @@ public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int Targ
     public int SourcePriority { get; init; } = 7;
     public bool TriangleOnly { get; init; }
     public bool Stochastic { get; init; }
+    public FieldSpatialInputGuard[] InputGuards { get; init; } = [];
 }
 public sealed record FieldSpatialObservation(FieldSpatialDemand[] Demands, FieldVariableRead[] Reads, string Fingerprint);
 
@@ -55,8 +57,13 @@ public sealed partial class FieldMachine
     }
 
     private readonly record struct SpatialScalarTaint(SpatialTaint Taint, int Scalar, int Width, int? RandomDraw = null);
+    private sealed record SpatialInspectionAlternative(byte[] Phases, FieldSpatialInputGuard[] InputGuards);
 
     private sealed class SpatialInspectionQueryException : Exception
+    {
+    }
+
+    private sealed class SpatialInputInspectionLimitException() : NotSupportedException("The bounded native spatial input witness search exhausted its constraint budget.")
     {
     }
 
@@ -87,17 +94,38 @@ public sealed partial class FieldMachine
                 {
                     continue;
                 }
-                if (!Project(entity, null, [], null))
+                Queue<SpatialInspectionAlternative> probes = new();
+                probes.Enqueue(new([], []));
+                bool hasSpatialQuery = false;
+                int projected = 0;
+                while (probes.TryDequeue(out SpatialInspectionAlternative? probe))
+                {
+                    if (++projected > 4096)
+                    {
+                        throw new NotSupportedException("The bounded native spatial input-path inspection exhausted its alternative budget.");
+                    }
+                    if (Project(entity, null, probe.Phases, probes, probe.InputGuards))
+                    {
+                        hasSpatialQuery = true;
+                        break;
+                    }
+                }
+                if (!hasSpatialQuery)
                 {
                     continue;
                 }
                 foreach (FieldSpatialSample sample in samples)
                 {
-                    Queue<byte[]> alternatives = new();
-                    alternatives.Enqueue(randomDomain?.Phases ?? [0]);
-                    while (alternatives.TryDequeue(out byte[]? phases))
+                    Queue<SpatialInspectionAlternative> alternatives = new();
+                    alternatives.Enqueue(new(randomDomain?.Phases ?? [0], []));
+                    projected = 0;
+                    while (alternatives.TryDequeue(out SpatialInspectionAlternative? alternative))
                     {
-                        Project(entity, sample, phases, alternatives);
+                        if (++projected > 4096)
+                        {
+                            throw new NotSupportedException("The bounded native spatial input-path inspection exhausted its alternative budget.");
+                        }
+                        Project(entity, sample, alternative.Phases, alternatives, alternative.InputGuards);
                     }
                 }
             }
@@ -111,9 +139,10 @@ public sealed partial class FieldMachine
         FieldSpatialDemand[] distinct = demands.GroupBy(demand => (demand.Entity, demand.ProgramCounter, demand.TargetEntity, demand.TargetScript, demand.SampleId, demand.Fingerprint)).Select(group => group.First()).ToArray();
         return new(distinct, observed, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(observationFacts))));
 
-        bool Project(int entity, FieldSpatialSample? sample, byte[] phases, Queue<byte[]>? alternatives)
+        bool Project(int entity, FieldSpatialSample? sample, byte[] phases, Queue<SpatialInspectionAlternative>? alternatives, FieldSpatialInputGuard[] selectedGuards)
         {
             FieldMachine detached = Restore(program, source, new InspectionHost());
+            List<FieldSpatialInputGuard> inputGuards = [];
             HashSet<FieldVariableRead> dependencies = [];
             HashSet<FieldVariableRead> written = [];
             HashSet<FieldVariableRead> instructionReads = [];
@@ -226,7 +255,30 @@ public sealed partial class FieldMachine
                         owner.Wait = 0;
                         continue;
                     }
-                    if (opcode is >= 0x14 and <= 0x19)
+                    if (opcode is >= 0x30 and <= 0x32)
+                    {
+                        FieldScriptInputDemand demand = detached.ReadInputDemand(entity, pc, opcode);
+                        FieldSpatialInputGuard? selected = selectedGuards.SingleOrDefault(guard => guard.Demand.ProgramCounter == pc);
+                        if (selected is null)
+                        {
+                            FieldSpatialInputGuard matched = new(demand, true);
+                            FieldSpatialInputGuard unmatched = new(demand, false);
+                            bool canMatch = HasSpatialInputWitness([.. inputGuards, matched]);
+                            bool canMiss = HasSpatialInputWitness([.. inputGuards, unmatched]);
+                            if (canMatch && canMiss)
+                            {
+                                alternatives!.Enqueue(new(phases, [.. inputGuards, unmatched]));
+                            }
+                            selected = canMatch ? matched : canMiss ? unmatched : null;
+                        }
+                        if (selected is null || !HasSpatialInputWitness([.. inputGuards, selected]))
+                        {
+                            break;
+                        }
+                        inputGuards.Add(selected);
+                        owner.Pc = unchecked((ushort)(selected.Matched ? pc + 4 : pc + 3 + program.Read(pc + 3)));
+                    }
+                    else if (opcode is >= 0x14 and <= 0x19)
                     {
                         FieldConditional condition = detached.ReadConditional(entity, opcode);
                         if ((instructionTaint & SpatialTaint.Stochastic) != 0)
@@ -251,7 +303,7 @@ public sealed partial class FieldMachine
                             }
                             if (matched.Count != 0 && unmatched.Count != 0)
                             {
-                                alternatives.Enqueue(unmatched.ToArray());
+                                alternatives.Enqueue(new(unmatched.ToArray(), inputGuards.ToArray()));
                             }
                             phases = matched.Count != 0 ? matched.ToArray() : unmatched.ToArray();
                             owner.Pc = matched.Count != 0 ? condition.MatchedPc : condition.UnmatchedPc;
@@ -286,6 +338,10 @@ public sealed partial class FieldMachine
                     // Stores own their result; only preceding source reads can define their dependencies.
                     dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read) && !instructionWrites.Contains(read)));
                     written.UnionWith(instructionWrites);
+                }
+                catch (SpatialInputInspectionLimitException)
+                {
+                    throw;
                 }
                 catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
                 {
@@ -355,10 +411,162 @@ public sealed partial class FieldMachine
                 dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read)));
                 FieldVariableRead[] reads = dependencies.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
                 string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, Math.Max(0, script), reads)}|{(stochasticPredicate ? randomDomain?.Fingerprint : null)}";
+                if (inputGuards.Count != 0)
+                {
+                    facts += "|input:" + string.Join(';', inputGuards.Select(guard => $"{guard.Demand.Entity}:{guard.Demand.Priority}:{guard.Demand.ProgramCounter}:{guard.Demand.Kind}:{guard.Demand.Mask}:{guard.Demand.Mapped}:{guard.Matched}").Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+                }
                 string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
-                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate, MayChangeNavigation = mayChangeNavigation, RequestMode = requestMode, RequestPriority = requestPriority, SourcePriority = source.Entities[entity].Priority });
+                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate, MayChangeNavigation = mayChangeNavigation, RequestMode = requestMode, RequestPriority = requestPriority, SourcePriority = source.Entities[entity].Priority, InputGuards = inputGuards.ToArray() });
             }
         }
+    }
+
+    /// <summary>Evaluates native ANY-bit input predicates and their selected branch outcomes against an exact input state.</summary>
+    public static bool AreSpatialInputGuardsSatisfied(IReadOnlyList<FieldSpatialInputGuard> guards, FieldInputState input)
+    {
+        return guards.All(guard =>
+        {
+            FieldScriptInputDemand demand = guard.Demand;
+            ushort keys = demand.Kind switch
+            {
+                FieldScriptInputKind.Held => demand.Mapped ? input.Held : input.RawHeld,
+                FieldScriptInputKind.Pressed => demand.Mapped ? input.Pressed : input.RawPressed,
+                FieldScriptInputKind.Released => demand.Mapped ? input.Released : input.RawReleased,
+                _ => throw new NotSupportedException("The native spatial input guard has an unsupported input selector.")
+            };
+            return ((keys & demand.Mask) != 0) == guard.Matched;
+        });
+    }
+
+    /// <summary>Finds coherent previous/current native button states without advancing input. Optional shared buttons constrain mapped and raw streams to the same physical buttons.</summary>
+    public static bool TryFindSpatialInputWitness(IReadOnlyList<FieldSpatialInputGuard> guards, out FieldInputState input, bool sharedPhysicalButtons = false, FieldInputState? previousInput = null)
+    {
+        byte[] states = Enumerable.Repeat((byte)15, sharedPhysicalButtons ? 16 : 32).ToArray();
+        int Index(FieldScriptInputDemand demand, int bit) => bit + (sharedPhysicalButtons || demand.Mapped ? 0 : 16);
+        static int Matches(FieldScriptInputKind kind) => kind switch
+        {
+            FieldScriptInputKind.Held => 10,
+            FieldScriptInputKind.Pressed => 2,
+            FieldScriptInputKind.Released => 4,
+            _ => throw new NotSupportedException("The native spatial input guard has an unsupported input selector.")
+        };
+        if (previousInput is not null)
+        {
+            for (int bit = 0; bit < 16; bit++)
+            {
+                int mask = 1 << bit;
+                states[bit] &= (byte)((previousInput.Held & mask) != 0 ? 12 : 3);
+                int rawIndex = sharedPhysicalButtons ? bit : bit + 16;
+                states[rawIndex] &= (byte)((previousInput.RawHeld & mask) != 0 ? 12 : 3);
+            }
+        }
+        foreach (FieldSpatialInputGuard guard in guards.Where(guard => !guard.Matched))
+        {
+            int matches = Matches(guard.Demand.Kind);
+            for (int bit = 0; bit < 16; bit++)
+            {
+                if ((guard.Demand.Mask & (1 << bit)) != 0)
+                {
+                    states[Index(guard.Demand, bit)] &= (byte)(15 & ~matches);
+                }
+            }
+        }
+        input = new();
+        if (states.Any(value => value == 0))
+        {
+            return false;
+        }
+        FieldSpatialInputGuard[] positive = guards.Where(guard => guard.Matched).ToArray();
+        int expanded = 0;
+        if (!Solve(states))
+        {
+            return false;
+        }
+        ushort held = 0;
+        ushort previous = 0;
+        ushort rawHeld = 0;
+        ushort rawPrevious = 0;
+        for (int index = 0; index < states.Length; index++)
+        {
+            int state = 0;
+            while ((states[index] & (1 << state)) == 0)
+            {
+                state++;
+            }
+            int bit = 1 << (index & 15);
+            if (index < 16)
+            {
+                held |= (ushort)((state & 1) != 0 ? bit : 0);
+                previous |= (ushort)((state & 2) != 0 ? bit : 0);
+            }
+            else
+            {
+                rawHeld |= (ushort)((state & 1) != 0 ? bit : 0);
+                rawPrevious |= (ushort)((state & 2) != 0 ? bit : 0);
+            }
+        }
+        if (sharedPhysicalButtons)
+        {
+            rawHeld = held;
+            rawPrevious = previous;
+        }
+        input = new(held, (ushort)(held & ~previous), (ushort)(previous & ~held), rawHeld, (ushort)(rawHeld & ~rawPrevious), (ushort)(rawPrevious & ~rawHeld), PreviousHeld: previous, PreviousRawHeld: rawPrevious);
+        return true;
+
+        bool Solve(byte[] candidate)
+        {
+            if (++expanded > 4096)
+            {
+                throw new SpatialInputInspectionLimitException();
+            }
+            foreach (FieldSpatialInputGuard guard in positive)
+            {
+                int matches = Matches(guard.Demand.Kind);
+                bool guaranteed = false;
+                for (int bit = 0; bit < 16; bit++)
+                {
+                    if ((guard.Demand.Mask & (1 << bit)) != 0 && (candidate[Index(guard.Demand, bit)] & ~matches) == 0)
+                    {
+                        guaranteed = true;
+                        break;
+                    }
+                }
+                if (guaranteed)
+                {
+                    continue;
+                }
+                for (int bit = 0; bit < 16; bit++)
+                {
+                    if ((guard.Demand.Mask & (1 << bit)) == 0)
+                    {
+                        continue;
+                    }
+                    int index = Index(guard.Demand, bit);
+                    int allowed = candidate[index] & matches;
+                    for (int state = 0; state < 4; state++)
+                    {
+                        if ((allowed & (1 << state)) == 0)
+                        {
+                            continue;
+                        }
+                        byte[] branch = candidate.ToArray();
+                        branch[index] = (byte)(1 << state);
+                        if (Solve(branch))
+                        {
+                            branch.CopyTo(candidate, 0);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private static bool HasSpatialInputWitness(IReadOnlyList<FieldSpatialInputGuard> guards)
+    {
+        return TryFindSpatialInputWitness(guards, out _);
     }
 
     private static bool IsSpatialInspectionOpcode(byte opcode)

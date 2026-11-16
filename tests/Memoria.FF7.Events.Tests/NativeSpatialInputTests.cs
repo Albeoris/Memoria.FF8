@@ -17,6 +17,9 @@ internal static class NativeSpatialInputTests
         DirectSpatialTransitions();
         StochasticSpatialTransitions();
         ConditionalDecodeWidths();
+        SpatialInputPredicates();
+        SpatialInputWitnesses();
+        SpatialInputBounds();
         Console.WriteLine("PASS native read-only autonomous spatial demands");
     }
 
@@ -207,6 +210,118 @@ internal static class NativeSpatialInputTests
         Check(!byteAlias.ReadCurrentSpatialDemands(1, Samples).Demands.Single().TriangleOnly, "A partial WORD read was treated as a proved scalar predicate.");
         (_, FieldMachine unused, _) = Create([.. query, 0x06, 0, 0x44, 0], Transition(99));
         Check(unused.ReadCurrentSpatialDemands(1, Samples).Demands.All(demand => !demand.TriangleOnly), "Unused triangle output invented a triangle predicate.");
+    }
+
+    private static void SpatialInputPredicates()
+    {
+        foreach (byte opcode in new byte[] { 0x30, 0x31, 0x32 })
+        {
+            foreach (ushort mask in new ushort[] { 3, 0x220 })
+            {
+                byte[] gates = [opcode, (byte)mask, (byte)(mask >> 8), 4];
+                (FieldProgram program, FieldMachine machine, RejectHost host) = Create(InputMain(gates), Transition(99));
+                string before = JsonSerializer.Serialize(machine.Capture());
+                FieldSpatialDemand demand = machine.ReadCurrentSpatialDemands(1, Samples).Demands.Single();
+                FieldSpatialInputGuard guard = demand.InputGuards.Single();
+                Check(demand.SampleId == 20 && demand.TriangleOnly && guard.Matched && guard.Demand.Kind == (FieldScriptInputKind)(opcode - 0x30) && guard.Demand.Mask == mask && guard.Demand.Mapped == ((mask & 0x200) != 0) && !guard.Demand.AwaitingInput, "A native spatial input gate lost its selector, full OR mask, mapping flag, branch result or physical predicate.");
+                Check(FieldMachine.TryFindSpatialInputWitness(demand.InputGuards, out FieldInputState input, sharedPhysicalButtons: true) && FieldMachine.AreSpatialInputGuardsSatisfied(demand.InputGuards, input), "A feasible native held/pressed/released guard has no coherent physical witness.");
+                SpatialInputOracle oracle = new();
+                FieldMachine native = FieldMachine.Restore(program, machine.Capture(), oracle);
+                native.SetInput(input.PreviousHeld!.Value, 0, input.PreviousRawHeld!.Value, 0);
+                native.SetInput(input.Held, input.Pressed, input.RawHeld, input.RawPressed);
+                for (int tick = 0; tick < 4 && oracle.Destination is null; tick++)
+                {
+                    native.AdvanceTick();
+                }
+                Check(oracle.Destination == 99, "A projected spatial input witness disagreed with native input-branch and party-request execution.");
+                Check(host.Calls == 0 && before == JsonSerializer.Serialize(machine.Capture()), "Spatial input inspection changed authoritative input, PC, persistent state or host execution.");
+                Check(JsonSerializer.Serialize(demand) == JsonSerializer.Serialize(FieldMachine.Restore(program, machine.Capture(), host).ReadCurrentSpatialDemands(1, Samples).Demands.Single()), "Cold restoration changed the retained spatial input contract.");
+            }
+        }
+        (_, FieldMachine zero, _) = Create(InputMain([0x30, 0, 0, 4]), Transition(99));
+        Check(zero.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 0, "A matched zero-mask native input guard fabricated a spatial frontier.");
+        (_, FieldMachine alternatives, _) = Create(InputMain([0x30, 3, 0, 5, 0x10, 3, 0, 0]), Transition(99));
+        FieldSpatialDemand[] branches = alternatives.ReadCurrentSpatialDemands(1, Samples).Demands;
+        Check(branches.Length == 2 && branches.Select(demand => demand.ProgramCounter).Distinct().Count() == 1 && branches.Select(demand => demand.Fingerprint).Distinct().Count() == 2 && branches.Select(demand => demand.InputGuards.Single().Matched).ToHashSet().SetEquals([true, false]), "Distinct matched/unmatched native paths to the same spatial request were merged or silently omitted.");
+        (_, FieldMachine beforeQuery, _) = Create([0x30, 0x20, 2, 16, 0xB9, 6, 1, 7, 0x16, 0x60, 7, 0, 26, 0, 0, 4, 0x01, 1, 0x44, 0], Transition(99));
+        Check(beforeQuery.ReadCurrentSpatialDemands(1, Samples).Demands.Single().InputGuards.Single().Matched, "An input predicate preceding the physical query hid a feasible spatial frontier.");
+    }
+
+    private static byte[] InputMain(byte[] gates)
+    {
+        return [0xB9, 6, 1, 7, 0x16, 0x60, 7, 0, 26, 0, 0, checked((byte)(gates.Length + 4)), .. gates, 0x01, 1, 0x44, 0];
+    }
+
+    private static void SpatialInputWitnesses()
+    {
+        FieldSpatialInputGuard Guard(FieldScriptInputKind kind, ushort mask, bool matched = true, bool mapped = true) => new(new($"guard:{kind}:{mask}:{mapped}", "authored", 0, 7, 1, kind, mask, mapped, false), matched);
+        FieldSpatialInputGuard[] orAnd = [Guard(FieldScriptInputKind.Held, 3), Guard(FieldScriptInputKind.Held, 1, false), Guard(FieldScriptInputKind.Pressed, 2)];
+        Check(FieldMachine.TryFindSpatialInputWitness(orAnd, out FieldInputState input, sharedPhysicalButtons: true) && input.Held == 2 && input.Pressed == 2 && FieldMachine.AreSpatialInputGuardsSatisfied(orAnd, input), "AND across native predicates changed OR within a mask or ignored an unmatched branch.");
+        FieldSpatialInputGuard[] contradiction = [Guard(FieldScriptInputKind.Pressed, 1), Guard(FieldScriptInputKind.Released, 1)];
+        Check(!FieldMachine.TryFindSpatialInputWitness(contradiction, out _), "A simultaneous press and release of the same native button acquired a fabricated witness.");
+        FieldSpatialInputGuard[] negative = [Guard(FieldScriptInputKind.Held, 1), Guard(FieldScriptInputKind.Pressed, 1, false)];
+        Check(!FieldMachine.TryFindSpatialInputWitness(negative, out _, sharedPhysicalButtons: true, previousInput: new()), "A held-but-not-pressed predicate ignored the actual previous native input.");
+        Check(FieldMachine.TryFindSpatialInputWitness(negative, out input, sharedPhysicalButtons: true) && input.Held == 1 && input.PreviousHeld == 1 && input.Pressed == 0, "A feasible held predicate failed to retain its required preparatory input.");
+        FieldSpatialInputGuard[] streams = [Guard(FieldScriptInputKind.Held, 1), Guard(FieldScriptInputKind.Held, 1, false, mapped: false)];
+        Check(FieldMachine.TryFindSpatialInputWitness(streams, out input) && input.Held == 1 && input.RawHeld == 0 && FieldMachine.AreSpatialInputGuardsSatisfied(streams, input), "Mapped and raw native input streams were incorrectly conflated.");
+        Check(!FieldMachine.TryFindSpatialInputWitness(streams, out _, sharedPhysicalButtons: true), "A common physical button was claimed to satisfy conflicting mapped/raw predicates.");
+        Check(FieldMachine.TryFindSpatialInputWitness([Guard(FieldScriptInputKind.Held, 0, false)], out input) && input.Held == 0 && !FieldMachine.TryFindSpatialInputWitness([Guard(FieldScriptInputKind.Held, 0)], out _), "Native zero-mask matched/unmatched semantics changed.");
+    }
+
+    private static void SpatialInputBounds()
+    {
+        List<FieldSpatialInputGuard> constraints = [];
+        for (int bit = 0; bit < 13; bit++)
+        {
+            constraints.Add(new(new($"held:{bit}", "authored", 0, 7, bit + 1, FieldScriptInputKind.Held, (ushort)(1 << bit), true, false), true));
+        }
+        constraints.Add(new(new("release", "authored", 0, 7, 14, FieldScriptInputKind.Released, 0x1FFF, true, false), true));
+        bool rejected = false;
+        try
+        {
+            FieldMachine.TryFindSpatialInputWitness(constraints, out _);
+        }
+        catch (NotSupportedException error) when (error.Message.Contains("constraint budget", StringComparison.Ordinal))
+        {
+            rejected = true;
+        }
+        Check(rejected, "Input witness exhaustion silently fabricated satisfaction or absence.");
+        List<byte> gates = [];
+        for (int bit = 0; bit < 13; bit++)
+        {
+            gates.AddRange([0x30, (byte)(1 << bit), (byte)((1 << bit) >> 8), 1]);
+        }
+        (_, FieldMachine machine, RejectHost host) = Create(InputMain(gates.ToArray()), Transition(99));
+        string before = JsonSerializer.Serialize(machine.Capture());
+        rejected = false;
+        try
+        {
+            machine.ReadCurrentSpatialDemands(1, Samples);
+        }
+        catch (NotSupportedException error) when (error.Message.Contains("alternative budget", StringComparison.Ordinal))
+        {
+            rejected = true;
+        }
+        Check(rejected && host.Calls == 0 && before == JsonSerializer.Serialize(machine.Capture()), "Spatial input-path exhaustion silently hid an observable frontier or changed native source state.");
+    }
+
+    private sealed class SpatialInputOracle : IFieldHost
+    {
+        public ushort? Destination { get; private set; }
+
+        public FieldHostReply Execute(FieldHostRequest request)
+        {
+            if (request.Command is FieldActorQuery query)
+            {
+                return new(true, query.Query == FieldActorQueryKind.Triangle ? 26 : 0, Position: new(0, 0, 0, 26));
+            }
+            if (request.Command is FieldTransitionCommand transition)
+            {
+                Destination = transition.Map;
+                return new(true);
+            }
+            throw new InvalidOperationException("The authored spatial input oracle reached an unrelated native host operation.");
+        }
     }
 
     private static (FieldProgram Program, FieldMachine Machine, RejectHost Host) Create(byte[] main, byte[] child)

@@ -269,6 +269,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private Ff7AutoplayInput PrepareEntryInput(Ff7AutoPlayTarget target, Ff7AutoplayInput input)
     {
+        if (target.Kind == Ff7AutoPlayTargetKind.AutonomousSpatial && target.SpatialInputGuards.Length > 0)
+        {
+            return scriptedInput.ChooseSpatialEntryInput(target) ?? input;
+        }
         bool ready = input.Talk;
         if (target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave)
         {
@@ -298,8 +302,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return false;
         }
-        string[] identity = active.EventId.Split(':');
-        return identity is ["spatial", var entity, var pc, "direct", "triangle", _] && int.TryParse(entity, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int expectedEntity) && expectedEntity == active.Entity && int.TryParse(pc, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int programCounter) && programCounter == owner.ProgramCounter;
+        return TryReadDirectSpatialIdentity(active.EventId, out int expectedEntity, out int programCounter, out _) && expectedEntity == active.Entity && programCounter == owner.ProgramCounter;
+    }
+
+    internal static bool TryReadDirectSpatialIdentity(string eventId, out int entity, out int programCounter, out int triangle)
+    {
+        entity = -1;
+        programCounter = -1;
+        triangle = -1;
+        string[] identity = eventId.Split(':');
+        bool supported = identity.Length == 6 || identity.Length == 8 && identity[6] == "input" && identity[7].Length == 64 && identity[7].All(Uri.IsHexDigit);
+        return supported && identity is ["spatial", var source, var pc, "direct", "triangle", var sample, ..] && int.TryParse(source, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out entity) && entity >= 0 && int.TryParse(pc, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out programCounter) && programCounter >= 0 && int.TryParse(sample, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out triangle) && triangle >= 0;
     }
 
     internal static bool SourceStoryChanged(Ff7AutoPlayTargetKind kind, int before, int after)

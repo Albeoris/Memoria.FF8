@@ -43,6 +43,84 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
         return SelectInput(CurrentDemand with { AwaitingInput = true }, session.Machine.Input);
     }
 
+    /// <summary>Projects the selected autonomous branch only at its proved current native spatial predicate.</summary>
+    public Ff7AutoplayInput? ChooseSpatialEntryInput(Ff7AutoPlayTarget target)
+    {
+        CurrentDemand = null;
+        Ff7AutoPlayActiveEvent? active = session.AutoPlayState?.Active;
+        if (target.Kind != Ff7AutoPlayTargetKind.AutonomousSpatial || target.SpatialInputGuards.Length == 0 || active is not { Accepted: false } || active.EventId != target.Id || active.Generation != session.FieldGeneration || session.World is not null || session.HasPendingTick || session.Host.Process.Transition is not null || session.Host.Process.PlayerLocked || session.Host.Process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)))
+        {
+            return null;
+        }
+        Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
+        if (player is null)
+        {
+            return null;
+        }
+        if (target.TriangleOnly)
+        {
+            if (player.Triangle != target.Triangle)
+            {
+                return null;
+            }
+        }
+        else
+        {
+            if (target.SpatialSourceProgramCounter is not int source)
+            {
+                return null;
+            }
+            FieldActorPosition position = new(checked((short)(player.X4096 >> 12)), checked((short)(player.Y4096 >> 12)), checked((short)(player.Z4096 >> 12)), checked((short)player.Triangle));
+            FieldSpatialObservation observed = session.Machine.ReadCurrentSpatialDemands(player.Entity, [new(player.Triangle, position)], randomDomain: session.ReadSpatialRandomDomain());
+            if (!observed.Demands.Any(demand => demand.Entity == target.Entity && demand.ProgramCounter == source && demand.TargetEntity == (target.SpatialOwner?.TargetEntity ?? demand.TargetEntity) && demand.TargetScript == (target.SpatialOwner?.TargetScript ?? demand.TargetScript) && Ff7AutoPlayDiscovery.SpatialInputGuardSignature(demand.InputGuards) == Ff7AutoPlayDiscovery.SpatialInputGuardSignature(target.SpatialInputGuards)))
+            {
+                return null;
+            }
+        }
+        CurrentDemand = target.SpatialInputGuards.FirstOrDefault(guard => guard.Matched)?.Demand ?? target.SpatialInputGuards[0].Demand;
+        return SelectSpatialEntryInput(target.SpatialInputGuards, session.Machine.Input);
+    }
+
+    internal static Ff7AutoplayInput SelectSpatialEntryInput(IReadOnlyList<FieldSpatialInputGuard> guards, FieldInputState input)
+    {
+        if (guards.Count == 0)
+        {
+            throw new ArgumentException("A spatial entry button requires source-proved native input predicates.", nameof(guards));
+        }
+        ushort combined = 0;
+        foreach (FieldSpatialInputGuard guard in guards)
+        {
+            if (guard.Matched && guard.Demand.Mask != 0)
+            {
+                Ff7AutoplayInput selected = SelectInput(guard.Demand with { AwaitingInput = true }, input);
+                if (FieldMachine.AreSpatialInputGuardsSatisfied(guards, ProjectSpatialInput(selected.Held, input)))
+                {
+                    return selected;
+                }
+                combined |= selected.Held;
+            }
+        }
+        if (FieldMachine.AreSpatialInputGuardsSatisfied(guards, ProjectSpatialInput(combined, input)))
+        {
+            return new(Held: combined, Run: false);
+        }
+        if (FieldMachine.TryFindSpatialInputWitness(guards, out FieldInputState immediate, sharedPhysicalButtons: true, previousInput: input))
+        {
+            return new(Held: immediate.Held, Run: false);
+        }
+        if (FieldMachine.TryFindSpatialInputWitness(guards, out FieldInputState prepared, sharedPhysicalButtons: true))
+        {
+            return new(Held: prepared.PreviousHeld ?? throw new InvalidDataException("A native input witness omitted its physical preparation state."), Run: false);
+        }
+        throw new NotSupportedException("The selected native spatial input predicates have no coherent physical press/release sequence.");
+    }
+
+    private static FieldInputState ProjectSpatialInput(ushort held, FieldInputState previous)
+    {
+        ushort pressed = (ushort)(held & ~previous.Held);
+        return new(held, pressed, (ushort)(previous.Held & ~held), held, pressed, (ushort)(previous.RawHeld & ~held), PreviousHeld: previous.Held, PreviousRawHeld: previous.RawHeld);
+    }
+
     public Ff7AutoplayInput? ChooseInput()
     {
         CurrentDemand = null;
