@@ -180,6 +180,12 @@ public sealed class ExpandedBattleHostTests
         byte itemCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)4));
         byte drawCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)6));
         records[casterRow] = records[casterRow] with { MagicInventory = stock, HitPoints = new NativeHpWord(100, 100), Junction = records[casterRow].Junction with { Commands = (uint)(magicCommand | itemCommand << 8 | drawCommand << 16) } };
+        if (mass)
+        {
+            byte[] bonuses = records[casterRow].StatBonuses.ToArray();
+            bonuses[2] = byte.MaxValue;
+            records[casterRow] = records[casterRow] with { StatBonuses = bonuses };
+        }
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock[] items = economy.Items.ToArray();
         int potionSlot = Array.FindIndex(items, item => item.ItemId == potion.ActionId);
@@ -268,6 +274,12 @@ public sealed class ExpandedBattleHostTests
             Assert.All(enemies.Select((enemy, index) => (enemy, index)), pair => Assert.InRange(pair.enemy.CurrentHp, 0, before[pair.index] - 1));
             Assert.Equal(4, MagicCount(groupMagic.ActionId));
             Assert.Equal(5, MagicCount(fire.ActionId));
+            Assert.All(enemies, enemy => Assert.False(enemy.IsAlive));
+            for (int callback = 0; callback < 1200 && !battle.CanReturnToField; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.True(battle.CanReturnToField);
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
             Assert.Equal(enemyCount, battle.EnemyDefeats.Count);
             Assert.Equal(enemies.Select(enemy => enemy.SceneSlot!.Value).Order(), battle.EnemyDefeats.Select(defeat => defeat.Slot).Order());
@@ -307,9 +319,13 @@ public sealed class ExpandedBattleHostTests
         else
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
-            Run(lastEnemy, BattleAbility.Magic, fire.ActionId, [lastEnemy]);
-            Assert.InRange(enemies[^1].CurrentHp, 0, before[^1] - 1);
-            Assert.Equal(before.Take(enemyCount - 1), enemies.Take(enemyCount - 1).Select(enemy => enemy.CurrentHp));
+            int fireElement = System.Numerics.BitOperations.TrailingZeroCount((uint)(fire.Element ?? throw new InvalidDataException("Fire requires its installed element.")));
+            int fireTargetIndex = Array.FindLastIndex(enemies, enemy => enemy.IsAlive && !enemy.Untargetable && enemy.ElementDefenses[fireElement] < 900);
+            Assert.InRange(fireTargetIndex, 0, enemies.Length - 1);
+            BattleCombatant fireTarget = enemies[fireTargetIndex];
+            Run(fireTarget.Id, BattleAbility.Magic, fire.ActionId, [fireTarget.Id]);
+            Assert.InRange(fireTarget.CurrentHp, 0, before[fireTargetIndex] - 1);
+            Assert.Equal(before.Where((_, index) => index != fireTargetIndex), enemies.Where((_, index) => index != fireTargetIndex).Select(enemy => enemy.CurrentHp));
             Assert.Equal(4, MagicCount(fire.ActionId));
             Assert.Equal(5, MagicCount(groupMagic.ActionId));
             int beforePotion = caster.CurrentHp;
@@ -319,8 +335,9 @@ public sealed class ExpandedBattleHostTests
             Assert.Equal(2, battle.Items.Single(item => item.Id == potion.ActionId).Count);
             if (allyCount == 11)
             {
-                BattleCombatant drawSource = enemies[^1];
+                BattleCombatant drawSource = enemies.Last(enemy => enemy.IsActive && enemy.IsAlive && !enemy.Untargetable && enemy.NativeDrawSlots.Any(slot => slot.Id is > 0 and < 64));
                 NativeBattleDrawSlot draw = drawSource.NativeDrawSlots.First(slot => slot.Id is > 0 and < 64);
+                caster.Atb = BattleSession.AtbMaximum;
                 for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
                 {
                     world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
@@ -351,6 +368,7 @@ public sealed class ExpandedBattleHostTests
                 {
                     BattleActionDefinition spell = battle.ActionDefinitions.First(action => action.Ability == BattleAbility.Magic && battle.SupportsExpandedAction(action) && drawSource.NativeDrawSlots.Any(slot => slot.Id == action.Id));
                     BattleCombatant recipient = battle.Combatants.Last(actor => actor.Id != drawSource.Id && BattleSession.IsValidSelectedActionTarget(caster, spell, actor));
+                    caster.Atb = BattleSession.AtbMaximum;
                     for (int turn = 0; turn < 32 && !caster.IsReady; turn++)
                     {
                         world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
