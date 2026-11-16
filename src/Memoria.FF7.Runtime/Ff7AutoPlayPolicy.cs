@@ -350,12 +350,17 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return;
         }
         State.Active = null;
-        if (State.NavigationGoal is { } goal && goal.NavigationKey == observation.NavigationKey && (goal.EventId is null || goal.EventId == active.EventId))
+        if (State.NavigationGoal is { } goal && IsNavigationGoalCompleted(goal, active, observation.NavigationKey))
         {
             State.NavigationGoal = null;
         }
         State.Status = "Native event completed; selecting the next frontier";
         Publish();
+    }
+
+    internal static bool IsNavigationGoalCompleted(AutoPlayTravelGoal goal, Ff7AutoPlayActiveEvent active, string destinationKey)
+    {
+        return goal.EventId is null ? goal.NavigationKey == destinationKey : goal.NavigationKey == active.NavigationKey && goal.EventId == active.EventId && (goal.Conditions is null || goal.Conditions == active.ConditionFingerprint);
     }
 
     private void ObserveInteraction(int entity, int script, bool accepted)

@@ -14,6 +14,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckOriginalForeignFrontierInvalidation();
         CheckSourceBoundaryCompatibility();
         CheckOriginalRemoteBoundaryProjection();
+        CheckOriginalDestinationGoal();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
         AutoPlayEvent ladder = new("ladder", AutoPlayEventKind.Interaction, ConditionSignature: "ladder-entry");
@@ -308,6 +309,36 @@ internal static class AutoPlayNavigationRefreshTests
         Check(controller.Failure is null && policy.State.NavigationGoal != goal, "The ordinary policy retained the false remote retry frontier.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Source-boundary validation changed the original standalone.");
         Console.WriteLine($"PASS original source-boundary fingerprint recovery and remote frontier replacement after {controller.Steps} ordinary callbacks; source unchanged.");
+    }
+
+    private static void CheckOriginalDestinationGoal()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_DESTINATION_GOAL_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        AutoPlayTravelGoal goal = source.AutoPlay!.NavigationGoal!;
+        Check(!source.AutoPlay.NavigationGuards.Values.Any(guard => guard.NavigationKey == goal.NavigationKey && guard.EventId == goal.EventId), "The destination-goal fixture already contains the intended native attempt.");
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded destination-goal check must stop before new choice exploration."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool attempted = false;
+        for (int step = 0; step < 128 && controller.Running && !attempted; step++)
+        {
+            controller.Advance(1);
+            attempted = policy.State.NavigationGuards.Values.Any(guard => guard.NavigationKey == goal.NavigationKey && guard.EventId == goal.EventId && guard.SpatialBoundaryTriangles is not null);
+        }
+        Check(controller.Failure is null && attempted, "Same-named source transport still skipped the requested native contact at its destination component.");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Destination-goal validation changed the original standalone.");
+        Console.WriteLine($"PASS original destination goal reaches its previously skipped native contact after {controller.Steps} ordinary callbacks; source unchanged.");
     }
 
     private static void Check(bool condition, string message)

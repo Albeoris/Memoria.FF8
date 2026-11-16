@@ -8,6 +8,7 @@ internal static class NativeAutoPlayPolicyPlanningTests
         NativeComponentProbeTests.Run();
         AutoPlayNavigationRefreshTests.Run();
         CheckDerivedConnectionProbePriority();
+        CheckExactNavigationGoalCompletion();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
         AutoPlayVisit visit = new("current", "region");
@@ -297,6 +298,18 @@ internal static class NativeAutoPlayPolicyPlanningTests
         {
             return state.Coverage.NavigationVisits.Single(visit => visit.Key == key).RouteRediscovery[target.Id];
         }
+    }
+
+    private static void CheckExactNavigationGoalCompletion()
+    {
+        Ff7AutoPlayActiveEvent transport = new("field", "ladder", "gate", 1, 2, 4, Ff7AutoPlayTargetKind.LineTouch, null, 1, "before", NavigationKey: "lower");
+        AutoPlayTravelGoal goal = new("upper", "ladder", "gate");
+        Check(!Ff7AutoPlayPolicy.IsNavigationGoalCompleted(goal, transport, "upper"), "Arrival using a same-named source transport discharged the unexecuted destination event.");
+        Check(Ff7AutoPlayPolicy.IsNavigationGoalCompleted(goal, transport with { NavigationKey = "upper" }, "lower"), "An executed destination goal was lost when its native action changed components.");
+        Check(!Ff7AutoPlayPolicy.IsNavigationGoalCompleted(goal, transport with { NavigationKey = "upper", ConditionFingerprint = "other" }, "upper"), "A different native predicate discharged the requested event goal.");
+        Check(Ff7AutoPlayPolicy.IsNavigationGoalCompleted(new("upper"), transport, "upper"), "An observation-only arrival goal required an unrelated source event.");
+        Check(Ff7AutoPlayPolicy.IsNavigationGoalCompleted(new("upper", "ladder"), transport with { NavigationKey = "upper" }, "lower"), "An unspecified legacy predicate prevented proved source execution from completing its goal.");
+        Check(!Ff7AutoPlayPolicy.IsNavigationGoalCompleted(goal, transport with { NavigationKey = null }, "upper"), "A missing legacy source fabricated destination event execution.");
     }
 
     private static void Check(bool condition, string message)
