@@ -196,6 +196,8 @@ public sealed partial class BattleSession
     {
         (ushort Action, byte Sequence, int Model, bool Death)? transition = header.Effect switch
         {
+            // NORG's death dialogue marks its side models unavailable without consuming the neutral self contact.
+            0 when header is { Command: 8, Action: 289 } => ((ushort)289, (byte)19, 77, true),
             NativeBattleMorph172Profile.Effect => ((ushort)53, (byte)13, 29, false),
             // Trauma's death sequence keeps its neutral self contact for setup and never calls 506690 for it.
             NativeBattleEffect290Profile.Effect => ((ushort)291, (byte)14, 109, true),

@@ -78,6 +78,34 @@ public sealed class ExpandedHostedRenzokukenTests
         }
     }
 
+    [Fact]
+    public void Installed_Norg_death_dialogue_retires_its_zero_impact_self_context()
+    {
+        RunWorld(false, ExpandedBattleInstalledEntry.Seed, (world, battle, process, caster, target) =>
+        {
+            target.CurrentHp = 1;
+            caster.Atb = BattleSession.AtbMaximum;
+            world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: caster.Id, TargetId: target.Id));
+            bool sawDeathHeader = false;
+            for (int callback = 0; callback < CallbackBudget && (!sawDeathHeader || !IsIdle(battle, process)); callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+                foreach (var published in process.ActionPackets.PublishedHeaders().Where(row => row.Slot is { Command: 8, Action: 289 }))
+                {
+                    Assert.Equal((ushort)0, published.Slot.Effect);
+                    Assert.Equal((byte)19, published.Slot.Sequence);
+                    sawDeathHeader = true;
+                }
+            }
+            Assert.True(sawDeathHeader && IsIdle(battle, process));
+            Assert.False(target.IsAlive);
+            Assert.True(target.Untargetable);
+            BattleCombatant[] sideModels = battle.Combatants.Where(actor => !actor.IsPlayer && actor.ModelId is 80 or 81).ToArray();
+            Assert.Equal(2, sideModels.Length);
+            Assert.All(sideModels, actor => Assert.True(actor.Untargetable));
+        }, formation: 63, targetModel: 77);
+    }
+
     [Theory]
     [InlineData(159, 92, 9)]
     [InlineData(161, 131, 738)]
