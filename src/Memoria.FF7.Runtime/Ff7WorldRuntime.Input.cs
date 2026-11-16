@@ -70,9 +70,16 @@ public sealed partial class Ff7WorldRuntime
 
     private void AdvancePlayerInputCore(bool autoPlayPreview = false)
     {
-        foreach (Ff7WorldEntity entity in ActiveWorldEntities().ToArray())
+        Ff7WorldEntity[] activeEntities = ActiveWorldEntities().ToArray();
+        HashSet<int> movedModels = activeEntities.Where(entity => (entity.Flags & 1) != 0).Select(entity => entity.Model).ToHashSet();
+        foreach (Ff7WorldEntity entity in activeEntities)
         {
-            UpdateEntity(entity with { Flags = entity.Flags & ~7, PreviousX = entity.X, PreviousY = entity.Y, PreviousZ = entity.Z });
+            int? contact = entity.ContactModel;
+            if (contact is int target && (movedModels.Contains(entity.Model) || movedModels.Contains(target)))
+            {
+                contact = null;
+            }
+            UpdateEntity(entity with { ContactModel = contact, Flags = entity.Flags & ~7, PreviousX = entity.X, PreviousY = entity.Y, PreviousZ = entity.Z });
         }
         if (controlledModel < 0)
         {
@@ -93,7 +100,7 @@ public sealed partial class Ff7WorldRuntime
                 int driftX = 0;
                 int driftZ = 0;
                 ApplyBridgeDrift(ref driftX, ref driftZ);
-                UpdateEntity(player with { X = Wrap(player.X + driftX, 0x48000), Z = Wrap(player.Z + driftZ, 0x38000), Flags = driftX != 0 || driftZ != 0 ? player.Flags | 1 : player.Flags & ~1 });
+                UpdateEntity(ResolveWorldModelContact(player with { X = Wrap(player.X + driftX, 0x48000), Z = Wrap(player.Z + driftZ, 0x38000), Flags = driftX != 0 || driftZ != 0 ? player.Flags | 1 : player.Flags & ~1 }));
             }
             return;
         }
@@ -169,16 +176,46 @@ public sealed partial class Ff7WorldRuntime
             ApplyBridgeDrift(ref dx, ref dz);
         }
         Ff7WorldEntity moved = player with { X = Wrap(player.X + dx, 0x48000), Z = Wrap(player.Z + dz, 0x38000), Flags = dx != 0 || dz != 0 ? player.Flags | 1 : player.Flags & ~1 };
-        if (ActiveWorldEntities().Any(other => WorldModelsCollide(moved, other)))
+        UpdateEntity(ResolveWorldModelContact(moved));
+    }
+
+    private IEnumerable<Ff7WorldEntity> NativeWorldCollisionSources()
+    {
+        return Machine.Capture().Models.Where(model => !model.Detached).Select(model => RequireEntity(model.Model));
+    }
+
+    private Ff7WorldEntity ResolveWorldModelContact(Ff7WorldEntity player)
+    {
+        if (player.Model == SubmarineModel && Resources.World == 0)
         {
-            moved = moved with { X = player.X, Y = player.Y, Z = player.Z, Flags = moved.Flags & ~1 };
+            return player;
         }
-        UpdateEntity(moved);
+        foreach (Ff7WorldEntity other in NativeWorldCollisionSources())
+        {
+            if (!WorldModelsCollide(player, other))
+            {
+                continue;
+            }
+            player = player with { ContactModel = other.Model };
+            int currentDistance = Math.Abs(WrappedDifference(other.X - player.X, 0x48000)) + Math.Abs(WrappedDifference(other.Z - player.Z, 0x38000));
+            int previousDistance = Math.Abs(WrappedDifference(other.X - player.PreviousX, 0x48000)) + Math.Abs(WrappedDifference(other.Z - player.PreviousZ, 0x38000));
+            if (previousDistance > currentDistance)
+            {
+                player = player with { X = player.PreviousX, Y = (player.Flags & 4) != 0 ? player.Y : player.PreviousY ?? player.Y, Z = player.PreviousZ, Flags = player.Flags & ~1 };
+            }
+            break;
+        }
+        return player;
+    }
+
+    private static bool CanWorldModelsCollide(Ff7WorldEntity player, Ff7WorldEntity other)
+    {
+        return player.Model != other.Model && (player.Flags & 128) == 0 && (other.Flags & 128) == 0 && player.Model < 26 && other.Model < 26 && other.Model is not (21 or 22 or 23);
     }
 
     private bool WorldModelsCollide(Ff7WorldEntity player, Ff7WorldEntity other)
     {
-        if (player.Model == other.Model || (player.Flags & 128) != 0 || (other.Flags & 128) != 0 || player.Model >= 26 || other.Model >= 26 || other.Model is 21 or 22 or 23)
+        if (!CanWorldModelsCollide(player, other))
         {
             return false;
         }

@@ -205,6 +205,31 @@ if (args.Contains("--blocked-source-navigation-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--world-model-contact-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldModelContactTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-model-policy-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldOwnershipTests.Run();
+    AutoPlayWorldModelPolicyTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-dialogue-only", StringComparer.Ordinal))
+{
+    WorldDialogueTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-model-navigation-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldModelNavigationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-spatial-only", StringComparer.Ordinal))
 {
     NativeAutoPlaySpatialTests.Run();

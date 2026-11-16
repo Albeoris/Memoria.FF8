@@ -667,6 +667,10 @@ public sealed partial class Ff7WorldRuntime : IWorldHost, IDisposable
         {
             throw new InvalidDataException("FFVII world model and script snapshot identities differ.");
         }
+        if (state.Entities.Any(entity => entity.ContactModel is int contact && !state.Entities.Any(target => target.Model == contact)))
+        {
+            throw new InvalidDataException("FFVII world retained contact has no matching native model.");
+        }
         ValidateDialogue(state);
         ValidateMapTransfer(state);
         ValidateWorldEffects(state.Effects);

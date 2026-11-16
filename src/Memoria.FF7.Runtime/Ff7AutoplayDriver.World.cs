@@ -13,7 +13,7 @@ internal enum Ff7AutoPlayWorldNavigationStatus
 }
 
 internal sealed record Ff7AutoPlayWorldNavigationResult(Ff7AutoPlayWorldNavigationStatus Status, Ff7AutoplayInput Input, int Expanded, string? Reason = null, Ff7AutoPlayWorldTerrainBoundary? PredictedBoundary = null, bool HasInput = false, Ff7WorldTerrainReference[]? DeferredComponent = null);
-internal sealed record Ff7AutoPlayWorldRouteStep(string SourceKey, Ff7AutoplayInput Input, string DestinationKey, Ff7AutoPlayWorldTerrainBoundary? Boundary);
+internal sealed record Ff7AutoPlayWorldRouteStep(string SourceKey, Ff7AutoplayInput Input, string DestinationKey, Ff7AutoPlayWorldTerrainBoundary? Boundary, Ff7AutoPlayWorldModelBoundary[]? ModelBoundaries = null);
 internal sealed record Ff7AutoPlayWorldRoute(Ff7AutoPlayWorldNavigationStatus Status, Ff7AutoPlayWorldRouteStep[] Steps, int Expanded, string? Reason);
 
 public sealed partial class Ff7AutoplayDriver
@@ -127,7 +127,7 @@ public sealed partial class Ff7AutoplayDriver
         if (worldRoute.TryPeek(out Ff7AutoPlayWorldRouteStep? retained))
         {
             Ff7AutoPlayWorldMovementPreview fresh = world.PreviewAutoPlayInput(retained.Input, source);
-            if (retained.SourceKey == sourceKey && fresh is { Supported: true, State: not null } && WorldMovementKey(fresh.State) == retained.DestinationKey && fresh.TerrainBoundary == retained.Boundary)
+            if (retained.SourceKey == sourceKey && fresh is { Supported: true, State: not null } && WorldMovementKey(fresh.State) == retained.DestinationKey && fresh.TerrainBoundary == retained.Boundary && (fresh.ModelBoundaries ?? []).SequenceEqual(retained.ModelBoundaries ?? []))
             {
                 worldRoute.Dequeue();
                 RememberWorldInput(positionKey, retained.Input);
@@ -185,7 +185,7 @@ public sealed partial class Ff7AutoplayDriver
         inputs.Add(input);
     }
 
-    private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, string SearchKey, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, double Cost, double Distance);
+    private sealed record WorldSearchNode(Ff7AutoPlayWorldMovementState State, string Key, string SearchKey, int Parent, Ff7AutoplayInput Input, Ff7AutoPlayWorldTerrainBoundary? Boundary, Ff7AutoPlayWorldModelBoundary[]? ModelBoundaries, double Cost, double Distance);
 
     private static bool RequiresWorldTargetRearming(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldScriptObservation target)
     {
@@ -201,9 +201,28 @@ public sealed partial class Ff7AutoplayDriver
         {
             return rearming ? departureHints.Select(point => WorldPointDistance(state.Player, point)).DefaultIfEmpty(0).Min() : waypoint is Vector3 point ? WorldPointDistance(state.Player, point) : target.Faces.Select(face => WorldFaceDistance(state.Player, face)).Min();
         }
+        bool TargetBoundary(Ff7AutoPlayWorldMovementPreview step)
+        {
+            return step.TerrainBoundary is { } boundary && boundary.Script == target.Script - 3 && target.Faces.Any(face => face.Source.ChunkX == boundary.ChunkX && face.Source.ChunkZ == boundary.ChunkZ && face.Source == step.State!.Input.GroundTriangle);
+        }
+        bool Admit(Ff7AutoPlayWorldMovementPreview step)
+        {
+            return (step.ModelBoundaries?.Length ?? 0) == 0 && (step.TerrainBoundary is not { Inert: false } || !rearming && TargetBoundary(step));
+        }
+        bool Reached(Ff7AutoPlayWorldMovementPreview step)
+        {
+            return rearming ? step.State!.Input.TerrainScript != target.Script && (step.TerrainBoundary is null || step.TerrainBoundary.Inert) : TargetBoundary(step) || RequiresWorldTargetRearming(step.State!, target);
+        }
+        return SearchWorldPhysicalRoute(source, preview, Distance, Admit, Reached, nodeBudget, avoidFirst, rearming ? Ff7AutoPlayWorldNavigationStatus.Rearming : Ff7AutoPlayWorldNavigationStatus.Step);
+    }
+
+    private static Ff7AutoPlayWorldRoute SearchWorldPhysicalRoute(Ff7AutoPlayWorldMovementState source, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, Func<Ff7AutoPlayWorldMovementState, double> distanceToTarget, Func<Ff7AutoPlayWorldMovementPreview, bool> admit, Func<Ff7AutoPlayWorldMovementPreview, bool> reachedTarget, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Ff7AutoPlayWorldNavigationStatus success = Ff7AutoPlayWorldNavigationStatus.Step, ushort held = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(nodeBudget, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(nodeBudget, 16384);
         string initial = WorldMovementKey(source);
         string initialSearch = WorldSearchKey(source);
-        List<WorldSearchNode> nodes = [new(source, initial, initialSearch, -1, default, null, 0, Distance(source))];
+        List<WorldSearchNode> nodes = [new(source, initial, initialSearch, -1, default, null, null, 0, distanceToTarget(source))];
         Dictionary<string, double> costs = new(StringComparer.Ordinal) { [initialSearch] = 0 };
         PriorityQueue<int, (double Score, double Distance, int Order)> open = new();
         open.Enqueue(0, (nodes[0].Distance, nodes[0].Distance, 0));
@@ -218,7 +237,7 @@ public sealed partial class Ff7AutoplayDriver
                 continue;
             }
             expanded++;
-            foreach (Ff7AutoplayInput input in WorldNavigationInputs())
+            foreach (Ff7AutoplayInput input in WorldNavigationInputs(held))
             {
                 if (current == 0 && avoidFirst?.Contains(input) == true)
                 {
@@ -230,26 +249,24 @@ public sealed partial class Ff7AutoplayDriver
                     unsupported ??= step.Reason;
                     continue;
                 }
-                bool targetBoundary = step.TerrainBoundary is { } boundary && boundary.Script == target.Script - 3 && target.Faces.Any(face => face.Source.ChunkX == boundary.ChunkX && face.Source.ChunkZ == boundary.ChunkZ && face.Source == step.State.Input.GroundTriangle);
-                // Effectful dispatches remain barriers; proved inert callbacks do not change movement.
-                if (step.TerrainBoundary is { Inert: false } && (rearming || !targetBoundary))
+                if (!admit(step))
                 {
                     continue;
                 }
                 string key = WorldMovementKey(step.State);
                 string searchKey = WorldSearchKey(step.State);
                 double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
-                bool reached = rearming ? step.State.Input.TerrainScript != target.Script && (step.TerrainBoundary is null || step.TerrainBoundary.Inert) : targetBoundary || RequiresWorldTargetRearming(step.State, target);
+                bool reached = reachedTarget(step);
                 if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
                 {
                     continue;
                 }
-                double distance = Distance(step.State);
+                double distance = distanceToTarget(step.State);
                 int index = nodes.Count;
-                nodes.Add(new(step.State, key, searchKey, current, input, step.TerrainBoundary, cost, distance));
+                nodes.Add(new(step.State, key, searchKey, current, input, step.TerrainBoundary, step.ModelBoundaries, cost, distance));
                 if (reached)
                 {
-                    return new(rearming ? Ff7AutoPlayWorldNavigationStatus.Rearming : Ff7AutoPlayWorldNavigationStatus.Step, ReconstructWorldRoute(nodes, index), expanded, null);
+                    return new(success, ReconstructWorldRoute(nodes, index), expanded, null);
                 }
                 costs[searchKey] = cost;
                 open.Enqueue(index, (cost + distance, distance, index));
@@ -276,20 +293,20 @@ public sealed partial class Ff7AutoplayDriver
         while (nodes[index].Parent >= 0)
         {
             WorldSearchNode node = nodes[index];
-            result.Add(new(nodes[node.Parent].Key, node.Input, node.Key, node.Boundary));
+            result.Add(new(nodes[node.Parent].Key, node.Input, node.Key, node.Boundary, node.ModelBoundaries));
             index = node.Parent;
         }
         result.Reverse();
         return result.ToArray();
     }
 
-    private static IEnumerable<Ff7AutoplayInput> WorldNavigationInputs()
+    private static IEnumerable<Ff7AutoplayInput> WorldNavigationInputs(ushort held = 0)
     {
         foreach (var direction in Directions)
         {
-            yield return new(direction.X, direction.Y, Run: true);
+            yield return new(direction.X, direction.Y, Held: held, Run: true);
         }
-        yield return new(Run: false);
+        yield return new(Held: held, Run: false);
     }
 
     private static Vector3[] ReadWorldDepartureHints(Ff7WorldRuntime world, Ff7AutoPlayWorldMovementState state, int script)
@@ -365,7 +382,7 @@ public sealed partial class Ff7AutoplayDriver
     {
         Ff7WorldEntity p = state.Player;
         Ff7WorldInputState i = state.Input;
-        StringBuilder key = new($"{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{(includePresentationFacing ? p.Direction : 0)}:{p.TargetDirection}:{(includePresentationFacing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
+        StringBuilder key = new($"{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.ContactModel}:{(includePresentationFacing ? p.Direction : 0)}:{p.TargetDirection}:{(includePresentationFacing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
         foreach (Ff7WorldTerrainReference cached in i.TerrainCache ?? [])
         {
             key.Append($"|{cached.ChunkX},{cached.ChunkZ},{cached.Triangle}");

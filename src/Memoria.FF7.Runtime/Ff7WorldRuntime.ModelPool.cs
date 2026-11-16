@@ -45,6 +45,10 @@ public sealed partial class Ff7WorldRuntime
         }
         freeEntities.Insert(0, removed);
         entities.Remove(model);
+        foreach (Ff7WorldEntity entity in entities.Values.Where(entity => entity.ContactModel == model).ToArray())
+        {
+            UpdateEntity(entity with { ContactModel = null });
+        }
     }
 
     private static void ValidateFreeWorldEntities(Ff7WorldProcess state)

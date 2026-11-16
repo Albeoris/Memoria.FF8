@@ -14,6 +14,8 @@ public sealed partial class Ff7WorldRuntime
     public bool HeldConfirm { get; set; }
     public Func<FieldTextToken, string>? ExpandDialogueToken { get; set; }
 
+    private static Ff7Window CreateNativeWindow() => new(0, 8, 149, 304, 73);
+
     private static IReadOnlyList<ReadOnlyMemory<byte>> ReadTexts(byte[] data)
     {
         if (data.Length < 2)
@@ -61,24 +63,21 @@ public sealed partial class Ff7WorldRuntime
                 {
                     y = 224 - height;
                 }
-                window = (window ?? new(0, 0, 0, 8, 8)) with { X = x, Y = y, Width = width, Height = height };
+                window = (window ?? CreateNativeWindow()) with { X = x, Y = y, Width = width, Height = height };
                 return new(true);
             case WorldOperation.WindowAttributes:
-                if (window is null)
-                {
-                    throw new InvalidDataException("FFVII world dialogue attributes require a configured native window.");
-                }
-                window = window with { Style = unchecked((sbyte)values[0]), Flags = unchecked((short)values[1]) };
+                window = (window ?? CreateNativeWindow()) with { Style = unchecked((sbyte)values[0]), Flags = unchecked((short)values[1]) };
                 return new(true);
             case WorldOperation.Text:
             case WorldOperation.Choice:
                 if (dialogue is not { Completed: false })
                 {
                     int text = unchecked((byte)values[0]);
-                    if (window is null || (uint)text >= Texts.Count)
+                    if ((uint)text >= Texts.Count)
                     {
-                        throw new InvalidDataException("FFVII world dialogue requires a valid window and text index.");
+                        throw new InvalidDataException("FFVII world dialogue requires a valid text index.");
                     }
+                    window ??= CreateNativeWindow();
                     int? first = values.Length == 3 ? unchecked((byte)values[1]) : null;
                     int? last = values.Length == 3 ? unchecked((byte)values[2]) : null;
                     dialogue = new(request.Id, 0, text, first, last, lastSelection, Presentation: new(0, 0, 0));

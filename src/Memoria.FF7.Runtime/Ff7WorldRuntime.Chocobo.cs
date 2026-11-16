@@ -103,16 +103,17 @@ public sealed partial class Ff7WorldRuntime
         {
             AdvanceReleasedChocobo();
         }
-        else if (controlledModel is 0 or 1 or 2 && movementEnabled)
+    }
+
+    internal Ff7WorldEntity[] ReadAutoPlayModelContactSources()
+    {
+        EnsureHealthy();
+        if (controlledModel < 0 || !movementEnabled || Machine.IsUnloading || controlledModel == SubmarineModel && Resources.World == 0)
         {
-            foreach (Ff7WorldEntity bird in ActiveWorldEntities().Where(entity => IsWorldChocobo(entity.Model) || entity.Model is 3 or 5 or 6 or SubmarineModel))
-            {
-                if ((bird.Flags & 8) == 0 && WorldModelsCollide(RequireEntity(controlledModel), bird))
-                {
-                    Machine.StartModel(bird.Model, (input.Held & 32) != 0 ? 4 : 3);
-                }
-            }
+            return [];
         }
+        Ff7WorldEntity player = RequireEntity(controlledModel);
+        return NativeWorldCollisionSources().Where(entity => CanWorldModelsCollide(player, entity) && Machine.IsModelScriptEnabled(entity.Model)).ToArray();
     }
 
     private void CompleteChocoboDismount(Ff7WorldEntity bird, int riderModel)

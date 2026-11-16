@@ -155,7 +155,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (State.Active is { } active && (active.Returned || active.Generation != observation.Generation))
         {
             bool changedField = active.Generation != observation.Generation;
-            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind != Ff7AutoPlayTargetKind.WorldMesh || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
+            bool nativeCompletion = active.Accepted && active.Returned || changedField && (active.TransitionOwned && active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == session.MapId || IsSpatialTransitionCompletion(active, session.MapId) || IsAcceptedWorldDeparture(active, State.WorldDispatch, observation.Generation, session.MapId));
             if (nativeCompletion)
             {
                 CompleteActive(observation, active, changedField);
@@ -332,9 +332,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             string? exit = changedField ? null : observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint;
             bool changedComponent = active.NavigationKey is string source && source != observation.NavigationKey;
-            int completionStory = active.Kind == Ff7AutoPlayTargetKind.WorldMesh && State.WorldDispatch is { DepartureStory: int departureStory } ? departureStory : Story();
+            int completionStory = active.Kind is Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel && State.WorldDispatch is { DepartureStory: int departureStory } ? departureStory : Story();
             bool progressChanged = SourceStoryChanged(active.Kind, active.BeforeStory, completionStory);
-            if (active.Kind == Ff7AutoPlayTargetKind.WorldMesh && State.WorldDispatch?.DepartureStory is not null && State.WorldVisits.TryGetValue(active.VisitId, out Ff7AutoPlayWorldVisitState? worldVisit))
+            if (active.Kind is Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel && State.WorldDispatch?.DepartureStory is not null && State.WorldVisits.TryGetValue(active.VisitId, out Ff7AutoPlayWorldVisitState? worldVisit))
             {
                 worldVisit.SourceProgressEntries.Add(active.EventId + ":" + active.ConditionFingerprint);
             }
@@ -412,7 +412,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     internal static bool ReplanForNewNativeTargets(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
-        if (state.Active is not { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } active || active.Kind is Ff7AutoPlayTargetKind.AutonomousSpatial or Ff7AutoPlayTargetKind.WorldMesh || active.Generation != observation.Generation && active.Kind == Ff7AutoPlayTargetKind.Gateway || active.VisitId != observation.VisitId)
+        if (state.Active is not { Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } active || active.Kind is Ff7AutoPlayTargetKind.AutonomousSpatial or Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel || active.Generation != observation.Generation && active.Kind == Ff7AutoPlayTargetKind.Gateway || active.VisitId != observation.VisitId)
         {
             return false;
         }
@@ -421,7 +421,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         bool departure = active.Kind == Ff7AutoPlayTargetKind.Gateway || active.DestinationField is not null || observation.Events.Any(target => target.Id == active.EventId && target.ChangesField);
         bool newParticipant = observation.CanAcceptInput && active.Generation == observation.Generation && departure && observation.Events.Any(target =>
         {
-            if (!target.AnalysisComplete || target.Id == active.EventId || target.Kind is Ff7AutoPlayTargetKind.Gateway or Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.AutonomousSpatial)
+            if (!target.AnalysisComplete || target.Id == active.EventId || target.Kind is Ff7AutoPlayTargetKind.Gateway or Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel or Ff7AutoPlayTargetKind.AutonomousSpatial)
             {
                 return false;
             }

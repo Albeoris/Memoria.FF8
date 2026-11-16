@@ -25,7 +25,8 @@ public sealed record WorldScriptAnalysis(bool Complete, string? Reason, int Head
     public WorldVariableRead[] Writes { get; init; } = [];
     public bool HasDialogue { get; init; }
     public bool ChangesPersistentState => Writes.Any(write => (write.Opcode & 3) == 0);
-    public bool MayInteract => ChangesPersistentState || HasDialogue;
+    public bool MayChangeControlledModel => Transitions.Any(transition => transition.Operation is WorldOperation.BoardTransport or WorldOperation.SetPlayer or WorldOperation.RestoreAttachedRider);
+    public bool MayInteract => ChangesPersistentState || HasDialogue || MayChangeControlledModel;
     public bool MayEnterField => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition);
     public bool MayReloadWorld => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransitionSelector);
 }
@@ -123,6 +124,49 @@ public sealed partial class WorldMachine
         initial.system.MoveCounter = 0;
         initial.system.Calls.Clear();
         initial.active = initial.executing = initial.system;
+        return AnalyzeDispatch(initial, header, entry, instructionBudget, currentEntryOnly);
+    }
+
+    /// <summary>Inspects an admitted resident model callback using native dispatch ownership and priority on a detached VM. The suspended caller is not part of this entry's effects.</summary>
+    public WorldScriptAnalysis AnalyzeModelDispatch(int model, int eventId, int instructionBudget = 2048, bool currentEntryOnly = false, Func<WorldHostDependency, int?>? readHost = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(model, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(model, 255);
+        ArgumentOutOfRangeException.ThrowIfLessThan(eventId, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(eventId, 255);
+        ArgumentOutOfRangeException.ThrowIfLessThan(instructionBudget, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(instructionBudget, 65536);
+        int header = 0x4000 | (model << 8 & 0x3F00) | eventId;
+        int entry = program.Find(header);
+        Entity? source = models.SingleOrDefault(entity => entity.Model == model && !entity.Detached && !entity.Disabled);
+        if (entry == 0 || source is null)
+        {
+            return new(true, null, header, 0, [], [], [], []) { IsInert = true };
+        }
+        WorldMachine initial = ForkInspection();
+        initial.inspection!.ReadHost = readHost;
+        Entity owner = initial.models.Single(entity => entity.Model == model);
+        int previousPc = owner.Pc;
+        int previousDepth = owner.Calls.Count;
+        try
+        {
+            initial.StartModel(model, eventId);
+        }
+        catch (InvalidDataException error)
+        {
+            return new(false, error.Message, header, entry, [], [], [], []);
+        }
+        if (owner.Pc != entry || owner.Pc == previousPc && owner.Calls.Count == previousDepth)
+        {
+            return new(true, null, header, 0, [], [], [], []) { IsInert = true };
+        }
+        owner.Calls.Clear();
+        initial.active = initial.executing = owner;
+        return AnalyzeDispatch(initial, header, entry, instructionBudget, currentEntryOnly);
+    }
+
+    private WorldScriptAnalysis AnalyzeDispatch(WorldMachine initial, int header, int entry, int instructionBudget, bool currentEntryOnly)
+    {
         Queue<WorldMachine> pending = new();
         pending.Enqueue(initial);
         HashSet<string> visited = new(StringComparer.Ordinal);
@@ -179,6 +223,10 @@ public sealed partial class WorldMachine
                     hostValues[value.Key] = value.Value;
                 }
                 reason ??= observation.Reason;
+                foreach (WorldHostRequest command in observation.Commands.Where(command => command.Command.Operation is WorldOperation.BoardTransport or WorldOperation.SetPlayer or WorldOperation.RestoreAttachedRider))
+                {
+                    transitions.Add(new(command.ProgramCounter, command.Command.Operation, null));
+                }
                 bool handoff = false;
                 foreach (WorldHostRequest command in observation.Commands.Where(command => command.Command.Operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector))
                 {

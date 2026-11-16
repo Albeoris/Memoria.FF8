@@ -12,6 +12,8 @@ public sealed record Ff7WorldEntity(int Model, int X = 0, int Y = 0, int Z = 0, 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? AttachedModel { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ContactModel { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7WorldTerrainReference[]? TerrainCache { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int TiltX { get; init; }

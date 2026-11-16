@@ -48,6 +48,7 @@ public sealed partial class WorldMachine
     }
 
     public long TickCount { get; private set; }
+    public event Action<WorldScriptDispatchObservation>? ScriptDispatched;
     public bool IsUnloading => unloading;
     public byte[] CopyPersistent() => (byte[])persistent.Clone();
 
@@ -168,6 +169,10 @@ public sealed partial class WorldMachine
         {
             return;
         }
+        int sourceModel = executing.Model;
+        int sourceProgramCounter = executing.Pc;
+        int sourcePriority = executing.Priority;
+        int sourceCallDepth = executing.Calls.Count;
         if (entity.Pc != 0)
         {
             if (entity.Calls.Count == 4)
@@ -178,6 +183,7 @@ public sealed partial class WorldMachine
         }
         entity.Pc = address;
         entity.Priority = (byte)priority;
+        ScriptDispatched?.Invoke(new(sourceModel, sourceProgramCounter, entity.Model, header, address, entity.Calls.Count, priority, sourcePriority, sourceCallDepth));
     }
 
     public void Tick()
@@ -205,6 +211,8 @@ public sealed partial class WorldMachine
             if (!entity.Detached)
             {
                 Run(entity);
+                int freeModelIndex = Array.IndexOf(freeModels.ToArray(), entity);
+                host.ModelScriptCompleted(entity.Model, freeModelIndex < 0 ? null : freeModelIndex);
             }
             entity = entity.Next;
         }

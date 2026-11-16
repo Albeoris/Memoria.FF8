@@ -24,6 +24,59 @@ internal static class AutoPlayNavigationRefreshTests
         CheckRetainedWorldFrontier();
         CheckWorldComponentDeferralPersistence();
         CheckOriginalWorldFrontier();
+        CheckOriginalWorldAvailabilityReceipt();
+    }
+
+    private static void CheckOriginalWorldAvailabilityReceipt()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_AVAILABILITY_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        Check(source.World is not null, "The availability receipt fixture requires its native world continuation.");
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded world availability receipt must not create choice checkpoints."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        Ff7AutoPlayActiveEvent? selected = null;
+        bool accepted = false;
+        bool completed = false;
+        controller.Start();
+        for (int step = 0; step < 4096 && controller.Running && !completed; step++)
+        {
+            controller.Advance(1);
+            if (selected is null && policy.State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, EntryAvailabilityFingerprint: not null } candidate && candidate != source.AutoPlay?.Active)
+            {
+                AutoPlayEventCoverage<Ff7AutoPlayDeferral> entry = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == candidate.VisitId).Events.Single(item => item.Event.Id == candidate.EventId);
+                if (!entry.CompletedAvailabilityFingerprints.Contains(candidate.EntryAvailabilityFingerprint))
+                {
+                    selected = candidate;
+                }
+            }
+            if (selected is not null)
+            {
+                if (policy.State.Active is { } current && current.VisitId == selected.VisitId && current.EventId == selected.EventId && current.BeforeWitness == selected.BeforeWitness)
+                {
+                    accepted |= current.Accepted;
+                }
+                accepted |= policy.State.WorldDispatch is { } dispatch && dispatch.VisitId == selected.VisitId && dispatch.EventId == selected.EventId;
+                AutoPlayEventCoverage<Ff7AutoPlayDeferral> receipt = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == selected.VisitId).Events.Single(item => item.Event.Id == selected.EventId);
+                completed = receipt.CompletedAvailabilityFingerprints.Contains(selected.EntryAvailabilityFingerprint!) && receipt.Conditions?.HasExecutedEntry(selected.ConditionFingerprint) == true;
+            }
+        }
+        Check(controller.Failure is null, $"The bounded native world availability receipt failed: {controller.Error}");
+        Check(selected is not null && accepted && completed, $"A newly admitted native world availability did not return its exact entry fingerprint and consumed predicate within the bounded continuation; selected={selected?.EventId}, availability={selected?.EntryAvailabilityFingerprint}, accepted={accepted}, steps={controller.Steps}, status={policy.State.Status}");
+        Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "World availability completion queued a replay or changed its original standalone source.");
+        Ff7AutoPlayState cold = policy.State.Clone();
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> retained = cold.Coverage.Visits.Single(visit => visit.Visit.Key == selected!.VisitId).Events.Single(item => item.Event.Id == selected!.EventId);
+        Check(retained.CompletedAvailabilityFingerprints.Contains(selected!.EntryAvailabilityFingerprint!) && retained.Conditions?.HasExecutedEntry(selected.ConditionFingerprint) == true, "Cold restoration lost the actual native world availability completion receipt.");
+        Console.WriteLine($"PASS original native world handoff/control return records its exact admitted availability and entry predicate after {controller.Steps} ordinary steps; source unchanged.");
     }
 
     private static void CheckWorldComponentDeferralPersistence()

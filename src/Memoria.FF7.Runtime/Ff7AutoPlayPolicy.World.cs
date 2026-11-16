@@ -7,7 +7,8 @@ using Memoria.FF7.Events;
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayWorldChunk(int X, int Z);
-public sealed record Ff7AutoPlayWorldDispatchReceipt(string VisitId, string EventId, int Entry, int CallDepth, long Tick, int[] HandoffOperations, Ff7WorldFieldDeparture? Departure = null, int? DestinationField = null, int? DepartureStory = null);
+public sealed record Ff7AutoPlayWorldOwner(int Model, int Entry, int CallDepth, int Priority);
+public sealed record Ff7AutoPlayWorldDispatchReceipt(string VisitId, string EventId, int Entry, int CallDepth, long Tick, int[] HandoffOperations, Ff7WorldFieldDeparture? Departure = null, int? DestinationField = null, int? DepartureStory = null, int? Model = null, int OwnerPriority = 3, Ff7AutoPlayWorldOwner[]? Owners = null);
 public sealed record Ff7AutoPlayWorldComponentDeferral(string Context, HashSet<Ff7WorldTerrainReference> Faces, string PhysicalFingerprint);
 public sealed class Ff7AutoPlayWorldVisitState
 {
@@ -41,16 +42,21 @@ public sealed partial class Ff7AutoPlayPolicy
         if (observedWorld is not null)
         {
             observedWorld.NativeMeshDispatched -= ObserveWorldDispatch;
+            observedWorld.NativeModelDispatched -= ObserveWorldModelDispatch;
+            observedWorld.Machine.ScriptDispatched -= ObserveWorldOwnedDispatch;
             observedWorld.NativeHostOperationObserved -= ObserveWorldHostOperation;
         }
         observedWorld = world;
         worldCatalogs.Clear();
+        worldModelCatalog.Clear();
         worldChunkQueue.Clear();
         queuedWorldChunks.Clear();
         worldVisit = null;
         if (world is not null)
         {
             world.NativeMeshDispatched += ObserveWorldDispatch;
+            world.NativeModelDispatched += ObserveWorldModelDispatch;
+            world.Machine.ScriptDispatched += ObserveWorldOwnedDispatch;
             world.NativeHostOperationObserved += ObserveWorldHostOperation;
             if (world.Process.Dialogue?.RequestId != State.WorldDialogueOwner?.Id)
             {
@@ -68,7 +74,7 @@ public sealed partial class Ff7AutoPlayPolicy
         ObserveWorldAllocation();
         Ff7WorldRuntime world = session.World!;
         Ff7AutoPlayObservation observation = ObserveWorldPlanner(world);
-        if (State.Active is { Kind: not Ff7AutoPlayTargetKind.WorldMesh } field)
+        if (State.Active is { Kind: not Ff7AutoPlayTargetKind.WorldMesh and not Ff7AutoPlayTargetKind.WorldModel } field)
         {
             if (IsAcceptedWorldArrival(field, world.Process, session.Host.Process.Transition))
             {
@@ -91,11 +97,11 @@ public sealed partial class Ff7AutoPlayPolicy
                 return default;
             }
         }
-        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: true } active && State.WorldDispatch is { } dispatch)
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: true } active && State.WorldDispatch is { } dispatch)
         {
-            WorldEntitySnapshot system = world.Machine.Capture().System;
-            bool returned = HasWorldControlReturned(dispatch, system);
-            if (dispatch.Departure is null && returned)
+            WorldSnapshot execution = world.Machine.Capture();
+            bool returned = HasWorldOwnershipReturned(dispatch, execution);
+            if (dispatch.Departure is null && returned && observation.CanAcceptInput)
             {
                 State.Active = active with { Returned = true };
                 CompleteActive(observation, State.Active, changedField: false);
@@ -132,7 +138,7 @@ public sealed partial class Ff7AutoPlayPolicy
             physicalGuards[key] = ReadWorldGuardFingerprint(visited, key, componentContext, movement.Input.GroundTriangle, physical);
         }
         planner.RefreshUnavailable(observation.VisitId, physicalGuards);
-        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } && State.NavigationGoal is { EventId: string goalEvent } travelGoal && State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == travelGoal.NavigationKey) is { } goalVisit && State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == goalVisit.VisitKey)?.Events.SingleOrDefault(item => item.Event.Id == goalEvent) is { Available: false })
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: false } && State.NavigationGoal is { EventId: string goalEvent } travelGoal && State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == travelGoal.NavigationKey) is { } goalVisit && State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == goalVisit.VisitKey)?.Events.SingleOrDefault(item => item.Event.Id == goalEvent) is { Available: false })
         {
             State.Active = null;
             State.NavigationGoal = null;
@@ -157,36 +163,32 @@ public sealed partial class Ff7AutoPlayPolicy
                 string? incomplete = worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).FirstOrDefault(script => !script.Complete)?.Reason;
                 throw new NotSupportedException(incomplete ?? "No reachable unconsumed field-entry frontier remains in the bounded native world catalog.");
             }
-            if (!TryWorldSource(next.Event.Id, out Ff7AutoPlayWorldChunk chunk, out int script))
+            if (!TryBeginWorldModelEvent(next, observation, physicalGuards))
             {
-                throw new InvalidDataException("The shared world plan has no native mesh/script source identity.");
+                if (!TryWorldSource(next.Event.Id, out Ff7AutoPlayWorldChunk chunk, out int script))
+                {
+                    throw new InvalidDataException("The shared world plan has no native mesh/script source identity.");
+                }
+                ObserveWorldChunk(world, chunk);
+                Ff7AutoPlayWorldScriptObservation target = worldCatalogs[chunk].Scripts.SingleOrDefault(item => item.Script == script) ?? throw new NotSupportedException("The recorded native world dispatch is absent from the current collision allocation.");
+                if (!target.Complete)
+                {
+                    throw new NotSupportedException(target.Reason ?? "The native world frontier has an unsupported source dependency.");
+                }
+                observation = ObserveWorldPlanner(world);
+                string condition = WorldCondition(target);
+                planner.BeginEvent(observation.VisitId, target.Id);
+                State.NavigationGoal = next.Goal;
+                var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
+                string? availability = AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards).Fingerprint;
+                State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, EntryAvailabilityFingerprint: availability, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
             }
-            ObserveWorldChunk(world, chunk);
-            Ff7AutoPlayWorldScriptObservation target = worldCatalogs[chunk].Scripts.SingleOrDefault(item => item.Script == script) ?? throw new NotSupportedException("The recorded native world dispatch is absent from the current collision allocation.");
-            if (!target.Complete)
-            {
-                throw new NotSupportedException(target.Reason ?? "The native world frontier has an unsupported source dependency.");
-            }
-            observation = ObserveWorldPlanner(world);
-            string condition = WorldCondition(target);
-            planner.BeginEvent(observation.VisitId, target.Id);
-            State.NavigationGoal = next.Goal;
-            State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
         }
         Ff7AutoPlayActiveEvent selected = State.Active!;
-        if (!TryWorldSource(selected.EventId, out Ff7AutoPlayWorldChunk source, out int selectedScript))
-        {
-            throw new InvalidDataException("The active world event lacks its native dispatch source.");
-        }
-        if (!worldCatalogs.ContainsKey(source))
-        {
-            ObserveWorldChunk(world, source);
-        }
-        Ff7AutoPlayWorldScriptObservation goal = worldCatalogs[source].Scripts.Single(item => item.Script == selectedScript);
         string selectedGuard = observation.VisitId + ":" + selected.EventId + ":physical";
         // Only this target's actual approach updates its retained physical observation.
         visited.ObservedPhysicalGuards[selectedGuard] = physical;
-        Ff7AutoPlayWorldNavigationResult result = driver.ChooseWorldInput(goal);
+        Ff7AutoPlayWorldNavigationResult result = ChooseSelectedWorldInput(driver, world, selected);
         if (result.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported)
         {
             throw new NotSupportedException(result.Reason ?? "The current native world movement mechanism has no physical preview contract.");
@@ -259,6 +261,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             ObserveWorldChunk(world, new(player.X >> 13, player.Z >> 13));
         }
+        ObserveWorldModelFrontiers(world);
         AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? previous = State.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == worldVisit);
         Dictionary<string, AutoPlayEvent> events = previous?.Events.ToDictionary(item => item.Event.Id, item => item.Event, StringComparer.Ordinal) ?? new(StringComparer.Ordinal);
         foreach (Ff7AutoPlayWorldFrontierCatalog catalog in worldCatalogs.Values)
@@ -272,11 +275,26 @@ public sealed partial class Ff7AutoPlayPolicy
                 }
             }
         }
+        foreach (string id in events.Keys.Where(id => id.StartsWith("model:", StringComparison.Ordinal)).ToArray())
+        {
+            events.Remove(id);
+        }
+        foreach (Ff7AutoPlayWorldModelScriptObservation model in worldModelCatalog.Values)
+        {
+            if (!model.Complete)
+            {
+                throw new NotSupportedException(model.Reason ?? "The offered native world model interaction cannot be analyzed exactly.");
+            }
+            if (model.Analysis.MayInteract || model.Analysis.MayEnterField)
+            {
+                events[model.Id] = new(model.Id, model.Analysis.MayEnterField ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: model.Analysis.ChangesPersistentState, ConditionSignature: WorldModelCondition(model));
+            }
+        }
         planner.Observe(new(worldVisit, vm.ProgramIdentity), events.Values.ToArray());
         ReobserveUnattributedWorldTransfers(State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit), worldCatalogs.Values.SelectMany(catalog => catalog.Scripts), visited.SourceProgressEntries);
         string navigation = worldVisit + ":nav:world";
         planner.ObserveNavigation(worldVisit, navigation, events.Values.ToArray());
-        visited.GlobalReads = visited.GlobalReads.Concat(worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).SelectMany(script => script.Analysis.Reads).Where(read => (read.Opcode & 3) == 0)).Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray();
+        visited.GlobalReads = visited.GlobalReads.Concat(worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).SelectMany(script => script.Analysis.Reads).Concat(worldModelCatalog.Values.SelectMany(model => model.Analysis.Reads)).Where(read => (read.Opcode & 3) == 0)).Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray();
         visited.GlobalFingerprint = world.Machine.ReadPredicateFingerprint(visited.GlobalReads);
         bool ready = world.Process.Initialized && world.Process.MovementEnabled && world.Process.MainState == 1 && world.Process.Dialogue is not { Completed: false };
         return new(worldVisit, vm.ProgramIdentity, session.FieldGeneration, [], ready, true) { NavigationKey = navigation };
@@ -380,7 +398,7 @@ public sealed partial class Ff7AutoPlayPolicy
         planner.Observe(new(active.VisitId, world.Machine.Capture().ProgramIdentity), State.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Select(item => item.Event.Id == id ? item.Event with { ConditionSignature = condition } : item.Event).ToArray());
         planner.BeginEvent(active.VisitId, id);
         State.Active = active with { Accepted = true, ConditionFingerprint = condition, BeforeStory = Story(), BeforeWitness = session.CaptureEventProgressWitness() };
-        State.WorldDispatch = new(active.VisitId, id, dispatch.Entry, dispatch.CallDepth, dispatch.Tick, source.Analysis.Transitions.Select(transition => transition.ProgramCounter).Distinct().ToArray());
+        State.WorldDispatch = new(active.VisitId, id, dispatch.Entry, dispatch.CallDepth, dispatch.Tick, source.Analysis.Transitions.Select(transition => transition.ProgramCounter).Distinct().ToArray(), Owners: [new(-1, dispatch.Entry, dispatch.CallDepth, 3)]);
         Publish();
     }
 
@@ -392,7 +410,7 @@ public sealed partial class Ff7AutoPlayPolicy
             State.WorldDialogueOwner = request;
             changed = true;
         }
-        if (observedWorld is { } world && State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: true } worldActive && State.WorldDispatch is { } dispatch && dispatch.HandoffOperations.Contains(request.ProgramCounter) && request.Command.Operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector && world.Process.FieldDeparture is { } departure)
+        if (observedWorld is { } world && State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: true } worldActive && State.WorldDispatch is { } dispatch && OwnsWorldExecutingModel(dispatch, request.ExecutingModel) && dispatch.HandoffOperations.Contains(request.ProgramCounter) && request.Command.Operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector && world.Process.FieldDeparture is { } departure)
         {
             int? destination = departure.Operation == WorldOperation.FieldTransition ? world.ResolveFieldEntry(departure.Selector).Map : null;
             Ff7AutoPlayWorldDispatchReceipt updated = dispatch with { Departure = departure, DestinationField = destination };
@@ -411,7 +429,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private void ObserveWorldFieldDeparture(Ff7WorldFieldDeparture departure, short story)
     {
-        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: true } active && State.WorldDispatch is { } dispatch && dispatch.EventId == active.EventId && dispatch.Departure == departure)
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: true } active && State.WorldDispatch is { } dispatch && dispatch.EventId == active.EventId && dispatch.Departure == departure)
         {
             State.WorldDispatch = dispatch with { DepartureStory = story };
             Publish();
@@ -420,17 +438,17 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static bool IsAcceptedWorldArrival(Ff7AutoPlayActiveEvent active, Ff7WorldProcess world, FieldTransitionCommand? transition)
     {
-        return active.Kind != Ff7AutoPlayTargetKind.WorldMesh && (active.Accepted && active.TransitionOwned || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == world.EntrySelector && (transition is null || transition.Map == world.EntrySelector));
+        return active.Kind is not (Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel) && (active.Accepted && active.TransitionOwned || active.Kind == Ff7AutoPlayTargetKind.Gateway && active.DestinationField == world.EntrySelector && (transition is null || transition.Map == world.EntrySelector));
     }
 
     internal static bool IsAcceptedWorldDeparture(Ff7AutoPlayActiveEvent active, Ff7AutoPlayWorldDispatchReceipt? receipt, long generation, int field)
     {
-        return active.Kind == Ff7AutoPlayTargetKind.WorldMesh && active.Accepted && active.Generation != generation && receipt is { Departure.Operation: WorldOperation.FieldTransition } && receipt.EventId == active.EventId && receipt.DestinationField == field;
+        return active.Kind is Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel && active.Accepted && active.Generation != generation && receipt is { Departure.Operation: WorldOperation.FieldTransition } && receipt.EventId == active.EventId && receipt.DestinationField == field;
     }
 
     internal static bool HasWorldControlReturned(Ff7AutoPlayWorldDispatchReceipt receipt, WorldEntitySnapshot system)
     {
-        return system.Calls.Length < receipt.CallDepth || receipt.CallDepth == 0 && (system.Priority != 3 || system.ProgramCounter == 0);
+        return system.Calls.Length < receipt.CallDepth || receipt.CallDepth == 0 && (system.Priority != receipt.OwnerPriority || system.ProgramCounter == 0);
     }
 
     internal static string WorldCondition(Ff7AutoPlayWorldScriptObservation source) => source.PredicateFingerprint + ":geometry:" + source.GeometryFingerprint;

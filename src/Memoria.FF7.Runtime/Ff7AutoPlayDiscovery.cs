@@ -16,7 +16,8 @@ public enum Ff7AutoPlayTargetKind
     LineLeave,
     Gateway,
     WorldMesh,
-    AutonomousSpatial
+    AutonomousSpatial,
+    WorldModel
 }
 
 public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7AutoPlayTargetKind Kind, string ConditionFingerprint, bool ChangesStory, Vector3 Position, int? Triangle = null, int? GatewayIndex = null, int? DestinationField = null, Vector3? SegmentStart = null, Vector3? SegmentEnd = null, bool AnalysisComplete = true, string? SupportReason = null, bool MayChangeNavigation = false, string? EntryInputContract = null, bool ChangesField = false)

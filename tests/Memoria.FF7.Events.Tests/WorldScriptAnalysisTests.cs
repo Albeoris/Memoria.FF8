@@ -15,6 +15,9 @@ internal static class WorldScriptAnalysisTests
         ReloadAndAmbientClassification();
         PureFieldTransferProof();
         BoundsAndSourcePreservation();
+        ModelDispatchOwnershipAndAdmission();
+        ModelScriptTailOrdering();
+        AdmittedScriptDispatchReceipts();
         Console.WriteLine("PASS read-only native world mesh CFG, selectors, typed guards, request closure and explicit incomplete dependencies");
     }
 
@@ -202,6 +205,151 @@ internal static class WorldScriptAnalysisTests
         Check(!pure.AnalyzeMeshDispatch(0, 0, 3, instructionBudget: 1).IsPureFieldTransfer, "A truncated CFG inspection fabricated a pure transfer proof.");
         Check(!pure.AnalyzeMeshDispatch(1, 0, 3).IsPureFieldTransfer, "An absent native handler fabricated a pure transfer proof.");
         Check(before == JsonSerializer.Serialize(assignment.Capture()) && bytes.SequenceEqual(persistent) && host.Calls == 0, "Pure-transfer proof inspection changed live execution, variables or host state.");
+    }
+
+    private static void ModelDispatchOwnershipAndAdmission()
+    {
+        ushort[] code = [0, 0x118, 8, 0x110, 1, 0xE0, 0x30C, 0x203, 0x302, 0x203, 0x356, 0x113, 15, 0x201, 16, 0x203, 0x30C, 0x203];
+        PcWorldEvents events = new([new(0x4603, 1), new(0x4604, 8), new(0x4605, 8), new(0x4606, 10), new(0x4607, 11)], code);
+        byte[] persistent = new byte[1280];
+        RejectHost rejected = new();
+        WorldMachine source = new(new(events), persistent, rejected);
+        WorldSnapshot empty = source.Capture();
+        WorldEntitySnapshot resident = new(6, 0, 0, 0, false, 0, []);
+        source.Restore(empty with { Models = [resident] });
+        string before = JsonSerializer.Serialize(source.Capture());
+        WorldScriptAnalysis boarding = source.AnalyzeModelDispatch(6, 3);
+        Check(boarding is { Complete: true, Header: 0x4603, Entry: 1, MayChangeControlledModel: true, MayInteract: true, IsInert: false } && boarding.Transitions.Single().Operation == WorldOperation.BoardTransport, "A resident model boarding callback lost its native header or controlled-model effect.");
+        Check(boarding.Writes.SequenceEqual(new[] { new WorldVariableRead(0x118, 8) }), "Model analysis lost the typed persistent write.");
+        Check(before == JsonSerializer.Serialize(source.Capture()) && persistent.All(value => value == 0) && rejected.Calls == 0, "Model inspection changed the resident VM, persistent bytes or live host.");
+        WorldScriptAnalysis select = source.AnalyzeModelDispatch(6, 4);
+        Check(select.Complete && select.MayChangeControlledModel && select.MayInteract && !select.ChangesPersistentState && select.Transitions.Single().Operation == WorldOperation.SetPlayer, "A controlled-model-only callback was omitted from interaction discovery.");
+        Check(source.AnalyzeModelDispatch(6, 6) is { Complete: false, Reason: not null }, "An unsupported model instruction was represented as a complete callback.");
+        Check(source.AnalyzeModelDispatch(6, 3, instructionBudget: 1) is { Complete: false, Reason: not null }, "Model inspection ignored its instruction bound.");
+        WorldScriptAnalysis unknown = source.AnalyzeModelDispatch(6, 7);
+        Check(!unknown.Complete && unknown.HostReads.Contains(new(WorldHostDependencyKind.Special, 6, 15)), "A model-owned unresolved host dependency lost its owner or fabricated completeness.");
+        WorldScriptAnalysis projected = source.AnalyzeModelDispatch(6, 7, currentEntryOnly: true, readHost: dependency => dependency == new WorldHostDependency(WorldHostDependencyKind.Special, 6, 15) ? 6 : null);
+        Check(projected.Complete && projected.IsInert && !projected.MayChangeControlledModel, "A concrete model guard ignored its owned read-only host projection.");
+        Check(source.AnalyzeModelDispatch(7, 3) is { Complete: true, Entry: 0, IsInert: true }, "A missing resident owner fabricated a model callback.");
+        foreach (WorldEntitySnapshot unavailable in new[] { resident with { ScriptDisabled = true }, resident with { Detached = true } })
+        {
+            source.Restore(empty with { Models = [unavailable] });
+            Check(source.AnalyzeModelDispatch(6, 3) is { Complete: true, Entry: 0, IsInert: true }, "A disabled or detached resident admitted a model callback.");
+        }
+        source.Restore(empty with { Models = [resident with { ProgramCounter = 8, Priority = 1 }] });
+        before = JsonSerializer.Serialize(source.Capture());
+        Check(source.AnalyzeModelDispatch(6, 3) is { Complete: true, Entry: 0, IsInert: true }, "A busy model admitted a same-priority contact callback.");
+        Check(source.AnalyzeModelDispatch(6, 4) is { Complete: true, Entry: 8, MayChangeControlledModel: true }, "A higher-priority model callback was rejected or followed its suspended caller.");
+        Check(before == JsonSerializer.Serialize(source.Capture()), "Model preemption analysis changed the live call stack.");
+        source.Restore(empty with { Models = [resident with { ProgramCounter = 8, Priority = 1, Calls = [new(8, 0, 1), new(8, 0, 1), new(8, 0, 1), new(8, 0, 1)] }] });
+        Check(source.AnalyzeModelDispatch(6, 5) is { Complete: false, Reason: not null }, "An unsupported model call-stack admission was silently accepted.");
+        RecordingHost nativeHost = new();
+        WorldMachine native = new(new(events), new byte[1280], nativeHost);
+        native.Restore(empty with { Models = [resident with { ProgramCounter = 8, Priority = 1 }] });
+        native.StartModel(6, 4);
+        WorldEntitySnapshot admitted = native.Capture().Models.Single();
+        Check(admitted is { ProgramCounter: 8, Priority: 2 } && admitted.Calls.Length == 1, "The model analysis priority assumption differs from native dispatch.");
+        native.Restore(empty with { Models = [resident] });
+        native.StartModel(6, 3);
+        native.Tick();
+        Check(nativeHost.Requests.Single(request => request.Command.Operation == WorldOperation.BoardTransport).ActiveModel == 6, "The analyzed boarding callback disagrees with native model ownership.");
+    }
+
+    private static void ModelScriptTailOrdering()
+    {
+        ushort[] code = [0, 0x32E, 0x203, 0x30C, 0x203];
+        PcWorldEvents events = new([new(0x4603, 3)], code);
+        foreach (int sourcePc in new[] { 0, 1 })
+        {
+            ModelTailHost host = new();
+            WorldMachine machine = new(new(events), new byte[1280], host);
+            host.Machine = machine;
+            WorldSnapshot empty = machine.Capture();
+            machine.Restore(empty with { Models = [new(0, sourcePc, 0, 0, false, 0, []), new(6, 0, 0, 0, false, 0, [])] });
+            machine.Tick();
+            Check(host.Tails.SequenceEqual(new (int Model, int? FreeIndex)[] { (0, null), (6, null) }), "A native idle or waiting model omitted its per-owner tail, or a system tail was synthesized.");
+            Check(host.Operations.SequenceEqual(new[] { "tail:0", "board:6", "tail:6" }), "A contact requested after a source model did not execute on a later native owner in the same tick.");
+            Check(sourcePc == 0 || machine.Capture().Models.Single(model => model.Model == 0).ProgramCounter == 1, "The tail hook advanced an unacknowledged native wait.");
+        }
+        ModelTailHost deletedHost = new() { DispatchContact = false };
+        ushort[] deletedCode = [0, 0x31A, 0x110, 6, 0x330, 0x203];
+        WorldMachine deleted = new(new(new([], deletedCode)), new byte[1280], deletedHost);
+        deletedHost.Machine = deleted;
+        WorldSnapshot initial = deleted.Capture();
+        deleted.Restore(initial with { Models = [new(0, 1, 0, 0, false, 0, []), new(6, 0, 0, 0, false, 0, [])] });
+        deleted.Tick();
+        Check(deletedHost.Tails.SequenceEqual(new (int Model, int? FreeIndex)[] { (0, 0) }) && deleted.Capture().Models.Single().Model == 6, "The native model tail used the selected actor instead of its freed execution owner or changed deletion iteration.");
+    }
+
+    private sealed class ModelTailHost : IWorldHost
+    {
+        public WorldMachine Machine { get; set; } = null!;
+        public bool DispatchContact { get; init; } = true;
+        public List<(int Model, int? FreeIndex)> Tails { get; } = [];
+        public List<string> Operations { get; } = [];
+
+        public void ModelScriptCompleted(int model, int? freeModelIndex = null)
+        {
+            Tails.Add((model, freeModelIndex));
+            Operations.Add($"tail:{model}");
+            if (DispatchContact && model == 0)
+            {
+                Machine.StartModel(6, 3);
+            }
+        }
+
+        public WorldHostReply Execute(WorldHostRequest request)
+        {
+            if (request.Command.Operation == WorldOperation.BoardTransport)
+            {
+                Operations.Add($"board:{request.ActiveModel}");
+            }
+            return new(request.Command.Operation != WorldOperation.WaitWindow);
+        }
+
+        public int ReadSpecial(int selector, int activeModel) => throw new NotSupportedException();
+    }
+
+    private static void AdmittedScriptDispatchReceipts()
+    {
+        ushort[] code = [0, 0x110, 0, 0x214, 0x203, 0x110, 3, 0x325, 0x203, 0x203];
+        PcWorldEvents events = new([new(0x4604, 1), new(0x4010, 5), new(0x4002, 9)], code);
+        RecordingHost host = new();
+        WorldMachine machine = new(new(events), new byte[1280], host);
+        WorldSnapshot empty = machine.Capture();
+        machine.Restore(empty with { Models = [new(0, 0, 0, 0, false, 0, []), new(6, 1, 0, 2, false, 0, [new(4, 0, 0)])] });
+        List<WorldScriptDispatchObservation> receipts = [];
+        machine.ScriptDispatched += receipts.Add;
+        machine.Tick();
+        Check(receipts.SequenceEqual(new[] { new WorldScriptDispatchObservation(6, 4, 0, 0x4010, 5, 0, 3, 2, 1) }), "A real opcode214 model request lost its executing source frame, next PC, target header or admitted priority.");
+        Check(host.Requests.Count == 0, "A later source owner made an already visited descendant execute during the same tick.");
+        machine.StartModel(6, 4);
+        machine.StartModel(6, 7);
+        Check(receipts.Count == 1, "An equal-priority rejection or absent native header emitted an admitted receipt.");
+        WorldSnapshot pending = machine.Capture();
+        RecordingHost coldHost = new();
+        WorldMachine cold = new(new(events), machine.CopyPersistent(), coldHost);
+        cold.Restore(JsonSerializer.Deserialize<WorldSnapshot>(JsonSerializer.Serialize(pending))!);
+        machine.Tick();
+        cold.Tick();
+        Check(host.Requests.Single().Command.Operation == WorldOperation.Text && host.Requests.Single().ActiveModel == 0, "The admitted descendant did not execute on its native owner in the next tick.");
+        Check(receipts.Any(receipt => receipt.TargetModel == 0 && receipt.Header == 0x4002 && receipt.Priority == 0), "Native default callback admission did not retain its distinguishable zero priority.");
+        Check(JsonSerializer.Serialize(machine.Capture()) == JsonSerializer.Serialize(cold.Capture()) && JsonSerializer.Serialize(host.Requests) == JsonSerializer.Serialize(coldHost.Requests), "Dispatch observation changed legacy cold execution or host operations.");
+        int count = receipts.Count;
+        machine.AnalyzeModelDispatch(6, 4);
+        Check(receipts.Count == count, "Detached model analysis emitted a live native dispatch receipt.");
+        machine.StartModel(0, 16);
+        WorldScriptDispatchObservation preempt = receipts[^1];
+        Check(preempt is { TargetModel: 0, Header: 0x4010, Priority: 3, CallDepth: 1 }, "An admitted preemption receipt lost its suspended caller depth.");
+        RecordingHost initialHost = new();
+        WorldMachine initial = new(new(new([new(0, 9), new(3, 9), new(4, 9)], code)), new byte[1280], initialHost);
+        WorldScriptDispatchObservation? initialization = null;
+        initial.ScriptDispatched += receipt => initialization = receipt;
+        initial.StartSystem(0);
+        Check(initialization is { SourceModel: -1, SourceProgramCounter: 0, TargetModel: -1, Header: 0, Entry: 9 }, "Initial dispatch did not report its ordinary system owner safely.");
+        initial.StartSystem(3);
+        initial.StartSystem(4);
+        Check(initialization is { SourceModel: -1, SourceProgramCounter: 9, SourcePriority: 1, SourceCallDepth: 1, TargetModel: -1, Priority: 2, CallDepth: 2 }, "Same-owner preemption captured the mutated target frame instead of the native caller frame.");
     }
 
     private static WorldMachine Machine(ushort[] code, byte[] persistent, IWorldHost host)

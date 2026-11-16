@@ -199,7 +199,7 @@ public sealed class Ff7AutoPlayChoiceWorkflow
             {
                 return Hash(new { world.Vm.ProgramIdentity, owner.ExecutingModel, owner.ActiveModel, owner.ProgramCounter, First = first, Last = last });
             }
-            if (state.Active?.Kind == Ff7AutoPlayTargetKind.WorldMesh && state.Choice?.OwnerIdentity is string retained)
+            if (state.Active?.Kind is Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel && state.Choice?.OwnerIdentity is string retained)
             {
                 return retained;
             }

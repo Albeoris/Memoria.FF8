@@ -87,11 +87,17 @@ public sealed record WorldHostRequest(long Id, int ExecutingModel, int ActiveMod
     public int? FreeModelIndex { get; init; }
 }
 public sealed record WorldHostReply(bool Completed, int Value = 0, int? ActiveModel = null);
+/// <summary>An admitted native script request. SourceProgramCounter is the executing caller's next PC captured before target admission.</summary>
+public sealed record WorldScriptDispatchObservation(int SourceModel, int SourceProgramCounter, int TargetModel, int Header, int Entry, int CallDepth, int Priority, int SourcePriority = 0, int SourceCallDepth = 0);
 
 public interface IWorldHost
 {
     WorldHostReply Execute(WorldHostRequest request);
     int ReadSpecial(int selector, int activeModel);
+    void ModelScriptCompleted(int model, int? freeModelIndex = null)
+    {
+    }
+
     int ReadModelDistance(int activeModel, int targetModel) => throw new NotSupportedException("The FFVII world host does not support model distances.");
     int ReadStoredPositionDistance(int activeModel, int slot) => throw new NotSupportedException("The FFVII world host does not support stored-position distances.");
     int ReadZoneDistance(int activeModel, int zone) => throw new NotSupportedException("The FFVII world host does not support zone distances.");
