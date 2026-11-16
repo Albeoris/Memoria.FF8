@@ -183,7 +183,11 @@ public sealed class NativeBattleEffect290PresentationTests
     internal static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT290_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original109 component source.");
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+        return PrepareFromEntry(game, assets, output, NativeBattleEffectFamilyRunner.LoadSnapshot(path));
+    }
+
+    internal static BattleSnapshot PrepareFromEntry(GameAssets game, BattleAssets assets, string output, BattleSnapshot original)
+    {
         Assert.Equal(431, original.Definition.EncounterId);
         Assert.Equal(126, original.Definition.StageId);
         Assert.Equal(0, original.Frame);

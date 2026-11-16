@@ -126,7 +126,11 @@ public sealed class NativeBattleEffect64PresentationTests
     private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT64_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the concrete original allocated formation511 source for effect64.");
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+        return PrepareFromEntry(game, assets, output, NativeBattleEffectFamilyRunner.LoadSnapshot(path));
+    }
+
+    internal static BattleSnapshot PrepareFromEntry(GameAssets game, BattleAssets assets, string output, BattleSnapshot original)
+    {
         Assert.Equal(511, original.Definition.EncounterId);
         Assert.Equal(142, original.Definition.StageId);
         BattleSession restored = BattleSession.Restore(original);

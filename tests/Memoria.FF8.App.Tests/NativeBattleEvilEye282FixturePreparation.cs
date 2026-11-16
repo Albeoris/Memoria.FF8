@@ -158,7 +158,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
             BattleEnemyPlacement source = Assert.Single(formation.Slots, slot => slot.Slot == companion.SceneSlot);
             Assert.Equal(source.NativePosition, ReadOriginalModelCell(graphics, companionIndex).Transform!.Position28);
         }
-        BattleSnapshot restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(ready))!).Capture();
+        BattleSnapshot restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready)).Capture();
         Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(restored));
         Save("allocation-ready", ready);
         File.WriteAllText(Path.Combine(output, "allocation-receipt.json"), JsonSerializer.Serialize(new { Scenario = "Controlled original scene-prototype allocation and actual102/113 activation; no ordinary three-death admission claim", FormationId = formation.Id, formation.StageId, Prototype = placement, AllocationId = allocation.Id, allocation.SceneSlot, CasterActorIndex = actualIndex, EntryCallbacks = entryCallbacks, AllocationCallbacks = allocationCallbacks, ResolvedLevel = activeParticipant.ResolvedLevel, PoseBones = pose.BoneCount, SelectedBoneIndex = 13, CurrentBone13 = selectedBone, CurrentWorld = model.GeometryWorldMatrix, CompanionModels = originalCompanions.Select(actor => actor.ModelId).ToArray(), Events = session.Events.Where(entry => entry.Kind is "NativeSpawn" or "Activated").ToArray() }));

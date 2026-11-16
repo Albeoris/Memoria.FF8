@@ -21,7 +21,7 @@ internal static class NativeBattleLifecycleComponentSources
         }
         BattleSnapshot prepared = effect switch
         {
-            17 or 18 => PrepareTower(effect, gameDirectory, intermediate),
+            17 or 18 => NativeBattleTowerControlFixtureExportTests.Prepare(gameDirectory, intermediate)[effect],
             110 or 248 => PrepareControl(effect, gameDirectory),
             _ => PrepareEnemy(effect, gameDirectory, intermediate)
         };
@@ -33,26 +33,6 @@ internal static class NativeBattleLifecycleComponentSources
             }
         }
         return prepared;
-    }
-
-    private static BattleSnapshot PrepareTower(ushort effect, string gameDirectory, string output)
-    {
-        string[] variables = ["MEMORIA_FF8_GAME_DIR", "MEMORIA_FF8_TOWER_CONTROL_EXPORT"];
-        string?[] previous = variables.Select(Environment.GetEnvironmentVariable).ToArray();
-        Environment.SetEnvironmentVariable(variables[0], gameDirectory);
-        Environment.SetEnvironmentVariable(variables[1], output);
-        try
-        {
-            new NativeBattleTowerControlFixtureExportTests().Export_sparse_original_tower_control17_and18_components();
-            return NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, $"control{effect}-queued-action104.battle.json"));
-        }
-        finally
-        {
-            for (int index = 0; index < variables.Length; index++)
-            {
-                Environment.SetEnvironmentVariable(variables[index], previous[index]);
-            }
-        }
     }
 
     private static BattleSnapshot PrepareEnemy(ushort effect, string gameDirectory, string output)

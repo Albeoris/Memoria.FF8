@@ -38,7 +38,7 @@ internal static class NativeBattleActivatedComponentSources
         BattleSnapshot carrier;
         if (carrierEffect == 303)
         {
-            carrier = PrepareDeclared(carrierOwner, game, assets, carrierRequest, gameDirectory, carrierOutput, null);
+            carrier = PrepareDeclared(carrierOwner, game, assets, carrierRequest, carrierOutput, null);
         }
         else
         {
@@ -72,9 +72,7 @@ internal static class NativeBattleActivatedComponentSources
         {
             throw new InvalidDataException("The completed original carrier and selected focal component have different formations.");
         }
-        string sourcePath = Path.Combine(carrierOutput, "carrier-ready.battle.json");
-        File.WriteAllText(sourcePath, JsonSerializer.Serialize(completed));
-        BattleSnapshot prepared = PrepareDeclared(focalOwner, game, assets, focalRequest, gameDirectory, focalOutput, sourcePath);
+        BattleSnapshot prepared = PrepareDeclared(focalOwner, game, assets, focalRequest, focalOutput, completed);
         File.WriteAllText(Path.Combine(output, "carrier-preparation.json"), JsonSerializer.Serialize(new { Scope = "Original-resource controlled component after completed original carrier; no ordinary trigger or formula admission", CarrierEffect = carrierEffect, CarrierOwner = carrierOwner.Name, CarrierCallbacks = callbacks + 1, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback, completed.Definition.EncounterId, completed.Definition.StageId, FocalEffect = effect, FocalOwner = focalOwner.Name, FocalRequest = focalRequest }));
         foreach (string directory in new[] { carrierOutput, focalOutput })
         {
@@ -92,18 +90,18 @@ internal static class NativeBattleActivatedComponentSources
         return (NativeEffectFixtureRequest)(Invoke(selector, assets, effect) ?? throw new InvalidDataException("The original component selector returned no request."));
     }
 
-    private static BattleSnapshot PrepareDeclared(Type owner, GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request, string gameDirectory, string output, string? sourcePath)
+    private static BattleSnapshot PrepareDeclared(Type owner, GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request, string output, BattleSnapshot? carrier)
     {
+        if (carrier is not null)
+        {
+            MethodInfo prepareCarrier = owner.GetMethod("PrepareFromCarrier", BindingFlags.Static | BindingFlags.NonPublic) ?? throw new MissingMethodException(owner.FullName, "PrepareFromCarrier");
+            return (BattleSnapshot)(Invoke(prepareCarrier, game, assets, request, output, carrier) ?? throw new InvalidDataException("The original component carrier returned no prepared source."));
+        }
         MethodInfo prepare = owner.GetMethod("PrepareDeclaredSource", BindingFlags.Static | BindingFlags.NonPublic) ?? throw new MissingMethodException(owner.FullName, "PrepareDeclaredSource");
         Dictionary<string, string?> selected = new()
         {
-            ["MEMORIA_FF8_GAME_DIR"] = gameDirectory,
             [$"MEMORIA_FF8_EFFECT{request.Effect}_EVIDENCE"] = output
         };
-        if (sourcePath is not null)
-        {
-            selected[$"MEMORIA_FF8_EFFECT{request.Effect}_SOURCE_SNAPSHOT"] = sourcePath;
-        }
         Dictionary<string, string?> previous = selected.ToDictionary(item => item.Key, item => Environment.GetEnvironmentVariable(item.Key));
         try
         {

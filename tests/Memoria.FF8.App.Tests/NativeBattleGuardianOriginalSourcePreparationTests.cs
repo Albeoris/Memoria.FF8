@@ -17,11 +17,15 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         string? baselinePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_SOURCE_BASELINE");
         string? outputRoot = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_SOURCE_OUTPUT");
         Assert.SkipUnless(directory is not null && baselinePath is not null && outputRoot is not null, "Select installed resources, the original formation795 baseline and a distinct source output root.");
-        string output = Path.Combine(outputRoot!, $"effect{effect}-actual-source001");
+        _ = Prepare(directory!, outputRoot!, NativeBattleEffectFamilyRunner.LoadSnapshot(baselinePath!), effect, slot, pc, actionId, sequence);
+    }
+
+    internal static BattleSnapshot Prepare(string directory, string outputRoot, BattleSnapshot baseline, int effect, int slot, int pc, int actionId, int sequence)
+    {
+        string output = Path.Combine(outputRoot, $"effect{effect}-actual-source001");
         Assert.False(Directory.Exists(output), "Preserve existing standalone sources by selecting a distinct output root.");
         Directory.CreateDirectory(output);
         using GameAssets game = new(directory!);
-        BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(baselinePath!);
         Assert.Equal(795, baseline.Definition.EncounterId);
         Assert.Equal(68, baseline.Definition.StageId);
         GameSession context = new(GameSession.CreateColdProcess().State with
@@ -129,6 +133,8 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         Save("queued-action104", queued);
         File.WriteAllText(Path.Combine(output, "original-formation.json"), JsonSerializer.Serialize(formation));
         File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.NativeGraphics.Callback }));
+
+        return queued;
 
         bool Queued()
         {

@@ -130,7 +130,7 @@ internal static class NativeBattleEffect324FixturePreparation
         Assert.NotNull(model.ActiveResourceRow100);
         Assert.Equal(placement.NativePosition, model.Transform!.Position28);
         Assert.Equal((byte)16, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(83, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 225 && action.MagicId == 324)));
-        BattleSnapshot restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(ready))!).Capture();
+        BattleSnapshot restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready)).Capture();
         Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(restored));
         Save("allocation-ready", ready);
         File.WriteAllText(Path.Combine(output, "allocation-receipt.json"), JsonSerializer.Serialize(new { Scenario = "Controlled original scene-prototype allocation and actual102/113 activation; no ordinary twenty-defeat admission claim", FormationId = formation.Id, formation.StageId, Prototype = placement, AllocationId = allocation.Id, allocation.SceneSlot, CasterActorIndex = actualIndex, EntryCallbacks = entryCallbacks, AllocationCallbacks = allocationCallbacks, ResolvedLevel = activeParticipant.ResolvedLevel, PoseBones = pose.BoneCount, Events = session.Events.Where(entry => entry.Kind is "NativeSpawn" or "Activated").ToArray() }));

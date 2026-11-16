@@ -83,8 +83,7 @@ internal static class NativeBattleRemainingComponentSources
     private static BattleSnapshot PrepareAllocation(string gameDirectory, string output)
     {
         string directory = Path.Combine(output, "allocation");
-        WithEnvironment("MEMORIA_FF8_ALLOCATED269_FIXTURE_OUTPUT", directory, () => new NativeBattleAllocated269FixtureExportTests().Export_original269_queued_component_from_actual_native94_allocation());
-        return NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(directory, "queued-action104.battle.json"));
+        return NativeBattleAllocated269FixtureExportTests.Prepare(gameDirectory, directory);
     }
 
     private static BattleSnapshot PrepareTrio(GameAssets game, BattleAssets assets, string output)
@@ -99,26 +98,9 @@ internal static class NativeBattleRemainingComponentSources
     {
         NativeEffectFixtureRequest request = new("original-guardian-entry", 218, 236, 330, 3, 1600, 240) { EncounterId = 795, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true };
         string fixture = Path.Combine(output, "entry");
-        _ = Export(request, gameDirectory, fixture, "after-entry");
+        BattleSnapshot entry = Export(request, gameDirectory, fixture, "after-entry");
         string original = Path.Combine(output, "original");
-        WithEnvironment("MEMORIA_FF8_GUARDIAN_SOURCE_BASELINE", Path.Combine(fixture, "after-entry.battle.json"), () =>
-            WithEnvironment("MEMORIA_FF8_GUARDIAN_SOURCE_OUTPUT", original, () =>
-                new NativeBattleGuardianOriginalSourcePreparationTests().Original_self_selector_queues_the_selected_component_through_native_admission(218, 2, 68, 330, 53)));
-        return NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(original, "effect218-actual-source001", "queued-action104.battle.json"));
-    }
-
-    private static void WithEnvironment(string name, string value, Action action)
-    {
-        string? previous = Environment.GetEnvironmentVariable(name);
-        try
-        {
-            Environment.SetEnvironmentVariable(name, value);
-            action();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(name, previous);
-        }
+        return NativeBattleGuardianOriginalSourcePreparationTests.Prepare(gameDirectory, original, entry, 218, 2, 68, 330, 53);
     }
 
     private static BattleSnapshot PrepareDraw(GameAssets game, BattleAssets assets)

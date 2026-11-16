@@ -15,13 +15,17 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ALLOCATED269_FIXTURE_OUTPUT");
         Assert.SkipUnless(directory is not null && output is not null, "Select original resources and a distinct allocation fixture output.");
+        _ = Prepare(directory!, output!);
+    }
+
+    internal static BattleSnapshot Prepare(string directory, string output)
+    {
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         NativeEffectFixtureRequest baseline = new("allocated269-baseline", 45, 8, 84, 0, 1200, 240) { EncounterId = 436, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0 };
-        _ = NativeBattleEffectFixtureExporter.Export(baseline, directory!, Path.Combine(output!, "fixture"));
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "fixture", "before-entry.battle.json"));
+        BattleSnapshot original = NativeBattleEffectFixtureExporter.Prepare(baseline, directory, Path.Combine(output, "fixture"), "before-entry").Snapshot;
         (BattleSnapshot ready, int caster) = NativeBattleEvilEye282FixturePreparation.Prepare(game, assets, original, output!);
         Assert.InRange(caster, 3, 6);
         NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The allocation requires its actual graphics owner.");
@@ -48,13 +52,15 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         BattleSnapshot queued = ready with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         string readyPath = Save("after-entry", ready);
         string queuedPath = Save("queued-action104", queued);
-        BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(queuedPath))!);
+        BattleSession cold = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(queued));
         Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(cold.Capture()));
         Assert.Null(cold.NativeGraphics!.OriginalEffect);
         Assert.Equal((byte)caster, ReadOriginalModelOperand(packets.ModelAliases, packets.ReadHeader(header).Source));
         Assert.Equal((byte)15, packets.ReadHeader(header).Sequence);
         Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
         File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "prepared", Effect = 269, Encounter = 436, Stage = 125, OriginalModel = 94, NativeModel = ReadOriginalModelCell(graphics, caster).ModelId4, ActualCaster = caster, allocation.SceneSlot, Command = action.Command, Action = action.ActionId, Sequence = sequence, HeaderIndex = header.Ordinal, header = packets.ReadHeader(header), Contact = packets.ReadContact(new BattleContactOccurrence(0)), DeclaredContactValue = 7, EffectCallbacks = 0, ready.Frame, NativeCallback = graphics.Callback, ReadyPath = readyPath, ReadySha256 = Hash(readyPath), QueuedPath = queuedPath, QueuedSha256 = Hash(queuedPath), Scope = "Actual existing native prototype allocation102/activation113; no death-callback or gameplay eligibility claim; no269 callback executed" }));
+
+        return queued;
 
         string Save(string name, BattleSnapshot snapshot)
         {

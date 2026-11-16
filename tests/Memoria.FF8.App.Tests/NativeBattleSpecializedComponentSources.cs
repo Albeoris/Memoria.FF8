@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -44,18 +42,11 @@ internal static class NativeBattleSpecializedComponentSources
             _ => new("original511-entry", 207, 8, 365, 0, 1200, 240) { EncounterId = 511, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true }
         };
         string entryOutput = Path.Combine(output, "entry");
-        NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, gameDirectory, entryOutput);
-        if (exported.Status == "blocked")
-        {
-            throw new InvalidDataException($"Original component entry failed at {exported.Boundary}: {exported.FirstBlocker}");
-        }
-        string sourcePath = Path.Combine(entryOutput, "after-entry.battle.json");
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath);
+        BattleSnapshot source = NativeBattleEffectFixtureExporter.Prepare(request, gameDirectory, entryOutput, "after-entry").Snapshot;
         if (effect is 64 or 66 or 80)
         {
             string allocationOutput = Path.Combine(output, "allocation");
             source = NativeBattleEffect80FixturePreparation.Prepare(game, assets, source, allocationOutput).Snapshot;
-            sourcePath = Path.Combine(allocationOutput, "allocation-ready.battle.json");
         }
         if (effect == 316)
         {
@@ -70,22 +61,6 @@ internal static class NativeBattleSpecializedComponentSources
             80 => typeof(NativeBattleEffect80PresentationTests),
             _ => throw new InvalidOperationException("A supported component has no source preparation owner.")
         };
-        MethodInfo prepare = owner.GetMethod("PrepareSource", BindingFlags.Static | BindingFlags.NonPublic) ?? throw new MissingMethodException(owner.FullName, "PrepareSource");
-        string variable = $"MEMORIA_FF8_EFFECT{effect}_SOURCE_SNAPSHOT";
-        string? previous = Environment.GetEnvironmentVariable(variable);
-        Environment.SetEnvironmentVariable(variable, sourcePath);
-        try
-        {
-            return (BattleSnapshot)(prepare.Invoke(null, [game, assets, output]) ?? throw new InvalidDataException("The original component preparation returned no standalone source."));
-        }
-        catch (TargetInvocationException error) when (error.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(error.InnerException).Throw();
-            throw;
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(variable, previous);
-        }
+        return NativeBattleExistingComponentSourceBridge.PrepareFromEntry(owner, game, assets, output, source);
     }
 }

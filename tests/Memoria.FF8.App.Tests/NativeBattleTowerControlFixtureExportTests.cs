@@ -15,6 +15,11 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TOWER_CONTROL_EXPORT");
         Assert.SkipUnless(directory is not null && output is not null, "Select original resources and a distinct standalone export directory.");
+        _ = Prepare(directory!, output!);
+    }
+
+    internal static IReadOnlyDictionary<ushort, BattleSnapshot> Prepare(string directory, string output)
+    {
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
@@ -116,6 +121,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         ready = session.Capture();
         AssertReady(ready);
         SaveCold("ready", ready);
+        Dictionary<ushort, BattleSnapshot> sources = [];
         foreach (ushort effect in new ushort[] { 17, 18 })
         {
             NativeBattleEffectBinding binding = ready.Definition.NativeEffectCatalog[effect - 1];
@@ -135,8 +141,11 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             Assert.Equal(JsonSerializer.Serialize(ready.NativeCrtRandom), JsonSerializer.Serialize(queued.NativeCrtRandom));
             Assert.Equal(JsonSerializer.Serialize(ready.NativeGlobalRandom), JsonSerializer.Serialize(queued.NativeGlobalRandom));
             SaveCold("control" + effect + "-queued-action104", queued);
+            sources.Add(effect, queued);
         }
         File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "prepared", Formation = 29, Stage = 3, RetiredModel = 74, RetainedDormantModel = 73, AllocatedModel = 91, CasterActorIndex = 5, CasterId = allocated.Id, allocation, EntryCallbacks = entryCallbacks, AllocationCallbacks = allocationCallbacks, ExpectedContactTransitions17 = 0, ExpectedContactTransitions18 = 0, Scenario = "Declared sparse original tower allocation and unused seven-HP party0 contact; native control252/action1; no ordinary AI, story trigger or kernel action mapping claim", QueuedNextCheck = "Deferred to the existing complete selected runner so export does not enter or advance either effect" }));
+
+        return sources;
 
         void AssertReady(BattleSnapshot snapshot)
         {
@@ -168,7 +177,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         void SaveCold(string name, BattleSnapshot snapshot)
         {
             string json = JsonSerializer.Serialize(snapshot);
-            BattleSnapshot loaded = JsonSerializer.Deserialize<BattleSnapshot>(json)!;
+            BattleSnapshot loaded = NativeBattleStorageSnapshots.Capture(snapshot);
             Assert.Equal(json, JsonSerializer.Serialize(BattleSession.Restore(loaded).Capture()));
             File.WriteAllText(Path.Combine(output!, name + ".battle.json"), json);
         }
@@ -177,7 +186,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         {
             SaveCold(name, snapshot);
             BattleSession direct = BattleSession.Restore(snapshot);
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+            BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot));
             direct.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(restored.Capture()));

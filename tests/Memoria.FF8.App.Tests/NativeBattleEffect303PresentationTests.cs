@@ -39,9 +39,7 @@ public sealed class NativeBattleEffect303PresentationTests
     {
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT303_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original effect303 component.");
         // Entry preparation loads the original complete pair. The declared component header below selects the actual latent recipient.
-        NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request with { TargetActorIndex = 0 }, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
-        Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleEffectFixtureExporter.Prepare(request with { TargetActorIndex = 0 }, game.GameDirectory, Path.Combine(output, "fixture")).Snapshot;
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([303])[302];
         Assert.Equal(NativeBattleEffect303Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleEffect303Profile.Initializer, binding.Initializer);

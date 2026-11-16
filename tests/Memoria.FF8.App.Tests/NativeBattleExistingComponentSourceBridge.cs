@@ -18,7 +18,6 @@ internal static class NativeBattleExistingComponentSourceBridge
         }
         Type type = typeof(NativeBattleExistingComponentSourceBridge).Assembly.GetType($"Memoria.FF8.App.Tests.NativeBattleEffect{effect}PresentationTests", true)!;
         MethodInfo requestFactory = type.GetMethod("CreateOriginalRequest", BindingFlags.Static | BindingFlags.NonPublic) ?? throw new InvalidDataException("The original component request factory is unavailable.");
-        MethodInfo sourceFactory = type.GetMethod("PrepareSource", BindingFlags.Static | BindingFlags.NonPublic) ?? throw new InvalidDataException("The original component source factory is unavailable.");
         NativeEffectFixtureRequest request = (NativeEffectFixtureRequest)Invoke(requestFactory, [])!;
         if (Directory.Exists(outputDirectory))
         {
@@ -26,34 +25,21 @@ internal static class NativeBattleExistingComponentSourceBridge
         }
         Directory.CreateDirectory(outputDirectory);
         string fixture = Path.Combine(outputDirectory, "fixture");
-        NativeEffectFixtureExportResult result = NativeBattleEffectFixtureExporter.Export(request, gameDirectory, fixture);
-        if (result.Status == "blocked")
+        BattleSnapshot entry = NativeBattleEffectFixtureExporter.Prepare(request, gameDirectory, fixture, "after-entry").Snapshot;
+        using GameAssets game = new(gameDirectory);
+        using BattleAssets assets = new(gameDirectory);
+        BattleSnapshot source = PrepareFromEntry(type, game, assets, outputDirectory, entry);
+        foreach (string snapshot in Directory.EnumerateFiles(outputDirectory, "*.battle.json", SearchOption.AllDirectories))
         {
-            throw new InvalidDataException(result.FirstBlocker ?? "The original component entry source is blocked.");
+            File.Delete(snapshot);
         }
-        string entry = Path.Combine(fixture, "after-entry.battle.json");
-        if (!File.Exists(entry))
-        {
-            throw new InvalidDataException("The original request did not produce its entry-complete source.");
-        }
-        string variable = $"MEMORIA_FF8_EFFECT{effect}_SOURCE_SNAPSHOT";
-        string? previous = Environment.GetEnvironmentVariable(variable);
-        try
-        {
-            Environment.SetEnvironmentVariable(variable, entry);
-            using GameAssets game = new(gameDirectory);
-            using BattleAssets assets = new(gameDirectory);
-            BattleSnapshot source = (BattleSnapshot)Invoke(sourceFactory, [game, assets, outputDirectory])!;
-            foreach (string snapshot in Directory.EnumerateFiles(outputDirectory, "*.battle.json", SearchOption.AllDirectories))
-            {
-                File.Delete(snapshot);
-            }
-            return source;
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(variable, previous);
-        }
+        return source;
+    }
+
+    internal static BattleSnapshot PrepareFromEntry(Type owner, GameAssets game, BattleAssets assets, string output, BattleSnapshot entry)
+    {
+        MethodInfo sourceFactory = owner.GetMethod("PrepareFromEntry", BindingFlags.Static | BindingFlags.NonPublic) ?? throw new InvalidDataException($"The original component source factory for {owner.Name} is unavailable.");
+        return (BattleSnapshot)(Invoke(sourceFactory, [game, assets, output, entry]) ?? throw new InvalidDataException("The original component source factory returned no prepared source."));
     }
 
     private static object? Invoke(MethodInfo method, object?[] arguments)
