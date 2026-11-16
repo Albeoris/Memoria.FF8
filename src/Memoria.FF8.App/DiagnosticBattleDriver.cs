@@ -26,6 +26,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
     public DiagnosticEnemyTrigger? EnemyTrigger { get; init; }
     public bool IndependentRosterEntry { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PassiveNativeSupport { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool DoomExpiration { get; init; }
@@ -155,6 +156,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
 
     private bool MatchesPassiveSupportInvocation() => (ExpectedNativeCommand, ExpectedNativeAction, ExpectedEffect) switch
     {
+        (240, 12, 93) or (240, 13, 94) or (240, 14, 92) => true,
         (245, 0, 187) or (245, 7, 329) or (245, 8, 330) or (245, 9, 328) or (245, 10, 327) => true,
         _ => false
     };

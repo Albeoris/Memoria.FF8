@@ -53,6 +53,21 @@ public sealed class DiagnosticPocketStationPreparationTests
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(session.State.PocketStation));
     }
 
+    [Fact]
+    public void MiniMog_prepares_the_native_home_nibble_without_changing_other_saved_bits()
+    {
+        NativePocketStationState source = Source();
+        DiagnosticPocketStationPreparation recipe = new(true, false, 20, 0) { MiniMogAvailable = true };
+        NativePocketStationState prepared = GameWorld.PrepareDiagnosticPocketStation(source, recipe).State;
+        Assert.Equal(0x0D, prepared.Flags & 0x0F);
+        Assert.Equal(source.Flags & 0xF0, prepared.Flags & 0xF0);
+        Assert.Throws<InvalidDataException>(() => GameWorld.PrepareDiagnosticPocketStation(source, recipe with { Away = true }));
+
+        GameSession session = new(GameSession.CreateColdProcess().State with { PocketStation = source });
+        Assert.Throws<InvalidDataException>(() => session.SetDiagnosticPocketStation(prepared));
+        session.SetDiagnosticPocketStation(prepared, miniMogPreparation: true);
+        Assert.Same(prepared, session.State.PocketStation);
+    }
     private static NativePocketStationState Source()
     {
         byte[] raw = Enumerable.Range(0, 64).Select(index => (byte)(index * 3)).ToArray();

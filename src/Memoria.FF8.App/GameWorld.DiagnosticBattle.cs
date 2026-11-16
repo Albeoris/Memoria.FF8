@@ -52,6 +52,10 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new InvalidDataException("Passive entry support requires scored live Normal ATB with ordinary enemy turns held.");
         }
+        if (Fixture?.PocketStation?.MiniMogAvailable == true && Driver is not { IndependentRosterEntry: true, PassiveNativeSupport: false, ExpectedEffect: 96, ExpectedNativeCommand: 38, ExpectedNativeAction: 6, Input: { Kind: BattleInputKind.Action, Ability: BattleAbility.NativeCommand, ActionId: (38 << 16) | 255 } })
+        {
+            throw new InvalidDataException("Diagnostic MiniMog availability requires its original equipped command and independent scoring.");
+        }
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
@@ -238,7 +242,7 @@ internal sealed partial class GameWorld
             }
             if (pocketStation is not null)
             {
-                session.SetDiagnosticPocketStation(pocketStation.State);
+                session.SetDiagnosticPocketStation(pocketStation.State, request.Fixture!.PocketStation!.MiniMogAvailable);
             }
             ImmutableArray<DiagnosticPreparationChange> support = PrepareDiagnosticNativeSupport(request.Driver);
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, request.AtbMode, preparedMusic);

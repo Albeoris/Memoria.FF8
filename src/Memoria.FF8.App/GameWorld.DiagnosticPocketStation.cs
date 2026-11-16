@@ -8,11 +8,14 @@ namespace Memoria.FF8;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DiagnosticPocketStationPreparation([property: JsonRequired] bool Available, [property: JsonRequired] bool Away, [property: JsonRequired] byte Level, [property: JsonRequired] byte AttackVariant)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MiniMogAvailable { get; init; }
+
     internal void Validate()
     {
-        if (Level is < 1 or > 100 || AttackVariant > 3)
+        if (Level is < 1 or > 100 || AttackVariant > 3 || MiniMogAvailable && (!Available || Away))
         {
-            throw new InvalidDataException("Diagnostic PocketStation preparation requires an original level1..100 and attack variant0..3.");
+            throw new InvalidDataException("Diagnostic PocketStation preparation requires an original level 1..100, attack variant 0..3 and MiniMog availability at home.");
         }
     }
 }
@@ -27,6 +30,10 @@ internal sealed partial class GameWorld
         recipe.Validate();
         byte[] raw = source.Raw.ToArray();
         raw[0] = (byte)((raw[0] & ~3) | (recipe.Available ? 1 : 0) | (recipe.Away ? 2 : 0));
+        if (recipe.MiniMogAvailable)
+        {
+            raw[0] = (byte)((raw[0] & ~0x0F) | 0x0D);
+        }
         raw[1] = recipe.Level;
         raw[45] = recipe.AttackVariant;
         NativePocketStationState prepared = source with { Raw = raw.ToImmutableArray() };
