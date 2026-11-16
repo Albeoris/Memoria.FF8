@@ -49,10 +49,25 @@ public static class NativeBattleEffect31Stack
         {
             throw new InvalidDataException("Effect31 target stack writes require the actual physical model row.");
         }
+        return StoreTarget(stack, temporary, model is uint address ? checked(address + 0x40) : null, boneMatrix);
+    }
+
+    internal static NativeBattleStackBytes ObserveHostedTarget(NativeBattleStackBytes stack, uint temporary, NativeBattleHostedGuestModel placement, NativeBattleResourcePointer boneMatrix)
+    {
+        Validate(stack);
+        RequirePointer(temporary);
+        uint world = placement.RequireWorldMatrixAddress();
+        uint bone = placement.RequireBoneMatrixAddress(boneMatrix);
+        RequirePointer(bone);
+        return StoreTarget(stack, temporary, world, bone);
+    }
+
+    private static NativeBattleStackBytes StoreTarget(NativeBattleStackBytes stack, uint temporary, uint? worldMatrix, uint boneMatrix)
+    {
         stack = stack.StoreUInt32(-0xD0, boneMatrix, 0x50221A, "Target selected bone matrix argument");
-        stack = StoreWorldMatrix(stack, -0xD4, model, 0x50221B, "Target world matrix argument");
+        stack = StoreWorldMatrix(stack, -0xD4, worldMatrix, 0x50221B, "Target world matrix argument");
         stack = stack.StoreUInt32(-0xD8, temporary, 0x502221, "Target matrix temporary argument");
-        stack = StoreWorldMatrix(stack, -0xFC, model, 0x45DEF5, "Target transform saved EDI");
+        stack = StoreWorldMatrix(stack, -0xFC, worldMatrix, 0x45DEF5, "Target transform saved EDI");
         return stack.StoreUInt32(-0xDC, checked(temporary + 0x30), 0x50222D, "Target point flag destination push")
             .StoreUInt32(-0xE0, checked(temporary + 0x20), 0x50222E, "Target point destination push")
             .StoreUInt32(-0xF0, checked(temporary + 0x20), 0x56C833, "Target point destination argument")
@@ -61,9 +76,9 @@ public static class NativeBattleEffect31Stack
             .StoreUInt32(-0xEC, 0x50225A, 0x502255, "Target temporary release return");
     }
 
-    private static NativeBattleStackBytes StoreWorldMatrix(NativeBattleStackBytes stack, int offset, uint? model, uint instruction, string role)
+    private static NativeBattleStackBytes StoreWorldMatrix(NativeBattleStackBytes stack, int offset, uint? worldMatrix, uint instruction, string role)
     {
-        return model is uint address ? stack.StoreUInt32(offset, checked(address + 0x40), instruction, role) : stack.Invalidate(offset, 4, instruction, role);
+        return worldMatrix is uint address ? stack.StoreUInt32(offset, address, instruction, role) : stack.Invalidate(offset, 4, instruction, role);
     }
 
     internal static NativeBattleStackBytes ObserveTarget(NativeBattleStackBytes stack, uint temporary, BattleModelOwner owner, NativeBattleModelAliases aliases, NativeBattleResourcePointer boneMatrix)

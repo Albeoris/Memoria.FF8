@@ -39,6 +39,7 @@ public sealed partial class BattleSession
                         anchors++;
                         uint temporary = BinaryPrimitives.ReadUInt32LittleEndian((current.Staging ?? throw new NotSupportedException("Effect31 requires its current target temporary cursor.")).Read(NativeBattleTemporaryMemory.Cursor, 4));
                         NativeBattleResourcePointer? boneMatrix = null;
+                        NativeBattleHostedGuestModel? hostedPlacement = null;
                         if (anchors == 2)
                         {
                             NativeBattleGraphicsModel model = graphics.ActorModels.Get(targetActor);
@@ -49,11 +50,19 @@ public sealed partial class BattleSession
                                 throw new InvalidDataException("Effect31 target F1 alias leaves its current skeleton.");
                             }
                             boneMatrix = ReadNativeEffect31BonePointer(graphics, current, targetActor, bone);
+                            if (targetActor is BattlePartyModelOwner party && boneMatrix.Cpu is { IsPresentationResource: true } && !nativeActionPackets.ModelAliases.TryEncodeExact(party, out _))
+                            {
+                                hostedPlacement = ReadNativeEffect31GuestModel(graphics, current, party, source);
+                            }
                         }
                         current = ObserveNativeEffect31Point(current, producer);
                         if (anchors == 2)
                         {
-                            current = current with { State = current.State with { CallbackStack = NativeBattleEffect31Stack.ObserveTarget(current.State.ReadCallbackStack(), temporary, targetActor, nativeActionPackets.ModelAliases, boneMatrix!) } };
+                            NativeBattleStackBytes stack = current.State.ReadCallbackStack();
+                            stack = hostedPlacement is null
+                                ? NativeBattleEffect31Stack.ObserveTarget(stack, temporary, targetActor, nativeActionPackets.ModelAliases, boneMatrix!)
+                                : NativeBattleEffect31Stack.ObserveHostedTarget(stack, temporary, hostedPlacement, boneMatrix!);
+                            current = current with { State = current.State with { CallbackStack = stack } };
                         }
                     });
                     return NativeBattleEffect31Controller.Write(current, target.TaskAddress, targetTask);

@@ -11,9 +11,21 @@ public sealed partial class BattleSession
         return NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect31 requires its current physical skeleton.");
     }
 
-    private NativeBattleEffectArena ReadNativeEffect31Physical(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, uint address, int length)
+    private NativeBattleEffectArena ReadNativeEffect31Physical(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, uint address, int length, NativeBattleHostedGuestModel? hosted = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (NativeBattleHostedGuestModel.TryResolveBank(address, out int bankId))
+        {
+            if (hosted is not null)
+            {
+                return hosted.Read(address, length);
+            }
+            NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new InvalidDataException("Effect31 hosted guest read requires the live CPU owner.");
+            BattlePartyModelOwner owner = cpu.Cpu.PartyBankOwners.Where(pair => pair.Value == bankId).Select(pair => pair.Key).SingleOrDefault()
+                ?? throw new InvalidDataException("Effect31 hosted guest address has no live party owner.");
+            NativeBattlePoseSource pose = ReadNativeEffect31Pose(graphics, frame, owner);
+            return ReadNativeEffect31GuestModel(graphics, frame, owner, pose).Read(address, length);
+        }
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, length);
         if (TryResolveNativeModelRead(address, length, out int modelOffset))
         {
@@ -63,6 +75,14 @@ public sealed partial class BattleSession
         return NativeBattleEffect31Controller.ReadBytes(frame, address, length);
     }
 
+    private NativeBattleHostedGuestModel ReadNativeEffect31GuestModel(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattlePartyModelOwner owner, NativeBattlePoseSource pose)
+    {
+        NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new InvalidDataException("Effect31 hosted guest placement requires the live CPU owner.");
+        NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Effect31 hosted guest placement requires the live body row owner.");
+        NativeBattleFileStaging staging = frame.Staging ?? throw new InvalidDataException("Effect31 hosted guest placement requires the current staging owner.");
+        return NativeBattleHostedGuestModel.Open(cpu, cache, staging, graphics, owner, pose, CaptureNativeEffect301Model);
+    }
+
     private NativeBattleResourcePointer ReadNativeEffect31SkeletonPointer(NativeBattleGraphicsState graphics, NativeBattleEffect31Frame frame, BattleModelOwner actor)
     {
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
@@ -94,14 +114,24 @@ public sealed partial class BattleSession
     {
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         ImmutableArray<NativeBattlePackedMatrix32>.Builder result = ImmutableArray.CreateBuilder<NativeBattlePackedMatrix32>(matrices.Length);
+        NativeBattleHostedGuestModel? hosted = null;
         for (int bone = 0; bone < matrices.Length; bone++)
         {
             NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
             NativeBattleResourcePointer pointer = ReadNativeEffect31BonePointer(graphics, frame, actor, bone);
-            (byte[] bytes, bool[] known) = NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, frame.Staging!, pointer, 18, 2, (address, count) => ReadNativeEffect31Physical(graphics, frame, address, count).ReadSnapshot(0, count));
+            (byte[] bytes, bool[] known) = pointer.Cpu is { IsPresentationResource: true } && actor is BattlePartyModelOwner party
+                ? ReadHostedPadding(party, pointer)
+                : NativeBattleModelSectionSnapshot.Read(NativeModelCpuResources, frame.Staging!, pointer, 18, 2, (address, count) => ReadNativeEffect31Physical(graphics, frame, address, count).ReadSnapshot(0, count));
             result.Add(packed with { Bytes = packed.Bytes.SetItem(18, bytes[0]).SetItem(19, bytes[1]), Known = packed.Known.SetItem(18, known[0]).SetItem(19, known[1]) });
         }
         return result.ToImmutable();
+
+        (byte[] Bytes, bool[] Known) ReadHostedPadding(BattlePartyModelOwner party, NativeBattleResourcePointer pointer)
+        {
+            NativeBattleHostedGuestModel placement = hosted ??= ReadNativeEffect31GuestModel(graphics, frame, party, source);
+            uint address = placement.RequireBoneMatrixAddress(pointer);
+            return ReadNativeEffect31Physical(graphics, frame, checked(address + 18), 2, placement).ReadSnapshot(0, 2);
+        }
     }
 
     private NativeBattleEffect31Frame ObserveNativeEffect31Point(NativeBattleEffect31Frame frame, NativeBattleBoneAnchorProducer producer)
