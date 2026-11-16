@@ -20,6 +20,7 @@ public sealed record Ff7BattleActorFade(byte Remaining, ushort Step, bool Appear
 
 public sealed record Ff7BattleActorModelState(int Slot, short Action = 0, BattleActionPoseState? Pose = null, bool Ready = true, ushort? Limit = null, long? IdleStarted = null, bool Reaction = false, long PendingSince = -1, Ff7BattleActorModelModifiers? Modifiers = null, Ff7BattlePosition? Position = null, int? FacingYaw = null, Ff7BattleWorldJoint[]? Joints = null, Ff7BattleActorRenderState? Render = null, bool ReactionKnockedOut = false, bool? PresentedKnockedOut = null)
 {
+    public bool? PresentedFrog { get; init; }
     public bool LinkedAction { get; init; }
     public Ff7BattleMotion? Motion { get; init; }
     public Ff7BattleActorFade? Fade { get; init; }
@@ -62,6 +63,11 @@ public sealed partial class Ff7BattleSession
             state = state with { ActorModels = state.Actors.Select(actor => new Ff7BattleActorModelState(actor.Actor.Slot)).ToArray() };
         }
         state = state with { ActorModels = state.ActorModels.Select(model => model with { Modifiers = model.Modifiers ?? new(Visible: model.Slot < 3 || IsAlive(Actor(model.Slot)) && (Enemy(model.Slot).InitialConditionFlags & 1) != 0 || state.Action is { } action && (action.Command.TargetMask & (1 << model.Slot)) != 0) }).ToArray() };
+        foreach (Ff7BattleActorModelState model in state.ActorModels.Where(model => model.PresentedFrog is null).ToArray())
+        {
+            bool frog = (Actor(model.Slot).Actor.Statuses & 0x800) != 0 && !IsGuestVitalsSlot(model.Slot);
+            ReplaceActorModel(frog ? model with { PresentedFrog = true, Pose = null, Render = null, Joints = null, Limit = null } : model with { PresentedFrog = false });
+        }
         if (absent && state.Action is { Applied: true } source)
         {
             PublishSourceModel(source, source.Pose);
@@ -240,7 +246,7 @@ public sealed partial class Ff7BattleSession
                 ReplaceActorModel(previous);
             }
             BattleActionSequence sequence = animations.Get(ActorModel(previous.Slot), previous.Action);
-            BattleActionPoseUpdate update = sequence.Advance(previous.PendingSince >= 0 ? new() : previous.Pose ?? new(), effectReady: true, primaryCallbacksReady: !HasPrimaryPresentationCallbacks, linkedActorReady: LinkedModelReady(previous.Slot));
+            BattleActionPoseUpdate update = sequence.Advance(previous.PendingSince >= 0 ? new() : previous.Pose ?? new(), effectReady: true, primaryCallbacksReady: !HasPrimaryPresentationCallbacks, linkedActorReady: LinkedModelReady(previous.Slot), enemy: previous.Slot >= 4);
             ObserveModelClip(previous, update.State);
             Ff7BattleActorModelState model = ActorModelState(previous.Slot);
             ReplaceActorModel(model with { Pose = update.State, Ready = update.State.Completed, Limit = null, PendingSince = -1 });
@@ -360,6 +366,16 @@ public sealed partial class Ff7BattleSession
         }
         int slot = impact.Target;
         Ff7BattleActorModelState model = ActorModelState(slot);
+        bool frog = impact.PostActionFrog ?? (Actor(slot).Actor.Statuses & 0x800) != 0;
+        if (model.PresentedFrog != frog && !IsGuestVitalsSlot(slot))
+        {
+            model = model with { PresentedFrog = frog, Pose = null, Render = null, Joints = null, Limit = null, Action = frog ? (short)5 : Actor(slot).Actor.IdleAction, IdleStarted = PresentationTick, Reaction = false, Ready = true, PendingSince = -1, LinkedAction = false };
+            ReplaceActorModel(model);
+            if (frog)
+            {
+                selector = 5;
+            }
+        }
         (int clip, int frame) = VisualPose(slot);
         model = model with { PresentedKnockedOut = impact.PostActionKnockedOut };
         ReplaceActorModel(model);
@@ -545,7 +561,8 @@ public sealed partial class Ff7BattleSession
             }
             if (model.Joints is { } joints)
             {
-                string prefix = Ff7BattleAnimationResources.ModelPrefix(snapshot.Actors.Single(actor => actor.Actor.Slot == model.Slot).Identity, model.Slot >= 4);
+                Ff7BattleActorState actor = snapshot.Actors.Single(actor => actor.Actor.Slot == model.Slot);
+                string prefix = ActorModelPrefix(actor, model.PresentedFrog ?? (actor.Actor.Statuses & 0x800) != 0);
                 if (animations is null || joints.Length != animations.BoneCount(prefix) || joints.Any(joint => !float.IsFinite(joint.X) || !float.IsFinite(joint.Y) || !float.IsFinite(joint.Z)))
                 {
                     throw new InvalidDataException("FFVII saved actor model joint cache is invalid.");

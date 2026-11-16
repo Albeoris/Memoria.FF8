@@ -42,7 +42,7 @@ public static class Ff7NativeBattleActionResolver
     private const uint Stop = 0x400;
 
     private const uint PhysicalWakeStatuses = Sleep | 0x40 | 0x00400000;
-    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Fury | Slow | Stop | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses;
+    private const uint SupportedRecordStatuses = Death | Sleep | Poison | Ff7NativeBattleStatuses.Sadness | Ff7NativeBattleStatuses.Fury | Slow | Stop | Darkness | Ff7NativeBattleStatuses.SupportedRecordStatuses | Ff7NativeBattleStatuses.Frog;
     private const uint Petrify = 0x4000;
     private const uint Peerless = 0x01000000;
     private const uint DeathForce = 0x10000000;
@@ -304,7 +304,7 @@ public static class Ff7NativeBattleActionResolver
         {
             throw new NotSupportedException($"FFVII attack has unsupported additional effect 0x{record?.AdditionalEffect ?? byte.MaxValue:X2} (modifier 0x{record?.AdditionalEffectModifier ?? byte.MaxValue:X2}, formula 0x{action.Formula:X2}) or status mask 0x{mask:X8}.");
         }
-        bool admittedStatus = mask != 0 && RollStatus(record!, action, random);
+        bool admittedStatus = mask != 0 && RollStatus(record!, action, target.Statuses, random);
         bool targetEffect = record is { AdditionalEffect: 0x19 };
         bool originOperation = action.GuestProcessBattleStatuses != 0 || action.GuestOriginBattleStatuses != 0 || action.ParameterOperation is not null || action.GuestOriginSavedStatuses != 0;
         if (!admittedStatus && !originOperation && !targetEffect && action.Power == 0 && action.BaseDamage is null && action.FixedDamage is null && !action.SourceMissingHitPoints && action.FractionDenominator == 0 && action.Formula is not (0x00 or 0x50))
@@ -479,13 +479,13 @@ public static class Ff7NativeBattleActionResolver
         };
     }
 
-    private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, Ff7BattleRng random)
+    private static bool RollStatus(Ff7BattleAttack record, Ff7BattleDamageAction action, uint targetStatuses, Ff7BattleRng random)
     {
         if (Ff7NativeBattleStatuses.ReadImprisonedType(record) is not null)
         {
             return true;
         }
-        int threshold = (record.StatusChange & 0x3F) * 4;
+        int threshold = ReadStatusMask(record) == (targetStatuses & Ff7NativeBattleStatuses.Frog) ? 252 : (record.StatusChange & 0x3F) * 4;
         if (threshold >= 252)
         {
             return true;

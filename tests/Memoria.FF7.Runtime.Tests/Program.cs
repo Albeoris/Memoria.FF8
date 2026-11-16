@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--frog-status-only", StringComparer.Ordinal))
+{
+    FrogStatusTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-interaction-only", StringComparer.Ordinal))
 {
     AutoPlayWorldInteractionTests.Run();
@@ -750,6 +756,7 @@ if (args.Contains("--eyes-only", StringComparer.Ordinal))
 var tests = new (string Name, Action Run)[]
 {
     ("origin Aura Limit gauge", OriginAuraLimitTests.Run),
+    ("native Frog mutation and command eligibility", FrogStatusTests.Run),
     ("origin source status ownership", OriginBattleStatusTests.Run),
     ("origin Float posed presentation", OriginFloatPresentationTests.Run),
     ("origin Magic repetition", OriginMagicSequenceTests.Run),

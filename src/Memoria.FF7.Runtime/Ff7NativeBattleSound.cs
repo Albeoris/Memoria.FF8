@@ -8,6 +8,7 @@ public sealed record Ff7BattleImpactPresentation(int Source, int Target, int Sou
 {
     public short? ModelAction { get; init; }
     public bool PostActionKnockedOut { get; init; }
+    public bool? PostActionFrog { get; init; }
 }
 
 public sealed record Ff7BattleSoundState(Ff7BattleDelayedSound[] Pending, long Sequence = 0, bool EscapePlayed = false)

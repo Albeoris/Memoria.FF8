@@ -15,12 +15,14 @@ public sealed class BattleActionSequence
     private readonly IReadOnlyList<BattleActionInstruction> instructions;
     private readonly IReadOnlyList<BattlePackedClip> clips;
     private readonly int alternateRowIndex;
+    private readonly IReadOnlyDictionary<int, int> enemyBranches;
 
-    private BattleActionSequence(IReadOnlyList<BattleActionInstruction> instructions, IReadOnlyList<BattlePackedClip> clips, int alternateRowIndex)
+    private BattleActionSequence(IReadOnlyList<BattleActionInstruction> instructions, IReadOnlyList<BattlePackedClip> clips, int alternateRowIndex, IReadOnlyDictionary<int, int> enemyBranches)
     {
         this.instructions = instructions;
         this.clips = clips;
         this.alternateRowIndex = alternateRowIndex;
+        this.enemyBranches = enemyBranches;
     }
 
     public static BattleActionSequence Read(BattleActionBank bank, BattleModelData model, int actionId)
@@ -44,10 +46,34 @@ public sealed class BattleActionSequence
             alternateRowIndex = instructions.Count;
             instructions = [.. instructions, .. BattleActionInstructions.ReadUntilTransfer(script, model.BodyClips.Count, marker + 1)];
         }
-        return new(instructions, model.BodyClips, alternateRowIndex);
+        List<BattleActionInstruction> branches = [.. instructions];
+        Dictionary<int, int> enemyBranches = [];
+        for (int index = 0; index < branches.Count; index++)
+        {
+            BattleActionInstruction instruction = branches[index];
+            if (instruction.Opcode != 0xCE || enemyBranches.ContainsKey(instruction.Offset))
+            {
+                continue;
+            }
+            byte cursor = unchecked((byte)(instruction.Offset + 1));
+            int scanned = 0;
+            while (scanned < 256 && cursor < script.Length && script.Span[cursor] != 0xCD)
+            {
+                cursor = unchecked((byte)(cursor + 1));
+                scanned++;
+            }
+            if (scanned == 256 || cursor >= script.Length)
+            {
+                enemyBranches.Add(instruction.Offset, -1);
+                continue;
+            }
+            enemyBranches.Add(instruction.Offset, branches.Count);
+            branches.AddRange(BattleActionInstructions.ReadUntilTransfer(script, model.BodyClips.Count, unchecked((byte)(cursor + 1))));
+        }
+        return new(branches, model.BodyClips, alternateRowIndex, enemyBranches);
     }
 
-    public BattleActionPoseUpdate Advance(BattleActionPoseState state, bool effectReady = false, bool alternateRowBranch = false, int idleClipFrame = 0, bool primaryCallbacksReady = true, bool linkedActorReady = true)
+    public BattleActionPoseUpdate Advance(BattleActionPoseState state, bool effectReady = false, bool alternateRowBranch = false, int idleClipFrame = 0, bool primaryCallbacksReady = true, bool linkedActorReady = true, bool enemy = false)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.Completed)
@@ -68,6 +94,18 @@ public sealed class BattleActionSequence
         {
             BattleActionInstruction instruction = instructions[index];
             byte opcode = instruction.Opcode;
+            if (opcode == 0xCE)
+            {
+                if (enemy)
+                {
+                    if (enemyBranches[instruction.Offset] < 0)
+                    {
+                        throw new InvalidDataException("FFVII actor branch has no native CD byte marker.");
+                    }
+                    index = enemyBranches[instruction.Offset] - 1;
+                }
+                continue;
+            }
             if (opcode < 0x8E || opcode == 0xB6)
             {
                 int clipIndex = opcode == 0xB6 ? instruction.Operands.Span[0] : opcode;

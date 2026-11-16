@@ -155,7 +155,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleActorState actor = Actor(slot);
         Ff7BattlePlayerStats stats = party[slot]!.Value;
         List<Ff7BattleCommandOption> commands = [];
-        if (Ff7NativeBattleLimits.IsReady(actor.LimitGauge) && limits.Count != 0)
+        if ((actor.Actor.Statuses & Ff7NativeBattleStatuses.Frog) == 0 && Ff7NativeBattleLimits.IsReady(actor.LimitGauge) && limits.Count != 0)
         {
             foreach (byte limit in Ff7NativeBattleLimits.ReadLearnedIds(characters[slot]!, kernel))
             {
@@ -171,7 +171,7 @@ public sealed partial class Ff7BattleSession
         }
         foreach (Ff7BattleSpell spell in NativeBattleSpells(slot))
         {
-            if (CanSpendCastingCost(actor, spell.Attack))
+            if (Ff7NativeBattleStatuses.CanUseCommand(actor.Actor.Statuses, (byte)Ff7BattleCommand.Magic, spell.AttackId, spell.Attack.CastingCost, actor.Actor.Conditions) && CanSpendCastingCost(actor, spell.Attack))
             {
                 commands.Add(Option(Ff7BattleCommand.Magic, spell.AttackId, spell.Attack.TargetFlags, spell.Attack.CastingCost) with { GroupUses = actor.AllUses?.GetValueOrDefault(spell.AttackId) ?? 0 });
             }
@@ -262,7 +262,7 @@ public sealed partial class Ff7BattleSession
             string name = commandResources?.Name(grant.Command) ?? command.ToString();
             commands.Add(new(command, 0, 0, true, false) { DisplayName = name, Category = "Command", UnsupportedReason = $"{name} is not supported yet." });
         }
-        return commands;
+        return commands.Where(option => Ff7NativeBattleStatuses.CanUseCommand(actor.Actor.Statuses, (byte)option.Command, option.Argument, option.Command is Ff7BattleCommand.Magic or Ff7BattleCommand.Summon ? option.Cost : 0, actor.Actor.Conditions)).ToArray();
 
         Ff7BattleCommandOption Option(Ff7BattleCommand command, ushort argument, byte flags, int cost = 0, bool revive = false)
         {
@@ -484,13 +484,13 @@ public sealed partial class Ff7BattleSession
             }
             active = active with { Motion = active.Motion?.Advance() };
             Ff7BattleActorState actor = Actor(command.ActorSlot);
-            string model = Ff7BattleAnimationResources.ModelPrefix(actor.Identity, command.ActorSlot >= 4);
+            string model = ActorModel(command.ActorSlot);
             ushort? limit = command.CommandId == (byte)Ff7BattleCommand.Limit ? command.Argument : null;
             BattleActionSequence sequence = presentation.Get(model, active.Animation, limit);
             // TODO(TD-024) Bind the remaining original effect callbacks after native asset readiness.
             AdvanceActorReactionModels(actorModelCursor, command.ActorSlot);
             actorModelCursor = command.ActorSlot + 1;
-            BattleActionPoseUpdate update = sequence.Advance(active.Pose ?? new(), effectReady: true, primaryCallbacksReady: !HasPrimaryPresentationCallbacks, linkedActorReady: LinkedModelReady(command.ActorSlot));
+            BattleActionPoseUpdate update = sequence.Advance(active.Pose ?? new(), effectReady: true, primaryCallbacksReady: !HasPrimaryPresentationCallbacks, linkedActorReady: LinkedModelReady(command.ActorSlot), enemy: command.ActorSlot >= 4);
             active = active with { Pose = update.State };
             PublishSourceModel(active, update.State);
             foreach (BattleActionInstruction instruction in update.Events)
@@ -732,6 +732,10 @@ public sealed partial class Ff7BattleSession
     private void ApplyAction(Ff7BattleQueuedCommand command)
     {
         Ff7BattleActorState source = Actor(command.ActorSlot);
+        if (!command.StatusCountdown && command.CommandId < 0x23 && !IsGuestVitalsSlot(command.ActorSlot) && GetGuestAttack(command.ActorSlot) is null && !Ff7NativeBattleStatuses.CanUseCommand(source.Actor.Statuses, command.CommandId, command.Argument, conditions: source.Actor.Conditions))
+        {
+            return;
+        }
         if (command.StatusCountdown)
         {
             Ff7BattleAiActor updated = source.Actor with { Statuses = source.Actor.Statuses & ~0x200000u };
@@ -781,6 +785,10 @@ public sealed partial class Ff7BattleSession
             (byte)Ff7BattleCommand.Attack => null,
             _ => throw new NotSupportedException($"FFVII battle command {command.CommandId:X2} has no action consumer.")
         };
+        if (!command.StatusCountdown && !Ff7NativeBattleStatuses.CanUseCommand(source.Actor.Statuses, command.CommandId, command.Argument, command.CommandId == (byte)Ff7BattleCommand.Item ? 0 : record?.CastingCost ?? 0, source.Actor.Conditions))
+        {
+            return;
+        }
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         foreach (Ff7BattleGuestSlotState guest in state.GetGuestSlotStates())
         {

@@ -80,7 +80,7 @@ public sealed partial class Ff7BattleSession
         {
             return (pose.ClipIndex, pose.ClipFrame);
         }
-        string prefix = Ff7BattleAnimationResources.ModelPrefix(actor.Identity, slot >= 4);
+        string prefix = ActorModel(slot);
         bool knockedOut = (actor.Actor.Statuses & 1) != 0;
         if (slot < 3 && state.Action is { Applied: true } && state.Sounds?.PreparedImpacts.Any(impact => impact.Target == slot) == true)
         {
@@ -140,7 +140,15 @@ public sealed partial class Ff7BattleSession
         return state.Action is { Animation: >= 0, Command: { CommandId: (byte)Ff7BattleCommand.Limit } command } && command.ActorSlot == slot ? command.Argument : null;
     }
 
-    private string ActorModel(int slot) => Ff7BattleAnimationResources.ModelPrefix(Actor(slot).Identity, slot >= 4);
+    public string ActorModelPrefix(int slot)
+    {
+        bool frog = state.ActorModels.SingleOrDefault(model => model.Slot == slot)?.PresentedFrog ?? (Actor(slot).Actor.Statuses & 0x800) != 0;
+        return ActorModelPrefix(Actor(slot), frog && !IsGuestVitalsSlot(slot));
+    }
+
+    private static string ActorModelPrefix(Ff7BattleActorState actor, bool frog) => frog ? "rs" : Ff7BattleAnimationResources.ModelPrefix(actor.Identity, actor.Actor.Slot >= 4);
+
+    private string ActorModel(int slot) => ActorModelPrefix(slot);
 
     private Vector3 BonePosition(int slot, int bone)
     {

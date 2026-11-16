@@ -526,8 +526,8 @@ internal sealed partial class Ff7Scene
     {
         int slot = actor.Actor.Slot;
         Ff7BattlePlacement placement = battle.RenderActorPlacement(slot);
-        string model = Ff7BattleAnimationResources.ModelPrefix(actor.Identity, slot >= 4);
-        int? weapon = slot < 3 ? battle.WeaponModel(slot) : actor.Identity == 16 ? 0 : null;
+        string model = battle.ActorModelPrefix(slot);
+        int? weapon = model == "rs" ? null : slot < 3 ? battle.WeaponModel(slot) : actor.Identity == 16 ? 0 : null;
         (int clip, int frame) = battle.RenderActorPose(slot);
         return new(model, placement.Position, placement.Yaw * MathF.Tau / 4096, clip, frame, weapon, battle.RenderActorLimit(slot)) { ModelModifiers = battle.ActorModelOutput(slot) };
     }
