@@ -12,6 +12,8 @@ internal static class AutoPlayNavigationRefreshTests
         CheckRemoteMovementRegionProjection();
         CheckOriginalControlledLadderContinuation();
         CheckOriginalForeignFrontierInvalidation();
+        CheckSourceBoundaryCompatibility();
+        CheckOriginalRemoteBoundaryProjection();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
         AutoPlayEvent ladder = new("ladder", AutoPlayEventKind.Interaction, ConditionSignature: "ladder-entry");
@@ -254,6 +256,58 @@ internal static class AutoPlayNavigationRefreshTests
         Check(Ff7AutoPlayPolicy.NeedsNavigationRefresh(state, new("upper", "resource"), componentPhysicalGuards: moved), "A genuinely unconsumed remote availability must retain its refresh frontier.");
         Ff7AutoPlayState cold = state.Clone();
         Check(!Ff7AutoPlayPolicy.NeedsNavigationRefresh(cold, new("upper", "resource"), componentPhysicalGuards: upper), "Cold restoration lost consumption of the remote component's actual availability.");
+    }
+
+    private static void CheckSourceBoundaryCompatibility()
+    {
+        Ff7AutoPlayState state = new();
+        state.NavigationGuards["legacy"] = new("visit", 1);
+        state.NavigationGuards["empty"] = new("visit", 1, SpatialBoundaryTriangles: []);
+        state.NavigationGuards["bounded"] = new("visit", 1, SpatialBoundaryTriangles: [4, 7]);
+        Ff7AutoPlayState cold = state.Clone();
+        Check(cold.NavigationGuards["legacy"].SpatialBoundaryTriangles is null, "An older guard fabricated an empty source boundary domain.");
+        Check(cold.NavigationGuards["empty"].SpatialBoundaryTriangles is { Length: 0 }, "A proved empty source boundary domain was lost on restore.");
+        Check(cold.NavigationGuards["bounded"].SpatialBoundaryTriangles!.SequenceEqual([4, 7]), "Cold restoration changed the source boundary domain.");
+        var upgraded = Ff7AutoPlayPolicy.RestorePhysicalGuard(state.NavigationGuards["legacy"], "current", 2, [3]);
+        Check(upgraded.SpatialBoundaryTriangles!.SequenceEqual([3]), "Current native revalidation did not upgrade optional source boundary evidence.");
+    }
+
+    private static void CheckOriginalRemoteBoundaryProjection()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_REMOTE_BOUNDARY_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        AutoPlayTravelGoal goal = source.AutoPlay!.NavigationGoal!;
+        var guard = source.AutoPlay.NavigationGuards.First(entry => entry.Value.NavigationKey == goal.NavigationKey && entry.Value.EventId == goal.EventId);
+        string retained = source.AutoPlay.Coverage.Visits.SelectMany(visit => visit.Events).SelectMany(item => item.UnavailableAttempts).Last(attempt => attempt.GuardKey == guard.Key).GuardFingerprint;
+        var observation = new Ff7AutoPlayDiscovery(session).Observe();
+        var target = observation.Events.Single(target => target.Id == goal.EventId);
+        Ff7AutoplayDriver driver = new(session);
+        driver.ConfigureSpatialBoundaries(observation.Events);
+        Check(driver.CaptureSpatialBoundaryTriangles().Length == 0, "The selected fixture must begin in the lower domain without automatic triangle contacts.");
+        string differentDomain = driver.ReadPhysicalAvailabilityFingerprint(target, guard.Value.BlockingEntities, guard.Value.SourceTriangle);
+        string sourceDomain = driver.ReadPhysicalAvailabilityFingerprint(target, guard.Value.BlockingEntities, guard.Value.SourceTriangle, new HashSet<int> { 70, 71 });
+        Check(differentDomain != retained && sourceDomain == retained, "Original source boundary projection did not exactly recover the recorded physical proof.");
+        Check(driver.CaptureSpatialBoundaryTriangles().Length == 0, "Read-only remote projection changed actual navigation boundaries.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded source-boundary check must stop before new choice exploration."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        for (int step = 0; step < 128 && controller.Running && policy.State.NavigationGoal == goal; step++)
+        {
+            controller.Advance(1);
+        }
+        Check(controller.Failure is null && policy.State.NavigationGoal != goal, "The ordinary policy retained the false remote retry frontier.");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Source-boundary validation changed the original standalone.");
+        Console.WriteLine($"PASS original source-boundary fingerprint recovery and remote frontier replacement after {controller.Steps} ordinary callbacks; source unchanged.");
     }
 
     private static void Check(bool condition, string message)

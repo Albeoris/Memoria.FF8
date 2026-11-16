@@ -31,9 +31,14 @@ public sealed partial class Ff7AutoplayDriver
         return from.Triangle == to.Triangle || !boundaryTriangles.Contains(to.Triangle) || to.Triangle == admittedTriangle;
     }
 
-    private string WithSpatialBoundaryFingerprint(string fingerprint)
+    public int[] CaptureSpatialBoundaryTriangles()
     {
-        return ReadSpatialBoundaryFingerprint(fingerprint, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : new HashSet<int>());
+        return spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles.Order().ToArray() : [];
+    }
+
+    private string WithSpatialBoundaryFingerprint(string fingerprint, IReadOnlySet<int>? sourceBoundaries = null)
+    {
+        return ReadSpatialBoundaryFingerprint(fingerprint, sourceBoundaries ?? (spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : new HashSet<int>()));
     }
 
     internal static string ReadSpatialBoundaryFingerprint(string fingerprint, IReadOnlySet<int> boundaryTriangles)

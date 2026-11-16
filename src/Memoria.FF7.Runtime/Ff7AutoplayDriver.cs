@@ -10,7 +10,7 @@ public readonly record struct Ff7AutoplayInput(int Horizontal = 0, int Vertical 
 /// <summary>Native FFVII navigation and interaction adapter. The host owns scheduling, recording and presentation.</summary>
 public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 {
-    public string ReadPhysicalAvailabilityFingerprint(Ff7AutoPlayTarget target, IReadOnlyList<int>? blockingEntities = null, int? sourceTriangle = null)
+    public string ReadPhysicalAvailabilityFingerprint(Ff7AutoPlayTarget target, IReadOnlyList<int>? blockingEntities = null, int? sourceTriangle = null, IReadOnlySet<int>? sourceBoundaries = null)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         if (sourceTriangle is int triangle)
@@ -20,9 +20,9 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         if (target.Kind is Ff7AutoPlayTargetKind.ActorTalk or Ff7AutoPlayTargetKind.ActorContact)
         {
             string actor = ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.GetActor(target.Entity), blockingEntities, session.Host.Process.Actors, session.Host.Process.MapJumpDisabled, session.Field.Triggers.Gateways);
-            return WithSpatialBoundaryFingerprint(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{actor}|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}"))));
+            return WithSpatialBoundaryFingerprint(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{actor}|target-boundary:{target.AnalysisComplete}:{target.ChangesField}:{target.DestinationField}:{target.GatewayIndex}"))), sourceBoundaries);
         }
-        return WithSpatialBoundaryFingerprint(ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled, blockingEntities, session.Host.Process.Actors));
+        return WithSpatialBoundaryFingerprint(ReadPhysicalAvailabilityFingerprint(session.Machine.ProgramIdentity, session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, target, session.Host.Process.Lines, session.Field.Triggers.Gateways, session.Host.Process.MapJumpDisabled, blockingEntities, session.Host.Process.Actors), sourceBoundaries);
     }
 
     internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7AutoPlayTarget target, IReadOnlyList<Ff7Line> lines, IReadOnlyList<PcFieldGateway> gateways, bool mapJumpDisabled = false, IReadOnlyList<int>? blockingEntities = null, IReadOnlyList<Ff7Actor>? actors = null)

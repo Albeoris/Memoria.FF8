@@ -28,10 +28,10 @@ public sealed partial class Ff7AutoPlayPolicy
         planner.Completed(active.VisitId, active.EventId, navigationReceipt ? observation.VisitId : null, exitSignature: exitSignature, observedStoryChanged: progressChanged, selections: selections, entrySignature: active.ConditionFingerprint, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: active.EntryAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: active.EventId);
     }
 
-    internal static Ff7AutoPlayNavigationGuard RestorePhysicalGuard(Ff7AutoPlayNavigationGuard guard, string currentNavigationKey, int currentTriangle)
+    internal static Ff7AutoPlayNavigationGuard RestorePhysicalGuard(Ff7AutoPlayNavigationGuard guard, string currentNavigationKey, int currentTriangle, int[]? spatialBoundaryTriangles = null)
     {
         // The caller has revalidated the exact native physical fingerprint at this component.
-        return guard.NavigationKey is null || guard.NavigationKey == currentNavigationKey ? guard with { NavigationKey = currentNavigationKey, SourceTriangle = currentTriangle } : guard;
+        return guard.NavigationKey is null || guard.NavigationKey == currentNavigationKey ? guard with { NavigationKey = currentNavigationKey, SourceTriangle = currentTriangle, SpatialBoundaryTriangles = spatialBoundaryTriangles ?? guard.SpatialBoundaryTriangles } : guard;
     }
 
     internal static void ObserveNavigationProbes(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
@@ -89,12 +89,17 @@ public sealed partial class Ff7AutoPlayPolicy
                     foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == navigation.VisitKey && entry.Value.NavigationKey == navigation.Key))
                     {
                         Ff7AutoPlayNavigationGuard guard = entry.Value;
+                        if (!current && guard.SpatialBoundaryTriangles is null)
+                        {
+                            // An older source proof cannot be revalidated using another component's boundary set.
+                            continue;
+                        }
                         Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => target.Id == guard.EventId);
                         if (target is null || !navigation.Events.Any(item => item.Id == target.Id && item.ConditionSignature == target.ConditionFingerprint))
                         {
                             continue;
                         }
-                        string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle);
+                        string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle, current ? null : guard.SpatialBoundaryTriangles!.ToHashSet());
                         projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, current ? null : true);
                     }
                 }
