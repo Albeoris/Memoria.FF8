@@ -113,6 +113,7 @@ public sealed partial class BattleSession
             byte preparedCommand = 0;
             ushort preparedId = 0;
             byte sequenceOverride = 0;
+            int? hostedOperationsAtStart = producingExpandedAiCallback ? expandedOperationCursor.Operations.Length : null;
             for (int dispatched = 0; dispatched < 4096; dispatched++)
             {
                 operation = pc;
@@ -353,7 +354,7 @@ public sealed partial class BattleSession
                         selected = SelectDirectAiActor(physicalTarget);
                         break;
                     case 41:
-                        DrawNativeAiSpell(actor, false);
+                        DrawNativeAiSpell(actor, false, hostedOperationsAtStart);
                         break;
                     case 42:
                         CastNativeAiDrawnSpell(actor);

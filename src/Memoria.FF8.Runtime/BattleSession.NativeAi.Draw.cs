@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private BattlePendingEnemyDraw? pendingEnemyDraw;
 
-    private void DrawNativeAiSpell(BattleCombatant actor, bool reportStock)
+    private void DrawNativeAiSpell(BattleCombatant actor, bool reportStock, int? hostedOperationsAtStart = null)
     {
         //487DF0 reads the previous queued target, which can name an original slot with a newer allocation.
         BattlePreviousTarget? previous = actor.PreviousAiTarget;
@@ -41,6 +41,10 @@ public sealed partial class BattleSession
         {
             // The original E11..E13 owner is global. A new successful Draw replaces its pending result.
             pendingEnemyDraw = new(actor.Id, selected.SpellId, reportStock ? selected.Count : (byte)1);
+            if (hostedOperationsAtStart is int start)
+            {
+                BindPreparedHostedEnemyDraw(actor, sourceReference, start);
+            }
         }
         BattleNativeAction spell = FindInstalledNativeAction(2, selected.SpellId);
         string spellName = spell.Name ?? throw new InvalidDataException("Native AI Draw requires the installed spell name.");
@@ -52,6 +56,26 @@ public sealed partial class BattleSession
         string message = reportStock ? source.Name + NativeBattleGlobalText(27) + separator[0] + spellName + separator[0] + NativeBattleGlobalText(117) : NativeBattleGlobalText(19) + separator[0] + "1" + separator[0] + spellName + NativeBattleGlobalText(118);
         int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native Draw message requires its saved message-speed BYTE.")) + 8;
         QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, source.Id, duration, message) { NativeMessageMode = 3 });
+    }
+
+    private void BindPreparedHostedEnemyDraw(BattleCombatant actor, BattleActorReference source, int start)
+    {
+        for (int index = expandedOperationCursor.Operations.Length - 1; index >= start; index--)
+        {
+            if (expandedOperationCursor.Operations[index] is not ExpandedHostedInvocation invocation ||
+                invocation.Command.ActorId != actor.Id || invocation.Command.NativeAiCallbackStage != nativeAiCallbackStage)
+            {
+                continue;
+            }
+
+            if (invocation.ContactDisposition == ExpandedHostedContactDisposition.RequiredImpacts && !invocation.Contacts.IsEmpty &&
+                invocation.Command.TargetRequest.Selection is BattleTargetSelection.Explicit targets && targets.Actors.Contains(source))
+            {
+                // Opcode41 follows the action queue write. The attached candidate already prepared that action's contacts.
+                expandedOperationCursor.Operations = expandedOperationCursor.Operations.SetItem(index, invocation with { EnemyDraw = TakePendingHostedEnemyDraw() });
+            }
+            return;
+        }
     }
 
     private static NativeMagicStock[] NativeAiDrawInventory(BattleCombatant source)
