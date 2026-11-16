@@ -18,6 +18,57 @@ public sealed partial class FieldMachine
     {
     }
 
+    /// <summary>Proves that projected input makes an entry return using only input gates and non-yielding jumps.</summary>
+    public bool CanSkipScriptEntryForInput(int entity, int script, FieldInputState projectedInput, int instructionBudget = 64)
+    {
+        ArgumentNullException.ThrowIfNull(projectedInput);
+        if ((uint)entity >= entities.Length || script is < 0 or > 31 || instructionBudget is < 1 or > 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
+        if (!Initialized)
+        {
+            return false;
+        }
+        FieldMachine detached = Restore(program, Capture() with { CycleCursor = null }, new InspectionHost());
+        detached.inspection = new() { StopAtHost = true };
+        detached.entities[entity].Pc = program.Entry(entity, script);
+        detached.entities[entity].Priority = 1;
+        detached.entities[entity].Wait = 0;
+        detached.Input = projectedInput;
+        HashSet<int> visited = [];
+        for (int step = 0; step < instructionBudget; step++)
+        {
+            int pc = detached.entities[entity].Pc;
+            if (!visited.Add(pc))
+            {
+                return false;
+            }
+            try
+            {
+                byte opcode = program.Read(pc);
+                if (opcode == 0)
+                {
+                    return true;
+                }
+                // Variable predicates can depend on physical-query aliases produced later in the native cycle.
+                if (opcode is not (0x10 or 0x11 or 0x30 or 0x31 or 0x32))
+                {
+                    return false;
+                }
+                if (detached.Execute(entity))
+                {
+                    return false;
+                }
+            }
+            catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
     /// <summary>Reads the first input gate on the current variable-dependent entry path, without executing a live interaction.</summary>
     public FieldScriptInputDemand? ReadEntryInputDemand(int entity, int script, int instructionBudget = 64)
     {

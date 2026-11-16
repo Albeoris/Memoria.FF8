@@ -89,33 +89,41 @@ public sealed partial class Ff7Session
 {
     private void DispatchLineScripts()
     {
-        foreach (Ff7Line line in Host.Process.Lines)
+        foreach (var request in ReadNativeLineScriptRequests(() => Host))
         {
-            if (line.Talk && !Host.Process.PlayerLocked)
+            RequestInteractionScript(request.Entity, request.Script);
+        }
+        Host.ClearLineRequests();
+    }
+
+    internal static IEnumerable<(int Entity, int Script)> ReadNativeLineScriptRequests(Func<Ff7FieldHost> readHost)
+    {
+        foreach (Ff7Line line in readHost().Process.Lines)
+        {
+            if (line.Talk && !readHost().Process.PlayerLocked)
             {
-                RequestInteractionScript(line.Entity, 1);
+                yield return (line.Entity, 1);
             }
             if (line.Push)
             {
-                RequestInteractionScript(line.Entity, 2);
+                yield return (line.Entity, 2);
             }
             if (line.Across)
             {
-                RequestInteractionScript(line.Entity, 3);
+                yield return (line.Entity, 3);
             }
             if (line.Enter)
             {
-                RequestInteractionScript(line.Entity, 5);
+                yield return (line.Entity, 5);
             }
             if (line.Leave)
             {
-                RequestInteractionScript(line.Entity, 6);
+                yield return (line.Entity, 6);
             }
             if (line.Touch)
             {
-                RequestInteractionScript(line.Entity, 4);
+                yield return (line.Entity, 4);
             }
         }
-        Host.ClearLineRequests();
     }
 }

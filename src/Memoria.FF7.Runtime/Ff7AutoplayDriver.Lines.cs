@@ -152,7 +152,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             return false;
         }
-        if (avoidedLineGeneration != session.FieldGeneration)
+        if (avoidedLineGeneration != session.FieldGeneration && navigationLineTargets is null)
         {
             return true;
         }
@@ -160,8 +160,19 @@ public sealed partial class Ff7AutoplayDriver
         Vector3 start = new(from.X4096 >> 12, from.Y4096 >> 12, from.Z4096 >> 12);
         Vector3 end = new(move.Actor.X4096 >> 12, move.Actor.Y4096 >> 12, move.Actor.Z4096 >> 12);
         int radiusSquared = from.CollisionRadius * from.CollisionRadius;
-        foreach (Ff7Line line in session.Host.Process.Lines.Where(line => line.Enabled == 1 && avoidedLineEntities.Contains(line.Entity)))
+        foreach (Ff7Line line in session.Host.Process.Lines.Where(line => line.Enabled == 1))
         {
+            bool legacy = avoidedLineGeneration == session.FieldGeneration && avoidedLineEntities.Contains(line.Entity);
+            Ff7AutoPlayTarget[] native = navigationLineTargets?.Where(target => target.Entity == line.Entity && !CanSkipNavigationLine(target)).ToArray() ?? [];
+            if (!legacy && native.Length == 0)
+            {
+                continue;
+            }
+            if (native.Any(target => HasNativeLineRequest(target.Kind, line)))
+            {
+                navigationLineRejected = true;
+                return false;
+            }
             Vector3 a = new(line.X1, line.Y1, line.Z1);
             Vector3 b = new(line.X2, line.Y2, line.Z2);
             int before = Ff7Session.DistanceToSegment(a, b, start, out Vector3 nearest);
@@ -171,12 +182,14 @@ public sealed partial class Ff7AutoplayDriver
                 int angle = exact ? line.ProximityAngle : session.Host.Movement!.Direction((int)(nearest.X - start.X), (int)(nearest.Y - start.Y));
                 if (exact || ((angle - to.Direction + 64) & 255) < 128)
                 {
+                    navigationLineRejected |= native.Length != 0;
                     return false;
                 }
             }
             int after = Ff7Session.DistanceToSegment(a, b, end, out _);
             if (after >= 0 && after < radiusSquared && (before < 0 || after < before))
             {
+                navigationLineRejected |= native.Length != 0;
                 return false;
             }
         }

@@ -5,24 +5,6 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal static bool RequiresMovementLineAvoidance(Ff7AutoPlayTarget candidate, Ff7AutoPlayTarget selected, FieldInputState input)
-    {
-        if (selected.Kind is Ff7AutoPlayTargetKind.ActorTalk or Ff7AutoPlayTargetKind.LineTalk || selected.EntryInputContract is not null || selected.EntryInputDemand is not null || candidate.EntryInputDemand is not { } demand)
-        {
-            return true;
-        }
-        // Ordinary approach actions issue only movement and the native run button.
-        // Interaction and independently gated goals retain conservative contact avoidance.
-        const ushort movementButtons = 0x40;
-        ushort possible = demand.Kind switch
-        {
-            FieldScriptInputKind.Held or FieldScriptInputKind.Pressed => movementButtons,
-            FieldScriptInputKind.Released => (ushort)(movementButtons | (demand.Mapped ? input.Held : input.RawHeld)),
-            _ => ushort.MaxValue
-        };
-        return demand.Mask == 0 || (demand.Mask & possible) != 0;
-    }
-
     internal static void RecordControlReturn(AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation, bool navigationReceipt, string? exitSignature, bool progressChanged, IReadOnlyList<AutoPlayChoiceSelection> selections)
     {
         planner.Completed(active.VisitId, active.EventId, navigationReceipt ? observation.VisitId : null, exitSignature: exitSignature, observedStoryChanged: progressChanged, selections: selections, entrySignature: active.ConditionFingerprint, entrySignatureAuthoritative: true, entryAvailabilityFingerprint: active.EntryAvailabilityFingerprint, availabilityFingerprintAuthoritative: true, targetId: active.EventId);

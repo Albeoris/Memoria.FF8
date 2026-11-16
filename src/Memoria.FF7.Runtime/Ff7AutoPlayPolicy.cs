@@ -222,9 +222,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
-        int? selectedLineOwner = selectedTarget.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? selectedTarget.Entity : null;
         driver.ConfigureSpatialBoundaries(observation.Events, selectedTarget);
-        driver.AvoidLinePush(observation.Events.Where(target => target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && target.ChangesField && target.Entity != selectedLineOwner && !(selectedTarget.Kind == Ff7AutoPlayTargetKind.Gateway && selectedTarget.DestinationField == target.DestinationField) && RequiresMovementLineAvoidance(target, selectedTarget, session.Machine.Input)).Select(target => target.Entity).Distinct().ToArray());
         if (DetectMovementCycle(current))
         {
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
@@ -241,15 +239,15 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         try
         {
-            return driver.ChooseTargetInput(selectedTarget, () =>
+            return driver.ChooseTargetInput(selectedTarget, observation.Events, run =>
             {
                 Ff7AutoplayInput input = selectedTarget.Kind switch
                 {
-                    Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(selectedTarget.Entity),
-                    Ff7AutoPlayTargetKind.ActorContact => driver.Contact(selectedTarget.Entity),
-                    Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(selectedTarget.GatewayIndex!.Value),
-                    Ff7AutoPlayTargetKind.AutonomousSpatial => driver.Approach(selectedTarget.Position, selectedTarget.Triangle),
-                    _ => ChooseLineInput(driver, selectedTarget)
+                    Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(selectedTarget.Entity, run),
+                    Ff7AutoPlayTargetKind.ActorContact => driver.Contact(selectedTarget.Entity, run),
+                    Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(selectedTarget.GatewayIndex!.Value, run),
+                    Ff7AutoPlayTargetKind.AutonomousSpatial => driver.Approach(selectedTarget.Position, selectedTarget.Triangle, run),
+                    _ => ChooseLineInput(driver, selectedTarget, run)
                 };
                 return PrepareEntryInput(selectedTarget, input);
             });
@@ -281,9 +279,16 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         if (ready && scriptedInput.ChooseEntryInput(target.Entity, target.Script) is Ff7AutoplayInput button)
         {
-            return input with { Held = (ushort)(input.Held | button.Held) };
+            return ApplyReadyEntryInput(input, button);
         }
         return input;
+    }
+
+    internal static Ff7AutoplayInput ApplyReadyEntryInput(Ff7AutoplayInput approach, Ff7AutoplayInput required)
+    {
+        ushort held = (ushort)(approach.Held | required.Held);
+        bool moving = approach.Horizontal != 0 || approach.Vertical != 0;
+        return approach with { Held = held, Run = moving ? (held & 0x40) != 0 : approach.Run };
     }
 
     internal static bool IsSpatialTransitionCompletion(Ff7AutoPlayActiveEvent active, int actualMap)
@@ -531,12 +536,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return active is { Accepted: true, Returned: false } && active.Generation == observation.Generation && observation.Transition is not null && observation.TransitionOwner is { } owner && owner.Command == observation.Transition && observation.TransitionOwnership is { } proof && proof.RootEntity == active.Entity && proof.RootScript == active.Script && proof.OwnerEntity == owner.Entity && proof.OwnerPriority == owner.Priority;
     }
 
-    private Ff7AutoplayInput ChooseLineInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target)
+    private Ff7AutoplayInput ChooseLineInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target, bool run = true)
     {
         Ff7Line line = session.Host.Process.Lines.Single(line => line.Entity == target.Entity);
         if (target.Kind == Ff7AutoPlayTargetKind.LineTalk)
         {
-            return driver.TalkToLine(target.Entity);
+            return driver.TalkToLine(target.Entity, run);
         }
         Ff7AutoPlayActiveEvent active = State.Active!;
         if (target.Kind == Ff7AutoPlayTargetKind.LineLeave)
@@ -548,20 +553,20 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                     State.Active = active with { LinePhase = 1 };
                     Publish();
                 }
-                return driver.LeaveLine(target.Entity);
+                return driver.LeaveLine(target.Entity, run);
             }
-            return driver.ApproachLine(target.Entity, Ff7AutoPlayTargetKind.LineTouch);
+            return driver.ApproachLine(target.Entity, Ff7AutoPlayTargetKind.LineTouch, run);
         }
         if (target.Kind == Ff7AutoPlayTargetKind.LineEnter && active.LinePhase == 0 && line.Touch)
         {
-            return driver.LeaveLine(target.Entity);
+            return driver.LeaveLine(target.Entity, run);
         }
         if (target.Kind == Ff7AutoPlayTargetKind.LineEnter && !line.Touch && active.LinePhase == 0)
         {
             State.Active = active with { LinePhase = 1 };
             Publish();
         }
-        return driver.ApproachLine(target.Entity, target.Kind);
+        return driver.ApproachLine(target.Entity, target.Kind, run);
     }
 
     private bool DetectMovementCycle(Ff7AutoPlayActiveEvent active)

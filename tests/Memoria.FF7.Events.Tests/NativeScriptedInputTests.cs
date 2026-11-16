@@ -5,6 +5,7 @@ internal static class NativeScriptedInputTests
 {
     public static void Run()
     {
+        CheckSkippableEntryProof();
         CheckTimedPollingLoop();
         CheckEvenTimedEdgePolling();
         for (int opcode = 0x30; opcode <= 0x32; opcode++)
@@ -69,6 +70,57 @@ internal static class NativeScriptedInputTests
         FieldMachine loop = new(new([0, 0x12, 0], [new ushort[32]]));
         loop.Initialize();
         Check(loop.ReadCurrentInputDemands(4).Count == 0, "A pure main loop exceeded bounded lookahead or invented input.");
+    }
+
+    private static void CheckSkippableEntryProof()
+    {
+        ushort[] entries = new ushort[32];
+        entries[4] = 1;
+        RejectHost host = new();
+        foreach (byte opcode in new byte[] { 0x30, 0x31, 0x32 })
+        {
+            foreach (bool mapped in new[] { false, true })
+            {
+                ushort mask = mapped ? (ushort)0x240 : (ushort)0x40;
+                FieldProgram program = new([0, opcode, (byte)mask, (byte)(mask >> 8), 4, 0x99, 0x50, 0, 0], [entries]);
+                FieldMachine machine = new(program, host: host);
+                machine.Initialize();
+                int callbacks = 0;
+                machine.InstructionExecuted = (_, _, _, _) => callbacks++;
+                string before = JsonSerializer.Serialize(machine.Capture());
+                Check(machine.CanSkipScriptEntryForInput(0, 4, new()), "An unmatched native KEY gate followed by RET was not proved inert.");
+                FieldInputState active = new(Held: mask, Pressed: mask, Released: mask, RawHeld: mask, RawPressed: mask, RawReleased: mask);
+                Check(!machine.CanSkipScriptEntryForInput(0, 4, active), "A matched native KEY gate crossed a host operation in the skip proof.");
+                FieldInputState otherStream = mapped ? new(RawHeld: mask, RawPressed: mask, RawReleased: mask) : new(Held: mask, Pressed: mask, Released: mask);
+                Check(machine.CanSkipScriptEntryForInput(0, 4, otherStream), "The skip proof confused mapped and raw native input streams.");
+                Check(!machine.CanSkipScriptEntryForInput(0, 4, new(), 1), "The skip proof ignored its instruction budget before RET.");
+                Check(before == JsonSerializer.Serialize(machine.Capture()) && callbacks == 0 && host.Calls == 0, "The skip proof changed live state or dispatched a live callback.");
+                FieldMachine cold = FieldMachine.Restore(program, machine.Capture(), host);
+                Check(cold.CanSkipScriptEntryForInput(0, 4, new()), "Cold restoration changed the native input-only skip proof.");
+            }
+        }
+        foreach (byte[] body in new byte[][]
+        {
+            [0x99, 0x50, 0, 0],
+            [0x80, 0x50, 0, 1, 0],
+            [0x01, 0, 0, 0],
+            [0x5F, 0],
+            [0x24, 0, 0, 0],
+            [0x12, 0, 0],
+            [0x14, 0x50, 0, 0, 0, 1, 0]
+        })
+        {
+            FieldMachine machine = new(new([0, 0x30, 0x40, 2, 1, .. body], [entries]), host: host);
+            machine.Initialize();
+            string before = JsonSerializer.Serialize(machine.Capture());
+            Check(!machine.CanSkipScriptEntryForInput(0, 4, new()), "An unmatched KEY path with a read, write, host, request or yield was incorrectly proved inert.");
+            Check(before == JsonSerializer.Serialize(machine.Capture()) && host.Calls == 0, "A rejected skip proof changed native state or called the live host.");
+        }
+        FieldMachine jumps = new(new([0, 0x10, 1, 0x11, 2, 0, 0], [entries]));
+        jumps.Initialize();
+        Check(jumps.CanSkipScriptEntryForInput(0, 4, new()), "Pure native forward jumps to RET were not proved inert.");
+        FieldMachine uninitialized = new(new([0, 0], [entries]));
+        Check(!uninitialized.CanSkipScriptEntryForInput(0, 4, new()), "An uninitialized VM supplied an entry skip proof.");
     }
 
     private static void CheckTimedPollingLoop()

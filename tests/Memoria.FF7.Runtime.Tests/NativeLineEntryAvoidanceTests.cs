@@ -7,7 +7,6 @@ internal static class NativeLineEntryAvoidanceTests
 {
     public static void Run()
     {
-        CheckInputAdmission();
         CheckOriginalSlopedBoundary();
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_LINE_ENTRY_SAVE");
@@ -86,23 +85,6 @@ internal static class NativeLineEntryAvoidanceTests
         Check(controller.Failure is null && attempted && finished && !interrupted, $"A native sloped contact approach entered its unrelated neighbouring LINE or never resolved: {controller.Error}");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Sloped contact validation changed its standalone source.");
         Console.WriteLine($"PASS original sloped contact approach resolves without the unrelated LINE transition after {controller.Steps} ordinary callbacks; source unchanged.");
-    }
-
-    private static void CheckInputAdmission()
-    {
-        Ff7AutoPlayTarget selected = new("automatic", 1, 5, Ff7AutoPlayTargetKind.LineEnter, "entry", false, default);
-        FieldScriptInputDemand demand = new("gate", "program", 2, 1, 0, FieldScriptInputKind.Pressed, 0x220, true, true);
-        Ff7AutoPlayTarget candidate = new("gated", 2, 4, Ff7AutoPlayTargetKind.LineTouch, "gate", false, default) { EntryInputDemand = demand };
-        Check(!Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(candidate, selected, new()), "Ordinary movement was forbidden by an independent interaction-button gate.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(candidate with { EntryInputDemand = null }, selected, new()), "An unproved automatic transition lost contact avoidance.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(candidate with { EntryInputDemand = demand with { Mask = 0x40 } }, selected, new()), "A native run-button gate was treated as independent of movement.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(candidate, selected with { Kind = Ff7AutoPlayTargetKind.ActorTalk }, new()), "A planned interaction lost conservative neighbouring-line admission.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(candidate, selected with { EntryInputContract = "independent" }, new()), "An independently gated goal lost conservative neighbouring-line admission.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(candidate, selected with { EntryInputDemand = demand }, new()), "A typed input-gated goal lost conservative neighbouring-line admission.");
-        Ff7AutoPlayTarget released = candidate with { EntryInputDemand = demand with { Kind = FieldScriptInputKind.Released } };
-        Check(!Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(released, selected, new()), "An impossible release edge blocked ordinary movement.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(released, selected, new(Held: 0x20)), "Releasing the previous native input could bypass a neighbouring gate.");
-        Check(Ff7AutoPlayPolicy.RequiresMovementLineAvoidance(released with { EntryInputDemand = released.EntryInputDemand! with { Mapped = false } }, selected, new(RawHeld: 0x20)), "Raw input release admission used mapped state.");
     }
 
     private static void Check(bool condition, string message)

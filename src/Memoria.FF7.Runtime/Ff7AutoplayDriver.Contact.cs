@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -38,6 +39,156 @@ public sealed partial class Ff7AutoplayDriver
         return ChooseBoundaryInput(choose, ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways));
     }
 
+    private Ff7AutoPlayTarget[]? navigationLineTargets;
+    private FieldInputState? navigationLineInput;
+    private readonly Dictionary<(int Entity, int Script, FieldInputState Input), bool> navigationLineSkips = [];
+    private bool navigationLineRejected;
+    private bool? navigationRunMode;
+
+    internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose)
+    {
+        int? selectedLine = target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave ? target.Entity : null;
+        Ff7AutoPlayTarget[]? retainedTargets = navigationLineTargets;
+        FieldInputState? retainedInput = navigationLineInput;
+        IReadOnlySet<int>? retainedGateways = admittedGateways;
+        navigationLineTargets = offeredTargets.Where(candidate => candidate.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (candidate.ChangesField || candidate.MayChangeNavigation) && candidate.Entity != selectedLine && !(target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField == candidate.DestinationField)).ToArray();
+        navigationLineSkips.Clear();
+        admittedGateways = ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways);
+        Ff7AutoplayInput? idle = null;
+        Ff7AutoPlayNavigationUnavailableException? failure = null;
+        bool rejected = false;
+        try
+        {
+            foreach (bool run in new[] { true, false })
+            {
+                if (navigationRunMode != run)
+                {
+                    waypointGeneration = -1;
+                    committedWaypoint = null;
+                    finalApproach = false;
+                    ResetObstacleEscape();
+                    navigationRunMode = run;
+                }
+                navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);
+                navigationLineRejected = false;
+                try
+                {
+                    Ff7AutoplayInput action = choose(run);
+                    if (PlanningPending)
+                    {
+                        return action;
+                    }
+                    bool admitted = AllowsBoundaryInput(action);
+                    rejected |= navigationLineRejected || !admitted;
+                    if (!admitted)
+                    {
+                        continue;
+                    }
+                    if (action.Horizontal != 0 || action.Vertical != 0 || action.Held != 0 || action.Talk)
+                    {
+                        return action;
+                    }
+                    idle ??= action;
+                }
+                catch (Ff7AutoPlayNavigationUnavailableException blocked)
+                {
+                    if (PlanningPending)
+                    {
+                        throw;
+                    }
+                    failure = blocked;
+                    rejected = true;
+                }
+            }
+            if (idle is Ff7AutoplayInput waiting && !rejected)
+            {
+                return waiting;
+            }
+            throw failure ?? new Ff7AutoPlayNavigationUnavailableException(target.Entity, "Neither native run nor walk admits the selected approach without executing an unselected line owner.");
+        }
+        finally
+        {
+            navigationLineTargets = retainedTargets;
+            navigationLineInput = retainedInput;
+            admittedGateways = retainedGateways;
+        }
+    }
+
+    internal static FieldInputState ProjectNavigationInput(Ff7AutoplayInput action, FieldInputState previous)
+    {
+        ushort pressed = (ushort)(action.Held & ~previous.Held);
+        FieldInputState input = new(action.Held, pressed, (ushort)(previous.Held & ~action.Held), action.Held, pressed, (ushort)(previous.RawHeld & ~action.Held), PreviousHeld: previous.Held, PreviousRawHeld: previous.RawHeld);
+        if (action.Horizontal != 0 || action.Vertical != 0)
+        {
+            const ushort runButton = 0x40;
+            static ushort Project(ushort value, bool enabled) => enabled ? (ushort)(value | runButton) : (ushort)(value & ~runButton);
+            bool heldRun = (previous.Held & runButton) != 0;
+            bool rawRun = (previous.RawHeld & runButton) != 0;
+            input = input with { Held = Project(input.Held, action.Run), Pressed = Project(input.Pressed, action.Run && !heldRun), Released = Project(input.Released, !action.Run && heldRun), RawHeld = Project(input.RawHeld, action.Run), RawPressed = Project(input.RawPressed, action.Run && !rawRun), RawReleased = Project(input.RawReleased, !action.Run && rawRun) };
+        }
+        return input;
+    }
+
+    private bool CanSkipNavigationLine(Ff7AutoPlayTarget target)
+    {
+        FieldInputState input = navigationLineInput ?? throw new InvalidOperationException("Native navigation line input was not scoped.");
+        var key = (target.Entity, target.Script, input);
+        if (!navigationLineSkips.TryGetValue(key, out bool skip))
+        {
+            skip = session.Machine.CanSkipScriptEntryForInput(target.Entity, target.Script, input);
+            navigationLineSkips.Add(key, skip);
+        }
+        return skip;
+    }
+
+    internal static bool HasNativeLineRequest(Ff7AutoPlayTargetKind kind, Ff7Line line)
+    {
+        return kind switch
+        {
+            Ff7AutoPlayTargetKind.LineTalk => line.Talk,
+            Ff7AutoPlayTargetKind.LinePush => line.Push,
+            Ff7AutoPlayTargetKind.LineCross => line.Across,
+            Ff7AutoPlayTargetKind.LineTouch => line.Touch,
+            Ff7AutoPlayTargetKind.LineEnter => line.Enter,
+            Ff7AutoPlayTargetKind.LineLeave => line.Leave,
+            _ => false
+        };
+    }
+
+    private bool AllowsBoundaryInput(Ff7AutoplayInput input)
+    {
+        FieldInputState? retainedInput = navigationLineInput;
+        try
+        {
+            if (navigationLineTargets is not null)
+            {
+                navigationLineInput = ProjectNavigationInput(input, session.Machine.Input);
+                foreach (Ff7AutoPlayTarget target in navigationLineTargets)
+                {
+                    Ff7Line line = session.Host.Process.Lines.Last(line => line.Entity == target.Entity);
+                    if (HasNativeLineRequest(target.Kind, line) && !CanSkipNavigationLine(target))
+                    {
+                        navigationLineRejected = true;
+                        return false;
+                    }
+                }
+            }
+            if ((input.Horizontal != 0 || input.Vertical != 0) && session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is Ff7Actor player)
+            {
+                var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
+                Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
+                int rotation = (input.Held & 8) != 0 ? 224 : (input.Held & 4) != 0 ? 32 : 0;
+                Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection + rotation)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+                return AllowsPlannedMove(controlled, probe);
+            }
+            return true;
+        }
+        finally
+        {
+            navigationLineInput = retainedInput;
+        }
+    }
+
     private Ff7AutoplayInput ChooseBoundaryInput(Func<Ff7AutoplayInput> choose, IReadOnlySet<int>? gateways = null)
     {
         IReadOnlySet<int>? previous = admittedGateways;
@@ -45,18 +196,7 @@ public sealed partial class Ff7AutoplayDriver
         try
         {
             Ff7AutoplayInput input = choose();
-            if ((input.Horizontal != 0 || input.Vertical != 0) && session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is Ff7Actor player)
-            {
-                var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
-                Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
-                int rotation = (input.Held & 8) != 0 ? 224 : (input.Held & 4) != 0 ? 32 : 0;
-                Ff7NativeMoveResult probe = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection + rotation)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
-                if (!AllowsPlannedMove(controlled, probe))
-                {
-                    return default;
-                }
-            }
-            return input;
+            return AllowsBoundaryInput(input) ? input : default;
         }
         finally
         {
