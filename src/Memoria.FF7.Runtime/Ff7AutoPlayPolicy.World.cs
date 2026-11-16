@@ -8,6 +8,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayWorldChunk(int X, int Z);
 public sealed record Ff7AutoPlayWorldDispatchReceipt(string VisitId, string EventId, int Entry, int CallDepth, long Tick, int[] HandoffOperations, Ff7WorldFieldDeparture? Departure = null, int? DestinationField = null, int? DepartureStory = null);
+public sealed record Ff7AutoPlayWorldComponentDeferral(string Context, HashSet<Ff7WorldTerrainReference> Faces, string PhysicalFingerprint);
 public sealed class Ff7AutoPlayWorldVisitState
 {
     public string ProgramIdentity { get; set; } = string.Empty;
@@ -18,6 +19,8 @@ public sealed class Ff7AutoPlayWorldVisitState
     public string? GlobalFingerprint { get; set; }
     public HashSet<string> PhysicalGuards { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> SourceProgressEntries { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Ff7AutoPlayWorldComponentDeferral> ComponentDeferrals { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> ObservedPhysicalGuards { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed partial class Ff7AutoPlayPolicy
@@ -26,8 +29,6 @@ public sealed partial class Ff7AutoPlayPolicy
     private readonly Dictionary<Ff7AutoPlayWorldChunk, Ff7AutoPlayWorldFrontierCatalog> worldCatalogs = [];
     private readonly Queue<Ff7AutoPlayWorldChunk> worldChunkQueue = new();
     private readonly HashSet<Ff7AutoPlayWorldChunk> queuedWorldChunks = [];
-    private sealed record WorldComponentDeferral(string Context, HashSet<Ff7WorldTerrainReference> Faces, string PhysicalFingerprint);
-    private readonly Dictionary<string, WorldComponentDeferral> worldComponentDeferrals = new(StringComparer.Ordinal);
     private string? worldVisit;
 
     private void ObserveWorldAllocation()
@@ -43,7 +44,6 @@ public sealed partial class Ff7AutoPlayPolicy
             observedWorld.NativeHostOperationObserved -= ObserveWorldHostOperation;
         }
         observedWorld = world;
-        worldComponentDeferrals.Clear();
         worldCatalogs.Clear();
         worldChunkQueue.Clear();
         queuedWorldChunks.Clear();
@@ -129,15 +129,8 @@ public sealed partial class Ff7AutoPlayPolicy
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         foreach (string key in visited.PhysicalGuards)
         {
-            if (worldComponentDeferrals.TryGetValue(key, out WorldComponentDeferral? deferred) && deferred.Context == componentContext && movement.Input.GroundTriangle is { } ground && deferred.Faces.Contains(ground))
-            {
-                physicalGuards[key] = deferred.PhysicalFingerprint;
-            }
-            else
-            {
-                worldComponentDeferrals.Remove(key);
-                physicalGuards[key] = physical;
-            }
+            physicalGuards[key] = ReadWorldGuardFingerprint(visited, key, componentContext, movement.Input.GroundTriangle, physical);
+            visited.ObservedPhysicalGuards[key] = physicalGuards[key];
         }
         planner.RefreshUnavailable(observation.VisitId, physicalGuards);
         if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } && State.NavigationGoal is { EventId: string goalEvent } travelGoal && State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == travelGoal.NavigationKey) is { } goalVisit && State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == goalVisit.VisitKey)?.Events.SingleOrDefault(item => item.Event.Id == goalEvent) is { Available: false })
@@ -147,7 +140,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (State.Active is null)
         {
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal);
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadRetainedNavigationAvailability(State, navigation, target));
             if (ShouldDiscoverWorldChunk(State, observation.VisitId, next, !visited.DiscoveryComplete && worldChunkQueue.Count != 0) && ObserveNextWorldChunk(world))
             {
                 State.Status = "Discovering the next native world collision chunk";
@@ -202,7 +195,7 @@ public sealed partial class Ff7AutoPlayPolicy
             visited.PhysicalGuards.Add(key);
             if (result.DeferredComponent is { Length: > 0 } component)
             {
-                worldComponentDeferrals[key] = new(componentContext, component.ToHashSet(), physical);
+                visited.ComponentDeferrals[key] = new(componentContext, component.ToHashSet(), physical);
             }
             planner.MarkUnavailable(observation.VisitId, selected.EventId, new(selected.ConditionFingerprint, observation.VisitId, key, physical, selected.EventId));
             State.Active = null;
@@ -223,6 +216,16 @@ public sealed partial class Ff7AutoPlayPolicy
         State.Status = $"World {world.Resources.World}: {selected.EventId}, {result.Status}";
         Publish();
         return result.Input;
+    }
+
+    internal static string ReadWorldGuardFingerprint(Ff7AutoPlayWorldVisitState visited, string key, string context, Ff7WorldTerrainReference? ground, string physical)
+    {
+        if (visited.ComponentDeferrals.TryGetValue(key, out Ff7AutoPlayWorldComponentDeferral? deferred) && deferred.Context == context && ground is { } source && deferred.Faces.Contains(source))
+        {
+            return deferred.PhysicalFingerprint;
+        }
+        visited.ComponentDeferrals.Remove(key);
+        return physical;
     }
 
     private Ff7AutoPlayObservation ObserveWorldPlanner(Ff7WorldRuntime world)

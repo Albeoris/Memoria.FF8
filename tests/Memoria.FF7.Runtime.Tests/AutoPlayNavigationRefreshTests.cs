@@ -21,6 +21,145 @@ internal static class AutoPlayNavigationRefreshTests
         CheckFailedAdmissionReceipts();
         CheckOriginalFailedAdmission();
         CheckScopedPhysicalTravel();
+        CheckRetainedWorldFrontier();
+        CheckWorldComponentDeferralPersistence();
+        CheckOriginalWorldFrontier();
+    }
+
+    private static void CheckWorldComponentDeferralPersistence()
+    {
+        Ff7WorldTerrainReference source = new(2, 3, 4);
+        Ff7WorldTerrainReference connected = new(2, 3, 5);
+        Ff7WorldTerrainReference outside = new(2, 3, 6);
+        Ff7AutoPlayState state = new();
+        state.WorldVisits["world"] = new()
+        {
+            PhysicalGuards = ["blocked-leg", "other-leg"],
+            ComponentDeferrals = new()
+            {
+                ["blocked-leg"] = new("native-context", [source, connected], "proved-blocked"),
+                ["other-leg"] = new("other-context", [outside], "other-proof")
+            }
+        };
+        Ff7AutoPlayState cold = state.Clone();
+        Ff7AutoPlayWorldVisitState visited = cold.WorldVisits["world"];
+        string original = JsonSerializer.Serialize(visited);
+        Check(Ff7AutoPlayPolicy.ReadWorldGuardFingerprint(visited, "blocked-leg", "native-context", source, "new-position") == "proved-blocked", "Cold restoration discarded a proved closed world component when the player returned at another position.");
+        Check(Ff7AutoPlayPolicy.ReadWorldGuardFingerprint(visited, "blocked-leg", "native-context", connected, "another-position") == "proved-blocked", "Moving within the proved world component reopened its failed remote leg.");
+        Check(JsonSerializer.Serialize(visited) == original, "Retaining a world component proof changed its native dependency metadata.");
+        Ff7AutoPlayWorldVisitState reallocated = cold.Clone().WorldVisits["world"];
+        Check(Ff7AutoPlayPolicy.ReadWorldGuardFingerprint(reallocated, "blocked-leg", "native-context", connected, "reentry-position") == "proved-blocked", "A reallocated policy visit required an ephemeral world component cache to retain its proof.");
+
+        foreach ((string context, Ff7WorldTerrainReference? ground) in new (string, Ff7WorldTerrainReference?)[] { ("changed-context", source), ("native-context", outside), ("native-context", null) })
+        {
+            Ff7AutoPlayWorldVisitState changed = state.Clone().WorldVisits["world"];
+            Check(Ff7AutoPlayPolicy.ReadWorldGuardFingerprint(changed, "blocked-leg", context, ground, "current-native") == "current-native", "A changed or unknown world component retained an inapplicable physical proof.");
+            Check(!changed.ComponentDeferrals.ContainsKey("blocked-leg") && changed.ComponentDeferrals.ContainsKey("other-leg") && changed.PhysicalGuards.SetEquals(["blocked-leg", "other-leg"]), "Releasing one world component proof removed another source or its recorded physical guard.");
+        }
+        Check(Ff7AutoPlayPolicy.ReadWorldGuardFingerprint(visited, "unknown-leg", "native-context", source, "unscoped-native") == "unscoped-native", "An unscoped world guard borrowed another leg's component proof.");
+        Ff7AutoPlayWorldVisitState legacy = JsonSerializer.Deserialize<Ff7AutoPlayWorldVisitState>("{\"PhysicalGuards\":[\"legacy-leg\"]}")!;
+        Check(legacy.ComponentDeferrals.Count == 0 && Ff7AutoPlayPolicy.ReadWorldGuardFingerprint(legacy, "legacy-leg", "native-context", source, "legacy-native") == "legacy-native", "An older world visit fabricated a required component proof or lost normal guard revalidation.");
+        Check(state.WorldVisits["world"].ComponentDeferrals.Count == 2, "Cold component proof updates mutated their source state.");
+    }
+
+    private static void CheckRetainedWorldFrontier()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        AutoPlayEvent entry = new("world-entry", AutoPlayEventKind.Transition, ConditionSignature: "entry-condition");
+        AutoPlayEvent blocked = new("blocked", AutoPlayEventKind.Interaction, ConditionSignature: "blocked-condition");
+        AutoPlayEvent alternative = new("alternative", AutoPlayEventKind.Interaction, ConditionSignature: "alternative-condition");
+        planner.Observe(new("world", "world-program"), [entry]);
+        planner.Observe(new("field", "field-program"), [blocked, alternative]);
+        planner.ObserveNavigation("world", "world-node", [entry]);
+        planner.ObserveNavigation("field", "field-node", [blocked, alternative]);
+        planner.Completed("world", entry.Id, "field", observedStoryChanged: false, entrySignature: entry.ConditionSignature, entrySignatureAuthoritative: true);
+        planner.RecordNavigationRoute("world-node", "field-node", entry.Id, state.Coverage.Visits.Single(visit => visit.Visit.Key == "world").Events.Single().Routes.Single());
+        state.VisitGuards["field"] = new([], [], "retained-field");
+        state.NavigationGuards["source-guard"] = new("field", 1, EventId: blocked.Id, NavigationKey: "field-node");
+        planner.MarkUnavailable("field", blocked.Id, new(blocked.ConditionSignature!, "field", "source-guard", "older-blocked", blocked.Id));
+        planner.MarkUnavailable("field", blocked.Id, new(blocked.ConditionSignature!, "field", "source-guard", "latest-blocked", blocked.Id));
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == "field").Events.Single(item => item.Event.Id == blocked.Id);
+        aggregate.Unavailable = false;
+        aggregate.UnavailableVariants.Clear();
+        aggregate.AvailabilityFingerprint = null;
+        AutoPlayTravelGoal preferred = new("field-node", blocked.Id, blocked.ConditionSignature);
+        Check(planner.PlanNavigation("world-node", preferredGoal: preferred)?.Goal == preferred, "The authored world source did not reproduce aggregate eligibility admitting the blocked preferred goal.");
+        string before = JsonSerializer.Serialize(state);
+        Check(Plan(state)?.Goal is { EventId: "alternative", NavigationKey: "field-node" }, "World planning resurrected a preferred field event whose exact source retained an unchanged failure.");
+        Check(Plan(state.Clone())?.Goal is { EventId: "alternative" }, "Cold restoration lost retained source-scoped field eligibility during world planning.");
+        Check(JsonSerializer.Serialize(state) == before, "Retained world frontier projection mutated aggregate coverage or source evidence.");
+        AutoPlayNavigationVisit world = state.Coverage.NavigationVisits.Single(visit => visit.Key == "world-node");
+        Check(Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(state, world, entry) is null, "An unknown unguarded visit fabricated retained native availability.");
+        state.NavigationGuards["source-guard"] = state.NavigationGuards["source-guard"] with { ObservedFingerprint = "native-released" };
+        Check(Plan(state)?.Goal == preferred, "A retained genuine source change did not release the preferred field frontier from world planning.");
+        state.WorldVisits["world"] = new();
+        planner.MarkUnavailable("world", entry.Id, new(entry.ConditionSignature!, "world", "world-guard", "older-world-failure", entry.Id));
+        planner.MarkUnavailable("world", entry.Id, new(entry.ConditionSignature!, "world", "world-guard", "latest-world-failure", entry.Id));
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> worldAggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == "world").Events.Single();
+        worldAggregate.Unavailable = false;
+        worldAggregate.UnavailableVariants.Clear();
+        worldAggregate.AvailabilityFingerprint = null;
+        Check(Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(state, world, entry) is { Unavailable: true }, "Missing optional world observations discarded the latest recorded source failure.");
+        Check(Plan(state) is null, "A field/world route reused aggregate-open world travel despite its retained native source failure.");
+        state.WorldVisits["world"].ObservedPhysicalGuards["world-guard"] = "native-world-released";
+        Check(Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(state, world, entry) is { Unavailable: false } && Plan(state)?.Goal == preferred, "A genuinely released world source retained its obsolete failure during remote planning.");
+        state.WorldVisits["world"].ObservedPhysicalGuards["world-guard"] = "latest-world-failure";
+        string retained = JsonSerializer.Serialize(state);
+        Check(Plan(state) is null && Plan(state.Clone()) is null, "A freshly revalidated world failure reopened after departure or cold restoration.");
+        Check(Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(state, world, entry with { ConditionSignature = "new-entry-condition" }) is { Unavailable: false }, "A world source failure leaked across native entry predicates.");
+        Check(JsonSerializer.Serialize(state) == retained, "Reading retained world source facts changed aggregate coverage or observations.");
+
+        AutoPlayPlanStep? Plan(Ff7AutoPlayState selected)
+        {
+            return new AutoPlayPlanner<Ff7AutoPlayDeferral>(selected.Coverage).PlanNavigation("world-node", preferredGoal: preferred, readAvailability: (visit, observed) => Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(selected, visit, observed));
+        }
+    }
+
+    private static void CheckOriginalWorldFrontier()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_FRONTIER_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        AutoPlayTravelGoal staleGoal = source.AutoPlay?.NavigationGoal ?? throw new InvalidOperationException("The fixture requires its retained field frontier goal.");
+        Check(source.World is not null, "The fixture requires an ordinary native world continuation.");
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded world-frontier continuation must stop before new choice checkpoints."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        HashSet<(string Visit, string Event, string Entry)> consumed = Entries(policy.State);
+        bool advanced = false;
+        int worldReturns = 0;
+        bool wasWorld = true;
+        controller.Start();
+        for (int step = 0; step < 1024 && controller.Running && !advanced; step++)
+        {
+            controller.Advance(1);
+            bool isWorld = session.World is not null;
+            if (isWorld && !wasWorld)
+            {
+                worldReturns++;
+            }
+            wasWorld = isWorld;
+            Check(worldReturns < 3, "The original world frontier repeated field-entry/return travel instead of leaving its retained failed preferred goal.");
+            advanced = session.Battle is not null || Entries(policy.State).Any(entry => !consumed.Contains(entry) && policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == entry.Visit).Events.Single(item => item.Event.Id == entry.Event).Event.Kind == AutoPlayEventKind.Interaction);
+        }
+        Check(controller.Failure is null, $"The bounded original world-frontier continuation failed: {controller.Error}");
+        Check(advanced && policy.State.NavigationGoal != staleGoal, "The original world source did not execute a genuine alternative frontier within its bounded ordinary continuation.");
+        Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "World frontier projection queued a replay or changed its original standalone source.");
+        Console.WriteLine($"PASS original world frontier leaves its retained failed field goal after {controller.Steps} ordinary steps; source unchanged.");
+
+        static HashSet<(string Visit, string Event, string Entry)> Entries(Ff7AutoPlayState state)
+        {
+            return state.Coverage.Visits.SelectMany(visit => visit.Events.SelectMany(item => (item.Conditions?.ConsumedEntries ?? []).Select(entry => (visit.Visit.Key, item.Event.Id, entry)))).ToHashSet();
+        }
     }
 
     private static void CheckScopedPhysicalTravel()

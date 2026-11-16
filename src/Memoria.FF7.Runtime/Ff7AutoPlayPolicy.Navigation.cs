@@ -46,14 +46,17 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private AutoPlayEventAvailability? ReadNavigationAvailability(AutoPlayNavigationVisit navigation, AutoPlayEvent observed, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
     {
+        if (State.WorldVisits.ContainsKey(navigation.VisitKey))
+        {
+            return ReadRetainedNavigationAvailability(State, navigation, observed);
+        }
         if (navigation.VisitKey != observation.VisitId && !State.VisitGuards.ContainsKey(navigation.VisitKey))
         {
             return null;
         }
         if (!componentGuards.TryGetValue(navigation.Key, out IReadOnlyDictionary<string, string>? facts))
         {
-            var aggregate = State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey);
-            Dictionary<string, string> projected = aggregate.Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => State.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => State.NavigationGuards[group.Key].ObservedFingerprint ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
+            Dictionary<string, string> projected = ReadRetainedNavigationGuardFacts(State, navigation);
             bool current = navigation.Key == observation.NavigationKey;
             string configuration = observation.NavigationKey[..observation.NavigationKey.LastIndexOf(':')];
             if (current || navigation.Key.StartsWith(configuration + ":", StringComparison.Ordinal))
@@ -84,6 +87,24 @@ public sealed partial class Ff7AutoPlayPolicy
             componentGuards[navigation.Key] = facts;
         }
         return ReadComponentAvailability(State, navigation, observed, facts!);
+    }
+
+    internal static AutoPlayEventAvailability? ReadRetainedNavigationAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed)
+    {
+        if (state.WorldVisits.TryGetValue(navigation.VisitKey, out Ff7AutoPlayWorldVisitState? world))
+        {
+            var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts };
+            Dictionary<string, string> facts = aggregate.UnavailableAttempts.GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => world.ObservedPhysicalGuards.GetValueOrDefault(group.Key) ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
+            return AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts);
+        }
+        return state.VisitGuards.ContainsKey(navigation.VisitKey) ? ReadComponentAvailability(state, navigation, observed, ReadRetainedNavigationGuardFacts(state, navigation)) : null;
+    }
+
+    private static Dictionary<string, string> ReadRetainedNavigationGuardFacts(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation)
+    {
+        var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey);
+        return aggregate.Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => state.NavigationGuards[group.Key].ObservedFingerprint ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
     }
 
     internal static AutoPlayEventAvailability ReadComponentAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, IReadOnlyDictionary<string, string> facts)
