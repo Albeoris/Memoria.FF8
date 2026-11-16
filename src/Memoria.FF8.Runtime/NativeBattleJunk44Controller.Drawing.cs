@@ -59,7 +59,8 @@ public static partial class NativeBattleJunk44Controller
                 frame = Write(frame, address, task.WriteWord(0x0E, unchecked((ushort)minimum)));
                 frame = SpawnProgrammes44(frame, actor, resources, inputs);
                 frame = ApplyModelContacts6E87A0(frame, actor, inputs);
-                task = Read(frame, address).WriteWord(0x18, 80).WriteDword(0x30, 0);
+                task = Read(frame, address).WriteWord(0x18, 80);
+                task.WriteExecutionReference(0x30, 4, new BattleExecutionReference.TrailTarget(null), [0, 0, 0, 0]);
             }
             else
             {

@@ -197,6 +197,12 @@ public sealed class NativeBattleJunk44LowerTests
             expected = expected.Draw(out _);
         }
         Assert.Equal(expected, actual.Frame.Random);
+
+        var next = AdvanceDebris6E84D0(actual.Frame, address, resources, inputs with { ReadModel = (_, _) => throw new InvalidOperationException("A landed fragment has no model target.") });
+        Assert.Equal(0, next.Result);
+        Assert.Equal((ushort)18, Read(next.Frame, address).ReadWord(0x12));
+        Assert.Equal(0u, Read(next.Frame, address).ReadDword(0x30));
+        Assert.Single(operations, operation => operation is NativeBattleJunk44Contact506690);
     }
 
     [Fact]
