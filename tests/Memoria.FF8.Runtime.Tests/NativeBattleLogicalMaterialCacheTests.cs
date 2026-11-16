@@ -28,7 +28,7 @@ public sealed class NativeBattleLogicalMaterialCacheTests
         MaterialContext context = new();
         var executed = NativeBattleLogicalPasses.Execute(Ordering(Owner), Tables(), new(0) { TextureWindowBits = 0 }, context);
 
-        Assert.Equal(new[] { "begin:0", "get", "set", "end:0", "begin:1", "get", "set", "end:1", "begin:2", "end:2" }, context.Calls);
+        Assert.Equal(new[] { "begin:0", "get", "set", "retain:0", "end:0", "begin:1", "get", "set", "retain:1", "end:1", "begin:2", "end:2" }, context.Calls);
         Assert.Equal(2, executed.Commands.Length);
         Assert.Equal(0, executed.Commands[1].DrawMode.TextureSelection!.Row);
         Assert.Equal(1f, executed.Cache!.ScaleU);
@@ -114,6 +114,22 @@ public sealed class NativeBattleLogicalMaterialCacheTests
             Assert.Equal(Owner, command.ModelTextureOwner);
             Calls.Add("set");
             ActorCache = cache!;
+        }
+
+        public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)
+        {
+            Calls.Add($"retain:{command.Pass}");
+            Assert.Equal(Owner, command.Command.ModelTextureOwner);
+            if (command.Pass == 0)
+            {
+                Assert.Null(command.DrawMode.TextureSelection);
+            }
+            else
+            {
+                NativeBattlePcTextureWindowSelection selection = Assert.IsType<NativeBattlePcTextureWindowSelection>(command.DrawMode.TextureSelection);
+                Assert.NotEmpty(ActorCache.Rows[selection.Row].Regions);
+            }
+            return command;
         }
 
         public void BeginPass(byte pass)

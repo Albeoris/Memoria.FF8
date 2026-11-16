@@ -267,13 +267,22 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)
     {
-        if (command.Pass != 0 && (command.Command.Opcode is 0x64 or 0x66))
-        {
-            command = command with { DrawMode = command.DrawMode with { SpriteFilter = State.SpriteFilter } };
-        }
+        NativeBattlePrimitiveDrawMode mode = RetainTextureDrawMode(command.Command, command.DrawMode, command.Pass, command.DrawMode.TextureSelection);
+        return ReferenceEquals(mode, command.DrawMode) ? command : command with { DrawMode = mode };
+    }
+
+    public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
+    {
+        return new(command, RetainTextureDrawMode(command, mode, pass, selection), pass);
+    }
+
+    private NativeBattlePrimitiveDrawMode RetainTextureDrawMode(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
+    {
+        bool sprite = pass != 0 && command.Opcode is 0x64 or 0x66;
+        NativeBattleSpriteFilterState? spriteFilter = sprite ? State.SpriteFilter : mode.SpriteFilter;
         NativeSoftwareNormalViewportDerived? normal = null;
         NativeSoftwareViewportInputs? inputs = null;
-        if (command.Pass != 0 && ((command.Command.Opcode & 0xE0) is 0x20 or 0x40 || command.Command.Opcode is 0x64 or 0x66) && State.ViewportInputs is { } viewport)
+        if (pass != 0 && ((command.Opcode & 0xE0) is 0x20 or 0x40 || sprite) && State.ViewportInputs is { } viewport)
         {
             if (!ReferenceEquals(normalEnvironment, State.Environment) || !ReferenceEquals(normalViewportInputs, viewport))
             {
@@ -284,13 +293,14 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             normal = normalViewport!;
             inputs = viewport;
         }
-        if (command.Pass == 0 || command.DrawMode.TextureSelection is not { } selection)
+        if (pass == 0 || selection is null)
         {
-            return normal is null ? command : command with { DrawMode = command.DrawMode with { NormalViewport = normal, ViewportInputs = inputs } };
+            return normal is null && !sprite ? mode : mode with { SpriteFilter = spriteFilter, NormalViewport = normal ?? mode.NormalViewport, ViewportInputs = normal is null ? mode.ViewportInputs : inputs };
         }
+
         PublishImage();
-        NativeBattlePcTextureWindowCache cache = GetTextureCache(command.Command) ?? throw new NotSupportedException("Native textured draw requires its current resource cache.");
-        NativeBattleEffectTextureState textureSource = command.Command.ModelTextureOwner is { } owner ? RequireModelTexture(owner).Textures : Textures;
+        NativeBattlePcTextureWindowCache cache = GetTextureCache(command) ?? throw new NotSupportedException("Native textured draw requires its current resource cache.");
+        NativeBattleEffectTextureState textureSource = command.ModelTextureOwner is { } owner ? RequireModelTexture(owner).Textures : Textures;
         NativeBattlePcTextureWindowPixels pixels = cache.PixelWords(selection) ?? NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), textureSource);
         if (!textureSnapshotIndices.TryGetValue(pixels, out int index))
         {
@@ -300,8 +310,15 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
                 versions = [];
                 textureSnapshotRegions.Add(region, versions);
             }
-            int existing = versions.FindIndex(candidate => SameTexturePixels(pixels, textureSnapshots[candidate]));
-            index = existing < 0 ? -1 : versions[existing];
+            index = -1;
+            foreach (int existing in versions)
+            {
+                if (SameTexturePixels(pixels, textureSnapshots[existing]))
+                {
+                    index = existing;
+                    break;
+                }
+            }
             if (index < 0)
             {
                 index = textureSnapshots.Count;
@@ -310,16 +327,18 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             }
             textureSnapshotIndices.Add(pixels, index);
         }
-        NativeBattlePrimitiveDrawMode retainedMode = normal is null ? command.DrawMode with { TexturePixelSnapshot = index } : command.DrawMode with { TexturePixelSnapshot = index, NormalViewport = normal, ViewportInputs = inputs };
-        if (command.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } capture && (command.Command.Opcode & 0xE4) == 0x24)
+        NativeBattleSceneCaptureSample? captureSample = command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } capture && (command.Opcode & 0xE4) == 0x24 ? RetainSceneCapture(capture, command, mode.TexturePage) : mode.SceneCaptureSample;
+        ImmutableArray<ushort>? copyPalette = pixels.SceneCopies is not null ? RetainScenePalette(command, mode.TexturePage, textureSource) : mode.SceneCopyPalette;
+        return mode with
         {
-            retainedMode = retainedMode with { SceneCaptureSample = RetainSceneCapture(capture, command) };
-        }
-        if (pixels.SceneCopies is not null)
-        {
-            retainedMode = retainedMode with { SceneCopyPalette = RetainScenePalette(command, textureSource) };
-        }
-        return command with { DrawMode = retainedMode };
+            TextureSelection = selection,
+            TexturePixelSnapshot = index,
+            SpriteFilter = spriteFilter,
+            NormalViewport = normal ?? mode.NormalViewport,
+            ViewportInputs = normal is null ? mode.ViewportInputs : inputs,
+            SceneCaptureSample = captureSample,
+            SceneCopyPalette = copyPalette
+        };
     }
 
     private static bool SameTexturePixels(NativeBattlePcTextureWindowPixels first, NativeBattlePcTextureWindowPixels second)
@@ -328,14 +347,14 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             (first.SceneCopies is { } copies ? second.SceneCopies is { } other && copies.SequenceEqual(other) : second.SceneCopies is null);
     }
 
-    private NativeBattleSceneCaptureSample RetainSceneCapture(NativeBattleSceneCapture capture, NativeBattleLogicalResolvedCommand command)
+    private NativeBattleSceneCaptureSample RetainSceneCapture(NativeBattleSceneCapture capture, NativeBattleLogicalCommand command, ushort? texturePage)
     {
         capture = capture with { SampleCoordinates = null };
         capture.Validate();
         PublishImage();
         if (sceneCaptureSamples.TryGetValue(capture, out var retained) && ReferenceEquals(retained.Owner, Textures))
         {
-            return retained.Sample with { Palette = RetainScenePalette(command, Textures) };
+            return retained.Sample with { Palette = RetainScenePalette(command, texturePage, Textures) };
         }
         ImmutableArray<int>.Builder snapshots = ImmutableArray.CreateBuilder<int>();
         for (int left = 0; left < capture.Width; left += 256)
@@ -353,20 +372,20 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         NativeBattleSceneCaptureSample sample = new(capture, snapshots.ToImmutable());
         sceneCaptureSamples[capture] = (Textures, sample);
-        return sample with { Palette = RetainScenePalette(command, Textures) };
+        return sample with { Palette = RetainScenePalette(command, texturePage, Textures) };
 
     }
 
-    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalResolvedCommand command, NativeBattleEffectTextureState textureSource)
+    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalCommand command, ushort? texturePage, NativeBattleEffectTextureState textureSource)
     {
-        ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
+        ushort page = texturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
         int depth = page >> 7 & 3;
         if (depth == 3)
         {
             throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
         }
         int length = depth == 0 ? 16 : depth == 1 ? 256 : 0;
-        ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
+        ushort clut = unchecked((ushort)(command.Words[2] >> 16));
         int x = (clut & 63) * 16;
         int y = (clut & 0x7FFF) >> 6;
         if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, textureSource))

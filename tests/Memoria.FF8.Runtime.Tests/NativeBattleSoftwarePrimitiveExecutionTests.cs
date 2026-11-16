@@ -182,7 +182,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
             NativeBattlePcTextureWindowResolve selected = execution.Cache.Resolve465CE0(0x11B, 0, 0);
             execution.Cache = selected.Cache;
             NativeBattleLogicalCommand command = new(new("test", 0, 0), 1, 0x24, [0x24000000, 0x00020002, 0, 0x00020008, 0x011B0000, 0x00080002, 0], 1, [], null);
-            return execution.RetainTexturePixels(new(command, new(0x11B) { TextureWindowBits = 0, TextureSelection = selected.Selection }, 1));
+            return execution.RetainTexturePixels(command, new(0x11B) { TextureWindowBits = 0 }, 1, selected.Selection);
         }
     }
 

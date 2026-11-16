@@ -1342,6 +1342,10 @@ public interface INativeBattleLogicalExecutionContext
     void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass);
     NativeBattlePrimitiveDrawMode SynchronizeDrawMode(NativeBattlePrimitiveDrawMode mode);
     NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command) => command;
+    NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
+    {
+        return RetainTexturePixels(new(command, selection is null ? mode : mode with { TextureSelection = selection }, pass));
+    }
     void BeginPass(byte pass)
     {
     }
@@ -1441,21 +1445,20 @@ public static class NativeBattleLogicalPasses
                         context.ExecuteNormal(command, mode, pass);
                         mode = ClearTextureSelection(context.SynchronizeDrawMode(mode));
                     }
-                    NativeBattleLogicalResolvedCommand resolved = new(command, mode, pass);
+                    NativeBattlePcTextureWindowSelection? selection = null;
                     if ((context is null ? cache : context.GetTextureCache(command)) is { } currentCache)
                     {
-                        var selected = SelectTextureCommand(resolved, currentCache);
-                        resolved = selected.Command;
+                        (selection, currentCache) = SelectTexture(command, mode, pass, currentCache);
                         if (context is null)
                         {
-                            cache = selected.Cache;
+                            cache = currentCache;
                         }
                         else
                         {
-                            context.SetTextureCache(command, selected.Cache);
+                            context.SetTextureCache(command, currentCache);
                         }
                     }
-                    executed.Add(context?.RetainTexturePixels(resolved) ?? resolved);
+                    executed.Add(context is null ? new(command, selection is null ? mode : mode with { TextureSelection = selection }, pass) : context.RetainTexturePixels(command, mode, pass, selection));
                 }
                 if (!capturedSurface && pass == 0 && category && (liveMode & 1) != 0 && context is not null)
                 {
@@ -1506,9 +1509,13 @@ public static class NativeBattleLogicalPasses
             cache = BeginTexturePass(cache, pass)!;
             foreach (NativeBattleLogicalResolvedCommand command in commands.Where(command => command.Pass == pass))
             {
-                var item = SelectTextureCommand(command, cache);
-                cache = item.Cache;
-                selected.Add(item.Command);
+                NativeBattlePrimitiveDrawMode mode = ClearTextureSelection(command.DrawMode);
+                (NativeBattlePcTextureWindowSelection? selection, cache) = SelectTexture(command.Command, mode, pass, cache);
+                if (selection is not null)
+                {
+                    mode = mode with { TextureSelection = selection };
+                }
+                selected.Add(ReferenceEquals(command.DrawMode, mode) ? command : command with { DrawMode = mode });
             }
             cache = EndTexturePass(cache, pass)!;
         }
@@ -1518,31 +1525,26 @@ public static class NativeBattleLogicalPasses
     private static NativeBattlePcTextureWindowCache? BeginTexturePass(NativeBattlePcTextureWindowCache? cache, byte pass) => pass == 1 ? cache?.Prepare464BD0().Cache : cache;
     private static NativeBattlePcTextureWindowCache? EndTexturePass(NativeBattlePcTextureWindowCache? cache, byte pass) => pass == 1 ? cache?.Flush465930() : cache;
 
-    private static (NativeBattleLogicalResolvedCommand Command, NativeBattlePcTextureWindowCache Cache) SelectTextureCommand(NativeBattleLogicalResolvedCommand command, NativeBattlePcTextureWindowCache cache)
+    private static (NativeBattlePcTextureWindowSelection? Selection, NativeBattlePcTextureWindowCache Cache) SelectTexture(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowCache cache)
     {
-        NativeBattlePrimitiveDrawMode mode = ClearTextureSelection(command.DrawMode);
-        if (command.Command.PilotGeometry?.ForeignSurface is not null)
+        if (command.PilotGeometry?.ForeignSurface is not null)
         {
-            return (command with { DrawMode = mode }, cache);
+            return (null, cache);
         }
-        bool sprite = command.Command.Opcode is 0x64 or 0x66;
-        if ((command.Command.Opcode & 0xE4) == 0x24 || sprite)
+        bool sprite = command.Opcode is 0x64 or 0x66;
+        if ((command.Opcode & 0xE4) != 0x24 && !sprite)
         {
-            ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
-            ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
-            if (command.Pass == 0)
-            {
-                cache = sprite ? cache.PreprocessSprite463120(command.Command.Opcode, page, clut) : cache.Preprocess462F90(page, clut);
-            }
-            else
-            {
-                uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
-                NativeBattlePcTextureWindowResolve resolved = sprite ? cache.ResolveSprite462DF0(command.Command.Opcode, page, clut, window) : cache.Resolve465CE0(page, clut, window);
-                cache = resolved.Cache;
-                mode = mode with { TextureSelection = resolved.Selection };
-            }
+            return (null, cache);
         }
-        return (ReferenceEquals(command.DrawMode, mode) ? command : command with { DrawMode = mode }, cache);
+        ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
+        ushort clut = unchecked((ushort)(command.Words[2] >> 16));
+        if (pass == 0)
+        {
+            return (null, sprite ? cache.PreprocessSprite463120(command.Opcode, page, clut) : cache.Preprocess462F90(page, clut));
+        }
+        uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
+        NativeBattlePcTextureWindowResolve resolved = sprite ? cache.ResolveSprite462DF0(command.Opcode, page, clut, window) : cache.Resolve465CE0(page, clut, window);
+        return (resolved.Selection, resolved.Cache);
     }
 
     private static NativeBattlePrimitiveDrawMode ClearTextureSelection(NativeBattlePrimitiveDrawMode mode)
