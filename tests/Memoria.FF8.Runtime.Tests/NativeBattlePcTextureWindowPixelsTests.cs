@@ -116,6 +116,22 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
     }
 
     [Fact]
+    public void ConcurrentSamePublicationRequestsKeepTheirOwnProvenance()
+    {
+        NativeBattleTextureOrigin origin = new("sample.tex", 1, NativeBattleTextureRole.Pixels, 16, 8, 8);
+        NativeBattleEffectTextureState original = NativeBattleEffectTextureState.FromColdProcess() with { LiveTextureSources = [new(origin, 0, 0, 8, 8)] };
+        NativeBattleEffectTextureState changed = original with { LiveTextureSources = [new(origin with { Member = 2 }, 0, 0, 8, 8)] };
+        Assert.Same(original.VramPublicationIdentity, changed.VramPublicationIdentity);
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 8, 8);
+        NativeBattlePcTextureWindowPixels[] captures = new NativeBattlePcTextureWindowPixels[64];
+        Parallel.For(0, captures.Length, index => captures[index] = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, index % 2 == 0 ? original : changed));
+        for (int index = 0; index < captures.Length; index++)
+        {
+            Assert.Equal(1 + index % 2, captures[index].LiveTextureSources!.Value[0].Origin.Member);
+        }
+    }
+
+    [Fact]
     public void SeparatePhysicalOwnersAndDetachedSnapshotsRemainIsolated()
     {
         NativeBattleEffectTextureState first = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
@@ -169,6 +185,7 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
     {
         NativeBattleEffectTextureState previous = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
         NativeBattlePcTextureWindowPixels captured = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), previous);
+        _ = NativeBattlePcTextureWindowPixels.Capture(64, new(8, 0, 8, 8), previous);
         WeakReference<object> publication = new(previous.VramPublicationIdentity);
         NativeBattleEffectTextureState current = previous.Upload45BD30(512, 128, 1, 1, [0xCD, 0xAB]);
         _ = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), current);

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
@@ -22,60 +23,67 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         private const int MaximumCaptures = 128;
         private const int MaximumBytes = 16 * 1024 * 1024;
         private readonly object gate = new();
-        private readonly Dictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), CaptureEntry> captures = [];
-        private readonly record struct CaptureEntry(NativeBattlePcTextureWindowPixels Pixels, long Generation);
-        private object? publication;
-        private long generation;
-        private ImmutableArray<NativeBattleTextureSourceRegion>? sources;
-        private ImmutableArray<NativeBattleTextureRegistration>? registrations;
-        private ImmutableArray<byte>? tail;
-        private ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies;
-        private bool initialized;
+        private readonly ConcurrentDictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), CaptureEntry> captures = new();
+        private readonly ConditionalWeakTable<object, CaptureProvenance> publications = new();
+        private CaptureProvenance? currentProvenance;
         private int bytes;
+
+        private sealed class CaptureEntry(NativeBattlePcTextureWindowPixels pixels, CaptureProvenance provenance)
+        {
+            internal NativeBattlePcTextureWindowPixels Pixels { get; } = pixels;
+            internal CaptureProvenance Provenance = provenance;
+        }
+
+        private sealed class CaptureProvenance(NativeBattleEffectTextureState textures)
+        {
+            private readonly ImmutableArray<NativeBattleTextureSourceRegion>? sources = textures.LiveTextureSources;
+            private readonly ImmutableArray<NativeBattleTextureRegistration>? registrations = textures.TextureRegistrations;
+            private readonly ImmutableArray<byte>? tail = textures.VramReadTail;
+            private readonly ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies = textures.SceneCopies;
+
+            internal bool Matches(NativeBattleEffectTextureState source)
+            {
+                return SameArray(sources, source.LiveTextureSources) && SameArray(registrations, source.TextureRegistrations) && SameArray(tail, source.VramReadTail) && SameArray(sceneCopies, source.SceneCopies);
+            }
+
+            private static bool SameArray<T>(ImmutableArray<T>? first, ImmutableArray<T>? second) => first.HasValue == second.HasValue && (!first.HasValue || first.GetValueOrDefault().Equals(second.GetValueOrDefault()));
+        }
 
         internal NativeBattlePcTextureWindowPixels Capture(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
         {
+            object publication = textures.VramPublicationIdentity;
+            var key = (row, rectangle);
+            // The proof contains no publication reference. Cached captures do not hold historical VRAM versions alive.
+            if (publications.TryGetValue(publication, out CaptureProvenance? proof) && proof.Matches(textures) && captures.TryGetValue(key, out CaptureEntry? exact) && ReferenceEquals(Volatile.Read(ref exact.Provenance), proof))
+            {
+                return exact.Pixels;
+            }
             lock (gate)
             {
-                if (!initialized || !SameArray(sources, textures.LiveTextureSources) || !SameArray(registrations, textures.TextureRegistrations) || !SameArray(tail, textures.VramReadTail) || !SameArray(sceneCopies, textures.SceneCopies))
+                if (currentProvenance is null || !currentProvenance.Matches(textures))
                 {
                     captures.Clear();
                     bytes = 0;
-                    sources = textures.LiveTextureSources;
-                    registrations = textures.TextureRegistrations;
-                    tail = textures.VramReadTail;
-                    sceneCopies = textures.SceneCopies;
-                    initialized = true;
                 }
-                object currentPublication = textures.VramPublicationIdentity;
-                if (!ReferenceEquals(publication, currentPublication))
+                if (!publications.TryGetValue(publication, out proof) || !proof.Matches(textures))
                 {
-                    publication = currentPublication;
-                    if (generation == long.MaxValue)
-                    {
-                        captures.Clear();
-                        bytes = 0;
-                        generation = 0;
-                    }
-                    generation++;
+                    proof = new(textures);
+                    publications.AddOrUpdate(publication, proof);
                 }
-                (int Row, NativeBattlePrimitiveTextureWindow Rectangle) key = (row, rectangle);
-                bool found = captures.TryGetValue(key, out CaptureEntry cached);
-                if (found && (cached.Generation == generation || HasSameWords(cached.Pixels, textures)))
+                currentProvenance = proof;
+                bool found = captures.TryGetValue(key, out CaptureEntry? cached);
+                if (cached is not null && (ReferenceEquals(cached.Provenance, proof) || HasSameWords(cached.Pixels, textures)))
                 {
-                    if (cached.Generation != generation)
-                    {
-                        captures[key] = new(cached.Pixels, generation);
-                    }
+                    Volatile.Write(ref cached.Provenance, proof);
                     return cached.Pixels;
                 }
                 NativeBattlePcTextureWindowPixels result = CaptureUncached(row, rectangle, textures);
-                int replacedBytes = found ? cached.Pixels.Data.Length : 0;
+                int replacedBytes = cached?.Pixels.Data.Length ?? 0;
                 if (result.Data.Length > MaximumBytes)
                 {
                     if (found)
                     {
-                        captures.Remove(key);
+                        captures.TryRemove(key, out _);
                         bytes -= replacedBytes;
                     }
                     return result;
@@ -88,13 +96,11 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
                     bytes = 0;
                     replacedBytes = 0;
                 }
-                captures[key] = new(result, generation);
+                captures[key] = new(result, proof);
                 bytes += result.Data.Length - replacedBytes;
                 return result;
             }
         }
-
-        private static bool SameArray<T>(ImmutableArray<T>? first, ImmutableArray<T>? second) => first.HasValue == second.HasValue && (!first.HasValue || first.GetValueOrDefault().Equals(second.GetValueOrDefault()));
     }
 
     private static readonly ConditionalWeakTable<NativeBattlePcTextureWindowPixels, object> ValidatedPixels = new();
