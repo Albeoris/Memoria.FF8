@@ -236,11 +236,14 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
     }
 
-    internal sealed class Delta(object identity, long expectedVersion, ImmutableArray<Action> edits)
+    internal readonly record struct ModelPacketInsertion(NativeBattlePrimitiveReference Reference, NativeBattleGeometryPrimitive Primitive, ushort Flags20, int? ModuleDraw, string? TextureSourceOwner);
+    internal readonly record struct JournalEntry(Action? Callback, ModelPacketInsertion ModelPacket = default);
+
+    internal sealed class Delta(object identity, long expectedVersion, ImmutableArray<JournalEntry> edits)
     {
         internal object Identity { get; } = identity;
         internal long ExpectedVersion { get; } = expectedVersion;
-        internal ImmutableArray<Action> Edits { get; } = edits;
+        internal ImmutableArray<JournalEntry> Edits { get; } = edits;
         internal bool Consumed { get; set; }
     }
 
@@ -287,6 +290,11 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             RequireActive();
             storage.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry, presentationActorId, screenCoverage, sceneCapture, modelTextureOwner);
         }
+        internal void PrependModel(NativeBattlePrimitiveReference reference, NativeBattleGeometryPrimitive primitive, ushort flags20, int? moduleDraw, string? textureSourceOwner)
+        {
+            RequireActive();
+            storage.PrependModel(new(reference, primitive, flags20, moduleDraw, textureSourceOwner));
+        }
         public void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, NativeBattlePilotVisualGeometry? pilotGeometry = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, NativeBattleModelTextureOwner? modelTextureOwner = null, bool retainAuthoredPayload = false)
         {
             RequireActive();
@@ -332,7 +340,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         {
             RequireActive();
             Checkpoint current = CurrentCallback();
-            ImmutableArray<Action> edits = storage.PendingEdits(current);
+            ImmutableArray<JournalEntry> edits = storage.PendingEdits(current);
             storage.RollbackMark(current);
             callbacks.RemoveAt(callbacks.Count - 1);
             return new(storage, storage.version, edits);
@@ -344,7 +352,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             {
                 throw new InvalidOperationException("Commit or roll back the callback checkpoint before suspending its ordering suffix.");
             }
-            ImmutableArray<Action> edits = storage.PendingEdits(boundary);
+            ImmutableArray<JournalEntry> edits = storage.PendingEdits(boundary);
             storage.RollbackMark(boundary, false);
             return new(storage, storage.version, edits);
         }
@@ -356,9 +364,16 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 throw new InvalidOperationException("Ordering delta requires its unchanged original owner and accepted prefix.");
             }
             delta.Consumed = true;
-            foreach (Action edit in delta.Edits)
+            foreach (JournalEntry edit in delta.Edits)
             {
-                edit();
+                if (edit.Callback is { } callback)
+                {
+                    callback();
+                }
+                else
+                {
+                    storage.PrependModel(edit.ModelPacket);
+                }
             }
         }
         private Checkpoint CurrentCallback() => callbacks.Count == 0 ? throw new InvalidOperationException("Native ordering callback checkpoint is absent.") : callbacks[^1];
@@ -439,7 +454,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         private readonly List<(List<NativeBattleLogicalPacket> Rows, int Index, NativeBattleLogicalPacket Value)> packetUndo = [];
         private readonly List<(PacketRangeIndex Ranges, (int Offset, int Index) Value)> rangeUndo = [];
         private readonly List<(Dictionary<NativeBattlePrimitiveReference, int> Indices, NativeBattlePrimitiveReference Key)> indexUndo = [];
-        private readonly List<Action> edits = [];
+        private readonly List<JournalEntry> edits = [];
         internal bool HasMarks => marks.Count != 0;
         private int ProxyCount => proxyCursor!.Value;
         private uint LastHeaderLink => lastHeaderLink;
@@ -510,20 +525,25 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             try
             {
                 body();
-                if (operationDepth == 1)
-                {
-                    version++;
-                    if (HasMarks)
-                    {
-                        edits.Add(replay);
-                    }
-                }
+                CompleteMutation(new(replay));
             }
             finally
             {
                 operationDepth--;
             }
         }
+        private void CompleteMutation(JournalEntry replay)
+        {
+            if (operationDepth == 1)
+            {
+                version++;
+                if (HasMarks)
+                {
+                    edits.Add(replay);
+                }
+            }
+        }
+
         internal void InvalidatePacketRange(NativeBattlePrimitiveReference reference, int length)
         {
             operationDepth++;
@@ -547,11 +567,25 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
 
         private void RetainInvalidation(NativeBattlePrimitiveReference reference, int length)
         {
-            edits.Add(() => InvalidatePacketRange(reference, length));
+            edits.Add(new(() => InvalidatePacketRange(reference, length)));
         }
         internal void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates, string? textureSourceOwner, NativeBattlePilotVisualGeometry? pilotGeometry, string? presentationActorId, NativeBattleScreenCoverage? screenCoverage, NativeBattleSceneCapture? sceneCapture, NativeBattleModelTextureOwner? modelTextureOwner)
         {
             Run(() => PrependCore(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry, presentationActorId, screenCoverage, sceneCapture, modelTextureOwner), () => Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry, presentationActorId, screenCoverage, sceneCapture, modelTextureOwner));
+        }
+        internal void PrependModel(ModelPacketInsertion insertion)
+        {
+            operationDepth++;
+            try
+            {
+                NativeBattleGeometryPrimitive primitive = insertion.Primitive;
+                PrependCore(primitive.Bucket, insertion.Reference, primitive.Words, insertion.Flags20, primitive.VertexPayload4, insertion.ModuleDraw, primitive.ProjectedCoordinates, insertion.TextureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId, primitive.ScreenCoverage, primitive.SceneCapture, primitive.ModelTextureOwner);
+                CompleteMutation(new(null, insertion));
+            }
+            finally
+            {
+                operationDepth--;
+            }
         }
         internal void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePilotVisualGeometry? pilotGeometry, NativeBattleScreenCoverage? screenCoverage, NativeBattleSceneCapture? sceneCapture, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates, NativeBattleModelTextureOwner? modelTextureOwner, bool retainAuthoredPayload = false)
         {
@@ -894,7 +928,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 Remember(marks[index]);
             }
         }
-        internal ImmutableArray<Action> PendingEdits(Checkpoint mark)
+        internal ImmutableArray<JournalEntry> PendingEdits(Checkpoint mark)
         {
             RequireTop(mark);
             return edits.Skip(mark.Edits).ToImmutableArray();

@@ -141,5 +141,63 @@ public sealed class NativeBattleLogicalOrderingTransactionTests
         Assert.Equal(prefix, JsonSerializer.Serialize(first));
     }
 
+    [Fact]
+    public void Hosted_model_edits_resume_with_generic_edits_and_rollback_in_original_order()
+    {
+        NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear();
+        NativeBattleLogicalOrdering expected = NativeBattleLogicalOrdering.Clear();
+        NativeBattleGeometryPrimitive body = new(20, [0x04000000, 0x20010203, 1, 2, 3], [8, 9, 10, 0])
+        {
+            ModelTextureOwner = new("party-10"),
+            PresentationActorId = "party-10",
+            ProjectedCoordinates = [new(1, 2), new(3, 4), new(5, 6)]
+        };
+        NativeBattlePrimitiveReference first = new("hosted-model-070", 0, 0);
+        NativeBattlePrimitiveReference second = new("hosted-model-070", 0, 20);
+        NativeBattlePrimitiveReference other = new("20DFAB8", 0, 120);
+        void Append(NativeBattleLogicalOrdering.Builder writer, bool hosted)
+        {
+            Insert(first);
+            writer.Prepend(body.Bucket, other, body.Words, 1, []);
+            Insert(second);
+
+            void Insert(NativeBattlePrimitiveReference reference)
+            {
+                if (hosted)
+                {
+                    writer.PrependModel(reference, body, 0, 19, "replacement");
+                    return;
+                }
+
+                writer.Prepend(body.Bucket, reference, body.Words, 0, body.VertexPayload4, 19, body.ProjectedCoordinates, "replacement", presentationActorId: body.PresentationActorId, modelTextureOwner: body.ModelTextureOwner);
+            }
+        }
+
+        using (NativeBattleLogicalOrdering.Builder writer = new(expected))
+        {
+            Append(writer, false);
+            writer.ToImmutable();
+        }
+
+        using NativeBattleLogicalOrderingTransaction transaction = new(source);
+        string prefix = Receipt(transaction.View);
+        transaction.BeginCheckpoint();
+        Append(transaction.Writer, true);
+        NativeBattleLogicalOrdering.Delta suspended = transaction.SuspendCheckpointDelta();
+        Assert.Equal(prefix, Receipt(transaction.View));
+
+        transaction.BeginCheckpoint();
+        transaction.ResumeDelta(suspended);
+        Assert.Equal(Receipt(expected), Receipt(transaction.View));
+        Assert.Throws<InvalidOperationException>(() => transaction.ResumeDelta(suspended));
+        transaction.RollbackCheckpoint();
+        Assert.Equal(prefix, Receipt(transaction.View));
+
+        transaction.BeginCheckpoint();
+        Append(transaction.Writer, true);
+        transaction.CommitCheckpoint();
+        Assert.Equal(Receipt(expected), Receipt(transaction.Freeze()));
+    }
+
     private static string Receipt(NativeBattleLogicalOrdering value) => JsonSerializer.Serialize(new { Table = value.Table.ToArray(), Proxies = value.Proxies.ToArray(), Packets = value.Packets.ToArray(), value.ProxyCursor, value.TableBuffer, OtherTable = value.OtherTable?.ToArray() });
 }

@@ -180,7 +180,7 @@ internal sealed class NativeBattleHostedModelPackets
 
     private static void AddLink(NativeBattleLogicalOrdering.Builder links, NativeBattlePrimitiveReference reference, NativeBattleGeometryPrimitive primitive, ushort flags20, int? moduleDraw, string? textureSourceOwner)
     {
-        links.Prepend(primitive.Bucket, reference, primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry, primitive.PresentationActorId, primitive.ScreenCoverage, primitive.SceneCapture, primitive.ModelTextureOwner);
+        links.PrependModel(reference, primitive, flags20, moduleDraw, textureSourceOwner);
     }
 
     private static int ValidatePrimitive(NativeBattleGeometryPrimitive primitive)
