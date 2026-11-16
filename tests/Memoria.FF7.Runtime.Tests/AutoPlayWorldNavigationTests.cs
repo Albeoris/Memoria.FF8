@@ -34,6 +34,15 @@ internal static class AutoPlayWorldNavigationTests
         }
         Ff7AutoPlayWorldRoute route = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 512);
         Check(route.Status == Ff7AutoPlayWorldNavigationStatus.Step && route.Steps.Length > 4 && route.Steps[^1].Boundary is { Script: 0 }, "Bounded native-state search failed to take a non-greedy detour around the authored wall.");
+        Ff7AutoPlayWorldMovementState detour = source;
+        bool temporaryRetreat = false;
+        foreach (var step in route.Steps)
+        {
+            var next = Preview(step.Input, detour).State!;
+            temporaryRetreat |= Ff7AutoplayDriver.WorldFaceDistance(next.Player, face) > Ff7AutoplayDriver.WorldFaceDistance(detour.Player, face);
+            detour = next;
+        }
+        Check(temporaryRetreat, "The proved complete route no longer exercises its necessary temporary retreat.");
         Check(unrelatedBoundaries.Count > 0 && route.Steps.All(step => !unrelatedBoundaries.Contains(step.DestinationKey)), "The search forecast through an unrelated native script instead of stopping at its boundary.");
         Ff7AutoPlayWorldRoute limited = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1);
         Check(limited.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && limited.Expanded == 1, "Budget exhaustion was misclassified as physical unavailability or a proved complete route.");
@@ -50,11 +59,12 @@ internal static class AutoPlayWorldNavigationTests
         Check(Ff7AutoplayDriver.WorldPositionKey(source) != Ff7AutoplayDriver.WorldPositionKey(source with { Player = source.Player with { X = source.Player.X + 1 } }), "Different physical positions shared a cycle preference key.");
         HashSet<Ff7AutoplayInput> attempted = [new(-1, -1, Run: true), new(0, -1, Run: true), new(1, -1, Run: true), new(-1, 0, Run: true), new(1, 0, Run: true), new(-1, 1, Run: true), new(1, 1, Run: true), new(Run: false)];
         Ff7AutoPlayWorldRoute exploring = Ff7AutoplayDriver.SearchWorldRoute(turned, target, Preview, [], 1, attempted);
-        Check(exploring.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && exploring.Steps.Length == 1 && exploring.Steps[0].Input == new Ff7AutoplayInput(0, 1, Run: true), "A bounded physical cycle preference failed to retain a freshly admitted away detour or misclassified the search limit as absence.");
+        Check(exploring.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && exploring.Steps.Length == 0, "A bounded search emitted an unproved away prefix or misclassified its budget as absence.");
         CheckPhysicalCycle();
         CheckTerrainGuidance();
         CheckForeignMatchingScript();
         OriginalGuideCycle();
+        OriginalUnproductiveGuide();
         OriginalWorldPreview();
         OriginalDisconnectedGuide();
     }
@@ -79,7 +89,7 @@ internal static class AutoPlayWorldNavigationTests
         HashSet<string> positions = [];
         for (int step = 0; step < 32; step++)
         {
-            var result = driver.ChooseWorldInput(target);
+            var result = ChooseCompletedWorldInput(driver, target);
             Check(result.HasInput, "The original guide-cycle fixture lost native input admission.");
             driver.Apply(result.Input);
             session.AdvanceTick();
@@ -143,20 +153,79 @@ internal static class AutoPlayWorldNavigationTests
             }
             return new(true, null, state with { Player = player }, player.X != state.Player.X || player.Z != state.Player.Z);
         }
-        Dictionary<string, HashSet<Ff7AutoplayInput>> attempted = [];
-        for (int callback = 0; callback < 3; callback++)
+        Ff7AutoPlayWorldRoute advancing = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1);
+        Check(advancing.Steps.Length == 1 && advancing.Steps[0].Input.Horizontal == 1, "An advancing bounded prefix was discarded.");
+        source = Preview(advancing.Steps[0].Input, source).State!;
+        Ff7AutoPlayWorldRoute stalled = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1);
+        Check(stalled.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && stalled.Steps.Length == 0, "A nonadvancing physical retreat was emitted as a useful bounded prefix or misclassified as absence.");
+        Ff7AutoPlayWorldRoute exhausted = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 32);
+        Check(exhausted.Status == Ff7AutoPlayWorldNavigationStatus.Blocked && exhausted.Steps.Length == 0, "A fully exhausted finite native-state graph retained an out-and-back route.");
+    }
+
+    private static void OriginalUnproductiveGuide()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_ROUTE_STALL_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
         {
-            string key = Ff7AutoplayDriver.WorldPositionKey(source);
-            if (!attempted.TryGetValue(key, out HashSet<Ff7AutoplayInput>? inputs))
-            {
-                attempted[key] = inputs = [];
-            }
-            Ff7AutoPlayWorldRoute route = Ff7AutoplayDriver.SearchWorldRoute(source, target, Preview, [], 1, inputs);
-            Check(route.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && route.Steps.Length == 1, "A native-admitted moving prefix was lost to stationary orientation states or treated as absence.");
-            inputs.Add(route.Steps[0].Input);
-            source = Preview(route.Steps[0].Input, source).State!;
+            Console.WriteLine("SKIP original unproductive guide: configure original resources and MEMORIA_FF7_WORLD_ROUTE_STALL_SAVE.");
+            return;
         }
-        Check(source.Player.X == 0 && source.Player.Z == 60 && source.Player.Direction == 3, "Orientation changes hid a two-position cycle instead of exploring its admitted away detour.");
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, writable: false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
+        Ff7WorldRuntime world = session.World!;
+        string[] id = saved.AutoPlay!.Active!.EventId.Split(':');
+        var target = world.ReadAutoPlayFrontierCatalog(int.Parse(id[1]), int.Parse(id[2])).Scripts.Single(script => script.Script == int.Parse(id[4]));
+        string before = JsonSerializer.Serialize(session.Capture());
+        HashSet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)> trials = [];
+        Ff7AutoPlayWorldGuide guide = world.ReadAutoPlayNavigationGuide(target);
+        while (guide.Faces.Length > 1)
+        {
+            Check(trials.Add((guide.Faces[0].Source, guide.Faces[1].Source)), "A rejected advisory transition was selected again.");
+            guide = world.ReadAutoPlayNavigationGuide(target, unproductiveEdges: trials);
+        }
+        Check(guide.Faces.Length == 0 && guide.DeferredComponent is null, "Exhausted advisory trials incorrectly proved native physical unavailability.");
+        Ff7AutoPlayController controller = new(session, pendingDriver => pendingDriver.ChooseWorldInput(target).Input);
+        controller.Start();
+        controller.Advance(1);
+        Check(controller.Steps == 0 && JsonSerializer.Serialize(session.Capture()) == before, "A pending bounded planning slice advanced native execution or applied stale input.");
+        controller.SaveAndStop();
+        Ff7AutoplayDriver driver = new(session);
+        Ff7AutoPlayWorldMovementState initial = world.CaptureAutoPlayMovementState();
+        var first = ChooseCompletedWorldInput(driver, target);
+        Check(JsonSerializer.Serialize(session.Capture()) == before, "Advisory route repair changed native state before applying input.");
+        HashSet<Ff7WorldTerrainReference> crossed = [];
+        for (int step = 0; step < 96 && session.Battle is null; step++)
+        {
+            var result = step == 0 ? first : ChooseCompletedWorldInput(driver, target);
+            Check(result.HasInput, "The original unproductive guide did not yield an advancing alternative.");
+            driver.Apply(result.Input);
+            session.AdvanceTick();
+            if (world.CaptureAutoPlayMovementState().Input.GroundTriangle is { } ground)
+            {
+                crossed.Add(ground);
+            }
+        }
+        var player = world.CaptureAutoPlayMovementState().Player;
+        Check(crossed.Count >= 4 && Vector2.Distance(new(initial.Player.X, initial.Player.Z), new(player.X, player.Z)) > 2048, "The original bounded continuation still circles its initial face instead of following a native-admitted alternative.");
+        Check(File.ReadAllBytes(path).SequenceEqual(bytes), "Advisory repair changed the standalone source bytes.");
+    }
+
+    private static Ff7AutoPlayWorldNavigationResult ChooseCompletedWorldInput(Ff7AutoplayDriver driver, Ff7AutoPlayWorldScriptObservation target)
+    {
+        for (int slice = 0; slice < 64; slice++)
+        {
+            var result = driver.ChooseWorldInput(target);
+            Check(result.Expanded <= 512, "Advisory retries exceeded the physical planning-slice budget.");
+            if (!driver.PlanningPending)
+            {
+                return result;
+            }
+            Check(!result.HasInput && result.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited, "Pending planning work emitted physical input or reported unavailability.");
+        }
+        throw new InvalidOperationException("The original local advisory repair failed to finish its bounded planning slices.");
     }
 
     private static void CheckTerrainGuidance()

@@ -38,7 +38,7 @@ public sealed partial class Ff7WorldRuntime
         })));
     }
 
-    internal Ff7AutoPlayWorldGuide ReadAutoPlayNavigationGuide(Ff7AutoPlayWorldScriptObservation target, int maximumNodes = 16384, int maximumChunks = 128)
+    internal Ff7AutoPlayWorldGuide ReadAutoPlayNavigationGuide(Ff7AutoPlayWorldScriptObservation target, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumChunks, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumChunks, 1008);
@@ -164,10 +164,14 @@ public sealed partial class Ff7WorldRuntime
                 }
             }
             int previousTerrain = reference == start ? player.Terrain : chunks[(reference.ChunkX, reference.ChunkZ)].Triangles[reference.Triangle].Terrain;
-            return FaceEdges(face).SelectMany(edge => edges[Edge(edge.A, edge.B)]).Where(next => next != reference).Distinct().Where(next => Eligible(next, previousTerrain)).ToArray();
+            return FaceEdges(face).SelectMany(edge => edges[Edge(edge.A, edge.B)]).Where(next => next != reference).Distinct().Where(next => unproductiveEdges?.Contains((reference, next)) != true && Eligible(next, previousTerrain)).ToArray();
         }
         Load(start.ChunkX, start.ChunkZ);
         Ff7AutoPlayWorldGuide result = PlanAutoPlayTerrainGuide(start, goals, reference => faces[reference], Adjacent, maximumNodes);
+        if (result.Faces.Length == 0 && unproductiveEdges is { Count: > 0 })
+        {
+            return result with { DeferredComponent = null, Reason = "No advancing physical route was proved through the remaining advisory transitions." };
+        }
         return limited && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted.", DeferredComponent = null } : result;
     }
 

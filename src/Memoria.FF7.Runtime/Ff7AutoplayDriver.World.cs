@@ -22,15 +22,45 @@ public sealed partial class Ff7AutoplayDriver
     private const int WorldDepth = 0x38000;
     private readonly Queue<Ff7AutoPlayWorldRouteStep> worldRoute = new();
     private readonly Dictionary<string, HashSet<Ff7AutoplayInput>> worldRepeatedInputs = [];
+    private readonly HashSet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)> worldUnproductiveGuideEdges = [];
     private string? worldRouteTarget;
     private string? worldRepeatedTarget;
     private bool worldRouteRearming;
     private Ff7AutoPlayWorldGuide? worldTerrainGuide;
     private Ff7WorldRuntime? worldTerrainGuideOwner;
     private string? worldTerrainGuideContext;
+    private string? worldGuideTrialContext;
+    private string? worldGuideTrialSource;
+    internal bool PlanningPending { get; private set; }
+
+    internal void BeginPlanningStep() => PlanningPending = false;
 
     internal Ff7AutoPlayWorldNavigationResult ChooseWorldInput(Ff7AutoPlayWorldScriptObservation target, int nodeBudget = 512)
     {
+        int expanded = 0;
+        int remaining = nodeBudget;
+        PlanningPending = false;
+        while (true)
+        {
+            Ff7AutoPlayWorldNavigationResult result = ChooseWorldInputAttempt(target, remaining, out bool retry, out int physicalExpanded);
+            expanded += result.Expanded;
+            remaining -= physicalExpanded;
+            if (!retry)
+            {
+                return result with { Expanded = expanded };
+            }
+            if (remaining == 0)
+            {
+                PlanningPending = true;
+                return result with { Expanded = expanded };
+            }
+        }
+    }
+
+    private Ff7AutoPlayWorldNavigationResult ChooseWorldInputAttempt(Ff7AutoPlayWorldScriptObservation target, int nodeBudget, out bool retry, out int physicalExpanded)
+    {
+        retry = false;
+        physicalExpanded = 0;
         Ff7WorldRuntime world = session.World ?? throw new InvalidOperationException("World navigation requires an allocated native world.");
         if (!target.Complete)
         {
@@ -51,17 +81,25 @@ public sealed partial class Ff7AutoplayDriver
         if (worldRepeatedTarget != identity)
         {
             worldRepeatedInputs.Clear();
+            worldUnproductiveGuideEdges.Clear();
             worldRepeatedTarget = identity;
         }
         bool rearming = RequiresWorldTargetRearming(source, target);
         Vector3? guidePoint = null;
+        (Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)? guideEdge = null;
         if (!rearming)
         {
             string context = $"{identity}:{world.ReadAutoPlayNavigationContext()}";
+            if (worldGuideTrialContext != context || worldGuideTrialSource != sourceKey)
+            {
+                worldUnproductiveGuideEdges.Clear();
+                worldGuideTrialContext = context;
+                worldGuideTrialSource = sourceKey;
+            }
             int guideIndex = worldTerrainGuide is null ? -1 : Array.FindIndex(worldTerrainGuide.Faces, face => face.Source == source.Input.GroundTriangle);
             if (!ReferenceEquals(worldTerrainGuideOwner, world) || worldTerrainGuideContext != context || guideIndex < 0)
             {
-                worldTerrainGuide = world.ReadAutoPlayNavigationGuide(target);
+                worldTerrainGuide = world.ReadAutoPlayNavigationGuide(target, unproductiveEdges: worldUnproductiveGuideEdges);
                 worldTerrainGuideOwner = world;
                 worldTerrainGuideContext = context;
                 guideIndex = 0;
@@ -76,6 +114,7 @@ public sealed partial class Ff7AutoplayDriver
             if (guideIndex + 1 < guide.Faces.Length)
             {
                 guidePoint = guide.Faces[guideIndex + 1].Center;
+                guideEdge = (guide.Faces[guideIndex].Source, guide.Faces[guideIndex + 1].Source);
                 identity += $":guide:{guide.Faces[guideIndex + 1].Source}";
             }
         }
@@ -99,10 +138,27 @@ public sealed partial class Ff7AutoplayDriver
         Vector3[] departureHints = rearming ? ReadWorldDepartureHints(world, source, target.Script) : [];
         worldRepeatedInputs.TryGetValue(positionKey, out HashSet<Ff7AutoplayInput>? repeated);
         Ff7AutoPlayWorldRoute route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, repeated, guidePoint);
+        physicalExpanded = route.Expanded;
         if (route.Steps.Length == 0 && repeated is { Count: > 0 })
         {
             repeated.Clear();
-            route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget, waypoint: guidePoint);
+            if (physicalExpanded == nodeBudget)
+            {
+                retry = true;
+                return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, physicalExpanded, "Native input preferences were renewed; the bounded physical search remains pending.");
+            }
+            route = SearchWorldRoute(source, target, (input, state) => world.PreviewAutoPlayInput(input, state), departureHints, nodeBudget - physicalExpanded, waypoint: guidePoint);
+            physicalExpanded += route.Expanded;
+        }
+        if (route.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && route.Steps.Length == 0 && guideEdge is { } edge)
+        {
+            if (!worldUnproductiveGuideEdges.Add(edge))
+            {
+                throw new InvalidOperationException("A world guide repeated an unresolved physical transition.");
+            }
+            worldTerrainGuideContext = null;
+            retry = true;
+            return new(Ff7AutoPlayWorldNavigationStatus.SearchLimited, default, physicalExpanded, route.Reason);
         }
         foreach (Ff7AutoPlayWorldRouteStep step in route.Steps)
         {
@@ -110,10 +166,10 @@ public sealed partial class Ff7AutoplayDriver
         }
         if (!worldRoute.TryDequeue(out Ff7AutoPlayWorldRouteStep? first))
         {
-            return new(route.Status, default, route.Expanded, route.Reason);
+            return new(route.Status, default, physicalExpanded, route.Reason);
         }
         RememberWorldInput(positionKey, first.Input);
-        return new(route.Status, first.Input, route.Expanded, route.Reason, first.Boundary, HasInput: true);
+        return new(route.Status, first.Input, physicalExpanded, route.Reason, first.Boundary, HasInput: true);
     }
 
     private void RememberWorldInput(string source, Ff7AutoplayInput input)
@@ -197,7 +253,7 @@ public sealed partial class Ff7AutoplayDriver
                 }
                 costs[searchKey] = cost;
                 open.Enqueue(index, (cost + distance, distance, index));
-                if (step.Moved && (best < 0 || distance < nodes[best].Distance || distance == nodes[best].Distance && cost < nodes[best].Cost))
+                if (step.Moved && distance < nodes[0].Distance && (best < 0 || distance < nodes[best].Distance || distance == nodes[best].Distance && cost < nodes[best].Cost))
                 {
                     best = index;
                 }

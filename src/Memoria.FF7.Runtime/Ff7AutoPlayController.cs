@@ -148,7 +148,12 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                     progress = WorldProgress(world);
                 }
                 ObserveProgress(progress);
+                driver.BeginPlanningStep();
                 Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
+                if (driver.PlanningPending)
+                {
+                    return;
+                }
                 string action = continuingTick ? "resume native cycle" : input.ToString();
                 AutoPlayRecording.AppendRecent(recent, AutoPlayRecording.LimitActionText($"{session.Field.Name}:{session.Host.Process.Tick} {action}"));
                 long previousGeneration = session.FieldGeneration;
