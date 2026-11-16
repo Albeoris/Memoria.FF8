@@ -88,7 +88,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private int waypointDestination = -1;
     private Vector3? committedWaypoint;
     private int waypointSourceTriangle = -1;
-    private int waypointTargetTriangle = -1;
     private Vector3? finalTarget;
     private bool finalApproach;
     private long gatewayGeneration = -1;
@@ -267,7 +266,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             waypoint = (mesh[next].A + mesh[next].B + mesh[next].C) / 3;
         }
         Vector2 currentPosition = new(player.X4096 / 4096f, player.Y4096 / 4096f);
-        if (waypointGeneration == session.FieldGeneration && waypointDestination == destination && (player.Triangle == waypointSourceTriangle || player.Triangle == waypointTargetTriangle) && committedWaypoint is Vector3 retained && Vector2.DistanceSquared(currentPosition, new(retained.X, retained.Y)) > 24 * 24)
+        if (waypointGeneration == session.FieldGeneration && waypointDestination == destination && player.Triangle == waypointSourceTriangle && committedWaypoint is Vector3 retained && Vector2.DistanceSquared(currentPosition, new(retained.X, retained.Y)) > 24 * 24)
         {
             waypoint = retained;
         }
@@ -275,7 +274,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             committedWaypoint = finalApproach || next == player.Triangle ? null : waypoint;
             waypointSourceTriangle = player.Triangle;
-            waypointTargetTriangle = next;
             waypointGeneration = session.FieldGeneration;
             waypointDestination = destination;
         }
