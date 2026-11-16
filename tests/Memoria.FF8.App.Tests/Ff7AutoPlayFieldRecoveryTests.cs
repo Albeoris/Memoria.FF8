@@ -7,6 +7,52 @@ namespace Memoria.FF8.App.Tests;
 public sealed class Ff7AutoPlayFieldRecoveryTests
 {
     [Fact]
+    public void OriginalExhaustedPartyUsesNativePhsWhenRevivalIsUnavailable()
+    {
+        string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? ff8 = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_AUTOPLAY_PARTY_RESERVE_SAVE");
+        Assert.SkipUnless(ff7 is not null && ff8 is not null && path is not null, "Select original resources and an external party-reserve continuation.");
+        byte[] bytes = File.ReadAllBytes(path!);
+        using MemoryStream input = new(bytes, writable: false);
+        CombinedSessionSave source = CombinedSessionCodec.Read(input);
+        Ff7Installation installation = Ff7Installation.Discover(ff7!);
+        using Ff7Session session = Ff7Session.Restore(installation, source.Ff7!);
+        using CrossoverGuestFieldVitals guests = new(ff8!, () => source, _ => throw new InvalidOperationException("Native PHS changed the guest owner."));
+        session.GuestFieldVitals = guests;
+        Ff7SessionSave before = session.Capture();
+        int[] knockedOut = before.Progress.Party.Where(id => !guests.StoryCharacters.Contains(id) && before.Progress.Characters.Single(character => character.Id == id).HitPoints == 0).ToArray();
+        Assert.Equal(2, knockedOut.Length);
+        Assert.True(session.CanUseMenuPhs);
+        Assert.True(Ff7Scene.TryApplyAutoPlayFieldRecovery(session));
+        Assert.True(Ff7Scene.TryApplyAutoPlayFieldRecovery(session));
+        Assert.False(Ff7Scene.TryApplyAutoPlayFieldRecovery(session));
+        Assert.All(knockedOut, id => Assert.DoesNotContain(id, session.Progress.Party));
+        Assert.All(knockedOut, id => Assert.Equal(0, session.Progress.Characters.Single(character => character.Id == id).HitPoints));
+        Assert.All(guests.StoryCharacters, id => Assert.Contains(id, session.Progress.Party));
+        Assert.Equal(before.Progress.Inventory, session.Progress.Inventory);
+        Assert.Equal(before.Progress.Gil, session.Progress.Gil);
+        Assert.Equal(before.Progress.CompletedBattles, session.Progress.CompletedBattles);
+        Assert.Equal(before.Progress.LockedCharacters, session.Progress.LockedCharacters);
+        Assert.Equal(before.Progress.AvailableCharacters, session.Progress.AvailableCharacters);
+        var afterVm = session.Capture().Vm;
+        for (int offset = 0; offset < before.Vm.PersistentVariables.Length; offset++)
+        {
+            if (offset is not (0x109 or 0x10A or 0x10B or 122))
+            {
+                Assert.Equal(before.Vm.PersistentVariables[offset], afterVm.PersistentVariables[offset]);
+            }
+        }
+        Assert.Equal(JsonSerializer.Serialize(before.Vm), JsonSerializer.Serialize(afterVm with { PersistentVariables = before.Vm.PersistentVariables }));
+        Assert.All(guests.StoryCharacters, id => Assert.Equal(before.Progress.Characters.Single(character => character.Id == id), session.Progress.Characters.Single(character => character.Id == id)));
+        using Ff7Session cold = Ff7Session.Restore(installation, session.Capture());
+        cold.GuestFieldVitals = guests;
+        Assert.Equal(session.Progress.Party, cold.Progress.Party);
+        Assert.False(Ff7Scene.TryApplyAutoPlayFieldRecovery(cold));
+        Assert.Equal(bytes, File.ReadAllBytes(path!));
+    }
+
+    [Fact]
     public void OriginalPartyRecoversThroughNativeMenuCommandsBeforeWalking()
     {
         string? ff7 = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");

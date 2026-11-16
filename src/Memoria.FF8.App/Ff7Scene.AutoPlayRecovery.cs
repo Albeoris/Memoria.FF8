@@ -44,7 +44,7 @@ internal sealed partial class Ff7Scene
         }
         if (AutoPlayBattlePolicy.ChooseRecovery(vitals, options) is not { } selected)
         {
-            return false;
+            return TryReplaceAutoPlayKnockedOutPartyMember(session, targets);
         }
         var command = commands[selected.CommandIndex];
         bool applied = command.Item is int itemId ? session.TryUseFieldItem(itemId, command.Target) : session.TryCastFieldMagic(command.Caster, command.Spell, command.Target);
@@ -53,5 +53,27 @@ internal sealed partial class Ff7Scene
             throw new InvalidOperationException("The native field menu rejected the selected automatic recovery command.");
         }
         return true;
+    }
+
+    private static bool TryReplaceAutoPlayKnockedOutPartyMember(Ff7Session session, IReadOnlyList<Ff7CharacterState> targets)
+    {
+        if (!session.CanUseMenuPhs)
+        {
+            return false;
+        }
+        IReadOnlyList<int> guests = session.GuestFieldVitals?.StoryCharacters ?? [];
+        foreach (Ff7CharacterState active in targets.Where(character => character.HitPoints == 0))
+        {
+            foreach (Ff7CharacterState reserve in session.Progress.Characters.Where(character => character.HitPoints > 0 && !session.Progress.Party.Contains(character.Id) && !guests.Contains(character.Id)).OrderByDescending(character => character.HitPoints).ThenBy(character => character.Id))
+            {
+                if (session.TryReplaceMenuPartyMember(active.Id, reserve.Id))
+                {
+                    session.PublishNativeMenuPartyStatistics();
+                    session.CompleteWorldPlayerMenu();
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
