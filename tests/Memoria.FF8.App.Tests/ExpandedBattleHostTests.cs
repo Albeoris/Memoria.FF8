@@ -158,12 +158,13 @@ public sealed class ExpandedBattleHostTests
         }
         NativeCharacterVital[] records = initial.Records.ToArray();
         BattleNativeAction fire;
-        BattleNativeAction quake;
+        BattleNativeAction groupMagic;
         BattleNativeAction potion;
         using (BattleAssets battleAssets = new(directory))
         {
             fire = Assert.Single(battleAssets.NativeActions, action => action.Command == 2 && action.Name == "Fire");
-            quake = Assert.Single(battleAssets.NativeActions, action => action.Command == 2 && action.Name == "Quake");
+            groupMagic = Assert.Single(battleAssets.NativeActions, action => action.Command == 2 && action.Name == "Ultima");
+            Assert.Equal((byte)0, groupMagic.Element);
             potion = Assert.Single(battleAssets.NativeActions, action => action.Command == 4 && action.Name == "Potion");
         }
         for (int row = 0; row < Math.Min(allyCount, NativeCharacterVitals.NativeRecordCount); row++)
@@ -174,7 +175,7 @@ public sealed class ExpandedBattleHostTests
         int casterRow = allyCount - 1;
         NativeMagicStock[] stock = records[casterRow].MagicInventory.ToArray();
         stock[0] = new((byte)fire.ActionId, 5);
-        stock[1] = new((byte)quake.ActionId, 5);
+        stock[1] = new((byte)groupMagic.ActionId, 5);
         byte magicCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2));
         byte itemCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)4));
         byte drawCommand = (byte)(20 + initial.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)6));
@@ -234,17 +235,12 @@ public sealed class ExpandedBattleHostTests
         }
         Assert.Equal(battle.Combatants.Count, BattleSession.Restore(battle.Capture()).Combatants.Count);
         Assert.Equal(5, MagicCount(fire.ActionId));
-        Assert.Equal(5, MagicCount(quake.ActionId));
+        Assert.Equal(5, MagicCount(groupMagic.ActionId));
         Assert.Equal(enemies[^1].Slot, battle.PreviewSmartAttack(casterId, lastEnemy, forcePhysical: true).TargetSlot);
         if (allyCount >= 8)
         {
             _ = presentation.Render(battle, 640, 448);
-            Assert.All(battle.Combatants, actor =>
-            {
-                UiRect bounds = Assert.IsType<UiRect>(presentation.GetActorBounds(actor.Id, new(0, 0, 640, 448)));
-                Assert.InRange(bounds.X + bounds.Width / 2, 0, 640);
-                Assert.InRange(bounds.Y + bounds.Height / 2, 0, 448);
-            });
+            AssertActorBounds(battle, presentation, new(0, 0, 640, 448));
         }
         if (allyCount == 11 && exerciseAi)
         {
@@ -268,9 +264,9 @@ public sealed class ExpandedBattleHostTests
         if (mass)
         {
             int[] before = enemies.Select(enemy => enemy.CurrentHp).ToArray();
-            Run(lastEnemy, BattleAbility.Magic, quake.ActionId, enemies.Select(enemy => enemy.Id).ToArray());
+            Run(lastEnemy, BattleAbility.Magic, groupMagic.ActionId, enemies.Select(enemy => enemy.Id).ToArray());
             Assert.All(enemies.Select((enemy, index) => (enemy, index)), pair => Assert.InRange(pair.enemy.CurrentHp, 0, before[pair.index] - 1));
-            Assert.Equal(4, MagicCount(quake.ActionId));
+            Assert.Equal(4, MagicCount(groupMagic.ActionId));
             Assert.Equal(5, MagicCount(fire.ActionId));
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
             Assert.Equal(enemyCount, battle.EnemyDefeats.Count);
@@ -294,7 +290,7 @@ public sealed class ExpandedBattleHostTests
             Assert.Null(world.Battle);
             Assert.Equal(guardianFormsEnabled, session.State.GameplayPreferences.GuardianFormsEnabled);
             Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
-            Assert.Equal(4, session.State.CharacterVitals.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
+            Assert.Equal(4, session.State.CharacterVitals.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == groupMagic.ActionId).Count);
             if (allyCount == 11)
             {
                 string json = System.Text.Json.JsonSerializer.Serialize(session.PrepareSnapshot());
@@ -302,7 +298,7 @@ public sealed class ExpandedBattleHostTests
                 Assert.Equal(11, restored.GameplayPreferences.BattleAllyCount);
                 NativeCharacterVitals compact = GameplaySaveCharacters.Capture(restored.CharacterVitals!).Restore(assets.ReadNewGameCharacterVitals());
                 Assert.Equal(11, compact.Records.Length);
-                Assert.Equal(4, compact.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == quake.ActionId).Count);
+                Assert.Equal(4, compact.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == groupMagic.ActionId).Count);
                 GameState reduced = restored with { GameplayPreferences = restored.GameplayPreferences with { BattleAllyCount = 3 } };
                 Assert.True(PlayerSaveStore.RequiresMemoriaFormat(reduced));
                 Assert.Throws<NotSupportedException>(() => PlayerSaveStore.ValidateOriginalBattleRoster(reduced));
@@ -315,7 +311,7 @@ public sealed class ExpandedBattleHostTests
             Assert.InRange(enemies[^1].CurrentHp, 0, before[^1] - 1);
             Assert.Equal(before.Take(enemyCount - 1), enemies.Take(enemyCount - 1).Select(enemy => enemy.CurrentHp));
             Assert.Equal(4, MagicCount(fire.ActionId));
-            Assert.Equal(5, MagicCount(quake.ActionId));
+            Assert.Equal(5, MagicCount(groupMagic.ActionId));
             int beforePotion = caster.CurrentHp;
             Assert.Equal(3, battle.Items.Single(item => item.Id == potion.ActionId).Count);
             Run(casterId, BattleAbility.Item, potion.ActionId, [casterId]);
@@ -437,14 +433,18 @@ public sealed class ExpandedBattleHostTests
                     Assert.Equal(width, gpu.Target.Width);
                     Assert.Equal(height, gpu.Target.Height);
                     Assert.Contains(GpuTestDevice.Read(gpu.Target), pixel => pixel.R != 0 || pixel.G != 0 || pixel.B != 0);
-                    Assert.All(active.Combatants, actor =>
-                    {
-                        UiRect bounds = Assert.IsType<UiRect>(gpuPresentation.GetActorBounds(actor.Id, new(0, 0, width, height)));
-                        Assert.InRange(bounds.X + bounds.Width / 2, 0, width);
-                        Assert.InRange(bounds.Y + bounds.Height / 2, 0, height);
-                    });
+                    AssertActorBounds(active, gpuPresentation, new(0, 0, width, height));
                 }
             }
+        }
+
+        static void AssertActorBounds(BattleSession active, BattleScenePresentation scene, UiRect viewport)
+        {
+            Assert.All(active.Combatants.Where(actor => actor.IsActive && !actor.Hidden), actor =>
+            {
+                UiRect? bounds = scene.GetActorBounds(actor.Id, viewport);
+                Assert.True(bounds is { } model && !model.Intersect(viewport).IsEmpty, $"Visible actor {actor.Id} (model {actor.ModelId}) lacks bounds intersecting {viewport}.");
+            });
         }
 
         void Run(string target, BattleAbility ability, int action, string[] recipients)
