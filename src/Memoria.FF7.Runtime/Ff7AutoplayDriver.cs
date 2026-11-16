@@ -335,6 +335,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         if (TryObstacleEscape(controlled, target, waypoint, destination, next, routeDistance, blockedForward, blockers.ToArray(), movement, out Ff7AutoplayInput escape))
         {
             navigationActionProgress = true;
+            navigationEscapeAction = true;
             return escape with { Run = run };
         }
         navigationActionProgress = resultAdvances;

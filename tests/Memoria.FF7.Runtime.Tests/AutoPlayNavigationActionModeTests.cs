@@ -58,12 +58,12 @@ internal static class AutoPlayNavigationActionModeTests
         bool walkAdvances = Ff7AutoplayDriver.HasPhysicalRouteProgress(source, closer, waypoint, _ => 0);
         Ff7AutoplayInput run = new(0, 1, Run: true);
         Ff7AutoplayInput walk = new(1, -1, Run: false);
-        Check(!runAdvances && walkAdvances && Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, runAdvances) && Ff7AutoplayDriver.PreferAdvancingNavigationInput(run, walk, walkAdvances) == walk, "A line-blocked running detour must yield to the same planner's admitted advancing walk.");
-        Check(!Ff7AutoplayDriver.ShouldTryWalkingAction(run, false, runAdvances) && !Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, walkAdvances), "Safe admitted running progress must retain its normal preference.");
+        Check(!runAdvances && walkAdvances && Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, escapePlanned: false) && Ff7AutoplayDriver.PreferAdvancingNavigationInput(run, walk, walkAdvances) == walk, "A line-blocked running detour must yield to the same planner's admitted advancing walk.");
+        Check(!Ff7AutoplayDriver.ShouldTryWalkingAction(run, false, escapePlanned: false) && Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, escapePlanned: false), "An unselected line rejection must compare walking even if one running detour appears to advance locally.");
         bool otherDetourAdvances = Ff7AutoplayDriver.HasPhysicalRouteProgress(source, source with { Y4096 = -4 * 4096 }, waypoint, _ => 0);
         Check(Ff7AutoplayDriver.PreferAdvancingNavigationInput(run, walk, otherDetourAdvances) == run, "When neither admitted mode advances, an existing running detour must remain available.");
         bool boundedEscapeAdvances = Ff7AutoplayDriver.HasPhysicalRouteProgress(source, source with { X4096 = 8 * 4096 }, waypoint, _ => 0);
-        Check(!Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, boundedEscapeAdvances), "A proved bounded escape retains its advancing status even when its first physical prefix retreats.");
+        Check(boundedEscapeAdvances && !Ff7AutoplayDriver.ShouldTryWalkingAction(run, true, escapePlanned: true), "A proved bounded escape must retain its plan even when its first physical prefix retreats.");
         Check(Ff7AutoplayDriver.PreferAdvancingNavigationInput(run, walk with { Held = 0x40 }, false).Held == 0x40, "The selected owner's explicit entry input must retain admission priority over geometric detour ranking.");
     }
 

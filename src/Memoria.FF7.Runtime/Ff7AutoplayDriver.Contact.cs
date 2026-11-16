@@ -1,5 +1,6 @@
 using System.Numerics;
 using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
@@ -45,6 +46,44 @@ public sealed partial class Ff7AutoplayDriver
     private bool navigationLineRejected;
     private bool? navigationRunMode;
     private bool? navigationActionProgress;
+    private bool navigationEscapeAction;
+
+    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long GatewayGeneration, PcFieldGateway? GatewayTarget, Vector3? GatewayCrossingTarget, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction);
+
+    private NavigationModeState CaptureNavigationMode()
+    {
+        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, gatewayGeneration, gatewayTarget, gatewayCrossingTarget, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction);
+    }
+
+    private void RestoreNavigationMode(NavigationModeState state)
+    {
+        waypointGeneration = state.WaypointGeneration;
+        waypointDestination = state.WaypointDestination;
+        committedWaypoint = state.CommittedWaypoint;
+        waypointSourceTriangle = state.WaypointSourceTriangle;
+        finalTarget = state.FinalTarget;
+        finalApproach = state.FinalApproach;
+        gatewayGeneration = state.GatewayGeneration;
+        gatewayTarget = state.GatewayTarget;
+        gatewayCrossingTarget = state.GatewayCrossingTarget;
+        obstacleGeneration = state.ObstacleGeneration;
+        obstacleTarget = state.ObstacleTarget;
+        obstacleSpeed = state.ObstacleSpeed;
+        obstacleHistory.Clear();
+        foreach (Vector3 position in state.ObstacleHistory)
+        {
+            obstacleHistory.Enqueue(position);
+        }
+        obstacleEscape.Clear();
+        foreach (EscapeStep step in state.ObstacleEscape)
+        {
+            obstacleEscape.Enqueue(step);
+        }
+        navigationRunMode = state.RunMode;
+        navigationActionProgress = state.ActionProgress;
+        navigationLineRejected = state.LineRejected;
+        navigationEscapeAction = state.EscapeAction;
+    }
     internal bool? PlannedActionAdvances => navigationActionProgress;
 
     internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> offeredTargets, Func<bool, Ff7AutoplayInput> choose)
@@ -58,6 +97,7 @@ public sealed partial class Ff7AutoplayDriver
         admittedGateways = ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways);
         Ff7AutoplayInput? idle = null;
         Ff7AutoplayInput? detour = null;
+        NavigationModeState? detourState = null;
         Ff7AutoPlayNavigationUnavailableException? failure = null;
         bool rejected = false;
         try
@@ -75,6 +115,7 @@ public sealed partial class Ff7AutoplayDriver
                 navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);
                 navigationLineRejected = false;
                 navigationActionProgress = null;
+                navigationEscapeAction = false;
                 try
                 {
                     Ff7AutoplayInput action = choose(run);
@@ -92,11 +133,17 @@ public sealed partial class Ff7AutoplayDriver
                     {
                         if (detour is Ff7AutoplayInput retained)
                         {
-                            return PreferAdvancingNavigationInput(retained, action, navigationActionProgress == true);
+                            Ff7AutoplayInput selected = PreferAdvancingNavigationInput(retained, action, navigationActionProgress == true);
+                            if (selected == retained)
+                            {
+                                RestoreNavigationMode(detourState!);
+                            }
+                            return selected;
                         }
-                        if (ShouldTryWalkingAction(action, navigationLineRejected, navigationActionProgress))
+                        if (ShouldTryWalkingAction(action, navigationLineRejected, navigationEscapeAction))
                         {
                             detour = action;
+                            detourState = CaptureNavigationMode();
                             continue;
                         }
                         return action;
@@ -115,6 +162,7 @@ public sealed partial class Ff7AutoplayDriver
             }
             if (detour is Ff7AutoplayInput retainedDetour)
             {
+                RestoreNavigationMode(detourState!);
                 return retainedDetour;
             }
             if (idle is Ff7AutoplayInput waiting && !rejected)
@@ -131,9 +179,9 @@ public sealed partial class Ff7AutoplayDriver
         }
     }
 
-    internal static bool ShouldTryWalkingAction(Ff7AutoplayInput action, bool lineRejected, bool? advances)
+    internal static bool ShouldTryWalkingAction(Ff7AutoplayInput action, bool lineRejected, bool escapePlanned)
     {
-        return lineRejected && advances == false && action.Held == 0 && !action.Talk;
+        return lineRejected && !escapePlanned && action.Held == 0 && !action.Talk;
     }
 
     internal static Ff7AutoplayInput PreferAdvancingNavigationInput(Ff7AutoplayInput fallback, Ff7AutoplayInput candidate, bool advances)
