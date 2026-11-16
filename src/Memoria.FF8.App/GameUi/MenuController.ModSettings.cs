@@ -1,4 +1,5 @@
 using Memoria.FF8.Mods;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -49,6 +50,10 @@ public sealed partial class MenuController
 
     private string ModSettingDescription(BehaviorModSetting setting)
     {
+        if (modSettingsPackageId == ModRuntime.MemoriaPackageId && setting is { Behavior: "component", Parameter: "Level-Based Stat Bonuses" })
+        {
+            return SystemText("mods.level-based-stat-bonuses.description", SystemTextCatalog.LevelBasedStatBonusesDescriptionForLanguage(interfaceLanguage?.Invoke()));
+        }
         string description = SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}.description", setting.Description);
         if (setting.Control == "toggle")
         {

@@ -20,7 +20,7 @@ public static partial class SystemTextCatalog
         };
     }
 
-    public static string? LevelBasedBonusAbilityDescription(int ability, string? language)
+    public static string? LevelBasedBonusAbilityDescription(int ability, string? language, bool showCurrentBonus)
     {
         string? stat = ability switch
         {
@@ -35,18 +35,16 @@ public static partial class SystemTextCatalog
         {
             return null;
         }
-        string amount = ability == 65 ? "30 × " : "";
-        int cap = ability == 65 ? 2970 : 99;
         string code = (language ?? "en").Split('-', '_')[0].ToLowerInvariant();
         return code switch
         {
-            "ru" => $"Пока экипирована: +{amount}(уровень − 1) {stat}, максимум +{cap}. Снятие убирает прибавку. Накопленные бонусы повышения уровня не учитываются, пока мод активен.",
-            "ja" or "jp" => $"装備中のみ {stat} +{amount}(レベル − 1)、最大 +{cap}。外すと効果は失われます。この MOD が有効な間、蓄積されたレベルアップボーナスは反映されません。",
-            "de" => $"Solange ausgerüstet: +{amount}(Stufe − 1) {stat}, höchstens +{cap}. Beim Ablegen entfällt der Bonus. Angesammelte Stufenaufstiegsboni werden ignoriert, solange diese Mod aktiv ist.",
-            "fr" => $"Tant que la capacité est équipée : +{amount}(niveau − 1) {stat}, jusqu’à +{cap}. La retirer supprime le bonus. Les bonus de niveau accumulés sont ignorés tant que ce mod est actif.",
-            "it" => $"Finché equipaggiata: +{amount}(livello − 1) {stat}, fino a +{cap}. Rimuovendola si perde il bonus. I bonus accumulati salendo di livello vengono ignorati mentre il mod è attivo.",
-            "es" => $"Mientras está equipada: +{amount}(nivel − 1) {stat}, hasta +{cap}. Al quitarla se pierde el bonus. Los bonus acumulados al subir de nivel se ignoran mientras este mod está activo.",
-            _ => $"While equipped: +{amount}(level − 1) {stat}, up to +{cap}. Unequipping removes the bonus. Accumulated level-up bonuses are ignored while this mod is active."
+            "ru" => showCurrentBonus ? $"Повышает {stat} на {{0}} (+{{1}} за уровень)." : $"Повышает {stat} на {{0}} за уровень.",
+            "ja" or "jp" => showCurrentBonus ? $"{stat}が{{0}}上がる（レベルごとに+{{1}}）。" : $"レベルごとに{stat}が{{0}}上がる。",
+            "de" => showCurrentBonus ? $"Erhöht {stat} um {{0}} (+{{1}} pro Stufe)." : $"Erhöht {stat} um {{0}} pro Stufe.",
+            "fr" => showCurrentBonus ? $"Augmente {stat} de {{0}} (+{{1}} par niveau)." : $"Augmente {stat} de {{0}} par niveau.",
+            "it" => showCurrentBonus ? $"Aumenta {stat} di {{0}} (+{{1}} per livello)." : $"Aumenta {stat} di {{0}} per livello.",
+            "es" => showCurrentBonus ? $"Aumenta {stat} en {{0}} (+{{1}} por nivel)." : $"Aumenta {stat} en {{0}} por nivel.",
+            _ => showCurrentBonus ? $"Increases {stat} by {{0}} (+{{1}} per level)." : $"Increases {stat} by {{0}} per level."
         };
     }
 }

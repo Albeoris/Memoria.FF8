@@ -273,10 +273,6 @@ public sealed partial class MenuController
             {
                 details.Add(SystemText("mods.extended-roster.description", "Adds Laguna, Kiros, Ward, Edea and Seifer to Switch Member when party changes are available."));
             }
-            if (view.Package.IsBundled && view.Package.Id.Equals(GameplayTuningPolicy.LevelBasedStatBonusesPackageId, StringComparison.OrdinalIgnoreCase))
-            {
-                details.Add(SystemText("mods.level-based-stat-bonuses.description", Memoria.FF8.Resources.Localization.SystemTextCatalog.LevelBasedStatBonusesDescriptionForLanguage(interfaceLanguage?.Invoke())));
-            }
             if (modService?.GetPackageLockReason(view.Package.Id) is { } lockReason)
             {
                 details.Add(lockReason);

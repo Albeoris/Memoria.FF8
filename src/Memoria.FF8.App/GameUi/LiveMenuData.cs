@@ -220,7 +220,7 @@ public static class LiveMenuData
                     character.AbilitySlots = vitals.JunctionAbilitySlots(row);
                     foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
                     {
-                        MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), supportsSummon, Text), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.ReadBonusAbilityDescription(ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
+                        MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), NativeAbilityMenuMetadata.CommandName(ability, catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), supportsSummon, Text), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.ReadBonusAbilityDescription(ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses, character.Level) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
                         if (ability is >= 20 and < 39)
                         {
                             character.AvailableCommands.Add(choice);
@@ -358,13 +358,14 @@ public static class LiveMenuData
                     Learning = native.Learning == 0 ? "--" : AbilityName(native.Learning, "Ability {0}", "fallback.ability.name"),
                     LearningAbilityId = native.Learning == 0 ? null : native.Learning.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 };
+                int? ownerLevel = ownerRow < 0 ? null : NativeStatDefinitions.Level(vitals.Records[ownerRow].Experience, vitals.Definitions.Characters[vitals.Records[ownerRow].CharacterId]);
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
                 {
                     if (entry.Learned)
                     {
                         guardianForce.Abilities.Add(AbilityName(entry.Ability, "Learned ability {0}", "fallback.learned-ability.name"));
                     }
-                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), AbilityName(entry.Ability, "Ability {0}", "fallback.ability.name"), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.ReadBonusAbilityDescription(entry.Ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), AbilityName(entry.Ability, "Ability {0}", "fallback.ability.name"), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.ReadBonusAbilityDescription(entry.Ability, state.GameplayPreferences.Tuning.LevelBasedStatBonuses, ownerLevel) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
                         guardianForce.AbilityPoints = entry.Progress;

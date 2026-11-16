@@ -1,5 +1,6 @@
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
@@ -7,11 +8,14 @@ public sealed partial class LiveMenuCatalog
 {
     public Func<string?>? InterfaceLanguage { get; set; }
 
-    public string? ReadBonusAbilityDescription(int ability, bool levelBasedStatBonuses)
+    public string? ReadBonusAbilityDescription(int ability, bool levelBasedStatBonuses, int? characterLevel)
     {
-        if (levelBasedStatBonuses && SystemTextCatalog.LevelBasedBonusAbilityDescription(ability, InterfaceLanguage?.Invoke() ?? resources?.ResourceLanguage) is string description)
+        if (levelBasedStatBonuses && SystemTextCatalog.LevelBasedBonusAbilityDescription(ability, InterfaceLanguage?.Invoke() ?? resources?.ResourceLanguage, characterLevel.HasValue) is string description)
         {
-            return SystemText("mods.level-based-stat-bonuses.ability." + ability, description);
+            int perLevel = BattleNativeCharacterGrowth.LevelBonusPerLevel(ability);
+            return characterLevel is int level
+                ? FormatSystemText($"mods.level-based-stat-bonuses.ability.{ability}.current", description, BattleNativeCharacterGrowth.LevelBonus(ability, level), perLevel)
+                : FormatSystemText($"mods.level-based-stat-bonuses.ability.{ability}.per-level", description, perLevel);
         }
         return AbilityDescription(ability);
     }

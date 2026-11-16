@@ -609,7 +609,8 @@ public static partial class SystemTextCatalog
         defaults["party.switch.empty-slot"] = "Empty slot";
         foreach (int ability in Enumerable.Range(65, 5))
         {
-            defaults["mods.level-based-stat-bonuses.ability." + ability] = LevelBasedBonusAbilityDescription(ability, "en")!;
+            defaults[$"mods.level-based-stat-bonuses.ability.{ability}.current"] = LevelBasedBonusAbilityDescription(ability, "en", showCurrentBonus: true)!;
+            defaults[$"mods.level-based-stat-bonuses.ability.{ability}.per-level"] = LevelBasedBonusAbilityDescription(ability, "en", showCurrentBonus: false)!;
         }
         defaults["mods.level-based-stat-bonuses.description"] = LevelBasedStatBonusesDescription;
         defaults["mods.extended-roster.description"] = "Adds Laguna, Kiros, Ward, Edea and Seifer to Switch Member when party changes are available.";

@@ -50,13 +50,14 @@ public sealed class LevelBasedStatBonusModTests : IDisposable
         menu.ConnectMods(runtime);
         menu.ConnectLocalizationText((key, fallback) => fallback, () => language);
         menu.Open("mods");
-        menu.Execute(new("mod-clear"));
-        menu.Execute(new("mod-inspect"));
-        string description = Assert.Single(menu.CurrentScreen.Details(menu), line => line.StartsWith(expected, StringComparison.Ordinal));
+        menu.Execute(new("mod-settings-open", ModRuntime.MemoriaPackageId));
+        menu.Execute(new("mod-settings-category", "Battle"));
+        string description = Assert.Single(menu.Entries, entry => entry.Label == "Level-Based Stat Bonuses").Help;
+        Assert.StartsWith(expected, description);
         Assert.Contains("2970", description);
         Assert.Contains("99", description);
         menu.ConnectLocalizationText((key, fallback) => key == SystemTextCatalog.Key("mods.level-based-stat-bonuses.description") ? "Custom description" : fallback, () => language);
-        Assert.Contains("Custom description", menu.CurrentScreen.Details(menu));
+        Assert.Equal("Custom description", Assert.Single(menu.Entries, entry => entry.Label == "Level-Based Stat Bonuses").Help);
     }
 
     [Fact]
@@ -97,27 +98,48 @@ public sealed class LevelBasedStatBonusModTests : IDisposable
         {
             vitals = vitals.AcquireGuardianForce(guardian);
         }
-        foreach (string language in new[] { "en", "ru", "ja", "de", "fr", "it", "es" })
+        for (int ability = 65; ability <= 69; ability++)
+        {
+            vitals = vitals.TeachGuardianForceAbility(0, ability);
+        }
+        vitals = vitals.ToggleGuardianForceJunction(0, 0) with { LevelBasedStatBonuses = true };
+        vitals.Records[0] = vitals.Records[0] with { Experience = 19_000 };
+        GameState state = new() { CharacterVitals = vitals, GameplayPreferences = new() { Tuning = new() { LevelBasedStatBonuses = true } } };
+        foreach (string language in new[] { "en", "ru", "ja", "jp", "de", "fr", "it", "es" })
         {
             catalog.InterfaceLanguage = () => language;
-            foreach (int ability in Enumerable.Range(65, 5))
+            MenuData menu = LiveMenuData.Build(state, catalog: catalog, includeJunctionPlanner: false);
+            MenuCharacter character = Assert.Single(menu.Characters, entry => entry.Id == "character-0");
+            Assert.True(character.Level > 1);
+            for (int ability = 65; ability <= 69; ability++)
             {
-                Assert.Equal(catalog.AbilityDescription(ability), catalog.ReadBonusAbilityDescription(ability, false));
-                string expected = SystemTextCatalog.LevelBasedBonusAbilityDescription(ability, language)!;
-                Assert.Equal(expected, catalog.ReadBonusAbilityDescription(ability, true));
-                Assert.Contains(ability == 65 ? "2970" : "99", expected);
+                int rate = ability == 65 ? 30 : 1;
+                int amount = (character.Level!.Value - 1) * rate;
+                string id = ability.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                Assert.Equal(catalog.AbilityDescription(ability), catalog.ReadBonusAbilityDescription(ability, false, character.Level));
+                string expected = catalog.ReadBonusAbilityDescription(ability, true, character.Level)!;
+                Assert.Contains(amount.ToString(System.Globalization.CultureInfo.InvariantCulture), expected);
+                Assert.Contains($"+{rate}", expected);
+                Assert.Equal(expected, Assert.Single(character.AvailableAbilities, choice => choice.Id == id).Description);
+                MenuGuardianForce guardian = Assert.Single(menu.GuardianForces, entry => entry.Id == "gf-0");
+                Assert.Equal(expected, Assert.Single(guardian.LearningChoices, choice => choice.Id == id).Description);
             }
-            GameState state = new() { CharacterVitals = vitals, GameplayPreferences = new() { Tuning = new() { LevelBasedStatBonuses = true } } };
-            MenuAbilityChoice[] bonusChoices = LiveMenuData.Build(state, catalog: catalog, includeJunctionPlanner: false).GuardianForces.SelectMany(guardian => guardian.LearningChoices).Where(choice => int.Parse(choice.Id) is >= 65 and <= 69).ToArray();
-            Assert.NotEmpty(bonusChoices);
-            Assert.All(bonusChoices, choice => Assert.Equal(catalog.ReadBonusAbilityDescription(int.Parse(choice.Id), true), choice.Description));
-            Assert.Equal(catalog.AbilityDescription(64), catalog.ReadBonusAbilityDescription(64, true));
-            Assert.Equal(catalog.AbilityDescription(70), catalog.ReadBonusAbilityDescription(70, true));
+            Assert.Equal(catalog.AbilityDescription(64), catalog.ReadBonusAbilityDescription(64, true, character.Level));
+            Assert.Equal(catalog.AbilityDescription(70), catalog.ReadBonusAbilityDescription(70, true, character.Level));
         }
-        string key = SystemTextCatalog.Key("mods.level-based-stat-bonuses.ability.65");
-        resources.PrepareLocalization(new LocalizationCatalog(new Dictionary<string, LocalizationValue> { [key] = new("Translated equipped HP bonus", "fixture", "fixture") })).Commit();
-        Assert.Equal("Translated equipped HP bonus", catalog.ReadBonusAbilityDescription(65, true));
-        Assert.Equal(catalog.AbilityDescription(65), catalog.ReadBonusAbilityDescription(65, false));
+        catalog.InterfaceLanguage = () => "en";
+        Assert.Equal("Increases Vit by 0 (+1 per level).", catalog.ReadBonusAbilityDescription(67, true, 1));
+        Assert.Equal("Increases Vit by 19 (+1 per level).", catalog.ReadBonusAbilityDescription(67, true, 20));
+        Assert.Equal("Increases HP by 2970 (+30 per level).", catalog.ReadBonusAbilityDescription(65, true, 100));
+        NativeCharacterVitals unassigned = vitals.ToggleGuardianForceJunction(0, 0);
+        MenuGuardianForce unassignedGuardian = Assert.Single(LiveMenuData.Build(state with { CharacterVitals = unassigned }, catalog: catalog, includeJunctionPlanner: false).GuardianForces, entry => entry.Id == "gf-0");
+        Assert.Equal("Increases Vit by 1 per level.", Assert.Single(unassignedGuardian.LearningChoices, choice => choice.Id == "67").Description);
+        catalog.InterfaceLanguage = () => "ru";
+        Assert.Equal("Повышает Vit на 19 (+1 за уровень).", catalog.ReadBonusAbilityDescription(67, true, 20));
+        string key = SystemTextCatalog.Key("mods.level-based-stat-bonuses.ability.65.current");
+        resources.PrepareLocalization(new LocalizationCatalog(new Dictionary<string, LocalizationValue> { [key] = new("Translated HP bonus: {0} (+{1})", "fixture", "fixture") })).Commit();
+        Assert.Equal("Translated HP bonus: 570 (+30)", catalog.ReadBonusAbilityDescription(65, true, 20));
+        Assert.Equal(catalog.AbilityDescription(65), catalog.ReadBonusAbilityDescription(65, false, 20));
     }
 
     private ModRuntime CreateRuntime()

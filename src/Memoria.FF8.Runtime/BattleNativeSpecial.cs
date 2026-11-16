@@ -31,9 +31,17 @@ public sealed record BattleNativeCharacterGrowth(ushort HitPointBonus, Immutable
         }
         BattleNativeCharacterGrowth permanent = Sources.Total(true);
         bool Equipped(int id) => Enumerable.Range(0, 4).Any(slot => (byte)(abilities >> (8 * slot)) == id);
-        int amount = Math.Clamp(level - 1, 0, 99);
-        return new((ushort)Math.Min(9999, permanent.HitPointBonus + (Equipped(65) ? 30 * amount : 0)), Enumerable.Range(0, 6).Select(index => (byte)Math.Min(255, permanent.StatBonuses[index] + (index < 4 && Equipped(66 + index) ? amount : 0))).ToImmutableArray());
+        return new((ushort)Math.Min(9999, permanent.HitPointBonus + (Equipped(65) ? LevelBonus(65, level) : 0)), Enumerable.Range(0, 6).Select(index => (byte)Math.Min(255, permanent.StatBonuses[index] + (index < 4 && Equipped(66 + index) ? LevelBonus(66 + index, level) : 0))).ToImmutableArray());
     }
+
+    public static int LevelBonusPerLevel(int ability) => ability switch
+    {
+        65 => 30,
+        >= 66 and <= 69 => 1,
+        _ => 0
+    };
+
+    public static int LevelBonus(int ability, int level) => Math.Clamp(level - 1, 0, 99) * LevelBonusPerLevel(ability);
 
     public void Validate()
     {
