@@ -40,8 +40,16 @@ internal static class AutoPlayWorldFacingSearchTests
             controller.Advance(1);
         }
         Check(controller.Error is null && session.FieldGeneration != saved.FieldGeneration, $"Normal world policy did not complete its native field handoff: {controller.Error ?? policy.State.Status}");
+        int firstField = session.MapId;
+        Ff7AutoPlayActiveEvent sourceEvent = saved.AutoPlay!.Active!;
+        bool CompletedSource() => policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == sourceEvent.VisitId).Events.Single(item => item.Event.Id == sourceEvent.EventId).Completed;
+        for (int step = 0; step < 128 && controller.Running && session.Battle is null && !CompletedSource(); step++)
+        {
+            controller.Advance(1);
+        }
+        Check(controller.Error is null && CompletedSource(), $"The accepted native world entry was lost during automatic destination forwarding: firstField={firstField}, currentField={session.MapId}, status={policy.State.Status}, error={controller.Error}");
         Check(File.ReadAllBytes(path).SequenceEqual(bytes), "The original world search continuation changed.");
-        Console.WriteLine($"PASS exact facing retention, native physical equivalence and original world frontier handoff after {controller.Steps} steps to field {session.MapId}");
+        Console.WriteLine($"PASS exact facing retention, native physical equivalence and owned world frontier {firstField}->{session.MapId} completion after {controller.Steps} steps");
     }
 
     private static void Check(bool condition, string message)
