@@ -52,6 +52,12 @@ public sealed class ExpandedNativePresentationTests
         VerifyScenario(172, world => EnemyScenario(world, 172), expectedContacts: 0);
     }
 
+    [Fact]
+    public void Installed_BGH251F2_death_keeps_its_self_context_without_publishing_an_impact()
+    {
+        VerifyScenario(298, world => EnemyScenario(world, 298), expectedContacts: 0);
+    }
+
     [Theory]
     [InlineData(71, 1)]
     [InlineData(72, 5)]
@@ -78,6 +84,12 @@ public sealed class ExpandedNativePresentationTests
             DiagnosticBattleRequest request = createScenario(world);
             DiagnosticBattleDriverRecipe driver = request.Driver!;
             BattleSession battle = world.StartDiagnosticBattle(request);
+            string? focalActor = driver.EnemyTrigger?.ActorId ?? driver.Input.ActorId;
+            List<BattleDiagnosticEffectDispatch> dispatches = [];
+            if (driver.EnemyTrigger is not null)
+            {
+                battle.DiagnosticEffectDispatched += dispatches.Add;
+            }
             for (int tick = 0; tick < 1200 && !RecreateGame.DiagnosticCommandReady(battle, driver); tick++)
             {
                 if (battle.NativeEntryReady && battle.ObserveDiagnosticDrainBlockers().Count == 0)
@@ -100,6 +112,7 @@ public sealed class ExpandedNativePresentationTests
             }
             else
             {
+                driver.EnemyTrigger?.Prepare(battle);
                 world.ApplyBattleInput(driver.Input);
             }
             BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition(), true);
@@ -138,9 +151,18 @@ public sealed class ExpandedNativePresentationTests
             }
             else
             {
-                string?[] recipients = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == driver.Input.ActorId).Select(entry => entry.TargetId).ToArray();
+                string?[] recipients = battle.Events.Where(entry => entry.Kind == "EffectContact" && entry.ActorId == focalActor).Select(entry => entry.TargetId).ToArray();
                 Assert.Equal(expectedContacts, recipients.Length);
                 Assert.Equal(expectedContacts, recipients.Distinct().Count());
+                if (driver.EnemyTrigger is { } trigger)
+                {
+                    BattleDiagnosticEffectDispatch actual = Assert.Single(dispatches, dispatch => dispatch.RequestedEffect == effect);
+                    Assert.Equal(trigger.ActorId, actual.ActorId);
+                    Assert.Equal(trigger.Callback, actual.NativeAiCallbackStage);
+                    Assert.Equal(trigger.ScriptSha256, actual.NativeAiScriptSha256);
+                    Assert.Equal(driver.ExpectedNativeAction, actual.ActionId);
+                    Assert.Equal(driver.ExpectedNativeCommand, actual.NativeCommand);
+                }
                 if (effect == 7)
                 {
                     Assert.Equal(Enumerable.Range(0, 11).Select(index => $"party-{index}"), recipients);
@@ -241,13 +263,17 @@ public sealed class ExpandedNativePresentationTests
             172 => (124, 35, 29, 1, 53, 13, 200, [(58, 0), (395, 0), (416, 1), (53, 0), (628, 1)]),
             226 => (548, 107, 46, 6, 276, 11, 205, [(408, 0), (574, 1), (370, 2), (527, 1), (36, 0)]),
             304 => (133, 75, 79, 3, 159, 13, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
+            298 => (194, 52, 102, 0, 119, 14, 200, [(374, 3), (822, 0), (448, 1), (324, 0), (680, 1)]),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))
         };
         var (formation, stage, model, abilitySlot, action, sequence, selector, donorSlots) = scenario;
         ImmutableArray<BattleEnemyRosterSource> donors = donorSlots.Select(donor => new BattleEnemyRosterSource(donor.Formation, donor.Slot, world.BattleResources.FormationSourceHash(donor.Formation))).ToImmutableArray();
         DiagnosticCharacterPreparation character = new(0, 0, [], [0]) { HitPoints = 486, Level = 7, MagicCommand = new(0, 20) };
         const string caster = "enemy-0";
-        BattleInput command = new(BattleInputKind.Action, ActorId: caster, TargetId: selector == 204 ? "party-0" : caster, Ability: BattleAbility.EnemyAbility, ActionId: action);
+        bool death = effect == 298;
+        BattleInput command = death
+            ? new(BattleInputKind.Action, ActorId: "party-10", TargetId: caster, Ability: BattleAbility.Attack, ActionId: 0)
+            : new(BattleInputKind.Action, ActorId: caster, TargetId: selector == 204 ? "party-0" : caster, Ability: BattleAbility.EnemyAbility, ActionId: action);
         return new(formation, 0, 128, 0, 0)
         {
             BattleMusic = 5,
@@ -255,7 +281,13 @@ public sealed class ExpandedNativePresentationTests
             Fixture = new([new(0, true)], [character], true),
             Target = new(caster, stage, model, 0, 3, 0xC3u, 1, null, null),
             Roster = new(donors, 0),
-            Driver = new(command, effect) { ExpectedNativeCommand = 8, ExpectedNativeAction = action, EnemyAbility = new(model, 0, 0, abilitySlot, 8, action, sequence, selector) }
+            Driver = new(command, effect)
+            {
+                ExpectedNativeCommand = 8,
+                ExpectedNativeAction = action,
+                EnemyAbility = death ? null : new(model, 0, 0, abilitySlot, 8, action, sequence, selector),
+                EnemyTrigger = death ? new(caster, model, 0, null, 3, "766F805929FC3E1E689A966A5CE95F46D512DC996D5974B205169054D0CE89A6") : null
+            }
         };
     }
 

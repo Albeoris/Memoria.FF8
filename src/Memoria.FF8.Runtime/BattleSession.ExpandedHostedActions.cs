@@ -162,7 +162,9 @@ public sealed partial class BattleSession
         }
         if (IsHostedCinematicContext(command, header))
         {
-            if (command.NativeAction is not { AttackType: 0, Power: 0, HitCount: 1, AttackFlags: 3, DamagePresentation: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 } native ||
+            byte expectedAttackFlags = header.Effect == NativeBattleEffect298Profile.Effect ? (byte)0 : (byte)3;
+            if (command.NativeAction is not { AttackType: 0, Power: 0, HitCount: 1, DamagePresentation: 0, Element: 0, StatusAttack: 0, Statuses0: 0, Statuses1: 0 } native ||
+                native.AttackFlags != expectedAttackFlags ||
                 native.Command != header.Command || native.ActionId != header.Action || native.MagicId != header.Effect)
             {
                 throw new InvalidDataException("A native context-only cinematic requires its original zero-impact action.");
@@ -174,14 +176,17 @@ public sealed partial class BattleSession
 
     private bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
-        if (header.Effect == NativeBattleMorph172Profile.Effect)
+        if (header.Effect is NativeBattleMorph172Profile.Effect or NativeBattleEffect298Profile.Effect)
         {
-            if (header is not { Command: 8, Action: 53, Sequence: 13, Source: BattleEnemyActorModel source } ||
-                command is not { Ability: BattleAbility.EnemyAbility, NativeAction: { KernelSection: 3, KernelIndex: 53 } } ||
-                command.ActorId != command.TargetId || source.Actor.ActorId != command.ActorId || GetActor(command.ActorId).ModelId != 29 ||
-                command.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || target != source.Actor)
+            bool death = header.Effect == NativeBattleEffect298Profile.Effect;
+            (ushort action, byte sequence, int model) = death ? ((ushort)119, (byte)14, 102) : ((ushort)53, (byte)13, 29);
+            if (header is not { Command: 8, Source: BattleEnemyActorModel source } || header.Action != action || header.Sequence != sequence ||
+                command is not { Ability: BattleAbility.EnemyAbility, NativeAction: { KernelSection: 3 } native } || native.KernelIndex != action ||
+                command.ActorId != command.TargetId || source.Actor.ActorId != command.ActorId || GetActor(command.ActorId).ModelId != model ||
+                command.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || target != source.Actor ||
+                death && command.NativeAiCallbackStage != 3)
             {
-                throw new InvalidDataException("Hosted Morph requires its original self-targeted Turtapod action context.");
+                throw new InvalidDataException("Hosted actor transition requires its original self-targeted enemy action context.");
             }
             return true;
         }
