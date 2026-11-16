@@ -12,7 +12,12 @@ internal sealed partial class GameWorld
     // It never edits a live battle inventory or repairs stock between focal executions.
     internal static DiagnosticInventoryPreparationResult PrepareDiagnosticInventory(NativeEconomy source, DiagnosticBattlePreparation recipe, NativeItemOrderAliases? aliases = null)
     {
-        recipe.Validate();
+        return PrepareDiagnosticInventory(source, recipe, aliases, expandedRoster: false);
+    }
+
+    private static DiagnosticInventoryPreparationResult PrepareDiagnosticInventory(NativeEconomy source, DiagnosticBattlePreparation recipe, NativeItemOrderAliases? aliases, bool expandedRoster)
+    {
+        recipe.Validate(expandedRoster);
         source.Validate();
         NativeEconomy next = source.DeepCopy();
         foreach (DiagnosticItemPreparation item in recipe.Items)

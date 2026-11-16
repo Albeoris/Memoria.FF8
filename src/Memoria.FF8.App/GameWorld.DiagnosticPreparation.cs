@@ -66,13 +66,19 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
 
     internal void Validate()
     {
+        Validate(expandedRoster: false);
+    }
+
+    internal void Validate(bool expandedRoster)
+    {
         Limits?.Validate();
         PocketStation?.Validate();
-        if (CombatParty.IsDefault || !CombatParty.IsEmpty && (CombatParty.Length != 3 || CombatParty.All(row => row == 255) || CombatParty.Any(row => row != 255 && row >= 8) || CombatParty.Where(row => row != 255).Distinct().Count() != CombatParty.Count(row => row != 255)))
+        int recordCount = expandedRoster ? NativeCharacterVitals.ExtendedRecordCount : NativeCharacterVitals.NativeRecordCount;
+        if (CombatParty.IsDefault || !CombatParty.IsEmpty && (CombatParty.Length != 3 || CombatParty.All(row => row == 255) || CombatParty.Any(row => row != 255 && row >= recordCount) || CombatParty.Where(row => row != 255).Distinct().Count() != CombatParty.Count(row => row != 255)))
         {
             throw new InvalidDataException("Diagnostic combat party requires three native saved-row selectors, at least one character and no duplicate selected rows.");
         }
-        if (GuardianForces.IsDefault || Characters.IsDefault || GuardianForces.Length > 16 || Characters.Length > 3 || GuardianForces.Any(entry => entry is null || entry.Id is < 0 or >= 16) || GuardianForces.Select(entry => entry.Id).Distinct().Count() != GuardianForces.Length || Characters.Any(entry => entry is null || entry.Row is < 0 or >= 8 || entry.CharacterId > 10) || Characters.Select(entry => entry.Row).Distinct().Count() != Characters.Length)
+        if (GuardianForces.IsDefault || Characters.IsDefault || GuardianForces.Length > 16 || Characters.Length > 3 || GuardianForces.Any(entry => entry is null || entry.Id is < 0 or >= 16) || GuardianForces.Select(entry => entry.Id).Distinct().Count() != GuardianForces.Length || Characters.Any(entry => entry is null || entry.Row < 0 || entry.Row >= recordCount || entry.CharacterId > 10) || Characters.Select(entry => entry.Row).Distinct().Count() != Characters.Length)
         {
             throw new InvalidDataException("Diagnostic preparation requires distinct owned GF and character rows.");
         }
@@ -177,7 +183,12 @@ internal sealed partial class GameWorld
     // effect allocator or random owner and is never used between the two commands.
     internal static DiagnosticPreparationResult PrepareDiagnosticCharacters(NativeCharacterVitals source, DiagnosticBattlePreparation recipe, NativeBattleExperienceDefinition? experienceDefinition = null, NativeWeaponShopDefinitions? weaponDefinitions = null)
     {
-        recipe.Validate();
+        return PrepareDiagnosticCharacters(source, recipe, experienceDefinition, weaponDefinitions, expandedRoster: false);
+    }
+
+    private static DiagnosticPreparationResult PrepareDiagnosticCharacters(NativeCharacterVitals source, DiagnosticBattlePreparation recipe, NativeBattleExperienceDefinition? experienceDefinition, NativeWeaponShopDefinitions? weaponDefinitions, bool expandedRoster)
+    {
+        recipe.Validate(expandedRoster && source.ExtendedRosterEnabled);
         source.Validate();
         if (source.MagicSystem.SharedMagicStock || source.MagicSystem.InfiniteMagic)
         {
@@ -307,7 +318,15 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("Diagnostic HP exceeds the character's actual derived maximum.");
                 }
-                next = next.WithSavedHitPoints(character.Row, hitPoints);
+                if (character.Row < NativeCharacterVitals.NativeRecordCount)
+                {
+                    next = next.WithSavedHitPoints(character.Row, hitPoints);
+                }
+                else
+                {
+                    NativeCharacterVital record = next.Records[character.Row];
+                    next.Records[character.Row] = record with { HitPoints = new NativeHpWord(hitPoints, hitPoints) };
+                }
                 if (character.KnockedOut)
                 {
                     NativeCharacterVital record = next.Records[character.Row];

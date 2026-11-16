@@ -30,7 +30,7 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new NotSupportedException("Timed Limit, Slots and fresh-entry diagnostics require ordinary initial admission without a preparation prelude.");
         }
-        Fixture?.Validate();
+        Fixture?.Validate(Roster is not null);
         Roster?.Validate();
         if (Driver is { } driver && (driver.IndependentRosterEntry || driver.EnemyTrigger is not null) && Roster is null)
         {
@@ -201,8 +201,8 @@ internal sealed partial class GameWorld
                 }
             }
         }
-        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(initialVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null, request.Fixture.Characters.Any(character => character.Weapon.HasValue) ? assets.ReadNativeWeaponShopDefinitions() : null);
-        DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture, NativeItemOrderAliases.From(session.State));
+        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(initialVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null, request.Fixture.Characters.Any(character => character.Weapon.HasValue) ? assets.ReadNativeWeaponShopDefinitions() : null, expandedRoster: request.Roster is not null);
+        DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture, NativeItemOrderAliases.From(session.State), expandedRoster: request.Roster is not null);
         DiagnosticLimitPreparationResult? limits = request.Fixture?.Limits is { } limitRecipe ? PrepareDiagnosticLimits(session.State.LimitProgress ?? throw new NotSupportedException("Diagnostic Limit preparation requires the actual initialized saved progress owner."), limitRecipe) : null;
         DiagnosticPocketStationPreparationResult? pocketStation = request.Fixture?.PocketStation is { } pocketRecipe ? PrepareDiagnosticPocketStation(session.State.PocketStation ?? throw new NotSupportedException("Diagnostic PocketStation preparation requires its initialized saved owner."), pocketRecipe) : null;
         Events.InitializeNewGameMusicOwners(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Diagnostic music initialization requires the authenticated native runtime profile."));
