@@ -3,6 +3,7 @@ using Memoria.FF7.Events;
 
 if (args.Contains("--request-preemption-only", StringComparer.Ordinal))
 {
+    NativeScriptDispatchTests.Run();
     RequestCompletion();
     BusyRequests();
     QueuedRequest();
@@ -218,6 +219,7 @@ var tests = new (string Name, Action Run)[]
     ("partial cycle cursor retries exact handler and budget", CycleCursorTests.Run),
     ("short forward and backward control flow", ShortBranches),
     ("long forward and backward operand widths", LongBranches),
+    ("native script dispatch observation", NativeScriptDispatchTests.Run),
     ("request completion and suspended continuation", RequestCompletion),
     ("request busy skip versus wait", BusyRequests),
     ("lower priority queued behind urgent request", QueuedRequest),

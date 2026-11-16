@@ -6,6 +6,7 @@ internal static class NativeAutoPlayScriptedInputTests
     public static void Run()
     {
         CheckInteractionInputOwnership();
+        CheckTimedPollingEdges();
         FieldScriptInputDemand demand = new("program:0:1:0001", "program", 0, 1, 1, FieldScriptInputKind.Held, 0x220, true, true);
         Check(Ff7AutoPlayScriptedInput.SelectInput(demand, new()).Held == 0x20, "Held demand did not choose one admitted native button.");
         demand = demand with { Kind = FieldScriptInputKind.Pressed };
@@ -39,6 +40,24 @@ internal static class NativeAutoPlayScriptedInputTests
         Check(Ff7AutoPlayScriptedInput.SelectDemand([cancel with { Entity = 1 }, earlierOwner]) == earlierOwner, "Button preference displaced native entity ordering.");
         Check(Ff7AutoPlayScriptedInput.SelectDemand([direction, direction with { Identity = "second-direction", Mask = 0x2000 }]) == direction, "Equivalent navigation gates lost stable source ordering.");
         Check(Ff7AutoPlayScriptedInput.SelectDemand([]) is null && Ff7AutoPlayScriptedInput.SelectDemand([cancel with { AwaitingInput = false }]) is null, "No proved wait fabricated an autoplay button demand.");
+    }
+
+    private static void CheckTimedPollingEdges()
+    {
+        foreach (byte opcode in new byte[] { 0x31, 0x32 })
+        {
+            FieldProgram program = new([0, 0x24, 16, 0, opcode, 0x20, 2, 2, 0, 0x12, 8], [new ushort[32]]);
+            FieldMachine machine = new(program);
+            machine.Initialize();
+            for (int tick = 0; tick < 40 && machine.Capture().Entities[0].ProgramCounter != 8; tick++)
+            {
+                FieldScriptInputDemand poll = machine.ReadCurrentInputDemands().Single();
+                Ff7AutoplayInput input = Ff7AutoPlayScriptedInput.SelectInput(poll, machine.Input);
+                machine.SetInput(input.Held, (ushort)(input.Held & ~machine.Input.Held));
+                machine.AdvanceTick();
+            }
+            Check(machine.Capture().Entities[0].ProgramCounter == 8, "A proved even-period native poll missed its prepared press or release edge.");
+        }
     }
 
     private static void CheckInteractionInputOwnership()

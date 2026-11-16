@@ -11,6 +11,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckAvailabilitySourcePredicate();
         CheckRemoteMovementRegionProjection();
         CheckOriginalControlledLadderContinuation();
+        CheckOriginalForeignFrontierInvalidation();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
         AutoPlayEvent ladder = new("ladder", AutoPlayEventKind.Interaction, ConditionSignature: "ladder-entry");
@@ -195,6 +196,37 @@ internal static class AutoPlayNavigationRefreshTests
         Check(returned && epochs.Any(epoch => epoch.EventId != initial.EventId), "The original ladder did not return and reach another native event within the bounded continuation.");
         Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded ladder continuation queued a choice restore or changed its original standalone source.");
         Console.WriteLine($"PASS original controlled ladder leaves its consumed event through {epochs.Count} native event epochs without repeating its source; source unchanged.");
+    }
+
+    private static void CheckOriginalForeignFrontierInvalidation()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_FOREIGN_FRONTIER_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        AutoPlayTravelGoal previousGoal = source.AutoPlay?.NavigationGoal ?? throw new InvalidOperationException("The fixture requires its recorded foreign-field frontier goal.");
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded foreign-frontier check must stop before new choice exploration."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool reached = false;
+        for (int step = 0; step < 128 && controller.Running && !reached; step++)
+        {
+            controller.Advance(1);
+            reached = session.FieldGeneration != source.FieldGeneration && policy.State.Active is { } active && active.Generation == session.FieldGeneration;
+        }
+        Check(controller.Failure is null, $"The bounded foreign-frontier continuation failed: {controller.Error}");
+        Check(reached, "The native foreign-frontier continuation did not reach the next field's own event within its bounded ordinary steps.");
+        Check(policy.State.NavigationGoal != previousGoal, "A blocked foreign-field frontier retained its phantom goal through the native gateway transition.");
+        Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "Foreign-frontier invalidation queued a replay or changed its original standalone source.");
+        Console.WriteLine($"PASS original foreign-field frontier eligibility replaces its stale goal after {controller.Steps} ordinary steps; source unchanged.");
     }
 
     private static void CheckCompletedRemoteAvailability()

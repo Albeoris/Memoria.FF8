@@ -199,7 +199,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             planner.BeginEvent(observation.VisitId, target.Id);
             State.NavigationGoal = next.Goal;
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
-            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
+            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations, SpatialOwner: target.SpatialOwner, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
             State.Status = $"{session.Field.Name}: {target.Id}";
             Publish();
         }
@@ -426,13 +426,41 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return;
         }
-        bool returned = active.Accepted && observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1);
+        bool spatialChanged = false;
+        if (active.SpatialOwner is not null)
+        {
+            Ff7AutoPlayActiveEvent observed = ObserveSpatialScriptActivity(active, observation.ScriptActivity ?? []);
+            spatialChanged = observed != active;
+            active = observed;
+            State.Active = active;
+        }
+        bool returned = active.SpatialOwner is null && active.Accepted && observation.ScriptReturns.Any(owner => owner.Entity == active.Entity && owner.Priority == 1);
         bool transition = IsOwnedTransition(observation, active);
-        if (returned || transition)
+        if (returned || transition || spatialChanged)
         {
             State.Active = active with { Returned = active.Returned || returned, TransitionOwned = active.TransitionOwned || transition };
             Publish();
         }
+    }
+
+    internal static Ff7AutoPlayActiveEvent ObserveSpatialScriptActivity(Ff7AutoPlayActiveEvent active, IReadOnlyList<Ff7NativeScriptActivity> activities)
+    {
+        if (active.SpatialOwner is not { } expected)
+        {
+            return active;
+        }
+        foreach (Ff7NativeScriptActivity activity in activities)
+        {
+            if (!active.Accepted && activity.Dispatch is { Accepted: true } dispatch && dispatch.SourceEntity == active.Entity && dispatch.SourcePriority == expected.SourcePriority && dispatch.SourceProgramCounter == expected.SourceProgramCounter && dispatch.TargetEntity == expected.TargetEntity && dispatch.TargetScript == expected.TargetScript && dispatch.TargetPriority == expected.TargetPriority && dispatch.RequestMode == expected.RequestMode)
+            {
+                active = active with { Accepted = true };
+            }
+            if (active.Accepted && !active.Returned && activity.Return is { } returned && returned.Entity == expected.TargetEntity && returned.Priority == expected.TargetPriority)
+            {
+                active = active with { Returned = true };
+            }
+        }
+        return active;
     }
 
     internal static bool IsOwnedTransition(Ff7NativeTickObservation observation, Ff7AutoPlayActiveEvent active)

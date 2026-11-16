@@ -39,6 +39,12 @@ if (args.Contains("--line-waypoint-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-spatial-navigation-only", StringComparer.Ordinal))
+{
+    AutoPlaySpatialNavigationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--spatial-navigation-only", StringComparer.Ordinal))
 {
     AutoPlayDirectSpatialTransitionTests.Run(navigationOnly: true);
@@ -797,6 +803,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay lifecycle and standalone continuation", NativeAutoPlayTests.Run),
     ("native generic autoplay discovery", NativeAutoPlayDiscoveryTests.Run),
     ("native autonomous spatial frontiers", NativeAutoPlaySpatialTests.Run),
+    ("native same-field spatial navigation ownership", AutoPlaySpatialNavigationTests.Run),
     ("native autoplay choice workflow", AutoPlayChoiceWorkflowTests.Run),
     ("native autoplay scripted input", NativeAutoPlayScriptedInputTests.Run),
     ("native autoplay host read dependencies", NativeAutoPlayHostReadTests.Run),

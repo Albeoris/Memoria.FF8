@@ -6,6 +6,10 @@ namespace Memoria.FF7.Events;
 public sealed record FieldSpatialSample(int Id, FieldActorPosition Position);
 public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int TargetEntity, int TargetScript, int SampleId, int[] DestinationFields, bool ChangesStory, string Fingerprint, FieldVariableRead[] Reads, FieldHostRead[] HostReads)
 {
+    public bool MayChangeNavigation { get; init; }
+    public int RequestMode { get; init; }
+    public int RequestPriority { get; init; }
+    public int SourcePriority { get; init; } = 7;
     public bool TriangleOnly { get; init; }
     public bool Stochastic { get; init; }
 }
@@ -329,7 +333,7 @@ public sealed partial class FieldMachine
                 }
                 int script = program.Read(pc + 2) & 31;
                 FieldScriptAnalysis child = detached.AnalyzeScript(target, script);
-                if (!child.Complete || child.DestinationFields.Length == 0)
+                if (!child.Complete || child.DestinationFields.Length == 0 && !child.MayChangeNavigation)
                 {
                     return;
                 }
@@ -343,16 +347,16 @@ public sealed partial class FieldMachine
                     }
                     dependencies.UnionWith(bytes.Where(value => !written.Contains(value)));
                 }
-                RecordDemand(pc, target, script, child.DestinationFields, child.ChangesStory, child.HostReads);
+                RecordDemand(pc, target, script, child.DestinationFields, child.ChangesStory, child.HostReads, child.MayChangeNavigation, opcode > 3 ? opcode - 3 : opcode, program.Read(pc + 2) >> 5);
             }
 
-            void RecordDemand(int pc, int target, int script, int[] destinations, bool changesStory, FieldHostRead[] hostReads)
+            void RecordDemand(int pc, int target, int script, int[] destinations, bool changesStory, FieldHostRead[] hostReads, bool mayChangeNavigation = false, int requestMode = 0, int requestPriority = 0)
             {
                 dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read)));
                 FieldVariableRead[] reads = dependencies.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
                 string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, Math.Max(0, script), reads)}|{(stochasticPredicate ? randomDomain?.Fingerprint : null)}";
                 string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
-                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate });
+                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate, MayChangeNavigation = mayChangeNavigation, RequestMode = requestMode, RequestPriority = requestPriority, SourcePriority = source.Entities[entity].Priority });
             }
         }
     }

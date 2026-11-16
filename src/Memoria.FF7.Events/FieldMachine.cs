@@ -315,9 +315,18 @@ public sealed partial class FieldMachine
     private bool Request(int callerId, byte type, byte targetId, byte packed)
     {
         Entity caller = entities[callerId];
+        int sourcePriority = caller.Priority;
+        int sourcePc = caller.Pc;
+        int priority = packed >> 5;
+        int script = packed & 31;
+        void Observe(bool accepted, bool queued = false)
+        {
+            ScriptDispatched?.Invoke(new(callerId, sourcePriority, sourcePc, targetId == 255 ? -1 : targetId, script, priority, type, accepted, queued, Tick));
+        }
         if (targetId == 255)
         {
             caller.Pc = unchecked((ushort)(caller.Pc + 3));
+            Observe(false);
             return false;
         }
         if (targetId >= entities.Length)
@@ -325,8 +334,6 @@ public sealed partial class FieldMachine
             throw new InvalidDataException($"Request targets absent entity {targetId}.");
         }
         Entity target = entities[targetId];
-        int priority = packed >> 5;
-        int script = packed & 31;
         if (type == 3 && target.Owners[priority] == callerId)
         {
             if (target.Sync[priority] == FieldSyncState.Waiting)
@@ -346,10 +353,13 @@ public sealed partial class FieldMachine
             if (type == 1)
             {
                 caller.Pc = unchecked((ushort)(caller.Pc + 3));
+                Observe(false);
                 return false;
             }
+            Observe(false);
             return true;
         }
+        bool queued = target.Priority < priority;
         if (target.Priority < priority)
         {
             target.Saved[priority] = program.Entry(targetId, script);
@@ -358,6 +368,7 @@ public sealed partial class FieldMachine
         {
             if (target.Sync[priority] != FieldSyncState.None)
             {
+                Observe(false);
                 return true;
             }
             if (target.Pc < 0)
@@ -374,9 +385,11 @@ public sealed partial class FieldMachine
         {
             target.Owners[priority] = callerId;
             target.Sync[priority] = FieldSyncState.Waiting;
+            Observe(true, queued);
             return true;
         }
         caller.Pc = unchecked((ushort)(caller.Pc + 3));
+        Observe(true, queued);
         return false;
     }
 

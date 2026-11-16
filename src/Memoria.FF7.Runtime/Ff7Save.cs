@@ -73,7 +73,7 @@ public sealed record Ff7AudioPresentationState
     }
 }
 
-public sealed record Ff7TickContinuation(FieldInputState Input, FieldScriptReturn[]? ScriptReturns = null);
+public sealed record Ff7TickContinuation(FieldInputState Input, FieldScriptReturn[]? ScriptReturns = null, Ff7NativeScriptActivity[]? ScriptActivity = null);
 
 public sealed record Ff7SessionSave
 {

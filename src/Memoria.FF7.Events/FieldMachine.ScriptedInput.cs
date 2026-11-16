@@ -7,7 +7,10 @@ public enum FieldScriptInputKind
     Released
 }
 
-public sealed record FieldScriptInputDemand(string Identity, string ProgramIdentity, int Entity, int Priority, int ProgramCounter, FieldScriptInputKind Kind, ushort Mask, bool Mapped, bool AwaitingInput);
+public sealed record FieldScriptInputDemand(string Identity, string ProgramIdentity, int Entity, int Priority, int ProgramCounter, FieldScriptInputKind Kind, ushort Mask, bool Mapped, bool AwaitingInput)
+{
+    public int DelayTicks { get; init; }
+}
 
 public sealed partial class FieldMachine
 {
@@ -82,6 +85,8 @@ public sealed partial class FieldMachine
             FieldMachine detached = Restore(program, source, new InspectionHost());
             detached.inspection = new() { StopAtHost = true };
             HashSet<(int Pc, int Priority)> visited = [];
+            int delayTicks = 0;
+            bool sawInput = false;
             for (int step = 0; step < instructionBudget; step++)
             {
                 Entity owner = detached.entities[entity];
@@ -92,6 +97,14 @@ public sealed partial class FieldMachine
                 try
                 {
                     byte opcode = program.Read(owner.Pc);
+                    if (SkipInputPollingDelay(owner, opcode, out int delay))
+                    {
+                        if (!sawInput)
+                        {
+                            delayTicks += delay;
+                        }
+                        continue;
+                    }
                     if (opcode is >= 0x30 and <= 0x32)
                     {
                         int pc = owner.Pc;
@@ -100,7 +113,8 @@ public sealed partial class FieldMachine
                         int unmatched = unchecked((ushort)(pc + 3 + program.Read(pc + 3)));
                         bool awaiting = mask != 0 && unmatched != unchecked((ushort)(pc + 4)) && LoopsBackToInput(detached, entity, unmatched, pc, instructionBudget);
                         string identity = $"{program.Identity}:{entity}:{owner.Priority}:{pc:X4}";
-                        demands.Add(new(identity, program.Identity, entity, owner.Priority, pc, (FieldScriptInputKind)(opcode - 0x30), mask, mapped, awaiting));
+                        demands.Add(new(identity, program.Identity, entity, owner.Priority, pc, (FieldScriptInputKind)(opcode - 0x30), mask, mapped, awaiting) { DelayTicks = delayTicks });
+                        sawInput = true;
                         if (!awaiting)
                         {
                             break;
@@ -145,6 +159,10 @@ public sealed partial class FieldMachine
             try
             {
                 byte opcode = program.Read(pc);
+                if (SkipInputPollingDelay(detached.entities[entity], opcode, out _))
+                {
+                    continue;
+                }
                 if (opcode is >= 0x30 and <= 0x32)
                 {
                     detached.entities[entity].Pc = unchecked((ushort)(pc + 3 + program.Read(pc + 3)));
@@ -167,5 +185,27 @@ public sealed partial class FieldMachine
     private static bool IsInputInspectionBoundary(byte opcode)
     {
         return opcode is <= 0x06 or 0x24 or 0x5F;
+    }
+
+    private bool SkipInputPollingDelay(Entity owner, byte opcode, out int delayTicks)
+    {
+        delayTicks = 0;
+        if (opcode is not (0x24 or 0x5F))
+        {
+            return false;
+        }
+        int length = opcode == 0x24 ? 3 : 1;
+        if (opcode == 0x24)
+        {
+            int duration = program.Read(owner.Pc + 1) | program.Read(owner.Pc + 2) << 8;
+            delayTicks = owner.Wait == 0 ? Math.Max(1, duration) : owner.Wait - 1;
+        }
+        else
+        {
+            delayTicks = 1;
+        }
+        owner.Pc = unchecked((ushort)(owner.Pc + length));
+        owner.Wait = 0;
+        return true;
     }
 }

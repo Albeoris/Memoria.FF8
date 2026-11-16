@@ -71,7 +71,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private AutoPlayEventAvailability? ReadNavigationAvailability(AutoPlayNavigationVisit navigation, AutoPlayEvent observed, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
     {
-        if (navigation.VisitKey != observation.VisitId)
+        if (navigation.VisitKey != observation.VisitId && !State.VisitGuards.ContainsKey(navigation.VisitKey))
         {
             return null;
         }

@@ -5,9 +5,11 @@ using Memoria.AutoPlay;
 
 namespace Memoria.FF7.Runtime;
 
+public sealed record Ff7NativeScriptActivity(FieldScriptDispatch? Dispatch = null, FieldScriptReturn? Return = null);
+
 public sealed record Ff7NativeTransitionOwnership(int RootEntity, int RootScript, int OwnerEntity, int OwnerPriority);
 
-public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null, Ff7NativeTransitionOwnership? TransitionOwnership = null);
+public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null, Ff7NativeTransitionOwnership? TransitionOwnership = null, Ff7NativeScriptActivity[]? ScriptActivity = null);
 
 public sealed partial class Ff7Session
 {
@@ -38,6 +40,26 @@ public sealed partial class Ff7Session
             throw new InvalidDataException("FFVII autoplay script observations exceeded their bounded callback allocation.");
         }
         tickContinuation = tickContinuation with { ScriptReturns = [.. prior, returned] };
+        ObserveNativeScriptActivity(new(Return: returned));
+    }
+
+    private void ObserveNativeScriptDispatch(FieldScriptDispatch dispatched)
+    {
+        ObserveNativeScriptActivity(new(Dispatch: dispatched));
+    }
+
+    private void ObserveNativeScriptActivity(Ff7NativeScriptActivity activity)
+    {
+        if (NativeTickCompleted is null || tickContinuation is null)
+        {
+            return;
+        }
+        Ff7NativeScriptActivity[] prior = tickContinuation.ScriptActivity ?? [];
+        if (prior.Length == 4096)
+        {
+            throw new InvalidDataException("FFVII script activity exceeded its bounded callback allocation.");
+        }
+        tickContinuation = tickContinuation with { ScriptActivity = [.. prior, activity] };
     }
 
     private Ff7NativeTickObservation? CompleteNativeObservation(Ff7TickContinuation continuation, FieldVmSnapshot sourceVm)
@@ -49,12 +71,12 @@ public sealed partial class Ff7Session
         FieldHostRequest? transitionOwner = Host.Process.Transition is null ? null : Host.Capture().Receipts.FirstOrDefault(receipt => receipt.Request.Id == Host.Process.GlobalRequestId)?.Request;
         FieldScriptReturn[] returns = continuation.ScriptReturns?.ToArray() ?? [];
         Ff7NativeTransitionOwnership? ownership = ReadTransitionOwnership(sourceVm, transitionOwner, AutoPlayState?.Active, FieldGeneration, returns);
-        return new(Field.Name, FieldGeneration, Machine.Tick, returns, Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner, ownership);
+        return new(Field.Name, FieldGeneration, Machine.Tick, returns, Host.Process.Transition, CaptureEventProgressWitness(), transitionOwner, ownership, continuation.ScriptActivity ?? []);
     }
 
     internal static Ff7NativeTransitionOwnership? ReadTransitionOwnership(FieldVmSnapshot sourceVm, FieldHostRequest? owner, Ff7AutoPlayActiveEvent? active, long generation, IReadOnlyList<FieldScriptReturn> returns)
     {
-        if (owner is not { Command: FieldTransitionCommand } || active is null || returns.Any(returned => returned.Entity == active.Entity && returned.Priority == 1) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(sourceVm, active, generation).TryGetValue(owner.Entity, out int priority) || priority != owner.Priority)
+        if (owner is not { Command: FieldTransitionCommand } || active is null || returns.Any(returned => returned.Entity == (active.SpatialOwner?.TargetEntity ?? active.Entity) && returned.Priority == (active.SpatialOwner?.TargetPriority ?? 1)) || !Ff7AutoPlayScriptedInput.ReadInteractionOwners(sourceVm, active, generation).TryGetValue(owner.Entity, out int priority) || priority != owner.Priority)
         {
             return null;
         }

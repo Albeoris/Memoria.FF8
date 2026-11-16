@@ -5,6 +5,8 @@ internal static class NativeScriptedInputTests
 {
     public static void Run()
     {
+        CheckTimedPollingLoop();
+        CheckEvenTimedEdgePolling();
         for (int opcode = 0x30; opcode <= 0x32; opcode++)
         {
             ushort[] entries = new ushort[32];
@@ -67,6 +69,90 @@ internal static class NativeScriptedInputTests
         FieldMachine loop = new(new([0, 0x12, 0], [new ushort[32]]));
         loop.Initialize();
         Check(loop.ReadCurrentInputDemands(4).Count == 0, "A pure main loop exceeded bounded lookahead or invented input.");
+    }
+
+    private static void CheckTimedPollingLoop()
+    {
+        RejectHost host = new();
+        FieldProgram program = TimedPollingProgram([]);
+        FieldMachine machine = new(program, host: host);
+        machine.Initialize();
+        string before = JsonSerializer.Serialize(machine.Capture());
+        FieldScriptInputDemand demand = machine.ReadCurrentInputDemands().Single();
+        Check(demand is { ProgramCounter: 5, Priority: 7, Kind: FieldScriptInputKind.Held, Mask: 0x40, AwaitingInput: true, DelayTicks: 16 }, "A native WAIT/YIELD polling loop did not expose its proved current input gate and exact leading delay.");
+        Check(machine.ReadCurrentInputDemands(2).Count == 0, "Skipping native polling delays bypassed the instruction budget.");
+        Check(machine.ReadEntryInputDemand(0, 4) is null, "Current polling support weakened entry admission across a native WAIT.");
+        Check(JsonSerializer.Serialize(machine.Capture()) == before && host.Calls == 0, "Timed polling inspection changed live native PCs, timers, variables, input or hosts.");
+        machine.AdvanceTick();
+        FieldVmSnapshot waiting = machine.Capture();
+        Check(waiting.Entities[0].WaitCounter == 15 && waiting.Entities[0].ProgramCounter == 1, "The authored native WAIT did not establish its real timer and retained continuation.");
+        before = JsonSerializer.Serialize(waiting);
+        FieldScriptInputDemand waitingDemand = machine.ReadCurrentInputDemands().Single();
+        Check(waitingDemand == (demand with { DelayTicks = 15 }), "An active native timer hid its proved future polling demand or changed its remaining delay.");
+        Check(JsonSerializer.Serialize(machine.Capture()) == before && host.Calls == 0, "Reading a timed native gate cleared or advanced its authoritative timer.");
+        FieldMachine cold = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(before)!, host);
+        Check(cold.ReadCurrentInputDemands().Single() == waitingDemand && JsonSerializer.Serialize(cold.Capture()) == before, "Cold timed polling observation changed native timer state or gate identity.");
+        FieldMachine yieldEntry = new(TimedPollingProgram([], 4), host: host);
+        yieldEntry.Initialize();
+        Check(yieldEntry.ReadEntryInputDemand(0, 4) is null, "Current polling support weakened entry admission across a native YIELD.");
+        foreach (byte[] body in new byte[][] { [0x80, 0x50, 0, 1], [0x99, 0x50, 0] })
+        {
+            FieldMachine unsafeLoop = new(TimedPollingProgram(body), host: host);
+            unsafeLoop.Initialize();
+            string unchanged = JsonSerializer.Serialize(unsafeLoop.Capture());
+            Check(unsafeLoop.ReadCurrentInputDemands().All(candidate => !candidate.AwaitingInput), "A timed no-button path with variable mutation or host effects was accepted as an input-only loop.");
+            Check(JsonSerializer.Serialize(unsafeLoop.Capture()) == unchanged && host.Calls == 0, "Rejecting an unsafe timed polling loop changed live native state or dispatched a host.");
+        }
+    }
+
+    private static void CheckEvenTimedEdgePolling()
+    {
+        ushort[] entries = new ushort[32];
+        entries[4] = 1;
+        FieldMachine machine = new(new([0, 0x24, 16, 0, 0x31, 0x40, 0, 2, 0, 0x12, 8], [entries]));
+        machine.Initialize();
+        for (int elapsed = 0; elapsed <= 16; elapsed++)
+        {
+            string unchanged = JsonSerializer.Serialize(machine.Capture());
+            FieldScriptInputDemand demand = machine.ReadCurrentInputDemands().Single();
+            Check(demand is { ProgramCounter: 4, Kind: FieldScriptInputKind.Pressed, AwaitingInput: true } && demand.DelayTicks == 16 - elapsed, "An even native WAIT polling loop lost the exact tick for its input edge.");
+            Check(JsonSerializer.Serialize(machine.Capture()) == unchanged, "Reading a delayed input edge advanced the authoritative polling timer.");
+            if (elapsed < 16)
+            {
+                machine.AdvanceTick();
+            }
+        }
+        Check(machine.Capture().Entities[0].WaitCounter == 1, "The zero-delay edge was not scheduled at the native WAIT completion callback.");
+        machine.SetInput(0x40, 0x40);
+        machine.AdvanceTick();
+        Check(machine.Capture().Entities[0].ProgramCounter == 8 && machine.Capture().Entities[0].WaitCounter == 0, "A pressed edge at zero delay missed its native even-period polling gate.");
+        Check(machine.ReadEntryInputDemand(0, 4) is null, "Delayed current-demand support changed entry WAIT admission.");
+        FieldMachine chained = new(new([0, 0x24, 16, 0, 0x30, 0x40, 0, 2, 0, 0x31, 0x80, 0, 2, 0, 0x12, 13], [new ushort[32]]));
+        chained.Initialize();
+        FieldScriptInputDemand[] chainedDemands = chained.ReadCurrentInputDemands().ToArray();
+        Check(chainedDemands.Length == 2 && chainedDemands.All(demand => demand.AwaitingInput && demand.DelayTicks == 16) && chainedDemands.Select(demand => demand.ProgramCounter).SequenceEqual(new[] { 4, 9 }), "Additional no-button gates accumulated another polling cycle instead of retaining their shared delay.");
+        FieldMachine zeroWait = new(new([0, 0x24, 0, 0, 0x31, 0x40, 0, 2, 0, 0x12, 8], [new ushort[32]]));
+        zeroWait.Initialize();
+        string zeroBefore = JsonSerializer.Serialize(zeroWait.Capture());
+        Check(zeroWait.ReadCurrentInputDemands().Single() is { Kind: FieldScriptInputKind.Pressed, AwaitingInput: true, DelayTicks: 1 }, "An initial WAIT0 lost its real yielded callback before polling an input edge.");
+        Check(JsonSerializer.Serialize(zeroWait.Capture()) == zeroBefore, "Reading an initial WAIT0 advanced its authoritative yield.");
+        zeroWait.AdvanceTick();
+        Check(zeroWait.ReadCurrentInputDemands().Single() is { ProgramCounter: 4, DelayTicks: 0 }, "A yielded WAIT0 retained a synthetic delay at its actual input gate.");
+        zeroWait.SetInput(0x40, 0x40);
+        zeroWait.AdvanceTick();
+        Check(zeroWait.Capture().Entities[0].ProgramCounter == 8, "A pressed edge after WAIT0's real yield missed its native input gate.");
+    }
+
+    private static FieldProgram TimedPollingProgram(byte[] unmatchedBody, ushort entry = 1)
+    {
+        List<byte> code = [0, 0x24, 15, 0, 0x5F, 0x30, 0x40, 0, 2, 0, 0x5F];
+        code.AddRange(unmatchedBody);
+        int backJump = code.Count;
+        code.Add(0x12);
+        code.Add(checked((byte)(backJump - 1)));
+        ushort[] entries = new ushort[32];
+        entries[4] = entry;
+        return new(code.ToArray(), [entries]);
     }
 
     private sealed class RejectHost : IFieldHost

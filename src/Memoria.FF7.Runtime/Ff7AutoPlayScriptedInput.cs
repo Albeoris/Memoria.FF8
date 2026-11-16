@@ -2,7 +2,7 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-/// <summary>Supplies separate physical button edges only for a currently observed native wait loop.</summary>
+/// <summary>Projects physical buttons from observed native waits and owned interactive continuations.</summary>
 public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
 {
     public FieldScriptInputDemand? CurrentDemand { get; private set; }
@@ -57,7 +57,13 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
             return null;
         }
         FieldVmSnapshot vm = session.Machine.Capture();
-        CurrentDemand = SelectDemand(session.Machine.ReadCurrentInputDemands().Where(demand => locked || IsInteractionInputOwner(demand, vm, active, session.FieldGeneration)));
+        IReadOnlyList<FieldScriptInputDemand> demands = session.Machine.ReadCurrentInputDemands();
+        CurrentDemand = demands.Where(demand => IsOwnedSpatialContinuationDemand(demand, vm, active, session.FieldGeneration, locked)).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).FirstOrDefault();
+        if (CurrentDemand is not null)
+        {
+            return SelectOwnedSpatialContinuationInput(CurrentDemand, vm, active, session.FieldGeneration, locked, session.Machine.Input);
+        }
+        CurrentDemand = SelectDemand(demands.Where(demand => locked || IsInteractionInputOwner(demand, vm, active, session.FieldGeneration)));
         return CurrentDemand is null ? null : SelectInput(CurrentDemand, session.Machine.Input);
     }
 
@@ -69,11 +75,14 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
     internal static IReadOnlyDictionary<int, int> ReadInteractionOwners(FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation)
     {
         Dictionary<int, int> owners = [];
-        if (active is not { Accepted: true, Returned: false } || active.Generation != generation || (uint)active.Entity >= vm.Entities.Length || vm.Entities[active.Entity].Priority != 1)
+        bool continuation = active is { Returned: true, SpatialOwner: not null };
+        int root = continuation ? active!.Entity : active?.SpatialOwner?.TargetEntity ?? active?.Entity ?? -1;
+        int rootPriority = continuation ? active!.SpatialOwner!.SourcePriority : active?.SpatialOwner?.TargetPriority ?? 1;
+        if (active is not { Accepted: true } || active.Returned && !continuation || active.Generation != generation || (uint)root >= vm.Entities.Length || vm.Entities[root].Priority != rootPriority)
         {
             return owners;
         }
-        owners.Add(active.Entity, 1);
+        owners.Add(root, rootPriority);
         bool added;
         do
         {
@@ -97,14 +106,37 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
         return demands.Where(demand => demand.AwaitingInput).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).ThenBy(demand => demand.Mapped && (demand.Mask & 0x40) != 0 ? 0 : demand.Mapped && (demand.Mask & 0x20) != 0 ? 1 : 2).FirstOrDefault();
     }
 
+    internal static bool IsOwnedSpatialContinuationDemand(FieldScriptInputDemand demand, FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation, bool locked)
+    {
+        return locked && active is { Kind: Ff7AutoPlayTargetKind.AutonomousSpatial, Accepted: true, Returned: true, SpatialOwner: not null } && demand.ProgramIdentity == vm.ProgramIdentity && demand.Mask != 0 && IsInteractionInputOwner(demand, vm, active, generation);
+    }
+
+    internal static Ff7AutoplayInput SelectOwnedSpatialContinuationInput(FieldScriptInputDemand demand, FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation, bool locked, FieldInputState input)
+    {
+        if (!IsOwnedSpatialContinuationDemand(demand, vm, active, generation, locked))
+        {
+            throw new ArgumentException("A native continuation input branch requires its accepted spatial owner and unresolved control lock.", nameof(demand));
+        }
+        return ProjectInput(demand, input);
+    }
+
     public static Ff7AutoplayInput SelectInput(FieldScriptInputDemand demand, FieldInputState input)
     {
         if (!demand.AwaitingInput || demand.Mask == 0)
         {
             throw new ArgumentException("A scripted button requires a proved current native wait loop.", nameof(demand));
         }
+        return ProjectInput(demand, input);
+    }
+
+    private static Ff7AutoplayInput ProjectInput(FieldScriptInputDemand demand, FieldInputState input)
+    {
         ushort bit = (ushort)(demand.Mask & -demand.Mask);
         ushort current = demand.Mapped ? input.Held : input.RawHeld;
+        if (demand.DelayTicks > 0 && demand.Kind != FieldScriptInputKind.Held)
+        {
+            return new(Held: demand.Kind == FieldScriptInputKind.Released ? bit : (ushort)0, Run: false);
+        }
         ushort held = demand.Kind switch
         {
             FieldScriptInputKind.Held => bit,
