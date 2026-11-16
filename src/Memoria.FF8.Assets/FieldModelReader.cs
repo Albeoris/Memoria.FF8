@@ -260,6 +260,7 @@ internal static class FieldModelReader
             // Native 531310 preserves MCH face+8 bit2; 531980 sets the packet's semitransparency bit from it.
             faces[i] = new ModelFace(indices, uv, texture, quad) { SemiTransparent = (flags & 4) != 0 };
         }
+        ResolvePartVertices(name, faces, parts, skinBindings);
         TimImage[]? nativeTextures = decodedTextures is null ? textureOffsets.Select(offset => ReadTim(content, textureBase + offset)).ToArray() : null;
         IReadOnlyList<PixelImage> textures = decodedTextures ?? nativeTextures!.Select(texture => texture.Decode()).ToArray();
         IReadOnlyList<TextureSourceRegion> textureRegions = nativeTextures?.Select(NativeTextureRegion).ToArray() ?? [];
@@ -269,6 +270,50 @@ internal static class FieldModelReader
         }
         animations ??= ReadAnimations(animationContent ?? content, animationContent is null ? embeddedAnimation : animationOffset, boneCount);
         return new FieldModel(name, bones, vertices, faces, textures, animations) { TextureRegions = textureRegions, NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+    }
+
+    private static void ResolvePartVertices(string name, ModelFace[] faces, IReadOnlyList<NativeModelPartDefinition> parts, IReadOnlyList<NativeModelSkinBinding> skins)
+    {
+        if (parts.Count == 0)
+        {
+            return;
+        }
+        Queue<int> triangles = new(Enumerable.Range(0, faces.Length).Where(index => !faces[index].Quad));
+        Queue<int> quads = new(Enumerable.Range(0, faces.Length).Where(index => faces[index].Quad));
+        foreach (NativeModelPartDefinition part in parts)
+        {
+            // Native 530C30 resets projection scratch for each part and appends its skin ranges in table order.
+            int[] vertices = Enumerable.Range(part.FirstSkinBinding, part.SkinBindingCount).SelectMany(index => Enumerable.Range(skins[index].FirstVertex, skins[index].VertexCount)).ToArray();
+            Resolve(triangles, part.Words[9]);
+            Resolve(quads, part.Words[11]);
+
+            void Resolve(Queue<int> pending, int count)
+            {
+                if (count < 0 || count > pending.Count)
+                {
+                    throw new InvalidDataException($"{name}: native part polygon count exceeds its face table.");
+                }
+                for (int polygon = 0; polygon < count; polygon++)
+                {
+                    int index = pending.Dequeue();
+                    ModelFace face = faces[index];
+                    int[] indices = (int[])face.Vertices.Clone();
+                    for (int corner = 0; corner < (face.Quad ? 4 : 3); corner++)
+                    {
+                        if ((uint)indices[corner] >= vertices.Length)
+                        {
+                            throw new InvalidDataException($"{name}: face {index} references an absent part-local vertex.");
+                        }
+                        indices[corner] = vertices[indices[corner]];
+                    }
+                    faces[index] = face with { Vertices = indices };
+                }
+            }
+        }
+        if (triangles.Count != 0 || quads.Count != 0)
+        {
+            throw new InvalidDataException($"{name}: native parts do not cover the face table.");
+        }
     }
 
     private static TextureSourceRegion NativeTextureRegion(TimImage texture) => new(texture.X, texture.Y, texture.PixelMode switch { TimPixelMode.Indexed4 => 4, TimPixelMode.Indexed8 => 8, TimPixelMode.Direct16 => 16, _ => 24 }, texture.PixelWidth, texture.Height);
