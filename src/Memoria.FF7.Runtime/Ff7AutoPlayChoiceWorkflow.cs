@@ -61,9 +61,20 @@ public sealed class Ff7AutoPlayChoiceWorkflow
         Ff7SessionSave before = capture();
         string owner = ReadOwnerIdentity(before, dialogue, first, last);
         Ff7AutoPlayChoiceState? current = state.Choice;
+        string key = current?.OwnerIdentity == owner ? current.Key : before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : "field-choice-v2:" + Hash(new { Owner = owner, Visit = state.Active?.VisitId ?? before.FieldName, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
+        if (state.Active is { TravelRoute: { } route } travel)
+        {
+            IReadOnlyList<AutoPlayChoiceSelection> executed = travel.TravelSelections ?? [];
+            if (route.Selections is not null && executed.Count < route.Selections.Count && route.Selections.Take(executed.Count).SequenceEqual(executed) && route.Selections[executed.Count] is { } expected && expected.Key == key && expected.Selection >= first && expected.Selection <= last)
+            {
+                int selection = AutoPlayTravelChoice.SelectRecordedSelection(route, executed, key, first, last);
+                state.Active = travel with { TravelSelections = [.. executed, new(key, selection)] };
+                return selection;
+            }
+            RetireChangedTravelChoice(travel, key, first, last, executed);
+        }
         if (current?.OwnerIdentity != owner)
         {
-            string key = before.World is { } world ? Hash(new { Owner = owner, before.Vm.PersistentVariables, Local = world.Vm.Local, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections }) : Hash(new { Owner = owner, before.Vm.PersistentVariables, before.Vm.MapVariables, Conditions = state.Active?.ConditionFingerprint, Parent = current?.Key, ParentSelections = Selections });
             planner.ObserveChoice(key, checked(last - first + 1), first);
             if (planner.PlanChoice(key).Kind == AutoPlayChoiceStepKind.Complete)
             {
@@ -91,6 +102,31 @@ public sealed class Ff7AutoPlayChoiceWorkflow
         }
         planner.BeginChoiceOption(selectedChoice.Key, selected);
         return selected;
+    }
+
+    private void RetireChangedTravelChoice(Ff7AutoPlayActiveEvent active, string key, int first, int last, IReadOnlyList<AutoPlayChoiceSelection> executed)
+    {
+        AutoPlayEventRoute route = active.TravelRoute!;
+        if (route.ConditionSignature != active.ConditionFingerprint || route.TargetId != active.EventId)
+        {
+            throw new NotSupportedException("A changed travel choice lacks its authenticated native source attempt.");
+        }
+        if (route.Selections is null || executed.Count > route.Selections.Count || !route.Selections.Take(executed.Count).SequenceEqual(executed))
+        {
+            AutoPlayTravelChoice.SelectRecordedSelection(route, executed, key, first, last);
+        }
+        planner.RetireTravelRoute(active.VisitId, active.EventId, route, key, first, last, executed);
+        if (key.StartsWith("field-choice-v2:", StringComparison.Ordinal) && executed.Count == 0)
+        {
+            // Retire only reached event routes whose first choice uses the superseded identity schema.
+            var coverage = planner.State.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId);
+            foreach (AutoPlayEventRoute legacy in coverage.Routes.Where(candidate => candidate.ConditionSignature == active.ConditionFingerprint && candidate.TargetId == active.EventId && candidate.Selections is { Count: > 0 } selections && !selections[0].Key.StartsWith("field-choice-v2:", StringComparison.Ordinal) && candidate.ObservedStoryChanged == false).ToArray())
+            {
+                planner.RetireTravelRoute(active.VisitId, active.EventId, legacy, key, first, last, []);
+            }
+        }
+        state.Active = active with { TravelRoute = null, TravelSelections = null };
+        state.Status = "The reached native choice changed; exploring its current authenticated domain.";
     }
 
     public bool CompleteAtControlReturn()

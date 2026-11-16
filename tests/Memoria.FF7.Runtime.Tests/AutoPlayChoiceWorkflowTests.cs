@@ -42,6 +42,9 @@ internal static class AutoPlayChoiceWorkflowTests
         Check(state.Coverage.Choices.All(choice => choice.Finished && choice.CompletedOptions.Count == 2), "Cold native restores must retain all observed shared choice coverage.");
         RunMissingCheckpoint(false);
         RunMissingCheckpoint(true);
+        RunStableFieldIdentity();
+        RunRecordedTravelChoices();
+        RunChangedTravelChoice();
 
         Ff7AutoPlayChoiceWorkflow CreateWorkflow()
         {
@@ -71,6 +74,102 @@ internal static class AutoPlayChoiceWorkflowTests
                 checkpoints.Remove(retired);
             }
         }
+    }
+
+    private static void RunStableFieldIdentity()
+    {
+        Ff7SessionSave original = Fixture(1, 104, 2, 3);
+        string key = ReadFieldChoiceKey(original, "entry");
+        byte[] persistent = original.Vm.PersistentVariables.ToArray();
+        byte[] map = original.Vm.MapVariables.ToArray();
+        persistent[17] = 91;
+        map[23] = 42;
+        Ff7SessionSave changed = original with { Vm = original.Vm with { PersistentVariables = persistent, MapVariables = map, Tick = original.Vm.Tick + 10 } };
+        Check(ReadFieldChoiceKey(changed, "entry") == key, "Incidental native variables or ticks changed a new field choice's stable identity.");
+        Check(ReadFieldChoiceKey(changed, "changed-entry") != key, "A changed native entry predicate reused an older choice identity.");
+        Check(ReadFieldChoiceKey(Fixture(2, 105, 2, 3), "entry") != key, "A distinct native script owner reused an older choice identity.");
+        Ff7AutoPlayState state = new() { Active = ChoiceActive("entry") };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => original, planner, state, (_, _) => "legacy-before.ffsave");
+        workflow.ChooseSelection(original.Process.Dialogues.Single());
+        state.Coverage.Choices.Single().Key = "legacy-active-key";
+        state.Choice = state.Choice! with { Key = "legacy-active-key" };
+        state = state.Clone();
+        planner = new(state.Coverage);
+        workflow = new(() => changed, planner, state, (_, _) => throw new Exception("An existing legacy choice must retain its original checkpoint."));
+        Check(workflow.ChooseSelection(changed.Process.Dialogues.Single()) == 2 && state.Choice!.Key == "legacy-active-key" && state.Coverage.Choices.Count == 1, "Cold restoration renamed an active legacy choice or replayed its completed setup.");
+    }
+
+    private static void RunRecordedTravelChoices()
+    {
+        Ff7SessionSave snapshot = Fixture(1, 104, 2, 3);
+        string outer = ReadFieldChoiceKey(snapshot, "entry");
+        string inner = ReadFieldChoiceKey(Fixture(2, 105, 4, 5), "entry");
+        AutoPlayEventRoute route = new("destination", "entry", false, [new(outer, 3), new(inner, 5)], "event");
+        Ff7AutoPlayState state = new() { Active = ChoiceActive("entry") with { TravelRoute = route, TravelSelections = [] } };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        int checkpoints = 0;
+        Ff7AutoPlayChoiceWorkflow CreateWorkflow()
+        {
+            return new(() => snapshot, planner, state, (_, _) =>
+            {
+                checkpoints++;
+                return "unexpected.ffsave";
+            });
+        }
+        Ff7AutoPlayChoiceWorkflow workflow = CreateWorkflow();
+        string unchanged = NativeJson(snapshot);
+        Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 3, "Recorded field travel ignored its authenticated nondefault first option.");
+        Check(NativeJson(snapshot) == unchanged, "Selecting a recorded option changed native state before its ordinary execution.");
+        Check(state.Active!.TravelSelections!.SequenceEqual(new[] { new AutoPlayChoiceSelection(outer, 3) }), "Recorded travel omitted its exact executed prefix.");
+        state = JsonSerializer.Deserialize<Ff7AutoPlayState>(JsonSerializer.Serialize(state))!;
+        planner = new(state.Coverage);
+        workflow = CreateWorkflow();
+        snapshot = Fixture(2, 105, 4, 5);
+        Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 5, "Cold travel restoration lost its authenticated prefix or next recorded option.");
+        Check(state.Active!.TravelSelections!.SequenceEqual(route.Selections!), "Cold travel restoration changed its recorded executed sequence.");
+        Check(state.Choice is null && state.Coverage.Choices.Count == 0 && state.PendingRestore is null && checkpoints == 0, "Recorded travel incorrectly opened exploratory choices or checkpoint restores.");
+    }
+
+    private static void RunChangedTravelChoice()
+    {
+        Ff7SessionSave snapshot = Fixture(1, 104, 2, 3);
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        planner.Observe(new("visit", "resource"), [new("event", AutoPlayEventKind.Interaction, ConditionSignature: "entry"), new("unrelated", AutoPlayEventKind.Interaction, ConditionSignature: "entry")]);
+        planner.Completed("visit", "event", "destination", observedStoryChanged: false, selections: [new("legacy-first", 3)], entrySignature: "entry", entrySignatureAuthoritative: true, targetId: "event");
+        planner.Completed("visit", "event", "destination", observedStoryChanged: false, selections: [new("legacy-second", 2)], entrySignature: "entry", entrySignatureAuthoritative: true, targetId: "event");
+        planner.Completed("visit", "unrelated", "destination", observedStoryChanged: false, selections: [new("unrelated-key", 3)], entrySignature: "entry", entrySignatureAuthoritative: true, targetId: "unrelated");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "event");
+        AutoPlayEventRoute route = coverage.Routes.First();
+        state.Active = ChoiceActive("entry") with { TravelRoute = route, TravelSelections = [] };
+        int checkpoints = 0;
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => snapshot, planner, state, (_, _) =>
+        {
+            checkpoints++;
+            return "current-domain.ffsave";
+        });
+        string unchanged = NativeJson(snapshot);
+        Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 2, "A changed native choice blindly applied its obsolete recorded option.");
+        Check(NativeJson(snapshot) == unchanged, "Retiring stale route observations changed native progress, PC or RNG.");
+        Check(state.Active!.TravelRoute is null && state.Active.TravelSelections is null, "A changed choice retained its unauthenticated active route.");
+        Check(coverage.Routes.Count == 0 && coverage.RetiredRoutes.Count == 2 && coverage.GlobalRouteRediscovery, "Reached legacy choice routes were not retired and scheduled for current-domain observation.");
+        Check(state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "unrelated").Routes.Count == 1, "Choice identity migration retired an unrelated event's route.");
+        Check(state.Choice is not null && state.Coverage.Choices.Single().ActiveOption == 2 && checkpoints == 1 && state.PendingRestore is null, "Changed travel did not explore its currently reached native choice from an exact before-choice checkpoint.");
+    }
+
+    private static string ReadFieldChoiceKey(Ff7SessionSave snapshot, string condition)
+    {
+        Ff7AutoPlayState state = new() { Active = ChoiceActive(condition) };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => snapshot, planner, state, (_, _) => "identity.ffsave");
+        workflow.ChooseSelection(snapshot.Process.Dialogues.Single());
+        return state.Choice!.Key;
+    }
+
+    private static Ff7AutoPlayActiveEvent ChoiceActive(string condition)
+    {
+        return new("visit", "event", condition, 0, 0, 1, Ff7AutoPlayTargetKind.ActorTalk, null, 0, "witness", Accepted: true);
     }
 
     private static void RunMissingCheckpoint(bool completePriorOption)

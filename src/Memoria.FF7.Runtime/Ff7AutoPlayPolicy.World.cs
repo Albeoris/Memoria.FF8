@@ -179,7 +179,7 @@ public sealed partial class Ff7AutoPlayPolicy
             string condition = WorldCondition(target);
             planner.BeginEvent(observation.VisitId, target.Id);
             State.NavigationGoal = next.Goal;
-            State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey);
+            State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
         }
         Ff7AutoPlayActiveEvent selected = State.Active!;
         if (!TryWorldSource(selected.EventId, out Ff7AutoPlayWorldChunk source, out int selectedScript))

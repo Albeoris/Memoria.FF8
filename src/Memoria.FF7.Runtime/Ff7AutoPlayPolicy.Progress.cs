@@ -4,6 +4,22 @@ public sealed partial class Ff7AutoPlayPolicy
 {
     internal const int FrontierIdleLimit = 7200;
 
+    private void TrackControllableFrontierProgress()
+    {
+        try
+        {
+            TrackFrontierProgress(State, Story());
+        }
+        finally
+        {
+            if (session.AutoPlayState is { } published)
+            {
+                published.FrontierProgressKey = State.FrontierProgressKey;
+                published.FrontierIdleSteps = State.FrontierIdleSteps;
+            }
+        }
+    }
+
     internal static void TrackFrontierProgress(Ff7AutoPlayState state, int story)
     {
         var events = state.Coverage.Visits.SelectMany(visit => visit.Events).ToArray();

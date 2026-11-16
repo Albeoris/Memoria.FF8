@@ -1922,16 +1922,7 @@ internal sealed partial class AutoPlayController
 
     internal static int SelectRecordedTravelChoice(AutoPlayEventRoute route, IReadOnlyList<AutoPlayChoiceSelection>? executed, string key, int first, int last)
     {
-        if (route.Selections is null || executed is null || executed.Count >= route.Selections.Count || !route.Selections.Take(executed.Count).SequenceEqual(executed))
-        {
-            throw new NotSupportedException("The recorded travel route has no authenticated next choice selection.");
-        }
-        AutoPlayChoiceSelection next = route.Selections[executed.Count];
-        if (next.Key != key || next.Selection < first || next.Selection > last)
-        {
-            throw new NotSupportedException("The actual native choice does not match the recorded travel route key and selection range.");
-        }
-        return next.Selection;
+        return AutoPlayTravelChoice.SelectRecordedSelection(route, executed, key, first, last);
     }
 
     private bool TrySelectTravelChoice(string key, int first, int last, out int selection)
@@ -2300,9 +2291,9 @@ internal sealed partial class AutoPlayController
         {
             throw new NotSupportedException("The executed native choices returned to a different destination than the recorded travel route.");
         }
-        if (run.ActiveTravelRoute is { Selections: { } expected } && (run.ActiveSelections is null || !expected.SequenceEqual(run.ActiveSelections)))
+        if (run.ActiveTravelRoute is { } travelRoute)
         {
-            throw new NotSupportedException("The native event returned control before every recorded travel choice was encountered.");
+            AutoPlayTravelChoice.RequireComplete(travelRoute, run.ActiveSelections);
         }
         GameWorld world = getWorld();
         string destinationNavigation = CurrentNavigationKey(world, destination);

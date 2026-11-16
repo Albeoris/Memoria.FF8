@@ -92,10 +92,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         if (session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { Ladder.Completed: false } climbing)
         {
+            TrackControllableFrontierProgress();
             return driver.Steer(new(climbing.X4096 / 4096f, climbing.Y4096 / 4096f, climbing.Z4096 / 4096f));
         }
         if (scriptedInput.ChooseInput() is Ff7AutoplayInput nativeInput)
         {
+            TrackControllableFrontierProgress();
             State.Status = $"Native input {scriptedInput.CurrentDemand?.Identity}";
             return nativeInput;
         }
@@ -104,7 +106,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
-        TrackFrontierProgress(State, Story());
+        TrackControllableFrontierProgress();
         driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         Dictionary<string, string> validatedPhysicalGuards = new(StringComparer.Ordinal);
@@ -171,8 +173,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 return default;
             }
             Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal);
-            string topologyPrefix = observation.NavigationKey[..(observation.NavigationKey.LastIndexOf(':') + 1)];
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), isCurrent: vertex => vertex.VisitKey != observation.VisitId || vertex.Key.StartsWith(topologyPrefix, StringComparison.Ordinal), preferredGoal: State.NavigationGoal);
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation, driver, validatedPhysicalGuards, componentGuards), preferredGoal: State.NavigationGoal);
             if (next is null)
             {
                 if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
@@ -193,7 +194,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             planner.BeginEvent(observation.VisitId, target.Id);
             State.NavigationGoal = next.Goal;
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
-            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations);
+            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
             State.Status = $"{session.Field.Name}: {target.Id}";
             Publish();
         }
@@ -311,6 +312,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField)
     {
+        if (active.TravelRoute is { } route)
+        {
+            AutoPlayTravelChoice.RequireComplete(route, active.TravelSelections);
+        }
         if (!active.CompletionRecorded)
         {
             string? exit = changedField ? null : observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.ConditionFingerprint;
@@ -323,10 +328,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             bool navigationProbe = !changedField && observation.Events.SingleOrDefault(target => target.Id == active.EventId)?.MayChangeNavigation == true;
             bool navigationReceipt = changedField || changedComponent || navigationProbe;
-            RecordControlReturn(planner, active, observation, navigationReceipt, exit, progressChanged, choices.Selections);
+            RecordControlReturn(planner, active, observation, navigationReceipt, exit, progressChanged, active.TravelRoute is null ? choices.Selections : active.TravelSelections ?? []);
             if (navigationReceipt && active.NavigationKey is string sourceKey)
             {
-                planner.RecordNavigationRoute(sourceKey, observation.NavigationKey, active.EventId, new(observation.VisitId, active.ConditionFingerprint, progressChanged, choices.Selections, active.EventId), new(sourceKey, active.EventId, active.ConditionFingerprint, active.EventId));
+                planner.RecordNavigationRoute(sourceKey, observation.NavigationKey, active.EventId, new(observation.VisitId, active.ConditionFingerprint, progressChanged, active.TravelRoute is null ? choices.Selections : active.TravelSelections ?? [], active.EventId), new(sourceKey, active.EventId, active.ConditionFingerprint, active.EventId));
             }
             State.Active = active with { CompletionRecorded = true };
             if (active.NavigationProbeKey is string probe)

@@ -9,6 +9,7 @@ internal static class AutoPlayWatchdogTests
         FrontierProgressSurvivesLifecycleRestores();
         ReexecutingConsumedEventsDoesNotRenewFrontierBudget();
         OriginalCompletedChoiceLeavesRepeatedFrontier();
+        OriginalControlledLadderCannotBypassFrontierBudget();
         Ff7WorldProcess world = World();
         Ff7AutoPlayProgressWatchdog stalled = new();
         AutoPlayIdleDeadline deadline = new(TimeProvider.System, TimeSpan.FromSeconds(10));
@@ -104,10 +105,37 @@ internal static class AutoPlayWatchdogTests
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
         controller.Start();
         controller.Advance(1);
-        Check(controller.Failure is null || controller.Failure is NotSupportedException { Message: "No reachable unconsumed native event remains in the observed frontier." }, $"Original completed choice failed: {controller.Error}");
-        Check(policy.State.Active?.EventId != previous.EventId, "Original completed choice reopened the same proved native frontier.");
+        Check(controller.Failure is null, $"Original completed choice failed to reach its recorded navigation path: {controller.Error}");
+        Check(policy.State.Active?.TravelRoute is not null, "Original completed choice did not retain its recorded route through another native topology.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The original completed-choice source changed.");
-        Console.WriteLine("PASS original completed choice leaves its proved frontier or stops at actual exhaustion.");
+        Console.WriteLine("PASS original completed choice reaches its recorded navigation path through another topology.");
+    }
+
+    private static void OriginalControlledLadderCannotBypassFrontierBudget()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_CONTROLLED_LADDER_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        Check(session.Host.Process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is { Completed: false }), "The supplied fixture needs its active player-controlled ladder.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The ladder-budget check must not create choice checkpoints."));
+        Ff7AutoPlayPolicy.TrackFrontierProgress(policy.State, session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0));
+        policy.State.FrontierIdleSteps = Ff7AutoPlayPolicy.FrontierIdleLimit - 1;
+        string native = System.Text.Json.JsonSerializer.Serialize(session.Capture() with { AutoPlay = null });
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        controller.Advance(1);
+        Check(controller.Failure is TimeoutException && controller.Error!.Contains("frontier work", StringComparison.Ordinal), "A controlled native ladder bypassed the exhausted semantic frontier budget.");
+        Check(session.AutoPlayState!.FrontierIdleSteps == Ff7AutoPlayPolicy.FrontierIdleLimit, "The host checkpoint lost the ladder's exhausted observational budget.");
+        Check(System.Text.Json.JsonSerializer.Serialize(session.Capture() with { AutoPlay = null }) == native, "Budget exhaustion advanced or rewrote native execution.");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The original ladder fixture changed.");
+        Console.WriteLine("PASS original controlled ladder obeys the durable frontier budget without advancing native state.");
     }
 
     private static Ff7WorldProcess World()
