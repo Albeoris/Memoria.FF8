@@ -158,7 +158,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         Ff7Actor to = move.ProbeActor ?? move.Actor;
         Vector3 start = new(from.X4096 >> 12, from.Y4096 >> 12, from.Z4096 >> 12);
-        Vector3 end = new(to.X4096 >> 12, to.Y4096 >> 12, start.Z);
+        Vector3 end = new(move.Actor.X4096 >> 12, move.Actor.Y4096 >> 12, move.Actor.Z4096 >> 12);
         int radiusSquared = from.CollisionRadius * from.CollisionRadius;
         foreach (Ff7Line line in session.Host.Process.Lines.Where(line => line.Enabled == 1 && avoidedLineEntities.Contains(line.Entity)))
         {

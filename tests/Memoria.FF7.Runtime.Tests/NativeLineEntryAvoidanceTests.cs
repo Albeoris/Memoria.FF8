@@ -8,6 +8,7 @@ internal static class NativeLineEntryAvoidanceTests
     public static void Run()
     {
         CheckInputAdmission();
+        CheckOriginalSlopedBoundary();
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_LINE_ENTRY_SAVE");
         if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
@@ -49,6 +50,42 @@ internal static class NativeLineEntryAvoidanceTests
             throw new InvalidOperationException("The normal-policy regression changed its standalone source.");
         }
         Console.WriteLine($"PASS original normal-policy departure from retained failed approach after {callbacks} callbacks");
+    }
+
+    private static void CheckOriginalSlopedBoundary()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_SLOPED_LINE_SAVE");
+        if (root is null || path is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Unexpected choice during the bounded native contact approach."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        bool interrupted = false;
+        session.NativeTickCompleted += tick =>
+        {
+            interrupted |= policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Entity: 6 } && tick.TransitionOwner?.Entity == 27;
+        };
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool attempted = false;
+        bool finished = false;
+        for (int step = 0; step < 800 && controller.Running && !finished && !interrupted; step++)
+        {
+            controller.Advance(1);
+            bool active = policy.State.Active is { Kind: Ff7AutoPlayTargetKind.ActorTalk, Entity: 6 };
+            attempted |= active;
+            finished = attempted && !active;
+        }
+        Check(controller.Failure is null && attempted && finished && !interrupted, $"A native sloped contact approach entered its unrelated neighbouring LINE or never resolved: {controller.Error}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Sloped contact validation changed its standalone source.");
+        Console.WriteLine($"PASS original sloped contact approach resolves without the unrelated LINE transition after {controller.Steps} ordinary callbacks; source unchanged.");
     }
 
     private static void CheckInputAdmission()
