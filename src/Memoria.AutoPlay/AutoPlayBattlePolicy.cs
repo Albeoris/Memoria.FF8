@@ -42,7 +42,7 @@ public static class AutoPlayBattlePolicy
     }
 
     /// <summary>Stabilizes critical living allies, then restores knocked-out allies, then heals injured allies.</summary>
-    public static AutoPlayBattleRecoveryOption? ChooseRecovery(IReadOnlyList<AutoPlayBattleRecoveryTarget> targets, IReadOnlyList<AutoPlayBattleRecoveryOption> options)
+    public static AutoPlayBattleRecoveryOption? ChooseRecovery(IReadOnlyList<AutoPlayBattleRecoveryTarget> targets, IReadOnlyList<AutoPlayBattleRecoveryOption> options, bool urgentOnly = false)
     {
         AutoPlayBattleRecoveryOption? urgent = ChooseHealing(4);
         if (urgent is not null)
@@ -56,7 +56,7 @@ public static class AutoPlayBattlePolicy
                 return option;
             }
         }
-        return ChooseHealing(2);
+        return urgentOnly ? null : ChooseHealing(2);
 
         AutoPlayBattleRecoveryOption? ChooseHealing(uint thresholdDivisor)
         {

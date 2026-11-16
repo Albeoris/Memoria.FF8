@@ -45,6 +45,12 @@ if (args.Contains("--line-waypoint-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-restorative-benefit-only", StringComparer.Ordinal))
+{
+    NativeRestorativeBenefitTests.Run();
+    return 0;
+}
+
 if (args.Contains("--navigation-action-modes-only", StringComparer.Ordinal))
 {
     AutoPlayNavigationActionModeTests.Run();

@@ -70,7 +70,7 @@ internal sealed partial class Ff7Scene
         bool escapeHeld = battle.EscapeInProgress && battle.CanAttemptEscape;
         if (!escapeHeld && battle.ReadyPlayer is int owner)
         {
-            var choice = PlanAutoPlayBattleCommand(battle.AutoPlayCommands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null, (command, target) => battle.DescribeRecovery(owner, command, target));
+            var choice = PlanAutoPlayBattleCommand(battle.AutoPlayCommands(owner), battle.Actors, (command, target) => battle.GuestAbilityTargetUnsupportedReason(owner, command.Command, command.Argument, target) is null, (command, target) => battle.DescribeRecovery(owner, command, target), (command, target) => battle.DescribeRestorativeDamage(owner, command, target));
             if (ShouldAutoPlayBattleRetreat(battle, choice))
             {
                 escapeHeld = true;
@@ -102,8 +102,9 @@ internal sealed partial class Ff7Scene
         return AutoPlayBattlePolicy.ShouldRetreat(battle.CanAttemptEscape, recovery, targets);
     }
 
-    internal static (Ff7BattleCommandOption Command, int TargetSlot)? PlanAutoPlayBattleCommand(IReadOnlyList<Ff7BattleCommandOption> commands, IReadOnlyList<Ff7BattleActorState> actors, Func<Ff7BattleCommandOption, int, bool>? targetSupported = null, Func<Ff7BattleCommandOption, int, Ff7BattleRecoveryKind>? recoveryKind = null)
+    internal static (Ff7BattleCommandOption Command, int TargetSlot)? PlanAutoPlayBattleCommand(IReadOnlyList<Ff7BattleCommandOption> commands, IReadOnlyList<Ff7BattleActorState> actors, Func<Ff7BattleCommandOption, int, bool>? targetSupported = null, Func<Ff7BattleCommandOption, int, Ff7BattleRecoveryKind>? recoveryKind = null, Func<Ff7BattleCommandOption, int, Ff7BattleRestorativeBenefit>? restorativeBenefit = null)
     {
+        (Ff7BattleCommandOption Command, int TargetSlot)? maintenance = null;
         if (recoveryKind is not null)
         {
             List<AutoPlayBattleRecoveryOption> options = [];
@@ -134,10 +135,40 @@ internal sealed partial class Ff7Scene
                 }
             }
             AutoPlayBattleRecoveryTarget[] vitals = actors.Select(actor => new AutoPlayBattleRecoveryTarget(actor.Actor.HitPoints, actor.Actor.MaxHitPoints, actor.Actor.HitPoints == 0 || (actor.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0)).ToArray();
-            if (AutoPlayBattlePolicy.ChooseRecovery(vitals, options) is { } recovery)
+            if (AutoPlayBattlePolicy.ChooseRecovery(vitals, options, urgentOnly: true) is { } recovery)
             {
                 return (commands[recovery.CommandIndex], actors[recovery.TargetIndex].Actor.Slot);
             }
+            if (AutoPlayBattlePolicy.ChooseRecovery(vitals, options) is { } routine)
+            {
+                maintenance = (commands[routine.CommandIndex], actors[routine.TargetIndex].Actor.Slot);
+            }
+        }
+        if (restorativeBenefit is not null)
+        {
+            foreach (Ff7BattleCommandOption candidate in commands)
+            {
+                if (candidate.UnsupportedReason is not null || !candidate.SelectSingle || candidate.AllTargets || candidate.Command is not (Ff7BattleCommand.Item or Ff7BattleCommand.Magic))
+                {
+                    continue;
+                }
+                foreach (Ff7BattleActorState target in actors)
+                {
+                    int slot = target.Actor.Slot;
+                    if (slot < 4 || target.Actor.HitPoints == 0 || (target.Actor.Statuses & Ff7NativeBattleActionResolver.Death) != 0 || (candidate.ValidTargets & 1 << slot) == 0 || targetSupported is not null && !targetSupported(candidate, slot))
+                    {
+                        continue;
+                    }
+                    if (restorativeBenefit(candidate, slot).GuaranteedHpDamage >= target.Actor.HitPoints)
+                    {
+                        return (candidate, slot);
+                    }
+                }
+            }
+        }
+        if (maintenance is not null)
+        {
+            return maintenance;
         }
         Ff7BattleCommandOption? command = commands.FirstOrDefault(option => option.Command == Ff7BattleCommand.Attack && option.UnsupportedReason is null)
             ?? commands.FirstOrDefault(option => option.Command == Ff7BattleCommand.Limit && option.UnsupportedReason is null);

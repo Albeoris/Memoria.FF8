@@ -9,8 +9,49 @@ public enum Ff7BattleRecoveryKind
     Revive
 }
 
+public readonly record struct Ff7BattleRestorativeBenefit(uint GuaranteedHpDamage);
+
 public sealed partial class Ff7BattleSession
 {
+    /// <summary>Reports only a proved restorative-damage lower bound from a currently available single-target native command. Unknown outcomes have no guaranteed damage.</summary>
+    public Ff7BattleRestorativeBenefit DescribeRestorativeDamage(int slot, Ff7BattleCommandOption command, int targetSlot)
+    {
+        if (targetSlot is < 4 or > 9 || command.Command != Ff7BattleCommand.Item || command.UnsupportedReason is not null || !command.SelectSingle || command.AllTargets || (command.ValidTargets & 1 << targetSlot) == 0 || !IsAvailableRecoveryCommand(slot, command))
+        {
+            return default;
+        }
+        IFf7BattleGuestAttack? guest = GetGuestAttack(slot);
+        if (command.Command == Ff7BattleCommand.Item && guest is IFf7BattleGuestItems { HasOriginItems: true })
+        {
+            return default;
+        }
+        Ff7BattleAttack? record = ReadBattleItem(command.Argument);
+        if (record is null)
+        {
+            return default;
+        }
+        Ff7BattleActorState target = Actor(targetSlot);
+        Ff7BattleDamageAction action = Ff7BattleDamageAction.FromAttack(record) with { IsItem = command.Command == Ff7BattleCommand.Item, Affinity = ResolveNativeEnemyAffinity(targetSlot, record.Elements) };
+        Ff7BattleDamageActor stats = Stats(target) with { CurrentHitPoints = target.Actor.HitPoints, MaximumHitPoints = target.Actor.MaxHitPoints };
+        return RestorativeDamageBound(action, stats, record);
+    }
+
+    public static Ff7BattleRestorativeBenefit RestorativeDamageBound(Ff7BattleDamageAction action, Ff7BattleDamageActor target, Ff7BattleAttack record)
+    {
+        uint maximum = target.MaximumHitPoints.GetValueOrDefault();
+        if (!action.IsItem || !action.Healing || action.TargetsMagicPoints || action.Formula != 0x24 || action.Accuracy < byte.MaxValue || action.CanBeBlinded || action.IgnoreNativeAffinity || action.Power == 0 || action.DamageScalePercent != 100 || action.OriginDamageMultiplier != 1 || action.Split || action.FractionDenominator != 0 || action.FractionNumerator != 0 || action.SourceMissingHitPoints || action.BaseDamage is not null || action.FixedDamage is not null || action.GuestElementPercent is not null || action.GuestElementAdjustment != 0 || action.NativeReflectPending || record.AdditionalEffect != byte.MaxValue || Ff7NativeBattleStatuses.ReadRecordMask(record) != 0 || target.CurrentHitPoints is not > 0 || maximum is 0 or > int.MaxValue || (target.Statuses & (Ff7NativeBattleActionResolver.Death | Ff7NativeBattleStatuses.Barrier | Ff7NativeBattleStatuses.MagicBarrier | 0x01004000)) != 0 || Ff7OriginSavedStatusRules.IsZombie(target.OriginSavedStatuses) || Ff7NativeBattleDamage.IsConditionImmune(target, action))
+        {
+            return default;
+        }
+        Ff7BattleDamageAffinity affinity = Ff7NativeBattleStatuses.ShieldAffinity(target.Statuses, action.NativeElements, action.IsItem, action.Affinity);
+        if ((affinity & Ff7BattleDamageAffinity.Absorb) == 0 || (affinity & Ff7BattleDamageAffinity.Nullify) != 0)
+        {
+            return default;
+        }
+        uint damage = (uint)Math.Min(9999ul, (ulong)maximum * action.Power / 32);
+        return new(damage);
+    }
+
     /// <summary>Describes available recovery without preparing a contact, spending stock or sampling battle RNG.</summary>
     public Ff7BattleRecoveryKind DescribeRecovery(int slot, Ff7BattleCommandOption command, int targetSlot)
     {
