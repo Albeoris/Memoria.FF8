@@ -95,7 +95,12 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidDataException("The diagnostic authored roster differs from its installed formation.");
             }
-            return AuthoredEnemyPlacements(encounter).Where(enemy => enemy.Enabled).Concat(prototypes).OrderBy(enemy => enemy.Slot).ToArray();
+            BattleEnemyPlacement[] authored = AuthoredEnemyPlacements(encounter).Where(enemy => enemy.Enabled).ToArray();
+            if (diagnosticBattle?.Request.Driver is { EnemyTrigger: not null, TerminalHold: not null } && authored.Length != 1)
+            {
+                throw new InvalidDataException("A death trigger victory hold requires the sole active original enemy.");
+            }
+            return authored.Concat(prototypes).OrderBy(enemy => enemy.Slot).ToArray();
         }
         if (roster.MountedReserveSceneSlot is not int reserveSlot)
         {

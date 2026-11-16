@@ -39,6 +39,11 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
         {
             throw new InvalidDataException("Independent roster and enemy trigger diagnostics require an explicit expanded scenario roster.");
         }
+        if (Driver is { EnemyTrigger: { } death, TerminalHold: not null } &&
+            (Roster is not { DonorCount: 0, AuthoredFormationHash: not null } || Roster.OriginalSceneSlot != death.SceneSlot))
+        {
+            throw new InvalidDataException("A death trigger victory hold requires its hash-pinned original roster with no added enemies.");
+        }
         if (Fixture?.Characters.Any(character => character.Commands.Any(command => command.PrepareSavedSlot)) == true &&
             (Roster is null || Driver is not { IndependentRosterEntry: true, Input.Ability: BattleAbility.NativeCommand }))
         {

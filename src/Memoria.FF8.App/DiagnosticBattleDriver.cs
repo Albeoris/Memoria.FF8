@@ -55,9 +55,10 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         FreshEntry?.Validate();
         TerminalHold?.Validate();
+        bool deathTrigger = EnemyTrigger is { Callback: 3, AllocatedFocus: null, MaximumAttempts: 1 };
         bool independentVictoryHold = IndependentRosterEntry && TerminalHold is { Candidate: BattleOutcome.Victory } &&
             TerminalHold.PartyActorIds.Length == 1 && TerminalHold.PartyActorIds[0] == Input.ActorId && ExpectedNativeCommand.HasValue && ExpectedNativeAction.HasValue &&
-            Repairs is { Length: 0 } && EnemyAbility is null && EnemyTrigger is null && CounterCycle is null && ShotCycle is null && DuelCycle is null;
+            Repairs is { Length: 0 } && EnemyAbility is null && (EnemyTrigger is null || deathTrigger) && CounterCycle is null && ShotCycle is null && DuelCycle is null;
         bool victoryHold = TerminalHold is { Candidate: BattleOutcome.Victory } && FreshEntry is not null && SlotsAdmission is { MagicAction: 53 or 56 } && Repairs is { Length: 0 } && TerminalHold.PartyActorIds.Length == 1 && TerminalHold.PartyActorIds[0] == Input.ActorId && ExpectedNativeCommand == 16 && ExpectedNativeAction == SlotsAdmission.MagicAction && ExpectedEffect == SlotsAdmission.Effect;
         if (TerminalHold?.Candidate == BattleOutcome.Victory && !victoryHold && !independentVictoryHold)
         {
@@ -91,7 +92,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         }
         if (EnemyTrigger is not null && (ExpectedNativeAction is null || EnemyAbility is not null || LimitSelection is not null ||
             FreshEntry is not null || ShotCycle is not null || DuelCycle is not null || CounterCycle is not null || SlotsAdmission is not null ||
-            Presentation is not null || TerminalHold is not null || Repairs is not { Length: 0 }))
+            Presentation is not null || TerminalHold is not null && !independentVictoryHold || Repairs is not { Length: 0 }))
         {
             throw new InvalidDataException("An enemy trigger preparation uses one independent entry and an explicit native action.");
         }
