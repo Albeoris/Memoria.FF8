@@ -389,8 +389,10 @@ internal sealed partial class GameWorld
 
     private static void ValidateExpandedEncounterPolicy(EncounterCompiledDefinition mod, ImmutableArray<NativeBattleEffectBinding> effects)
     {
+        bool nativeTaunts = mod is { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } && mod.EventGates.Count <= 1 &&
+            mod.EventGates.Values.All(gate => gate is { Actor: "original", Event: "nativeTaunts" });
         if (mod.NormalActionPolicies.Count != 0 &&
-            (mod.NativeEvents is not null || mod.EventGates.Count != 0 || mod.Templates.Count != 0 ||
+            (!nativeTaunts && (mod.NativeEvents is not null || mod.EventGates.Count != 0) || mod.Templates.Count != 0 ||
                 mod.Policies.Values.SelectMany(policy => policy.Rules).Any(rule => !BattleSession.SupportsHostedEncounterSpellRule(rule.Action, effects))))
         {
             throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires encounter AI and its native event callbacks, which are unavailable for an expanded roster.");

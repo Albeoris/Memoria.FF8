@@ -98,13 +98,17 @@ public sealed partial class BattleSession
 
     private bool TryRunEncounterNativeDefeatTerminal()
     {
-        if (DebugOutcome is not null || NativeGraphics is null || definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod || !byId.TryGetValue(mod.OriginalActorId, out BattleCombatant? actor) || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null)
+        if (DebugOutcome is not null || NativeGraphics is null && !OwnsExpandedHostedInvocation || definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod || !byId.TryGetValue(mod.OriginalActorId, out BattleCombatant? actor) || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null)
         {
             return false;
         }
         if (encounterPolicies?.TerminalStarted == true)
         {
             return true;
+        }
+        if (OwnsExpandedHostedInvocation)
+        {
+            throw new NotSupportedException("Hosted party defeat requires admission of the original encounter terminal callback.");
         }
         _ = RequireEncounterNativeEventResources(actor);
         if (EvaluateNativeAiCondition(actor, 221, 200, 0, 0))
@@ -159,9 +163,11 @@ public sealed partial class BattleSession
         (state, EncounterNativeTextCue? line) = state.Admit(ownTurn, gate.MinimumOwnTurn, resources);
         if (line is not null)
         {
-            NativeBattleGraphicsResource resource = FindNativeOriginalGraphicsBinding(actor.Id)!.Resource;
-            BattleEvent message = new(Frame, "NativeText", actor.Id, null, line.Duration, resource.ReadText91(line.Text)) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Enemy(actor.ModelId, line.Text) };
-            StopTurnAdvance();
+            if (actor.NativeAi is not { } program || (uint)line.Text >= program.Texts.Length)
+            {
+                throw new InvalidDataException("A compiled encounter cue exceeds its installed actor text bank.");
+            }
+            BattleEvent message = new(Frame, "NativeText", actor.Id, null, line.Duration, program.Texts[line.Text]) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Enemy(actor.ModelId, line.Text) };
             QueueNativeDescriptorMessage(message, 0);
         }
         encounterNativeEventTurns = encounterNativeEventTurns.SetItem(actor.Id, state);

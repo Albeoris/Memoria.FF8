@@ -1312,12 +1312,12 @@ public sealed partial class BattleSession
             {
                 return;
             }
+            if (TryRunEncounterNativeDefeatTerminal())
+            {
+                return;
+            }
             if (NativeGraphics is not null)
             {
-                if (TryRunEncounterNativeDefeatTerminal())
-                {
-                    return;
-                }
                 BeginNativeDefeat486450();
                 return;
             }
