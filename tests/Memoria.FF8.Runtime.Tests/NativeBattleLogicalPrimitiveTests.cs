@@ -6,6 +6,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleLogicalPrimitiveTests
 {
     [Fact]
+    public void Command_word_view_preserves_the_serialized_payload_and_supports_replacement()
+    {
+        NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
+        ImmutableArray<uint> packet = [0x04000000, 0xE2000401, 0x64000000, 0x01000200, 0, 0x00100010];
+        NativeBattleLogicalCommand command = new(reference, 2, 0x64, packet, 4, 1, [], null);
+        NativeBattleLogicalCommand legacy = new(reference, 2, 0x64, packet.Slice(2, 4), 1, [], null);
+
+        Assert.True(command.WordSpan.SequenceEqual(legacy.Words.AsSpan()));
+        string legacyJson = JsonSerializer.Serialize(legacy);
+        Assert.Equal(legacyJson, JsonSerializer.Serialize(command));
+        NativeBattleLogicalCommand restored = Assert.IsType<NativeBattleLogicalCommand>(JsonSerializer.Deserialize<NativeBattleLogicalCommand>(legacyJson));
+        Assert.True(restored.WordSpan.SequenceEqual(command.WordSpan));
+
+        NativeBattleLogicalCommand moved = command with { WordOffset = 3 };
+        Assert.True(moved.WordSpan.SequenceEqual(command.WordSpan));
+        NativeBattleLogicalCommand replaced = command with { Words = [0x64010203] };
+        Assert.Equal(0x64010203u, Assert.Single(replaced.WordSpan.ToArray()));
+        Assert.True(command.WordSpan.SequenceEqual(legacy.Words.AsSpan()));
+    }
+
+    [Fact]
     public void Producer_batch_matches_scalar_links_and_keeps_prior_snapshots_independent()
     {
         NativeBattleLogicalOrdering initial = NativeBattleLogicalOrdering.Clear().Prepend(17, new("off_B6D070", 0, 0), Tile(1), 1, []);

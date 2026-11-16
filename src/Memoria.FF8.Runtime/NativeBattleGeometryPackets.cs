@@ -53,7 +53,7 @@ public static class NativeBattleGeometryPackets
         int bias = (first >> 12) - 8;
         int count = quad ? 4 : 3;
         Span<NativeBattleProjectedVertex> corners = stackalloc NativeBattleProjectedVertex[4];
-        BattleSceneScreenPoint[]? coordinates = projectedCoordinates is null ? null : new BattleSceneScreenPoint[count];
+        Span<BattleSceneScreenPoint> coordinates = stackalloc BattleSceneScreenPoint[count];
         if (projectedCoordinates is not null && projectedCoordinates.Count != vertices.Count)
         {
             throw new InvalidDataException("Expanded geometry requires a full coordinate for every projected vertex.");
@@ -70,20 +70,42 @@ public static class NativeBattleGeometryPackets
             }
             NativeBattleProjectedVertex vertex = vertices[index];
             corners[corner] = vertex;
-            if (coordinates is not null)
+            if (projectedCoordinates is not null)
             {
-                coordinates[corner] = projectedCoordinates![index];
+                coordinates[corner] = projectedCoordinates[index];
             }
             anyClip |= vertex.DepthAndClip;
             sharedClip &= vertex.DepthAndClip;
             minDepth = Math.Min(minDepth, vertex.Depth);
         }
         // Expanded scene coordinates retain their full precision; native packed-word consumers keep their original arithmetic.
-        bool sceneViewport = BattleSceneVisibleArea.Current != BattleSceneVisibleArea.Native;
-        uint screenMask = sceneViewport ? 0 : coordinates is null ? 0x3F00000u : 0xF00000u;
-        bool outsideScene = coordinates is null ? sceneViewport && BattleSceneVisibleArea.RejectPacked(corners[..count].ToArray().Select(vertex => vertex.Screen)) : BattleSceneVisibleArea.Current.RejectNative(coordinates);
-        bool facing = coordinates is null ? Accept510680(corners[0].Screen, corners[1].Screen, corners[2].Screen) : AcceptExpanded(coordinates[0], coordinates[1], coordinates[2]);
-        if ((anyClip & 0x60000) != 0 || (sharedClip & screenMask) != 0 || outsideScene || !facing)
+        BattleSceneVisibleArea visibleArea = BattleSceneVisibleArea.Current;
+        bool sceneViewport = visibleArea != BattleSceneVisibleArea.Native;
+        uint screenMask = sceneViewport ? 0 : projectedCoordinates is null ? 0x3F00000u : 0xF00000u;
+        if ((anyClip & 0x60000) != 0 || (sharedClip & screenMask) != 0)
+        {
+            return null;
+        }
+        if (projectedCoordinates is null)
+        {
+            if (!Accept510680(corners[0].Screen, corners[1].Screen, corners[2].Screen))
+            {
+                return null;
+            }
+            if (sceneViewport)
+            {
+                for (int corner = 0; corner < count; corner++)
+                {
+                    uint screen = corners[corner].Screen;
+                    coordinates[corner] = new(unchecked((short)screen), unchecked((short)(screen >> 16)));
+                }
+                if (visibleArea.RejectPolygon(coordinates, nativeClip: false))
+                {
+                    return null;
+                }
+            }
+        }
+        else if (!AcceptExpanded(coordinates[0], coordinates[1], coordinates[2]) || visibleArea.RejectPolygon(coordinates, nativeClip: true))
         {
             return null;
         }
@@ -127,7 +149,7 @@ public static class NativeBattleGeometryPackets
         {
             depths[corner] = bias + corners[corner].Depth;
         }
-        return new(checked(tableBaseBucket + (minDepth >> depthShift)), ImmutableCollectionsMarshal.AsImmutableArray(words), ImmutableCollectionsMarshal.AsImmutableArray(depths), quad ? QuadMask : TriangleMask, coordinates is null ? null : ImmutableCollectionsMarshal.AsImmutableArray(coordinates));
+        return new(checked(tableBaseBucket + (minDepth >> depthShift)), ImmutableCollectionsMarshal.AsImmutableArray(words), ImmutableCollectionsMarshal.AsImmutableArray(depths), quad ? QuadMask : TriangleMask, projectedCoordinates is null ? null : ImmutableArray.Create(coordinates));
     }
 
     internal readonly record struct RawPacket(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4, ImmutableArray<NativeBattleGfPacketByteState> PhysicalWriteMask, ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates)

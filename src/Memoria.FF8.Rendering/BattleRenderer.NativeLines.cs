@@ -15,7 +15,7 @@ public sealed partial class BattleRenderer
         {
             return;
         }
-        if (command.Words.Length != (gouraud ? 4 : 3))
+        if (command.WordSpan.Length != (gouraud ? 4 : 3))
         {
             throw new InvalidDataException("Native LINE2 requires its original endpoint colors and packed XY words.");
         }
@@ -54,8 +54,8 @@ public sealed partial class BattleRenderer
         {
             int colorIndex = gouraud ? corner * 2 : 0;
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
-            NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.Words[colorIndex], semi, blendMode);
-            Vector2 position = NativePrimitivePosition(command.Words[coordinateIndex], command.Flags20, resolved.DrawMode);
+            NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.WordSpan[colorIndex], semi, blendMode);
+            Vector2 position = NativePrimitivePosition(command.WordSpan[coordinateIndex], command.Flags20, resolved.DrawMode);
             NativeBattlePrimitiveDepthVertex depth = projected[corner];
             if (TrySamplePilotVertex(command, corner, resolved.DrawMode, depthState, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {

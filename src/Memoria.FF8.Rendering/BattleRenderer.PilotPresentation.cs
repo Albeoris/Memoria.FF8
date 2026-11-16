@@ -42,7 +42,7 @@ public sealed partial class BattleRenderer
         material = PilotHash(material, resolved.DrawMode.TextureWindowBits ?? 0);
         if ((command.Opcode & 4) != 0)
         {
-            material = PilotHash(material, command.Words[2] >> 16);
+            material = PilotHash(material, command.WordSpan[2] >> 16);
         }
         pilotSubmission = pilotSubmission with { MaterialSignature = material };
         ObservePilotSubmittedCorner(command, cornerA, new(a.X, a.Y), new(a.Z, a.ReciprocalW), a.Uv, a.Color, a.Alpha);

@@ -193,9 +193,10 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
+            ReadOnlySpan<uint> words = command.WordSpan;
             if (command.Opcode == 0x80)
             {
-                if (resolved.Pass != 1 || command.Words.Length != 4)
+                if (resolved.Pass != 1 || words.Length != 4)
                 {
                     throw new InvalidDataException("Native VRAM transfer presentation requires its executed first-pass command and four payload DWORDs.");
                 }
@@ -204,7 +205,7 @@ public sealed partial class BattleRenderer
             }
             if (command.Opcode == 0x02)
             {
-                if (resolved.Pass != 1 || command.Words.Length != 3)
+                if (resolved.Pass != 1 || words.Length != 3)
                 {
                     throw new InvalidDataException("Native VRAM fill presentation requires its executed first-pass command and three payload DWORDs.");
                 }
@@ -234,8 +235,9 @@ public sealed partial class BattleRenderer
             bool gouraud = (command.Opcode & 16) != 0;
             bool quad = (command.Opcode & 8) != 0;
             bool semi = (command.Opcode & 2) != 0;
-            NativeBattleForeignSurface? capturedSurface = command.PilotGeometry?.ForeignSurface?.Material is NativeBattleArenaCaptureMaterial ? command.PilotGeometry.ForeignSurface : null;
-            if ((command.PilotGeometry?.ForeignSurface is null || capturedSurface is not null) && (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi))
+            NativeBattleForeignSurface? foreignSurface = command.PilotGeometry?.ForeignSurface;
+            NativeBattleForeignSurface? capturedSurface = foreignSurface?.Material is NativeBattleArenaCaptureMaterial ? foreignSurface : null;
+            if ((foreignSurface is null || capturedSurface is not null) && (resolved.Pass == 2 && !semi || resolved.Pass == 1 && semi))
             {
                 continue;
             }
@@ -250,7 +252,7 @@ public sealed partial class BattleRenderer
             }
             int stride = (gouraud ? 1 : 0) + 1 + (textured ? 1 : 0);
             int expectedWords = corners * stride + (gouraud ? 0 : 1);
-            if (command.Words.Length != expectedWords)
+            if (words.Length != expectedWords)
             {
                 throw new InvalidDataException("Native polygon command does not contain its original packed corner fields.");
             }
@@ -273,7 +275,7 @@ public sealed partial class BattleRenderer
                 }
                 texture = ForeignMaterialResolver?.Invoke(capturedSurface.Material).Material.Texture ?? throw new NotSupportedException("Arena image sampling requires its resolved captured framebuffer.");
             }
-            if (textured && command.PilotGeometry?.ForeignSurface is null)
+            if (textured && foreignSurface is null)
             {
                 bool affine = pilotProjection is null || !perspective;
                 for (int corner = 0; corner < (quad ? 4 : 3); corner++)
@@ -284,15 +286,15 @@ public sealed partial class BattleRenderer
                     ? ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, resolved, capabilities, colorState);
             }
-            PrimitiveVertex At(int corner, NativeBattlePrimitiveDepthVertex selectedDepth)
+            PrimitiveVertex At(int corner, NativeBattlePrimitiveDepthVertex selectedDepth, ReadOnlySpan<uint> words)
             {
                 int coordinateWord = 1 + corner * stride;
-                uint coordinate = command.Words[coordinateWord];
-                uint color = command.Words[gouraud ? corner * stride : 0];
-                bool foreignMaterial = command.PilotGeometry?.ForeignSurface is not null && capturedSurface is null;
+                uint coordinate = words[coordinateWord];
+                uint color = words[gouraud ? corner * stride : 0];
+                bool foreignMaterial = foreignSurface is not null && capturedSurface is null;
                 int mode = foreignMaterial && !semi ? 0 : resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
                 NativeBattlePrimitiveColor diffuse = foreignMaterial ? colorState.Textured(color, semi, mode, false) : textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
-                uint uv = textured ? command.Words[coordinateWord + 1] : 0;
+                uint uv = textured ? words[coordinateWord + 1] : 0;
                 Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
                 if (capturedSurface is not null)
                 {
@@ -302,7 +304,7 @@ public sealed partial class BattleRenderer
                 {
                     coordinates = SceneCaptureUv(sceneSample, resolved.DrawMode.TexturePage!.Value, uv, command.SceneCapture?.SampleCoordinates is { } samples ? samples[corner] : null);
                 }
-                else if (textured && command.PilotGeometry?.ForeignSurface is null)
+                else if (textured && foreignSurface is null)
                 {
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
@@ -328,11 +330,11 @@ public sealed partial class BattleRenderer
                 }
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
-            int blend = (command.PilotGeometry?.ForeignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
-            PrimitiveVertex a = At(0, projected[0]);
-            PrimitiveVertex b = At(1, projected[1]);
-            PrimitiveVertex c = At(2, projected[2]);
-            if (capturedSurface is null && command.PilotGeometry?.ForeignSurface is { } foreign)
+            int blend = (foreignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
+            PrimitiveVertex a = At(0, projected[0], words);
+            PrimitiveVertex b = At(1, projected[1], words);
+            PrimitiveVertex c = At(2, projected[2], words);
+            if (capturedSurface is null && foreignSurface is { } foreign)
             {
                 NativeBattleForeignRenderMaterial? hostMaterial = foreign.Material as NativeBattleForeignRenderMaterial ?? ForeignMaterialResolver?.Invoke(foreign.Material);
                 if (hostMaterial is null || foreign.Uv.Length != corners || foreign.Colors.Length != corners)
@@ -355,7 +357,7 @@ public sealed partial class BattleRenderer
                 }
                 if (quad)
                 {
-                    PrimitiveVertex d = At(3, projected[3]);
+                    PrimitiveVertex d = At(3, projected[3], words);
                     float secondArea = (d.X - b.X) * (c.Y - b.Y) - (d.Y - b.Y) * (c.X - b.X);
                     if (!hostMaterial.Cull || secondArea >= 0)
                     {
@@ -377,7 +379,7 @@ public sealed partial class BattleRenderer
             }
             if (quad)
             {
-                PrimitiveVertex d = At(3, projected[3]);
+                PrimitiveVertex d = At(3, projected[3], words);
                 submitted = DrawnTriangles;
                 QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
                 if (DrawnTriangles > submitted)
@@ -475,7 +477,7 @@ public sealed partial class BattleRenderer
         {
             retainedPixels = textureWindowCache is not null ? textureWindowCache.PixelWords(window) : window.UsesRetainedPixelWords == false ? null : throw new NotSupportedException("Native texture selection requires its retained cache pixel owner.");
         }
-        ushort clut = (ushort)(command.Words[2] >> 16);
+        ushort clut = (ushort)(command.WordSpan[2] >> 16);
         byte? alternateShift = null;
         if (resolved.DrawMode.BlendMode == 2)
         {
@@ -485,7 +487,7 @@ public sealed partial class BattleRenderer
             }
             alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
         }
-        TexturePrimitiveSample primitiveSample = firstSample ?? new((byte)command.Words[2] * window.ScaleU, (byte)(command.Words[2] >> 8) * window.ScaleV);
+        TexturePrimitiveSample primitiveSample = firstSample ?? new((byte)command.WordSpan[2] * window.ScaleU, (byte)(command.WordSpan[2] >> 8) * window.ScaleV);
         int sampleKey = nativeEffectTextureSource?.GetPrimitiveSampleKey(primitiveSample) ?? 0;
         NativeTextureKey fullKey = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, ModelTextureActorId: modelTextureActorId);
         if (nativeTexturePages.TryGetValue(fullKey, out texture))
@@ -623,7 +625,7 @@ public sealed partial class BattleRenderer
         int stride = (command.Opcode & 16) != 0 ? 3 : 2;
         for (int corner = 0; corner < corners; corner++)
         {
-            uint uv = command.Words[2 + corner * stride];
+            uint uv = command.WordSpan[2 + corner * stride];
             maximumU = Math.Max(maximumU, (byte)uv);
             maximumV = Math.Max(maximumV, (byte)(uv >> 8));
         }
@@ -797,19 +799,19 @@ public sealed partial class BattleRenderer
             return;
         }
         bool point = (command.Opcode & 0xFC) == 0x68;
-        if (command.Words.Length != (point ? 2 : 3))
+        if (command.WordSpan.Length != (point ? 2 : 3))
         {
             throw new InvalidDataException("Native TILE requires its original RGB, XY and selected size fields.");
         }
         int blend = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native TILE requires its executed ABR.");
-        NativeBattlePrimitiveColor diffuse = (frame.LastColorState ?? throw new NotSupportedException("Native TILE requires its retained PC color owner.")).Untextured(command.Words[0], semi, blend);
+        NativeBattlePrimitiveColor diffuse = (frame.LastColorState ?? throw new NotSupportedException("Native TILE requires its retained PC color owner.")).Untextured(command.WordSpan[0], semi, blend);
         bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native TILE requires its executed descriptor depth mode."));
         ImmutableArray<int> depths = command.VertexPayload4.IsEmpty ? [] : Enumerable.Repeat(command.VertexPayload4[0], 4).ToImmutableArray();
         ImmutableArray<NativeBattlePrimitiveDepthVertex> vertices = (frame.LastDepthState ?? throw new NotSupportedException("Native TILE requires its retained depth dispatch owner.")).Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native TILE lacks its original bucket."), perspective, command.Flags20, depths);
-        int x = unchecked((short)command.Words[1]);
-        int y = unchecked((short)(command.Words[1] >> 16));
-        int width = point ? (command.Flags20 & 1) != 0 ? 1 : 8 : (ushort)command.Words[2];
-        int height = point ? width : (ushort)(command.Words[2] >> 16);
+        int x = unchecked((short)command.WordSpan[1]);
+        int y = unchecked((short)(command.WordSpan[1] >> 16));
+        int width = point ? (command.Flags20 & 1) != 0 ? 1 : 8 : (ushort)command.WordSpan[2];
+        int height = point ? width : (ushort)(command.WordSpan[2] >> 16);
         PrimitiveVertex At(int px, int py, int corner)
         {
             Vector2 position = NativePrimitivePosition(px, py, command.Flags20, resolved.DrawMode);

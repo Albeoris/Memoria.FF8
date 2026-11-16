@@ -40,10 +40,10 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
     public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] framebuffer, byte[] textureImage, NativeBattleLogicalCommand command, NativeSoftwarePrimitiveTable table)
     {
         NativeSoftwareEnvironmentDerived environment = Environment.Derived ?? throw new NotSupportedException("Native software drawing requires its executed environment publication.");
-        byte[] packet = new byte[checked((command.Words.Length + 1) * 4)];
-        for (int index = 0; index < command.Words.Length; index++)
+        byte[] packet = new byte[checked((command.WordSpan.Length + 1) * 4)];
+        for (int index = 0; index < command.WordSpan.Length; index++)
         {
-            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan((index + 1) * 4), command.Words[index]);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan((index + 1) * 4), command.WordSpan[index]);
         }
         (command.SceneCapture ?? SceneCapture)?.MapSourcePacket(command, packet);
         NativeSoftwarePolygonPacketDraw draw = NativeSoftwarePolygonPackets.Draw(framebuffer, textureImage, Raster, Texture, command.Opcode, packet, NativeSoftwarePolygonPackets.CoordinateShift45D080(command.Flags20), environment.DrawOffsetX, environment.DrawOffsetY, environment.ClipBounds, table, Reciprocals);

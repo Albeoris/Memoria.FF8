@@ -12,7 +12,12 @@ public static class NativeBattleSprite64Geometry
 {
     public static ImmutableArray<NativeBattleSprite64Corner> Expand(ImmutableArray<uint> words, ushort flags20)
     {
-        if (words.IsDefault || words.Length != 4 || (words[0] >> 24) is not (0x64 or 0x66))
+        return ExpandWords(words.AsSpan(), flags20);
+    }
+
+    public static ImmutableArray<NativeBattleSprite64Corner> ExpandWords(ReadOnlySpan<uint> words, ushort flags20)
+    {
+        if (words.Length != 4 || (words[0] >> 24) is not (0x64 or 0x66))
         {
             throw new InvalidDataException("Native battle sprite geometry requires its four original command words.");
         }

@@ -53,6 +53,11 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
 
     public NativeBattlePrimitiveDrawMode ExecuteWords(byte opcode, ImmutableArray<uint> words)
     {
+        return ExecuteWordSpan(opcode, words.AsSpan());
+    }
+
+    internal NativeBattlePrimitiveDrawMode ExecuteWordSpan(byte opcode, ReadOnlySpan<uint> words)
+    {
         if (opcode == 0xE2)
         {
             if (words.Length != 1)

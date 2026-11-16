@@ -18,17 +18,24 @@ public static class NativeSoftwareTexturePreparation
 {
     public static NativeSoftwareTexturePagePreparation PrepareTPage45B960(NativeSoftwareTextureState state, ushort page)
     {
+        NativeSoftwareTextureState prepared = PrepareTPageState45B960(state, page, out bool diagnostic);
+        return new(prepared, diagnostic);
+    }
+
+    internal static NativeSoftwareTextureState PrepareTPageState45B960(NativeSoftwareTextureState state, ushort page, out bool depth3Diagnostic)
+    {
         ArgumentNullException.ThrowIfNull(state);
         uint previousPage = state.LastTPage ?? throw new NotSupportedException("Native texture page preparation requires its retained cached page comparison owner.");
         if (previousPage == page)
         {
-            return new(state, false);
+            depth3Diagnostic = false;
+            return state;
         }
         int x = (page & 15) << 6;
         int y = (page & 0x10) << 4;
         int depth = (page >> 7) & 3;
-        bool diagnostic = depth == 3;
-        return new(state with { LastTPage = page, TextureX = x, TextureY = y, TextureByteOffset = 2 * (y * 1024 + x), TexturePointerIsNull = false, Depth = diagnostic ? 1 : depth, Abr = (byte)((page >> 5) & 3), PageId = y / 256 * 16 + x / 64 }, diagnostic);
+        depth3Diagnostic = depth == 3;
+        return state with { LastTPage = page, TextureX = x, TextureY = y, TextureByteOffset = 2 * (y * 1024 + x), TexturePointerIsNull = false, Depth = depth3Diagnostic ? 1 : depth, Abr = (byte)((page >> 5) & 3), PageId = y / 256 * 16 + x / 64 };
     }
 
     public static NativeSoftwareTextureState PrepareClut45B920(NativeSoftwareTextureState state, ushort clut, int imageLength)

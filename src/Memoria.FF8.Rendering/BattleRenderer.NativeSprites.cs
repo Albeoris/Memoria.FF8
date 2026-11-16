@@ -17,14 +17,14 @@ public sealed partial class BattleRenderer
         {
             return;
         }
-        ImmutableArray<NativeBattleSprite64Corner> corners = NativeBattleSprite64Geometry.Expand(command.Words, command.Flags20);
+        ImmutableArray<NativeBattleSprite64Corner> corners = NativeBattleSprite64Geometry.ExpandWords(command.WordSpan, command.Flags20);
         NativeBattlePrimitiveDepthState depthState = frame.LastDepthState ?? throw new NotSupportedException("Native sprite rendering requires its retained depth owner.");
         NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native sprite rendering requires its retained diffuse color owner.");
         bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native sprite rendering requires its executed descriptor depth mode."));
         ImmutableArray<int> depths = command.VertexPayload4.IsEmpty ? [] : [command.VertexPayload4[0], command.VertexPayload4[0], command.VertexPayload4[0], command.VertexPayload4[0]];
         ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native sprite lacks its original OT bucket."), perspective, command.Flags20, depths);
         int mode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native sprite diffuse color requires its executed ABR.");
-        NativeBattlePrimitiveColor diffuse = colorState.Textured(command.Words[0], semi, mode, false);
+        NativeBattlePrimitiveColor diffuse = colorState.Textured(command.WordSpan[0], semi, mode, false);
         PixelImage texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, new TexturePrimitiveSample(corners[0].TextureU, corners[0].TextureV));
         Submit(0, semi ? mode : -1);
         if (!semi)

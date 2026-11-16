@@ -24,7 +24,7 @@ public static class NativeBattleCommonPacketArena
         return linked && primitive.PhysicalWriteMask is not null ? [store, new(address, UnknownLinkBytes, UnknownLinkMask)] : [store];
     }
 
-    internal static void AppendPrimitiveStores(ImmutableArray<NativeBattleCommonPacketStore>.Builder stores, int address, NativeBattleGeometryPrimitive primitive, bool linked)
+    internal static void AppendPrimitiveStores(ImmutableArray<NativeBattleCommonPacketStore>.Builder stores, int address, NativeBattleModelPrimitive primitive, bool linked)
     {
         stores.Add(CreatePrimitiveStore(address, primitive));
         if (linked && primitive.PhysicalWriteMask is not null)
@@ -33,7 +33,7 @@ public static class NativeBattleCommonPacketArena
         }
     }
 
-    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleGeometryPrimitive primitive)
+    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleModelPrimitive primitive)
     {
         byte[] data = new byte[checked(4 * primitive.Words.Length)];
         ImmutableArray<NativeBattleGfPacketByteState> mask;

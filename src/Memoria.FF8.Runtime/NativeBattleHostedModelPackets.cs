@@ -41,17 +41,23 @@ internal sealed class NativeBattleHostedModelPackets
 
     internal NativeBattleLogicalOrdering Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, ImmutableArray<NativeBattleGeometryPrimitive> primitives, int? moduleDraw = null, string? textureSourceOwner = null)
     {
+        return Append(process, ordering, (NativeBattleModelPrimitiveBatch)primitives, moduleDraw, textureSourceOwner);
+    }
+
+    internal NativeBattleLogicalOrdering Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleModelPrimitiveBatch primitives, int? moduleDraw = null, string? textureSourceOwner = null)
+    {
         if (primitives.IsDefault)
         {
             throw new InvalidDataException("Hosted model packets require an explicit primitive list.");
         }
         int bank = ProcessBank(process);
         int start = cursors[bank];
-        ValidateProxyCapacity(ordering, primitives.Length);
+        ValidateProxyCapacity(ordering, primitives.Count);
         int end = start;
         int largestPacket = 0;
-        foreach (NativeBattleGeometryPrimitive primitive in primitives)
+        for (int index = 0; index < primitives.Count; index++)
         {
+            NativeBattleModelPrimitive primitive = primitives[index];
             int length = ValidatePrimitive(primitive);
             ValidateRange(end, length);
             end = checked(end + length);
@@ -71,9 +77,10 @@ internal sealed class NativeBattleHostedModelPackets
         try
         {
             int cursor = start;
-            foreach (NativeBattleGeometryPrimitive primitive in primitives)
+            for (int index = 0; index < primitives.Count; index++)
             {
-                AddLink(links, Reference(bank, cursor), primitive, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
+                NativeBattleModelPrimitive primitive = primitives[index];
+                links.PrependModel(Reference(bank, cursor), primitives, index, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
                 WriteLinkedPrimitive(memory, cursor, primitive, links.LastHeaderLink, scratch);
                 cursor += primitive.Words.Length * sizeof(uint);
             }
@@ -86,7 +93,7 @@ internal sealed class NativeBattleHostedModelPackets
         }
     }
 
-    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, int address, NativeBattleGeometryPrimitive primitive, uint headerLink, Span<byte> scratch)
+    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, int address, NativeBattleModelPrimitive primitive, uint headerLink, Span<byte> scratch)
     {
         if (primitive.PhysicalWriteMask is not { } mask)
         {
@@ -247,9 +254,9 @@ internal sealed class NativeBattleHostedModelPackets
         links.PrependModel(reference, primitive, flags20, moduleDraw, textureSourceOwner);
     }
 
-    private static int ValidatePrimitive(NativeBattleGeometryPrimitive primitive)
+    private static int ValidatePrimitive(NativeBattleModelPrimitive primitive)
     {
-        if (primitive is null || primitive.Words.IsDefaultOrEmpty || primitive.Words.Length < 1 + (primitive.Words[0] >> 24))
+        if (primitive.Words.IsDefaultOrEmpty || primitive.Words.Length < 1 + (primitive.Words[0] >> 24))
         {
             throw new InvalidDataException("Hosted model packet requires complete authored command words.");
         }

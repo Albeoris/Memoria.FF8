@@ -51,6 +51,27 @@ public sealed class NativeBattleModelMaterialExecutionTests
     }
 
     [Fact]
+    public void Repeated_model_draws_share_the_mode_only_for_the_same_pixels_and_state()
+    {
+        NativeBattleEffectTextureState textures = Pixels(1, 1)
+            .WithPresentationTexture(First.RequireActorId(), new(Pixels(2, 2), EmptyCache()))
+            .WithPresentationTexture(Second.RequireActorId(), new(Pixels(3, 3), EmptyCache()));
+        NativeBattleSoftwarePrimitiveExecution execution = Execution(textures);
+        NativeBattleLogicalOrdering ordering = Add(Add(Add(NativeBattleLogicalOrdering.Clear(), 0, First), 1, Second), 2, First);
+
+        var result = NativeBattleLogicalPasses.Execute(ordering, Tables(), new(0) { TextureWindowBits = 1 }, execution);
+        NativeBattleLogicalResolvedCommand[] drawn = result.Commands.Where(command => command.Pass == 1).ToArray();
+
+        Assert.Equal(3, drawn.Length);
+        Assert.Equal(First, drawn[0].Command.ModelTextureOwner);
+        Assert.Equal(Second, drawn[1].Command.ModelTextureOwner);
+        Assert.Equal(First, drawn[2].Command.ModelTextureOwner);
+        Assert.Same(drawn[0].DrawMode, drawn[2].DrawMode);
+        Assert.NotSame(drawn[0].DrawMode, drawn[1].DrawMode);
+        Assert.NotEqual(drawn[0].DrawMode.TexturePixelSnapshot, drawn[1].DrawMode.TexturePixelSnapshot);
+    }
+
+    [Fact]
     public void Identical_pixels_only_share_snapshots_with_matching_scene_copy_provenance()
     {
         NativeBattleModelTextureOwner third = new("model-c");

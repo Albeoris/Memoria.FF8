@@ -68,6 +68,26 @@ public readonly record struct BattleSceneVisibleArea(double Left, double Top, do
         return any && (outsideX || outsideY);
     }
 
+    internal bool RejectPolygon(ReadOnlySpan<BattleSceneScreenPoint> points, bool nativeClip)
+    {
+        int common = 15;
+        foreach (BattleSceneScreenPoint point in points)
+        {
+            int clip = (point.X < Left ? 1 : point.X > Right ? 2 : 0) | (point.Y < Top ? 4 : point.Y > Bottom ? 8 : 0);
+            if (nativeClip)
+            {
+                // The native test rejects when every corner is outside the same axis, on either side.
+                clip |= ((clip & 5) << 1) | ((clip & 10) >> 1);
+            }
+            common &= clip;
+            if (common == 0)
+            {
+                return false;
+            }
+        }
+        return !points.IsEmpty;
+    }
+
     private sealed class Scope(BattleSceneVisibleArea? previous) : IDisposable
     {
         private bool disposed;

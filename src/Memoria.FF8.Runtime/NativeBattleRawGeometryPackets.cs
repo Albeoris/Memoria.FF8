@@ -8,11 +8,28 @@ public static class NativeBattleRawGeometryPackets
 {
     public static ImmutableArray<NativeBattleGeometryPrimitive> Emit5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
     {
+        return EmitCore5099D0(meshes, matrices, projection, colorFlags28, objectMask32, colorDepth36, tableBaseBucket, depthShift, textureBinding, colorRules, publishProjectedScratch, viewport, pilotIdentity, pilotScreenSpace, pilotContinuous, actorId, material, null);
+    }
+
+    internal static NativeBattleModelPrimitiveBatch EmitModel5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+    {
+        NativeBattleModelPrimitiveBatch.Builder result = new();
+        AppendModel5099D0(result, meshes, matrices, projection, colorFlags28, objectMask32, colorDepth36, tableBaseBucket, depthShift, textureBinding, colorRules, publishProjectedScratch, viewport, pilotIdentity, pilotScreenSpace, pilotContinuous, actorId, material);
+        return result.Freeze();
+    }
+
+    internal static void AppendModel5099D0(NativeBattleModelPrimitiveBatch.Builder result, ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+    {
+        EmitCore5099D0(meshes, matrices, projection, colorFlags28, objectMask32, colorDepth36, tableBaseBucket, depthShift, textureBinding, colorRules, publishProjectedScratch, viewport, pilotIdentity, pilotScreenSpace, pilotContinuous, actorId, material, result);
+    }
+
+    private static ImmutableArray<NativeBattleGeometryPrimitive> EmitCore5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null, NativeBattleModelPrimitiveBatch.Builder? modelResult = null)
+    {
         if (meshes.IsDefault)
         {
             throw new NotSupportedException("Native5099D0 requires its original immutable geometry owner.");
         }
-        ImmutableArray<NativeBattleGeometryPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        ImmutableArray<NativeBattleGeometryPrimitive>.Builder? result = modelResult is null ? ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>() : null;
         for (int index = 0; index < meshes.Length; index++)
         {
             if ((objectMask32 & (1u << (index & 31))) == 0)
@@ -59,14 +76,14 @@ public static class NativeBattleRawGeometryPackets
                     world = new CapturedWorldVertices(mesh.Vertices, matrices, projection);
                 }
             }
-            AppendProjected5099D0(result, mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous, actorId, material);
+            AppendProjected5099D0(result, mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous, actorId, material, modelResult);
 
             NativeBattleProjectedVertex[] Project(NativeBattleGeometryViewport bounds)
             {
                 return mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, bounds)).ToArray();
             }
         }
-        return result.ToImmutable();
+        return result?.ToImmutable() ?? [];
     }
 
     private sealed class CapturedWorldVertices(ImmutableArray<NativeBattleRawVertex> vertices, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection) : IReadOnlyList<System.Numerics.Vector3>
@@ -97,7 +114,7 @@ public static class NativeBattleRawGeometryPackets
         return result.ToImmutable();
     }
 
-    private static void AppendProjected5099D0(ImmutableArray<NativeBattleGeometryPrimitive>.Builder result, ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+    private static void AppendProjected5099D0(ImmutableArray<NativeBattleGeometryPrimitive>.Builder? result, ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices, NativeBattlePilotVisualIdentity? pilotIdentity, bool pilotScreenSpace, bool pilotContinuous, string? actorId = null, NativeBattleModelTextureOwner? material = null, NativeBattleModelPrimitiveBatch.Builder? modelResult = null)
     {
         if (polygons.IsDefault)
         {
@@ -126,7 +143,14 @@ public static class NativeBattleRawGeometryPackets
                     }
                     pilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace };
                 }
-                result.Add(accepted.ToPrimitive(pilotGeometry, actorId, material));
+                if (modelResult is not null)
+                {
+                    modelResult.Add(NativeBattleModelPrimitive.FromRaw(accepted, pilotGeometry, actorId, material));
+                }
+                else
+                {
+                    result!.Add(accepted.ToPrimitive(pilotGeometry, actorId, material));
+                }
             }
         }
     }

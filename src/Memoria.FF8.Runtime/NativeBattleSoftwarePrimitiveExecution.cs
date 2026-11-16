@@ -19,6 +19,21 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     private readonly Dictionary<(ushort Clut, int Length), (NativeBattleEffectTextureState Owner, ImmutableArray<ushort> Palette)> sceneCapturePalettes = [];
     private readonly Dictionary<ImmutableArray<ushort>, ImmutableArray<ushort>> scenePaletteContents = new(ScenePaletteContentComparer.Instance);
 
+    private const int MaximumRetainedModelModes = 256;
+    private Dictionary<RetainedModelMode, NativeBattlePrimitiveDrawMode>? retainedModelModes;
+    private RetainedModelMode lastModelMode;
+    private NativeBattlePrimitiveDrawMode? lastPublishedModelMode;
+
+    private readonly record struct RetainedModelMode(
+        int TextureIndex, ushort? Page, uint? WindowBits, NativeBattlePcTextureWindowSelection Selection,
+        NativeSoftwareNormalViewportDerived? Viewport, NativeSoftwareViewportInputs? ViewportInputs, NativeBattleSpriteFilterState? SpriteFilter)
+    {
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(TextureIndex, Page, WindowBits, Selection.Row, Selection.Slot);
+        }
+    }
+
     public NativeBattleSoftwarePrimitiveExecution(NativeBattleSoftwarePrimitiveState state, NativeBattleEffectTextureState textures, NativeSoftwarePrimitiveTable table, bool hardwareEnabled, NativeBattlePcTextureWindowCache cache)
     {
         State = state;
@@ -160,14 +175,14 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         if (command.Opcode == 0x02)
         {
-            if (SoftwareTable.Handler(command.Opcode) != 0x466EF0 || command.Words.Length != 3)
+            if (SoftwareTable.Handler(command.Opcode) != 0x466EF0 || command.WordSpan.Length != 3)
             {
                 throw new NotSupportedException("Native software fill requires its actual dispatch handler and three payload DWORDs.");
             }
             byte[] packet = new byte[16];
-            for (int index = 0; index < command.Words.Length; index++)
+            for (int index = 0; index < command.WordSpan.Length; index++)
             {
-                BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.Words[index]);
+                BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.WordSpan[index]);
             }
             image ??= Textures.ReadVram();
             imageChanged |= NativeSoftwareRectangleFill.Fill466EF0(image, packet);
@@ -217,14 +232,14 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             {
                 return;
             }
-            if (pass != 1 || command.Words.Length != 3)
+            if (pass != 1 || command.WordSpan.Length != 3)
             {
                 throw new NotSupportedException("Native normal fill requires its first-pass handler and three payload DWORDs.");
             }
             byte[] packet = new byte[16];
-            for (int index = 0; index < command.Words.Length; index++)
+            for (int index = 0; index < command.WordSpan.Length; index++)
             {
-                BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.Words[index]);
+                BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.WordSpan[index]);
             }
             image ??= Textures.ReadVram();
             imageChanged |= NativeSoftwareRectangleFill.Fill4623A0(image, packet);
@@ -247,8 +262,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             if ((command.Opcode & 0xE4) == 0x24 || sprite)
             {
                 ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured command requires its actual page WORD.");
-                NativeSoftwareTextureState prepared = sprite && pass == 0 ? State.Texture : NativeSoftwareTexturePreparation.PrepareTPage45B960(State.Texture, page).State;
-                ushort clut = unchecked((ushort)(command.Words[2] >> 16));
+                NativeSoftwareTextureState prepared = sprite && pass == 0 ? State.Texture : NativeSoftwareTexturePreparation.PrepareTPageState45B960(State.Texture, page, out _);
+                ushort clut = unchecked((ushort)(command.WordSpan[2] >> 16));
                 NativeSoftwareTextureState texture = NativeSoftwareTexturePreparation.PrepareClut45B920(prepared, clut, 1024 * 512 * 2);
                 if (!ReferenceEquals(texture, State.Texture))
                 {
@@ -334,16 +349,44 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         NativeBattleSceneCaptureSample? captureSample = command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } capture && (command.Opcode & 0xE4) == 0x24 ? RetainSceneCapture(capture, command, mode.TexturePage) : mode.SceneCaptureSample;
         ImmutableArray<ushort>? copyPalette = pixels.SceneCopies is not null ? RetainScenePalette(command, mode.TexturePage, textureSource) : mode.SceneCopyPalette;
-        return mode with
+        NativeSoftwareNormalViewportDerived? retainedViewport = normal ?? mode.NormalViewport;
+        NativeSoftwareViewportInputs? retainedInputs = normal is null ? mode.ViewportInputs : inputs;
+        if (bank is not null && captureSample is null && copyPalette is null)
         {
-            TextureSelection = selection,
-            TexturePixelSnapshot = index,
-            SpriteFilter = spriteFilter,
-            NormalViewport = normal ?? mode.NormalViewport,
-            ViewportInputs = normal is null ? mode.ViewportInputs : inputs,
-            SceneCaptureSample = captureSample,
-            SceneCopyPalette = copyPalette
-        };
+            // The selected snapshot index identifies the published pixels and their provenance in this batch.
+            RetainedModelMode key = new(index, mode.TexturePage, mode.TextureWindowBits, selection, retainedViewport, retainedInputs, spriteFilter);
+            if (lastPublishedModelMode is not null && key == lastModelMode)
+            {
+                return lastPublishedModelMode;
+            }
+            retainedModelModes ??= [];
+            if (!retainedModelModes.TryGetValue(key, out NativeBattlePrimitiveDrawMode? retained))
+            {
+                retained = PublishMode();
+                if (retainedModelModes.Count < MaximumRetainedModelModes)
+                {
+                    retainedModelModes.Add(key, retained);
+                }
+            }
+            lastModelMode = key;
+            lastPublishedModelMode = retained;
+            return retained;
+        }
+        return PublishMode();
+
+        NativeBattlePrimitiveDrawMode PublishMode()
+        {
+            return mode with
+            {
+                TextureSelection = selection,
+                TexturePixelSnapshot = index,
+                SpriteFilter = spriteFilter,
+                NormalViewport = retainedViewport,
+                ViewportInputs = retainedInputs,
+                SceneCaptureSample = captureSample,
+                SceneCopyPalette = copyPalette
+            };
+        }
     }
 
     private static bool SameTexturePixels(NativeBattlePcTextureWindowPixels first, NativeBattlePcTextureWindowPixels second)
@@ -390,7 +433,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
         }
         int length = depth == 0 ? 16 : depth == 1 ? 256 : 0;
-        ushort clut = unchecked((ushort)(command.Words[2] >> 16));
+        ushort clut = unchecked((ushort)(command.WordSpan[2] >> 16));
         int x = (clut & 63) * 16;
         int y = (clut & 0x7FFF) >> 6;
         if (sceneCapturePalettes.TryGetValue((clut, length), out var priorPalette) && ReferenceEquals(priorPalette.Owner, textureSource))
@@ -448,15 +491,15 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     private void ExecuteState(NativeBattleLogicalCommand command)
     {
-        if (command.Words.Length != 1)
+        if (command.WordSpan.Length != 1)
         {
             throw new InvalidDataException("Native drawing state command requires its single DWORD.");
         }
-        uint value = command.Words[0];
+        uint value = command.WordSpan[0];
         switch (command.Opcode)
         {
             case 0xE1:
-                State = State with { Texture = NativeSoftwareTexturePreparation.PrepareTPage45B960(State.Texture, unchecked((ushort)value)).State };
+                State = State with { Texture = NativeSoftwareTexturePreparation.PrepareTPageState45B960(State.Texture, unchecked((ushort)value), out _) };
                 break;
             case 0xE3:
                 State = State with { Environment = NativeSoftwareDrawingEnvironment.WriteE345BA30(State.Environment, value), SceneCapture = command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.SourceEnvironment } capture ? capture : null };
@@ -501,7 +544,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     private void ExecuteImageTransfer(NativeBattleLogicalCommand command)
     {
-        if (command.Words.Length != 4)
+        if (command.WordSpan.Length != 4)
         {
             throw new InvalidDataException("Native image transfer requires its four payload DWORDs.");
         }
@@ -509,9 +552,9 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         NativeBattleEffectTextureState priorTextures = Textures;
         ImmutableArray<NativeBattleSceneCopyRegion>? priorSceneCopies = Textures.SceneCopies;
         byte[] packet = new byte[20];
-        for (int index = 0; index < command.Words.Length; index++)
+        for (int index = 0; index < command.WordSpan.Length; index++)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.Words[index]);
+            BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4 + index * 4), command.WordSpan[index]);
         }
         image ??= Textures.ReadVram();
         imageChanged = true;
@@ -520,12 +563,12 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             PublishTransferredImage(left, top, right, bottom);
             Cache = (Cache ?? throw new NotSupportedException("Native image transfer requires its retained texture cache.")).Invalidate464850(left, top, right, bottom, priorTextures);
         });
-        int sourceX = (int)(command.Words[1] & 1023);
-        int sourceY = (int)(command.Words[1] >> 16 & 511);
-        int destinationX = (int)(command.Words[2] & 1023);
-        int destinationY = (int)(command.Words[2] >> 16 & 511);
-        int width = Math.Min(Math.Min((int)(command.Words[3] & 65535), 1024 - sourceX), 1024 - destinationX);
-        int height = Math.Min(Math.Min((int)(command.Words[3] >> 16), 512 - sourceY), 512 - destinationY);
+        int sourceX = (int)(command.WordSpan[1] & 1023);
+        int sourceY = (int)(command.WordSpan[1] >> 16 & 511);
+        int destinationX = (int)(command.WordSpan[2] & 1023);
+        int destinationY = (int)(command.WordSpan[2] >> 16 & 511);
+        int width = Math.Min(Math.Min((int)(command.WordSpan[3] & 65535), 1024 - sourceX), 1024 - destinationX);
+        int height = Math.Min(Math.Min((int)(command.WordSpan[3] >> 16), 512 - sourceY), 512 - destinationY);
         NativeBattleEffectVramCopy copy = new((short)sourceX, (short)sourceY, (short)width, (short)height, (short)destinationX, (short)destinationY);
         ImmutableArray<NativeBattleSceneCopyRegion>? sceneCopies = NativeBattleSceneCopyProvenance.Copy(priorSceneCopies, copy);
         if (width > 0 && height > 0 && command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Copy } capture)
