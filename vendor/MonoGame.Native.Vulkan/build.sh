@@ -83,14 +83,12 @@ while IFS=$'\t' read -r path dependency_repository dependency_revision; do
         git -C "$directory" diff --exit-code
     fi
 done < "$dependencies"
-patch="$build/readback.patch"
-tr -d '\r' < "$recipe/BackBufferReadback.patch" > "$patch"
-runtime_source='native/monogame/vulkan/MGG_Vulkan.cpp'
+patch="$build/runtime.patch"
+cat "$recipe/DesktopWindow.patch" "$recipe/BackBufferReadback.patch" | tr -d '\r' > "$patch"
 git -C "$source" diff --cached --exit-code
 git -C "$source" diff --binary --full-index --ignore-submodules > "$build/current.patch"
 if [[ -s "$build/current.patch" ]] && ! cmp -s "$patch" "$build/current.patch"; then
     # Undo only the previously verified patch in this build cache.
-    [[ $(git -C "$source" diff --name-only --ignore-submodules) == "$runtime_source" ]]
     cmp "$build/applied.patch" "$build/current.patch"
     git -C "$source" apply --reverse "$build/current.patch"
 fi
@@ -144,11 +142,17 @@ for name in candidate reference; do
             nm -D --defined-only "$file" | awk '{ print $3 }'
             readelf -d "$file" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' | sort > "$build/$name-needed.txt"
             ;;
-    esac | grep -E '^(MG_|MGA_|MGG_|MGI_|MGM_|MGP_)' | sort -u > "$build/$name-exports.txt"
+    esac | grep -E '^(MG_|MGA_|MGG_|MGI_|MGM_|MGP_|Memoria_Window_)' | sort -u > "$build/$name-exports.txt"
 done
 [[ -s "$build/candidate-exports.txt" ]]
 [[ -s "$build/candidate-needed.txt" ]]
-cmp "$build/reference-exports.txt" "$build/candidate-exports.txt"
+{
+    cat "$build/reference-exports.txt"
+    if [[ "$rid" != win-x64 ]]; then
+        printf '%s\n' Memoria_Window_GetGeometry Memoria_Window_Maximize Memoria_Window_RestorePlacement Memoria_Window_SetTransferHidden
+    fi
+} | sort -u > "$build/expected-exports.txt"
+cmp "$build/expected-exports.txt" "$build/candidate-exports.txt"
 : > "$output/native-abi-versions.txt"
 if [[ "$rid" == linux-x64 ]]; then
     cmp "$build/reference-needed.txt" "$build/candidate-needed.txt"

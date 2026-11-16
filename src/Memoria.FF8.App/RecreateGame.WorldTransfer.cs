@@ -34,12 +34,12 @@ internal sealed partial class RecreateGame
             achievementsSuspended = false;
             InitializeAchievements();
             InitializeAuthoringWorkspace();
-        }, () => windowMode!.RevealTransferChild(), () =>
+        }, RevealTransferWindow, () =>
         {
             // The outgoing workspace was durably saved before the irreversible platform shutdown.
             authoringExitAllowed = true;
             ExitGame();
-        });
+        }, deferPresentationUntilReveal: incoming && !windowMode!.SupportsHiddenPresentation);
     }
 
     private void PrepareIncomingWorldTransfer()

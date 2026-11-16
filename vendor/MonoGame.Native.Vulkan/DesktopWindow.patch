@@ -1,0 +1,174 @@
+diff --git a/native/monogame/sdl/MGP_sdl.cpp b/native/monogame/sdl/MGP_sdl.cpp
+index 6612de1392b679d1a44727dc118bd3257b60be67..c8098aa8f91cd9bc8f719efa46f221901ddb7314 100644
+--- a/native/monogame/sdl/MGP_sdl.cpp
++++ b/native/monogame/sdl/MGP_sdl.cpp
+@@ -180,8 +180,122 @@ struct MGP_Window
+ 	std::string identifier;
+ 
+     SDL_Window* window = nullptr;
++#if defined(MG_VULKAN) && !defined(_WIN32)
++    SDL_Rect normalBounds{};
++    bool transferHidden = false;
++    bool maximizeOnShow = false;
++#endif
+ };
+ 
++#if defined(MG_VULKAN) && !defined(_WIN32)
++static const char* const memoriaWindowKey = "Memoria.Window";
++
++static bool IsNormalWindow(Uint32 flags)
++{
++    return (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED | SDL_WINDOW_BORDERLESS)) == 0;
++}
++
++static int SDLCALL TrackNormalBounds(void* data, SDL_Event* event)
++{
++    auto window = static_cast<MGP_Window*>(data);
++    if (event->type != SDL_WINDOWEVENT || event->window.windowID != window->windowId)
++        return 1;
++
++    if (!IsNormalWindow(SDL_GetWindowFlags(window->window)))
++        return 1;
++
++    if (event->window.event == SDL_WINDOWEVENT_MOVED)
++    {
++        window->normalBounds.x = event->window.data1;
++        window->normalBounds.y = event->window.data2;
++    }
++    else if (event->window.event == SDL_WINDOWEVENT_RESIZED || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
++    {
++        window->normalBounds.w = event->window.data1;
++        window->normalBounds.h = event->window.data2;
++    }
++    return 1;
++}
++
++struct MemoriaWindowGeometry
++{
++    SDL_Rect bounds;
++    SDL_Rect normalBounds;
++    int pixelWidth;
++    int pixelHeight;
++    int maximized;
++    int hidden;
++    int supportsHiddenPresentation;
++};
++
++MG_EXPORT int Memoria_Window_GetGeometry(SDL_Window* handle, MemoriaWindowGeometry* geometry)
++{
++    auto window = static_cast<MGP_Window*>(SDL_GetWindowData(handle, memoriaWindowKey));
++    if (!window)
++        return 0;
++
++    const Uint32 flags = SDL_GetWindowFlags(handle);
++    SDL_GetWindowPosition(handle, &geometry->bounds.x, &geometry->bounds.y);
++    SDL_GetWindowSize(handle, &geometry->bounds.w, &geometry->bounds.h);
++    SDL_GetWindowSizeInPixels(handle, &geometry->pixelWidth, &geometry->pixelHeight);
++    if (IsNormalWindow(flags))
++        window->normalBounds = geometry->bounds;
++
++    geometry->normalBounds = window->normalBounds;
++    geometry->maximized = window->maximizeOnShow || (flags & SDL_WINDOW_MAXIMIZED) != 0;
++    geometry->hidden = (flags & SDL_WINDOW_HIDDEN) != 0;
++    geometry->supportsHiddenPresentation = SDL_strcmp(SDL_GetCurrentVideoDriver(), "wayland") != 0;
++    return 1;
++}
++
++static void ShowMemoriaWindow(MGP_Window* window)
++{
++    SDL_ShowWindow(window->window);
++    if (window->maximizeOnShow)
++    {
++        window->maximizeOnShow = false;
++        if (!(SDL_GetWindowFlags(window->window) & SDL_WINDOW_FULLSCREEN))
++            SDL_MaximizeWindow(window->window);
++    }
++}
++
++MG_EXPORT void Memoria_Window_Maximize(SDL_Window* handle)
++{
++    auto window = static_cast<MGP_Window*>(SDL_GetWindowData(handle, memoriaWindowKey));
++    // Let Wayland complete the initial configure before requesting a maximized size.
++    if (SDL_GetWindowFlags(handle) & SDL_WINDOW_HIDDEN)
++        window->maximizeOnShow = true;
++    else
++        SDL_MaximizeWindow(handle);
++}
++
++MG_EXPORT void Memoria_Window_RestorePlacement(SDL_Window* handle, int x, int y, int width, int height, int maximized)
++{
++    auto window = static_cast<MGP_Window*>(SDL_GetWindowData(handle, memoriaWindowKey));
++    window->maximizeOnShow = false;
++    SDL_RestoreWindow(handle);
++    SDL_SetWindowPosition(handle, x, y);
++    SDL_SetWindowSize(handle, width, height);
++    if (maximized)
++        Memoria_Window_Maximize(handle);
++}
++
++MG_EXPORT void Memoria_Window_SetTransferHidden(SDL_Window* handle, int hidden)
++{
++    auto window = static_cast<MGP_Window*>(SDL_GetWindowData(handle, memoriaWindowKey));
++    window->transferHidden = hidden != 0;
++    if (window->transferHidden)
++    {
++        SDL_HideWindow(handle);
++    }
++    else
++    {
++        ShowMemoriaWindow(window);
++        SDL_RaiseWindow(handle);
++    }
++}
++#endif
++
+ struct MGP_Cursor
+ {
+     SDL_Cursor* cursor;
+@@ -751,6 +865,12 @@ MGP_Window* MGP_Window_Create(
+ 	}
+ 
+     window->windowId = SDL_GetWindowID(window->window);
++#if defined(MG_VULKAN) && !defined(_WIN32)
++    SDL_GetWindowPosition(window->window, &window->normalBounds.x, &window->normalBounds.y);
++    SDL_GetWindowSize(window->window, &window->normalBounds.w, &window->normalBounds.h);
++    SDL_SetWindowData(window->window, memoriaWindowKey, window);
++    SDL_AddEventWatch(TrackNormalBounds, window);
++#endif
+ 
+ 	platform->windows.push_back(window);
+ 
+@@ -763,6 +883,9 @@ void MGP_Window_Destroy(MGP_Window* window)
+ 	assert(window->platform != nullptr);
+ 
+ 	assert(window->window != nullptr);
++#if defined(MG_VULKAN) && !defined(_WIN32)
++    SDL_DelEventWatch(TrackNormalBounds, window);
++#endif
+ 	SDL_DestroyWindow(window->window);
+ 
+ 	mg_remove(window->platform->windows, window);
+@@ -838,10 +961,19 @@ void MGP_Window_Show(MGP_Window* window, mgbyte show)
+ {
+ 	assert(window != nullptr);
+ 
+-	if (show)
+-		SDL_ShowWindow(window->window);
+-	else
+-		SDL_HideWindow(window->window);
++    if (show)
++    {
++#if defined(MG_VULKAN) && !defined(_WIN32)
++        if (!window->transferHidden)
++            ShowMemoriaWindow(window);
++#else
++        SDL_ShowWindow(window->window);
++#endif
++    }
++    else
++    {
++        SDL_HideWindow(window->window);
++    }
+ }
+ 
+ void MGP_Window_GetPosition(MGP_Window* window, mgint& x, mgint& y)

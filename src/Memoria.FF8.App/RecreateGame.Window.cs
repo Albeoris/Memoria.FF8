@@ -17,13 +17,16 @@ internal sealed partial class RecreateGame
         ModelBrowserDialogs.Confirmation = ShowGameConfirmationAsync;
 #if MEMORIA_NATIVE
         nativeInputWindow = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(Window.Title) : 0;
-        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
+        if (windowMode?.SupportsHiddenPresentation != false)
+        {
+            nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
+        }
 #endif
         if (WorldProcessHandoff.Current is { } transfer)
         {
             windowMode!.RestoreTransfer(transfer.Specification.Window);
 #if MEMORIA_NATIVE
-            nativeBackBuffer.Synchronize();
+            nativeBackBuffer?.Synchronize();
 #endif
             return;
         }
@@ -35,7 +38,19 @@ internal sealed partial class RecreateGame
         windowMode = new WindowModeController(platform);
         windowMode.Apply(uiPreferences.BorderlessWindow);
 #if MEMORIA_NATIVE
-        nativeBackBuffer.Synchronize();
+        nativeBackBuffer?.Synchronize();
+#endif
+    }
+
+    private void RevealTransferWindow()
+    {
+        windowMode!.RevealTransferChild();
+#if MEMORIA_NATIVE
+        if (nativeBackBuffer is null)
+        {
+            nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
+            nativeBackBuffer.Synchronize();
+        }
 #endif
     }
 

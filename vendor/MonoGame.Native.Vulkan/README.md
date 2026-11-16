@@ -6,6 +6,8 @@ Upstream backbuffer readback waits on the binary swapchain-acquisition semaphore
 
 Upstream also skips swapchain recreation when the backbuffer dimensions change with the same VSync and MSAA settings. The patch recreates on size changes and retains the requested dimensions separately from the extent that the surface currently allows. Presentation-driven recreation can then retry with the latest requested size if the compositor applies the resize asynchronously.
 
+On Linux and macOS, Memoria's window adapter calls four additional exports in this same runtime for geometry, placement, maximization and handoff visibility. The runtime owns the SDL2 window and keeps the handoff child hidden through MonoGame startup until Memoria reveals it. Wayland requires the window to be mapped for Vulkan presentation, so the child completes graphics and scene initialization while hidden, then presents its first black frame after the reveal. The build checks these exports alongside the upstream API.
+
 On macOS, the build also backports [FAudio's static curve alignment fix](https://github.com/FNA-XNA/FAudio/commit/41bfee955aa98c03ddb6f26e62a99afdf3c04237) to the pinned dependency. It aligns the static points and pointer-bearing curves for the Apple linker while preserving the packed public structure layout. This patch is covered by the included FAudio zlib license.
 
 ## Build

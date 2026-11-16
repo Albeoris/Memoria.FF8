@@ -8,6 +8,7 @@ internal sealed class WorldTransferPresentation : IDisposable
 {
     private readonly WorldProcessHandoff transfer;
     private readonly bool incoming;
+    private readonly bool deferPresentationUntilReveal;
     private readonly Action shutdownSteam;
     private readonly Action initializeSteam;
     private readonly Action reveal;
@@ -19,12 +20,14 @@ internal sealed class WorldTransferPresentation : IDisposable
     private bool shutdownStarted;
     private float opacity;
     public bool Complete { get; private set; }
+    public bool CanDraw => !deferPresentationUntilReveal || revealed;
     public bool Committed => transfer.Committed || shutdownStarted;
 
-    internal WorldTransferPresentation(WorldProcessHandoff transfer, bool incoming, Action shutdownSteam, Action initializeSteam, Action reveal, Action exit)
+    internal WorldTransferPresentation(WorldProcessHandoff transfer, bool incoming, Action shutdownSteam, Action initializeSteam, Action reveal, Action exit, bool deferPresentationUntilReveal = false)
     {
         this.transfer = transfer;
         this.incoming = incoming;
+        this.deferPresentationUntilReveal = deferPresentationUntilReveal;
         this.shutdownSteam = shutdownSteam;
         this.initializeSteam = initializeSteam;
         this.reveal = reveal;
@@ -42,7 +45,8 @@ internal sealed class WorldTransferPresentation : IDisposable
         float step = (float)Math.Clamp(elapsed.TotalSeconds, 0, 0.1) / 0.3f;
         if (incoming)
         {
-            if (firstFrame)
+            // Wayland must map the initialized child before Vulkan can present.
+            if (firstFrame || deferPresentationUntilReveal)
             {
                 transfer.AcknowledgeReady();
             }

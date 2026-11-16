@@ -1,46 +1,41 @@
+using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
-using SDL3;
 
 namespace Memoria.FF8;
 
-/// <summary>Uses MonoGame's owned native window and desktop fullscreen lifecycle on Linux and macOS.</summary>
+/// <summary>Uses the SDL2 window owned by MonoGame's native Vulkan runtime on Linux and macOS.</summary>
 internal sealed class NativeDesktopGameWindow : IGameWindowPlatform
 {
     private readonly GameWindow window;
     private readonly GraphicsDeviceManager graphics;
-    private readonly SDL.EventFilter eventWatch;
-    private readonly uint windowId;
-    private WindowTransferRectangle normalBounds;
     private Point windowedSize;
     private Point windowedPosition;
     private WindowTransferPlacement? windowedPlacement;
     private WindowTransferPlacement? transferPlacement;
+    private WindowTransferState? deferredTransfer;
     private bool transferHidden;
-    private Exception? eventWatchFailure;
 
     internal NativeDesktopGameWindow(GameWindow window, GraphicsDeviceManager graphics)
     {
         this.window = window;
         this.graphics = graphics;
-        windowId = SDL.GetWindowID(window.Handle);
-        Check(SDL.GetWindowPosition(window.Handle, out int x, out int y));
-        Check(SDL.GetWindowSize(window.Handle, out int width, out int height));
-        normalBounds = new WindowTransferRectangle(x, y, width, height);
-        eventWatch = TrackWindow;
-        Check(SDL.AddEventWatch(eventWatch, 0));
     }
+
+    public bool SupportsHiddenPresentation => ReadGeometry().SupportsHiddenPresentation != 0;
+
+    internal bool IsHidden => ReadGeometry().Hidden != 0;
 
     public void Maximize()
     {
-        windowedPlacement = ReadPlacement();
-        Check(SDL.MaximizeWindow(window.Handle));
+        windowedPlacement = ReadGeometry().Placement;
+        MaximizeWindow(window.Handle);
     }
 
     public void EnterBorderless()
     {
         windowedSize = new Point(graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight);
         windowedPosition = window.Position;
-        windowedPlacement = ReadPlacement();
+        windowedPlacement = ReadGeometry().Placement;
         window.IsBorderless = true;
         graphics.HardwareModeSwitch = false;
         graphics.IsFullScreen = true;
@@ -63,19 +58,13 @@ internal sealed class NativeDesktopGameWindow : IGameWindowPlatform
 
     public WindowTransferState CaptureTransfer()
     {
-        CheckEventWatch();
-        Check(SDL.GetWindowPosition(window.Handle, out int x, out int y));
-        Check(SDL.GetWindowSize(window.Handle, out int width, out int height));
-        Check(SDL.GetWindowSizeInPixels(window.Handle, out int clientWidth, out int clientHeight));
-        WindowTransferRectangle bounds = new(x, y, width, height);
-        WindowTransferPlacement current = ReadPlacement();
+        WindowGeometry geometry = ReadGeometry();
         var presentation = graphics.GraphicsDevice.PresentationParameters;
-        return new WindowTransferState(window.IsBorderless, bounds, current, window.IsBorderless ? windowedPlacement : null, clientWidth, clientHeight, presentation.BackBufferWidth, presentation.BackBufferHeight);
+        return new WindowTransferState(window.IsBorderless, geometry.Bounds.ToTransferRectangle(), geometry.Placement, window.IsBorderless ? windowedPlacement : null, geometry.PixelWidth, geometry.PixelHeight, presentation.BackBufferWidth, presentation.BackBufferHeight);
     }
 
     public void RestoreTransfer(WindowTransferState state)
     {
-        CheckEventWatch();
         if (state.ClientWidth <= 0 || state.ClientHeight <= 0 || state.BackBufferWidth <= 0 || state.BackBufferHeight <= 0 || state.Bounds.Width <= 0 || state.Bounds.Height <= 0)
         {
             throw new InvalidDataException("Transferred window dimensions must be positive.");
@@ -84,9 +73,15 @@ internal sealed class NativeDesktopGameWindow : IGameWindowPlatform
         {
             throw new InvalidDataException("A borderless transfer requires its saved windowed placement.");
         }
+        if (transferHidden && !SupportsHiddenPresentation)
+        {
+            // MonoGame can present the current frame as part of ApplyChanges.
+            deferredTransfer = state;
+            return;
+        }
+
         windowedPlacement = state.WindowedPlacement ?? state.Placement;
         WindowTransferRectangle normal = windowedPlacement.NormalBounds;
-        normalBounds = normal;
         windowedSize = new Point(normal.Width, normal.Height);
         windowedPosition = new Point(normal.X, normal.Y);
         graphics.HardwareModeSwitch = false;
@@ -100,128 +95,84 @@ internal sealed class NativeDesktopGameWindow : IGameWindowPlatform
         {
             RestorePlacement(state.Placement);
         }
-        if (transferHidden)
-        {
-            Check(SDL.HideWindow(window.Handle));
-        }
     }
 
     public void PrepareTransferChild()
     {
-        CheckEventWatch();
+        SetTransferHidden(window.Handle, 1);
         transferHidden = true;
-        Check(SDL.SetWindowFocusable(window.Handle, false));
-        Check(SDL.HideWindow(window.Handle));
     }
 
     public void RevealTransferChild()
     {
-        CheckEventWatch();
         if (!transferHidden)
         {
             return;
         }
+        SetTransferHidden(window.Handle, 0);
         transferHidden = false;
-        Check(SDL.SetWindowFocusable(window.Handle, true));
-        Check(SDL.ShowWindow(window.Handle));
+        if (deferredTransfer is { } state)
+        {
+            deferredTransfer = null;
+            RestoreTransfer(state);
+            return;
+        }
         if (!window.IsBorderless && transferPlacement is not null)
         {
             RestorePlacement(transferPlacement);
         }
-        Check(SDL.RaiseWindow(window.Handle));
     }
 
-    private WindowTransferPlacement ReadPlacement()
+    private WindowGeometry ReadGeometry()
     {
-        bool maximized = (SDL.GetWindowFlags(window.Handle) & SDL.WindowFlags.Maximized) != 0;
-        if (maximized)
+        if (GetWindowGeometry(window.Handle, out WindowGeometry geometry) == 0)
         {
-            return new WindowTransferPlacement(normalBounds, true);
+            throw new InvalidOperationException("Could not read the MonoGame desktop window geometry.");
         }
-        Check(SDL.GetWindowPosition(window.Handle, out int x, out int y));
-        Check(SDL.GetWindowSize(window.Handle, out int width, out int height));
-        if (!window.IsBorderless)
-        {
-            normalBounds = new WindowTransferRectangle(x, y, width, height);
-        }
-        return new WindowTransferPlacement(new WindowTransferRectangle(x, y, width, height), maximized);
-    }
 
-    private bool TrackWindow(nint userData, ref SDL.Event value)
-    {
-        try
-        {
-            return TrackWindowCore(ref value);
-        }
-        catch (Exception exception)
-        {
-            eventWatchFailure = exception;
-            return true;
-        }
-    }
-
-    private bool TrackWindowCore(ref SDL.Event value)
-    {
-        SDL.EventType type = (SDL.EventType)value.Type;
-        if (value.Window.WindowID != windowId)
-        {
-            return true;
-        }
-        if (type == SDL.EventType.WindowDestroyed)
-        {
-            SDL.RemoveEventWatch(eventWatch, 0);
-            return true;
-        }
-        if (type == SDL.EventType.WindowShown && transferHidden)
-        {
-            Check(SDL.HideWindow(window.Handle));
-            return true;
-        }
-        if (type is not (SDL.EventType.WindowMoved or SDL.EventType.WindowResized))
-        {
-            return true;
-        }
-        SDL.WindowFlags flags = SDL.GetWindowFlags(window.Handle);
-        if ((flags & (SDL.WindowFlags.Fullscreen | SDL.WindowFlags.Maximized | SDL.WindowFlags.Minimized)) != 0 || window.IsBorderless)
-        {
-            return true;
-        }
-        if (type == SDL.EventType.WindowMoved)
-        {
-            normalBounds = normalBounds with { X = value.Window.Data1, Y = value.Window.Data2 };
-        }
-        else
-        {
-            normalBounds = normalBounds with { Width = value.Window.Data1, Height = value.Window.Data2 };
-        }
-        return true;
-    }
-
-    private void CheckEventWatch()
-    {
-        if (eventWatchFailure is not null)
-        {
-            throw new InvalidOperationException("Could not preserve the desktop game window during transfer.", eventWatchFailure);
-        }
+        return geometry;
     }
 
     private void RestorePlacement(WindowTransferPlacement value)
     {
-        Check(SDL.RestoreWindow(window.Handle));
         WindowTransferRectangle bounds = value.NormalBounds;
-        Check(SDL.SetWindowPosition(window.Handle, bounds.X, bounds.Y));
-        Check(SDL.SetWindowSize(window.Handle, bounds.Width, bounds.Height));
-        if (value.Maximized)
-        {
-            Check(SDL.MaximizeWindow(window.Handle));
-        }
+        RestoreWindowPlacement(window.Handle, bounds.X, bounds.Y, bounds.Width, bounds.Height, value.Maximized ? 1 : 0);
     }
 
-    private static void Check(bool result)
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowRectangle
     {
-        if (!result)
-        {
-            throw new InvalidOperationException($"Could not transfer the desktop game window: {SDL.GetError()}");
-        }
+        public int X;
+        public int Y;
+        public int Width;
+        public int Height;
+
+        public readonly WindowTransferRectangle ToTransferRectangle() => new(X, Y, Width, Height);
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowGeometry
+    {
+        public WindowRectangle Bounds;
+        public WindowRectangle NormalBounds;
+        public int PixelWidth;
+        public int PixelHeight;
+        public int Maximized;
+        public int Hidden;
+        public int SupportsHiddenPresentation;
+
+        public readonly WindowTransferPlacement Placement => new(NormalBounds.ToTransferRectangle(), Maximized != 0);
+    }
+
+    [DllImport("mgruntime", EntryPoint = "Memoria_Window_GetGeometry", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int GetWindowGeometry(nint window, out WindowGeometry geometry);
+
+    [DllImport("mgruntime", EntryPoint = "Memoria_Window_Maximize", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void MaximizeWindow(nint window);
+
+    [DllImport("mgruntime", EntryPoint = "Memoria_Window_RestorePlacement", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void RestoreWindowPlacement(nint window, int x, int y, int width, int height, int maximized);
+
+    [DllImport("mgruntime", EntryPoint = "Memoria_Window_SetTransferHidden", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void SetTransferHidden(nint window, int hidden);
 }

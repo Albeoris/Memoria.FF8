@@ -105,6 +105,6 @@ internal sealed partial class RecreateGame
 
     protected override bool BeginDraw()
     {
-        return (worldTransfer is not null || !focusPaused) && base.BeginDraw();
+        return (worldTransfer?.CanDraw ?? !focusPaused) && base.BeginDraw();
     }
 }

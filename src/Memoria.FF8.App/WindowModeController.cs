@@ -8,6 +8,7 @@ internal interface IGameWindowPlatform
     void Maximize();
     void EnterBorderless();
     void RestoreWindowed();
+    bool SupportsHiddenPresentation => true;
     WindowTransferState CaptureTransfer() => throw new NotSupportedException("The window adapter does not support process transfer.");
     void RestoreTransfer(WindowTransferState state) => throw new NotSupportedException("The window adapter does not support process transfer.");
     void PrepareTransferChild() => throw new NotSupportedException("The window adapter does not support hidden process transfer.");
@@ -64,6 +65,8 @@ internal sealed class WindowModeController
         }
         borderless = requestedBorderless;
     }
+
+    internal bool SupportsHiddenPresentation => platform.SupportsHiddenPresentation;
 
     public WindowTransferState CaptureTransfer() => platform.CaptureTransfer();
 
