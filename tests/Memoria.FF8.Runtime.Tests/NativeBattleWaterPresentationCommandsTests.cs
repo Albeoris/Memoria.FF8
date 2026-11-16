@@ -82,8 +82,8 @@ public sealed class NativeBattleWaterPresentationCommandsTests
     public void CachedActorPositionIsSignedAndSelectedUpdateIsFollowedByPositionCache()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x5E);
-        frame = frame with { Arena = frame.Arena.Write(0x201B, new byte[] { 2 }) };
         short[] position = [-32768, -2, 32767];
+        frame = SelectBoundActor(frame, new(0) { Transform = new(default, new(position[0], position[1], position[2]), 0, 0, 4096) });
         for (int i = 0; i < 3; i++)
         {
             frame = WaterSchedulerFixture.CoreWord(frame, NativeBattleScriptedEffectMemory.Address + 0x94u + (uint)(2 * i), unchecked((ushort)position[i]));
@@ -194,7 +194,7 @@ public sealed class NativeBattleWaterPresentationCommandsTests
         Assert.Throws<NotSupportedException>(() => Execute(frame));
         frame = Fixture(0x45, 0);
         frame = frame with { Arena = frame.Arena.Write(0x201B, new byte[] { 7 }) };
-        Assert.Throws<NotSupportedException>(() => Execute(frame));
+        Assert.Throws<InvalidDataException>(() => Execute(frame));
     }
 
     [Fact]
@@ -229,11 +229,20 @@ public sealed class NativeBattleWaterPresentationCommandsTests
 
     private static NativeBattleWaterExecutionFrame FlagsFixture(ushort instruction, ushort mask, ushort prior, ushort flags)
     {
-        NativeBattleWaterExecutionFrame frame = Fixture(instruction, mask);
-        frame = frame with { Arena = frame.Arena.Write(0x201B, new byte[] { 2 }).Write(0x6002, new byte[] { 0xA5, 0x5A }) };
+        NativeBattleWaterExecutionFrame frame = SelectBoundActor(Fixture(instruction, mask), new(prior));
+        frame = frame with { Arena = frame.Arena.Write(0x6002, new byte[] { 0xA5, 0x5A }) };
         frame = WaterSchedulerFixture.CoreDword(frame, NativeBattleScriptedEffectMemory.Address + 0x68, Address(0x6000));
         frame = WaterSchedulerFixture.CoreWord(frame, NativeBattleScriptedEffectMemory.Address + 0x52, prior);
         return frame with { Arena = WriteWord(frame.Arena, 0x6000, flags) };
+    }
+
+    private static NativeBattleWaterExecutionFrame SelectBoundActor(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsModel model)
+    {
+        BattleModelOwner actor = OriginalOwner(0);
+        BattleActorModels models = new([new BattleModelEntry<BattleModelOwner>(actor, model)]);
+        NativeBattleModelAliases aliases = new(models.Roster, [(NativeBattleModelSlot.Decode(2), actor)]);
+        frame = frame with { Core = frame.Core with { PresentationActors = NativeBattleCinematicActorContext.FromGraphics(models) } };
+        return NativeBattleCinematicActorAccess.WriteSlotActor(frame, actor, aliases);
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(params ushort[] words)
