@@ -27,7 +27,8 @@ public static partial class NativeBattleEffect210Controller
             NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
             NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
             int count = header.ReadContactCount();
-            frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
+            frame = ReserveTargetRecords(frame, main, count, packets, inputs);
+            frame = Write(frame, main, Read(frame, main).WriteWord(14, checked((ushort)count)));
             int[] minimum = [32767, 32767, 32767];
             int[] maximum = [-32767, -32767, -32767];
             NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8);
@@ -35,7 +36,7 @@ public static partial class NativeBattleEffect210Controller
             {
                 BattleContactCursor first = header.FirstContact;
                 BattleModelOwner actor = packets.ReadContact(first.Advance(index)).Primary.Recipient;
-                uint record = main + 16u + (uint)(index * 24);
+                uint record = TargetRecordAddress(frame, main, index);
                 frame = WriteBytes(frame, record, NativeBattleEffectArena.Clear().WriteExecutionReference(0, 4, new BattleExecutionReference.Model(actor), packets.ModelAliases.EncodeAddress(actor)), 4);
                 frame = WriteBytes(frame, record + 4, CopyBytes(inputs.ReadModelArena9C(frame, actor), 28, NativeBattleEffectArena.Clear(), 0, 8), 8);
                 frame = WriteBytes(frame, record + 12, frame.State.ReadView(RetainedPairAddress, 8), 8);

@@ -111,9 +111,10 @@ public static partial class NativeBattleEffect210Controller
         }
         if (age == 235)
         {
-            for (int index = 0; index < Read(frame, address).ReadWord(14); index++)
+            int count = TargetRecordCount(frame, address);
+            for (int index = 0; index < count; index++)
             {
-                uint record = address + 16u + (uint)(index * 24);
+                uint record = TargetRecordAddress(frame, address, index);
                 BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
                 frame = ModelFlags(frame, actor, 0xFFF3, 0, inputs);
                 frame = WriteModel(frame, actor, 28, ReadBytes(frame, record + 4, 8), 8, inputs);

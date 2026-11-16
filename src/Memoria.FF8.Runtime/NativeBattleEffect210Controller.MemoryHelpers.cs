@@ -51,6 +51,10 @@ public static partial class NativeBattleEffect210Controller
     public static NativeBattleEffectArena ReadBytes(NativeBattleEffect210Frame frame, uint address, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (frame.State.TargetRecords is { } targets && targets.Contains(address, length))
+        {
+            return CopyBytes(targets.Rows, checked((int)(address - targets.Address)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+        }
         foreach (NativeBattleCureFamilyPool shape in CommonPools)
         {
             if (address < shape.Descriptor || (ulong)address + (uint)length > (ulong)shape.Descriptor + 8)
@@ -108,6 +112,11 @@ public static partial class NativeBattleEffect210Controller
     public static NativeBattleEffect210Frame WriteBytes(NativeBattleEffect210Frame frame, uint address, NativeBattleEffectArena source, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (frame.State.TargetRecords is { } targets && targets.Contains(address, length))
+        {
+            CopyBytes(source, 0, targets.Rows, checked((int)(address - targets.Address)), length);
+            return frame;
+        }
         foreach (NativeBattleCureFamilyPool shape in CommonPools)
         {
             if (address >= shape.Descriptor && (ulong)address + (uint)length <= (ulong)shape.Descriptor + 8)

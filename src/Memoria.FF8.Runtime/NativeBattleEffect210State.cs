@@ -7,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect210State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> CommonQueueStorage)
 {
+    [JsonIgnore]
+    internal NativeBattleEffect210TargetRecords? TargetRecords { get; init; }
+
     public static NativeBattleEffect210State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), CommonPools.ToImmutableDictionary(pool => pool.Descriptor, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()));
 
     public static NativeBattleEffect210State FromUnknown()
@@ -135,6 +138,7 @@ public sealed record NativeBattleEffect210State([property: JsonRequired] NativeB
 
     public void Validate()
     {
+        TargetRecords?.Validate();
         Storage.Validate();
         if (CommonQueueStorage is null || CommonQueueStorage.Count != CommonPools.Length)
         {

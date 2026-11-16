@@ -24,6 +24,7 @@ public sealed partial class BattleSession
         NativeBattleEffect210Inputs? inputs = null;
         inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect210 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => CaptureNativeEffect210Model(graphics.ActorModels.Get(actor)), ReadBones, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect210 requires its current projection."), _ => Camera().Roll, Point, Anchor, PollIo, SelectIo, (current, operation) => ExecuteNativeEffect210Operation(ref graphics, current, operation, resources, inputs!), (_, owner) => ResolveNativeEffectCompanion(graphics, owner))
         {
+            StorageContract = graphics.Effects.StorageContract,
             ReadCommonSprite5710B0 = (_, id) => definition.NativeModuleResources.Single(resource => resource.Id == id)
         };
 

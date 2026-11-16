@@ -186,7 +186,7 @@ public sealed class NativeBattleEffect210ControllerTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, _) = root.Append(RootCallback);
         root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteWord(12, unchecked((ushort)age)));
-        NativeBattleEffect210State state = NativeBattleEffect210State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, 0x1D97494);
+        NativeBattleEffect210State state = NativeBattleEffect210State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteModelAddress(CasterGlobal, OriginalOwner(3), OriginalAliases);
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (main)
         {

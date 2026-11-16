@@ -10,6 +10,7 @@ public static partial class NativeBattleEffect210Controller
         RequireBinding(frame);
         resources.Validate();
         frame.State.Validate();
+        frame = frame with { State = frame.State with { TargetRecords = null } };
         if (!frame.Effect.Pools.IsEmpty)
         {
             throw new InvalidDataException("Effect210 entry requires its inactive banks.");
@@ -58,6 +59,10 @@ public static partial class NativeBattleEffect210Controller
         {
             return clearQueue ? frame with { State = frame.State.WriteView(descriptor, NativeBattleEffectArena.Clear(), 8) } : frame;
         }
+        if (descriptor == ActDescriptor && pool.BankAddress != frame.State.ReadDword(ArenaGlobal))
+        {
+            return DetachHostedFinalPool(frame, pool);
+        }
         NativeBattleEffectArena queue = clearQueue ? NativeBattleEffectArena.Clear() : ReadBytes(frame, descriptor, 8);
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.DetachArenaBank(frame.Memory, frame.Effect, descriptor);
         return frame with { Memory = transfer.Memory, Effect = transfer.Effect, State = frame.State.AttachCommonQueue(descriptor, queue) };
@@ -80,7 +85,7 @@ public static partial class NativeBattleEffect210Controller
             frame = DetachCommonPool(frame, shape.Descriptor, false);
         }
         NativeBattleEffectTaskPool root = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == RootDescriptor);
-        return frame with { State = frame.State.AttachBank(0, NativeBattleEffectTaskMemory.CaptureBank(root)), Effect = frame.Effect with { Pools = [], ReturnedDescriptor = 0 } };
+        return frame with { State = frame.State.AttachBank(0, NativeBattleEffectTaskMemory.CaptureBank(root)) with { TargetRecords = null }, Effect = frame.Effect with { Pools = [], ReturnedDescriptor = 0 } };
     }
 
     public static (NativeBattleEffect210Frame Frame, int Survivors) AdvancePool(NativeBattleEffect210Frame frame, uint descriptor, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)

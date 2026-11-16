@@ -4,12 +4,12 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect210Controller
 {
-    private static NativeBattleEffect210Frame InitializeTargetMotion(NativeBattleEffect210Frame frame, uint main, NativeBattleEffect210Inputs inputs)
+    internal static NativeBattleEffect210Frame InitializeTargetMotion(NativeBattleEffect210Frame frame, uint main, NativeBattleEffect210Inputs inputs)
     {
-        int count = Read(frame, main).ReadWord(14);
+        int count = TargetRecordCount(frame, main);
         for (int index = 0; index < count; index++)
         {
-            uint record = main + 16u + (uint)(index * 24);
+            uint record = TargetRecordAddress(frame, main, index);
             BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
             frame = inputs.Execute(frame, new NativeBattleEffect210Bounds9800(actor, record + 20));
             frame = ModelFlags(frame, actor, 0xFFFF, 12, inputs, true);
@@ -17,14 +17,14 @@ public static partial class NativeBattleEffect210Controller
         return frame;
     }
 
-    private static NativeBattleEffect210Frame MoveTargets(NativeBattleEffect210Frame frame, uint main, int age, NativeBattleEffect210Inputs inputs)
+    internal static NativeBattleEffect210Frame MoveTargets(NativeBattleEffect210Frame frame, uint main, int age, NativeBattleEffect210Inputs inputs)
     {
-        int count = Read(frame, main).ReadWord(14);
+        int count = TargetRecordCount(frame, main);
         int phase = age >= 195 ? age - 195 : age - 115;
         int q = age >= 195 ? phase * 4096 / 40 + 51 : phase * 4096 / 80 + 25;
         for (int index = 0; index < count; index++)
         {
-            uint record = main + 16u + (uint)(index * 24);
+            uint record = TargetRecordAddress(frame, main, index);
             BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
             int originalY = Word(ReadBytes(frame, record + 6, 2), 0);
             if (age >= 195 || !Frozen(frame))
@@ -60,10 +60,14 @@ public static partial class NativeBattleEffect210Controller
 
     private static NativeBattleEffect210Frame FinishTargets(NativeBattleEffect210Frame frame, uint main, bool birth, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
     {
-        int count = Read(frame, main).ReadWord(14);
+        if (birth)
+        {
+            frame = PrepareFinalTargetPool(frame, main, inputs);
+        }
+        int count = TargetRecordCount(frame, main);
         for (int index = 0; index < count; index++)
         {
-            uint record = main + 16u + (uint)(index * 24);
+            uint record = TargetRecordAddress(frame, main, index);
             BattleModelOwner actor = ReadBytes(frame, record, 4).ReadExecutionReference<BattleExecutionReference.Model>(0, 4).Owner;
             short y = unchecked((short)(Word(inputs.ReadModelArena9C(frame, actor), 30) + 512));
             frame = WriteModel(frame, actor, 30, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(y)), 2, inputs);
