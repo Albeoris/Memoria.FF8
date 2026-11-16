@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -48,23 +49,71 @@ internal sealed class NativeBattleHostedModelPackets
         int start = cursors[bank];
         ValidateProxyCapacity(ordering, primitives.Length);
         int end = start;
+        int largestPacket = 0;
         foreach (NativeBattleGeometryPrimitive primitive in primitives)
         {
             int length = ValidatePrimitive(primitive);
             ValidateRange(end, length);
             end = checked(end + length);
+            largestPacket = Math.Max(largestPacket, length);
+        }
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
+        if (primitives.IsEmpty)
+        {
+            return links.ToImmutable();
         }
 
-        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>(primitives.Length);
-        using NativeBattleLogicalOrdering.Builder links = new(ordering);
-        int cursor = start;
-        foreach (NativeBattleGeometryPrimitive primitive in primitives)
+        // One scratch packet per append. Only the working byte bank retains the encoded writes.
+        Span<byte> scratch = largestPacket <= 256 ? stackalloc byte[largestPacket] : new byte[largestPacket];
+        NativeBattleWorkingMemory? retained = banks[bank];
+        NativeBattleWorkingMemory memory = retained ?? new(LogicalLength, initialKnownZero: false);
+        memory.BeginCheckpoint();
+        try
         {
-            AddLink(links, Reference(bank, cursor), primitive, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
-            stores.Add(NativeBattleCommonPacketArena.CreateLinkedPrimitiveStore(cursor, primitive, links.LastHeaderLink));
-            cursor += primitive.Words.Length * sizeof(uint);
+            int cursor = start;
+            foreach (NativeBattleGeometryPrimitive primitive in primitives)
+            {
+                AddLink(links, Reference(bank, cursor), primitive, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
+                WriteLinkedPrimitive(memory, cursor, primitive, links.LastHeaderLink, scratch);
+                cursor += primitive.Words.Length * sizeof(uint);
+            }
+            return Commit(bank, end, links, memory);
         }
-        return Publish(bank, end, links, stores);
+        catch
+        {
+            Rollback(memory, retained);
+            throw;
+        }
+    }
+
+    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, int address, NativeBattleGeometryPrimitive primitive, uint headerLink, Span<byte> scratch)
+    {
+        if (primitive.PhysicalWriteMask is not { } mask)
+        {
+            // TODO(TD-009): Other logical emitters do not establish actual padding/rejected stores.
+            BinaryPrimitives.WriteUInt32LittleEndian(scratch, headerLink);
+            memory.Write(address, scratch[..3]);
+            memory.MarkUnknown(address + 3, primitive.Words.Length * sizeof(uint) - 3);
+            return;
+        }
+        BinaryPrimitives.WriteUInt32LittleEndian(scratch, (primitive.Words[0] & 0xFF000000u) | (headerLink & 0xFFFFFFu));
+        for (int index = 1; index < primitive.Words.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(scratch[(index * sizeof(uint))..], primitive.Words[index]);
+        }
+
+        int linkEnd = 3;
+        while (linkEnd < mask.Length && mask[linkEnd] == NativeBattleGfPacketByteState.Known)
+        {
+            linkEnd++;
+        }
+        memory.Write(address, scratch[..linkEnd]);
+        for (int offset = linkEnd; offset < mask.Length;)
+        {
+            int end = MaskRunEnd(mask, offset);
+            ApplyMaskedRun(memory, address + offset, scratch[offset..end], mask[offset]);
+            offset = end;
+        }
     }
 
     internal NativeBattleLogicalOrdering Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
@@ -146,35 +195,50 @@ internal sealed class NativeBattleHostedModelPackets
                 for (int offset = 0; offset < store.Mask.Length;)
                 {
                     int end = MaskRunEnd(store.Mask, offset);
-                    switch (store.Mask[offset])
-                    {
-                        case NativeBattleGfPacketByteState.Known:
-                            memory.Write(store.Offset + offset, store.Data.AsSpan(offset, end - offset));
-                            break;
-                        case NativeBattleGfPacketByteState.Unknown:
-                            memory.MarkUnknown(store.Offset + offset, end - offset);
-                            break;
-                    }
+                    ApplyMaskedRun(memory, store.Offset + offset, store.Data.AsSpan(offset, end - offset), store.Mask[offset]);
                     offset = end;
                 }
             }
-            NativeBattleLogicalOrdering result = links.ToImmutable();
-            memory.CommitCheckpoint();
-            banks[bank] = memory;
-            cursors[bank] = cursor;
-            return result;
+            return Commit(bank, cursor, links, memory);
         }
         catch
         {
-            if (memory.HasCheckpoint)
-            {
-                memory.RollbackCheckpoint();
-            }
-            if (retained is null)
-            {
-                memory.Dispose();
-            }
+            Rollback(memory, retained);
             throw;
+        }
+    }
+
+    private NativeBattleLogicalOrdering Commit(int bank, int cursor, NativeBattleLogicalOrdering.Builder links, NativeBattleWorkingMemory memory)
+    {
+        NativeBattleLogicalOrdering result = links.ToImmutable();
+        memory.CommitCheckpoint();
+        banks[bank] = memory;
+        cursors[bank] = cursor;
+        return result;
+    }
+
+    private static void Rollback(NativeBattleWorkingMemory memory, NativeBattleWorkingMemory? retained)
+    {
+        if (memory.HasCheckpoint)
+        {
+            memory.RollbackCheckpoint();
+        }
+        if (retained is null)
+        {
+            memory.Dispose();
+        }
+    }
+
+    private static void ApplyMaskedRun(NativeBattleWorkingMemory memory, int address, ReadOnlySpan<byte> data, NativeBattleGfPacketByteState state)
+    {
+        switch (state)
+        {
+            case NativeBattleGfPacketByteState.Known:
+                memory.Write(address, data);
+                break;
+            case NativeBattleGfPacketByteState.Unknown:
+                memory.MarkUnknown(address, data.Length);
+                break;
         }
     }
 
@@ -199,9 +263,16 @@ internal sealed class NativeBattleHostedModelPackets
 
     private static void ValidateMask(ImmutableArray<NativeBattleGfPacketByteState> mask, int length)
     {
-        if (mask.IsDefault || mask.Length != length || mask.Any(value => value is not (NativeBattleGfPacketByteState.Known or NativeBattleGfPacketByteState.Unknown or NativeBattleGfPacketByteState.Untouched)))
+        if (mask.IsDefault || mask.Length != length)
         {
             throw new InvalidDataException("Hosted model packet requires an explicit byte write mask matching its extent.");
+        }
+        foreach (NativeBattleGfPacketByteState state in mask)
+        {
+            if (state is not (NativeBattleGfPacketByteState.Known or NativeBattleGfPacketByteState.Unknown or NativeBattleGfPacketByteState.Untouched))
+            {
+                throw new InvalidDataException("Hosted model packet contains an invalid byte write mask state.");
+            }
         }
     }
 

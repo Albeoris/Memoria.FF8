@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -11,25 +10,25 @@ public sealed class NativeBattleHostedModelPacketsTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Linked_mask_reuses_known_prefix_and_rewrites_only_changed_link_bytes(bool changePrefix)
+    public void Linked_store_publishes_known_link_bytes_regardless_of_the_original_mask(bool changePrefix)
     {
         NativeBattleGeometryPrimitive triangle = Triangle(0x80);
         ImmutableArray<NativeBattleGfPacketByteState> original = triangle.PhysicalWriteMask!.Value;
         ImmutableArray<NativeBattleGfPacketByteState> input = changePrefix
             ? original.SetItem(0, NativeBattleGfPacketByteState.Unknown).SetItem(2, NativeBattleGfPacketByteState.Untouched)
             : original;
-        NativeBattleCommonPacketStore store = NativeBattleCommonPacketArena.CreateLinkedPrimitiveStore(0, triangle with { PhysicalWriteMask = input }, 0x123456);
-        Assert.Equal(original.ToArray(), store.Mask.ToArray());
-        Assert.Equal(new byte[] { 0x56, 0x34, 0x12, (byte)(triangle.Words[0] >> 24) }, store.Data.Take(4).ToArray());
+        NativeBattleHostedModelPackets packets = new();
+        NativeBattlePrimitiveProcess process = Process();
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        int previousRoot = ordering.Table[triangle.Bucket].Index;
+        uint link = checked(0x1D8E058u + 4u * (uint)previousRoot);
+        ordering = packets.Append(process, ordering, [triangle with { PhysicalWriteMask = input }]);
+        NativeBattlePrimitiveReference reference = Assert.Single(ordering.Packets).Reference;
+        Assert.Equal(new[] { (byte)link, (byte)(link >> 8), (byte)(link >> 16), (byte)(triangle.Words[0] >> 24) }, packets.Read(reference, 4));
         if (changePrefix)
         {
-            Assert.NotSame(ImmutableCollectionsMarshal.AsArray(input), ImmutableCollectionsMarshal.AsArray(store.Mask));
             Assert.Equal(NativeBattleGfPacketByteState.Unknown, input[0]);
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, input[2]);
-        }
-        else
-        {
-            Assert.Same(ImmutableCollectionsMarshal.AsArray(input), ImmutableCollectionsMarshal.AsArray(store.Mask));
         }
     }
 

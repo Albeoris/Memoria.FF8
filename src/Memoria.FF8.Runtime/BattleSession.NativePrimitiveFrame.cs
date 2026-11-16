@@ -256,7 +256,9 @@ public sealed partial class BattleSession
         NativeBattleLogicalOrdering pending = frame.Pending.SelectTable(buffer);
         ImmutableArray<NativeBattleLogicalResolvedCommand> commands = [];
         ImmutableArray<NativeBattlePcTextureWindowPixels>? textureSnapshots = null;
-        if ((graphics.Flags & 4) != 0)
+        bool drew = (graphics.Flags & 4) != 0;
+        bool clearRoots = process.DisableTableReset != true;
+        if (drew)
         {
             NativeBattlePcTextureWindowCache cache = process.TextureWindowCache ?? throw new NotSupportedException("Native500900 requires its retained PC window-cache owner; explicitly reset it in a separately named snapshot migration.");
             NativeBattleSoftwarePrimitiveState software = process.Software ?? throw new NotSupportedException("Native500900 requires its retained software drawing owners; migrate the named snapshot explicitly.");
@@ -273,7 +275,7 @@ public sealed partial class BattleSession
             textureSnapshots = execution.TextureSnapshots;
             process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache, Software = execution.State };
             memory = memory with { Textures = execution.Textures };
-            pending = pending.ResetAfterDraw45D080();
+            pending = pending.ResetAfterDraw45D080(clearRoots);
         }
         ImmutableArray<int?>.Builder blends = ImmutableArray.CreateBuilder<int?>(graphics.ModuleDraws.Length);
         for (int index = 0; index < graphics.ModuleDraws.Length; index++)
@@ -282,7 +284,7 @@ public sealed partial class BattleSession
             blends.Add(modes.Length == 1 ? modes[0] : null);
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.Reset500900(graphics.Flags) };
-        if (process.DisableTableReset != true)
+        if (!drew && clearRoots)
         {
             pending = pending.ClearRoots45D550();
         }

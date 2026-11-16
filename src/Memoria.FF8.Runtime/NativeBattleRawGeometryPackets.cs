@@ -71,17 +71,17 @@ public static class NativeBattleRawGeometryPackets
 
     private sealed class CapturedWorldVertices(ImmutableArray<NativeBattleRawVertex> vertices, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection) : IReadOnlyList<System.Numerics.Vector3>
     {
-        private readonly Dictionary<int, System.Numerics.Vector3> values = [];
+        private readonly System.Numerics.Vector3?[] values = new System.Numerics.Vector3?[vertices.Length];
         public int Count => vertices.Length;
         public System.Numerics.Vector3 this[int index]
         {
             get
             {
-                if (!values.TryGetValue(index, out System.Numerics.Vector3 value))
+                if (values[index] is not System.Numerics.Vector3 value)
                 {
                     NativeBattleRawVertex vertex = vertices[index];
                     value = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrices[vertex.Bone], vertex.Position), projection);
-                    values.Add(index, value);
+                    values[index] = value;
                 }
                 return value;
             }

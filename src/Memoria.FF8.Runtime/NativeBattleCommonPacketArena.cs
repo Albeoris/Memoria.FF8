@@ -33,14 +33,7 @@ public static class NativeBattleCommonPacketArena
         }
     }
 
-    // The hosted body transaction has no physical reader between the packet stores and the
-    // accepted OT link. Publish their combined final write while retaining every other byte's mask.
-    internal static NativeBattleCommonPacketStore CreateLinkedPrimitiveStore(int address, NativeBattleGeometryPrimitive primitive, uint headerLink)
-    {
-        return CreatePrimitiveStore(address, primitive, headerLink);
-    }
-
-    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleGeometryPrimitive primitive, uint? headerLink = null)
+    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleGeometryPrimitive primitive)
     {
         byte[] data = new byte[checked(4 * primitive.Words.Length)];
         ImmutableArray<NativeBattleGfPacketByteState> mask;
@@ -56,18 +49,6 @@ public static class NativeBattleCommonPacketArena
         {
             // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores.
             mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, data.Length).ToImmutableArray();
-        }
-        if (headerLink is uint link)
-        {
-            data[0] = (byte)link;
-            data[1] = (byte)(link >> 8);
-            data[2] = (byte)(link >> 16);
-            if (mask[0] != NativeBattleGfPacketByteState.Known || mask[1] != NativeBattleGfPacketByteState.Known || mask[2] != NativeBattleGfPacketByteState.Known)
-            {
-                NativeBattleGfPacketByteState[] finalMask = mask.ToArray();
-                KnownLinkMask.AsSpan().CopyTo(finalMask);
-                mask = ImmutableCollectionsMarshal.AsImmutableArray(finalMask);
-            }
         }
         return new(address, ImmutableCollectionsMarshal.AsImmutableArray(data), mask);
     }

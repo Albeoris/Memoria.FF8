@@ -158,7 +158,17 @@ public sealed partial record NativeBattlePcTextureWindowCache([property: JsonReq
     public NativeBattlePcTextureWindowCache Flush465930()
     {
         Validate();
-        return this with { Rows = Rows.Select(row => row with { UsedMask = 0, AlternateMask = 0 }).ToImmutableArray() };
+        ImmutableArray<NativeBattlePcTextureWindowRow>.Builder? rows = null;
+        for (int index = 0; index < Rows.Length; index++)
+        {
+            NativeBattlePcTextureWindowRow row = Rows[index];
+            if ((row.UsedMask | row.AlternateMask) != 0)
+            {
+                rows ??= Rows.ToBuilder();
+                rows[index] = row with { UsedMask = 0, AlternateMask = 0 };
+            }
+        }
+        return rows is null ? this : this with { Rows = rows.MoveToImmutable() };
     }
 
     public NativeBattlePcTextureWindowCache Invalidate464850(int left, int top, int right, int bottom, NativeBattleEffectTextureState? priorTextures = null)

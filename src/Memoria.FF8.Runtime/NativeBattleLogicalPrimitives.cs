@@ -174,7 +174,11 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
 
     public NativeBattleLogicalOrdering ResetAfterDraw45D080()
     {
-        RequireOwner().ResetAfterDraw();
+        return ResetAfterDraw45D080(clearRoots: false);
+    }
+    internal NativeBattleLogicalOrdering ResetAfterDraw45D080(bool clearRoots)
+    {
+        RequireOwner().ResetAfterDraw(clearRoots);
         return this;
     }
     public NativeBattleLogicalOrdering ClearRoots45D550()
@@ -726,27 +730,55 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
 
 
-        internal void ResetAfterDraw() => Run(ResetAfterDrawCore, ResetAfterDraw);
-        private void ResetAfterDrawCore()
+        internal void ResetAfterDraw(bool clearRoots)
         {
-            for (int index = 0; index < packets.Count; index++)
+            Run(() =>
             {
-                NativeBattleLogicalPacket packet = packets[index];
-                if (!packet.RequiresPhysicalRead)
+                bool discardPackets = clearRoots && OtherTableHasNoPackets();
+                // Both banks lose their reachability in this operation. Rollback still owns the original records.
+                if (!discardPackets)
                 {
-                    if (HasMarks)
+                    for (int index = 0; index < packets.Count; index++)
                     {
-                        packetUndo.Add((packets, index, packet));
+                        NativeBattleLogicalPacket packet = packets[index];
+                        if (!packet.RequiresPhysicalRead)
+                        {
+                            if (HasMarks)
+                            {
+                                packetUndo.Add((packets, index, packet));
+                            }
+                            packets[index] = packet with { RequiresPhysicalRead = true, AddressedNextAddress = null };
+                        }
                     }
-                    packets[index] = packet with { RequiresPhysicalRead = true, AddressedNextAddress = null };
+                }
+                proxyCursor = 0;
+                if (clearRoots)
+                {
+                    ClearRootsCore(discardPackets);
+                }
+            }, () => ResetAfterDraw(clearRoots));
+        }
+
+        internal void ClearRoots() => Run(() => ClearRootsCore(OtherTableHasNoPackets()), ClearRoots);
+
+        private bool OtherTableHasNoPackets()
+        {
+            if (!otherTablePresent || otherTableDefault || otherTable is not { Count: NativeBattlePrimitiveOrdering.BattleTableLength })
+            {
+                return false;
+            }
+            for (int index = 0; index < otherTable.Count; index++)
+            {
+                if (otherTable[index] != new NativeBattlePrimitiveLink(false, index - 1))
+                {
+                    return false;
                 }
             }
-            proxyCursor = 0;
+            return true;
         }
-        internal void ClearRoots() => Run(ClearRootsCore, ClearRoots);
-        private void ClearRootsCore()
+
+        private void ClearRootsCore(bool discardPackets)
         {
-            bool otherEmpty = otherTablePresent && !otherTableDefault && otherTable is { Count: NativeBattlePrimitiveOrdering.BattleTableLength } && otherTable.Select((link, index) => !link.Proxy && link.Index == index - 1).All(empty => empty);
             if (table.Count != NativeBattlePrimitiveOrdering.BattleTableLength)
             {
                 collectionGeneration++;
@@ -760,14 +792,15 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 }
             }
             tableDefault = false;
-            if (otherEmpty)
+            if (discardPackets)
             {
                 collectionGeneration++;
                 //A real native clear may discard these unreachable packet identities. Keep rollback containers private.
                 if (HasMarks)
                 {
-                    packets = [];
-                    packetIndices = [];
+                    // The previous extent estimates the next draw without exposing its rollback containers.
+                    packets = new(packets.Count);
+                    packetIndices = new(packetIndices.Count);
                     packetRanges = [];
                 }
                 else

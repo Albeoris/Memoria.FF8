@@ -103,7 +103,10 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         foreach ((string actorId, NativeBattlePresentationTextureBank bank) in banks.OrderBy(entry => entry.Key, StringComparer.Ordinal))
         {
             NativeBattlePcTextureWindowCache cache = update(bank.Cache);
-            Textures = Textures.WithPresentationTexture(actorId, bank with { Cache = cache });
+            if (!ReferenceEquals(cache, bank.Cache))
+            {
+                Textures = Textures.WithPresentationTexture(actorId, bank with { Cache = cache });
+            }
         }
     }
 
@@ -299,8 +302,10 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
 
         PublishImage();
-        NativeBattlePcTextureWindowCache cache = GetTextureCache(command) ?? throw new NotSupportedException("Native textured draw requires its current resource cache.");
-        NativeBattleEffectTextureState textureSource = command.ModelTextureOwner is { } owner ? RequireModelTexture(owner).Textures : Textures;
+        NativeBattlePresentationTextureBank? bank = command.ModelTextureOwner is { } owner ? RequireModelTexture(owner) : null;
+        NativeBattlePcTextureWindowCache global = RequireGlobalCache();
+        NativeBattlePcTextureWindowCache cache = bank?.Cache ?? global;
+        NativeBattleEffectTextureState textureSource = bank?.Textures ?? Textures;
         NativeBattlePcTextureWindowPixels pixels = cache.PixelWords(selection) ?? NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), textureSource);
         if (!textureSnapshotIndices.TryGetValue(pixels, out int index))
         {

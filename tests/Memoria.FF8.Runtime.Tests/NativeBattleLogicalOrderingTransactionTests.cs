@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -139,6 +140,40 @@ public sealed class NativeBattleLogicalOrderingTransactionTests
         Assert.Empty(original.Proxies);
         Assert.NotEmpty(source.Proxies);
         Assert.Equal(prefix, JsonSerializer.Serialize(first));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Draw_reset_and_clear_preserve_the_other_bank_and_roll_back_together(bool otherBankLinked)
+    {
+        NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear();
+        ImmutableArray<uint> words = [0x04000000, 0x20010203, 1, 2, 3];
+        if (otherBankLinked)
+        {
+            source.SelectTable(1).Prepend(20, new("20DFAB8", 1, 100), words, 0, []);
+        }
+        source.SelectTable(0).Prepend(20, new("20DFAB8", 0, 100), words, 0, []);
+        NativeBattleLogicalOrdering before = NativeBattleStorageSnapshots.Capture(source);
+        NativeBattleLogicalOrdering sequential = NativeBattleStorageSnapshots.Fork(before);
+        sequential.ResetAfterDraw45D080().ClearRoots45D550();
+
+        using NativeBattleLogicalOrderingTransaction transaction = new(source);
+        transaction.BeginCheckpoint();
+        transaction.View.ResetAfterDraw45D080(clearRoots: true);
+        Assert.Equal(Receipt(sequential), Receipt(transaction.View));
+        Assert.Equal(0, transaction.View.ProxyCursor);
+        if (otherBankLinked)
+        {
+            Assert.All(transaction.View.Packets, packet => Assert.True(packet.RequiresPhysicalRead));
+        }
+        else
+        {
+            Assert.Empty(transaction.View.Packets);
+        }
+        transaction.RollbackCheckpoint();
+        Assert.Equal(Receipt(before), Receipt(transaction.Freeze()));
+        Assert.All(before.Packets, packet => Assert.False(packet.RequiresPhysicalRead));
     }
 
     [Fact]
