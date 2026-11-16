@@ -45,6 +45,7 @@ internal abstract partial record BattleExecutionReference
     internal sealed record Header(BattleActionHeaderReference Reference) : BattleExecutionReference;
     internal sealed record Cursor(BattleContactCursor Reference) : BattleExecutionReference;
     internal sealed record Occurrence(BattleContactOccurrence Reference) : BattleExecutionReference;
+    internal sealed record CinematicOriginalCell(NativeBattleModelSlot Slot) : BattleExecutionReference;
 
     internal sealed record ContactCount : BattleExecutionReference
     {

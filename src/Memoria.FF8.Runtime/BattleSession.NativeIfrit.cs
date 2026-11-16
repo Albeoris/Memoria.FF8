@@ -610,7 +610,19 @@ public sealed partial class BattleSession
                         uint sound = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
                         PublishNativeModuleSound(new(sound, unchecked((uint)(int)argument), null) { Pan = pan, RawPan = pan });
                         return frame;
-                    }) { UpdateSlot = UpdateSlot });
+                    })
+                    {
+                        UpdateSlot = UpdateSlot,
+                        ReadOriginalFlags = slot => graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels).Flags0,
+                        WriteOriginalFlags = (frame, slot, flags) =>
+                        {
+                            NativeBattleGraphicsModel updated = graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels) with { Flags0 = flags };
+                            graphics = graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is { } bound
+                                ? graphics with { ActorModels = graphics.ActorModels.Set(bound, updated) }
+                                : graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(slot, updated) };
+                            return frame;
+                        }
+                    });
                 case 0x52:
                     return NativeBattleWaterTextureMetadata.Execute52AA3A60(current, resources);
                 case 0x13D:

@@ -145,6 +145,43 @@ public sealed class NativeBattleWaterPresentationCommandsTests
         Assert.Equal(Address(0x1004), Pc(result));
     }
 
+    [Theory]
+    [InlineData(0x0045, 0x8007)]
+    [InlineData(0x8045, 0x8003)]
+    public void Inline_selector_and_flags_operate_on_unbound_original_model_cells(ushort flagsInstruction, ushort expected)
+    {
+        const uint header = NativeBattleScriptedEffectMemory.Address;
+        NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(1);
+        BattleModelOwner caster = OriginalOwner(4);
+        BattleModelRoster roster = new([caster]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(4), caster)]);
+        NativeBattleWaterExecutionFrame frame = Fixture(0x1064, 1, flagsInstruction, 4);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x279744C, header);
+        frame = WaterSchedulerFixture.CoreDword(frame, header + 0x64, NativeBattleGraphicsModelAddress.EncodeOriginalCell(slot));
+        frame = WaterSchedulerFixture.CoreWord(frame, header + 0x50, 2);
+        frame = NativeBattleCinematicActorSelector64.Execute(frame, new(0x1000, 8, Address(0x1000)), caster, aliases);
+        Assert.Equal((byte)1, frame.Arena.Read(0x201B, 1)[0]);
+
+        ushort written = 0;
+        var services = Services() with
+        {
+            ReadOriginalFlags = selected =>
+            {
+                Assert.Equal(slot, selected);
+                return 0x8003;
+            },
+            WriteOriginalFlags = (value, selected, flags) =>
+            {
+                Assert.Equal(slot, selected);
+                written = flags;
+                return value;
+            }
+        };
+        NativeBattleWaterExecutionFrame result = Execute(frame.WriteTemporaryWord(0x14A, flagsInstruction), services);
+        Assert.Equal(expected, written);
+        Assert.Equal(Address(0x1008), Pc(result));
+    }
+
     [Fact]
     public void ConditionalFlagNoWriteDefersCurrentFlagsButUnsupportedModeStillConsumesCapturedOwners()
     {

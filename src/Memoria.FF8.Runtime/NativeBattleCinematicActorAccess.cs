@@ -21,6 +21,16 @@ public static class NativeBattleCinematicActorAccess
         return frame with { Arena = WriteActorOperand(frame.Arena, SlotOffset(frame, 0x1B, 1), actor, aliases.EncodeOperand(actor, 1)) };
     }
 
+    internal static NativeBattleWaterExecutionFrame WriteSlotOriginalCell(NativeBattleWaterExecutionFrame frame, NativeBattleModelSlot slot)
+    {
+        return frame with { Arena = frame.Arena.WriteExecutionReference(SlotOffset(frame, 0x1B, 1), 1, new BattleExecutionReference.CinematicOriginalCell(slot), [slot.Offset]) };
+    }
+
+    internal static NativeBattleModelSlot? ReadSlotOriginalCell(NativeBattleWaterExecutionFrame frame)
+    {
+        return frame.Arena.TryReadExecutionReference<BattleExecutionReference.CinematicOriginalCell>(SlotOffset(frame, 0x1B, 1), 1, out var selected) ? selected.Slot : null;
+    }
+
     internal static NativeBattleEffectArena WriteActorOperand(NativeBattleEffectArena arena, int offset, BattleModelOwner actor, ImmutableArray<byte>? encoded)
     {
         BattleExecutionReference.Model reference = new(actor);

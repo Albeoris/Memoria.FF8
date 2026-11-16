@@ -154,7 +154,7 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.True(retainedCaster.Hidden);
         Assert.True(retainedCaster.Suspended);
         SaveNext("target-allocation-ready");
-        Invoke(session, "QueueNativeActivation", 4);
+        Invoke(session, "QueueNativeActivation", new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(4));
         AssertDescriptor(session.Capture(), 113, 0x487670);
         SaveNext("caster-activation-pending");
         int activationCallbacks = Drain();

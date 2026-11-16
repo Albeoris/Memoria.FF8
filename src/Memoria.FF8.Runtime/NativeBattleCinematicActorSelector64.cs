@@ -13,15 +13,17 @@ public static class NativeBattleCinematicActorSelector64
             throw new NotSupportedException("Native actor selector requires its selected instruction.");
         }
         BattleModelOwner actor;
-        uint size = 2;
         if ((instruction & 0x8000) != 0)
         {
             actor = source;
         }
         else if ((instruction & 0x1000) != 0)
         {
-            actor = aliases.DecodeLiteral(NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0]);
-            size = 4;
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0]);
+            frame = aliases.FindOriginalOwner(slot) is { } bound
+                ? NativeBattleCinematicActorAccess.WriteSlotActor(frame, bound, aliases)
+                : NativeBattleCinematicActorAccess.WriteSlotOriginalCell(frame, slot);
+            return NativeBattleScriptedCommandReads.Advance(frame, 4);
         }
         else
         {
@@ -29,6 +31,6 @@ public static class NativeBattleCinematicActorSelector64
             actor = NativeBattleCinematicActorAccess.ReadCurrentActor(frame, 0, owner);
         }
         frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, actor, aliases);
-        return NativeBattleScriptedCommandReads.Advance(frame, size);
+        return NativeBattleScriptedCommandReads.Advance(frame, 2);
     }
 }

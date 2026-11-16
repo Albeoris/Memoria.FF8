@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleWaterPresentationServices(Func<NativeBattleWaterExecutionFrame, BattleModelOwner, ushort> ReadActorFlags, Func<NativeBattleWaterExecutionFrame, BattleModelOwner, ushort, NativeBattleWaterExecutionFrame> WriteActorFlags, Func<NativeBattleWaterExecutionFrame, uint, short, byte, NativeBattleWaterExecutionFrame> PlaySound501330)
 {
     public Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame>? UpdateSlot { get; init; }
+    internal Func<NativeBattleModelSlot, ushort>? ReadOriginalFlags { get; init; }
+    internal Func<NativeBattleWaterExecutionFrame, NativeBattleModelSlot, ushort, NativeBattleWaterExecutionFrame>? WriteOriginalFlags { get; init; }
 }
 
 /// <summary>Selected draw registration, cached actor position, actor flags and sound commands.</summary>
@@ -57,22 +59,39 @@ public static class NativeBattleWaterPresentationCommands
                 frame = frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, currentIndex) };
                 return Advance(2);
             case 0x45:
-                BattleModelOwner flagActor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
                 uint flagHeader = CoreDword(frame, 0x279744C);
-                int prior = unchecked((short)NativeBattleCinematicActorAccess.ReadCachedFlags0(frame, flagActor, flagHeader));
                 int mask = unchecked((short)Word(unchecked(pc + 2)));
                 int mode = instruction >> 12;
                 if (mode != 0 && mode != 1 && mode != 8)
                 {
                     throw new NotSupportedException("Native selected actor flags require modes zero, one or eight.");
                 }
-                if (mode != 1 || (mask & prior) == 0)
+                if (NativeBattleCinematicActorAccess.ReadSlotOriginalCell(frame) is { } cell)
                 {
-                    ushort flags = services.ReadActorFlags(frame, flagActor);
-                    ushort output = mode == 0 ? unchecked((ushort)(flags | mask)) : unchecked((ushort)(flags & ~mask));
-                    frame = services.WriteActorFlags(frame, flagActor, output);
+                    uint address = CoreDword(frame, flagHeader + 0x60 + 4u * cell.Offset);
+                    if (address != NativeBattleGraphicsModelAddress.EncodeOriginalCell(cell))
+                    {
+                        throw new InvalidDataException("Native cinematic flags require their captured original model cell pointer.");
+                    }
+                    ushort savedFlags = CoreWord(frame, flagHeader + 0x4E + 2u * cell.Offset);
+                    if (mode != 1 || (mask & savedFlags) == 0)
+                    {
+                        ushort flags = (services.ReadOriginalFlags ?? throw new NotSupportedException("Native cinematic flags require their current original model cell."))(cell);
+                        frame = (services.WriteOriginalFlags ?? throw new NotSupportedException("Native cinematic flags require their original model cell writer."))(frame, cell, ApplyFlags(flags));
+                    }
+                }
+                else
+                {
+                    BattleModelOwner flagActor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
+                    ushort savedFlags = NativeBattleCinematicActorAccess.ReadCachedFlags0(frame, flagActor, flagHeader);
+                    if (mode != 1 || (mask & savedFlags) == 0)
+                    {
+                        frame = services.WriteActorFlags(frame, flagActor, ApplyFlags(services.ReadActorFlags(frame, flagActor)));
+                    }
                 }
                 return Advance(4);
+
+                ushort ApplyFlags(ushort flags) => mode == 0 ? unchecked((ushort)(flags | mask)) : unchecked((ushort)(flags & ~mask));
             case 0x2B:
                 uint manager = CoreDword(frame, 0x27973EC);
                 uint directory = CoreDword(frame, unchecked(manager + 0xC4));

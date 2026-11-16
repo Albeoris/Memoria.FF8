@@ -108,4 +108,9 @@ public sealed class NativeBattleModelAliases
         }
         return owner;
     }
+
+    internal BattleModelOwner? FindOriginalOwner(NativeBattleModelSlot slot)
+    {
+        return ownersBySlot.GetValueOrDefault(slot);
+    }
 }
