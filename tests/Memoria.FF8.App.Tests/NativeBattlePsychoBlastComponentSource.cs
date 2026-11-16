@@ -47,28 +47,9 @@ internal static class NativeBattlePsychoBlastComponentSource
         {
             throw new InvalidDataException("The original effect20 activation carrier did not finish and drain before Psycho Blast preparation.");
         }
-        string sourcePath = Path.Combine(output, "activated-source.battle.json");
-        File.WriteAllText(sourcePath, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(completed)));
         NativeEffectFixtureRequest request = (NativeEffectFixtureRequest)Invoke(typeof(NativeBattlePsychoBlast23PresentationTests), "SelectOriginalFixture", assets, effect)!;
-        string? previousSource = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_SOURCE");
-        string? previousEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_EVIDENCE");
-        BattleSnapshot prepared;
-        try
-        {
-            Environment.SetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_SOURCE", sourcePath);
-            Environment.SetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_EVIDENCE", output);
-            prepared = (BattleSnapshot)Invoke(typeof(NativeBattlePsychoBlast23PresentationTests), "PrepareStandalone", game, assets, request)!;
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_SOURCE", previousSource);
-            Environment.SetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_EVIDENCE", previousEvidence);
-        }
+        BattleSnapshot prepared = NativeBattlePsychoBlast23PresentationTests.PrepareActivatedSource(game, assets, request, NativeBattleStorageSnapshots.Capture(completed));
         File.WriteAllText(Path.Combine(output, "activation-preparation.json"), JsonSerializer.Serialize(new { Scope = "Original effect20 activation followed by existing Psycho Blast component preparation; no ordinary AI or formula admission", CarrierEffect = 20, CarrierCallbacks = callbacks + 1, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback, Effect = effect, request.EncounterId, request.CasterActorIndex }));
-        foreach (string snapshot in Directory.EnumerateFiles(output, "*.battle.json", SearchOption.AllDirectories))
-        {
-            File.Delete(snapshot);
-        }
         return prepared;
     }
 

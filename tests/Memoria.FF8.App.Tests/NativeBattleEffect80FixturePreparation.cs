@@ -241,7 +241,7 @@ internal static class NativeBattleEffect80FixturePreparation
             BattleSnapshot snapshot = session.Capture();
             Save(name, snapshot);
             string json = JsonSerializer.Serialize(snapshot);
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
+            BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot));
             Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
             session.Tick();
             restored.Tick();

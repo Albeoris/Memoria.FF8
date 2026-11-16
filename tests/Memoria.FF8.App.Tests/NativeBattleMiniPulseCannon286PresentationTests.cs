@@ -37,8 +37,7 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
     {
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MINIPULSECANNON286_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Mini Pulse Cannon component.");
         NativeEffectFixtureRequest baselineRequest = new("mini-pulse286-baseline", 101, 8, 290, 0, 1200, 240) { EncounterId = 431, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0 };
-        _ = NativeBattleEffectFixtureExporter.Export(baselineRequest, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "before-entry.battle.json"));
+        BattleSnapshot original = NativeBattleEffectFixtureExporter.Prepare(baselineRequest, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"), "before-entry").Snapshot;
         (BattleSnapshot ready, int allocatedActor) = NativeBattleMiniPulseCannon286FixturePreparation.Prepare(game, assets, original, output);
         Assert.InRange(allocatedActor, 3, 6);
         BattleCombatantSnapshot target = ready.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);

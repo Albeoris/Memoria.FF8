@@ -53,8 +53,7 @@ public sealed class NativeBattleJunk44PresentationTests
     private static BattleSnapshot PrepareDeclaredSource(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request)
     {
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNK44_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Junk component.");
-        _ = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "before-entry.battle.json"));
+        BattleSnapshot original = NativeBattleEffectFixtureExporter.Prepare(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"), "before-entry").Snapshot;
         (BattleSnapshot ready, int allocatedActor) = NativeBattleJunk44FixturePreparation.Prepare(game, assets, original, output);
         Assert.InRange(allocatedActor, 3, 6);
         BattleCombatantSnapshot target = ready.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);

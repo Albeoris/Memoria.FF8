@@ -101,7 +101,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.Equal(allocated.Id, ReadOriginalModelActorId(loaded.NativeGraphics!, actualIndex));
         Assert.NotNull(ReadOriginalModelCell(loaded.NativeGraphics!, actualIndex).ActiveResourceRow100);
         Save("allocation-ready-52-false", loaded);
-        BattleSnapshot coldLoaded = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "allocation-ready-52-false.battle.json"))).Capture();
+        BattleSnapshot coldLoaded = NativeBattleStorageSnapshots.Capture(loaded);
         Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(coldLoaded));
         BattleSnapshot ready = Activate(session, "activation", out int activationCallbacks);
         BattleSnapshot replay = Activate(BattleSession.Restore(coldLoaded), "cold-activation", out int coldActivationCallbacks);
@@ -139,7 +139,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.False(dormantOther.Active);
         Assert.True(dormantOther.Hidden && dormantOther.Untargetable && dormantOther.Suspended);
         Save("allocation-ready", ready);
-        Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "allocation-ready.battle.json"))).Capture()));
+        Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready)).Capture()));
         File.WriteAllText(Path.Combine(output, "allocation-events.json"), JsonSerializer.Serialize(session.Events));
         File.WriteAllText(Path.Combine(output, "allocation-receipt.json"), JsonSerializer.Serialize(new { Scenario = "Controlled original scene0 allocation52(false), actual load/statistics readiness, then actual53 native activation; no ordinary AI turn, action290 visual or Mini Pulse Cannon effect execution", FormationId = formation.Id, formation.StageId, OriginalPrototypes = formation.Slots.Where(slot => slot.Slot is 0 or 2).ToArray(), AllocationId = allocation.Id, allocation.SceneSlot, CasterActorIndex = actualIndex, EntryCallbacks = entryCallbacks, AllocationCallbacks = allocationCallbacks, ActivationCallbacks = activationCallbacks, ColdActivationCallbacks = coldActivationCallbacks, BoneCount = pose.BoneCount, SelectedBone = 2, CurrentBone2 = selected, CurrentWorld = model.GeometryWorldMatrix, SkeletonSha256 = model.CurrentBodyBoneMatrices!.SkeletonSha256 }));
         return (ready, actualIndex);

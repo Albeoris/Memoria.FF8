@@ -38,6 +38,11 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input);
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_EVIDENCE") ?? throw new InvalidDataException("Select a distinct evidence directory.");
         File.WriteAllText(Path.Combine(output, "standalone-input.json"), JsonSerializer.Serialize(new { Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))), source.Frame, NativeCallback = source.NativeGraphics?.Callback, Scenario = "Original activated caster standalone; controlled seven-HP post-formula packet; no ordinary action or formula claim" }));
+        return PrepareActivatedSource(game, assets, request, source);
+    }
+
+    internal static BattleSnapshot PrepareActivatedSource(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request, BattleSnapshot source)
+    {
         Assert.Equal(63, source.Definition.EncounterId);
         Assert.Null(source.ActiveAction);
         Assert.Empty(source.QueuedActions);
@@ -75,7 +80,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         packets.Validate();
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
+        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleRetainedMemory retained = source.Definition.NativeRetainedMemory ?? throw new InvalidDataException("The standalone lacks its retained definition mirror.");
         BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors }, Definition = source.Definition with { NativeEffectCatalog = catalog, NativeRetainedMemory = retained with { ActionPackets = packets.ExportRetained() } } };
         Assert.Equal(JsonSerializer.Serialize(source.Combatants), JsonSerializer.Serialize(prepared.Combatants));

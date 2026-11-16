@@ -37,8 +37,7 @@ public sealed class NativeBattleEvilEye282PresentationTests
     {
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EVILEYE282_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Evil-Eye component.");
         NativeEffectFixtureRequest baselineRequest = new("evil-eye282-baseline", 45, 8, 84, 0, 1200, 240) { EncounterId = 436, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0 };
-        _ = NativeBattleEffectFixtureExporter.Export(baselineRequest, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "before-entry.battle.json"));
+        BattleSnapshot original = NativeBattleEffectFixtureExporter.Prepare(baselineRequest, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"), "before-entry").Snapshot;
         (BattleSnapshot ready, int allocatedActor) = NativeBattleEvilEye282FixturePreparation.Prepare(game, assets, original, output);
         Assert.InRange(allocatedActor, 3, 6);
         BattleCombatantSnapshot target = ready.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
