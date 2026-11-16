@@ -88,21 +88,11 @@ public sealed partial class BattleSession
         {
             bool weaponTrigger = acknowledgeTrigger is not null && (header.Command is 1 or 12 or 28 || renzokuken is not null);
             bool guardianBoost = acknowledgeGuardian is not null && header.Command == 254;
-            if (!weaponTrigger && !guardianBoost || !replacements.Any(packet => packet.Primary is { Sequence: 0, PresentedAmount: 0 }))
+            if (!weaponTrigger && !guardianBoost)
             {
-                throw new InvalidDataException("Routed graphics contacts require an admitted deferred formula and its resolved zero-damage source contact.");
+                throw new InvalidDataException("Routed graphics contacts require an admitted deferred formula.");
             }
-            foreach (NativeBattleContactPacket packet in routed)
-            {
-                packet.Validate();
-                if (packet.Occurrence is not null || packet.Secondary is not null || !roster.Contains(packet.Primary.Recipient) || packet.Primary.PresentedAmount <= 0 ||
-                    weaponTrigger && packet.Primary.Recipient == replacements[0].Primary.Recipient)
-                {
-                    throw new InvalidDataException("A routed graphics contact requires its own allocated damage recipient.");
-                }
-            }
-            replacementGraphics ??= graphics;
-            replacementGraphics = replacementGraphics with { PendingContacts = replacementGraphics.PendingContacts.AddRange(routed) };
+            replacementGraphics = QueuePreparedRoutedGraphicsContacts(replacementGraphics ?? graphics, roster, replacements, routed, weaponTrigger);
         }
         if (append.IsDefault)
         {
@@ -120,6 +110,28 @@ public sealed partial class BattleSession
         }
         (replacement, ImmutableArray<BattleActionHeaderReference> appended) = native.AppendHostedHeaders(graphics, replacement, append, publishEventHeaders: true, admission?.Replacement ?? hostedModelRegistry);
         return new(this, invocation, originalGraphics, hostedPreparationEpoch, packets, replacement, replacementGraphics, appended, acknowledgeGuardian, admission, renzokuken, guardianForm);
+    }
+
+    private static NativeBattleGraphicsState QueuePreparedRoutedGraphicsContacts(NativeBattleGraphicsState graphics, BattleModelRoster roster, ImmutableArray<NativeBattleContactPacket> resolved, ImmutableArray<NativeBattleContactPacket> routed, bool singleSource = false)
+    {
+        if (routed.IsDefaultOrEmpty)
+        {
+            return graphics;
+        }
+        if (!resolved.Any(packet => packet.Primary is { Sequence: 0, PresentedAmount: 0 }))
+        {
+            throw new InvalidDataException("Routed graphics contacts require their resolved zero-damage source contact.");
+        }
+        foreach (NativeBattleContactPacket packet in routed)
+        {
+            packet.Validate();
+            if (packet.Occurrence is not null || packet.Secondary is not null || !roster.Contains(packet.Primary.Recipient) || packet.Primary.PresentedAmount <= 0 ||
+                singleSource && packet.Primary.Recipient == resolved[0].Primary.Recipient)
+            {
+                throw new InvalidDataException("A routed graphics contact requires its own allocated damage recipient.");
+            }
+        }
+        return graphics with { PendingContacts = graphics.PendingContacts.AddRange(routed) };
     }
 
     internal void ValidatePreparedHostedContactReplacement(PreparedHostedContactReplacement prepared)

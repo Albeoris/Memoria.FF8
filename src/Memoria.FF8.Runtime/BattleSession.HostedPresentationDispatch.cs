@@ -98,6 +98,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("The finisher formula must replace its exact pending command250 contact range.");
             }
             packets = original.ReplaceHeaderContacts(reached.Header, replacement.Contacts);
+            graphics = QueuePreparedRoutedGraphicsContacts(graphics, roster, replacement.Contacts, replacement.Routed);
         }
         if (!packets.Roster.Owners.SequenceEqual((allocationRegistry?.Original.Roster ?? roster).Owners))
         {

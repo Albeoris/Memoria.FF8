@@ -37,7 +37,7 @@ public sealed class NativeBattleHostedRenzokukenTests
         NativeBattleRenzokukenFinisherReached receipt = new(owner, finisher, 1, 2);
         Field("pendingHostedRenzokukenFinisher").SetValue(child, receipt);
         NativeBattleContactPacket[] replacements = Enumerable.Range(1, 3).Select(amount => contact with { Primary = contact.Primary with { Amount6 = checked((ushort)amount) } }).ToArray();
-        var update = new BattleSession.HostedRenzokukenFinisherReplacement(receipt, packets, packets.ReadHeader(finisher).FirstContact, replacements.ToImmutableArray());
+        var update = new BattleSession.HostedRenzokukenFinisherReplacement(receipt, packets, packets.ReadHeader(finisher).FirstContact, replacements.ToImmutableArray(), []);
 
         Assert.Throws<InvalidOperationException>(() => child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update with { Receipt = receipt with { Serial = 3 } }));
         Assert.Throws<InvalidDataException>(() => child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update with { Contacts = [contact] }));

@@ -24,7 +24,7 @@ internal sealed record NativeBattleRenzokukenFinisherReached(HostedRenzokukenOwn
 public sealed partial class BattleSession
 {
     private sealed record HostedRenzokukenCandidateProof(BattleSnapshot Snapshot, ExpandedHostedEvent Event, NativeBattleTriggerReceipt? Trigger, NativeBattleRenzokukenFinisherReached? Finisher) : HostedCandidateProof;
-    internal sealed record HostedRenzokukenFinisherReplacement(NativeBattleRenzokukenFinisherReached Receipt, NativeBattleActionPacketsState Packets, BattleContactCursor FirstContact, ImmutableArray<NativeBattleContactPacket> Contacts);
+    internal sealed record HostedRenzokukenFinisherReplacement(NativeBattleRenzokukenFinisherReached Receipt, NativeBattleActionPacketsState Packets, BattleContactCursor FirstContact, ImmutableArray<NativeBattleContactPacket> Contacts, ImmutableArray<NativeBattleContactPacket> Routed);
 
     private NativeBattleRenzokukenFinisherReached? pendingHostedRenzokukenFinisher;
     internal NativeBattleRenzokukenFinisherReached? PendingHostedRenzokukenFinisher => pendingHostedRenzokukenFinisher;
@@ -488,9 +488,9 @@ public sealed partial class BattleSession
         candidate.producingExpandedAiCallback = true;
         ExpandedAiInvocationReservation reservation = new(invocation.Header.Source, invocation.Command);
         candidate.producingExpandedAiInvocation = reservation;
-        ImmutableArray<ExpandedBattleContact> contacts = candidate.ResolveExpandedHostedRenzokukenFinisher(invocation, finisher);
+        (ImmutableArray<ExpandedBattleContact> contacts, ImmutableArray<NativeBattleContactPacket> routed) = candidate.CollectDeferredRoutedGraphicsContacts(true, () => candidate.ResolveExpandedHostedRenzokukenFinisher(invocation, finisher));
         candidate.expandedOperationCursor.Operations = candidate.expandedOperationCursor.Operations.SetItem(candidate.expandedOperationCursor.Next,
-            invocation with { Contacts = contacts, EnemyDraw = candidate.TakePendingHostedEnemyDraw(), Reservation = reservation });
+            invocation with { Contacts = contacts, RoutedGraphicsContacts = routed, EnemyDraw = candidate.TakePendingHostedEnemyDraw(), Reservation = reservation });
         candidate.FlushEncounterCounterCommands();
         if (candidate.encounterCounterCommands.Count != 0)
         {
@@ -499,7 +499,7 @@ public sealed partial class BattleSession
         ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
         BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
         candidate.ValidateExpandedHostedInvocations(planned);
-        HostedRenzokukenFinisherReplacement replacement = new(receipt, packets, invocation.FirstContact, contacts.Select(contact => contact.Packet).ToImmutableArray());
+        HostedRenzokukenFinisherReplacement replacement = new(receipt, packets, invocation.FirstContact, contacts.Select(contact => contact.Packet).ToImmutableArray(), routed);
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form, renzokukenFinisher: replacement);
         PreparedHostedDispatch dispatch = prefix.Dispatch;

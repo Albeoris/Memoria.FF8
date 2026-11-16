@@ -55,16 +55,18 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.Equal(original.Random, hosted.Random);
     }
 
-    [Fact]
-    public void Renzokuken_routes_each_trigger_without_changing_its_original_contact()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Renzokuken_routes_damage_without_changing_its_original_contact(bool withFinisher)
     {
-        var original = RunRoutedRenzokuken(attached: false);
-        var hosted = RunRoutedRenzokuken(attached: true);
+        var original = RunRoutedRenzokuken(attached: false, withFinisher);
+        var hosted = RunRoutedRenzokuken(attached: true, withFinisher);
         Assert.Equal(original.Applied, hosted.Applied);
         Assert.Equal(original.Random, hosted.Random);
     }
 
-    private static (int[] Applied, byte[] Random) RunRoutedRenzokuken(bool attached)
+    private static (int[] Applied, byte[] Random) RunRoutedRenzokuken(bool attached, bool withFinisher)
     {
         const string casterId = "party-0";
         string directory = TestResources.GameDirectory;
@@ -95,7 +97,13 @@ public sealed class AuthoredRosterBattleHostTests
         {
             crisis = battle.RefreshNativeLimit(casterId);
             NativeBattleRandomState forecast = battle.Capture().Random!.Draw(out _).Draw(out byte gate);
-            if (crisis > 0 && !NativeBattleRenzokukenRules.HasFinisher(crisis, gate))
+            byte? finisher = null;
+            if (crisis > 0 && NativeBattleRenzokukenRules.HasFinisher(crisis, gate))
+            {
+                _ = forecast.Draw(out byte roll);
+                finisher = NativeBattleRenzokukenRules.Finisher(caster.NativePlayerStatRules!.WeaponRecord[2], roll);
+            }
+            if (crisis > 0 && (withFinisher ? finisher == 0 : finisher is null))
             {
                 break;
             }
@@ -116,9 +124,24 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.Equal(originalTarget, selected.Recipient);
         Assert.Equal((0, (byte)0), (selected.PresentedAmount, selected.Sequence));
         Assert.Equal(originalHp, source.CurrentHp);
+        BattleNativeRenzokukenState state = Assert.IsType<BattleNativeRenzokukenState>(battle.GetNativeRenzokuken(casterId));
+        Assert.Equal(withFinisher ? (byte?)0 : null, state.FinisherActionId);
+        int initialHits = Assert.Single(battle.ReadDefinition().NativeRenzokukenResources, resource => resource.MagicId == state.MagicId).Timeline.InputThresholds.Length;
+        if (withFinisher)
+        {
+            TickUntil(world, () => RoutedDamage().Length == initialHits + 1, "routed Rough Divide formula");
+            packets = ReadPackets();
+            NativeBattleActionHeaderSlot finisher = Assert.Single(packets.PublishedHeaders(), entry => entry.Slot.Command == 250).Slot;
+            Assert.Equal(ushort.MaxValue, finisher.Action);
+            Assert.Equal(1, finisher.ReadContactCount());
+            selected = packets.ReadContact(finisher.FirstContact).Primary;
+            Assert.Equal(originalTarget, selected.Recipient);
+            Assert.Equal((0, (byte)0), (selected.PresentedAmount, selected.Sequence));
+        }
         TickUntil(world, () => battle.GetNativeRenzokuken(casterId) is null && battle.ActiveAction is null && battle.ExpandedPresentationProcess?.HasActiveAction != true, "routed Renzokuken completion");
         int[] applied = RoutedDamage();
-        Assert.True(applied.Length > 1, $"Expected repeat routed hits. Applied {string.Join(", ", applied)} to starting HP {recipient.MaximumHp}.");
+        Assert.Equal(initialHits + (withFinisher ? 1 : 0), applied.Length);
+        Assert.Equal(originalHp, source.CurrentHp);
         if (attached)
         {
             int[] presented = battle.Events.Skip(eventsBefore).Where(entry => entry is { Kind: "EffectContact", ActorId: casterId } && entry.TargetId == recipient.Id).Select(entry => entry.Amount).ToArray();
