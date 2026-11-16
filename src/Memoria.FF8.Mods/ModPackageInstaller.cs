@@ -31,7 +31,12 @@ public sealed class ModPackageInstallPlan
     public bool RestartRequired => true;
 }
 
-public sealed record ModPackageInstallResult(Guid InstallationId, string PackageId, string Version, bool RestartRequired, bool Installed, string? Error = null);
+public sealed record ModPackageInstallResult(Guid InstallationId, string PackageId, string Version, bool RestartRequired, bool Installed, string? Error = null)
+{
+    public OfficialModComponent? Official { get; init; }
+    public string? EngineVersionRange { get; init; }
+    public bool PendingEnable { get; init; }
+}
 
 /// <summary>Prepares immutable payloads off-thread. Applies queued changes only before runtime discovery at startup.</summary>
 public sealed partial class ModPackageInstaller
@@ -40,16 +45,24 @@ public sealed partial class ModPackageInstaller
     private readonly string modsRoot;
     private readonly string targetProfile;
     private readonly bool junctionSupported;
+    private readonly string edition;
+    private readonly string language;
     private readonly ModPackageInstallLimits limits;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<Guid, Prepared> prepared = [];
-    private readonly record struct Prepared(string Root, string Payload, string Hash, long Bytes, RemoteModEntry Entry);
+    private readonly record struct Prepared(string Root, string Payload, string Hash, long Bytes, RemoteModEntry Entry)
+    {
+        public IReadOnlyList<OfficialModFile>? NativeFiles { get; init; }
+    }
 
     public ModPackageInstaller(string stateRoot, string modsRoot, string targetProfile, bool junctionSupported = true, ModPackageInstallLimits? limits = null)
     {
         this.stateRoot = Path.GetFullPath(stateRoot);
         this.modsRoot = Path.GetFullPath(modsRoot);
         this.targetProfile = targetProfile;
+        string[] target = targetProfile.Split('/');
+        edition = target.Length >= 2 ? target[0] : "Classic";
+        language = target.Length >= 2 ? target[1] : "en";
         this.junctionSupported = junctionSupported;
         this.limits = limits ?? new();
         if (IsWithin(this.stateRoot, this.modsRoot) || IsWithin(this.modsRoot, this.stateRoot))
@@ -113,6 +126,10 @@ public sealed partial class ModPackageInstaller
 
     private ModPackageInstallPlan Inspect(string archivePath, RemoteModEntry entry, CancellationToken cancellationToken)
     {
+        if (entry.SourceId == OfficialModCatalog.SourceId)
+        {
+            return InspectNative(archivePath, entry, cancellationToken);
+        }
         if (!junctionSupported)
         {
             throw new NotSupportedException("Junction packages are unsupported for this target edition.");
@@ -227,7 +244,7 @@ public sealed partial class ModPackageInstaller
         return decimal.TryParse(value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out version);
     }
 
-    private void ExtractWrapper(string path, string destination, CancellationToken cancellationToken)
+    private void ExtractWrapper(string path, string destination, CancellationToken cancellationToken, long? expectedExpanded = null)
     {
         using IArchive archive = ArchiveFactory.OpenArchive(path);
         if (archive.Type is not (SharpCompress.Common.ArchiveType.Zip or SharpCompress.Common.ArchiveType.SevenZip))
@@ -263,7 +280,7 @@ public sealed partial class ModPackageInstaller
                 continue;
             }
             expanded = checked(expanded + entry.Size);
-            if (expanded > limits.ExpandedBytes || expanded > Math.Max(new FileInfo(path).Length, 1) * (double)limits.ExpansionRatio)
+            if (expanded > limits.ExpandedBytes || expanded > expectedExpanded || expanded > Math.Max(new FileInfo(path).Length, 1) * (double)limits.ExpansionRatio)
             {
                 throw new InvalidDataException("Archive exceeds the configured expansion limits.");
             }
@@ -275,6 +292,10 @@ public sealed partial class ModPackageInstaller
             {
                 throw new InvalidDataException("Archive entry size does not match its contents.");
             }
+        }
+        if (expectedExpanded is long expected && expanded != expected)
+        {
+            throw new InvalidDataException("Archive expansion differs from the published size.");
         }
     }
 

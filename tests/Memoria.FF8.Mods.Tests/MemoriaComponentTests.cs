@@ -12,7 +12,7 @@ public sealed class MemoriaComponentTests : IDisposable
     {
         Write("BundledMods/Memoria/Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
         Write("Mods/Memoria/Meltdown/config.json", """{"meltdown":{"VitalityReductionPercent":73,"SpiritReductionPercent":37}}""");
-        Write("BundledMods/Memoria/Girl Next Door/mod.ini", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "GirlNextDoor", "mod.ini")));
+        Write("BundledMods/Memoria/Girl Next Door/mod.ini", "enabled = 1");
         Write("BundledMods/Memoria/Girl Next Door/GirlNextDoor.png", "art");
         Write("Mods/Memoria/User Mod/mod.ini", "enabled=0");
         using (ModRuntime runtime = new(root, watch: false))

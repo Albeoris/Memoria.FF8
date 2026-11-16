@@ -6,11 +6,14 @@ $product = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('memoria-packaging-tests-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporary | Out-Null
 $checker = Join-Path $product 'tools/Memoria.FF8.Distribution.Check'
-function Invoke-Checker([string[]]$Arguments, [switch]$ExpectFailure) {
+function Invoke-Checker([string[]]$Arguments, [switch]$ExpectFailure, [string]$ErrorPattern = '') {
     Write-Host ('Distribution checker: {0}' -f ($Arguments -join ' '))
     $output = @(& dotnet $checkerAssembly @Arguments 2>&1)
     if (($LASTEXITCODE -ne 0) -ne [bool]$ExpectFailure) {
         throw "Unexpected distribution checker result for $($Arguments[0]): $($output -join [Environment]::NewLine)"
+    }
+    if ($ErrorPattern -and ($output -join [Environment]::NewLine) -notmatch $ErrorPattern) {
+        throw "The expected package error was not reported: $($output -join [Environment]::NewLine)"
     }
     # The expected native failure was handled; keep a successful script exit code.
     $global:LASTEXITCODE = 0
@@ -72,6 +75,22 @@ try {
             [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name])
         }
     }
+    foreach ($rid in @('win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')) {
+        $archiveRoot = Join-Path $temporary "external-$rid"
+        $component = 'Data/BundledMods/Memoria/Girl Next Door'
+        if ($rid -like 'osx-*') { $component = "Memoria.FF8.app/Contents/Resources/$component" }
+        $external = Join-Path $archiveRoot $component
+        New-Item -ItemType Directory -Force -Path $external | Out-Null
+        Set-Content -LiteralPath (Join-Path $external 'mod.ini') -Value 'enabled = 1' -Encoding utf8NoBOM
+        if ($rid -eq 'win-x64') {
+            $externalArchive = Join-Path $temporary "external-$rid.zip"
+            Compress-Archive -LiteralPath (Join-Path $archiveRoot 'Data') -DestinationPath $externalArchive
+        } else {
+            $externalArchive = Join-Path $temporary "external-$rid.tar.gz"
+            Invoke-Checker @('--create-tar', $archiveRoot, $externalArchive)
+        }
+        Invoke-Checker @('--validate-archive', $externalArchive, $rid, (Join-Path $temporary "rejected-external-$rid")) -ExpectFailure -ErrorPattern 'contains an external component'
+    }
     $package = Join-Path $temporary 'package'
     foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
         $path = Join-Path $package $relative
@@ -86,7 +105,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $product 'Artwork/Application/application.png') -Destination $desktop
     & (Join-Path $product 'tools/New-DistributionManifest.ps1') -PackageRoot $package -RuntimeIdentifier linux-x64
     $manifest = Get-Content -LiteralPath (Join-Path $package 'Data/distribution.json') -Raw | ConvertFrom-Json
-    if ($manifest.SchemaVersion -ne 2 -or $manifest.RuntimeIdentifier -cne 'linux-x64' -or $manifest.Files.Count -ne 7 -or @($manifest.Files | Where-Object UnixMode -eq 493).Count -ne 5 -or @($manifest.Files | Where-Object { $_.Path.StartsWith('Data/Desktop/') -and $_.UnixMode -eq 420 }).Count -ne 2) {
+    if ($manifest.SchemaVersion -ne 2 -or $manifest.RuntimeIdentifier -cne 'linux-x64' -or $manifest.Files.Count -ne 8 -or @($manifest.Files | Where-Object UnixMode -eq 493).Count -ne 5 -or @($manifest.Files | Where-Object { $_.Path.StartsWith('Data/Desktop/') -and $_.UnixMode -eq 420 }).Count -ne 2) {
         throw 'Linux descriptor identity, inventory or executable modes are incorrect.'
     }
     $archive = Join-Path $temporary 'package.tar.gz'

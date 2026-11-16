@@ -54,12 +54,12 @@ public sealed class InventoryBookTests
     }
 
     [Fact]
-    public void BundledCoverRetainsTransparentArtworkAndFitsTheViewport()
+    public void BookCoverRetainsTransparentArtworkAndFitsTheViewport()
     {
         ModCatalogSnapshot catalog = new(1, [], [BundledCover()]);
         MenuArtworkProvider artwork = new("", findBookArtwork: item => InventoryBookArtwork.Find(catalog, item));
         var image = artwork.Read(new UiImageSource(UiImageKind.BookCover, InventoryBookArtwork.GirlNextDoorItemId));
-        Assert.Equal((1215, 1295), (image.Width, image.Height));
+        Assert.Equal((2, 3), (image.Width, image.Height));
         Assert.Contains(image.Pixels, pixel => pixel.A == 0);
         Assert.Contains(image.Pixels, pixel => pixel.A == 255);
         UiRect fitted = UiImage.Fit(new UiRect(0, 0, 1600, 900), image.Width, image.Height);
@@ -79,7 +79,7 @@ public sealed class InventoryBookTests
             string bundled = Path.Combine(app, "BundledMods", "Memoria", "Girl Next Door");
             Directory.CreateDirectory(bundled);
             File.WriteAllText(Path.Combine(bundled, "mod.ini"), "enabled = 0");
-            File.Copy(BundledCoverPath, Path.Combine(bundled, "GirlNextDoor.png"));
+            File.WriteAllBytes(Path.Combine(bundled, "GirlNextDoor.png"), CreateCoverFixture());
             string mods = Path.Combine(root.FullName, "Mods");
             using GameResourceHost host = new(TestResources.GameDirectory, app, watch: false, modsDirectory: mods);
             string packageId = InventoryBookArtwork.GirlNextDoorPackageId;
@@ -111,9 +111,9 @@ public sealed class InventoryBookTests
         }
     }
 
-    private static string BundledCoverPath => Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Girl Next Door", "GirlNextDoor.png");
+    private static byte[] CreateCoverFixture() => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAYAAAC56t6BAAAAFElEQVR4nGNgYGBgMEhY8B9EozIAR20GjgleNaUAAAAASUVORK5CYII=");
 
-    private static ModFile BundledCover() => new(InventoryBookArtwork.GirlNextDoorPackageId, ModFormat.Memoria, "GirlNextDoor.png", 1, () => File.ReadAllBytes(BundledCoverPath));
+    private static ModFile BundledCover() => new(InventoryBookArtwork.GirlNextDoorPackageId, ModFormat.Memoria, "GirlNextDoor.png", 1, CreateCoverFixture);
 
     private static IEnumerable<UiElement> Descendants(UiElement element)
     {

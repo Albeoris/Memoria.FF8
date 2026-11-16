@@ -10,8 +10,9 @@ public sealed partial class MenuController
     private BehaviorModSetting[] modSettings = [];
     private IGrouping<string, int>[] modSettingsCategories = [];
     private readonly HashSet<string> modSettingsExpanded = new(StringComparer.Ordinal);
-    private readonly Dictionary<int, bool> modSettingsComponentExpansion = [];
+    private readonly Dictionary<string, bool> modSettingsComponentExpansion = [];
     private float modSettingsScrollOffset;
+    private string? focusedModSettingsId;
     private ModSettingsEditor? modSettingsEditor;
 
     private static bool IsMemoriaSettingsPackage(ModPackage package)
@@ -19,7 +20,7 @@ public sealed partial class MenuController
         return IsBundledMemoriaMod(package) && package.Id.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool HasSelectedModSettings => selectedModId is not null && modService?.ReadBehaviorSettings(selectedModId).Count > 0;
+    private bool HasSelectedModSettings => selectedModId is not null && (modService?.ReadBehaviorSettings(selectedModId).Count > 0 || selectedModId == ModRuntime.MemoriaPackageId && OfficialEntries.Any());
 
     private string? ModSettingLockReason(BehaviorModSetting setting)
     {
@@ -74,7 +75,7 @@ public sealed partial class MenuController
                 bool expanded = modSettingsExpanded.Contains(category.Key);
                 string label = SystemText("mods.settings.category." + category.Key.ToLowerInvariant(), category.Key);
                 string help = ModSettingsExpansionLabel(expanded);
-                rows.Add(new(new("mod-settings-category-" + index, label, help, Action: new("mod-settings-category", category.Key))));
+                rows.Add(new(new("mod-settings-category-" + (modLibrary is null ? index.ToString() : category.Key), label, help, Action: new("mod-settings-category", category.Key))));
                 if (!expanded)
                 {
                     continue;
@@ -89,13 +90,17 @@ public sealed partial class MenuController
                 {
                     continue;
                 }
-                bool? expanded = setting.Control == "toggle" && children.Contains(setting.Parameter) ? modSettingsComponentExpansion.GetValueOrDefault(settingIndex, setting.Value != 0) : null;
+                bool? expanded = setting.Control == "toggle" && children.Contains(setting.Parameter) ? modSettingsComponentExpansion.GetValueOrDefault(SettingId(setting), setting.Value != 0) : null;
                 rows.Add(ModSettingRow(settingIndex, depth, expanded));
                 if (expanded == true)
                 {
                     rows.AddRange(children[setting.Parameter].Select(childIndex => ModSettingRow(childIndex, depth + 1)));
                 }
             }
+        }
+        if (modSettingsPackageId == ModRuntime.MemoriaPackageId)
+        {
+            AddOfficialSettingsRows(rows);
         }
         return rows;
     }
@@ -110,7 +115,7 @@ public sealed partial class MenuController
         {
             help += "\n" + CurrentBindingText(ControlAction.Card) + " · " + ModSettingsExpansionLabel(isExpanded);
         }
-        return new(new("mod-setting-" + index, ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), index, depth, expanded);
+        return new(new(modLibrary is null ? "mod-setting-" + index : SettingId(setting), ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), index, depth, expanded);
     }
 
     private string ModSettingsExpansionLabel(bool expanded)
@@ -120,7 +125,12 @@ public sealed partial class MenuController
 
     private void FocusModSettingsRow(bool focused, int index)
     {
-        if (focused && ScreenId == "mod-settings" && SelectedIndex != index)
+        if (!focused || ScreenId != "mod-settings")
+        {
+            return;
+        }
+        focusedModSettingsId = ModSettingsRows().ElementAtOrDefault(index)?.Entry.Id;
+        if (SelectedIndex != index)
         {
             _selections[ScreenId] = index;
             SoundRequested?.Invoke(MenuSound.Move);
@@ -159,7 +169,7 @@ public sealed partial class MenuController
 
     private void SetModSettingsComponentExpanded(int index, bool expanded)
     {
-        modSettingsComponentExpansion[index] = expanded;
+        modSettingsComponentExpansion[SettingId(modSettings[index])] = expanded;
         _view = null;
     }
 
@@ -227,8 +237,28 @@ public sealed partial class MenuController
         }
     }
 
+    private static string SettingId(BehaviorModSetting setting) => "mod-setting-" + setting.Behavior + "/" + setting.Parameter;
+
+    private void RefreshMemoriaSettingsRows()
+    {
+        if (ScreenId != "mod-settings" || modSettingsPackageId != ModRuntime.MemoriaPackageId || modService is null)
+        {
+            return;
+        }
+        string? selectedId = focusedModSettingsId ?? _view?.FocusedElement?.Id ?? SelectedEntry?.Id;
+        modSettings = modService.ReadBehaviorSettings(modSettingsPackageId).ToArray();
+        modSettingsCategories = Enumerable.Range(0, modSettings.Length).GroupBy(index => modSettings[index].Category, StringComparer.Ordinal).ToArray();
+        int selected = ModSettingsRows().ToList().FindIndex(row => row.Entry.Id == selectedId);
+        _selections[ScreenId] = Math.Max(0, selected);
+        _view = null;
+    }
+
     private bool ExecuteModSettingsAction(MenuAction action)
     {
+        if (ExecuteOfficialSettingsAction(action))
+        {
+            return true;
+        }
         if (action.Kind == "mod-settings-value")
         {
             return true;
@@ -255,13 +285,14 @@ public sealed partial class MenuController
             if (packageId is not null && modService is not null)
             {
                 modSettings = modService.ReadBehaviorSettings(packageId).ToArray();
-                if (modSettings.Length > 0)
+                if (modSettings.Length > 0 || packageId == ModRuntime.MemoriaPackageId && OfficialEntries.Any())
                 {
                     modSettingsPackageId = packageId;
                     modSettingsCategories = Enumerable.Range(0, modSettings.Length).GroupBy(index => modSettings[index].Category, StringComparer.Ordinal).ToArray();
                     modSettingsExpanded.Clear();
                     modSettingsComponentExpansion.Clear();
                     modSettingsScrollOffset = 0;
+                    focusedModSettingsId = null;
                     RegisterModSettingsScreen();
                     Push("mod-settings");
                 }

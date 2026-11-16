@@ -17,6 +17,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly string bundledModsRoot;
     private readonly Func<ModFormat, bool> isCompatible;
     private readonly Func<string, bool>? junctionPackageAllowed;
+    private readonly Func<string, string?>? nativeRootUnavailable;
+    private readonly string edition;
+    private readonly string language;
+    private readonly Func<string, bool>? obsoleteBundledPackage;
     private readonly Func<ModCatalogSnapshot, ModPreparationResult> prepare;
     private readonly TimeSpan debounce;
     private readonly List<Action<ModCatalogSnapshot>> subscribers = [];
@@ -45,7 +49,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private string? lastIdentity;
     private string? pendingIdentity;
 
-    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null)
+    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null, Func<string, string?>? nativeRootUnavailable = null, string edition = "Classic", string language = "en", Func<string, bool>? obsoleteBundledPackage = null)
     {
         modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
         IEnumerable<string> roots = (additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot);
@@ -58,6 +62,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
         ReadLocalizationPreferences();
         this.isCompatible = isCompatible ?? (_ => true);
         this.junctionPackageAllowed = junctionPackageAllowed;
+        this.nativeRootUnavailable = nativeRootUnavailable;
+        this.edition = edition;
+        this.language = language;
+        this.obsoleteBundledPackage = obsoleteBundledPackage;
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
         if (watch)
@@ -85,12 +93,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
         string? packageDirectory = Path.GetDirectoryName(applicationDirectory);
         string? contentsDirectory = packageDirectory is null ? null : Path.GetDirectoryName(packageDirectory);
         string? bundleDirectory = contentsDirectory is null ? null : Path.GetDirectoryName(contentsDirectory);
-        if (HostPlatforms.Current == HostPlatform.MacOS && Path.GetFileName(applicationDirectory) == "Data" && Path.GetFileName(packageDirectory) == "MacOS" && Path.GetFileName(contentsDirectory) == "Contents" && bundleDirectory?.EndsWith(".app", StringComparison.Ordinal) == true)
+        if (HostPlatforms.Current == HostPlatform.MacOS && Path.GetFileName(applicationDirectory) == "Data" && Path.GetFileName(packageDirectory) is ("MacOS" or "Resources") && Path.GetFileName(contentsDirectory) == "Contents" && bundleDirectory?.EndsWith(".app", StringComparison.Ordinal) == true)
         {
             return ApplicationInstallation.ResolveModsDirectory(packageDirectory ?? applicationDirectory, HostPlatform.MacOS, ApplicationPaths.Current.Configuration);
         }
         string launcher = HostPlatforms.Current.ExecutableName("Memoria.Launcher");
-        if (Path.GetFileName(applicationDirectory).Equals("Data", StringComparison.OrdinalIgnoreCase) && packageDirectory is not null && File.Exists(Path.Combine(packageDirectory, launcher)) && Directory.Exists(Path.Combine(packageDirectory, "Mods")))
+        if (Path.GetFileName(applicationDirectory).Equals("Data", StringComparison.OrdinalIgnoreCase) && packageDirectory is not null && File.Exists(Path.Combine(packageDirectory, launcher)) && (Directory.Exists(Path.Combine(packageDirectory, "Mods")) || File.Exists(Path.Combine(applicationDirectory, "distribution.json"))))
         {
             return Path.Combine(packageDirectory, "Mods");
         }
@@ -202,9 +210,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
             try
             {
-                if (IsMemoriaComponent(package) && MemoriaComponentPreference(ReadMemoriaSettings(), package.Id) is not null)
+                if (IsMemoriaComponent(package) && MemoriaComponentPreference(ReadMemoriaSettings(), package.Id, package.Official) is not null)
                 {
-                    string component = MemoriaComponents.First(item => package.Id.Equals(ComponentPackageId(item.Id), StringComparison.OrdinalIgnoreCase)).Id;
+                    string component = package.Official?.SettingsKey ?? MemoriaComponents.First(item => package.Id.Equals(item.RuntimePackageId, StringComparison.OrdinalIgnoreCase)).SettingsKey;
                     return SaveMemoriaSettings([(ComponentBehavior, component, enabled ? 1 : 0)]);
                 }
                 ValidatePreferenceTarget(package);
@@ -531,6 +539,18 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
         List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), forceFf7EnemyIntegration.ToString(), string.Join(";", localizationOrder ?? [])];
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
+        Dictionary<string, IReadOnlyDictionary<string, ModPackageInstallResult>> managed = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string modRoot in ModsDirectories.Where(directory => Path.GetDirectoryName(directory) is not null && directory != bundledModsRoot))
+        {
+            try
+            {
+                managed.Add(modRoot, ModPackageInstaller.ReadOfficialInventory(modRoot));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+            {
+                notices.Add(new("native-receipt", exception.Message));
+            }
+        }
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
             if (format == ModFormat.Junction)
@@ -545,7 +565,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 foreach (string root in roots)
                 {
-                    if (string.Equals(Path.GetDirectoryName(root), Path.Combine(bundledModsRoot, format.ToString()), StringComparison.OrdinalIgnoreCase) && (File.GetAttributes(root) & FileAttributes.ReparsePoint) == 0)
+                    if (obsoleteBundledPackage?.Invoke(root) != true && string.Equals(Path.GetDirectoryName(root), Path.Combine(bundledModsRoot, format.ToString()), StringComparison.OrdinalIgnoreCase) && (File.GetAttributes(root) & FileAttributes.ReparsePoint) == 0)
                     {
                         bundledPackages.TryAdd(Path.GetFileName(root), root);
                     }
@@ -555,6 +575,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 string name = Path.GetFileName(root);
                 string id = $"{format}/{name}";
+                string modRoot = Path.GetDirectoryName(Path.GetDirectoryName(root))!;
+                if (format == ModFormat.Memoria && modRoot == bundledModsRoot && obsoleteBundledPackage?.Invoke(root) == true)
+                {
+                    continue;
+                }
+                ModPackageInstallResult? native = format == ModFormat.Memoria ? managed.GetValueOrDefault(modRoot)?.GetValueOrDefault(id) : null;
+                if (native is not null && nativeRootUnavailable?.Invoke(modRoot) is { } leaseError)
+                {
+                    notices.Add(new("native-resource-lease", leaseError, id));
+                    continue;
+                }
                 bundledPackages.TryGetValue(name, out string? bundledRoot);
                 if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
                 {
@@ -588,14 +619,34 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         throw new PackagePriorityException(id, exception.Message);
                     }
                 }
-                if (bundledRoot is not null)
+                if (bundledRoot is not null || native?.Official is not null)
                 {
-                    explicitEnabled = MemoriaComponentPreference(memoriaSettings, id) ?? explicitEnabled;
+                    explicitEnabled = MemoriaComponentPreference(memoriaSettings, id, native?.Official) ?? explicitEnabled;
+                }
+                if (native?.Official is { } official && ModPackageInstaller.HasPendingEnable(modRoot, official))
+                {
+                    explicitEnabled = true;
                 }
                 bool requested = RequiredPackageReason(id) is not null || (explicitEnabled ?? nextAutoEnable);
                 bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
                 bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase));
-                bool compatible = isCompatible(format) || localizationOnly;
+                string? nativeError = native?.Error;
+                if (native?.Official is { } nativeComponent)
+                {
+                    if (!OfficialModCatalog.TargetMatches(nativeComponent.Target, edition, language))
+                    {
+                        nativeError ??= "This component is unavailable for the selected game edition or language.";
+                    }
+                    if (native.EngineVersionRange is { } range)
+                    {
+                        nativeError ??= OfficialModCatalog.EngineError(range, EngineBuildMetadata.CompatibilityVersion);
+                    }
+                }
+                if (nativeError is not null)
+                {
+                    notices.Add(new("native-availability", nativeError, id));
+                }
+                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly) && nativeError is null;
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
                 identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 string[] packageRoots = bundledRoot is not null && !string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase) ? [root, bundledRoot] : [root];
@@ -666,7 +717,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { IsBundled = bundledRoot is not null, Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
+                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { IsBundled = bundledRoot is not null, Official = native?.Official, Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())
@@ -870,7 +921,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 bool? enabled = ReadPackageEnabled(package);
                 if (IsMemoriaComponent(package))
                 {
-                    enabled = MemoriaComponentPreference(memoriaSettings, package.Id) ?? enabled;
+                    enabled = MemoriaComponentPreference(memoriaSettings, package.Id, package.Official) ?? enabled;
                 }
                 return package with { ExplicitEnabled = enabled, RequestedEnabled = RequiredPackageReason(package.Id) is not null || (enabled ?? autoEnable) };
             }).ToArray());

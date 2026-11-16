@@ -1,3 +1,4 @@
+using Memoria.FF8.Platform;
 using Memoria.FF8.Runtime;
 using System.Text;
 
@@ -36,6 +37,11 @@ internal static partial class Program
         Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try
         {
+            if (EngineUpdateStartup.StartRecoveryIfNeeded(ApplicationInstallation.DataDirectory))
+            {
+                Console.Error.WriteLine("Recovering the interrupted engine update in the launcher. Start the game again when recovery finishes.");
+                return 0;
+            }
             if (args.Length == 2 && args[0] == "--world-handoff")
             {
                 using WorldProcessHandoff transfer = WorldProcessHandoff.Connect(args[1]);

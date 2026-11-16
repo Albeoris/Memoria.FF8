@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Text;
+using Memoria.FF8.Mods;
 
 namespace Memoria.FF8;
 
 /// <summary>Pins a mod directory for all lazy resource consumers, with an exclusive startup update boundary.</summary>
-internal sealed class ModDirectoryResourceLease : IDisposable
+public sealed class ModDirectoryResourceLease : IDisposable
 {
     private readonly object gate = new();
     private readonly string runtimePath;
@@ -20,14 +19,7 @@ internal sealed class ModDirectoryResourceLease : IDisposable
 
     public bool IsWriter { get; private set; }
 
-    public static string StateDirectory(string modsRoot)
-    {
-        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsRoot));
-        string parent = Path.GetDirectoryName(root) ?? throw new ArgumentException("A managed mod directory must be below the volume root.", nameof(modsRoot));
-        string identity = OperatingSystem.IsWindows() ? root.ToUpperInvariant() : root;
-        string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)))[..16].ToLowerInvariant();
-        return Path.Combine(parent, ".memoria-mod-library-" + hash);
-    }
+    public static string StateDirectory(string modsRoot) => ModPackageInstaller.StateDirectoryFor(modsRoot);
 
     public static ModDirectoryResourceLease Acquire(string modsRoot, bool requestWriter)
     {

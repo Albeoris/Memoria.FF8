@@ -10,17 +10,7 @@ public sealed partial class ModRuntime
     internal const string MeltdownPackageId = "Memoria/Meltdown";
     private const string Ff7BridgeLockReason = "The transition from FFVIII enables FFVII Enemy Integration in Automatic mode.";
     private const string ComponentBehavior = "component";
-    private static readonly (string Id, string Category, string Label, string Description)[] MemoriaComponents =
-    [
-        ("Depixelation", "Field", "Depixelation", "Replace selected field background characters with models."),
-        ("Reorientation", "Field", "Reorientation", "Adjust staging in selected field scenes."),
-        ("Meltdown", "Battle", "Meltdown", "Customize the Vitality and Spirit reductions."),
-        ("Level-Based Stat Bonuses", "Battle", "Level-Based Stat Bonuses", "Equipped stat bonus abilities scale with character level."),
-        ("EdeaMirrors", "Battle", "Edea — Mirrors", "Use the alternative Disc 1 Edea encounter."),
-        ("Extended FFVIII Roster", "Party", "Extended FFVIII Roster", "Enable the extended FFVIII roster."),
-        ("Girl Next Door", "Items", "Girl Next Door", "Open the magazine from the item menu."),
-        ("FF7EnemyIntegration", "FFVII", "FFVII Enemy Integration", "Make FFVII enemy extensions available to the campaign.")
-    ];
+    private static IReadOnlyList<OfficialModComponent> MemoriaComponents => OfficialModCatalog.SeedComponents;
 
     private bool forceFf7EnemyIntegration;
     private IReadOnlyList<BehaviorModSetting>? memoriaSettingsView;
@@ -60,11 +50,14 @@ public sealed partial class ModRuntime
         return forceFf7EnemyIntegration && packageId.Equals(Ff7EnemyIntegrationPackageId, StringComparison.OrdinalIgnoreCase) ? Ff7BridgeLockReason : null;
     }
 
-    private static string ComponentPackageId(string component) => $"Memoria/{component}";
-
     private static bool IsMemoriaComponent(ModPackage package)
     {
-        return package.IsBundled && MemoriaComponents.Any(component => package.Id.Equals(ComponentPackageId(component.Id), StringComparison.OrdinalIgnoreCase));
+        return package.Official is not null || package.IsBundled && MemoriaComponents.Any(component => package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool IsBundledMemoriaIdentity(string id, string key)
+    {
+        return MemoriaComponents.Any(component => component.Delivery == "engine" && (component.SettingsKey.Equals(key, StringComparison.OrdinalIgnoreCase) || component.RuntimePackageId.Equals(id, StringComparison.OrdinalIgnoreCase)));
     }
 
     private MemoriaSettings ReadMemoriaSettings()
@@ -96,11 +89,15 @@ public sealed partial class ModRuntime
         return file is null ? null : ParseMemoriaSettings(file.ReadBytes()).Meltdown;
     }
 
-    private static bool? MemoriaComponentPreference(MemoriaSettings settings, string packageId)
+    private static bool? MemoriaComponentPreference(MemoriaSettings settings, string packageId, OfficialModComponent? official = null)
     {
+        if (official is not null)
+        {
+            return settings.Components.TryGetValue(official.SettingsKey, out bool stored) ? stored : null;
+        }
         foreach (var component in MemoriaComponents)
         {
-            if (packageId.Equals(ComponentPackageId(component.Id), StringComparison.OrdinalIgnoreCase) && settings.Components.TryGetValue(component.Id, out bool enabled))
+            if (packageId.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase) && settings.Components.TryGetValue(component.SettingsKey, out bool enabled))
             {
                 return enabled;
             }
@@ -113,21 +110,21 @@ public sealed partial class ModRuntime
         List<BehaviorModSetting> result = [];
         foreach (var component in MemoriaComponents)
         {
-            ModPackage? package = installedPackages.FirstOrDefault(package => IsMemoriaComponent(package) && package.Id.Equals(ComponentPackageId(component.Id), StringComparison.OrdinalIgnoreCase));
+            ModPackage? package = installedPackages.FirstOrDefault(package => IsMemoriaComponent(package) && package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
             if (package is null)
             {
                 continue;
             }
             bool enabledByDefault = ReadPackageEnabled(package) ?? autoEnable;
-            bool enabled = (applyLocks && RequiredPackageReason(package.Id) is not null) || (MemoriaComponentPreference(settings, package.Id) ?? enabledByDefault);
-            result.Add(new(ComponentBehavior, component.Id, component.Label, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
+            bool enabled = (applyLocks && RequiredPackageReason(package.Id) is not null) || (MemoriaComponentPreference(settings, package.Id, package.Official) ?? enabledByDefault);
+            result.Add(new(ComponentBehavior, component.SettingsKey, component.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
             {
                 Category = component.Category,
                 Control = "toggle",
                 Description = component.Description,
                 Unit = string.Empty
             });
-            if (component.Id == "Meltdown")
+            if (component.RuntimePackageId == MeltdownPackageId)
             {
                 try
                 {
@@ -136,13 +133,26 @@ public sealed partial class ModRuntime
                     {
                         behavior = ApplyBehaviorSettingPolicy(package, behavior);
                     }
-                    result.AddRange(behavior.Select(setting => setting with { Category = component.Category, ParentComponent = component.Id }));
+                    result.AddRange(behavior.Select(setting => setting with { Category = component.Category, ParentComponent = component.SettingsKey }));
                 }
                 catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
                 {
                     // The catalog reports the invalid document. Keep the component toggle available.
                 }
             }
+        }
+        foreach (ModPackage package in installedPackages.Where(package => package.Official is not null && !MemoriaComponents.Any(component => component.RuntimePackageId.Equals(package.Id, StringComparison.OrdinalIgnoreCase))))
+        {
+            OfficialModComponent component = package.Official!;
+            bool enabledByDefault = ReadPackageEnabled(package) ?? component.DefaultEnabled;
+            bool enabled = MemoriaComponentPreference(settings, package.Id, component) ?? enabledByDefault;
+            result.Add(new(ComponentBehavior, component.SettingsKey, component.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
+            {
+                Category = component.Category,
+                Control = "toggle",
+                Description = component.Description,
+                Unit = string.Empty
+            });
         }
         return result;
     }

@@ -72,6 +72,10 @@ internal sealed partial class RecreateGame
         {
             gameMenus!.Open(screen, true);
         }
+        else if (options.OpenModManager)
+        {
+            gameMenus!.Open("mods-catalog");
+        }
     }
 
     private void InitializeSessionMenus()

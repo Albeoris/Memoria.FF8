@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Memoria.FF8;
+using Memoria.FF8.Mods;
 
 namespace Memoria.Launcher.Tests;
 
@@ -58,6 +60,25 @@ public sealed class MacBundleUpdateTests : IDisposable
         MacBundleUpdate.VerifyExact(Root, PackageManifest.Read(Root));
         Assert.False(UpdateInstaller.NeedsRecovery(Root));
         Assert.False(Directory.Exists(Path.Combine(Root, UpdateInstaller.WorkDirectory)));
+    }
+
+    [Fact]
+    public void DirectGameAdoptsArtworkFromTheCommittedBackupBundle()
+    {
+        const string artwork = "Contents/Resources/Data/BundledMods/Memoria/Girl Next Door/GirlNextDoor.png";
+        WriteBundle(Root, "old", legacyArtwork: artwork);
+        WriteBundle(MacBundleUpdate.StagingPath(Root), "new");
+        UpdateInstaller.Apply(Root);
+        string mods = Path.Combine(directory, "writable", "Mods");
+        Directory.CreateDirectory(Path.GetDirectoryName(mods)!);
+        using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(mods, requestWriter: true);
+
+        GirlNextDoorMigration.FromGame(Path.Combine(Root, "Contents/Resources/Data"), mods);
+
+        Assert.Equal("legacy artwork", File.ReadAllText(Path.Combine(mods, "Memoria/Girl Next Door/GirlNextDoor.png")));
+        Assert.Equal("legacy artwork", File.ReadAllText(Path.Combine(MacBundleUpdate.WorkPath(Root), "backup.app", artwork)));
+        Assert.True(GirlNextDoorMigration.IsComplete(mods));
+        MacBundleUpdate.VerifyExact(Root, PackageManifest.Read(Root));
     }
 
     [Theory]
@@ -228,7 +249,7 @@ public sealed class MacBundleUpdateTests : IDisposable
         WriteBundle(MacBundleUpdate.StagingPath(Root), "new", rid);
     }
 
-    private static void WriteBundle(string root, string build, string? runtimeIdentifier = null)
+    private static void WriteBundle(string root, string build, string? runtimeIdentifier = null, string? legacyArtwork = null)
     {
         Dictionary<string, string> files = new()
         {
@@ -239,6 +260,10 @@ public sealed class MacBundleUpdateTests : IDisposable
             ["Contents/Resources/Data/Memoria.FF8"] = "bootstrap " + build,
             ["Contents/Resources/Data/audio-host/Memoria.FF8.Music"] = "music " + build
         };
+        if (legacyArtwork is not null)
+        {
+            files.Add(legacyArtwork, "legacy artwork");
+        }
         List<PackageFile> inventory = [];
         foreach ((string relative, string text) in files)
         {

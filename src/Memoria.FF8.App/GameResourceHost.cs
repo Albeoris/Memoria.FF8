@@ -23,7 +23,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory);
         Resources = new ResourceService(source, this.resourceLanguage);
-        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage);
+        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.GirlNextDoor.SettingsKey && GirlNextDoorMigration.IsComplete(Mods!.PrimaryModsDirectory));
         Resources.ReplacementFailed += (key, exception) =>
         {
             ModTextureLoadException? rejected = exception as ModTextureLoadException;
@@ -39,7 +39,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         };
         try
         {
-            RecoverModLibrary();
+            RecoverModLibrary(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory);
             Pump(true);
             ValidateModLibraryStartup();
         }

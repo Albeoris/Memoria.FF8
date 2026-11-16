@@ -2,15 +2,13 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Memoria.FF8.Mods;
 
 namespace Memoria.Launcher;
 
-internal sealed record UpdateOperation(string Path, bool HadOriginal);
-internal sealed record UpdateJournal(UpdateOperation[] Operations);
-
 internal static class UpdateInstaller
 {
-    internal const string WorkDirectory = ".memoria-update";
+    internal const string WorkDirectory = DistributionUpdateBackup.WorkDirectory;
 
     internal static string MutexName(string root)
     {
@@ -61,13 +59,7 @@ internal static class UpdateInstaller
 
     internal static bool NeedsRecovery(string root)
     {
-        if (MacBundleUpdate.IsBundleRoot(root))
-        {
-            return MacBundleUpdate.NeedsRecovery(root);
-        }
-        string work = Path.Combine(root, WorkDirectory);
-        RejectLinks(work);
-        return File.Exists(Path.Combine(work, "journal.json")) && !File.Exists(Path.Combine(work, "committed")) && !File.Exists(Path.Combine(work, "rolled-back"));
+        return DistributionUpdateBackup.NeedsRecovery(MacBundleUpdate.NormalizeRoot(root));
     }
 
     internal static string Prepare(string root)
@@ -77,6 +69,7 @@ internal static class UpdateInstaller
             return MacBundleUpdate.Prepare(root);
         }
         Recover(root);
+        GirlNextDoorMigration.FromLauncher(root, beforeBackupCleanup: true);
         string work = Path.Combine(root, WorkDirectory);
         if (Directory.Exists(work))
         {

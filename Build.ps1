@@ -110,17 +110,18 @@ foreach ($directory in $modDirectories) {
     New-Item -ItemType Directory -Path (Join-Path $payload "Mods/$directory") | Out-Null
 }
 
+$buildProperties = [xml](Get-Content -LiteralPath (Join-Path $root 'Directory.Build.props') -Raw)
 $bundledMods = Join-Path $root 'Mods/Memoria'
-$bundledModFiles = @(Get-ChildItem -LiteralPath $bundledMods -File -Recurse)
-$expectedModFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+$bundledComponentNames = $buildProperties.SelectSingleNode('/Project/ItemGroup/BundledMemoriaComponent').GetAttribute('Include').Split(';')
+$bundledModFiles = foreach ($component in $bundledComponentNames) {
+    Get-ChildItem -LiteralPath (Join-Path $bundledMods $component) -File -Recurse
+}
 foreach ($file in $bundledModFiles) {
     $relative = 'Data/BundledMods/Memoria/' + [IO.Path]::GetRelativePath($bundledMods, $file.FullName).Replace('\', '/')
     $destination = Join-Path $payload $relative
     New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($destination)) | Out-Null
     Copy-Item -LiteralPath $file.FullName -Destination $destination
-    [void]$expectedModFiles.Add($relative)
 }
-
 Push-Location $root
 try {
     & (Join-Path $root 'tools/Update-Shaders.ps1') -Check

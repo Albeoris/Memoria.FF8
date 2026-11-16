@@ -8,6 +8,8 @@
     <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <PackageReference Include="BCnEncoder.Net" />
     <PackageReference Include="SharpCompress" />
+    <PackageReference Include="NuGet.Versioning" />
+    <EmbeddedResource Include="official-mods.seed.json" LogicalName="Memoria.OfficialMods.Seed" />
     <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="DocumentFormat.OpenXml" />
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />

@@ -25,7 +25,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 
     internal const string ManifestPath = "Data/distribution.json";
     internal const string MacManifestPath = "Contents/Resources/Data/distribution.json";
-    internal static string ManifestRelativePath(string root) => MacBundleUpdate.IsBundleRoot(root) ? MacManifestPath : ManifestPath;
+    internal static string ManifestRelativePath(string root) => DistributionPaths.IsBundleRoot(root) ? MacManifestPath : ManifestPath;
     internal const string LauncherPath = "Memoria.Launcher.exe";
     private const long MaximumFileSize = 2L * 1024 * 1024 * 1024;
     private const long MaximumPackageSize = 4L * 1024 * 1024 * 1024;
@@ -356,7 +356,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
         return PathComparer.Equals(path, "Data") || path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) || PathComparer.Equals(path, "Mods") || PathComparer.Equals(path, "Mods/Tonberry") || PathComparer.Equals(path, "Mods/Junction") || PathComparer.Equals(path, "Mods/Demaster") || PathComparer.Equals(path, "Mods/Memoria") || path.StartsWith("Mods/Memoria/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void EnsureNoReparsePoints(string path)
+    internal static void EnsureNoReparsePoints(string path)
     {
         for (string? current = DistributionPaths.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
         {

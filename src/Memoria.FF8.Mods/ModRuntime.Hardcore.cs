@@ -34,7 +34,8 @@ public sealed partial class ModRuntime
     {
         if (packageId.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase))
         {
-            return GetPackageLockReason(behavior == ComponentBehavior ? ComponentPackageId(parameter) : MeltdownPackageId);
+            string? componentId = MemoriaComponents.FirstOrDefault(component => component.SettingsKey.Equals(parameter, StringComparison.OrdinalIgnoreCase))?.RuntimePackageId;
+            return behavior == ComponentBehavior ? componentId is null ? null : GetPackageLockReason(componentId) : GetPackageLockReason(MeltdownPackageId);
         }
         return GetPackageLockReason(packageId);
     }

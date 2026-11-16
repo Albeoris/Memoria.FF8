@@ -25,6 +25,9 @@ if ($RuntimeIdentifier -like 'osx-*') {
     }
 }
 $manifestPath = Join-Path $root ($prefix + 'Data/distribution.json')
+$buildProperties = [xml](Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Directory.Build.props') -Raw)
+$engineCompatibilityVersion = $buildProperties.SelectSingleNode('/Project/PropertyGroup/EngineCompatibilityVersion').InnerText
+@{ engineCompatibilityVersion = $engineCompatibilityVersion } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $root ($prefix + 'Data/engine-version.json')) -Encoding utf8NoBOM
 $files = @(Get-ChildItem -LiteralPath $root -File -Recurse | Where-Object FullName -ne $manifestPath)
 $inventory = @($files | Sort-Object FullName | ForEach-Object {
     $relative = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')

@@ -2,6 +2,8 @@ namespace Memoria.Launcher;
 
 internal static class DistributionPaths
 {
+    internal static bool IsBundleRoot(string root) => Path.TrimEndingDirectorySeparator(root).EndsWith(".app", StringComparison.Ordinal);
+
     internal static string GetFullPath(string path)
     {
         string fullPath = Path.GetFullPath(path);

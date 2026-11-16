@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Platform;
 using Memoria.Launcher.Controller;
 
@@ -14,6 +15,7 @@ internal static class Program
     internal static string? StartupError { get; private set; }
     internal static UpdateResume? Resume { get; private set; }
     internal static ErrorIncident? StartupIncident { get; private set; }
+    internal static string? MigrationWarning { get; private set; }
 
     [STAThread]
     private static void Main(string[] arguments)
@@ -50,6 +52,15 @@ internal static class Program
                 {
                     UpdateInstaller.StartHelperAsync(Path.TrimEndingDirectorySeparator(root), recovery: true).GetAwaiter().GetResult();
                     return;
+                }
+                try
+                {
+                    GirlNextDoorMigration.FromLauncher(root);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    MigrationWarning = "Girl Next Door migration will retry on the next start. " + exception.Message;
+                    Console.Error.WriteLine(MigrationWarning);
                 }
                 if (arguments.Length > 0)
                 {

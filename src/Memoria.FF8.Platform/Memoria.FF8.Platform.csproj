@@ -2,4 +2,9 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Memoria.FF8.Mods" />
+    <InternalsVisibleTo Include="Memoria.Launcher" />
+    <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
+  </ItemGroup>
 </Project>

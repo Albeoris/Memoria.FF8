@@ -44,13 +44,13 @@ public sealed partial class MenuController
                 }
                 else
                 {
-                    string chevron = menus.modSettingsExpanded.Contains(row.Entry.Action!.SubjectId) ? "▾ " : "▸ ";
+                    string chevron = row.Entry.Action?.Kind == "mod-settings-category" ? menus.modSettingsExpanded.Contains(row.Entry.Action.SubjectId) ? "▾ " : "▸ " : "";
                     control = ActionButton(row.Entry, index, chevron + row.Entry.Label);
-                    item = control;
+                    item = row.Entry.Action?.Kind is "official-setting" or "official-batch" ? SettingRow(row, control) : control;
                 }
                 TrackControl(control, index);
                 Place(options, item, index);
-                options.RowDefinitions.Add(row.SettingIndex.HasValue ? UiGridLength.Auto : UiGridLength.Pixel(32 * scale));
+                options.RowDefinitions.Add(!ReferenceEquals(item, control) ? UiGridLength.Auto : UiGridLength.Pixel(32 * scale));
             }
             string helpText = menus.Message.Length > 0 ? menus.Message : menus.CurrentScreen.Help;
             if (menus.Message.Length == 0 && menus.modSettings.All(setting => menus.ModSettingLockReason(setting) is not null))
@@ -142,7 +142,7 @@ public sealed partial class MenuController
             if (!string.IsNullOrWhiteSpace(row.Entry.Help))
             {
                 UiLabel description = menus.Label(row.Entry.Help, 14, UiTextFlow.Wrap);
-                description.Id = "mod-setting-description-" + row.SettingIndex;
+                description.Id = row.Entry.Id.StartsWith("mod-setting-", StringComparison.Ordinal) ? "mod-setting-description-" + row.Entry.Id["mod-setting-".Length..] : row.Entry.Id + "-description";
                 description.Margin = new UiThickness(22, 0, 0, 0);
                 description.Muted = true;
                 grid.RowDefinitions.Add(UiGridLength.Auto);

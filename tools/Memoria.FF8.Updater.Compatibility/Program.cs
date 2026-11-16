@@ -9,6 +9,7 @@ namespace Memoria.FF8.Updater.Compatibility;
 
 internal static class Program
 {
+    private const string LegacyArtwork = "Data/BundledMods/Memoria/Girl Next Door/GirlNextDoor.png";
     private static readonly string[] ExecutablePaths = ["Memoria.Launcher.exe", "Data/Memoria.FF8.exe", "Data/audio-host/Memoria.FF8.Music.exe"];
     private static readonly IReadOnlyDictionary<string, string> UserFiles = new Dictionary<string, string>
     {
@@ -16,6 +17,7 @@ internal static class Program
         ["Mods/Demaster/CompatibilityUser/mod.ini"] = "user Demaster settings",
         ["Mods/Junction/CompatibilityUser/mod.ini"] = "user Junction settings",
         ["Mods/Memoria/CompatibilityUser/mod.ini"] = "user Memoria settings",
+        ["Mods/Memoria/Girl Next Door/mod.ini"] = "enabled = 0",
         ["Data/compatibility-user/custom.bin"] = "unowned application data",
         ["compatibility-user-notes.txt"] = "user notes"
     };
@@ -57,7 +59,7 @@ internal static class Program
     {
         WithTemporaryDirectory(root =>
         {
-            PackageManifest original = CreateOriginalInstallation(root);
+            PackageManifest original = CreateOriginalInstallation(root, includeLegacyArtwork: true);
             byte[] originalManifest = File.ReadAllBytes(Path.Combine(root, PackageManifest.ManifestPath));
             foreach ((string path, string content) in UserFiles)
             {
@@ -103,13 +105,16 @@ internal static class Program
             else
             {
                 Require(actual.Files.SequenceEqual(incoming.Files), "The installed manifest inventory differs from the incoming archive.");
+                Require(!File.Exists(Path.Combine(root, LegacyArtwork)), "The incoming archive still contains the external artwork.");
+                Require(File.ReadAllText(Path.Combine(root, UpdateInstaller.WorkDirectory, "backup", LegacyArtwork)) == "original:" + LegacyArtwork, "The released updater did not retain legacy artwork for offline migration.");
             }
         });
     }
 
-    private static PackageManifest CreateOriginalInstallation(string root)
+    private static PackageManifest CreateOriginalInstallation(string root, bool includeLegacyArtwork = false)
     {
-        PackageFile[] files = ExecutablePaths.Select(path =>
+        IEnumerable<string> inventory = includeLegacyArtwork ? ExecutablePaths.Append(LegacyArtwork) : ExecutablePaths;
+        PackageFile[] files = inventory.Select(path =>
         {
             byte[] content = Encoding.UTF8.GetBytes("original:" + path);
             Write(root, path, content);

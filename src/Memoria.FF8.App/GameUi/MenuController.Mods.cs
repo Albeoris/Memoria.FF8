@@ -40,6 +40,7 @@ public sealed partial class MenuController
         {
             _liveData = null;
             RestoreModSelection();
+            RefreshMemoriaSettingsRows();
         });
         Register(new MenuScreenDefinition { Id = "mods-create", Title = "Mods · Create Mods", Help = "An initialized gameplay editor is required.", Entries = _ => [new("unavailable", SystemText("ui.connectmods.entry.label.gf.abilities.unavailable.in.this.preview", "GF Abilities unavailable in this preview"), SystemText("ui.connectmods.entry.help.open.the.tool.from.the.running.game", "Open the tool from the running game."), Enabled: false)] });
         Register(new MenuScreenDefinition { Id = "gf-mod-review", Title = "Mods · GF changes review", Help = "No gameplay editor is connected.", Entries = _ => [] });
@@ -156,7 +157,13 @@ public sealed partial class MenuController
 
     private ModPackageView[] FilteredModViews()
     {
-        return modService!.View.Packages.Where(view => (view.Package.Name.Contains(modSearch, StringComparison.OrdinalIgnoreCase) || view.Package.Id.Contains(modSearch, StringComparison.OrdinalIgnoreCase)) && (modFilter switch
+        IEnumerable<ModPackageView> packages = modService!.View.Packages;
+        if (!packages.Any(view => view.Package.Id == ModRuntime.MemoriaPackageId) && OfficialEntries.Any())
+        {
+            ModPackage group = new(ModRuntime.MemoriaPackageId, ModRuntime.MemoriaPackageId, ModFormat.Memoria, null, false, ModEffectiveStatus.Disabled, "");
+            packages = packages.Prepend(new(group, null, "", null, false, false));
+        }
+        return packages.Where(view => (view.Package.Name.Contains(modSearch, StringComparison.OrdinalIgnoreCase) || view.Package.Id.Contains(modSearch, StringComparison.OrdinalIgnoreCase)) && (modFilter switch
         {
             1 => view.Package.RequestedEnabled,
             2 => !view.Package.RequestedEnabled,

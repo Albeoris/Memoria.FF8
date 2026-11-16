@@ -2,6 +2,7 @@ using System.Net.Http;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher;
 
@@ -27,6 +28,7 @@ internal sealed partial class LauncherWindow
         panel.Children.Add(buttons);
         panel.Children.Add(updateStatus);
         panel.Children.Add(updateProgress);
+        panel.Children.Add(CreateOfficialModsPanel());
         releaseUpdate.Click += async (_, _) => await InstallUpdateAsync(UpdateChannel.Release);
         nightlyUpdate.Click += async (_, _) => await InstallUpdateAsync(UpdateChannel.Nightly);
         return panel;
@@ -50,10 +52,12 @@ internal sealed partial class LauncherWindow
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(updateLifetime.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
             ReleaseClient client = new(http);
-            Task<string> release = DescribeChannelAsync(client, UpdateChannel.Release, timeout.Token);
-            Task<string> nightly = DescribeChannelAsync(client, UpdateChannel.Nightly, timeout.Token);
+            Task<PackageManifest?> inventory = Task.Run(() => PackageManifest.LoadOptional(MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory)), timeout.Token);
+            Task<string> release = DescribeChannelAsync(client, UpdateChannel.Release, inventory, timeout.Token);
+            Task<string> nightly = DescribeChannelAsync(client, UpdateChannel.Nightly, inventory, timeout.Token);
+            await Task.WhenAll(release, nightly, inventory);
             string[] descriptions = await Task.WhenAll(release, nightly);
-            PackageManifest? installed = PackageManifest.LoadOptional(MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory));
+            PackageManifest? installed = await inventory;
             string current = installed is null ? "Development build" : $"Installed: {installed.Version} ({installed.BuildId[..Math.Min(8, installed.BuildId.Length)]})";
             updateStatus.Text = current + Environment.NewLine + string.Join(Environment.NewLine, descriptions);
         }
@@ -71,7 +75,7 @@ internal sealed partial class LauncherWindow
         }
     }
 
-    private async Task<string> DescribeChannelAsync(ReleaseClient client, UpdateChannel channel, CancellationToken cancellationToken)
+    private static async Task<string> DescribeChannelAsync(ReleaseClient client, UpdateChannel channel, Task<PackageManifest?> inventory, CancellationToken cancellationToken)
     {
         try
         {
@@ -81,7 +85,7 @@ internal sealed partial class LauncherWindow
             {
                 return name + ": no build published.";
             }
-            PackageManifest? installed = PackageManifest.LoadOptional(MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory));
+            PackageManifest? installed = await inventory;
             bool current = installed is not null && release.BuildId == installed.BuildId;
             return $"{name}: {release.Name} · {release.UpdatedAt.ToLocalTime():g}" + (current ? " · installed" : " · available");
         }
@@ -115,7 +119,7 @@ internal sealed partial class LauncherWindow
                 return;
             }
             string root = MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory);
-            PackageManifest installed = PackageManifest.Read(root);
+            PackageManifest installed = await Task.Run(() => PackageManifest.Read(root));
             if (release.BuildId == installed.BuildId)
             {
                 updateStatus.Text = "This build is already installed.";
@@ -133,11 +137,17 @@ internal sealed partial class LauncherWindow
             downloadTimeout.CancelAfter(TimeSpan.FromMinutes(20));
             updateDownload = downloadTimeout;
             cancelUpdate.IsVisible = true;
-            string archive = await UpdatePackageCache.GetArchiveAsync(root, client, release, new Progress<double>(value =>
+            (UpdateRelease Release, string Archive)? downloaded = await UpdatePackageCache.GetArchiveWithNightlyRefreshAsync(root, client, release, latest => LauncherDialogs.ConfirmAsync(this, "Memoria — nightly changed", $"A new nightly was published during download. Download {latest.Name} ({latest.Size / 1048576d:F1} MiB)?"), new Progress<double>(value =>
             {
                 updateProgress.Value = value * 100;
                 updateStatus.Text = $"Downloading the update — {value:P0}";
             }), downloadTimeout.Token);
+            if (downloaded is not { } package)
+            {
+                updateStatus.Text = "Download cancelled. The installed game remains available.";
+                return;
+            }
+            release = package.Release;
             cancelUpdate.IsVisible = false;
             updateDownload = null;
             updateProgress.IsIndeterminate = true;
@@ -146,11 +156,15 @@ internal sealed partial class LauncherWindow
             await Task.Run(() =>
             {
                 string staged = MacBundleUpdate.StagingPath(root);
-                PackageManifest.Extract(archive, staged, installed.RuntimeIdentifier);
+                PackageManifest.Extract(package.Archive, staged, installed.RuntimeIdentifier);
                 PackageManifest incoming = PackageManifest.Read(staged);
                 if (release.BuildId is not null && incoming.BuildId != release.BuildId)
                 {
                     throw new InvalidDataException("The downloaded build identity does not match its release metadata. Check for updates again.");
+                }
+                if (release.EngineCompatibilityVersion is string expected && EngineBuildMetadata.ReadInstalledCompatibilityVersion(staged) != expected)
+                {
+                    throw new InvalidDataException("The downloaded engine compatibility version does not match the update feed.");
                 }
                 UpdateInstaller.CreateJournal(root, incoming);
             });

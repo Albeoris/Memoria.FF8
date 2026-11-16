@@ -15,6 +15,5 @@
     <ProjectReference Include="../../src/Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <Content Include="../../Mods/Memoria/EdeaMirrors/gameplay/encounters/edea-disc1.json" Link="Fixtures/EncounterExample/payload.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../Mods/Memoria/EdeaMirrors/mod.ini" Link="Fixtures/EncounterExample/mod.ini" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../Mods/Memoria/Girl Next Door/mod.ini" Link="Fixtures/GirlNextDoor/mod.ini" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -11,6 +11,8 @@ namespace Memoria.FF8.Mods;
 
 public sealed record RemoteModEntry(string SourceId, Guid Id, string Name, string Version)
 {
+    public OfficialModComponent? Official { get; init; }
+    public string? CompatibilityError { get; init; }
     public bool IsStale { get; init; }
     public string Author { get; init; } = "";
     public string MetaVersion { get; init; } = "";
@@ -24,6 +26,10 @@ public sealed record RemoteModEntry(string SourceId, Guid Id, string Name, strin
     public string PreviewUrl { get; init; } = "";
     public string Requirements { get; init; } = "";
     public string UnsupportedMetadata { get; init; } = "";
+
+    public int? CompareVersion(string other) => SourceId == OfficialModCatalog.SourceId
+        ? NuGet.Versioning.NuGetVersion.TryParse(Version, out var current) && NuGet.Versioning.NuGetVersion.TryParse(other, out var previous) ? current.CompareTo(previous) : null
+        : CompareRelease(Version, other);
 
     public static int? CompareRelease(string left, string right)
     {

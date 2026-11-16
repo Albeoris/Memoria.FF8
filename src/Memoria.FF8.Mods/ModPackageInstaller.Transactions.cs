@@ -4,13 +4,25 @@ namespace Memoria.FF8.Mods;
 
 public sealed partial class ModPackageInstaller
 {
-    private sealed record Receipt(int Schema, Guid InstallationId, string SourceId, Guid ModId, string Version, string Target, string DestinationName, string PayloadHash, bool Folder);
+    private sealed record Receipt(int Schema, Guid InstallationId, string SourceId, Guid ModId, string Version, string Target, string DestinationName, string PayloadHash, bool Folder)
+    {
+        public OfficialModComponent? Official { get; init; }
+        public IReadOnlyList<OfficialModFile>? Files { get; init; }
+        public string? EngineVersionRange { get; init; }
+        public bool Migrated { get; init; }
+        public IReadOnlyDictionary<string, long>? InternalWriteTimes { get; init; }
+    }
     private sealed record Journal(int Schema, Guid TransactionId, Receipt Next, Receipt? Previous, string StageName, string ExpectedSettingsHash, string Settings, string Phase)
     {
         public Receipt? MissingPrevious { get; init; }
+        public bool Enable { get; init; }
+        public bool? PreviousPreference { get; init; }
+        public string? RepairSourceHash { get; init; }
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string? PreviousPayloadHash => RepairSourceHash ?? Previous?.PayloadHash;
     }
 
-    public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default)
+    public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default, bool enableOnAcceptance = false, bool repair = false)
     {
         return Task.Run(async () =>
         {
@@ -29,14 +41,15 @@ public sealed partial class ModPackageInstaller
                 string name = Path.GetFileName(plan.Destination);
                 string receiptPath = ReceiptPath(ManagedName(plan.Entry));
                 Receipt? previous = Read<Receipt>(receiptPath);
-                string destination = Destination(name);
+                string destination = Destination(plan.Entry.SourceId, name);
                 if (File.Exists(JournalPath(ManagedName(plan.Entry))))
                 {
                     throw new InvalidOperationException("This installation already has a pending transaction. Restart to apply it first.");
                 }
-                CheckOwnership(plan.Entry, destination, previous, allowMissing: true);
+                string? repairSourceHash = repair && previous is not null && plan.Entry.Official is not null && Directory.Exists(destination) ? Fingerprint(destination, false, cancellationToken) : null;
+                CheckOwnership(plan.Entry, destination, previous, allowMissing: true, repairSourceHash);
                 bool previousPayloadExists = Exists(destination);
-                if (previousPayloadExists && previous?.PayloadHash == item.Hash)
+                if (previousPayloadExists && previous?.PayloadHash == item.Hash && plan.Entry.CompareVersion(previous.Version) == 0)
                 {
                     prepared.Remove(plan.Token);
                     Directory.Delete(item.Root, true);
@@ -44,11 +57,24 @@ public sealed partial class ModPackageInstaller
                 }
                 string settingsPath = Configuration(destination, Directory.Exists(item.Payload));
                 string settings = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : "[Mod]\nenabled=" + (autoEnableNewMods ? "1" : "0") + "\n";
-                if (previous is not null)
+                if (previous is not null && plan.Entry.Official is null)
                 {
                     ValidatePackage(item.Payload, plan.Entry, ModConfiguration.ReadJunctionOptions(settingsPath));
                 }
-                Receipt next = new(1, previous?.InstallationId ?? Guid.NewGuid(), plan.Entry.SourceId, plan.Entry.Id, plan.Version, targetProfile, name, item.Hash, Directory.Exists(item.Payload));
+                if (CompatibilityError(plan.Entry) is { } unavailable)
+                {
+                    throw new NotSupportedException(unavailable);
+                }
+                if (plan.Entry.Official is not null && !File.Exists(settingsPath))
+                {
+                    settings = NativeDefaultSettings(item.Payload, enableOnAcceptance || autoEnableNewMods && plan.Entry.Official.DefaultEnabled);
+                }
+                Receipt next = new(1, previous?.InstallationId ?? Guid.NewGuid(), plan.Entry.SourceId, plan.Entry.Id, plan.Version, plan.Entry.Official is null ? targetProfile : "", name, item.Hash, Directory.Exists(item.Payload))
+                {
+                    Official = plan.Entry.Official,
+                    EngineVersionRange = plan.Entry.Official?.Latest?.EngineVersionRange,
+                    Files = item.NativeFiles
+                };
                 string stage = StatePath("transactions", plan.Token.ToString("N"));
                 Directory.CreateDirectory(Path.GetDirectoryName(stage)!);
                 string payloadName = Path.GetRelativePath(item.Root, item.Payload);
@@ -56,11 +82,14 @@ public sealed partial class ModPackageInstaller
                 prepared[plan.Token] = item with { Root = stage, Payload = Path.Combine(stage, payloadName) };
                 Journal journal = new(1, plan.Token, next, previousPayloadExists ? previous : null, payloadName, SettingsHash(settingsPath), settings, "PendingRestart")
                 {
-                    MissingPrevious = previousPayloadExists ? null : previous
+                    MissingPrevious = previousPayloadExists ? null : previous,
+                    Enable = enableOnAcceptance && next.Official is not null,
+                    PreviousPreference = enableOnAcceptance && next.Official is not null ? ReadCentralPreference(next.Official.SettingsKey) : null,
+                    RepairSourceHash = repairSourceHash
                 };
                 WriteAtomic(JournalPath(ManagedName(plan.Entry)), journal);
                 prepared.Remove(plan.Token);
-                return Result(next, true, false);
+                return Result(next, true, false) with { PendingEnable = journal.Enable };
             }
             finally
             {
@@ -112,7 +141,7 @@ public sealed partial class ModPackageInstaller
                         {
                             ValidateJournal(journal, path);
                             string backup = StatePath("transactions", Path.Combine(journal.TransactionId.ToString("N"), "previous"));
-                            if (Exists(backup) && Fingerprint(backup, false) == journal.Previous.PayloadHash)
+                            if (Exists(backup) && Fingerprint(backup, false) == journal.PreviousPayloadHash)
                             {
                                 WriteAtomic(path, journal with { Phase = "RollingBack" });
                                 Rollback(journal, path);
@@ -144,18 +173,23 @@ public sealed partial class ModPackageInstaller
         if (journal is not null)
         {
             ValidateJournal(journal, JournalPath(key));
-            return Result(journal.Next, true, false);
+            return Result(journal.Next, true, false) with { PendingEnable = ShouldEnable(journal) };
         }
         Receipt? receipt = Read<Receipt>(ReceiptPath(key));
         if (receipt is null)
         {
             return null;
         }
+        if (entry.SourceId == OfficialModCatalog.SourceId)
+        {
+            return ValidNativeReceipt(receipt) && receipt.ModId == entry.Id && receipt.Official!.RuntimePackageId == entry.Official?.RuntimePackageId
+                ? NativeResult(receipt) : Result(receipt, false, false, "The native installation receipt does not match this component.");
+        }
         if (receipt.Schema != 1 || receipt.SourceId != entry.SourceId || receipt.ModId != entry.Id || receipt.Target != targetProfile || receipt.DestinationName != key + (receipt.Folder ? "" : ".iroj"))
         {
             return Result(receipt, false, false, "The installation receipt does not match this target.");
         }
-        string destination = Destination(receipt.DestinationName);
+        string destination = Destination(receipt.SourceId, receipt.DestinationName);
         EnsureNoLinks(destination);
         if (!Exists(destination))
         {
@@ -167,13 +201,17 @@ public sealed partial class ModPackageInstaller
     private void Apply(Journal journal, string journalPath)
     {
         Receipt next = journal.Next;
-        string destination = Destination(next.DestinationName);
+        string destination = Destination(next.SourceId, next.DestinationName);
         string transaction = StatePath("transactions", journal.TransactionId.ToString("N"));
         string payload = Path.Combine(transaction, journal.StageName);
         string backup = Path.Combine(transaction, "previous");
         string settingsPath = Configuration(destination, next.Folder);
         EnsureNoLinks(transaction);
         EnsureNoLinks(destination);
+        if (next.Official is not null)
+        {
+            VerifyNativeCompatibility(next);
+        }
         if (journal.Phase is "Committed" or "AwaitingValidation")
         {
             VerifyFinal(next, destination);
@@ -186,7 +224,7 @@ public sealed partial class ModPackageInstaller
         RemoteModEntry pinned = new(next.SourceId, next.ModId, "", next.Version);
         if (journal.Phase == "PendingRestart")
         {
-            bool oldMoveInterrupted = journal.Previous is not null && !Exists(destination) && Exists(backup) && Fingerprint(backup, false) == journal.Previous.PayloadHash;
+            bool oldMoveInterrupted = journal.Previous is not null && !Exists(destination) && Exists(backup) && Fingerprint(backup, false) == journal.PreviousPayloadHash;
             string settingsToCheck = oldMoveInterrupted && next.Folder ? Configuration(backup, true) : settingsPath;
             if (SettingsHash(settingsToCheck) != journal.ExpectedSettingsHash)
             {
@@ -198,10 +236,10 @@ public sealed partial class ModPackageInstaller
             }
             if (!oldMoveInterrupted)
             {
-                CheckOwnership(pinned, destination, journal.Previous ?? journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null);
+                CheckOwnership(pinned, destination, journal.Previous ?? journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null, journal.RepairSourceHash);
             }
         }
-        bool finalIsNew = Exists(destination) && Fingerprint(destination, false) == next.PayloadHash;
+        bool finalIsNew = journal.Phase != "PendingRestart" && Exists(destination) && Fingerprint(destination, false) == next.PayloadHash;
         if (!finalIsNew)
         {
             if (!Exists(payload) || Fingerprint(payload, false) != next.PayloadHash)
@@ -209,14 +247,21 @@ public sealed partial class ModPackageInstaller
                 throw new InvalidDataException("The staged payload is missing or changed. Recovery data has been retained.");
             }
             RemoteModEntry entry = new(next.SourceId, next.ModId, "", next.Version);
-            ValidatePackage(payload, entry);
+            if (next.Official is null)
+            {
+                ValidatePackage(payload, entry);
+            }
+            else
+            {
+                ValidateNativeFiles(payload, next.Files!, CancellationToken.None, verifyMutable: false);
+            }
             if (journal.Previous is null)
             {
-                CheckOwnership(entry, destination, journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null);
+                CheckOwnership(entry, destination, journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null, journal.RepairSourceHash);
             }
             if (Exists(destination))
             {
-                CheckOwnership(entry, destination, journal.Previous);
+                CheckOwnership(entry, destination, journal.Previous, repairSourceHash: journal.RepairSourceHash);
                 if (SettingsHash(settingsPath) != journal.ExpectedSettingsHash)
                 {
                     throw new InvalidDataException("Installation settings changed after the plan was accepted; replan before updating.");
@@ -227,7 +272,7 @@ public sealed partial class ModPackageInstaller
                 }
                 Move(destination, backup);
             }
-            else if (journal.Previous is not null && (!Exists(backup) || Fingerprint(backup, false) != journal.Previous.PayloadHash))
+            else if (journal.Previous is not null && (!Exists(backup) || Fingerprint(backup, false) != journal.PreviousPayloadHash))
             {
                 throw new InvalidDataException("The previous installation or its verified backup is missing.");
             }
@@ -251,22 +296,39 @@ public sealed partial class ModPackageInstaller
             WriteTextAtomic(settingsPath, journal.Settings);
         }
         VerifyFinal(next, destination);
+        if (next.Official is not null)
+        {
+            next = next with { InternalWriteTimes = CaptureWriteTimes(destination, next.Files!) };
+        }
         WriteAtomic(ReceiptPath(ManagedName(new(next.SourceId, next.ModId, "", next.Version))), next);
-        WriteAtomic(journalPath, journal with { Phase = "AwaitingValidation" });
+        WriteAtomic(journalPath, journal with { Next = next, Phase = "AwaitingValidation" });
         // Retain transaction backups for explicit recovery; cache eviction must never delete them.
     }
 
-    private void CheckOwnership(RemoteModEntry entry, string destination, Receipt? previous, bool allowMissing = false)
+    private void CheckOwnership(RemoteModEntry entry, string destination, Receipt? previous, bool allowMissing = false, string? repairSourceHash = null)
     {
         EnsureNoLinks(modsRoot);
         EnsureNoLinks(destination);
         if (previous is not null)
         {
-            if (previous.Schema != 1 || previous.SourceId != entry.SourceId || previous.ModId != entry.Id || previous.Target != targetProfile || previous.DestinationName != Path.GetFileName(destination))
+            if (previous.Schema != 1 || previous.SourceId != entry.SourceId || previous.ModId != entry.Id || (entry.SourceId != OfficialModCatalog.SourceId && previous.Target != targetProfile) || previous.DestinationName != Path.GetFileName(destination))
             {
                 throw new InvalidDataException("Receipt ownership or target differs from the accepted plan.");
             }
-            if (!Exists(destination) ? !allowMissing : Fingerprint(destination, false) != previous.PayloadHash)
+            if (entry.SourceId == OfficialModCatalog.SourceId && (!ValidNativeReceipt(previous) || previous.Version.Length == 0 && repairSourceHash is null))
+            {
+                throw new InvalidDataException("This legacy installation has local changes. Keep or move its files before replacing it.");
+            }
+            if (repairSourceHash is not null && Directory.Exists(destination))
+            {
+                HashSet<string> owned = previous.Files!.Select(file => file.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                owned.Add("mod.ini");
+                if (SafeFiles(destination).Any(file => !owned.Contains(Path.GetRelativePath(destination, file).Replace('\\', '/'))))
+                {
+                    throw new InvalidDataException("The folder contains unowned files. Move those files somewhere safe before repairing the component.");
+                }
+            }
+            if (!Exists(destination) ? !allowMissing : Fingerprint(destination, false) != (repairSourceHash ?? previous.PayloadHash))
             {
                 throw new InvalidDataException("This managed installation is missing or contains local changes.");
             }
@@ -274,6 +336,10 @@ public sealed partial class ModPackageInstaller
         else if (Exists(destination) || File.Exists(destination + ".ini"))
         {
             throw new InvalidDataException("The destination is not owned by the downloader. Manual installations cannot be overwritten.");
+        }
+        if (entry.SourceId == OfficialModCatalog.SourceId)
+        {
+            return;
         }
         string junction = Path.Combine(modsRoot, "Junction");
         if (!Directory.Exists(junction))
@@ -306,19 +372,28 @@ public sealed partial class ModPackageInstaller
 
     private void ValidateJournal(Journal journal, string path)
     {
-        if (journal is null || journal.Next is null || string.IsNullOrWhiteSpace(journal.Next.SourceId) || journal.Next.ModId == Guid.Empty || !DecimalVersion(journal.Next.Version, out _))
+        if (journal is null || journal.Next is null || string.IsNullOrWhiteSpace(journal.Next.SourceId) || journal.Next.ModId == Guid.Empty || (journal.Next.SourceId == OfficialModCatalog.SourceId ? !NuGet.Versioning.NuGetVersion.TryParse(journal.Next.Version, out _) : !DecimalVersion(journal.Next.Version, out _)))
         {
             throw new InvalidDataException("Installation journal identity is missing or invalid.");
         }
         RemoteModEntry entry = new(journal.Next.SourceId, journal.Next.ModId, "", journal.Next.Version);
         string name = ManagedName(entry);
-        if (journal.Schema != 1 || journal.Next.Schema != 1 || journal.Next.Target != targetProfile || journal.Next.DestinationName != name + (journal.Next.Folder ? "" : ".iroj") || journal.StageName != (journal.Next.Folder ? "content" : "content.iroj") || !Path.GetFullPath(path).Equals(JournalPath(name), StringComparison.OrdinalIgnoreCase))
+        bool validDestination = journal.Next.SourceId == OfficialModCatalog.SourceId ? ValidNativeReceipt(journal.Next) : journal.Next.Target == targetProfile && journal.Next.DestinationName == name + (journal.Next.Folder ? "" : ".iroj");
+        if (journal.Schema != 1 || journal.Next.Schema != 1 || !validDestination || journal.StageName != (journal.Next.Folder ? "content" : "content.iroj") || !Path.GetFullPath(path).Equals(JournalPath(name), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Unsupported journal schema, target or destination mapping.");
         }
         if (journal.MissingPrevious is { } missing && (journal.Previous is not null || missing.Schema != 1 || missing.SourceId != journal.Next.SourceId || missing.ModId != journal.Next.ModId || missing.Target != journal.Next.Target || missing.DestinationName != journal.Next.DestinationName || missing.Folder != journal.Next.Folder || missing.InstallationId != journal.Next.InstallationId))
         {
             throw new InvalidDataException("The missing-installation receipt does not match the journal ownership and target.");
+        }
+        if (journal.Previous is { } previous && journal.Next.Official is not null && (!ValidNativeReceipt(previous) || previous.ModId != journal.Next.ModId || previous.InstallationId != journal.Next.InstallationId || previous.DestinationName != journal.Next.DestinationName))
+        {
+            throw new InvalidDataException("The previous native receipt does not match the transaction.");
+        }
+        if (journal.RepairSourceHash is not null && (journal.Previous?.Official is null || !OfficialModCatalog.IsDigest(journal.RepairSourceHash)))
+        {
+            throw new InvalidDataException("Invalid repair ownership in the installation journal.");
         }
         if (journal.Phase is not ("PendingRestart" or "OldMoved" or "NewMoved" or "Committed" or "AwaitingValidation" or "RollingBack"))
         {
@@ -332,7 +407,14 @@ public sealed partial class ModPackageInstaller
         {
             throw new InvalidDataException("The installed payload failed verification. Recovery data has been retained.");
         }
-        ValidatePackage(destination, new(receipt.SourceId, receipt.ModId, "", receipt.Version), ModConfiguration.ReadJunctionOptions(Configuration(destination, receipt.Folder)));
+        if (receipt.Official is null)
+        {
+            ValidatePackage(destination, new(receipt.SourceId, receipt.ModId, "", receipt.Version), ModConfiguration.ReadJunctionOptions(Configuration(destination, receipt.Folder)));
+        }
+        else
+        {
+            VerifyNativeCompatibility(receipt);
+        }
     }
 
     private FileStream AcquireLock()
@@ -342,13 +424,13 @@ public sealed partial class ModPackageInstaller
         return new FileStream(StatePath("", "install.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
 
-    private string Destination(string name)
+    private string Destination(string source, string name)
     {
         if (Path.GetFileName(name) != name)
         {
             throw new InvalidDataException("Invalid installation destination.");
         }
-        return Path.Combine(modsRoot, "Junction", name);
+        return Path.Combine(modsRoot, source == OfficialModCatalog.SourceId ? "Memoria" : "Junction", name);
     }
 
     private string ReceiptPath(string name) => StatePath("receipts", name + ".json");
@@ -357,7 +439,13 @@ public sealed partial class ModPackageInstaller
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
     private static string SettingsHash(string path) => File.Exists(path) ? TextHash(File.ReadAllText(path)) : "missing";
     private static string TextHash(string text) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
-    private static ModPackageInstallResult Result(Receipt receipt, bool restart, bool installed, string? error = null) => new(receipt.InstallationId, "Junction/" + receipt.DestinationName, receipt.Version, restart, installed, error);
+    private static string PackageId(Receipt receipt) => receipt.Official?.RuntimePackageId ?? "Junction/" + receipt.DestinationName;
+
+    private static ModPackageInstallResult Result(Receipt receipt, bool restart, bool installed, string? error = null) => new(receipt.InstallationId, PackageId(receipt), receipt.Version, restart, installed, error)
+    {
+        Official = receipt.Official,
+        EngineVersionRange = receipt.EngineVersionRange
+    };
 
     private static void Move(string source, string destination)
     {

@@ -256,8 +256,12 @@ jobs:
           if ($archives.Count -ne 1) { throw 'Expected one RID archive.' }
           $archive = $archives[0]
           $version = 'source'
+          $payload = 'artifacts/package/${{ matrix.rid }}'
+          if ('${{ matrix.rid }}' -like 'osx-*') { $payload = Join-Path $payload 'Memoria.FF8.app/Contents/Resources' }
+          $engineCompatibilityVersion = (Get-Content -LiteralPath (Join-Path $payload 'Data/engine-version.json') -Raw | ConvertFrom-Json).engineCompatibilityVersion
+          if ([string]::IsNullOrWhiteSpace($engineCompatibilityVersion)) { throw 'The verified package has no engine compatibility version.' }
           $signature = if ('${{ matrix.rid }}' -like 'osx-*') { 'adhoc-v1' } else { 'none' }
-          @{ source = $env:GITHUB_SHA; rid = '${{ matrix.rid }}'; recipe = $env:RECIPE; sdk = (dotnet --version); version = $version; macSignature = $signature; archive = $archive.Name; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); run = $env:GITHUB_RUN_ID } | ConvertTo-Json | Set-Content artifacts/receipt-${{ matrix.rid }}.json -Encoding utf8NoBOM
+          @{ source = $env:GITHUB_SHA; rid = '${{ matrix.rid }}'; recipe = $env:RECIPE; sdk = (dotnet --version); version = $version; engineCompatibilityVersion = $engineCompatibilityVersion; macSignature = $signature; archive = $archive.Name; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); run = $env:GITHUB_RUN_ID } | ConvertTo-Json | Set-Content artifacts/receipt-${{ matrix.rid }}.json -Encoding utf8NoBOM
       # Re-upload reused payloads into this run: publication collects a complete
       # RID set without an overwritten matrix-job output or a cross-run race.
       - uses: actions/upload-artifact@v7

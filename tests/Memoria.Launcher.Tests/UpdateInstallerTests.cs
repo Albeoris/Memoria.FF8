@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Memoria.FF8.Mods;
 
 namespace Memoria.Launcher.Tests;
 
@@ -55,6 +56,40 @@ public sealed class UpdateInstallerTests : IDisposable
         AssertUnknownFiles();
         UpdateInstaller.Recover(root);
         Assert.Equal("new", PackageManifest.Read(root).BuildId);
+    }
+
+    [Fact]
+    public void CommittedUpdateAdoptsArtworkBeforePrepareAndPreservesWritableConfiguration()
+    {
+        const string old = "Data/BundledMods/Memoria/Girl Next Door/";
+        const string local = "Mods/Memoria/Girl Next Door/";
+        AddPackageFile(root, old + "GirlNextDoor.png", "legacy artwork");
+        AddPackageFile(root, old + "mod.ini", "enabled = 1");
+        Write(root, local + "mod.ini", "enabled = 0\ncustom = keep");
+        UpdateInstaller.Apply(root);
+        Assert.False(File.Exists(Path.Combine(root, old, "GirlNextDoor.png")));
+
+        GirlNextDoorMigration.FromLauncher(root);
+        GirlNextDoorMigration.FromLauncher(root);
+        Assert.True(GirlNextDoorMigration.IsComplete(Path.Combine(root, "Mods")));
+        Assert.Equal("legacy artwork", Read(local + "GirlNextDoor.png"));
+        Assert.Equal("enabled = 0\ncustom = keep", Read(local + "mod.ini"));
+        Assert.Equal("legacy artwork", Read(".memoria-update/backup/" + old + "GirlNextDoor.png"));
+        Assert.Single(ModPackageInstaller.ReadOfficialInventory(Path.Combine(root, "Mods")));
+    }
+
+    [Fact]
+    public void InvalidCommittedBackupPreventsPrepareFromDeletingTheMigrationSource()
+    {
+        const string artwork = "Data/BundledMods/Memoria/Girl Next Door/GirlNextDoor.png";
+        AddPackageFile(root, artwork, "legacy artwork");
+        UpdateInstaller.Apply(root);
+        string backup = Path.Combine(Work, "backup", artwork);
+        File.WriteAllText(backup, "altered backup");
+
+        Assert.Throws<InvalidDataException>(() => UpdateInstaller.Prepare(root));
+        Assert.True(File.Exists(backup));
+        Assert.False(File.Exists(Path.Combine(root, "Mods/Memoria/Girl Next Door/GirlNextDoor.png")));
     }
 
     [Theory]

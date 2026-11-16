@@ -104,7 +104,7 @@ public sealed partial class MenuController
             {
                 return job.CanInstall ? "Install" : job.CanRetry ? "Retry" : job.CanResume ? "Resume" : downloads ? "Full details" : "View download";
             }
-            if (Entry is { } missing && menus.ManagedRepairNeeded(missing))
+            if (Entry is { } missing && menus.ManagedRepairNeeded(missing) || Entry is { } legacy && menus.ManagedMod(legacy) is { Version.Length: 0 } && menus.CanDownload(legacy))
             {
                 return "Download & check repair";
             }
@@ -115,7 +115,7 @@ public sealed partial class MenuController
             return Entry is { } entry && menus.ManagedMod(entry) is { Pending: true } ? "View pending change" : Entry is { } local && (menus.AssociatedMod(local) is not null || menus.ManagedMod(local) is not null) ? "View installed mod" : "Download & check";
         }
 
-        private bool CanPrimary() => Entry is not null && (Job is not null || menus.AssociatedMod(Entry) is not null || menus.ManagedMod(Entry) is not null || snapshot.TargetSupported && menus.CatalogEntryListed(Entry) && Entry.Links.Count > 0);
+        private bool CanPrimary() => Entry is not null && (Job is not null || menus.AssociatedMod(Entry) is not null || menus.ManagedMod(Entry) is not null || menus.CanDownload(Entry) && menus.CatalogEntryListed(Entry) && Entry.Links.Count > 0);
         private void Primary()
         {
             if (!CanPrimary())
@@ -152,7 +152,7 @@ public sealed partial class MenuController
                 {
                     menus.Push("mods-library-details");
                 }
-                else if (menus.ManagedRepairNeeded(entry))
+                else if ((menus.ManagedRepairNeeded(entry) || menus.ManagedMod(entry) is { Version.Length: 0 }) && menus.CanDownload(entry))
                 {
                     menus.modLibrary!.Queue(entry);
                 }
@@ -161,11 +161,11 @@ public sealed partial class MenuController
                     menus.SelectMod(local.Package.Id);
                     menus.Push("mods");
                 }
-                else if (menus.ManagedMod(entry) is not null && !menus.CatalogUpdateAvailable(entry))
+                else if (menus.ManagedMod(entry) is not null && (!menus.CatalogUpdateAvailable(entry) || !menus.CanDownload(entry)))
                 {
                     menus.Push("mods-library-details");
                 }
-                else
+                else if (menus.CanDownload(entry))
                 {
                     menus.modLibrary!.Queue(entry);
                 }

@@ -8,6 +8,43 @@ namespace Memoria.Launcher.Tests;
 
 public sealed class ReleaseClientTests
 {
+    [Fact]
+    public async Task StaticFeedAndDirectDownloadWorkWithoutApiAccess()
+    {
+        byte[] bytes = [1, 2, 3];
+        string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        using HttpClient http = new(new Handler(request => request.RequestUri!.Host switch
+        {
+            "raw.githubusercontent.com" => JsonResponse(StaticFeed(bytes)),
+            "github.com" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) },
+            _ => throw new HttpRequestException("GitHub API unavailable")
+        }));
+        try
+        {
+            ReleaseClient client = new(http, "win-x64");
+            UpdateRelease release = Assert.IsType<UpdateRelease>(await client.GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
+            Assert.Equal("0.8.10", release.EngineCompatibilityVersion);
+            Assert.Equal("https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip", release.DownloadUri.AbsoluteUri);
+            await client.DownloadAsync(release, destination, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(destination, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            File.Delete(destination);
+        }
+    }
+
+    [Fact]
+    public async Task StaticFeedRejectsMismatchedAssetAndDoesNotFallBackToApi()
+    {
+        using HttpClient http = new(new Handler(request =>
+        {
+            Assert.Equal("raw.githubusercontent.com", request.RequestUri!.Host);
+            return JsonResponse(StaticFeed([1, 2, 3]).Replace("/nightly/Memoria-FF8-", "/v1.2.3/Memoria-FF8-", StringComparison.Ordinal));
+        }));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
+    }
+
     [Theory]
     [InlineData(0, "v1.2.3", "latest")]
     [InlineData(1, "nightly", "tags/nightly")]
@@ -15,7 +52,7 @@ public sealed class ReleaseClientTests
     {
         UpdateChannel channel = (UpdateChannel)channelValue;
         string identity = new('a', 40);
-        using HttpClient http = new(new Handler(request =>
+        using HttpClient http = new(new LegacyHandler(request =>
         {
             Assert.Equal($"https://api.github.com/repos/Albeoris/Memoria.FF8/releases/{endpoint}", request.RequestUri!.AbsoluteUri);
             Assert.Equal("Memoria-FF8-Launcher", request.Headers.UserAgent.ToString());
@@ -43,7 +80,7 @@ public sealed class ReleaseClientTests
     {
         string identity = new('a', length);
         string metadata = Metadata("nightly", label: prefix + identity).Replace(ReleaseClient.AssetNameFor("win-x64"), ReleaseClient.AssetNameFor(rid), StringComparison.Ordinal);
-        using HttpClient http = new(new Handler(_ => JsonResponse(metadata)));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(metadata)));
 
         UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, rid).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
 
@@ -57,7 +94,7 @@ public sealed class ReleaseClientTests
     [InlineData("Windows_x64_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_extra")]
     public async Task InvalidOrMismatchedLabelsCannotSupplyBuildIdentity(string label)
     {
-        using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("nightly", label: label))));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(Metadata("nightly", label: label))));
 
         UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
 
@@ -71,14 +108,14 @@ public sealed class ReleaseClientTests
     public async Task MacReleaseSelectionNeverFallsBackToTheOtherArchitecture(string requested, string available)
     {
         string metadata = Metadata("nightly").Replace(ReleaseClient.AssetNameFor("win-x64"), ReleaseClient.AssetNameFor(available), StringComparison.Ordinal);
-        using HttpClient http = new(new Handler(_ => JsonResponse(metadata)));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(metadata)));
         await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, requested).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task MissingReleaseIsNotAnError()
     {
-        using HttpClient http = new(new Handler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
+        using HttpClient http = new(new LegacyHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
         Assert.Null(await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
     }
 
@@ -87,7 +124,7 @@ public sealed class ReleaseClientTests
     [InlineData("v1.2.3", true)]
     public async Task StableRejectsInvalidTagOrPrerelease(string tag, bool prerelease)
     {
-        using HttpClient http = new(new Handler(_ => JsonResponse(Metadata(tag, prerelease: prerelease))));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(Metadata(tag, prerelease: prerelease))));
         await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
     }
 
@@ -97,7 +134,7 @@ public sealed class ReleaseClientTests
     [InlineData("[]")]
     public async Task DraftOrMissingArchiveIsRejected(string json)
     {
-        using HttpClient http = new(new Handler(_ => JsonResponse(json)));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(json)));
         await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
     }
 
@@ -108,14 +145,14 @@ public sealed class ReleaseClientTests
     [InlineData("valid", 3, "new")]
     public async Task IncompleteAssetOrInvalidDigestIsRejected(string? digest, int size, string state)
     {
-        using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("nightly", digest: digest == "valid" ? Digest : digest, size: size, state: state))));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(Metadata("nightly", digest: digest == "valid" ? Digest : digest, size: size, state: state))));
         await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task UnrecognizedAssetLabelDoesNotBecomeBuildIdentity()
     {
-        using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("nightly", label: "Windows archive"))));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(Metadata("nightly", label: "Windows archive"))));
         Assert.Null((await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken))!.BuildId);
     }
 
@@ -125,7 +162,7 @@ public sealed class ReleaseClientTests
         using JsonDocument document = JsonDocument.Parse(Metadata("nightly"));
         string asset = document.RootElement.GetProperty("assets")[0].GetRawText();
         string json = $"{{\"tag_name\":\"nightly\",\"draft\":false,\"assets\":[{asset},{asset}]}}";
-        using HttpClient http = new(new Handler(_ => JsonResponse(json)));
+        using HttpClient http = new(new LegacyHandler(_ => JsonResponse(json)));
         await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
     }
 
@@ -134,7 +171,7 @@ public sealed class ReleaseClientTests
     [InlineData(HttpStatusCode.TooManyRequests)]
     public async Task RateLimitExplainsRetry(HttpStatusCode status)
     {
-        using HttpClient http = new(new Handler(_ => new HttpResponseMessage(status)));
+        using HttpClient http = new(new LegacyHandler(_ => new HttpResponseMessage(status)));
         HttpRequestException error = await Assert.ThrowsAsync<HttpRequestException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
         Assert.Equal(status, error.StatusCode);
         Assert.Contains("rate limit", error.Message);
@@ -230,6 +267,34 @@ public sealed class ReleaseClientTests
         });
     }
 
+    internal static string StaticFeed(byte[] bytes)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            channels = new
+            {
+                nightly = new
+                {
+                    tag = "nightly",
+                    name = "New nightly",
+                    buildId = new string('b', 40),
+                    engineCompatibilityVersion = "0.8.10",
+                    publishedAt = "2026-11-16T12:00:00Z",
+                    artifacts = new Dictionary<string, object>
+                    {
+                        ["win-x64"] = new
+                        {
+                            url = "https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip",
+                            size = bytes.Length,
+                            sha256 = Convert.ToHexString(SHA256.HashData(bytes))
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     private static HttpResponseMessage JsonResponse(string json)
     {
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
@@ -241,6 +306,15 @@ public sealed class ReleaseClientTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(response(request));
+        }
+    }
+
+    private sealed class LegacyHandler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(request.RequestUri!.Host == "raw.githubusercontent.com" ? new HttpResponseMessage(HttpStatusCode.NotFound) : response(request));
         }
     }
 

@@ -14,6 +14,7 @@ public sealed record DownloadJobSnapshot(Guid JobId, RemoteModEntry Entry, strin
     public long CompletedBytes { get; init; }
     public long? TotalBytes { get; init; }
     public double BytesPerSecond { get; init; }
+    public int? HttpStatus { get; init; }
     public string? ErrorCode { get; init; }
     public string? Message { get; init; }
     public string? ArchivePath { get; init; }
@@ -66,7 +67,14 @@ public sealed class ModDownloadCoordinator : IDisposable
                 {
                     continue;
                 }
-                jobs[job.JobId] = job with { Phase = job.Phase == ModDownloadPhase.Cancelled ? ModDownloadPhase.Cancelled : ModDownloadPhase.Paused, Message = "Recovered after restart. Resume to validate and continue." };
+                string finalArchive = Path.Combine(JobDirectory(job.JobId), "package.download");
+                bool inspectCached = job.Entry.SourceId == OfficialModCatalog.SourceId && job.Phase == ModDownloadPhase.ReadyToInstall && job.ArchivePath == finalArchive && job.Sha256 is { } hash
+                    && File.Exists(finalArchive) && MatchesPublisher(job.Entry, new FileInfo(finalArchive).Length, hash);
+                jobs[job.JobId] = inspectCached ? job : job with
+                {
+                    Phase = job.Phase == ModDownloadPhase.Cancelled ? ModDownloadPhase.Cancelled : ModDownloadPhase.Paused,
+                    Message = "Recovered after restart. Resume to validate and continue."
+                };
             }
             catch (Exception error) when (error is IOException or JsonException or ArgumentException)
             {
@@ -82,9 +90,15 @@ public sealed class ModDownloadCoordinator : IDisposable
         EnsureInitialized();
         lock (commandGate)
         {
-            DownloadJobSnapshot? existing = jobs.Values.FirstOrDefault(job => job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id && (job.Entry.Version == entry.Version || RemoteModEntry.CompareRelease(job.Entry.Version, entry.Version) == 0) && job.TargetProfile == targetProfile && job.Phase != ModDownloadPhase.Cancelled);
+            DownloadJobSnapshot? existing = jobs.Values.FirstOrDefault(job => job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Entry.Official?.Latest?.Artifact.Sha256 == entry.Official?.Latest?.Artifact.Sha256 && job.TargetProfile == targetProfile && job.Phase != ModDownloadPhase.Cancelled);
             if (existing != null)
             {
+                if (installAfterDownload && !existing.InstallAfterDownload)
+                {
+                    jobs.AddOrUpdate(existing.JobId, existing, (_, current) => current with { InstallAfterDownload = true });
+                    _ = SaveAsync(existing.JobId);
+                    Interlocked.Increment(ref revision);
+                }
                 return existing.JobId;
             }
             Guid id = Guid.NewGuid();
@@ -201,7 +215,7 @@ public sealed class ModDownloadCoordinator : IDisposable
                 Update(id, state => state with { Phase = ModDownloadPhase.Verifying }, token);
                 using FileStream cached = new(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 131072, true);
                 string digest = Convert.ToHexString(await SHA256.HashDataAsync(cached, token)).ToLowerInvariant();
-                if (cached.Length != job.CompletedBytes || !string.Equals(digest, job.Sha256, StringComparison.Ordinal))
+                if (cached.Length != job.CompletedBytes || !string.Equals(digest, job.Sha256, StringComparison.Ordinal) || !MatchesPublisher(job.Entry, cached.Length, digest))
                 {
                     Update(id, state => state with { ArchivePath = null, Sha256 = null }, token);
                     throw new InvalidDataException("The downloaded cache changed. Retry to download a fresh copy.");
@@ -248,6 +262,7 @@ public sealed class ModDownloadCoordinator : IDisposable
                 jobs[id] = jobs[id] with
                 {
                     Phase = error is ModDownloadActionException ? ModDownloadPhase.NeedsUserAction : ModDownloadPhase.Failed,
+                    HttpStatus = error is HttpRequestException { StatusCode: { } status } ? (int)status : null,
                     ErrorCode = error switch { ModDownloadActionException => "provider-action", InvalidDataException => "invalid-response", NotSupportedException => "unsupported-provider", IOException or UnauthorizedAccessException => "storage-or-transfer", _ => "connection" },
                     Details = $"Failed phase: {jobs[id].Phase}. {DescribeFailure(error)}",
                     Message = error switch { ModDownloadActionException => "The provider requires an action in your browser.", InvalidDataException => "The package response failed validation. Retry or choose another source.", NotSupportedException => "This download provider is unsupported.", IOException => "The download could not be saved or completed. Check storage and retry.", _ => "The connection stopped responding. Your partial download has been saved." }, BytesPerSecond = 0
@@ -276,7 +291,10 @@ public sealed class ModDownloadCoordinator : IDisposable
 
     private async Task TransferAsync(Guid id, string link, CancellationToken token)
     {
-        (Uri uri, bool drive) = ModDownloadTransport.DecodeLink(link);
+        RemoteModEntry entry = jobs[id].Entry;
+        (Uri uri, bool drive) = entry.SourceId == OfficialModCatalog.SourceId
+            ? (OfficialArtifactUri(entry, link), false)
+            : ModDownloadTransport.DecodeLink(link);
         string directory = JobDirectory(id);
         string partialPath = Path.Combine(directory, "download.part");
         string metadataPath = Path.Combine(directory, "partial.json");
@@ -345,6 +363,11 @@ public sealed class ModDownloadCoordinator : IDisposable
             {
                 throw new InvalidDataException("Unexpected package response status.");
             }
+            if (jobs[id].Entry.Official?.Latest?.Artifact is { } publisher && (total is long advertised && advertised != publisher.Size || offset > publisher.Size))
+            {
+                throw new InvalidDataException("The response size differs from the official catalog.");
+            }
+            total ??= jobs[id].Entry.Official?.Latest?.Artifact.Size;
             if (total is { } expected)
             {
                 long available = new DriveInfo(Path.GetPathRoot(directory)!).AvailableFreeSpace;
@@ -403,6 +426,12 @@ public sealed class ModDownloadCoordinator : IDisposable
             check.Position = 0;
             string digest = Convert.ToHexString(await SHA256.HashDataAsync(check, token)).ToLowerInvariant();
             check.Close();
+            if (!MatchesPublisher(jobs[id].Entry, written, digest))
+            {
+                File.Delete(metadataPath);
+                File.Delete(partialPath);
+                throw new InvalidDataException("Official download size or SHA-256 does not match the catalog.");
+            }
             token.ThrowIfCancellationRequested();
             string final = Path.Combine(directory, "package.download");
             File.Move(partialPath, final, true);
@@ -410,6 +439,20 @@ public sealed class ModDownloadCoordinator : IDisposable
             return;
         }
         throw new InvalidDataException("The server could not safely restart this download.");
+    }
+
+    private static Uri OfficialArtifactUri(RemoteModEntry entry, string link)
+    {
+        if (entry.Official?.Latest?.Artifact.Url != link || !Uri.TryCreate(link, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length > 0)
+        {
+            throw new InvalidDataException("Invalid official artifact URL.");
+        }
+        return uri;
+    }
+
+    private static bool MatchesPublisher(RemoteModEntry entry, long length, string hash)
+    {
+        return entry.SourceId != OfficialModCatalog.SourceId || entry.Official?.Latest?.Artifact is { } artifact && length == artifact.Size && hash.Equals(artifact.Sha256, StringComparison.OrdinalIgnoreCase);
     }
 
     private void Update(Guid id, Func<DownloadJobSnapshot, DownloadJobSnapshot> update, CancellationToken token)

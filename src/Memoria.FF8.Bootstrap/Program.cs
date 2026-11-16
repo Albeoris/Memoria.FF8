@@ -1,4 +1,5 @@
 using Memoria.FF8.Bootstrap;
+using Memoria.FF8.Platform;
 using System.Runtime.InteropServices;
 
 using CancellationTokenSource stopping = new();
@@ -23,6 +24,11 @@ try
     {
         UnixHostProcess.Execute(args);
         throw new InvalidOperationException("The Unix host replacement unexpectedly returned.");
+    }
+    if (EngineUpdateStartup.StartRecoveryIfNeeded(AppContext.BaseDirectory))
+    {
+        Console.Error.WriteLine("Recovering the interrupted engine update in the launcher. Start the game again when recovery finishes.");
+        return 0;
     }
     return await GraphicsDispatcher.RunAsync(AppContext.BaseDirectory, args, Console.Out, Console.Error, stopping.Token);
 }

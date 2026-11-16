@@ -56,7 +56,7 @@ internal static class GameInstallationSelection
         {
             return "Choose an installed FINAL FANTASY VIII folder.";
         }
-        if (File.Exists(Path.Combine(path, "main.zzz")) || File.Exists(Path.Combine(path, "other.zzz")) || File.Exists(Path.Combine(path, "FFVIII_EN.exe.dat")))
+        if (ResolveEdition(path) == GameDataEdition.Remastered)
         {
             foreach (string relative in new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" })
             {
@@ -85,7 +85,12 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, bool redirectOutput = true, string? ff7GameDirectory = null, bool ff7Debug = false)
+    internal static GameDataEdition ResolveEdition(string path)
+    {
+        return File.Exists(Path.Combine(path, "main.zzz")) || File.Exists(Path.Combine(path, "other.zzz")) || File.Exists(Path.Combine(path, "FFVIII_EN.exe.dat")) ? GameDataEdition.Remastered : GameDataEdition.Classic;
+    }
+
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null, bool redirectOutput = true, string? ff7GameDirectory = null, bool ff7Debug = false, bool openModManager = false)
     {
         if (ff7Debug && string.IsNullOrWhiteSpace(ff7GameDirectory))
         {
@@ -114,6 +119,10 @@ internal static class GameInstallationSelection
         if (ff7Debug)
         {
             result.ArgumentList.Add("--ff7-debug");
+        }
+        if (openModManager)
+        {
+            result.ArgumentList.Add("--open-mod-manager");
         }
         result.Environment.Remove("MEMORIA_FF8_MODEL_SOURCE_DIR");
         if (!string.IsNullOrWhiteSpace(modelSourceDirectory))

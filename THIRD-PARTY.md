@@ -19,6 +19,7 @@ The Linux Vulkan native runtime includes a narrow swapchain readback synchroniza
 | SkiaSharp / SkiaSharp.HarfBuzz / native assets | 3.119.4 | [MIT and retained native notices](https://github.com/mono/SkiaSharp) |
 | HarfBuzzSharp / HarfBuzzSharp.NativeAssets.Linux | 8.3.1.5 | [MIT and retained HarfBuzz notices](https://github.com/mono/SkiaSharp) |
 | BCnEncoder.NET | 2.3.0 | [MIT or Unlicense](https://github.com/Nominom/BCnEncoder.NET) |
+| NuGet.Versioning | 7.9.0 | [Apache-2.0](https://github.com/NuGet/NuGet.Client/blob/dev/LICENSE.txt) |
 | SharpCompress | 0.48.1 | [MIT](https://github.com/adamhathcock/sharpcompress) |
 | System.IO.Hashing | 10.0.12 | [MIT](https://github.com/dotnet/runtime) |
 | MonoGame.Framework.WindowsDX | 3.8.5.1 | [Microsoft Public License](https://github.com/MonoGame/MonoGame) |

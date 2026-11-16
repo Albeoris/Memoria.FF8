@@ -31,11 +31,12 @@ public sealed partial class ModPackageInstaller
                         continue;
                     }
                     Receipt next = journal.Next;
-                    string packageId = "Junction/" + next.DestinationName;
-                    string destination = Destination(next.DestinationName);
+                    string packageId = PackageId(next);
+                    string destination = Destination(next.SourceId, next.DestinationName);
                     VerifyFinal(next, destination);
                     if (acceptedPackageIds.Contains(packageId, StringComparer.OrdinalIgnoreCase))
                     {
+                        CommitEnable(journal);
                         WriteAtomic(path, journal with { Phase = "Committed" });
                         File.Delete(path);
                         results.Add(Result(next, false, true));
@@ -43,7 +44,7 @@ public sealed partial class ModPackageInstaller
                     }
                     string transaction = StatePath("transactions", journal.TransactionId.ToString("N"));
                     string backup = Path.Combine(transaction, "previous");
-                    if (journal.Previous is not null && (!Exists(backup) || Fingerprint(backup, false) != journal.Previous.PayloadHash))
+                    if (journal.Previous is not null && (!Exists(backup) || Fingerprint(backup, false) != journal.PreviousPayloadHash))
                     {
                         throw new InvalidDataException("The verified previous backup is unavailable; recovery data has been retained.");
                     }
@@ -67,7 +68,7 @@ public sealed partial class ModPackageInstaller
 
     private void Rollback(Journal journal, string path)
     {
-        string destination = Destination(journal.Next.DestinationName);
+        string destination = Destination(journal.Next.SourceId, journal.Next.DestinationName);
         string transaction = StatePath("transactions", journal.TransactionId.ToString("N"));
         string rejected = Path.Combine(transaction, "rejected");
         string backup = Path.Combine(transaction, "previous");
@@ -83,13 +84,13 @@ public sealed partial class ModPackageInstaller
         {
             if (!Exists(destination))
             {
-                if (!Exists(backup) || Fingerprint(backup, false) != journal.Previous.PayloadHash)
+                if (!Exists(backup) || Fingerprint(backup, false) != journal.PreviousPayloadHash)
                 {
                     throw new InvalidDataException("Previous backup changed during rollback.");
                 }
                 Move(backup, destination);
             }
-            if (Fingerprint(destination, false) != journal.Previous.PayloadHash)
+            if (Fingerprint(destination, false) != journal.PreviousPayloadHash)
             {
                 throw new InvalidDataException("Restored installation failed verification.");
             }

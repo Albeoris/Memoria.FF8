@@ -2,9 +2,17 @@
   <!-- Stops MSBuild from importing the workspace's Directory.Build.targets (the drop-in's build). -->
   <Target Name="CopyBundledMemoriaMods" AfterTargets="Build" Condition="'$(MSBuildProjectName)' == 'Memoria.FF8.App' Or '$(MSBuildProjectName)' == 'Memoria.Launcher'">
     <ItemGroup>
-      <BundledMemoriaModFile Include="$(MSBuildThisFileDirectory)Mods/Memoria/**/*" />
+      <BundledMemoriaModFile Include="$(MSBuildThisFileDirectory)Mods/Memoria/%(BundledMemoriaComponent.Identity)/**/*" Component="%(BundledMemoriaComponent.Identity)" />
+      <BundledMemoriaOutput Include="@(BundledMemoriaModFile->'$(TargetDir)BundledMods/Memoria/%(Component)/%(RecursiveDir)%(Filename)%(Extension)')" />
+      <ObsoleteBundledMemoriaFile Include="$(TargetDir)BundledMods/Memoria/**/*" Exclude="@(BundledMemoriaOutput)" />
     </ItemGroup>
+    <Delete Files="@(ObsoleteBundledMemoriaFile)" />
+    <RemoveDir Directories="$(TargetDir)BundledMods/Memoria/Girl Next Door" />
     <MakeDir Directories="$(TargetDir)Mods/Tonberry;$(TargetDir)Mods/Demaster;$(TargetDir)Mods/Junction" />
-    <Copy SourceFiles="%(BundledMemoriaModFile.Identity)" DestinationFiles="$(TargetDir)BundledMods/Memoria/%(BundledMemoriaModFile.RecursiveDir)%(BundledMemoriaModFile.Filename)%(BundledMemoriaModFile.Extension)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(BundledMemoriaModFile)" DestinationFiles="@(BundledMemoriaOutput)" SkipUnchangedFiles="true" />
+    <WriteLinesToFile File="$(TargetDir)engine-version.json" Lines="{&quot;engineCompatibilityVersion&quot;:&quot;$(EngineCompatibilityVersion)&quot;}" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <FileWrites Include="@(BundledMemoriaOutput);$(TargetDir)engine-version.json" />
+    </ItemGroup>
   </Target>
 </Project>

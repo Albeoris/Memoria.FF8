@@ -60,6 +60,7 @@ public sealed record LaunchOptions
     public bool AudioEnabled => !MuteAudio && (ControlDirectory is null || IsDiagnosticGraphicalHost) && !System.Diagnostics.Debugger.IsAttached;
     public int WorldRenderLimit { get; init; } = 2048;
     public bool SoftwareRenderer { get; init; }
+    public bool OpenModManager { get; init; }
     public string? DebugUiScreen { get; init; }
     public string? BattleTestPath { get; init; }
     public string? EffectPreviewPath { get; init; }
@@ -105,6 +106,7 @@ public sealed record LaunchOptions
                 "--movie" => options with { InitialState = options.InitialState with { Scene = SceneKind.Movie, MovieIndex = int.Parse(Value()) } },
                 "--movie-time" => options with { InitialState = options.InitialState with { MovieSeconds = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture) } },
                 "--exit-after" => options with { ExitAfterSeconds = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture) },
+                "--open-mod-manager" => options with { OpenModManager = true },
                 "--validate" => options with { ValidateOnly = true },
                 "--graphics-backend" => options with { RequestedGraphicsBackend = GraphicsBackendSelection.Parse(Value()) },
                 "--capture-frame" => options with { CaptureFramePath = Path.GetFullPath(Value()) },

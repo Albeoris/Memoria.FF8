@@ -8,6 +8,49 @@ public sealed class UpdatePackageCacheTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-cache-tests-" + Guid.NewGuid().ToString("N"));
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ChangedNightlyRefreshesMetadataOnceAndUsesNewDigest(bool nextDownloadMatches)
+    {
+        byte[] replacement = [3, 2, 1];
+        int downloads = 0;
+        int refreshes = 0;
+        int confirmations = 0;
+        using HttpClient http = new(new Handler(request =>
+        {
+            if (request.RequestUri!.Host == "raw.githubusercontent.com")
+            {
+                refreshes++;
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ReleaseClientTests.StaticFeed(replacement)) };
+            }
+            Assert.Equal("github.com", request.RequestUri.Host);
+            downloads++;
+            return Response(downloads == 1 || nextDownloadMatches ? replacement : [0, 0, 0]);
+        }));
+        ReleaseClient client = new(http, "win-x64");
+        UpdateRelease initial = Release([1, 2, 3]) with { DirectDownloadUri = new("https://github.com/Albeoris/Memoria.FF8/releases/download/nightly/Memoria-FF8-win-x64.zip") };
+        Task<(UpdateRelease Release, string Archive)?> download = UpdatePackageCache.GetArchiveWithNightlyRefreshAsync(root, client, initial, next =>
+        {
+            confirmations++;
+            Assert.Equal("New nightly", next.Name);
+            return Task.FromResult(true);
+        }, cancellationToken: TestContext.Current.CancellationToken);
+        if (nextDownloadMatches)
+        {
+            var result = await download;
+            Assert.True(result.HasValue);
+            Assert.Equal(replacement, await File.ReadAllBytesAsync(result.Value.Archive, TestContext.Current.CancellationToken));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(async () => await download);
+        }
+        Assert.Equal(1, refreshes);
+        Assert.Equal(1, confirmations);
+        Assert.Equal(2, downloads);
+    }
+
     [Fact]
     public async Task VerifiedPackageSurvivesPreparationAndDoesNotDownloadAgain()
     {

@@ -4,14 +4,14 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private static bool IsBundledMemoriaMod(ModPackage package) => package.IsBundled && package.Format == ModFormat.Memoria;
+    private static bool IsBundledMemoriaMod(ModPackage package) => package.Format == ModFormat.Memoria && (package.IsBundled || package.Official is not null || package.Id == ModRuntime.MemoriaPackageId);
 
     private string ModStateText(ModPackageView view, bool disabled = false) => view.CommittedStatus == ModEffectiveStatus.Active ? SystemText("mods.state.active", "Active") : disabled || !view.Package.RequestedEnabled ? SystemText("mods.state.disabled", "Disabled") : SystemText("mods.state.not-active", "Not active");
 
     private string ModStatusText(ModPackageView view)
     {
         string state = view.CommittedStatus == ModEffectiveStatus.Active ? SystemText("mods.state.active", "Active") : SystemText("mods.state.not-active", "Not active");
-        return view.PresentationKind switch
+        string status = view.PresentationKind switch
         {
             ModPackagePresentationKind.Basic => ModStateText(view),
             ModPackagePresentationKind.Incompatible => SystemText("mods.state.incompatible", "Incompatible edition"),
@@ -28,6 +28,7 @@ public sealed partial class MenuController
             ModPackagePresentationKind.Enabling => SystemText("mods.state.enabling", "Enabling…"),
             _ => view.StatusText
         };
+        return view.Package.Id == ModRuntime.MemoriaPackageId ? MemoriaAvailability(status) : status;
     }
 
     private string? ModProblemText(ModPackageView view) => view.ProblemKind switch

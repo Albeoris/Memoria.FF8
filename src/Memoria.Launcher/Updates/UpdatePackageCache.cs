@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Security.Cryptography;
 
 namespace Memoria.Launcher;
@@ -7,15 +8,38 @@ internal static class UpdatePackageCache
 {
     internal const string CacheDirectory = ".memoria-download";
 
+    internal static async Task<(UpdateRelease Release, string Archive)?> GetArchiveWithNightlyRefreshAsync(string root, ReleaseClient client, UpdateRelease release, Func<UpdateRelease, Task<bool>> confirmChangedBuild, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return (release, await GetArchiveAsync(root, client, release, progress, cancellationToken));
+        }
+        catch (Exception exception) when (release.Channel == UpdateChannel.Nightly && release.DirectDownloadUri is not null && (exception is InvalidDataException || exception is HttpRequestException { StatusCode: HttpStatusCode.NotFound or HttpStatusCode.Gone }))
+        {
+            using CancellationTokenSource metadataTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            metadataTimeout.CancelAfter(TimeSpan.FromSeconds(30));
+            UpdateRelease? latest = await client.GetAsync(UpdateChannel.Nightly, metadataTimeout.Token);
+            if (latest?.DirectDownloadUri is null || (latest.Sha256 == release.Sha256 && latest.Size == release.Size))
+            {
+                throw;
+            }
+            if (!await confirmChangedBuild(latest))
+            {
+                return null;
+            }
+            return (latest, await GetArchiveAsync(root, client, latest, progress, cancellationToken));
+        }
+    }
+
     internal static async Task<string> GetArchiveAsync(string root, ReleaseClient client, UpdateRelease release, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(release);
-        if (release.AssetId <= 0 || release.Size <= 0 || release.Sha256.Length != 64 || !release.Sha256.All(Uri.IsHexDigit))
+        if (!release.HasArtifact)
         {
             throw new InvalidDataException("The update archive metadata is invalid. Check for updates again.");
         }
-        PackageManifest? installed = PackageManifest.LoadOptional(root);
+        PackageManifest? installed = await Task.Run(() => PackageManifest.LoadOptional(root), cancellationToken).ConfigureAwait(false);
         if (installed is not null)
         {
             installed.ValidateTarget(release.RuntimeIdentifier);

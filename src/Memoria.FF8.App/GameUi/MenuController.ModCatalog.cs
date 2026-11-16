@@ -15,7 +15,7 @@ public sealed partial class MenuController
     private Guid? selectedDownloadId;
     private bool catalogInspectorOpen;
     private bool catalogNarrow;
-    private static readonly string[] CatalogFilters = ["All mods", "Check required", "Installed", "Downloads", "Needs attention"];
+    private static readonly string[] CatalogFilters = ["All mods", "Check required", "Installed", "Downloads", "Needs attention", "Official mods"];
     private static string CatalogIdentity(RemoteModEntry entry) => entry.SourceId + ":" + entry.Id;
 
     internal void ConnectModLibrary(IModLibraryService service)
@@ -68,15 +68,43 @@ public sealed partial class MenuController
     private ModPackageView? AssociatedMod(RemoteModEntry entry) => modService?.View.Packages.FirstOrDefault(package => package.Package.JunctionMetadata?.Id == entry.Id);
     private ModLibraryInstallation? ManagedMod(RemoteModEntry entry) => modLibrarySnapshot?.Installations.FirstOrDefault(receipt => receipt.SourceId == entry.SourceId && receipt.Id == entry.Id);
     private bool ManagedRepairNeeded(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false, Available: false };
-    private bool CatalogUpdateAvailable(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false } receipt && RemoteModEntry.CompareRelease(entry.Version, receipt.Version) is > 0;
+    private bool CatalogUpdateAvailable(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false } receipt && entry.CompareVersion(receipt.Version) is > 0;
     private bool CatalogEntryListed(RemoteModEntry entry) => modLibrarySnapshot?.Catalog.Entries.Any(item => CatalogIdentity(item) == CatalogIdentity(entry)) == true;
-    private ModLibraryJob? EntryJob(RemoteModEntry entry) => modLibrarySnapshot?.Jobs.LastOrDefault(job => CatalogIdentity(job.Entry) == CatalogIdentity(entry) && (job.Entry.Version == entry.Version || RemoteModEntry.CompareRelease(job.Entry.Version, entry.Version) == 0) && job.Phase is not ("Cancelled" or "Installed"));
-    private string CatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply · restart required" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
+    private ModLibraryJob? EntryJob(RemoteModEntry entry) => modLibrarySnapshot?.Jobs.LastOrDefault(job => CatalogIdentity(job.Entry) == CatalogIdentity(entry) && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Phase is not ("Cancelled" or "Installed"));
+    private bool CanDownload(RemoteModEntry entry) => entry.Official is null ? modLibrarySnapshot?.TargetSupported == true : modLibrarySnapshot?.OfficialSupported == true && entry.CompatibilityError is null && entry.Links.Count > 0;
+
+    private string CatalogStatus(RemoteModEntry entry)
+    {
+        if (entry.Official is null)
+        {
+            return LegacyCatalogStatus(entry);
+        }
+        if (EntryJob(entry) is { } job)
+        {
+            return job.Phase;
+        }
+        if (ManagedMod(entry) is { } local)
+        {
+            if (local.Pending)
+            {
+                return SystemText("mods.official.restart", "Restart required");
+            }
+            if (!local.Available)
+            {
+                return SystemText("mods.official.repair", "Repair required");
+            }
+            string installed = string.IsNullOrEmpty(local.Version) ? SystemText("mods.official.legacy", "Installed · Legacy copy") : $"Installed {local.Version}";
+            return CatalogUpdateAvailable(entry) ? installed + " · " + (entry.CompatibilityError ?? SystemText("mods.official.update", "Update available")) : installed;
+        }
+        return entry.CompatibilityError ?? SystemText("mods.official.new", "New · Download required");
+    }
+
+    private string LegacyCatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply · restart required" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
     private string[] CatalogCategories => ["All categories", .. (modLibrarySnapshot?.Catalog.Entries ?? []).Select(entry => entry.Category).Where(category => category.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.OrdinalIgnoreCase)];
     private RemoteModEntry[] FilteredCatalog() => (modLibrarySnapshot?.Catalog.Entries ?? []).Where(entry =>
         (catalogSearch.Length == 0 || (entry.Name + " " + entry.Author + " " + entry.Category + " " + entry.Description).Contains(catalogSearch, StringComparison.OrdinalIgnoreCase)) &&
         (catalogCategory == "All categories" || entry.Category.Equals(catalogCategory, StringComparison.OrdinalIgnoreCase)) &&
-        (catalogFilter switch { 1 => modLibrarySnapshot?.TargetSupported == true && EntryJob(entry) is null && AssociatedMod(entry) is null && ManagedMod(entry) is null, 2 => AssociatedMod(entry) is not null || ManagedMod(entry) is not null, 3 => EntryJob(entry) is not null, 4 => EntryJob(entry)?.Error is not null, _ => true }))
+        (catalogFilter switch { 1 => CanDownload(entry) && EntryJob(entry) is null && AssociatedMod(entry) is null && ManagedMod(entry) is null, 2 => AssociatedMod(entry) is not null || ManagedMod(entry) is not null, 3 => EntryJob(entry) is not null, 4 => EntryJob(entry)?.Error is not null, 5 => entry.Official is not null, _ => true }))
         .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(CatalogIdentity, StringComparer.Ordinal).ToArray();
 
     private IReadOnlyList<MenuEntry> LibraryEntries() => IsDownloads
@@ -92,6 +120,10 @@ public sealed partial class MenuController
             return ["Select a mod to inspect its requirements."];
         }
         List<string> details = [entry.Name, entry.Author, "Available version: " + entry.Version, "Category: " + entry.Category, "Source: " + entry.SourceId, "Upstream edition: " + entry.Edition, "Language: " + entry.Language, "Engine support: package check required", entry.Description];
+        if (entry.CompatibilityError is not null)
+        {
+            details.Add(entry.CompatibilityError);
+        }
         if (!CatalogEntryListed(entry))
         {
             details.Add("No longer listed in the catalog. Existing local installations and jobs are preserved.");
@@ -169,6 +201,10 @@ public sealed partial class MenuController
             return;
         }
         modLibrarySnapshot = modLibrary.View;
+        if (ScreenId == "mod-settings")
+        {
+            RefreshMemoriaSettingsRows();
+        }
         if (IsLibraryScreen || ScreenId == "mods")
         {
             _view = null;

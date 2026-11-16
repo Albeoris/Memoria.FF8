@@ -30,6 +30,10 @@ static class PackagedDistribution
             {
                 throw new InvalidDataException("Unsafe or colliding package entry: " + name);
             }
+            if (name.Split('/').Any(part => part.Equals("Girl Next Door", StringComparison.OrdinalIgnoreCase) || part.Equals("GirlNextDoor.png", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidDataException("The engine archive contains an external component: " + name);
+            }
             string target = Path.GetFullPath(Path.Combine(destination, name));
             if (!target.StartsWith(Path.GetFullPath(destination) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             {
@@ -122,6 +126,10 @@ static class PackagedDistribution
             }
         }
         Validate(root, rid);
+        if (EngineBuildMetadata.ReadInstalledCompatibilityVersion(root) != EngineBuildMetadata.CompatibilityVersion)
+        {
+            throw new InvalidDataException("The package engine compatibility version does not match its build.");
+        }
         if (HostPlatforms.IsMacRuntime(rid))
         {
             MacNativeClosure.Validate(root, rid);

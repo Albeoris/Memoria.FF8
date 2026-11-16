@@ -1,0 +1,170 @@
+﻿[
+  {
+    "id": "depixelation",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Depixelation",
+    "settingsKey": "Depixelation",
+    "name": "Depixelation",
+    "description": "Replace selected field background characters with models.",
+    "category": "Field",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "reorientation",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Reorientation",
+    "settingsKey": "Reorientation",
+    "name": "Reorientation",
+    "description": "Adjust staging in selected field scenes.",
+    "category": "Field",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "meltdown",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Meltdown",
+    "settingsKey": "Meltdown",
+    "name": "Meltdown",
+    "description": "Customize the Vitality and Spirit reductions.",
+    "category": "Battle",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "level-based-stat-bonuses",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Level-Based Stat Bonuses",
+    "settingsKey": "Level-Based Stat Bonuses",
+    "name": "Level-Based Stat Bonuses",
+    "description": "Equipped stat bonus abilities scale with character level.",
+    "category": "Battle",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "edea-mirrors",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/EdeaMirrors",
+    "settingsKey": "EdeaMirrors",
+    "name": "Edea — Mirrors",
+    "description": "Use the alternative Disc 1 Edea encounter.",
+    "category": "Battle",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "extended-ffviii-roster",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Extended FFVIII Roster",
+    "settingsKey": "Extended FFVIII Roster",
+    "name": "Extended FFVIII Roster",
+    "description": "Enable the extended FFVIII roster.",
+    "category": "Party",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "girl-next-door",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/Girl Next Door",
+    "settingsKey": "Girl Next Door",
+    "name": "Girl Next Door",
+    "description": "Open the magazine from the item menu.",
+    "category": "Items",
+    "format": "memoria-native",
+    "delivery": "download",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  },
+  {
+    "id": "ff7-enemy-integration",
+    "groupId": "Memoria",
+    "runtimePackageId": "Memoria/FF7EnemyIntegration",
+    "settingsKey": "FF7EnemyIntegration",
+    "name": "FFVII Enemy Integration",
+    "description": "Make FFVII enemy extensions available to the campaign.",
+    "category": "FFVII",
+    "format": "memoria-native",
+    "delivery": "engine",
+    "defaultEnabled": true,
+    "target": {
+      "game": "FFVIII",
+      "editions": [
+        "Classic"
+      ],
+      "languages": [
+        "*"
+      ]
+    }
+  }
+]

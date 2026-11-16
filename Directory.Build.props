@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
+    <EngineCompatibilityVersion>0.8.10</EngineCompatibilityVersion>
     <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
     <!-- A solution cannot take RuntimeIdentifier globally; project evaluation resolves the graph's requested RID. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(MemoriaBuildRuntimeIdentifier)' != ''">$(MemoriaBuildRuntimeIdentifier)</RuntimeIdentifier>
@@ -27,6 +28,12 @@
     <BaseOutputPath Condition="'$(BaseOutputPath)' == '' And '$(ArtifactsPath)' == ''">bin/$(MemoriaGraphicsBackend)/</BaseOutputPath>
     <DefineConstants Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">$(DefineConstants);MEMORIA_VULKAN</DefineConstants>
   </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Memoria.FF8.Platform'">
+    <AssemblyMetadata Include="EngineCompatibilityVersion" Value="$(EngineCompatibilityVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <BundledMemoriaComponent Include="Depixelation;EdeaMirrors;Extended FFVIII Roster;FF7EnemyIntegration;Level-Based Stat Bonuses;Meltdown;Reorientation" />
+  </ItemGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Memoria.Launcher' Or '$(MSBuildProjectName)' == 'Memoria.FF8.App' Or '$(MSBuildProjectName)' == 'Memoria.FF8.Bootstrap' Or '$(MSBuildProjectName)' == 'Memoria.FF8.Music'">
     <ApplicationIcon>$(MSBuildThisFileDirectory)Artwork/Application/application.ico</ApplicationIcon>
   </PropertyGroup>

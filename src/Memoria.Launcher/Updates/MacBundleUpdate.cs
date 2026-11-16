@@ -1,12 +1,11 @@
 using System.Text.Json;
+using Memoria.FF8.Mods;
 
 namespace Memoria.Launcher;
 
-internal sealed record MacBundleJournal(string Root, string PreviousBuildId, string IncomingBuildId);
-
 internal static class MacBundleUpdate
 {
-    internal static bool IsBundleRoot(string root) => Path.TrimEndingDirectorySeparator(root).EndsWith(".app", StringComparison.Ordinal);
+    internal static bool IsBundleRoot(string root) => DistributionPaths.IsBundleRoot(root);
 
     internal static string NormalizeRoot(string path)
     {
@@ -27,7 +26,7 @@ internal static class MacBundleUpdate
     internal static string WorkPath(string root)
     {
         root = NormalizeRoot(root);
-        return IsBundleRoot(root) ? Path.Combine(Path.GetDirectoryName(root)!, "." + Path.GetFileName(root) + ".memoria-update") : Path.Combine(root, UpdateInstaller.WorkDirectory);
+        return DistributionUpdateBackup.WorkPath(root);
     }
 
     private static string Backup(string root) => Path.Combine(WorkPath(root), "backup.app");
@@ -37,18 +36,14 @@ internal static class MacBundleUpdate
 
     internal static bool NeedsRecovery(string root)
     {
-        string work = WorkPath(root);
-        UpdateInstaller.RejectLinks(work);
-        UpdateInstaller.RejectLinks(JournalPath(root));
-        UpdateInstaller.RejectLinks(Path.Combine(work, "committed"));
-        UpdateInstaller.RejectLinks(Path.Combine(work, "rolled-back"));
-        return File.Exists(JournalPath(root)) && !File.Exists(Path.Combine(work, "committed")) && !File.Exists(Path.Combine(work, "rolled-back"));
+        return DistributionUpdateBackup.NeedsRecovery(NormalizeRoot(root));
     }
 
     internal static string Prepare(string root)
     {
         root = RequireBundle(root);
         Recover(root);
+        GirlNextDoorMigration.FromLauncher(root, beforeBackupCleanup: true);
         string work = WorkPath(root);
         if (Directory.Exists(work))
         {

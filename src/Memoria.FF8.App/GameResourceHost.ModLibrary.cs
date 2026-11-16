@@ -12,6 +12,7 @@ internal sealed partial class GameResourceHost
     private string? modLibraryCache;
     private string? modLibraryTarget;
     private bool modLibrarySupported;
+    private bool officialModLibrarySupported;
     private bool modLibraryRecovered;
     private readonly Dictionary<string, ModDirectoryResourceLease> modLibraryLeases = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> unleasedModRoots = new(StringComparer.OrdinalIgnoreCase);
@@ -21,7 +22,7 @@ internal sealed partial class GameResourceHost
     internal IModLibraryService? ExistingModLibrary => modLibrary;
 
     // Creation starts only local worker initialization. Network access begins with a catalog command.
-    public IModLibraryService ModLibrary => modLibrary ??= new ModLibraryService(modLibraryCache!, modInstaller!, Mods, modLibraryTarget!, modLibrarySupported, unavailableReason: modLibraryUnavailableReason, openDownloadPage: OpenModDownloadPage);
+    public IModLibraryService ModLibrary => modLibrary ??= new ModLibraryService(modLibraryCache!, modInstaller!, Mods, modLibraryTarget!, modLibrarySupported, unavailableReason: modLibraryUnavailableReason, openDownloadPage: OpenModDownloadPage, officialCacheDirectory: OfficialModCatalog.DefaultCacheDirectory, officialSupported: officialModLibrarySupported);
 
     private static void OpenModDownloadPage(Uri uri)
     {
@@ -42,17 +43,22 @@ internal sealed partial class GameResourceHost
         System.Diagnostics.Process.Start(start)?.Dispose();
     }
 
-    private void RecoverModLibrary()
+    private void RecoverModLibrary(string applicationDataDirectory)
     {
         string root = Mods.PrimaryModsDirectory;
         string language = resourceLanguage ?? source.Descriptor.Language;
         string identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root + "\0" + Path.GetFullPath(gameDirectory) + "\0" + source.Descriptor.Edition + "\0" + language)))[..16].ToLowerInvariant();
         modLibraryTarget = $"{source.Descriptor.Edition}/{language}/{identity}";
         modLibrarySupported = ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Junction) && language.Equals("en", StringComparison.OrdinalIgnoreCase);
-        modLibraryUnavailableReason = modLibrarySupported ? null : "Catalog installation currently requires Classic English game data. Installed local mods remain available.";
+        modLibraryUnavailableReason = null;
         modLibraryCache = Path.Combine(ApplicationPaths.Current.Cache, "mod-library", identity);
+        string bundledRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(applicationDataDirectory, "BundledMods")));
         foreach (string directory in Mods.ModsDirectories.OrderBy(directory => directory, StringComparer.OrdinalIgnoreCase).ThenBy(directory => directory, StringComparer.Ordinal))
         {
+            if (directory.Equals(bundledRoot, StringComparison.OrdinalIgnoreCase) && !directory.Equals(root, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
             try
             {
                 modLibraryLeases.Add(directory, ModDirectoryResourceLease.Acquire(directory, directory.Equals(root, StringComparison.OrdinalIgnoreCase)));
@@ -81,6 +87,14 @@ internal sealed partial class GameResourceHost
         }
         try
         {
+            GirlNextDoorMigration.FromGame(applicationDataDirectory, root);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            modLibraryStartupDiagnostics.Add(new("library-migration", "Girl Next Door migration will retry on the next start: " + exception.Message, "Memoria/Girl Next Door"));
+        }
+        try
+        {
             foreach (ModPackageInstallResult result in modInstaller.RecoverAndApply())
             {
                 if (result.Error is not null)
@@ -89,6 +103,7 @@ internal sealed partial class GameResourceHost
                 }
             }
             modLibraryRecovered = true;
+            officialModLibrarySupported = true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
         {
@@ -118,6 +133,7 @@ internal sealed partial class GameResourceHost
                     unleasedModRoots.Add(root);
                     discoveryChanged = true;
                     modLibrarySupported = false;
+                    officialModLibrarySupported = false;
                     modLibraryUnavailableReason = "A managed resource lease could not be retained. Restart after checking directory permissions.";
                     modLibraryStartupDiagnostics.Add(new("library-resource-lease", modLibraryUnavailableReason + " " + exception.Message));
                 }
@@ -139,6 +155,13 @@ internal sealed partial class GameResourceHost
         }
         StringComparison pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         HashSet<string> accepted = Mods.View.Packages.Where(package => !package.Package.RequestedEnabled || package.CommittedStatus == ModEffectiveStatus.Active && !package.NeedsAttention).Where(package => !package.Package.Id.StartsWith("Junction/managed-", StringComparison.OrdinalIgnoreCase) || Path.GetFullPath(package.Package.RootDirectory).Equals(Path.GetFullPath(Path.Combine(Mods.PrimaryModsDirectory, package.Package.Id.Replace('/', Path.DirectorySeparatorChar))), pathComparison)).Select(package => package.Package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (ModPackage package in Mods.InstalledPackages.Where(package => package.Official is not null && Path.GetFullPath(package.RootDirectory).Equals(Path.Combine(Mods.PrimaryModsDirectory, package.Id.Replace('/', Path.DirectorySeparatorChar)), pathComparison)))
+        {
+            if (package.Status == ModEffectiveStatus.Disabled || Mods.Catalog.Packages.Any(active => active.Id == package.Id && active.Status == ModEffectiveStatus.Active) && !Mods.View.Diagnostics.Any(error => error.PackageId == package.Id && error.Code is "native-availability" or "resource-rejected"))
+            {
+                accepted.Add(package.Id);
+            }
+        }
         bool rolledBack = false;
         foreach (ModPackageInstallResult result in modInstaller!.CompleteStartupApplications(accepted))
         {
@@ -153,6 +176,11 @@ internal sealed partial class GameResourceHost
             Mods.Refresh();
             Pump(true);
         }
+    }
+
+    private string? NativeRootUnavailable(string root)
+    {
+        return unleasedModRoots.Contains(root) ? "This official mod cannot be read safely while its directory is in use." : null;
     }
 
     private bool CanReadJunctionPackage(string path)

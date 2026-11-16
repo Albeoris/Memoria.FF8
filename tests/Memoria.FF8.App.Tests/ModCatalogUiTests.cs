@@ -8,6 +8,47 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ModCatalogUiTests
 {
     [Fact]
+    public void OfficialSettingsRemainVisibleOfflineAndFollowStableIdentityDuringDownload()
+    {
+        Library service = new();
+        OfficialModComponent girl = OfficialModCatalog.GirlNextDoor;
+        RemoteModEntry seed = new(OfficialModCatalog.SourceId, girl.CatalogId, girl.Name, "") { Official = girl, CompatibilityError = "Refresh the official catalog when online." };
+        service.UseOfficialProfile();
+        service.Publish(entries: [seed]);
+        using ModRuntime mods = new(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), watch: false);
+        MenuController menu = new();
+        menu.ConnectMods(mods);
+        menu.ConnectModLibrary(service);
+        menu.Open("mods");
+        Assert.Contains(menu.Entries, entry => entry.Id == "Memoria" && entry.Help.Contains("Not downloaded"));
+        menu.Execute(new("mod-settings-open", "Memoria"));
+        Assert.Equal("mod-settings", menu.ScreenId);
+        UiButton unavailable = Assert.IsType<UiButton>(Element(Arrange(menu), "official-girl-next-door"));
+        Assert.False(unavailable.Enabled);
+        Assert.Contains("Girl Next Door", unavailable.Text);
+
+        OfficialModArtifact artifact = new("https://example.invalid/cover.zip", 1000, 1200, new('a', 64));
+        girl = girl with { Latest = new("1.0.0", "[0.8.10,)", "girl-next-door-v1.0.0", "", artifact) };
+        RemoteModEntry available = seed with { Official = girl, Version = "1.0.0", CompatibilityError = null, Links = [artifact.Url] };
+        service.Publish(entries: [available]);
+        menu.RefreshModView();
+        UiView ready = Arrange(menu);
+        UiButton action = Assert.IsType<UiButton>(Element(ready, "official-girl-next-door"));
+        ready.Focus(action);
+        Assert.Contains("Download & enable", action.Text);
+        action.Key(UiKey.Confirm);
+        Assert.Equal(["enable:Girl Next Door"], service.Commands);
+
+        OfficialModComponent another = girl with { Id = "another-cover", RuntimePackageId = "Memoria/Another", SettingsKey = "Another", Name = "Another" };
+        Guid jobId = Guid.NewGuid();
+        service.Publish(entries: [available with { Id = another.CatalogId, Official = another, Name = another.Name }, available], jobs: [Job(jobId, available, "Downloading", pause: true, cancel: true)]);
+        menu.RefreshModView();
+        Assert.Equal("official-girl-next-door", Arrange(menu).FocusedElement?.Id);
+        Assert.Contains("Downloading", Assert.IsType<UiButton>(Element(Arrange(menu), "official-girl-next-door")).Text);
+        menu.DisconnectMods();
+    }
+
+    [Fact]
     public void InstalledKeepsPendingDownloadActivityReachable()
     {
         Library service = new();
@@ -332,11 +373,13 @@ public sealed class ModCatalogUiTests
             Author = $"Author {index:D2}", Category = index % 2 == 0 ? "World" : "Audio", Description = "A synthetic catalog package with a readable description and no remote artwork dependency.", Links = ["https://example.invalid/package.iroj"]
         }).ToArray(), DateTimeOffset.Parse("2026-01-01T00:00:00Z"), false, false, null), [], "Steam 2013 · English", true);
         public List<string> Commands { get; } = [];
+        public void UseOfficialProfile() => View = View with { TargetProfile = "Classic/fr/test", OfficialSupported = true };
         public void MarkStale() => View = View with { Catalog = View.Catalog with { IsStale = true, Error = "Source unavailable" } };
         public void Managed(RemoteModEntry entry, string version, bool available = true) => View = View with { Installations = [new(entry.SourceId, entry.Id, version, "local-package", false) { Available = available, Error = available ? null : "Synthetic missing package." }] };
         public void Publish(IReadOnlyList<RemoteModEntry>? entries = null, IReadOnlyList<ModLibraryJob>? jobs = null) => View = View with { Revision = View.Revision + 1, Catalog = View.Catalog with { Entries = entries ?? View.Catalog.Entries }, Jobs = jobs ?? View.Jobs };
         public void RefreshCatalog() => Commands.Add("refresh");
         public void Queue(RemoteModEntry entry) => Commands.Add("queue:" + entry.Name);
+        public void DownloadAndEnable(RemoteModEntry entry) => Commands.Add("enable:" + entry.Name);
         public void Pause(Guid id) => Commands.Add("pause:" + id);
         public void Resume(Guid id) => Commands.Add("resume:" + id);
         public void Cancel(Guid id) => Commands.Add("cancel:" + id);

@@ -131,7 +131,7 @@ internal sealed partial class LauncherWindow : Window
         browse.Click += async (_, _) => await BrowseAsync();
         cancel.Click += (_, _) => discoveryLifetime.Cancel();
         mediaSection.Children.Add(cancel);
-        installations.SelectionChanged += async (_, _) => await ValidateSelectionAsync();
+        installations.SelectionChanged += async (_, _) => await Task.WhenAll(ValidateSelectionAsync(), RecheckOfficialModSelectionAsync());
         achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
         resourceLanguage.ItemsSource = new ResourceLanguageChoice[]
         {
@@ -143,7 +143,11 @@ internal sealed partial class LauncherWindow : Window
             new("it", "Italian")
         };
         resourceLanguage.SelectedIndex = 0;
-        resourceLanguage.SelectionChanged += (_, _) => SaveSelection();
+        resourceLanguage.SelectionChanged += async (_, _) =>
+        {
+            SaveSelection();
+            await RecheckOfficialModSelectionAsync();
+        };
         graphicsBackend.ItemsSource = GraphicsBackendSelection.Available(HostPlatforms.Current);
         graphicsBackend.SelectionChanged += async (_, _) => await SaveGraphicsBackendAsync();
         tryAuto.Click += async (_, _) => await TryAutoAsync();
@@ -217,12 +221,18 @@ internal sealed partial class LauncherWindow : Window
         {
             status.Text = LauncherCapabilities.GameStatus;
         }
+        if (Program.MigrationWarning is string migrationWarning)
+        {
+            status.Text += Environment.NewLine + migrationWarning;
+        }
+        officialModChecksStarted = true;
+        Task officialMods = CheckOfficialModsAsync();
         if (updateResume is not null)
         {
-            await PlayAsync(updateResume);
+            await Task.WhenAll(PlayAsync(updateResume), officialMods);
             return;
         }
-        await CheckUpdatesAsync();
+        await Task.WhenAll(CheckUpdatesAsync(), officialMods);
     }
 
     private async Task LoadGraphicsBackendAsync()
@@ -552,7 +562,7 @@ internal sealed partial class LauncherWindow : Window
         }
     }
 
-    private async Task PlayAsync(UpdateResume? resume = null, GraphicsRestartRecovery? graphicsRecovery = null, bool ff7Debug = false)
+    private async Task PlayAsync(UpdateResume? resume = null, GraphicsRestartRecovery? graphicsRecovery = null, bool ff7Debug = false, bool openModManager = false)
     {
         if (busy || !IsVisible)
         {
@@ -577,6 +587,7 @@ internal sealed partial class LauncherWindow : Window
         }
         SetBusy(true);
         bool closeLauncher = false;
+        bool gameStarted = false;
         try
         {
             if (await Task.Run(() => GameInstallationSelection.ValidateForEngine(selected.Directory)) is string validationError)
@@ -608,7 +619,12 @@ internal sealed partial class LauncherWindow : Window
                 return;
             }
             bool detached = closeAfterLaunch.IsChecked == true && resume is null && graphicsRecovery is null;
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug);
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory, redirectOutput: !detached, ff7GameDirectory: selectedFf7GameDirectory, ff7Debug: ff7Debug, openModManager: openModManager);
+            if (openModManager && await Task.Run(IsAnotherGameRunning))
+            {
+                await ShowRunningGameModInstructionsAsync();
+                return;
+            }
             if (detached)
             {
                 using Process game = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
@@ -638,6 +654,7 @@ internal sealed partial class LauncherWindow : Window
                 start.Environment["MEMORIA_FF8_REPORT_LOG_PATH"] = diagnostics.LogPath;
             }
             using Process process = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
+            gameStarted = true;
             runningGame = process;
             runningGameDirectory = selected.Directory;
             gameUpdateSession = control;
@@ -727,6 +744,10 @@ internal sealed partial class LauncherWindow : Window
             {
                 Close();
             }
+            else if (gameStarted)
+            {
+                _ = CheckOfficialModsAsync();
+            }
         }
     }
 
@@ -797,6 +818,7 @@ internal sealed partial class LauncherWindow : Window
         UpdateFf7Controls();
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
         nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
+        manageOfficialMods.IsEnabled = LauncherCapabilities.CanLaunchGame && (runningGame is not null || !busy && installations.SelectedItem is GameInstallation);
         if (!busy && closeAfterMediaSetup)
         {
             closeAfterMediaSetup = false;

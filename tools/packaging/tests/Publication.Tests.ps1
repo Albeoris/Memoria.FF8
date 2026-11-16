@@ -9,12 +9,75 @@ $source = 'a' * 40
 $global:MemoriaPublicationTestCalls = [Collections.Generic.List[string[]]]::new()
 $global:MemoriaPublicationVersionCalls = [Collections.Generic.List[object]]::new()
 $global:MemoriaPublicationReleaseNotes = $null
+$global:MemoriaPublishedAssets = @()
+$global:MemoriaUpdateFeed = $null
+$global:MemoriaPendingUpdateFeed = $null
+$global:MemoriaCorruptPublishedAsset = $false
 # Exercise publication offline; no external gh executable is called.
 function gh {
     $global:MemoriaPublicationTestCalls.Add([string[]]$args)
     $global:LASTEXITCODE = 0
     if ($args[0] -eq 'api' -and $args[1] -like '*/git/ref/heads/main') {
         return $source
+    }
+    if ($args[0] -eq 'release' -and $args[1] -eq 'upload') {
+        $tag = $args[2]
+        $global:MemoriaPublishedAssets = @($args | Where-Object { $_ -like '*Memoria-FF8-*#*' } | ForEach-Object {
+            $path, $label = $_.Split('#', 2)
+            $name = [IO.Path]::GetFileName($path)
+            @{
+                name = $name; label = $label; state = 'uploaded'; size = (Get-Item -LiteralPath $path).Length
+                digest = 'sha256:' + (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+                browser_download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$name"
+                updated_at = '2026-11-16T12:00:00Z'
+            }
+        })
+        return
+    }
+    if ($args[0] -eq 'api' -and $args[1] -like '*/releases/tags/*') {
+        $tag = ($args[1] -split '/')[-1]
+        if ($global:MemoriaCorruptPublishedAsset) {
+            $global:MemoriaPublishedAssets[0].digest = 'sha256:' + ('0' * 64)
+        }
+        return @{ tag_name = $tag; name = $tag; draft = $false; prerelease = $tag -eq 'nightly'; assets = $global:MemoriaPublishedAssets } | ConvertTo-Json -Depth 6
+    }
+    if ($args[0] -eq 'api' -and $args[1] -like '*/git/ref/heads/updates') {
+        if ($null -eq $global:MemoriaUpdateFeed) {
+            $global:LASTEXITCODE = 1
+            return 'gh: Not Found (HTTP 404)'
+        }
+        return '{"object":{"sha":"test-update-feed-commit"}}'
+    }
+    if ($args[0] -eq 'api' -and $args[1] -like '*/contents/updates-v1.json?ref=*') {
+        $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($global:MemoriaUpdateFeed))
+        return @{ content = $content; sha = 'previous-feed-blob' } | ConvertTo-Json
+    }
+    if ($args[0] -eq 'api' -and $args -contains '--input') {
+        $body = Get-Content -LiteralPath $args[([Array]::IndexOf($args, '--input') + 1)] -Raw | ConvertFrom-Json -AsHashtable
+        if ($args[3] -like '*/git/trees') {
+            $global:MemoriaPendingUpdateFeed = $body.tree[0].content
+            return '{"sha":"test-tree"}'
+        }
+        if ($args[3] -like '*/git/commits') {
+            if ($body.parents.Count -ne 0 -or $body.tree -cne 'test-tree') {
+                throw 'The first feed commit must contain only the new feed tree.'
+            }
+            return '{"sha":"test-update-feed-commit"}'
+        }
+        if ($args[3] -like '*/git/refs') {
+            if ($body.ref -cne 'refs/heads/updates' -or $body.sha -cne 'test-update-feed-commit') {
+                throw 'The first feed must publish to the updates branch.'
+            }
+            $global:MemoriaUpdateFeed = $global:MemoriaPendingUpdateFeed
+            return '{}'
+        }
+        if ($args[3] -like '*/contents/updates-v1.json') {
+            if ($body.branch -cne 'updates' -or $body.sha -cne 'previous-feed-blob') {
+                throw 'Feed updates must compare against the previous feed blob.'
+            }
+            $global:MemoriaUpdateFeed = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($body.content))
+            return '{}'
+        }
     }
     if ($args[0] -eq 'release' -and $args[1] -eq 'view') {
         $global:LASTEXITCODE = 1
@@ -53,7 +116,7 @@ try {
         $extension = if ($rid -eq 'win-x64') { '.zip' } else { '.tar.gz' }
         $archive = Join-Path $temporary ('Memoria-FF8-' + $rid + $extension)
         [IO.File]::WriteAllText($archive, $rid)
-        @{ source = $source; rid = $rid; recipe = 'b' * 64; version = 'source'; macSignature = 'adhoc-v1'; sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $temporary ('receipt-' + $rid + '.json')) -Encoding utf8NoBOM
+        @{ source = $source; rid = $rid; recipe = 'b' * 64; version = 'source'; engineCompatibilityVersion = '0.8.10'; macSignature = 'adhoc-v1'; sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $temporary ('receipt-' + $rid + '.json')) -Encoding utf8NoBOM
     }
     # A versioning test double records any accidental mutation by the publisher;
     # archive metadata tooling is covered separately by Packaging.Tests.ps1.
@@ -79,9 +142,29 @@ $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Versio
     if ($publication.artifacts.Count -ne 4) {
         throw 'The release digest inventory must contain all four native targets.'
     }
+    $nightlyFeed = $global:MemoriaUpdateFeed | ConvertFrom-Json -AsHashtable
+    if ($nightlyFeed.schemaVersion -ne 1 -or $nightlyFeed.channels.Count -ne 1 -or $nightlyFeed.channels.nightly.buildId -cne $source -or $nightlyFeed.channels.nightly.engineCompatibilityVersion -cne '0.8.10' -or $nightlyFeed.channels.nightly.artifacts.Count -ne 4) {
+        throw 'The static feed must describe the verified nightly platform set.'
+    }
+    $savedFeed = $global:MemoriaUpdateFeed
+    $global:MemoriaCorruptPublishedAsset = $true
+    $rejected = $false
+    try {
+        & $publisher -Directory $temporary -Source $source -Reference main
+    }
+    catch {
+        if ($_.Exception.Message -notlike '*does not match the validated archive*') { throw }
+        $rejected = $true
+    }
+    finally {
+        $global:MemoriaCorruptPublishedAsset = $false
+    }
+    if (!$rejected -or $savedFeed -cne $global:MemoriaUpdateFeed) {
+        throw 'An unverified uploaded asset must leave the feed untouched.'
+    }
     $macReceiptPath = Join-Path $temporary 'receipt-osx-arm64.json'
     $macReceiptText = Get-Content -LiteralPath $macReceiptPath -Raw
-    foreach ($property in @('macSignature', 'version')) {
+    foreach ($property in @('macSignature', 'version', 'engineCompatibilityVersion')) {
         $receipt = $macReceiptText | ConvertFrom-Json
         $receipt.$property = 'invalid'
         $receipt | ConvertTo-Json | Set-Content -LiteralPath $macReceiptPath -Encoding utf8NoBOM
@@ -146,7 +229,7 @@ $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Versio
     if ($global:MemoriaPublicationVersionCalls.Count -ne 0) {
         throw 'Tagged publication must reuse every tested archive without version stamping.'
     }
-    $generate = @($global:MemoriaPublicationTestCalls | Where-Object { $_[3] -like '*/releases/generate-notes' })
+    $generate = @($global:MemoriaPublicationTestCalls | Where-Object { $_.Length -gt 3 -and $_[3] -like '*/releases/generate-notes' })
     if ($generate.Count -ne 1 -or $generate[0] -notcontains 'previous_tag_name=v1.2.1') {
         throw 'Release notes must compare against the preceding published stable ancestor, including second parents.'
     }
@@ -158,14 +241,22 @@ $global:MemoriaPublicationVersionCalls.Add(@{ ArchivePath = $ArchivePath; Versio
     if ($publication.channel -cne $version -or $publication.source -cne $source) {
         throw 'The release identity must be recorded outside the immutable packages.'
     }
+    $feed = $global:MemoriaUpdateFeed | ConvertFrom-Json -AsHashtable
+    if ($feed.channels.Count -ne 2 -or $feed.channels.nightly.buildId -cne $nightlyFeed.channels.nightly.buildId -or $feed.channels.release.tag -cne $version -or $feed.channels.release.buildId -cne $source -or $feed.channels.release.artifacts.Count -ne 4) {
+        throw 'Publishing a tagged release must update the stable channel and preserve the nightly channel.'
+    }
     foreach ($artifact in $publication.artifacts) {
         $rid = $artifact.name -replace '^Memoria-FF8-', '' -replace '\.(zip|tar\.gz)$', ''
         $receipt = Get-Content -LiteralPath (Join-Path $temporary "receipt-$rid.json") -Raw | ConvertFrom-Json
         if ($artifact.sha256 -cne $receipt.sha256 -or (Get-FileHash -LiteralPath (Join-Path $temporary $artifact.name) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $receipt.sha256) {
             throw 'Both release channels must retain the tested archive digest.'
         }
+        $staticArtifact = $feed.channels.release.artifacts[$rid]
+        if ($staticArtifact.sha256 -cne $receipt.sha256 -or $staticArtifact.url -cne "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$version/$($artifact.name)" -or $staticArtifact.size -ne (Get-Item -LiteralPath (Join-Path $temporary $artifact.name)).Length) {
+            throw 'The static feed must publish the verified digest, size and anonymous download URL.'
+        }
     }
-    Write-Output 'Four-target publication, release notes, immutable archive reuse and invalid receipt rejection passed offline.'
+    Write-Output 'Four-target publication, release notes, immutable archive reuse, invalid receipt rejection and verified static feed publication passed offline.'
 }
 finally {
     $env:GITHUB_REPOSITORY = $savedRepository

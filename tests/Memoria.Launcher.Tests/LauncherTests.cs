@@ -151,6 +151,16 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void ManageModsRequestsExplicitStartupNavigationForTheSelectedInstallation()
+    {
+        ProcessStartInfo normal = GameInstallationSelection.CreateStartInfo(directory, directory);
+        ProcessStartInfo manage = GameInstallationSelection.CreateStartInfo(directory, directory, openModManager: true);
+        Assert.DoesNotContain("--open-mod-manager", normal.ArgumentList);
+        Assert.Contains("--open-mod-manager", manage.ArgumentList);
+        Assert.Equal(normal.ArgumentList, manage.ArgumentList.Where(argument => argument != "--open-mod-manager"));
+    }
+
+    [Fact]
     public void LocalOnlySelectionSurvivesSettingsAndLaunch()
     {
         string settingsPath = Path.Combine(directory, "launcher.json");

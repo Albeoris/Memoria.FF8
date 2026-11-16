@@ -73,7 +73,7 @@ internal static partial class ModDownloadTransport
                 uri = next;
                 continue;
             }
-            if (response.Content.Headers.ContentType?.MediaType?.Contains("html", StringComparison.OrdinalIgnoreCase) == true)
+            if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.Contains("html", StringComparison.OrdinalIgnoreCase) == true)
             {
                 using (response)
                 {
