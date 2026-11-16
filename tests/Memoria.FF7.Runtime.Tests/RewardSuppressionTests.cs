@@ -20,11 +20,13 @@ internal static class RewardSuppressionTests
         SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path)).Single(formation => formation.FormationId == 292);
         Ff7Progress progress = initial.Progress with { Party = [9, 10, 255] };
         Ff7BattleSession entering = new(formation, progress, kernel, executable.NativeMateriaStatModifiers, 101, requestFlags: 0xA0, requestMode: 1);
+        Ff7InventorySlot[] inventory = Ff7NativeInventory.Normalize([new(0, 1)]);
         Ff7BattleSnapshot finished = entering.Capture() with
         {
             Outcome = Ff7BattleOutcome.Victory,
             TerminalFrames = 45,
-            Inventory = [new(0, 1)],
+            Inventory = inventory,
+            Economy = Ff7BattleEconomy.Create(Ff7NativeBattleInventory.Create(inventory, kernel)),
             Actors = entering.Actors.Select(actor => actor.Actor.Slot >= 4
                 ? actor with { Actor = actor.Actor with { HitPoints = 0, Statuses = actor.Actor.Statuses | Ff7NativeBattleActionResolver.Death } }
                 : actor with { Actor = actor.Actor with { HitPoints = actor.Actor.HitPoints - 5, MagicPoints = (ushort)(actor.Actor.MagicPoints - 1) } }).ToArray()

@@ -16,7 +16,7 @@ public static class Ff7DebugVictory
         return Project(progress, formation, kernel, fieldGeneration, requestId, random, dormantGuestStoryCharacter: dormantGuestStoryCharacter, guestStoryCharacters: guestStoryCharacters).Progress;
     }
 
-    internal static Ff7VictoryProjection Project(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool suppressRewards = false)
+    internal static Ff7VictoryProjection Project(Ff7Progress progress, SceneFormation formation, IReadOnlyList<KernelSection> kernel, long fieldGeneration, long requestId, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, int? dormantGuestStoryCharacter = null, IReadOnlyCollection<int>? guestStoryCharacters = null, bool suppressRewards = false, Func<SceneEnemyInstance, uint>? experienceReward = null, Func<SceneEnemyInstance, uint>? gilReward = null)
     {
         ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(formation);
@@ -41,7 +41,7 @@ public static class Ff7DebugVictory
         {
             throw new InvalidDataException("FFVII victory requires its original growth and equipment kernel sections.");
         }
-        Ff7BattleReward reward = ResolveRewards(formation, random, defeated);
+        Ff7BattleReward reward = ResolveRewards(formation, random, defeated, experienceReward, gilReward);
         Ff7NativeGrowth growth = new(KernelGrowthTables.Read(kernel[2].Data.Span));
         List<Ff7MateriaState> materia = [.. progress.Materia];
         Dictionary<int, Ff7CharacterState> changed = [];
@@ -106,7 +106,7 @@ public static class Ff7DebugVictory
         return new(result, reward, characterGrowth, materiaGrowth, items);
     }
 
-    public static Ff7BattleReward ResolveRewards(SceneFormation formation, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null)
+    public static Ff7BattleReward ResolveRewards(SceneFormation formation, Ff7BattleRng random, Func<SceneEnemyInstance, bool>? defeated = null, Func<SceneEnemyInstance, uint>? experienceReward = null, Func<SceneEnemyInstance, uint>? gilReward = null)
     {
         uint experience = 0;
         uint gil = 0;
@@ -115,8 +115,8 @@ public static class Ff7DebugVictory
         foreach (SceneEnemyInstance instance in formation.Enemies.Where(enemy => enemy.EnemyId != -1 && (defeated is null || defeated(enemy))))
         {
             SceneEnemyReward enemy = formation.EnemyRewards.Single(enemy => enemy.EnemyId == instance.EnemyId);
-            experience = unchecked(experience + enemy.Experience);
-            gil = unchecked(gil + enemy.Gil);
+            experience = unchecked(experience + (experienceReward?.Invoke(instance) ?? enemy.Experience));
+            gil = unchecked(gil + (gilReward?.Invoke(instance) ?? enemy.Gil));
             ap = unchecked(ap + enemy.AbilityPoints);
             foreach (SceneItemSlot slot in enemy.Items)
             {

@@ -11,6 +11,10 @@ public sealed record Ff7BattleAiActor(int Slot, uint Statuses, uint Conditions, 
     public byte? Size { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? CoveredCharacter { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ExperienceReward { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? GilReward { get; init; }
 }
 public sealed record Ff7BattleAiContext(int ActorSlot, IReadOnlyList<Ff7BattleAiActor> Actors, ushort EligibleMask, ushort KnockedOutMask, ushort ExcludedOpponentMask = 0, byte Callback = 1, byte? QueuePriority = null, byte[]? GlobalMemory = null, byte[]? SaveBank1 = null)
 {
@@ -33,6 +37,16 @@ public static class Ff7BattleAi
     private const ushort ActorMask = 0x03FF;
     private const int StackCapacity = 512;
     private const int InstructionLimit = 16384;
+
+    internal static uint ReadExperienceReward(SceneBattleData formation, Ff7BattleAiActor actor)
+    {
+        return actor.ExperienceReward ?? (actor.Slot < 4 ? 0u : formation.Enemies.Single(enemy => enemy.FormationSlot + 4 == actor.Slot).Rewards.Experience);
+    }
+
+    internal static uint ReadGilReward(SceneBattleData formation, Ff7BattleAiActor actor)
+    {
+        return actor.GilReward ?? (actor.Slot < 4 ? 0u : formation.Enemies.Single(enemy => enemy.FormationSlot + 4 == actor.Slot).Rewards.Gil);
+    }
 
     public static Ff7BattleAiResult RunActorCallback(Ff7BattleAiContext context, ReadOnlySpan<byte> localMemory, SceneBattleData formation, Ff7BattleRng random, ReadOnlyMemory<byte> kernelAttacks = default)
     {
@@ -415,8 +429,15 @@ public static class Ff7BattleAi
             }
         }
 
-        private static uint ReadActor(Ff7BattleAiActor actor, int width, ushort address)
+        private uint ReadActor(Ff7BattleAiActor actor, int width, ushort address)
         {
+            switch (address & 0xFFE0)
+            {
+                case 0x42C0:
+                    return ReadRewardScalar(ReadGilReward(formation, actor), width, address);
+                case 0x42E0:
+                    return ReadRewardScalar(ReadExperienceReward(formation, actor), width, address);
+            }
             return (width, address) switch
             {
                 (0, >= 0x4000 and < 0x4020) => actor.Statuses >> (address - 0x4000) & 1,
@@ -526,6 +547,21 @@ public static class Ff7BattleAi
             return offset;
         }
 
+        private static uint ReadRewardScalar(uint value, int width, ushort address)
+        {
+            byte[] memory = new byte[4];
+            BinaryPrimitives.WriteUInt32LittleEndian(memory, value);
+            return ReadMemory(memory, width, address & 31);
+        }
+
+        private static uint WriteRewardScalar(uint current, int width, ushort address, uint value)
+        {
+            byte[] memory = new byte[4];
+            BinaryPrimitives.WriteUInt32LittleEndian(memory, current);
+            WriteMemory(memory, width, address & 31, value);
+            return BinaryPrimitives.ReadUInt32LittleEndian(memory);
+        }
+
         private void StoreActor(Value reference, uint value)
         {
             Value selector = Pop();
@@ -568,6 +604,8 @@ public static class Ff7BattleAi
                     (3, 0x4220) => actor with { PreviousStatuses = value },
                     (2, 0x4300) => actor with { CaptureMask = ((actor.CaptureMask ?? 0) & 0xFFFF0000) | (ushort)value },
                     (3, 0x4300) => actor with { CaptureMask = value },
+                    (_, >= 0x42C0 and < 0x42E0) => actor with { GilReward = WriteRewardScalar(ReadGilReward(formation, actor), reference.Width, (ushort)reference.Scalar, value) },
+                    (_, >= 0x42E0 and < 0x4300) => actor with { ExperienceReward = WriteRewardScalar(ReadExperienceReward(formation, actor), reference.Width, (ushort)reference.Scalar, value) },
                     (1, 0x4080) => actor with { IdleAction = (byte)value },
                     (1, 0x4088) => actor with { HurtAction = (byte)value },
                     (1, 0x4098) => actor with { Size = (byte)value },

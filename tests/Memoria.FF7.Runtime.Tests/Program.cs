@@ -618,6 +618,12 @@ if (args.Contains("--flashback-party-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--ai-experience-reward-only", StringComparer.Ordinal))
+{
+    NativeAiExperienceRewardTests.Run();
+    return 0;
+}
+
 if (args.Contains("--reward-suppression-only", StringComparer.Ordinal))
 {
     RewardSuppressionTests.Run();
@@ -959,6 +965,7 @@ var tests = new (string Name, Action Run)[]
     ("native command materia grants", NativeBattleCommandGrantTests.Run),
     ("native command passive statistics and admission", NativeCommandProjectionTests.Run),
     ("native debug victory and exactly-once rewards", NativeBattleTests.Run),
+    ("native mutable AI experience and Gil rewards", NativeAiExperienceRewardTests.Run),
     ("FFVII Turn Based scheduling and cold continuation", NativeBattleTests.RunTurnBased),
     ("FFVII native battle speed and cold continuation", NativeBattleSpeedTests.Run),
     ("FFVII prepared world field departure", WorldDepartureTests.Run),

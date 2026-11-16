@@ -1057,7 +1057,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleRng candidate = new(kernel[2].Data.Span, random.Capture());
         bool completed = progress.CompletedBattles.Any(receipt => receipt.FieldGeneration == fieldGeneration && receipt.RequestId == RequestId);
         Ff7Progress resultProgress = completed ? progress : PublishVitals(progress);
-        return Ff7DebugVictory.Project(resultProgress, Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0);
+        return Ff7DebugVictory.Project(resultProgress, Formation, kernel, fieldGeneration, RequestId, candidate, IsDefeated, guestStoryCharacters: guestStoryCharacters, suppressRewards: (state.RequestFlags & 0x80) != 0, experienceReward: ReadActorExperienceReward, gilReward: ReadActorGilReward);
     }
 
     public Ff7BattleReward PreviewVictory()
@@ -1071,10 +1071,22 @@ public sealed partial class Ff7BattleSession
             return new(0, 0, 0, []);
         }
         Ff7BattleRng preview = new(kernel[2].Data.Span, random.Capture());
-        return Ff7DebugVictory.ResolveRewards(Formation, preview, IsDefeated);
+        return Ff7DebugVictory.ResolveRewards(Formation, preview, IsDefeated, ReadActorExperienceReward, ReadActorGilReward);
     }
 
     private bool IsBossBattle => animations is not null && state.Actors.Any(actor => actor.Actor.Slot >= 4 && Ff7BattleActorDeath.IsBossKind(animations.DeathType(ActorModel(actor.Actor.Slot))));
+
+    private uint ReadActorExperienceReward(SceneEnemyInstance instance)
+    {
+        SceneBattleEnemy enemy = Data.Enemies.Single(candidate => ReferenceEquals(candidate.Placement, instance));
+        return Ff7BattleAi.ReadExperienceReward(Data, Actor(enemy.FormationSlot + 4).Actor);
+    }
+
+    private uint ReadActorGilReward(SceneEnemyInstance instance)
+    {
+        SceneBattleEnemy enemy = Data.Enemies.Single(candidate => ReferenceEquals(candidate.Placement, instance));
+        return Ff7BattleAi.ReadGilReward(Data, Actor(enemy.FormationSlot + 4).Actor);
+    }
 
     private bool IsDefeated(SceneEnemyInstance instance)
     {

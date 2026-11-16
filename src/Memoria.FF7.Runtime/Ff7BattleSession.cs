@@ -209,12 +209,13 @@ public sealed partial class Ff7BattleSession
             ReadOnlySpan<byte> record = character.NativeRecord;
             uint statuses = stats.Actor.Statuses | (character.HitPoints == 0 ? 1u : 0u);
             uint conditions = stats.Actor.BackRow ? 0x48u : 8u;
-            initialActors.Add(new(id, new(slot, statuses, conditions, (ushort)character.MagicPoints, BinaryPrimitives.ReadUInt16LittleEndian(record[58..]), (uint)character.HitPoints, BinaryPrimitives.ReadUInt16LittleEndian(record[56..]), stats.Actor.Defense, stats.Actor.MagicDefense, Variant: (byte)(id + 0x10), HurtAction: 5), 0, [], LimitGauge: record[15], AllUses: new(Ff7NativeBattleAll.Read(character, kernel))));
+            initialActors.Add(new(id, new(slot, statuses, conditions, (ushort)character.MagicPoints, BinaryPrimitives.ReadUInt16LittleEndian(record[58..]), (uint)character.HitPoints, BinaryPrimitives.ReadUInt16LittleEndian(record[56..]), stats.Actor.Defense, stats.Actor.MagicDefense, Variant: (byte)(id + 0x10), HurtAction: 5) { ExperienceReward = 0, GilReward = 0 }, 0, [], LimitGauge: record[15], AllUses: new(Ff7NativeBattleAll.Read(character, kernel))));
         }
         speedDenominator = Ff7NativeAtb.SpeedDenominator(partyDexterity.ToArray());
         foreach (Ff7NativeEnemyState enemy in Ff7NativeEnemyInitialization.Create(Data))
         {
-            initialActors.Add(new(enemy.EnemyId, new(enemy.ActorSlot, enemy.Statuses, enemy.Conditions, enemy.MagicPoints, enemy.MaxMagicPoints, enemy.HitPoints, enemy.MaxHitPoints, enemy.Defense, enemy.MagicDefense, IdleAction: enemy.IdleAction, HurtAction: enemy.HurtAction), 0, []));
+            Ff7BattleAiActor actor = new(enemy.ActorSlot, enemy.Statuses, enemy.Conditions, enemy.MagicPoints, enemy.MaxMagicPoints, enemy.HitPoints, enemy.MaxHitPoints, enemy.Defense, enemy.MagicDefense, IdleAction: enemy.IdleAction, HurtAction: enemy.HurtAction);
+            initialActors.Add(new(enemy.EnemyId, actor with { ExperienceReward = Ff7BattleAi.ReadExperienceReward(Data, actor), GilReward = Ff7BattleAi.ReadGilReward(Data, actor) }, 0, []));
         }
         random = new(kernel[2].Data.Span, snapshot?.Random ?? previousFormation?.Random ?? Ff7BattleRng.BeginBattle(progress.BattleRng?.CrtSeed ?? 1));
         if (snapshot is not null)
@@ -222,6 +223,7 @@ public sealed partial class Ff7BattleSession
             ValidateSnapshot(snapshot, requestId, initialActors);
             byte[] aliases = snapshot.PartyAiAliases ?? progress.PartyAiAliases ?? Ff7KernelBattleAi.RestoreDeclaredAliases(kernel[2].Data, snapshot.Actors.Where(actor => actor.Actor.Slot < 3).Select(actor => actor.Identity));
             state = CopySnapshot(snapshot with { NativeBattleSpeed = nativeBattleSpeed, PartyAiAliases = aliases });
+            state = state with { Actors = state.Actors.Select(actor => actor with { Actor = actor.Actor with { ExperienceReward = Ff7BattleAi.ReadExperienceReward(Data, actor.Actor), GilReward = Ff7BattleAi.ReadGilReward(Data, actor.Actor) } }).ToArray() };
             RestoreGuestStatusProjection();
             RestoreNativeAiState(initialSaveBank1, progress.Gil);
             RestoreEconomyState();
