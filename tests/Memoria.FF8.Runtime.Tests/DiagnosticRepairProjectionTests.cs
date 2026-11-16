@@ -20,13 +20,6 @@ public sealed class DiagnosticRepairProjectionTests
         }
     }
 
-    private static BattleSession Fixture()
-    {
-        BattleSession battle = new(new() { NativeFieldBattleRules = 0, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1000, CurrentHp = 400 }, new() { Id = "survivor", Name = "Survivor", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
-        typeof(BattleSession).GetField("nativePartyPresentation", Instance)!.SetValue(battle, new NativeBattlePartyPresentation([new(400, 1000, null, null) { DisplayedHitPointsQ12 = 400 << 12 }, null, null]));
-        return battle;
-    }
-
     [Theory]
     [InlineData(400, "healing")]
     [InlineData(900, "healing")]
@@ -34,8 +27,8 @@ public sealed class DiagnosticRepairProjectionTests
     public void Actual_writer_attaches_scoped_provenance_without_changing_null_actor_or_native_state(int requested, string kind)
     {
         // Component owner fixture; public drain/admission remains guarded independently.
-        BattleSession control = Fixture();
-        BattleSession observed = Fixture();
+        BattleSession control = DiagnosticCombatRepairTests.CreatePartyFixture(400);
+        BattleSession observed = DiagnosticCombatRepairTests.CreatePartyFixture(400);
         List<BattleDiagnosticResolution> resolutions = [];
         observed.DiagnosticResolution += resolutions.Add;
         BattleDiagnosticCombatRepair request = new("party", requested);
@@ -53,6 +46,8 @@ public sealed class DiagnosticRepairProjectionTests
         Assert.Equal(400, resolution.BeforeHp);
         Assert.Equal(requested, resolution.AfterHp);
         Assert.Equal(Math.Abs(requested - 400), resolution.ActualAmount);
+        BattleEvent repair = Assert.Single(observed.Events, entry => entry.Kind == "DiagnosticRepair");
+        Assert.Equal(resolution.ActualAmount, repair.Amount);
         Assert.Equal(JsonSerializer.Serialize(control.Capture()), JsonSerializer.Serialize(observed.Capture()));
         Assert.Null(typeof(BattleSession).GetField("diagnosticRepairProjection", Instance)!.GetValue(observed));
         Invoke(observed, "ApplyHealing", observed.Combatants[0], 0, "Component ordinary healing");
@@ -62,7 +57,7 @@ public sealed class DiagnosticRepairProjectionTests
     [Fact]
     public void Writer_scope_is_restored_even_when_an_existing_observer_throws()
     {
-        BattleSession battle = Fixture();
+        BattleSession battle = DiagnosticCombatRepairTests.CreatePartyFixture(400);
         InvalidOperationException expected = new("Component observer failure");
         battle.DiagnosticResolution += _ => throw expected;
         Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => Invoke(battle, "ApplyDiagnosticRepairActor", battle.Combatants[0], new BattleDiagnosticCombatRepair("party", 500))));

@@ -173,7 +173,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Diagnostic repair did not produce its exact declared HP in the combat and presentation owners.");
         }
-        Log("DiagnosticRepair", actor.Id, actor.Id, actor.CurrentHp - before, "Explicit between-execution HP/status repair; original clocks, random streams and scheduler owners retained.");
+        Log("DiagnosticRepair", actor.Id, actor.Id, Math.Abs(actor.CurrentHp - before), "Explicit between-execution HP/status repair; original clocks, random streams and scheduler owners retained.");
     }
 
     private NativeBattlePartyPresentedVital RequireDiagnosticRepairPresentedRow(BattleCombatant actor)

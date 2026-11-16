@@ -8,7 +8,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Repair_receipt_states_preserve_the_same_physical_identity_as_execution_observations()
     {
-        BattleSession session = Create(400);
+        BattleSession session = CreatePartyFixture(400);
         BattleCombatant actor = session.Combatants[0];
         BattleDiagnosticCombatant before = (BattleDiagnosticCombatant)Method("ObserveDiagnosticRepairActor").Invoke(null, [actor])!;
         Assert.Equal(0, before.NativeIndex);
@@ -40,7 +40,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Public_boundary_rejects_terminal_and_uninitialized_callbacks_without_mutation()
     {
-        BattleSession session = Create(400);
+        BattleSession session = CreatePartyFixture(400);
         BattleDiagnosticCombatRepair[] repairs = [new("party", 200)];
         Assert.Throws<InvalidOperationException>(() => session.ApplyDiagnosticCombatRepairs(repairs, 0));
         Property(nameof(BattleSession.Outcome)).SetValue(session, BattleOutcome.Defeat);
@@ -52,7 +52,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Declared_healing_and_lowering_update_combat_and_presented_hp_without_rng_or_callback_changes()
     {
-        BattleSession session = Create(400);
+        BattleSession session = CreatePartyFixture(400);
         object randomBefore = Field("random").GetValue(session)!;
         long callback = session.NativeHostCallbacks!.Value;
         ApplyOwnerStep(session, new("party", 900));
@@ -72,7 +72,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Nonterminal_party_revival_clears_ko_through_native_status_owner_and_heals_exactly()
     {
-        BattleSession session = Create(0, 1);
+        BattleSession session = CreatePartyFixture(0, 1);
         Assert.Equal(BattleOutcome.Active, session.Outcome);
         Assert.False(session.Combatants[0].IsAlive);
         ApplyOwnerStep(session, new("party", 250, Revive: true));
@@ -85,7 +85,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Status_repair_preserves_unselected_statuses_and_rejects_incoherent_cache_before_mutation()
     {
-        BattleSession session = Create(400, 18);
+        BattleSession session = CreatePartyFixture(400, 18);
         ApplyOwnerStep(session, new("party", 400, RemoveStatuses0: 2));
         BattleDiagnosticCombatant actor = session.ObserveDiagnosticCombatants()[0];
         Assert.Equal(0, actor.Statuses0 & 2);
@@ -99,7 +99,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Explicit_full_cleanup_clears_permanent_and_compelled_statuses_without_replacing_native_owners()
     {
-        BattleSession session = Create(400, 0x22);
+        BattleSession session = CreatePartyFixture(400, 0x22);
         BattleCombatant actor = session.Combatants[0];
         typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(actor, 0x4002u);
         short[] timers = (short[])typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(actor)!;
@@ -139,7 +139,7 @@ public sealed class DiagnosticCombatRepairTests
     [Fact]
     public void Partial_cleanup_still_rejects_permanent_party_status_without_any_mutation()
     {
-        BattleSession session = Create(400, 0x22);
+        BattleSession session = CreatePartyFixture(400, 0x22);
         BattleCombatant actor = session.Combatants[0];
         typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(actor, 0x4002u);
         short[] timers = (short[])typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(actor)!;
@@ -181,7 +181,7 @@ public sealed class DiagnosticCombatRepairTests
     [InlineData(0x80000000u)]
     public void Full_cleanup_still_rejects_allocation_and_guardian_status_owners(uint status)
     {
-        BattleSession session = Create(400);
+        BattleSession session = CreatePartyFixture(400);
         typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session.Combatants[0], status);
         string before = JsonSerializer.Serialize(session.ObserveDiagnosticCombatants());
         BattleDiagnosticCombatRepair repair = new("party", 400, RemoveStatuses0: BattleDiagnosticCombatRepair.AllSavedStatuses, RemoveStatuses1: BattleDiagnosticCombatRepair.AllBattleStatuses);
@@ -232,10 +232,10 @@ public sealed class DiagnosticCombatRepairTests
     }
 
     [Theory]
-    [InlineData("NativeIndex", 7)]
+    [InlineData(nameof(BattleCombatant.NativeActorIndex), null)]
     [InlineData("NativeCombatantFlags", 0u)]
     [InlineData("NativeAllocationPendingStatistics", true)]
-    public void Enemy_status_repair_rejects_nonoriginal_physical_owner_states(string property, object value)
+    public void Enemy_status_repair_rejects_nonoriginal_physical_owner_states(string property, object? value)
     {
         BattleSession session = CreateEnemy();
         typeof(BattleCombatant).GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session.Combatants[1], value);
@@ -281,7 +281,7 @@ public sealed class DiagnosticCombatRepairTests
         return session;
     }
 
-    private static BattleSession Create(int hp, ushort savedStatuses = 0)
+    internal static BattleSession CreatePartyFixture(int hp, ushort savedStatuses = 0)
     {
         BattleSession session = new(new()
         {
@@ -294,6 +294,11 @@ public sealed class DiagnosticCombatRepairTests
             ]
         }, BattleAtbMode.TurnBased);
         Field("nativePartyPresentation").SetValue(session, new NativeBattlePartyPresentation([new((ushort)hp, 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
+        BattlePartyActorModel owner = new(new("party"));
+        BattleModelRoster roster = new([owner]);
+        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), owner)]);
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new NativeBattleGraphicsModel(0), BattleContactTaskStorageContract.OriginalArena);
+        Property(nameof(BattleSession.NativeGraphics)).SetValue(session, graphics);
         return session;
     }
 
