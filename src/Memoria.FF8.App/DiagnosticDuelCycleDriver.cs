@@ -13,7 +13,7 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
     private byte inputCursor;
     private bool awaitingButton;
 
-    internal bool NeedsInput => Receipt.Dispatches.Length >= 2 && Receipt.ReadyAfterBasic is null && (Receipt.Inputs.Length == 0 || Receipt.Inputs[^1].Choice.ActionId != Receipt.Declaration.BasicAction) && pendingChoice is null;
+    internal bool NeedsInput => Receipt.Dispatches.Length >= 2 && Receipt.ReadyAfterBasic is null && (Receipt.Inputs.Length == 0 || Receipt.Inputs[^1].Choice.ActionId != Receipt.Declaration.MoveAction) && pendingChoice is null;
 
     internal void Observe(DiagnosticDuelObservation observation, bool drained)
     {
@@ -22,7 +22,7 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
         {
             Receipt = Receipt with { Opening = observation };
         }
-        if (pendingChoice is { } choice && state is { Phase: BattleNativeDuelPhase.AwaitingEffect } && state.MoveSetId == choice.MoveSetId)
+        if (pendingChoice is { } choice && state is not null && state.Phase == (choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect) && state.MoveSetId == choice.MoveSetId)
         {
             if (!NativeBattleDuelRules.Matches(choice, state.InputRing, state.InputCursor))
             {
@@ -31,7 +31,15 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
             Receipt = Receipt with { Inputs = [.. Receipt.Inputs, new(choice, inputBefore!, observation)] };
             pendingChoice = null;
         }
-        if (Receipt.FocalSerial is not null && Receipt.Inputs is { Length: > 0 } && Receipt.Inputs[^1].Choice.ActionId == Receipt.Declaration.BasicAction && state is { Phase: BattleNativeDuelPhase.Ready })
+        if (Receipt.Declaration.FinisherAction is byte)
+        {
+            if (Receipt.FocalSerial is not null && state is null && drained)
+            {
+                Receipt = Receipt with { Completed = Receipt.Completed ?? observation };
+            }
+            return;
+        }
+        if (Receipt.FocalSerial is not null && Receipt.Inputs is { Length: > 0 } && Receipt.Inputs[^1].Choice.ActionId == Receipt.Declaration.MoveAction && state is { Phase: BattleNativeDuelPhase.Ready })
         {
             Receipt = Receipt with { ReadyAfterBasic = Receipt.ReadyAfterBasic ?? observation };
         }
@@ -47,9 +55,10 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
 
     internal void BeginInput(BattleNativeDuelChoice choice, DiagnosticDuelObservation before)
     {
-        if (!NeedsInput || Receipt.Inputs.Length >= 8 || before.Duel is not { Phase: BattleNativeDuelPhase.Ready } || !choice.Learned || choice.Finisher || choice.ActionId > 5 || choice.Buttons.IsDefaultOrEmpty || choice.Buttons.Length > 5)
+        bool allowedMove = choice.Finisher ? choice.ActionId == Receipt.Declaration.FinisherAction : choice.ActionId <= 5;
+        if (!NeedsInput || Receipt.Inputs.Length >= 8 || before.Duel is not { Phase: BattleNativeDuelPhase.Ready } || !choice.Learned || !allowedMove || choice.Buttons.IsDefaultOrEmpty || choice.Buttons.Length > 5)
         {
-            throw new InvalidDataException("Duel diagnostics require one bounded learned native basic input at a real ready boundary.");
+            throw new InvalidDataException("Duel diagnostics require bounded learned native input at a real ready boundary.");
         }
         pendingChoice = choice;
         inputBefore = before;
@@ -84,11 +93,17 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
 
     internal bool ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticDuelDispatchPackets proof)
     {
-        if (Receipt.Dispatches.Length >= 16 || Receipt.Dispatches.Length != Receipt.DispatchPackets.Length || dispatch.ActorId != Receipt.ActorId || dispatch.NativeActorIndex != Receipt.ActorIndex || dispatch.RequestedEffect != 274 || dispatch.ExecutedEffect != 274 || dispatch.NativeCommand is not (11 or 241) || dispatch.ActionId is not (>= 0 and <= 5 or 65531 or 65532) || dispatch.Reflection is not null)
+        DiagnosticDuelCycleDeclaration declaration = Receipt.Declaration;
+        bool finisher = declaration.FinisherAction.HasValue;
+        bool allowedDispatch = dispatch is { NativeCommand: 11, ActionId: 65531, RequestedEffect: 274, ExecutedEffect: 274 } or
+            { NativeCommand: 241, ActionId: >= 0 and <= 5, RequestedEffect: 274, ExecutedEffect: 274 } ||
+            dispatch is { NativeCommand: 241, RequestedEffect: 274, ExecutedEffect: 274 } && dispatch.ActionId == (finisher ? 65530 : 65532) ||
+            finisher && dispatch.NativeCommand == 239 && dispatch.ActionId == declaration.MoveAction && dispatch.RequestedEffect == declaration.Effect && dispatch.ExecutedEffect == declaration.Effect;
+        if (Receipt.Dispatches.Length >= 16 || Receipt.Dispatches.Length != Receipt.DispatchPackets.Length || dispatch.ActorId != Receipt.ActorId || dispatch.NativeActorIndex != Receipt.ActorIndex || !allowedDispatch || dispatch.Reflection is not null)
         {
             throw new InvalidDataException("Duel dispatched outside its real command11/basic/timer-close lineage.");
         }
-        bool focal = Receipt.FocalSerial is null && Receipt.Inputs is { Length: > 0 } && Receipt.Inputs[^1].Choice.ActionId == Receipt.Declaration.BasicAction && dispatch.NativeCommand == 241 && dispatch.ActionId == Receipt.Declaration.BasicAction && dispatch.Callback >= Receipt.Inputs[^1].After.Callback;
+        bool focal = Receipt.FocalSerial is null && Receipt.Inputs is { Length: > 0 } && Receipt.Inputs[^1].Choice.ActionId == declaration.MoveAction && dispatch.NativeCommand == declaration.Command && dispatch.ActionId == declaration.MoveAction && dispatch.Callback >= Receipt.Inputs[^1].After.Callback;
         Receipt = Receipt with { Dispatches = [.. Receipt.Dispatches, dispatch], DispatchPackets = [.. Receipt.DispatchPackets, proof], FocalSerial = focal ? dispatch.Serial : Receipt.FocalSerial };
         return focal;
     }

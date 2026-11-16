@@ -59,6 +59,31 @@ public sealed class DiagnosticDuelCycleDriverTests
     }
 
     [Fact]
+    public void Finisher_waits_for_the_selected_widget_and_drains_without_timer_expiry()
+    {
+        DiagnosticDuelCycleDeclaration declaration = new() { FinisherAction = 7 };
+        BattleInput invocation = new(BattleInputKind.Action, ActorId: "party", TargetId: "enemy", Ability: BattleAbility.LimitBreak, ActionId: 11 << 16);
+        declaration.Validate(invocation, 112, 7, 239);
+        Assert.Throws<InvalidDataException>(() => declaration.Validate(invocation with { ActionId = 239 << 16 | 7 }, 112, 7, 239));
+
+        DiagnosticDuelCycleDriver cycle = Create(declaration);
+        BattleDiagnosticDuelState ready = ReadObservation(State(BattleNativeDuelPhase.Ready));
+        cycle.BeginInput(new(1, 7, "Meteor Barret", true, true, [16]), new(3, ready));
+        cycle.Observe(new(4, ready with { Phase = BattleNativeDuelPhase.Finisher, Selection1D28DEF = 1, MoveSetId = 1, InputCursor = 1, InputRing = ready.InputRing.SetItem(1, 16) }), false);
+        BattleDiagnosticEffectDispatch control = new(3, 5, "party", BattleAbility.NativeCommand, 65530, 274, 274, 241) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
+        Assert.False(cycle.ObserveDispatch(control, new(3, 5, 0, 1, NativeBattleRetainedActionPackets.Fresh())));
+        cycle.Observe(new(6, null), true);
+        Assert.False(cycle.Completed);
+        BattleDiagnosticEffectDispatch focal = new(4, 7, "party", BattleAbility.LimitBreak, 7, 112, 112, 239) { NativeActorIndex = 0, NativeHeaderIndex = 1, NativeHeaderGeneration = 2 };
+        Assert.True(cycle.ObserveDispatch(focal, new(4, 7, 1, 2, NativeBattleRetainedActionPackets.Fresh())));
+        cycle.Observe(new(8, null), false);
+        Assert.False(cycle.Completed);
+        cycle.Observe(new(9, null), true);
+        Assert.True(cycle.Completed);
+        Assert.Null(cycle.Receipt.TimedOut);
+    }
+
+    [Fact]
     public void Native_button_edges_wait_for_the_real_ring_cursor_and_release_between_presses()
     {
         DiagnosticDuelCycleDriver cycle = Create();
@@ -101,7 +126,8 @@ public sealed class DiagnosticDuelCycleDriverTests
         Assert.False(cycle.Completed);
         cycle.Observe(new(10, null), true);
         Assert.True(cycle.Completed);
-        Assert.Equal(5, Assert.Single(cycle.Receipt.Dispatches).Callback);
+        Assert.Equal(3, cycle.Receipt.Dispatches.Length);
+        Assert.Equal(5, cycle.Receipt.Dispatches[^1].Callback);
     }
 
     [Theory]
@@ -154,5 +180,13 @@ public sealed class DiagnosticDuelCycleDriverTests
             PreviousButtons = state.PreviousButtons
         };
     }
-    private static DiagnosticDuelCycleDriver Create() => new(new(1, "party", "enemy", 0, 3, new(0), new("party", 1, 11, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(1)), new(1, null)));
+    private static DiagnosticDuelCycleDriver Create(DiagnosticDuelCycleDeclaration? declaration = null)
+    {
+        DiagnosticDuelCycleDriver cycle = new(new(1, "party", "enemy", 0, 3, declaration ?? new(0), new("party", 1, 11, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(1)), new(1, null)));
+        BattleDiagnosticEffectDispatch opening = new(1, 2, "party", BattleAbility.LimitBreak, 65531, 274, 274, 11) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
+        BattleDiagnosticEffectDispatch initialMove = new(2, 3, "party", BattleAbility.LimitBreak, 0, 274, 274, 241) { NativeActorIndex = 0, NativeHeaderIndex = 1, NativeHeaderGeneration = 2 };
+        Assert.False(cycle.ObserveDispatch(opening, new(1, 2, 0, 1, NativeBattleRetainedActionPackets.Fresh())));
+        Assert.False(cycle.ObserveDispatch(initialMove, new(2, 3, 1, 2, NativeBattleRetainedActionPackets.Fresh())));
+        return cycle;
+    }
 }

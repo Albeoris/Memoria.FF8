@@ -97,7 +97,7 @@ public sealed partial class BattleSession
     private PendingDiagnosticReflection? diagnosticReflectionProduction;
     private long diagnosticHeaderGeneration;
 
-    private void ResetDiagnosticReflectionHeaders()
+    private void ResetDiagnosticReflectionHeaders(bool retainHostedPending = false)
     {
         diagnosticCounterContacts.Clear();
         diagnosticCounterAppended.Clear();
@@ -106,11 +106,37 @@ public sealed partial class BattleSession
         {
             return;
         }
-        diagnosticHeaderGenerations.Clear();
+        if (retainHostedPending && hostedDiagnosticOwner is { } owner)
+        {
+            foreach (int header in diagnosticHeaderGenerations.Keys.ToArray())
+            {
+                if (!owner.OwnsPendingDiagnosticHostedHeader(header))
+                {
+                    diagnosticHeaderGenerations.Remove(header);
+                }
+            }
+        }
+        else
+        {
+            diagnosticHeaderGenerations.Clear();
+        }
         diagnosticHeaderDispatches?.Clear();
         diagnosticReflectedHeaders?.Clear();
         diagnosticReflectedCommands?.Clear();
         diagnosticReflectionProduction = null;
+    }
+
+    private bool OwnsPendingDiagnosticHostedHeader(int header)
+    {
+        for (int i = expandedOperationCursor.Next; i < expandedOperationCursor.Operations.Length; i++)
+        {
+            if (expandedOperationCursor.Operations[i] is ExpandedHostedInvocation { HeaderReference: { } reference } invocation &&
+                header >= reference.Ordinal && header <= reference.Ordinal + invocation.FollowingCasts.Length)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)

@@ -14,7 +14,7 @@ internal sealed partial class RecreateGame
         BattleSession active = diagnosticDriverBattle!;
         DiagnosticDuelCycleDriver cycle = diagnosticDriver.DuelCycle ?? throw new InvalidDataException("Duel dispatched without its real command11 admission.");
         cycle.Observe(ObserveDiagnosticDuel(active), false);
-        NativeBattleRetainedActionPackets packets = dispatch.ActionId == 65532 ? active.ObserveDiagnosticDuelClosingPackets(dispatch) : active.ObserveDiagnosticActionPackets(dispatch);
+        NativeBattleRetainedActionPackets packets = dispatch.ActionId is 65530 or 65532 ? active.ObserveDiagnosticDuelClosingPackets(dispatch) : active.ObserveDiagnosticActionPackets(dispatch);
         BattleDiagnosticEffectInvocation invocation = active.ObserveDiagnosticEffectInvocation(dispatch);
         NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
         diagnosticDriver.ObserveDuelDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
@@ -24,7 +24,8 @@ internal sealed partial class RecreateGame
             Parameter82 = invocation.Parameter82,
             HeaderEffect = (ushort)(header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8),
             RetainedEffect = invocation.ExecutedEffect,
-            Duel = active.ObserveDiagnosticDuelState(diagnosticDriverRecipe.Input.ActorId!)
+            Duel = active.ObserveDiagnosticDuelState(diagnosticDriverRecipe.Input.ActorId!),
+            HostedTargets = dispatch is { NativeCommand: 239, ActionId: >= 6 and <= 9 } && active.UsesExpandedRoster ? active.ObserveDiagnosticHostedDuelTargets(dispatch) : null
         });
     }
 
@@ -64,7 +65,7 @@ internal sealed partial class RecreateGame
         if (cycle.NeedsInput && observation.Duel is { Phase: BattleNativeDuelPhase.Ready } state)
         {
             BattleCombatant actor = active.Combatants.Single(actor => actor.Id == diagnosticDriverRecipe.Input.ActorId);
-            BattleNativeDuelChoice choice = FindDiagnosticDuelChoice(actor.NativeLimit!, state.MoveSetId, cycle.Receipt.Declaration.BasicAction, active.GetNativeDuelChoices(actor.Id));
+            BattleNativeDuelChoice choice = FindDiagnosticDuelChoice(actor.NativeLimit!, state.MoveSetId, cycle.Receipt.Declaration.MoveAction, active.GetNativeDuelChoices(actor.Id));
             cycle.BeginInput(choice, observation);
         }
     }
@@ -88,18 +89,22 @@ internal sealed partial class RecreateGame
             for (int index = 1; index <= 3; index++)
             {
                 byte next = rules.DuelMoveSets[4 * current.Set + index];
-                if (next == byte.MaxValue || !visited.Add(next) || NativeBattleDuelRules.ActionId(rules, next) >= 6)
+                if (next == byte.MaxValue || !visited.Add(next))
                 {
                     continue;
                 }
+                byte action = NativeBattleDuelRules.ActionId(rules, next);
                 byte first = current.First == byte.MaxValue ? next : current.First;
-                if (NativeBattleDuelRules.ActionId(rules, next) == desiredAction)
+                if (action == desiredAction)
                 {
-                    return choices.Single(choice => choice.MoveSetId == first && choice.Learned && !choice.Finisher);
+                    return choices.Single(choice => choice.MoveSetId == first && choice.Learned);
                 }
-                pending.Enqueue((next, first));
+                if (action < 6)
+                {
+                    pending.Enqueue((next, first));
+                }
             }
         }
-        throw new NotSupportedException("The installed learned Duel move graph cannot reach the declared basic without a finisher.");
+        throw new NotSupportedException("The installed learned Duel move graph cannot reach the declared move.");
     }
 }

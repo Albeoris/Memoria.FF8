@@ -81,7 +81,7 @@ public sealed partial class BattleSession
     {
         //47DD90 ->48D1F0 clears C0/C1 only, preserving C2, action pause and physical packet payload.
         nativeActionPackets = nativeActionPackets.ResetCounts();
-        ResetDiagnosticReflectionHeaders();
+        ResetDiagnosticReflectionHeaders(retainHostedPending: true);
         return graphics;
     }
 }

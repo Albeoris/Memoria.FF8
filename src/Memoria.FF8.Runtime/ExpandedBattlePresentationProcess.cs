@@ -73,6 +73,11 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal NativeCrtRandomState? CurrentCrtRandom => presentation.CurrentCrtRandom;
     internal NativeBattleModelCpuResources ModelCpuResources => presentation.NativeModelCpuResources!;
     internal NativeBattleModelTextureCache ModelTextureCache => presentation.NativeModelTextureCache!;
+    internal void AdvanceEncounterPolicySpawn(BattleSession logicalOwner)
+    {
+        RequireLogicalOwner(logicalOwner);
+        logicalOwner.AdvanceHostedEncounterPolicySpawn(presentation);
+    }
     internal long? ActiveActionToken => presentation.HostedActiveActionToken;
     internal long? LastStepActionToken { get; private set; }
     internal NativeBattleModelLifecycleServices? LastFrameServices { get; private set; }
@@ -99,6 +104,11 @@ public sealed partial class ExpandedBattlePresentationProcess
     internal BattleDiagnosticHostedShotPackets ObserveDiagnosticHostedShotPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         return presentation.ReadDiagnosticHostedShotPackets(dispatch);
+    }
+
+    internal BattleDiagnosticHostedDuelTargets ObserveDiagnosticHostedDuelTargets(BattleDiagnosticEffectDispatch dispatch)
+    {
+        return presentation.ReadDiagnosticHostedDuelTargets(dispatch);
     }
 
     internal void AppendDiagnosticPresentationBlockers(List<string> blockers)
@@ -315,9 +325,10 @@ public sealed partial class ExpandedBattlePresentationProcess
             try
             {
                 long? actionToken = ActiveActionToken;
+                BattleModelRoster? rosterAtReceipts = null;
                 bool attached = ReferenceEquals(logicalOwner.ExpandedPresentationProcess, this);
                 NativeBattleModelLifecycleServices services = presentation.AdvanceHostedBattlePresentationFrame(logicalOwner, timerObservation ?? logicalOwner.NativeExamTimer, beforeCore is null ? null : DispatchBeforeCore, attached ? DispatchClockPoll : null, attached ? DispatchClockReady : null, afterGraphics is null ? null : DispatchAfterGraphics, attached ? DispatchRenzokukenUi : null);
-                presentation.RefreshHostedPreparedPresentation(logicalOwner, services);
+                presentation.RefreshHostedPreparedPresentation(logicalOwner, services, rosterAtReceipts);
                 LastStep = presentation.ReadAndClearHostedPresentationFrameOutputs();
                 LastStepActionToken = actionToken;
                 LastFrameServices = services;
@@ -331,6 +342,7 @@ public sealed partial class ExpandedBattlePresentationProcess
 
                 void DispatchAfterGraphics(NativeBattleModelLifecycleServices currentServices)
                 {
+                    rosterAtReceipts = PlannedModelRoster;
                     try
                     {
                         DispatchCanonical(() => afterGraphics!(currentServices, actionToken));
