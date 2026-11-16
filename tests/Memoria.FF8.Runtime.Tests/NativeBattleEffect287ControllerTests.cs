@@ -1,7 +1,6 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleEffect287Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect287Profile;
 
@@ -55,7 +54,7 @@ public sealed class NativeBattleEffect287ControllerTests
     }
 
     [Fact]
-    public void Opaque_tim_bytes_survive_io_hold_json_and_main_only_retirement()
+    public void Opaque_tim_bytes_survive_io_hold_snapshot_and_main_only_retirement()
     {
         Harness harness = new();
         NativeBattleEffect287Frame frame = ClearMeshQueue(Frame(10));
@@ -64,9 +63,8 @@ public sealed class NativeBattleEffect287ControllerTests
         Assert.Equal(2, Read(frame, RootBank).ReadWord(12));
         Assert.Equal(Arena + SecondPacketOffset, frame.State.ReadDword(CursorGlobal));
         Assert.Equal(1, harness.Polls);
-        NativeBattleEffect287Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect287Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleEffect287Frame restored = NativeBattleTestSnapshots.Independent(frame);
         harness.Complete = true;
-        restored = restored with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(restored.Memory, restored.Effect.Pools) };
         restored = Advance(restored, null!, harness.Inputs());
         Assert.Empty(restored.Effect.Pools);
         Assert.Equal(0u, restored.Effect.ReturnedDescriptor);
@@ -88,13 +86,63 @@ public sealed class NativeBattleEffect287ControllerTests
     }
 
     [Fact]
-    public void Fourth_recipient_cannot_overwrite_first_workspace()
+    public void Expanded_recipients_capture_typed_ordinals_and_leave_the_first_workspace_untouched()
     {
         Harness harness = new();
-        harness.SetContacts(1, 0, 1, 2, 3);
-        Assert.Throws<NotSupportedException>(() => CaptureTargets(AddMain(Frame(10), 0), Main, harness.Inputs()));
+        harness.SetContacts(1, 0, 1, 2, 3, 4, 3);
+        NativeBattleEffect287Frame frame = AddMain(Frame(10), 0);
+        frame = Write(frame, Main, Read(frame, Main).WriteDword(0x2C, FirstProgrammeAddress));
+        frame = CaptureTargets(frame, Main, harness.Inputs());
+        Assert.Equal(3, Read(frame, Main).ReadWord(14));
+        Assert.Equal(FirstProgrammeAddress, Read(frame, Main).ReadDword(0x2C));
+        Assert.Equal(new[] { OriginalOwner(3), OriginalOwner(4), OriginalOwner(3) }, frame.State.ExpandedTargets);
+        Assert.Equal(0, frame.State.NextExpandedTarget);
     }
 
+    [Fact]
+    public void Expanded_target_births_resume_after_a_full_bank_and_hold_the_root_through_the_last_ACT()
+    {
+        Harness harness = new() { Complete = true };
+        byte[] act = new byte[24];
+        BinaryPrimitives.WriteInt32LittleEndian(act.AsSpan(4), 16);
+        BinaryPrimitives.WriteInt32LittleEndian(act.AsSpan(20), 8);
+        NativeBattleGfAnimationSource source = new(TargetProgrammeAddress, act.ToImmutableArray());
+        NativeBattleEffect287Resources resources = new NativeBattleEffect287LowerTests.Fixture().Resources;
+        resources = resources with { Programmes = resources.Programmes.Add(TargetProgrammeAddress, source) };
+        NativeBattleEffect287Frame frame = Frame(73);
+        frame = frame with { State = frame.State with { ExpandedTargets = [OriginalOwner(3), OriginalOwner(4)] } };
+        for (int slot = 0; slot < 3; slot++)
+        {
+            (frame, uint child) = Append(frame, TargetDescriptor, 0x6F3D00);
+            frame = NativeBattleEffect287Programme.Initialize(frame, child + 20, TargetProgrammeAddress, 0x1BC, resources);
+            frame = Write(frame, child, Read(frame, child).WriteDword(24, 7));
+        }
+        List<(int Tick, BattleModelOwner Actor)> births = [];
+        int tick = 73;
+        NativeBattleEffect287Inputs inputs = harness.Inputs() with
+        {
+            Anchor571400 = (current, actor, retained) =>
+            {
+                births.Add((tick, actor));
+                return new(current, retained);
+            }
+        };
+        frame = Advance(frame, resources, inputs);
+        Assert.Equal(0, frame.State.NextExpandedTarget);
+        Assert.Equal(0, harness.Polls);
+        Assert.Empty(births);
+        frame = NativeBattleTestSnapshots.Independent(frame);
+        for (tick = 74; tick <= 88; tick++)
+        {
+            Assert.Equal(RootDescriptor, frame.Effect.ReturnedDescriptor);
+            frame = Advance(frame, resources, inputs);
+        }
+        Assert.Equal(new[] { (77, OriginalOwner(3)), (81, OriginalOwner(4)) }, births);
+        Assert.Equal(1, harness.Polls);
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Empty(frame.State.ExpandedTargets);
+        Assert.DoesNotContain(harness.Operations, operation => operation is NativeBattleEffect287Advance534210);
+    }
     [Fact]
     public void File_queue_precedes_advance_and_is_not_repeated_at_next_age()
     {

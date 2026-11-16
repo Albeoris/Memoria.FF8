@@ -133,6 +133,11 @@ public static partial class NativeBattleEffect287Controller
             return frame;
         }
         BattleModelOwner model = Read(frame, main).ReadExecutionReference<BattleExecutionReference.Model>(32 + target * 4, 4).Owner;
+        return InitializeTarget(frame, child, model, resources, inputs);
+    }
+
+    private static NativeBattleEffect287Frame InitializeTarget(NativeBattleEffect287Frame frame, uint child, BattleModelOwner model, NativeBattleEffect287Resources resources, NativeBattleEffect287Inputs inputs)
+    {
         NativeBattleEffect287PointStep point = inputs.Anchor571400(frame, model, TaskView(Read(frame, child), 12, 8));
         frame = Write(point.Frame, child, CopyTask(Read(point.Frame, child), 12, point.Output8, 8));
         frame = Write(frame, child, Read(frame, child).WriteWord(16, unchecked((ushort)(Signed(Read(frame, child), 16) - 500))));

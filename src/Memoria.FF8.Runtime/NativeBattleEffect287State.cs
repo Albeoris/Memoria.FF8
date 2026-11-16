@@ -7,6 +7,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect287State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] NativeBattleEffectArena? MeshQueueStorage)
 {
+    public ImmutableArray<BattleModelOwner> ExpandedTargets { get; init; } = [];
+    public int NextExpandedTarget { get; init; }
+
     public static NativeBattleEffect287State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), NativeBattleEffectArena.Clear());
 
     public static NativeBattleEffect287State FromUnknown()
@@ -124,6 +127,10 @@ public sealed record NativeBattleEffect287State([property: JsonRequired] NativeB
     public void Validate()
     {
         Storage.Validate();
+        if (ExpandedTargets.IsDefault || (uint)NextExpandedTarget > (uint)ExpandedTargets.Length)
+        {
+            throw new InvalidDataException("Effect287 lost its expanded target cursor.");
+        }
         if (MeshQueueStorage is { } queue)
         {
             ValidateBank(queue, MeshQueueLength);
