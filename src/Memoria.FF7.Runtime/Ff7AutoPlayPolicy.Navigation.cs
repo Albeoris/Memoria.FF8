@@ -44,13 +44,6 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    private bool NeedsNavigationRefresh(AutoPlayVisit visit, Ff7AutoPlayObservation observation)
-    {
-        AutoPlayNavigationVisit? navigation = State.Coverage.NavigationVisits.SingleOrDefault(item => item.Key == visit.Key);
-        // Current-field events and component eligibility are already observed directly by the planner.
-        return navigation?.VisitKey != observation.VisitId && NeedsNavigationRefresh(State, visit);
-    }
-
     private AutoPlayEventAvailability? ReadNavigationAvailability(AutoPlayNavigationVisit navigation, AutoPlayEvent observed, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards)
     {
         if (navigation.VisitKey != observation.VisitId && !State.VisitGuards.ContainsKey(navigation.VisitKey))
@@ -99,58 +92,4 @@ public sealed partial class Ff7AutoPlayPolicy
         return AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts);
     }
 
-    internal static bool NeedsNavigationRefresh(Ff7AutoPlayState state, AutoPlayVisit visit, IReadOnlyDictionary<string, string>? validatedPhysicalGuards = null, IReadOnlyDictionary<string, string>? componentPhysicalGuards = null)
-    {
-        AutoPlayNavigationVisit? navigation = state.Coverage.NavigationVisits.SingleOrDefault(item => item.Key == visit.Key);
-        if (navigation is null)
-        {
-            return false;
-        }
-        AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? aggregate = state.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == navigation.VisitKey);
-        if (aggregate is null)
-        {
-            return false;
-        }
-        foreach (AutoPlayEvent observed in navigation.Events)
-        {
-            AutoPlayEventCoverage<Ff7AutoPlayDeferral>? item = aggregate.Events.SingleOrDefault(candidate => candidate.Event.Id == observed.Id);
-            if (item is null || !item.Unavailable || item.Event.ConditionSignature != observed.ConditionSignature)
-            {
-                continue;
-            }
-            AutoPlayEventAvailability? availability = componentPhysicalGuards is null ? null : AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(item, componentPhysicalGuards);
-            AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new()
-            {
-                Event = observed,
-                Completed = item.Completed,
-                Conditions = item.Conditions,
-                AvailabilityFingerprint = componentPhysicalGuards is null ? item.AvailabilityFingerprint : availability!.Fingerprint,
-                RouteNeedsRediscovery = componentPhysicalGuards is null && item.RouteNeedsRediscovery,
-                CompletedAvailabilityFingerprints = item.CompletedAvailabilityFingerprints
-            };
-            // Aggregate route probes and physical eligibility describe the current component.
-            // A remote refresh requires a genuine unconsumed entry or availability at its own source.
-            if (!AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(scoped))
-            {
-                continue;
-            }
-            bool attempted = item.UnavailableAttempts.Any(attempt =>
-            {
-                if (!state.NavigationGuards.TryGetValue(attempt.GuardKey, out Ff7AutoPlayNavigationGuard? guard) || guard.NavigationKey != navigation.Key || guard.VisitId != navigation.VisitKey || guard.EventId != observed.Id)
-                {
-                    return false;
-                }
-                if (guard.SourceTriangle is not null && validatedPhysicalGuards is not null && validatedPhysicalGuards.TryGetValue(attempt.GuardKey, out string? fingerprint))
-                {
-                    return fingerprint == attempt.GuardFingerprint;
-                }
-                return attempt.SourceConditionSignature == observed.ConditionSignature;
-            });
-            if (!attempted)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 }

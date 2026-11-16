@@ -256,11 +256,6 @@ internal static class NativeAutoPlayPolicyPlanningTests
         Check(planner.Plan("field") is null, "Returning to an already consumed source availability reopened the same native ladder.");
         planner.RefreshUnavailable("field", new Dictionary<string, string> { ["physical"] = "changed-open" });
         Check(planner.Plan("field")?.Event.Id == "ladder", "An actually changed physical admission must retain its normal shared-planner retry.");
-        state.NavigationGuards["physical"] = new("field", 1, EventId: "ladder", NavigationKey: "lower", SourceTriangle: 0);
-        planner.MarkUnavailable("field", "ladder", new("entry", "field", "physical", "changed-open", "ladder"));
-        planner.RefreshUnavailable("field", new Dictionary<string, string> { ["physical"] = "changed-open" });
-        planner.ObserveNavigation("field", "upper", [coverage.Event]);
-        Check(Ff7AutoPlayPolicy.NeedsNavigationRefresh(state, new("upper", "resource")), "A consumed script entry hid an unconsumed physical-availability frontier in another component.");
     }
 
     private static void CheckComponentProbeScope()

@@ -178,8 +178,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation), preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
-            next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => NeedsVisitRefresh(visit) || NeedsNavigationRefresh(visit, observation), allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
             if (next is null)
             {
                 if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
