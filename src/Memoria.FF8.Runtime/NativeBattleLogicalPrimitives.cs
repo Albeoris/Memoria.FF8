@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
@@ -169,7 +168,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         Owner storage = RequireOwner();
         storage.RequireOperational();
         int index = (int)Math.Min((long)storage.proxyCursor!.Value + ordinal, NativeBattlePrimitiveOrdering.ProxyCapacity);
-        return index < Proxies.Length ? Proxies[index].VertexPayload4 : [];
+        return index < storage.ProxyRowCount ? storage.ReadProxy(index).VertexPayload4 : [];
     }
 
     public NativeBattleLogicalOrdering ResetAfterDraw45D080()
@@ -412,10 +411,8 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         internal int Edits;
         internal List<NativeBattlePrimitiveLink> Table = null!;
         internal List<NativeBattlePrimitiveLink>? Other;
-        internal List<NativeBattleLogicalProxy> Proxies = null!;
-        internal List<NativeBattleLogicalPacket> Packets = null!;
-        internal Dictionary<NativeBattlePrimitiveReference, int> PacketIndices = null!;
-        internal Dictionary<(string Bank, byte Buffer), PacketRangeIndex> PacketRanges = null!;
+        internal PacketBank Bank = null!;
+        internal long DrawGeneration;
         internal int ProxyCount;
         internal int PacketCount;
         internal int? Cursor;
@@ -434,10 +431,13 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
     {
         internal NativeBattleLogicalOrdering Root = null!;
         private List<NativeBattlePrimitiveLink> table;
-        private List<NativeBattleLogicalProxy> proxies;
-        private List<NativeBattleLogicalPacket> packets;
-        private Dictionary<NativeBattlePrimitiveReference, int> packetIndices;
-        private Dictionary<(string Bank, byte Buffer), PacketRangeIndex> packetRanges = [];
+        private readonly OrderingPages<ProxySlot> proxies = new();
+        private readonly ProjectedRows<NativeBattleLogicalProxy> proxyRecords;
+        private readonly ProjectedRows<NativeBattleLogicalPacket> packetRecords;
+        private PacketBank bank = new();
+        private PacketBank? spareBank;
+        private long drawGeneration;
+        private OrderingPages<PacketSlot> Packets => bank.Rows;
         private int maximumPacketBytes;
         internal byte? tableBuffer;
         private List<NativeBattlePrimitiveLink>? otherTable;
@@ -454,10 +454,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         private long collectionGeneration;
         private readonly List<Checkpoint> marks = [];
         private readonly List<(List<NativeBattlePrimitiveLink> Rows, int Index, NativeBattlePrimitiveLink Value)> tableUndo = [];
-        private readonly List<(List<NativeBattleLogicalProxy> Rows, int Index, NativeBattleLogicalProxy Value)> proxyUndo = [];
-        private readonly List<(List<NativeBattleLogicalPacket> Rows, int Index, NativeBattleLogicalPacket Value)> packetUndo = [];
-        private readonly List<(PacketRangeIndex Ranges, (int Offset, int Index) Value)> rangeUndo = [];
-        private readonly List<(Dictionary<NativeBattlePrimitiveReference, int> Indices, NativeBattlePrimitiveReference Key)> indexUndo = [];
+        private readonly OrderingPages<(int Index, ProxySlot Value)> proxyUndo = new();
+        private readonly OrderingPages<(OrderingPages<PacketSlot> Rows, int Index, PacketSlot Value)> packetUndo = new();
+        private readonly OrderingPages<(PacketRangeIndex Ranges, (int Offset, int Index) Value)> rangeUndo = new();
+        private readonly OrderingPages<(Dictionary<NativeBattlePrimitiveReference, int> Indices, NativeBattlePrimitiveReference Key)> indexUndo = new();
         private readonly List<JournalEntry> edits = [];
         internal bool HasMarks => marks.Count != 0;
         private int ProxyCount => proxyCursor!.Value;
@@ -469,18 +469,31 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             proxyDefault = source.Proxies.IsDefault;
             packetDefault = source.Packets.IsDefault;
             table = tableDefault ? [] : source.Table.ToList();
-            proxies = proxyDefault ? [] : source.Proxies.ToList();
-            packets = packetDefault ? [] : source.Packets.ToList();
+            proxyRecords = new(() => proxies.Count, ObserveProxy);
+            packetRecords = new(() => Packets.Count, ObservePacket);
+            if (!proxyDefault)
+            {
+                foreach (NativeBattleLogicalProxy proxy in source.Proxies)
+                {
+                    proxies.Add(new(proxy));
+                }
+            }
             otherTablePresent = source.OtherTable.HasValue;
             otherTableDefault = source.OtherTable is { } savedOther && savedOther.IsDefault;
             otherTable = source.OtherTable is { } other ? other.IsDefault ? [] : other.ToList() : null;
             proxyCursor = source.ProxyCursor;
             tableBuffer = source.TableBuffer;
-            packetIndices = new(packets.Count);
-            for (int index = 0; index < packets.Count; index++)
+            if (!packetDefault)
             {
-                duplicateIdentity |= !packetIndices.TryAdd(NativeBattlePrimitiveProcess.NormalizeCommonReference(packets[index].Reference), index);
-                RegisterPacketRange(packets[index], index);
+                bank.Indices.EnsureCapacity(source.Packets.Length);
+                foreach (NativeBattleLogicalPacket record in source.Packets)
+                {
+                    PacketSlot packet = new(record);
+                    int index = Packets.Count;
+                    duplicateIdentity |= !bank.Indices.TryAdd(NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference), index);
+                    RegisterPacketRange(packet, index);
+                    Packets.Add(packet);
+                }
             }
         }
 
@@ -496,8 +509,8 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             }
         }
         internal NativeBattleOrderingList<NativeBattlePrimitiveLink> TableView(Action? validation) => tableDefault ? default : new(table, validation, this, collectionGeneration);
-        internal NativeBattleOrderingList<NativeBattleLogicalProxy> ProxyView(Action? validation) => proxyDefault ? default : new(proxies, validation, this, collectionGeneration);
-        internal NativeBattleOrderingList<NativeBattleLogicalPacket> PacketView(Action? validation) => packetDefault ? default : new(packets, validation, this, collectionGeneration);
+        internal NativeBattleOrderingList<NativeBattleLogicalProxy> ProxyView(Action? validation) => proxyDefault ? default : new(proxyRecords, validation, this, collectionGeneration);
+        internal NativeBattleOrderingList<NativeBattleLogicalPacket> PacketView(Action? validation) => packetDefault ? default : new(packetRecords, validation, this, collectionGeneration);
         internal NativeBattleOrderingList<NativeBattlePrimitiveLink>? OtherView(Action? validation) => !otherTablePresent ? null : otherTableDefault ? default(NativeBattleOrderingList<NativeBattlePrimitiveLink>) : new(otherTable!, validation, this, collectionGeneration);
         public void ValidateBorrow(long generation)
         {
@@ -506,14 +519,45 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 throw new InvalidOperationException("Native ordering collection borrow was invalidated by a container reset.");
             }
         }
-        internal bool TryPacket(NativeBattlePrimitiveReference reference, [NotNullWhen(true)] out NativeBattleLogicalPacket? packet)
+        internal int ProxyRowCount => proxies.Count;
+        internal long DrawGeneration => drawGeneration;
+
+        internal ProxySlot ReadProxy(int index) => proxies[index];
+
+        private NativeBattleLogicalProxy ObserveProxy(int index)
         {
-            if (packetIndices.TryGetValue(NativeBattlePrimitiveProcess.NormalizeCommonReference(reference), out int index))
+            ref ProxySlot slot = ref proxies.Slot(index);
+            if (slot.Observation is not { } observation)
             {
-                packet = packets[index];
+                observation = slot.Capture();
+                slot = slot with { Observation = observation };
+            }
+            return observation;
+        }
+
+        private NativeBattleLogicalPacket ObservePacket(int index)
+        {
+            ref PacketSlot slot = ref Packets.Slot(index);
+            if (slot.Observation is not { } observation)
+            {
+                observation = new();
+                slot = slot with { Observation = observation };
+            }
+            if (!slot.RequiresPhysicalRead && slot.Generation != drawGeneration)
+            {
+                return observation.AfterDraw ??= slot.Capture(drawGeneration);
+            }
+            return observation.Authored ??= slot.Capture(drawGeneration);
+        }
+
+        internal bool TryPacket(NativeBattlePrimitiveReference reference, out PacketSlot packet)
+        {
+            if (bank.Indices.TryGetValue(NativeBattlePrimitiveProcess.NormalizeCommonReference(reference), out int index))
+            {
+                packet = Packets[index];
                 return true;
             }
-            packet = null;
+            packet = default;
             return false;
         }
         internal void ValidatePacketIdentityIndex()
@@ -598,7 +642,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         private bool InvalidatePacketRangeCore(NativeBattlePrimitiveReference reference, int length)
         {
             reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
-            if (length == 0 || !packetRanges.TryGetValue((reference.Bank, reference.Buffer), out PacketRangeIndex? ranges))
+            if (length == 0 || !bank.Ranges.TryGetValue((reference.Bank, reference.Buffer), out PacketRangeIndex? ranges))
             {
                 return false;
             }
@@ -608,22 +652,22 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             for (PacketRangeIndex.Node? node = ranges.FirstAtOrAfter((minimum, int.MinValue)); node is not null && node.Key.Offset <= maximum; node = ranges.Next(node))
             {
                 int index = node.Key.Index;
-                NativeBattleLogicalPacket packet = packets[index];
+                PacketSlot packet = Packets[index];
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
-                if ((!packet.RequiresPhysicalRead || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null || packet.ModelTextureOwner is { Invalidated: false } || packet.PilotGeometry is not null || packet.PresentationActorId is not null || packet.ScreenCoverage is not null || packet.SceneCapture is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
+                if ((!packet.ReadsPhysicalBytes(drawGeneration) || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null || packet.ModelTextureOwner is { Invalidated: false } || packet.PilotGeometry is not null || packet.PresentationActorId is not null || packet.ScreenCoverage is not null || packet.SceneCapture is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
                 {
                     if (HasMarks)
                     {
-                        packetUndo.Add((packets, index, packet));
+                        packetUndo.Add((Packets, index, packet));
                     }
-                    packets[index] = packet with { RequiresPhysicalRead = true, AddressedNextAddress = null, ProjectedCoordinates = null, TextureSourceOwner = null, ModelTextureOwner = packet.ModelTextureOwner is null ? null : NativeBattleModelTextureOwner.InvalidatedOwner, PilotGeometry = null, PresentationActorId = null, ScreenCoverage = null, SceneCapture = null };
+                    Packets[index] = packet with { Observation = null, RequiresPhysicalRead = true, AddressedNextAddress = null, ProjectedCoordinates = null, TextureSourceOwner = null, ModelTextureOwner = packet.ModelTextureOwner is null ? null : NativeBattleModelTextureOwner.InvalidatedOwner, PilotGeometry = null, PresentationActorId = null, ScreenCoverage = null, SceneCapture = null };
                     changed = true;
                 }
             }
             return changed;
         }
 
-        private void RegisterPacketRange(NativeBattleLogicalPacket packet, int index)
+        private void RegisterPacketRange(in PacketSlot packet, int index)
         {
             if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null && packet.TextureSourceOwner is null && packet.ModelTextureOwner is null && packet.PilotGeometry is null && packet.PresentationActorId is null && packet.ScreenCoverage is null && packet.SceneCapture is null)
             {
@@ -631,10 +675,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             }
             NativeBattlePrimitiveReference reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
             var key = (reference.Bank, reference.Buffer);
-            if (!packetRanges.TryGetValue(key, out PacketRangeIndex? ranges))
+            if (!bank.Ranges.TryGetValue(key, out PacketRangeIndex? ranges))
             {
                 ranges = new();
-                packetRanges.Add(key, ranges);
+                bank.Ranges.Add(key, ranges);
             }
             if (ranges.Add((reference.ByteOffset, index)) && HasMarks)
             {
@@ -692,33 +736,33 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         {
             InvalidatePacketRange(reference, words.Length * 4);
             lastHeaderLink = previousAddress;
-            NativeBattleLogicalPacket packet = new(reference, words, next) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead, AddressedNextAddress = addressedNextAddress, ProjectedCoordinates = projectedCoordinates, TextureSourceOwner = textureSourceOwner, ModelTextureOwner = modelTextureOwner, PilotGeometry = pilotGeometry, PresentationActorId = presentationActorId, ScreenCoverage = screenCoverage, SceneCapture = sceneCapture };
+            PacketSlot packet = new(reference, words, next, drawGeneration) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead, AddressedNextAddress = addressedNextAddress, ProjectedCoordinates = projectedCoordinates, TextureSourceOwner = textureSourceOwner, ModelTextureOwner = modelTextureOwner, PilotGeometry = pilotGeometry, PresentationActorId = presentationActorId, ScreenCoverage = screenCoverage, SceneCapture = sceneCapture };
             NativeBattlePrimitiveReference identity = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
-            if (packetIndices.TryGetValue(identity, out int existing))
+            if (bank.Indices.TryGetValue(identity, out int existing))
             {
                 if (HasMarks)
                 {
-                    packetUndo.Add((packets, existing, packets[existing]));
+                    packetUndo.Add((Packets, existing, Packets[existing]));
                 }
-                packets[existing] = packet;
+                Packets[existing] = packet;
                 RegisterPacketRange(packet, existing);
             }
             else
             {
                 if (HasMarks)
                 {
-                    indexUndo.Add((packetIndices, identity));
+                    indexUndo.Add((bank.Indices, identity));
                 }
-                packetIndices.Add(identity, packets.Count);
-                RegisterPacketRange(packet, packets.Count);
-                packets.Add(packet);
+                bank.Indices.Add(identity, Packets.Count);
+                RegisterPacketRange(packet, Packets.Count);
+                Packets.Add(packet);
             }
-            NativeBattleLogicalProxy proxy = new(reference, flags20, vertexPayload4, moduleDraw) { NextHigh22 = (byte)(LastHeaderLink >> 24) };
+            ProxySlot proxy = new(reference, flags20, vertexPayload4, moduleDraw, (byte)(LastHeaderLink >> 24));
             if (ProxyCount < proxies.Count)
             {
                 if (HasMarks)
                 {
-                    proxyUndo.Add((proxies, ProxyCount, proxies[ProxyCount]));
+                    proxyUndo.Add((ProxyCount, proxies[ProxyCount]));
                 }
                 proxies[ProxyCount] = proxy;
             }
@@ -735,22 +779,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             Run(() =>
             {
                 bool discardPackets = clearRoots && OtherTableHasNoPackets();
-                // Both banks lose their reachability in this operation. Rollback still owns the original records.
-                if (!discardPackets)
-                {
-                    for (int index = 0; index < packets.Count; index++)
-                    {
-                        NativeBattleLogicalPacket packet = packets[index];
-                        if (!packet.RequiresPhysicalRead)
-                        {
-                            if (HasMarks)
-                            {
-                                packetUndo.Add((packets, index, packet));
-                            }
-                            packets[index] = packet with { RequiresPhysicalRead = true, AddressedNextAddress = null };
-                        }
-                    }
-                }
+                drawGeneration++;
                 proxyCursor = 0;
                 if (clearRoots)
                 {
@@ -798,16 +827,12 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 //A real native clear may discard these unreachable packet identities. Keep rollback containers private.
                 if (HasMarks)
                 {
-                    // The previous extent estimates the next draw without exposing its rollback containers.
-                    packets = new(packets.Count);
-                    packetIndices = new(packetIndices.Count);
-                    packetRanges = [];
+                    bank = spareBank ?? new();
+                    spareBank = null;
                 }
                 else
                 {
-                    packets.Clear();
-                    packetIndices.Clear();
-                    packetRanges.Clear();
+                    bank.Clear();
                 }
                 maximumPacketBytes = 0;
                 packetDefault = false;
@@ -891,12 +916,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             mark.Edits = edits.Count;
             mark.Table = table;
             mark.Other = otherTable;
-            mark.Proxies = proxies;
-            mark.Packets = packets;
-            mark.PacketIndices = packetIndices;
-            mark.PacketRanges = packetRanges;
+            mark.Bank = bank;
+            mark.DrawGeneration = drawGeneration;
             mark.ProxyCount = proxies.Count;
-            mark.PacketCount = packets.Count;
+            mark.PacketCount = Packets.Count;
             mark.Cursor = proxyCursor;
             mark.Buffer = tableBuffer;
             mark.Maximum = maximumPacketBytes;
@@ -922,6 +945,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             if (!HasMarks)
             {
                 ClearUndo();
+                RecycleBank(mark.Bank);
             }
         }
         internal void Publish(Checkpoint boundary, IReadOnlyList<Checkpoint> callbacks)
@@ -931,6 +955,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             {
                 throw new InvalidOperationException("Native ordering publication cannot bypass an unfinished producer scope.");
             }
+            PacketBank prior = boundary.Bank;
             if (first == 0)
             {
                 ClearUndo();
@@ -938,6 +963,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             for (int index = first; index < marks.Count; index++)
             {
                 Remember(marks[index]);
+            }
+            if (first == 0)
+            {
+                RecycleBank(prior);
             }
         }
         internal void PublishKnownAncestorPrefix(Checkpoint boundary, IReadOnlyList<Checkpoint> callbacks)
@@ -969,7 +998,8 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         internal void RollbackMark(Checkpoint mark, bool remove = true)
         {
             RequireTop(mark);
-            bool changed = tableUndo.Count != mark.Tables || proxyUndo.Count != mark.ProxiesUndo || packetUndo.Count != mark.PacketsUndo || indexUndo.Count != mark.Indices || rangeUndo.Count != mark.Ranges || edits.Count != mark.Edits || !ReferenceEquals(table, mark.Table) || !ReferenceEquals(packets, mark.Packets) || !ReferenceEquals(otherTable, mark.Other) || proxies.Count != mark.ProxyCount || packets.Count != mark.PacketCount || proxyCursor != mark.Cursor || tableBuffer != mark.Buffer || maximumPacketBytes != mark.Maximum || lastHeaderLink != mark.Header;
+            PacketBank prior = bank;
+            bool changed = tableUndo.Count != mark.Tables || proxyUndo.Count != mark.ProxiesUndo || packetUndo.Count != mark.PacketsUndo || indexUndo.Count != mark.Indices || rangeUndo.Count != mark.Ranges || edits.Count != mark.Edits || !ReferenceEquals(table, mark.Table) || !ReferenceEquals(bank, mark.Bank) || !ReferenceEquals(otherTable, mark.Other) || proxies.Count != mark.ProxyCount || Packets.Count != mark.PacketCount || drawGeneration != mark.DrawGeneration || proxyCursor != mark.Cursor || tableBuffer != mark.Buffer || maximumPacketBytes != mark.Maximum || lastHeaderLink != mark.Header;
             for (int index = indexUndo.Count - 1; index >= mark.Indices; index--)
             {
                 var entry = indexUndo[index];
@@ -988,27 +1018,29 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             for (int index = proxyUndo.Count - 1; index >= mark.ProxiesUndo; index--)
             {
                 var entry = proxyUndo[index];
-                entry.Rows[entry.Index] = entry.Value;
+                proxies[entry.Index] = entry.Value;
             }
             for (int index = tableUndo.Count - 1; index >= mark.Tables; index--)
             {
                 var entry = tableUndo[index];
                 entry.Rows[entry.Index] = entry.Value;
             }
-            Trim(indexUndo, mark.Indices);
-            Trim(rangeUndo, mark.Ranges);
-            Trim(packetUndo, mark.PacketsUndo);
-            Trim(proxyUndo, mark.ProxiesUndo);
+            indexUndo.Trim(mark.Indices);
+            rangeUndo.Trim(mark.Ranges);
+            packetUndo.Trim(mark.PacketsUndo);
+            proxyUndo.Trim(mark.ProxiesUndo);
             Trim(tableUndo, mark.Tables);
             Trim(edits, mark.Edits);
+            if (!ReferenceEquals(prior, mark.Bank))
+            {
+                collectionGeneration++;
+            }
             table = mark.Table;
             otherTable = mark.Other;
-            proxies = mark.Proxies;
-            packets = mark.Packets;
-            packetIndices = mark.PacketIndices;
-            packetRanges = mark.PacketRanges;
-            Trim(proxies, mark.ProxyCount);
-            Trim(packets, mark.PacketCount);
+            bank = mark.Bank;
+            drawGeneration = mark.DrawGeneration;
+            proxies.Trim(mark.ProxyCount);
+            Packets.Trim(mark.PacketCount);
             proxyCursor = mark.Cursor;
             tableBuffer = mark.Buffer;
             maximumPacketBytes = mark.Maximum;
@@ -1034,8 +1066,20 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             if (!HasMarks)
             {
                 ClearUndo();
+                RecycleBank(prior);
             }
         }
+
+        private void RecycleBank(PacketBank prior)
+        {
+            // Only a published or rolled-back outer boundary can retire a bank referenced by an undo suffix.
+            if (!ReferenceEquals(prior, bank) && spareBank is null)
+            {
+                prior.Clear();
+                spareBank = prior;
+            }
+        }
+
         private static void Trim<T>(List<T> values, int count)
         {
             if (values.Count > count)
@@ -1058,7 +1102,37 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             {
                 throw new InvalidOperationException("Native ordering capture requires its committed producer boundary.");
             }
-            return new(tableDefault ? default : table.ToImmutableArray(), proxyDefault ? default : proxies.ToImmutableArray(), packetDefault ? default : packets.ToImmutableArray(), proxyCursor, tableBuffer, !otherTablePresent ? null : otherTableDefault ? default(ImmutableArray<NativeBattlePrimitiveLink>) : otherTable!.ToImmutableArray());
+            return new(tableDefault ? default : table.ToImmutableArray(), CaptureProxies(), CapturePackets(), proxyCursor, tableBuffer, !otherTablePresent ? null : otherTableDefault ? default(ImmutableArray<NativeBattlePrimitiveLink>) : otherTable!.ToImmutableArray());
+        }
+
+        private ImmutableArray<NativeBattleLogicalProxy> CaptureProxies()
+        {
+            if (proxyDefault)
+            {
+                return default;
+            }
+            ImmutableArray<NativeBattleLogicalProxy>.Builder result = ImmutableArray.CreateBuilder<NativeBattleLogicalProxy>(proxies.Count);
+            for (int index = 0; index < proxies.Count; index++)
+            {
+                ProxySlot proxy = proxies[index];
+                result.Add(proxy.Observation ?? proxy.Capture());
+            }
+            return result.MoveToImmutable();
+        }
+
+        private ImmutableArray<NativeBattleLogicalPacket> CapturePackets()
+        {
+            if (packetDefault)
+            {
+                return default;
+            }
+            ImmutableArray<NativeBattleLogicalPacket>.Builder result = ImmutableArray.CreateBuilder<NativeBattleLogicalPacket>(Packets.Count);
+            for (int index = 0; index < Packets.Count; index++)
+            {
+                PacketSlot packet = Packets[index];
+                result.Add(packet.Capture(drawGeneration));
+            }
+            return result.MoveToImmutable();
         }
     }
 
@@ -1082,9 +1156,9 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
     internal IEnumerable<long> ReferencedSceneReplaySources()
     {
         RequireReadAccess();
-        NativeBattleOrderingList<NativeBattleLogicalProxy> proxies = Proxies;
-        int allocated = ProxyCursor ?? proxies.Length;
-        if ((uint)allocated > (uint)proxies.Length)
+        int proxyCount = ReadProxyCount();
+        int allocated = ProxyCursor ?? proxyCount;
+        if ((uint)allocated > (uint)proxyCount)
         {
             throw new InvalidDataException("Scene replay references require a bounded ordering proxy cursor.");
         }
@@ -1108,7 +1182,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
         while (pending.TryDequeue(out int index))
         {
-            if (!TryReadPacket(proxies[index].Packet, out NativeBattleLogicalPacket? packet))
+            if (!TryReadPacket(ReadProxy(index).Packet, out PacketSlot packet))
             {
                 continue;
             }
@@ -1126,7 +1200,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             {
                 return;
             }
-            if ((uint)link.Index >= (uint)proxies.Length)
+            if ((uint)link.Index >= (uint)proxyCount)
             {
                 throw new InvalidDataException("Scene replay references reached a missing ordering proxy.");
             }
@@ -1137,7 +1211,17 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
     }
 
-    private bool TryReadPacket(NativeBattlePrimitiveReference reference, [NotNullWhen(true)] out NativeBattleLogicalPacket? packet)
+    private int ReadProxyCount()
+    {
+        return owner?.ProxyRowCount ?? (snapshot!.Proxies.IsDefault ? 0 : snapshot.Proxies.Length);
+    }
+
+    private ProxySlot ReadProxy(int index)
+    {
+        return owner is not null ? owner.ReadProxy(index) : new(snapshot!.Proxies[index]);
+    }
+
+    private bool TryReadPacket(NativeBattlePrimitiveReference reference, out PacketSlot packet)
     {
         RequireReadAccess();
         if (owner is not null)
@@ -1146,10 +1230,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
         if (snapshotIndices!.TryGetValue(NativeBattlePrimitiveProcess.NormalizeCommonReference(reference), out int index))
         {
-            packet = snapshot!.Packets[index];
+            packet = new(snapshot!.Packets[index]);
             return true;
         }
-        packet = null;
+        packet = default;
         return false;
     }
     object INativeBattleStorageNode.CaptureDetached(NativeBattleStorageCaptureContext context)
@@ -1168,7 +1252,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         return restored.Root ?? new NativeBattleLogicalOrdering(restored);
     }
 
-    private static ImmutableArray<BattleSceneScreenPoint>? MatchingProjectedCoordinates(NativeBattleLogicalPacket packet, int word, int count)
+    private static ImmutableArray<BattleSceneScreenPoint>? MatchingProjectedCoordinates(in PacketSlot packet, int word, int count)
     {
         if (packet.ProjectedCoordinates is not { } coordinates)
         {
@@ -1203,6 +1287,8 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             throw new InvalidDataException("Native logical OT requires its original4386 roots, proxy bank and command length table.");
         }
         ValidatePacketIdentityIndex();
+        int proxyCount = ReadProxyCount();
+        long generation = owner?.DrawGeneration ?? 0;
         // Native OT banks and proxy links have bounded identities; addressed roots retain their full keys.
         const int rootVisits = 2 * NativeBattlePrimitiveOrdering.BattleTableLength;
         const int boundedVisits = rootVisits + NativeBattlePrimitiveOrdering.ProxyCapacity;
@@ -1263,17 +1349,18 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 cursor = roots[cursor.Index];
                 continue;
             }
-            if (cursor.Index >= Proxies.Length)
+            if (cursor.Index >= proxyCount)
             {
                 throw new InvalidDataException("Native logical OT has a missing proxy row.");
             }
-            NativeBattleLogicalProxy proxy = Proxies[cursor.Index];
-            if (!TryReadPacket(proxy.Packet, out NativeBattleLogicalPacket? packet))
+            ProxySlot proxy = ReadProxy(cursor.Index);
+            if (!TryReadPacket(proxy.Packet, out PacketSlot packet))
             {
                 throw new NotSupportedException("Native logical OT reached an unobserved original packet owner.");
             }
             uint nextAddress;
-            if (packet.RequiresPhysicalRead)
+            bool readsPhysicalBytes = packet.ReadsPhysicalBytes(generation);
+            if (readsPhysicalBytes)
             {
                 Func<NativeBattlePrimitiveReference, int, byte[]> reader = readPhysical ?? throw new NotSupportedException("Native retained packet alias requires its current physical arena bytes.");
                 uint header = BinaryPrimitives.ReadUInt32LittleEndian(reader(packet.Reference, 4));
@@ -1299,7 +1386,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 int count = opcode == 0 ? 1 : Math.Max((int)wordLengths[opcode], 1);
                 if (count > remaining || word + count > packet.Words.Length)
                 {
-                    throw new InvalidDataException($"Native logical packet ends inside an original command: bank={packet.Reference.Bank}, buffer={packet.Reference.Buffer}, offset={packet.Reference.ByteOffset:X}, physical={packet.RequiresPhysicalRead}, bucket={bucket}, word={word}, opcode={opcode:X2}, count={count}, remaining={remaining}, words={string.Join(" ", packet.Words.Select(value => value.ToString("X8")))}.");
+                    throw new InvalidDataException($"Native logical packet ends inside an original command: bank={packet.Reference.Bank}, buffer={packet.Reference.Buffer}, offset={packet.Reference.ByteOffset:X}, physical={readsPhysicalBytes}, bucket={bucket}, word={word}, opcode={opcode:X2}, count={count}, remaining={remaining}, words={string.Join(" ", packet.Words.Select(value => value.ToString("X8")))}.");
                 }
                 if (opcode != 0)
                 {

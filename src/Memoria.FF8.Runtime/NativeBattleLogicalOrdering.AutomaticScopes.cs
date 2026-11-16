@@ -109,8 +109,8 @@ public sealed partial record NativeBattleLogicalOrdering
         private bool RepresentsCurrentPrefix(Checkpoint mark)
         {
             return mark.Tables == tableUndo.Count && mark.ProxiesUndo == proxyUndo.Count && mark.PacketsUndo == packetUndo.Count && mark.Ranges == rangeUndo.Count && mark.Indices == indexUndo.Count && mark.Edits == edits.Count
-                && ReferenceEquals(mark.Table, table) && ReferenceEquals(mark.Other, otherTable) && ReferenceEquals(mark.Proxies, proxies) && ReferenceEquals(mark.Packets, packets) && ReferenceEquals(mark.PacketIndices, packetIndices) && ReferenceEquals(mark.PacketRanges, packetRanges)
-                && mark.ProxyCount == proxies.Count && mark.PacketCount == packets.Count && mark.Cursor == proxyCursor && mark.Buffer == tableBuffer && mark.Maximum == maximumPacketBytes && mark.Header == lastHeaderLink
+                && ReferenceEquals(mark.Table, table) && ReferenceEquals(mark.Other, otherTable) && ReferenceEquals(mark.Bank, bank)
+                && mark.ProxyCount == proxies.Count && mark.PacketCount == Packets.Count && mark.DrawGeneration == drawGeneration && mark.Cursor == proxyCursor && mark.Buffer == tableBuffer && mark.Maximum == maximumPacketBytes && mark.Header == lastHeaderLink
                 && mark.TableDefault == tableDefault && mark.OtherDefault == otherTableDefault && mark.OtherPresent == otherTablePresent && mark.ProxyDefault == proxyDefault && mark.PacketDefault == packetDefault && mark.Duplicate == duplicateIdentity;
         }
     }

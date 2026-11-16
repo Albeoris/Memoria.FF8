@@ -306,6 +306,55 @@ public sealed class NativeBattleLogicalOrderingWorkingStorageTests
         Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)));
     }
 
+    [Fact]
+    public void Published_banks_reuse_pages_without_changing_older_snapshots_or_restored_draw_generation()
+    {
+        const int rows = 260;
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        Fill(0);
+        NativeBattleLogicalOrdering detached = NativeBattleStorageSnapshots.Capture(ordering);
+        NativeBattleLogicalPacket observed = ordering.Packets[rows - 1];
+
+        using (NativeBattleLogicalOrderingTransaction operation = new(ordering))
+        {
+            operation.BeginCheckpoint();
+            operation.View.ResetAfterDraw45D080();
+            Assert.True(operation.View.Packets[rows - 1].RequiresPhysicalRead);
+            operation.RollbackCheckpoint();
+            Assert.Same(observed, operation.View.Packets[rows - 1]);
+            operation.Freeze();
+        }
+
+        NativeBattleOrderingList<NativeBattleLogicalPacket> retired = ordering.Packets;
+        for (int frame = 1; frame <= 3; frame++)
+        {
+            using (NativeBattleLogicalOrderingTransaction operation = new(ordering))
+            {
+                operation.View.ResetAfterDraw45D080(clearRoots: true);
+                Assert.Empty(operation.View.Packets);
+                operation.Freeze();
+            }
+            Fill(frame * rows);
+        }
+
+        Assert.Throws<InvalidOperationException>(() => retired[0]);
+        Assert.Equal(Reference(0), detached.Packets[0].Reference);
+        Assert.Equal(Reference(rows - 1), detached.Packets[rows - 1].Reference);
+        Assert.False(detached.Packets[rows - 1].RequiresPhysicalRead);
+        Assert.Equal(Reference(3 * rows), ordering.Packets[0].Reference);
+        Assert.Equal(rows, ordering.Traverse(Lengths).Length);
+
+        void Fill(int start)
+        {
+            using NativeBattleLogicalOrdering.Builder builder = new(ordering);
+            for (int index = 0; index < rows; index++)
+            {
+                Append(builder, start + index);
+            }
+            builder.ToImmutable();
+        }
+    }
+
     private static void ProduceAndReset(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveReference packet, bool closeBeforeTail)
     {
         using NativeBattleLogicalOrderingTransaction producer = new(ordering);
