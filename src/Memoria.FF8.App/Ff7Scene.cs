@@ -147,11 +147,15 @@ internal sealed partial class Ff7Scene : IDisposable
 
     public CombinedSessionSave Capture()
     {
-        Ff7Session session = Session ?? throw new InvalidOperationException("The FFVII title has no gameplay continuation to save.");
-        CombinedSessionSave saved = envelope with { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture() with { AudioPresentation = CaptureAudioPresentation() } };
-        saved = CaptureMixedCombat(saved);
+        CombinedSessionSave saved = CaptureMixedCombat(CaptureNativeSession());
         saved.Validate();
         return saved;
+    }
+
+    private CombinedSessionSave CaptureNativeSession()
+    {
+        Ff7Session session = Session ?? throw new InvalidOperationException("The FFVII title has no gameplay continuation to save.");
+        return envelope with { ActiveGame = SessionGame.Ff7, Ff7 = session.Capture() with { AudioPresentation = CaptureAudioPresentation() } };
     }
 
     public void Update(GameTime gameTime, KeyboardState keys, GamePadState pad = default, MouseState mouse = default, bool inputActive = true)

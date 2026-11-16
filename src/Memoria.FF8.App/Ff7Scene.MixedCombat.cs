@@ -167,7 +167,7 @@ internal sealed partial class Ff7Scene
         }
         DeliverGuestBattleSounds();
         bool gameOver = battle.Outcome == Ff7BattleOutcome.Defeat && !battle.ReturnsAfterDefeat;
-        CrossoverBattleVitalsSettlementResult staged = mixed.Settle(Capture(), installation);
+        CrossoverBattleVitalsSettlementResult staged = mixed.Settle(CaptureNativeSession(), installation);
         envelope = staged.Save;
         MixedCombatSettled?.Invoke(staged.Save);
         if (gameOver)
