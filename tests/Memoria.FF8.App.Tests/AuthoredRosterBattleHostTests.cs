@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -53,6 +54,90 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.True((original.Presented, original.Applied) == (hosted.Presented, hosted.Applied),
             $"Original {original.Presented}/{original.Applied} [{original.Trace}]; attached {hosted.Presented}/{hosted.Applied} [{hosted.Trace}].");
         Assert.Equal(original.Random, hosted.Random);
+    }
+
+    [Theory]
+    [InlineData(2, 0x20000u)]
+    [InlineData(3, 0x40000u)]
+    public void Player_repeat_Fire_owns_one_native_graphics_group_and_spends_only_casts(int casts, uint nativeStatus)
+    {
+        var original = RunPlayerRepeatFire(attached: false, casts, nativeStatus);
+        var hosted = RunPlayerRepeatFire(attached: true, casts, nativeStatus);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.Equal(original.Damage, hosted.Damage);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    private static (NativeBattleContactHalf[] Contacts, (string? Target, int Amount)[] Damage, byte[] Random) RunPlayerRepeatFire(bool attached, int casts, uint nativeStatus)
+    {
+        const string casterId = "party-0";
+        const int fire = 1;
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => definition with
+        {
+            Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { MaximumHpMultiplier = 32, MaximumHp = actor.MaximumHp * 32, CurrentHp = actor.MaximumHp * 32 }).ToArray()
+        }) { UseAttachedBattlePresentation = attached };
+        ExpandedBattleInstalledEntry.Prepare(world, session, current =>
+        {
+            PrepareParty(current, 2);
+            NativeCharacterVitals vitals = current.State.CharacterVitals!;
+            NativeCharacterVital[] records = vitals.Records.ToArray();
+            NativeMagicStock[] inventory = records[0].MagicInventory.ToArray();
+            inventory[0] = new(fire, 10);
+            int magic = vitals.MenuDefinitions.CommandAbilityCommands.IndexOf((byte)2);
+            Assert.True(magic >= 0);
+            records[0] = records[0] with { MagicInventory = inventory, Junction = records[0].Junction with { Commands = checked((uint)(20 + magic)) } };
+            current.SetCharacterVitals(vitals with { Records = records });
+        }, 89, allies: 3, additionalEnemies: 0);
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+        TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null, "repeat Fire entry");
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
+        BattleCombatant[] targets = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
+        Assert.Equal(2, targets.Length);
+        caster.NativeStatus1 |= nativeStatus;
+        Ready(world, caster);
+        Assert.Contains(casts, battle.GetNativeMagicCastCounts(casterId, fire));
+        Assert.Equal(10, battle.GetAvailableMagicCasts(casterId, fire));
+        ImmutableArray<string> targetIds = Enumerable.Range(0, casts).Select(index => targets[index % targets.Length].Id).ToImmutableArray();
+        BattleModelOwner owner = battle.ReadPresentationModelOwner(casterId);
+        ushort effect = battle.ReadDefinition().NativeActions.Single(action => action.Command == 2 && action.ActionId == fire).MagicId;
+        NativeBattleContactHalf[] contacts = [];
+        HashSet<BattleActionHeaderReference> entered = [];
+        int eventStart = battle.Events.Count;
+        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: casterId, TargetId: targetIds[0], Ability: BattleAbility.Magic, ActionId: fire) { MagicTargets = targetIds });
+        TickUntil(world, () =>
+        {
+            ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
+            NativeBattleActionPacketsState packets = process?.ActionPackets ?? battle.NativeActionPackets;
+            var headers = packets.PublishedHeaders().Where(entry => entry.Slot is { Command: 2, Action: fire } && entry.Slot.Source == owner).ToArray();
+            if (headers.Length == casts)
+            {
+                Assert.Equal(casts - 1, headers[0].Slot.ReadRepeatModeMinusOne());
+                Assert.All(headers, entry => Assert.Equal(1, entry.Slot.ReadContactCount()));
+                contacts = headers.Select(entry => packets.ReadContact(entry.Slot.FirstContact).Primary).ToArray();
+            }
+            NativeBattleGraphicsState graphics = process?.Graphics ?? battle.NativeGraphics!;
+            if (graphics.OriginalEffect is { Parameters: { } parameters } original && original.RequestedEffect == effect && parameters.Source == owner)
+            {
+                entered.Add(parameters.Header);
+            }
+            return Completed(battle, eventStart, casterId) && battle.ActiveAction is null && process?.HasActiveAction != true;
+        }, "native repeat Fire completion");
+        Assert.Equal(targetIds.Select(battle.ReadPresentationModelOwner), contacts.Select(contact => contact.Recipient));
+        Assert.Single(entered);
+        Assert.Equal(10 - casts, battle.GetAvailableMagicCasts(casterId, fire));
+        var damage = battle.Events.Skip(eventStart).Where(entry => entry is { Kind: "Damage", ActorId: casterId }).Select(entry => (entry.TargetId, entry.Amount)).ToArray();
+        Assert.Equal(targetIds, damage.Select(entry => entry.TargetId));
+        if (attached)
+        {
+            Assert.Equal(casts, battle.Events.Skip(eventStart).Count(entry => entry is { Kind: "EffectContact", ActorId: casterId }));
+        }
+        return (contacts, damage, battle.Capture().Random!.Indexes.ToArray());
     }
 
     [Theory]

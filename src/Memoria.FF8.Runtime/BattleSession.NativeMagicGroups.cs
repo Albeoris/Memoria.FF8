@@ -244,9 +244,13 @@ public sealed partial class BattleSession
                 producedContacts |= hasContacts;
                 return completed;
             });
-            if (hosted && !actor.IsPlayer && HasEncounterPolicy(actor) && producedContacts)
+            if (hosted && producedContacts && (actor.IsPlayer || HasEncounterPolicy(actor)))
             {
-                GroupCompiledMagicCasts(firstOperation, action.NativeAction!);
+                bool grouped = TryGroupNativeMagicCasts(firstOperation, action.NativeAction!);
+                if (!grouped && !actor.IsPlayer)
+                {
+                    throw new NotSupportedException("The compiled repeat requires its contiguous native spell headers and a supported presentation group.");
+                }
             }
             if (!hosted && producedContacts)
             {
@@ -290,17 +294,17 @@ public sealed partial class BattleSession
         CompleteActionPresentation(command, "Repeated magic completed.");
     }
 
-    private void GroupCompiledMagicCasts(int firstOperation, BattleNativeAction native)
+    private bool TryGroupNativeMagicCasts(int firstOperation, BattleNativeAction native)
     {
         ImmutableArray<ExpandedHostedOperation> operations = expandedOperationCursor.Operations;
         if (operations.Length - firstOperation <= 1)
         {
-            return;
+            return true;
         }
         if (!SupportsHostedNativeMagicRepeat(native, definition.NativeEffectCatalog) ||
-            operations[firstOperation] is not ExpandedHostedInvocation first)
+            operations[firstOperation] is not ExpandedHostedInvocation { Header.Command: 2 } first)
         {
-            throw new NotSupportedException("The compiled spell requires its native repeated presentation group.");
+            return false;
         }
 
         ImmutableArray<ExpandedHostedInvocation>.Builder following = ImmutableArray.CreateBuilder<ExpandedHostedInvocation>(operations.Length - firstOperation - 1);
@@ -309,13 +313,14 @@ public sealed partial class BattleSession
             if (operation is not ExpandedHostedInvocation next || next.Header.Command != 2 || next.Header.Source != first.Header.Source ||
                 next.Header.Effect != first.Header.Effect || next.Header.Action != first.Header.Action || next.EnemyDraw is not null)
             {
-                throw new NotSupportedException("The compiled repeat requires contiguous original spell headers and no separate reflected action.");
+                return false;
             }
             following.Add(next);
         }
 
         expandedOperationCursor.Operations = operations.SetItem(firstOperation, first with { FollowingCasts = following.MoveToImmutable() })
             .RemoveRange(firstOperation + 1, operations.Length - firstOperation - 1);
+        return true;
     }
 
     /// <summary>Checks the compiled action's complete spell pool against the installed hosted action bindings.</summary>
