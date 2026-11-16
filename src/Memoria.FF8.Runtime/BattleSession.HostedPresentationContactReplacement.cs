@@ -86,9 +86,9 @@ public sealed partial class BattleSession
         }
         if (!routed.IsDefaultOrEmpty)
         {
-            bool ordinaryGunblade = acknowledgeTrigger is not null && header.Command is 1 or 12 or 28;
+            bool weaponTrigger = acknowledgeTrigger is not null && (header.Command is 1 or 12 or 28 || renzokuken is not null);
             bool guardianBoost = acknowledgeGuardian is not null && header.Command == 254;
-            if (!ordinaryGunblade && !guardianBoost || !replacements.Any(packet => packet.Primary is { Sequence: 0, PresentedAmount: 0 }))
+            if (!weaponTrigger && !guardianBoost || !replacements.Any(packet => packet.Primary is { Sequence: 0, PresentedAmount: 0 }))
             {
                 throw new InvalidDataException("Routed graphics contacts require an admitted deferred formula and its resolved zero-damage source contact.");
             }
@@ -96,7 +96,7 @@ public sealed partial class BattleSession
             {
                 packet.Validate();
                 if (packet.Occurrence is not null || packet.Secondary is not null || !roster.Contains(packet.Primary.Recipient) || packet.Primary.PresentedAmount <= 0 ||
-                    ordinaryGunblade && packet.Primary.Recipient == replacements[0].Primary.Recipient)
+                    weaponTrigger && packet.Primary.Recipient == replacements[0].Primary.Recipient)
                 {
                     throw new InvalidDataException("A routed graphics contact requires its own allocated damage recipient.");
                 }

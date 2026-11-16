@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         candidate.producingExpandedAiInvocation = reservation;
         // Deferred counters must wait for the resolved source, even though the child already owns its preliminary packets.
         candidate.expandedOperationCursor.Operations = [invocation with { Contacts = default, Reservation = reservation }];
-        if (candidate.HasEncounterDamageRoutes && (guardian is not null || trigger is not null && invocation.PendingGunblade))
+        if (candidate.HasEncounterDamageRoutes && (guardian is not null || renzokuken is not null || trigger is not null && invocation.PendingGunblade))
         {
             candidate.deferredRoutedGraphicsContacts = ImmutableArray.CreateBuilder<NativeBattleContactPacket>();
         }
@@ -83,6 +83,7 @@ public sealed partial class BattleSession
         if (renzokuken is not null)
         {
             progress.Occurrences.Clear();
+            progress.PresentedRoutedContacts = 0;
         }
         process.CommitRecomputedContacts(replacement);
         PublishHostedGuardianFormAudio(form);

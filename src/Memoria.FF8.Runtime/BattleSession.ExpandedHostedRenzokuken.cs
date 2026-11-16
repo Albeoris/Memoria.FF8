@@ -101,9 +101,9 @@ public sealed partial class BattleSession
         nativeRenzokukenProcesses[live.Owner.ActorId] = state;
     }
 
-    private HostedRenzokukenContact? ReadHostedRenzokukenContact()
+    private HostedRenzokukenContact? ReadHostedRenzokukenContact(NativeBattleContactPacket packet)
     {
-        if (hostedPresentationInvocation is not { } invocation || nativeActionPackets.ReadHeader(invocation.Header).Command != 5)
+        if (packet.Occurrence is null || hostedPresentationInvocation is not { } invocation || nativeActionPackets.ReadHeader(invocation.Header).Command != 5)
         {
             return null;
         }
@@ -309,11 +309,11 @@ public sealed partial class BattleSession
             !ReferenceEquals(timed.Command, ActiveAction) || process.ActiveActionToken != frame.ActionToken || receipt.Actor != frame.Owner.Actor ||
             receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != frame.State.Input.ContactIndex ||
             receipt.TotalContacts != RenzokukenResource(frame.Owner.MagicId).Timeline.InputThresholds.Length ||
-            expandedInvocationProgress?.ExpectedContacts != 1 || !ReferenceEquals(expandedInvocationProgress?.Command, invocation.Command))
+            expandedInvocationProgress is not { ExpectedContacts: 1 } progress || !ReferenceEquals(progress.Command, invocation.Command))
         {
             throw new InvalidDataException("Hosted Renzokuken trigger does not identify its active widget, resource and next contact.");
         }
-        if (expandedInvocationProgress?.Occurrences.Count != (timed.Contacts == 0 ? 0 : 1))
+        if (progress.Occurrences.Count != (timed.Contacts == 0 ? 0 : 1) || progress.PresentedRoutedContacts != invocation.RoutedGraphicsContacts.Length)
         {
             throw new InvalidDataException("The prior hosted Renzokuken trigger has not published its required contact.");
         }

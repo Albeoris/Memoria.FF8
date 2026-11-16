@@ -375,7 +375,7 @@ public sealed partial class BattleSession
             NativeBattleContactHalf primary = packet.Primary;
             uint rawStatus = services.Facts[primary.Recipient]!.RawBattleStatuses!.Value;
             NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(primary, graphics.ActorModels, rules, rawStatus);
-            services.EmitContact(packet, ReadHostedRenzokukenContact(), origin);
+            services.EmitContact(packet, ReadHostedRenzokukenContact(packet), origin);
             graphics = ApplyNativeGraphicsContact(graphics, primary, plan, services);
             if (plan.Loaded && packet.Secondary is { } half)
             {

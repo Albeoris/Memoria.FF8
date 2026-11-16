@@ -55,6 +55,80 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.Equal(original.Random, hosted.Random);
     }
 
+    [Fact]
+    public void Renzokuken_routes_each_trigger_without_changing_its_original_contact()
+    {
+        var original = RunRoutedRenzokuken(attached: false);
+        var hosted = RunRoutedRenzokuken(attached: true);
+        Assert.Equal(original.Applied, hosted.Applied);
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    private static (int[] Applied, byte[] Random) RunRoutedRenzokuken(bool attached)
+    {
+        const string casterId = "party-0";
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition, recipientHpMultiplier: 64)) { UseAttachedBattlePresentation = attached };
+        ExpandedBattleInstalledEntry.Prepare(world, session, current =>
+        {
+            PrepareParty(current, 3);
+            current.SetCharacterVitals(current.State.CharacterVitals!.WithBattleParty([0], 3));
+        }, 89, allies: 3, additionalEnemies: 0);
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+        battle.SetGunbladeMode(BattleGunbladeMode.Automatic);
+        TickUntil(world, () => battle.NativeEntryReady && battle.ActiveAction is null && battle.QueuedActions.Count == 0, "routed Renzokuken entry");
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
+        EncounterCompiledDamageRoute route = Assert.Single(battle.ReadDefinition().EncounterMod!.DamageRoutes).Value;
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == route.SourceActor);
+        BattleCombatant recipient = battle.Combatants.Single(actor => actor.Id == Assert.Single(route.Recipients));
+        BattleModelOwner originalTarget = battle.ReadPresentationModelOwner(source.Id);
+        int originalHp = source.CurrentHp;
+        caster.CurrentHp = 1;
+        Ready(world, caster);
+        byte crisis = 0;
+        for (int attempt = 0; attempt < 64; attempt++)
+        {
+            crisis = battle.RefreshNativeLimit(casterId);
+            NativeBattleRandomState forecast = battle.Capture().Random!.Draw(out _).Draw(out byte gate);
+            if (crisis > 0 && !NativeBattleRenzokukenRules.HasFinisher(crisis, gate))
+            {
+                break;
+            }
+            crisis = 0;
+        }
+        Assert.InRange(crisis, 1, 4);
+        caster.CurrentHp = caster.MaximumHp;
+        int eventsBefore = battle.Events.Count;
+        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: casterId, TargetId: source.Id, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16));
+        NativeBattleActionPacketsState ReadPackets() => battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+        int[] RoutedDamage() => battle.Events.Skip(eventsBefore).Where(entry => entry is { Kind: "Damage", ActorId: casterId } && entry.TargetId == recipient.Id).Select(entry => entry.Amount).ToArray();
+        TickUntil(world, () => RoutedDamage().Length > 0, "first routed Renzokuken trigger");
+        NativeBattleActionPacketsState packets = ReadPackets();
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal((byte)5, header.Command);
+        Assert.Equal(1, header.ReadContactCount());
+        NativeBattleContactHalf selected = packets.ReadContact(header.FirstContact).Primary;
+        Assert.Equal(originalTarget, selected.Recipient);
+        Assert.Equal((0, (byte)0), (selected.PresentedAmount, selected.Sequence));
+        Assert.Equal(originalHp, source.CurrentHp);
+        TickUntil(world, () => battle.GetNativeRenzokuken(casterId) is null && battle.ActiveAction is null && battle.ExpandedPresentationProcess?.HasActiveAction != true, "routed Renzokuken completion");
+        int[] applied = RoutedDamage();
+        Assert.True(applied.Length > 1, $"Expected repeat routed hits. Applied {string.Join(", ", applied)} to starting HP {recipient.MaximumHp}.");
+        if (attached)
+        {
+            int[] presented = battle.Events.Skip(eventsBefore).Where(entry => entry is { Kind: "EffectContact", ActorId: casterId } && entry.TargetId == recipient.Id).Select(entry => entry.Amount).ToArray();
+            Assert.Equal(applied.Length, presented.Length);
+            Assert.Equal(applied[..^1], presented[..^1]);
+            Assert.True(presented[^1] >= applied[^1]);
+        }
+        return (applied, battle.Capture().Random!.Indexes.ToArray());
+    }
+
     private static (NativeBattleContactHalf[] Contacts, int Presented, int Applied, byte[] Random, string Trace) RunRoutedGuardian(bool attached)
     {
         const ushort formation = 89;
@@ -188,7 +262,7 @@ public sealed class AuthoredRosterBattleHostTests
         return (presented, loss, random);
     }
 
-    private static BattleDefinition BindRoute(BattleDefinition definition)
+    private static BattleDefinition BindRoute(BattleDefinition definition, int recipientHpMultiplier = 1)
     {
         const string encounter = "fixture.routed-contact";
         BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive).Take(2).ToArray();
@@ -196,7 +270,13 @@ public sealed class AuthoredRosterBattleHostTests
         EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(encounter, "Classic", ["original"]), []);
         EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new(encounter, enemies[0].Id, 0, 0, [], true));
         EncounterCompiledDamageRoute route = new("contact-route", enemies[0].Id, [enemies[1].Id]);
-        return definition with { EncounterMod = compiled with { DamageRoutes = compiled.DamageRoutes.Add(route.Id, route) } };
+        definition = definition with { EncounterMod = compiled with { DamageRoutes = compiled.DamageRoutes.Add(route.Id, route) } };
+        if (recipientHpMultiplier == 1)
+        {
+            return definition;
+        }
+        int recipientHp = EncounterActorProperties.ScaleMaximumHp(enemies[1].MaximumHp, recipientHpMultiplier);
+        return definition with { Combatants = definition.Combatants.Select(actor => actor.Id == enemies[1].Id ? actor with { MaximumHpMultiplier = recipientHpMultiplier, MaximumHp = recipientHp, CurrentHp = recipientHp } : actor).ToArray() };
     }
 
     private sealed record ActionPacket(byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts);
