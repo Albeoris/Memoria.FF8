@@ -144,7 +144,7 @@ public sealed class ExpandedBattleHostTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
         using GameAssets assets = new(directory);
-        GameSession initialSession = GameSession.CreateColdProcess();
+        GameSession initialSession = GameWorld.CreateColdProcess(assets);
         initialSession.StartNewGame();
         using (GameWorld bootstrap = new(initialSession, directory))
         {
