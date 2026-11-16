@@ -145,7 +145,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (State.Active is null)
         {
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => navigation.VisitKey == observation.VisitId ? null : ReadRetainedNavigationAvailability(State, navigation, target));
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => navigation.VisitKey == observation.VisitId ? null : ReadRetainedNavigationAvailability(State, navigation, target));
             if (ShouldDiscoverWorldChunk(State, observation.VisitId, next, !visited.DiscoveryComplete && worldChunkQueue.Count != 0) && ObserveNextWorldChunk(world))
             {
                 State.Status = "Discovering the next native world collision chunk";

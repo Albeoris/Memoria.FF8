@@ -215,12 +215,17 @@ public sealed partial class Ff7WorldRuntime
 
     private bool WorldModelsCollide(Ff7WorldEntity player, Ff7WorldEntity other)
     {
+        return WorldModelsCollideAt(player, other, player.X, player.Z);
+    }
+
+    private bool WorldModelsCollideAt(Ff7WorldEntity player, Ff7WorldEntity other, int playerX, int playerZ)
+    {
         if (!CanWorldModelsCollide(player, other))
         {
             return false;
         }
-        int dx = WrappedDifference(other.X - player.X, 0x48000);
-        int dz = WrappedDifference(other.Z - player.Z, 0x38000);
+        int dx = WrappedDifference(other.X - playerX, 0x48000);
+        int dz = WrappedDifference(other.Z - playerZ, 0x38000);
         if (Math.Abs(dx) >= 1024 || Math.Abs(dz) >= 1024)
         {
             return false;

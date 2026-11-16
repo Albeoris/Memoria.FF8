@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
 internal static class AutoPlayWorldModelNavigationTests
@@ -50,6 +51,44 @@ internal static class AutoPlayWorldModelNavigationTests
         Ff7AutoPlayWorldScriptObservation mesh = new("terrain", 3, [new(new(0, 0, 0), new(300, 0, 0), new(360, 0, 0), new(300, 0, 120), 0, 0)], new(true, null, 0, 0, [], [], [], []), "p", "g", [], true, null);
         Ff7AutoPlayWorldRoute foreignModel = Ff7AutoplayDriver.SearchWorldRoute(source, mesh, (_, state) => new(true, null, state, ModelBoundaries: [new(6, 3)]), [], 8);
         Check(foreignModel.Status == Ff7AutoPlayWorldNavigationStatus.Blocked && foreignModel.Steps.Length == 0, "Terrain navigation must treat unplanned native model contacts as execution barriers.");
+        CheckOriginalClosedComponent();
+    }
+
+    private static void CheckOriginalClosedComponent()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_WORLD_MODEL_BLOCKED_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original closed model component: configure original resources and MEMORIA_FF7_WORLD_MODEL_BLOCKED_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes, writable: false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7 ?? throw new InvalidDataException("The supplied closed-model fixture contains no FFVII state.");
+        Ff7AutoPlayActiveEvent active = saved.AutoPlay?.Active is { Kind: Ff7AutoPlayTargetKind.WorldModel, Accepted: false } selected ? selected : throw new InvalidDataException("The supplied fixture requires its original unaccepted model goal.");
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
+        Ff7WorldRuntime world = session.World ?? throw new InvalidDataException("The supplied fixture has no native world allocation.");
+        string before = JsonSerializer.Serialize(session.Capture() with { AutoPlay = null });
+        Ff7AutoPlayWorldModelScriptObservation target = world.ReadAutoPlayModelFrontiers().Single(source => source.Id == active.EventId);
+        Ff7AutoPlayWorldGuide guide = world.ReadAutoPlayModelNavigationGuide(target);
+        Check(!guide.Limited && guide.Faces.Length == 0 && guide.DeferredComponent is { Length: > 0 }, "The original blocked model must have a complete closed terrain component, rather than a truncated or fabricated route.");
+        Ff7WorldTerrainReference ground = world.CaptureAutoPlayMovementState().Input.GroundTriangle ?? throw new InvalidDataException("The closed-model fixture has no native ground owner.");
+        HashSet<Ff7WorldTerrainReference> component = guide.DeferredComponent!.ToHashSet();
+        Check(component.Contains(ground), "A closed component must contain the original native source face.");
+        Ff7AutoplayDriver driver = new(session);
+        Ff7AutoPlayWorldNavigationResult route = driver.ChooseWorldModelInput(target);
+        Check(route.Status == Ff7AutoPlayWorldNavigationStatus.Blocked && !route.HasInput && !driver.PlanningPending && route.DeferredComponent is { Length: > 0 } && component.SetEquals(route.DeferredComponent), "The native model driver must return the exact closed-component deferral without input or a stateless pending search.");
+        Check(before == JsonSerializer.Serialize(session.Capture() with { AutoPlay = null }), "Original model catalog, terrain guidance or physical planning changed native state, VM or RNG.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("A blocked native model planning callback attempted to write a choice checkpoint."));
+        _ = policy.ChooseInput(new(session));
+        var coverage = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId);
+        string guard = active.VisitId + ":" + active.EventId + ":physical";
+        Ff7AutoPlayWorldVisitState visit = policy.State.WorldVisits[active.VisitId];
+        Check(coverage.Unavailable && coverage.UnavailableAttempts.Any(attempt => attempt.TargetId == active.EventId && attempt.GuardKey == guard) && policy.State.Active is null, "The ordinary shared policy callback must mark the exact blocked native model unavailable and release its active attempt.");
+        Check(visit.ComponentDeferrals.TryGetValue(guard, out Ff7AutoPlayWorldComponentDeferral? deferred) && !string.IsNullOrEmpty(deferred.Context) && component.SetEquals(deferred.Faces) && deferred.Faces.Contains(ground), "The existing failure ledger must retain the exact closed component under its native navigation context.");
+        Check(before == JsonSerializer.Serialize(session.Capture() with { AutoPlay = null }) && bytes.SequenceEqual(File.ReadAllBytes(path)), "Recording a closed native model deferral changed native continuation, VM, RNG or source bytes.");
+        Console.WriteLine($"PASS original closed model {target.Id}, {component.Count} native faces, exact driver and shared-policy deferral, unchanged native continuation and source.");
     }
 
     private static void Check(bool condition, string message)

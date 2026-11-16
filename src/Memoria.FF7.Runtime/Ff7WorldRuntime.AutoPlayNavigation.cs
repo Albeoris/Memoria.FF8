@@ -40,6 +40,16 @@ public sealed partial class Ff7WorldRuntime
 
     internal Ff7AutoPlayWorldGuide ReadAutoPlayNavigationGuide(Ff7AutoPlayWorldScriptObservation target, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
     {
+        return ReadAutoPlayTerrainGuide(target.Faces.Select(face => face.Source).ToHashSet(), true, maximumNodes, maximumChunks, unproductiveEdges);
+    }
+
+    internal Ff7AutoPlayWorldGuide ReadAutoPlayModelNavigationGuide(Ff7AutoPlayWorldModelScriptObservation target, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
+    {
+        return ReadAutoPlayTerrainGuide(ReadAutoPlayModelContactTerrain(target.Target), false, maximumNodes, maximumChunks, unproductiveEdges);
+    }
+
+    private Ff7AutoPlayWorldGuide ReadAutoPlayTerrainGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, bool admitGoalTerrainScripts, int maximumNodes, int maximumChunks, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumChunks, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumChunks, 1008);
         Ff7WorldTerrainReference? start = input.GroundTriangle;
@@ -53,7 +63,6 @@ public sealed partial class Ff7WorldRuntime
         Dictionary<(Ff7WorldTerrainReference Source, int PreviousTerrain), bool> eligibility = [];
         bool limited = false;
         Ff7WorldEntity player = RequireEntity(controlledModel);
-        HashSet<Ff7WorldTerrainReference> goals = target.Faces.Select(face => face.Source).ToHashSet();
         static Vector3 Canonical(Vector3 point) => new(Wrap((int)point.X, 0x48000), point.Y, Wrap((int)point.Z, 0x38000));
         static (Vector3 A, Vector3 B) Edge(Vector3 a, Vector3 b)
         {
@@ -114,7 +123,7 @@ public sealed partial class Ff7WorldRuntime
                 return known;
             }
             Ff7AutoPlayWorldGuideFace face = faces[reference];
-            bool allowed = face.Script < 3 || goals.Contains(reference) || face.Script == input.TerrainScript;
+            bool allowed = face.Script < 3 || admitGoalTerrainScripts && goals.Contains(reference) || face.Script == input.TerrainScript;
             if (!allowed && face.Script != 7)
             {
                 var source = (reference.ChunkX, reference.ChunkZ, face.Script);
@@ -173,6 +182,93 @@ public sealed partial class Ff7WorldRuntime
             return result with { DeferredComponent = null, Reason = "No advancing physical route was proved through the remaining advisory transitions." };
         }
         return limited && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted.", DeferredComponent = null } : result;
+    }
+
+    internal HashSet<Ff7WorldTerrainReference> ReadAutoPlayModelContactTerrain(Ff7WorldEntity target)
+    {
+        Ff7WorldEntity player = RequireEntity(controlledModel);
+        HashSet<Ff7WorldTerrainReference> result = [];
+        if (!CanWorldModelsCollide(player, target))
+        {
+            return result;
+        }
+        for (int chunkZ = (target.Z - 1023) >> 13; chunkZ <= (target.Z + 1023) >> 13; chunkZ++)
+        {
+            for (int chunkX = (target.X - 1023) >> 13; chunkX <= (target.X + 1023) >> 13; chunkX++)
+            {
+                int wrappedX = Wrap(chunkX, 36);
+                int wrappedZ = Wrap(chunkZ, 28);
+                PcWorldMesh mesh = GetWorldCollisionMesh(wrappedX, wrappedZ);
+                Vector3 offset = new(chunkX << 13, 0, chunkZ << 13);
+                for (int triangleIndex = 0; triangleIndex < mesh.Triangles.Count; triangleIndex++)
+                {
+                    PcWorldTriangle triangle = mesh.Triangles[triangleIndex];
+                    Vector3 a = mesh.Vertices[triangle.A] + offset;
+                    Vector3 b = mesh.Vertices[triangle.B] + offset;
+                    Vector3 c = mesh.Vertices[triangle.C] + offset;
+                    if (WorldModelContactTerrainIntersects(player, target, a, b, c))
+                    {
+                        result.Add(new(wrappedX, wrappedZ, triangleIndex));
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    internal bool WorldModelContactTerrainIntersects(Ff7WorldEntity player, Ff7WorldEntity target, Vector3 a, Vector3 b, Vector3 c)
+    {
+        for (int gridZ = 0; gridZ < 8; gridZ++)
+        {
+            for (int gridX = 0; gridX < 8; gridX++)
+            {
+                int minX = target.X - Math.Min(1023, -769 + gridX * 256);
+                int maxX = target.X - Math.Max(-1023, -1024 + gridX * 256);
+                int minZ = target.Z - Math.Min(1023, -769 + gridZ * 256);
+                int maxZ = target.Z - Math.Max(-1023, -1024 + gridZ * 256);
+                if (!WorldModelsCollideAt(player, target, Wrap(minX, 0x48000), Wrap(minZ, 0x38000)) || !WorldTriangleCellIntersects(a, b, c, minX, maxX, minZ, maxZ))
+                {
+                    continue;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool WorldTriangleCellIntersects(Vector3 a, Vector3 b, Vector3 c, int minX, int maxX, int minZ, int maxZ)
+    {
+        int firstX = Math.Max(minX, (int)Math.Ceiling(Math.Min(a.X, Math.Min(b.X, c.X))));
+        int lastX = Math.Min(maxX, (int)Math.Floor(Math.Max(a.X, Math.Max(b.X, c.X))));
+        for (int x = firstX; x <= lastX; x++)
+        {
+            double low = double.PositiveInfinity;
+            double high = double.NegativeInfinity;
+            void Edge(Vector3 start, Vector3 end)
+            {
+                if (x < Math.Min(start.X, end.X) || x > Math.Max(start.X, end.X))
+                {
+                    return;
+                }
+                if (start.X == end.X)
+                {
+                    low = Math.Min(low, Math.Min(start.Z, end.Z));
+                    high = Math.Max(high, Math.Max(start.Z, end.Z));
+                    return;
+                }
+                double z = start.Z + (x - start.X) * (double)(end.Z - start.Z) / (end.X - start.X);
+                low = Math.Min(low, z);
+                high = Math.Max(high, z);
+            }
+            Edge(a, b);
+            Edge(b, c);
+            Edge(c, a);
+            if (Math.Max(minZ, Math.Ceiling(low)) <= Math.Min(maxZ, Math.Floor(high)))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     internal static Ff7AutoPlayWorldGuide PlanAutoPlayTerrainGuide(Ff7WorldTerrainReference start, IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7WorldTerrainReference, Ff7AutoPlayWorldGuideFace> read, Func<Ff7WorldTerrainReference, IEnumerable<Ff7WorldTerrainReference>> adjacent, int maximumNodes)

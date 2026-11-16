@@ -18,7 +18,8 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool NeedsVisitRefresh(AutoPlayVisit visit)
     {
-        return NeedsVisitRefresh(State, visit, session.Machine.Variables, session.Progress, session.Host.Process);
+        FieldVariables variables = session.World is { } world ? new(world.Machine.CopyPersistent(), new byte[256]) : session.Machine.Variables;
+        return NeedsVisitRefresh(State, visit, variables, session.Progress, session.Host.Process);
     }
 
     internal static bool NeedsVisitRefresh(Ff7AutoPlayState state, AutoPlayVisit visit, FieldVariables variables, Ff7Progress progress, Ff7FieldProcess process)

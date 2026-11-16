@@ -96,6 +96,17 @@ internal static class AutoPlayWorldModelContactTests
         Set("movementEnabled", false);
         typeof(Ff7WorldRuntime).GetMethod("AdvancePlayerInputCore", flags)!.Invoke(world, [false]);
         Check(entities[0].ContactModel is null, "The next native frame must clear a retained contact when either owner moved.");
+        byte[] footprintMasks = new byte[26 * 8];
+        footprintMasks[3] = 0x18;
+        footprintMasks[4] = 0x18;
+        Set("collisionMasks", footprintMasks);
+        Ff7WorldEntity footprintPlayer = new(0);
+        Ff7WorldEntity footprintTarget = new(6, 4096, 3072, 4096);
+        Check(world.WorldModelContactTerrainIntersects(footprintPlayer, footprintTarget, new(4080, 0, 4080), new(4120, 0, 4080), new(4096, 0, 4120)), "A lower native terrain layer inside the collision mask must remain a model-contact goal regardless of target altitude.");
+        Check(!world.WorldModelContactTerrainIntersects(footprintPlayer, footprintTarget, new(4800, 0, 4800), new(4900, 0, 4800), new(4800, 0, 4900)), "A triangle inside the broad collision bounding box but outside its native mask cells must not become a contact goal.");
+        Check(world.WorldModelContactTerrainIntersects(footprintPlayer, footprintTarget, new(3500, 0, 4000), new(4700, 0, 4000), new(4100, 0, 4800)), "A native mask-cell crossing must be found even when no triangle vertex lies in the contact footprint.");
+        Check(world.WorldModelContactTerrainIntersects(footprintPlayer, footprintTarget with { X = 0 }, new(-50, 0, 4000), new(50, 0, 4000), new(0, 0, 4200)), "Native contact footprint goals must retain wrapped seam geometry.");
+        Check(!world.WorldModelContactTerrainIntersects(footprintPlayer, footprintTarget with { Flags = 128 }, new(4080, 0, 4080), new(4120, 0, 4080), new(4096, 0, 4120)), "A native collision-disabled model must not acquire terrain goals.");
         CheckOriginalFixture(installation);
     }
 
