@@ -165,7 +165,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             return Approach(crossingTarget, run: run);
         }
         Vector3 midpoint = (gateway.A + gateway.B) / 2;
-        PcWalkmeshTriangle interior = session.Field.Walkmesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, midpoint))!;
+        PcWalkmeshTriangle interior = session.Field.Walkmesh[ReadGatewayInteriorTriangle(session.Field.Walkmesh, gateway)];
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
         if (player is not null && player.Triangle == interior.Index && Math.Abs(player.Z4096 / 4096f - midpoint.Z) < 32 && Vector2.DistanceSquared(new(player.X4096 / 4096f, player.Y4096 / 4096f), new(midpoint.X, midpoint.Y)) < 64 * 64)
         {
@@ -179,6 +179,19 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             return Approach(gatewayCrossingTarget.Value, interior.Index, run);
         }
         return Approach(midpoint, interior.Index, run);
+    }
+
+    internal static int ReadGatewayInteriorTriangle(IReadOnlyList<PcWalkmeshTriangle> walkmesh, PcFieldGateway gateway)
+    {
+        Vector3 midpoint = (gateway.A + gateway.B) / 2;
+        return walkmesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, midpoint))!.Index;
+    }
+
+    internal static bool HasGatewayTopologyPath(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, int sourceTriangle, PcFieldGateway gateway, out int targetTriangle)
+    {
+        targetTriangle = ReadGatewayInteriorTriangle(walkmesh, gateway);
+        var (previous, _) = ReadApproachRoutes(walkmesh, blockedTriangles, sourceTriangle, targetTriangle);
+        return previous[sourceTriangle] >= 0;
     }
     public Ff7AutoplayInput Steer(Vector3 target, bool run = true)
     {

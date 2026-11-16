@@ -32,9 +32,10 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return ReadRetainedNavigationAvailability(State, navigation, observed);
         }
+        ObserveGatewayTopology(navigation, observed, observation);
         if (navigation.VisitKey != observation.VisitId && !State.VisitGuards.ContainsKey(navigation.VisitKey))
         {
-            return null;
+            return ReadGatewayTopologyAvailability(State, navigation, observed, null);
         }
         if (!componentGuards.TryGetValue(navigation.Key, out IReadOnlyDictionary<string, string>? facts))
         {
@@ -103,7 +104,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!state.VisitGuards.ContainsKey(navigation.VisitKey))
         {
-            return null;
+            return ReadGatewayTopologyAvailability(state, navigation, observed, null);
         }
         if (componentFacts is null)
         {
@@ -127,7 +128,7 @@ public sealed partial class Ff7AutoPlayPolicy
     {
         var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
         AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).ToList() };
-        return AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts);
+        return ReadGatewayTopologyAvailability(state, navigation, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts))!;
     }
 
 }

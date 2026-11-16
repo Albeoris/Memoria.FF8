@@ -260,6 +260,12 @@ if (args.Contains("--autoplay-navigation-refresh-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--autoplay-gateway-topology-only", StringComparer.Ordinal))
+{
+    AutoPlayGatewayTopologyTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-discovery-refresh-only", StringComparer.Ordinal))
 {
     AutoPlayWorldDiscoveryRefreshTests.Run();
@@ -884,6 +890,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay host read dependencies", NativeAutoPlayHostReadTests.Run),
     ("native autoplay physical availability guards", NativeAutoPlayPhysicalAvailabilityTests.Run),
     ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
+    ("native autoplay gateway topology", AutoPlayGatewayTopologyTests.Run),
     ("native autoplay destination novelty", NativeAutoPlayDestinationPreferenceTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),
