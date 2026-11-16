@@ -16,6 +16,16 @@ function Invoke-Checker([string[]]$Arguments, [switch]$ExpectFailure) {
     $global:LASTEXITCODE = 0
 }
 try {
+    [xml]$iconInfo = Get-Content -LiteralPath (Join-Path $product 'tools/packaging/Info.plist') -Raw
+    if ($iconInfo.SelectSingleNode('/plist/dict/key[text()="CFBundleIconFile"]/following-sibling::string[1]').InnerText -cne 'application.icns') {
+        throw 'The macOS bundle must declare its packaged application icon.'
+    }
+    if ([OperatingSystem]::IsLinux() -and (Get-Command gio -ErrorAction SilentlyContinue)) {
+        & sh (Join-Path $PSScriptRoot 'Desktop.Tests.sh')
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Linux desktop registration checks failed.'
+        }
+    }
     & dotnet build $checker -c $Configuration --nologo
     if ($LASTEXITCODE -ne 0) {
         throw 'Could not build the distribution checker.'
@@ -70,9 +80,13 @@ try {
         $elf[0] = 127; $elf[1] = 69; $elf[2] = 76; $elf[3] = 70; $elf[4] = 2; $elf[5] = 1; $elf[18] = 62
         [IO.File]::WriteAllBytes($path, $elf)
     }
+    $desktop = Join-Path $package 'Data/Desktop'
+    New-Item -ItemType Directory -Force -Path $desktop | Out-Null
+    Copy-Item -LiteralPath (Join-Path $product 'tools/packaging/install-desktop.sh') -Destination $desktop
+    Copy-Item -LiteralPath (Join-Path $product 'Artwork/Application/application.png') -Destination $desktop
     & (Join-Path $product 'tools/New-DistributionManifest.ps1') -PackageRoot $package -RuntimeIdentifier linux-x64
     $manifest = Get-Content -LiteralPath (Join-Path $package 'Data/distribution.json') -Raw | ConvertFrom-Json
-    if ($manifest.SchemaVersion -ne 2 -or $manifest.RuntimeIdentifier -cne 'linux-x64' -or $manifest.Files.Count -ne 5 -or @($manifest.Files | Where-Object UnixMode -ne 493).Count -ne 0) {
+    if ($manifest.SchemaVersion -ne 2 -or $manifest.RuntimeIdentifier -cne 'linux-x64' -or $manifest.Files.Count -ne 7 -or @($manifest.Files | Where-Object UnixMode -eq 493).Count -ne 5 -or @($manifest.Files | Where-Object { $_.Path.StartsWith('Data/Desktop/') -and $_.UnixMode -eq 420 }).Count -ne 2) {
         throw 'Linux descriptor identity, inventory or executable modes are incorrect.'
     }
     $archive = Join-Path $temporary 'package.tar.gz'
@@ -98,6 +112,7 @@ try {
         $macRoot = Join-Path $macParent 'Memoria.FF8.app'
         New-Item -ItemType Directory -Force -Path (Join-Path $macRoot 'Contents/Resources/Data') | Out-Null
         Copy-Item -LiteralPath (Join-Path $product 'tools/packaging/Info.plist') -Destination (Join-Path $macRoot 'Contents/Info.plist')
+        Copy-Item -LiteralPath (Join-Path $product 'Artwork/Application/application.icns') -Destination (Join-Path $macRoot 'Contents/Resources/application.icns')
         Set-Content -LiteralPath (Join-Path $macRoot 'Contents/Resources/Data/engine.dll') -Value 'synthetic tested payload' -Encoding utf8NoBOM
         $previousEnvironment = @{}
         foreach ($name in @('GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_TYPE', 'GITHUB_REF_NAME')) {

@@ -273,10 +273,17 @@ try {
     if ($RuntimeIdentifier -like 'osx-*') {
         $plist = Join-Path $staging 'Memoria.FF8.app/Contents/Info.plist'
         Copy-Item -LiteralPath (Join-Path $root 'tools/packaging/Info.plist') -Destination $plist
+        Copy-Item -LiteralPath (Join-Path $root 'Artwork/Application/application.icns') -Destination (Join-Path $payload 'application.icns')
         if ($RuntimeIdentifier -eq 'osx-arm64') {
             # Apple Silicon bundles contain only arm64 executables.
             [IO.File]::WriteAllText($plist, [IO.File]::ReadAllText($plist).Replace('<key>LSArchitecturePriority</key><array><string>x86_64</string></array>', '<key>LSArchitecturePriority</key><array><string>arm64</string></array>'))
         }
+    }
+    if ($RuntimeIdentifier -eq 'linux-x64') {
+        $desktop = Join-Path $data 'Desktop'
+        New-Item -ItemType Directory -Force -Path $desktop | Out-Null
+        Copy-Item -LiteralPath (Join-Path $root 'Artwork/Application/application.png') -Destination (Join-Path $desktop 'application.png')
+        Copy-Item -LiteralPath (Join-Path $root 'tools/packaging/install-desktop.sh') -Destination $desktop
     }
     $manifestRoot = if ($RuntimeIdentifier -like 'osx-*') { Join-Path $staging 'Memoria.FF8.app' } else { $payload }
     & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier

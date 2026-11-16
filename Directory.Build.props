@@ -27,4 +27,7 @@
     <BaseOutputPath Condition="'$(BaseOutputPath)' == '' And '$(ArtifactsPath)' == ''">bin/$(MemoriaGraphicsBackend)/</BaseOutputPath>
     <DefineConstants Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">$(DefineConstants);MEMORIA_VULKAN</DefineConstants>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Memoria.Launcher' Or '$(MSBuildProjectName)' == 'Memoria.FF8.App' Or '$(MSBuildProjectName)' == 'Memoria.FF8.Bootstrap' Or '$(MSBuildProjectName)' == 'Memoria.FF8.Music'">
+    <ApplicationIcon>$(MSBuildThisFileDirectory)Artwork/Application/application.ico</ApplicationIcon>
+  </PropertyGroup>
 </Project>

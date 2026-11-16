@@ -99,6 +99,7 @@ try {
     [IO.File]::SetUnixFileMode($entrypoint, [IO.UnixFileMode]493)
     $plist = Join-Path $bundle 'Contents/Info.plist'
     Copy-Item -LiteralPath (Join-Path $product 'tools/packaging/Info.plist') -Destination $plist
+    Copy-Item -LiteralPath (Join-Path $product 'Artwork/Application/application.icns') -Destination (Join-Path $bundle 'Contents/Resources/application.icns')
     if ($rid -eq 'osx-arm64') {
         [IO.File]::WriteAllText($plist, [IO.File]::ReadAllText($plist).Replace('<key>LSArchitecturePriority</key><array><string>x86_64</string></array>', '<key>LSArchitecturePriority</key><array><string>arm64</string></array>'))
     }

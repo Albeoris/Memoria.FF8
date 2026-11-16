@@ -4,6 +4,7 @@
 <key>CFBundleExecutable</key><string>Memoria.Launcher</string>
 <key>CFBundleIdentifier</key><string>org.memoria.ff8</string>
 <key>CFBundleName</key><string>Memoria FF8</string>
+<key>CFBundleIconFile</key><string>application.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.0.0</string>
 <key>CFBundleVersion</key><string>0.0.0</string>

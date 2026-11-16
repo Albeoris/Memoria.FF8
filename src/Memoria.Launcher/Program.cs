@@ -76,7 +76,12 @@ internal static class Program
         }
         try
         {
-            AppBuilder.Configure<LauncherApplication>().UsePlatformDetect().LogToTrace().StartWithClassicDesktopLifetime([]);
+            AppBuilder builder = AppBuilder.Configure<LauncherApplication>().UsePlatformDetect();
+            if (OperatingSystem.IsLinux())
+            {
+                builder.With(new X11PlatformOptions { WmClass = Environment.GetEnvironmentVariable("SDL_VIDEO_X11_WMCLASS") ?? "org.memoria.ff8" });
+            }
+            builder.LogToTrace().StartWithClassicDesktopLifetime([]);
         }
         finally
         {

@@ -8,6 +8,16 @@ internal static partial class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (OperatingSystem.IsLinux())
+        {
+            foreach (string variable in new[] { "SDL_VIDEO_WAYLAND_WMCLASS", "SDL_VIDEO_X11_WMCLASS" })
+            {
+                if (Environment.GetEnvironmentVariable(variable) is null)
+                {
+                    Environment.SetEnvironmentVariable(variable, "org.memoria.ff8");
+                }
+            }
+        }
         Console.OutputEncoding = new UTF8Encoding(false);
         using IDisposable? output = WorldProcessHandoff.RedirectOutput(args);
         int result = Run(args);

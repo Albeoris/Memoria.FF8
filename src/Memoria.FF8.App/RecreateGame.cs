@@ -17,6 +17,7 @@ internal sealed partial class RecreateGame : Game
     private GameResourceHost? resourceHost;
     private GameSession session;
     private readonly GraphicsDeviceManager graphics;
+    private ApplicationWindowIcon? applicationWindowIcon;
     private GraphicsHostReadiness? graphicsReadiness;
     private KeyboardInput keyboard = new();
     private readonly HostPhysicalInput physicalInput;
@@ -121,6 +122,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void LoadContent()
     {
+        applicationWindowIcon ??= ApplicationWindowIcon.Apply(Window);
         graphicsReadiness = GraphicsHostReadiness.Initialize(() => new GraphicsHostReadiness(GraphicsDevice));
         resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
         resourceHost.ConnectEncounterMods();
@@ -1725,6 +1727,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            applicationWindowIcon?.Dispose();
             ff7Scene?.Dispose();
             crossoverSetup?.Dispose();
             crossoverAssets?.Dispose();

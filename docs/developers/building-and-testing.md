@@ -21,6 +21,8 @@ The script publishes a self-contained launcher and dispatcher for the selected a
 
 Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz`; Apple Silicon produces `Memoria-FF8-osx-arm64.tar.gz`. Both contain `Memoria.FF8.app`. Complete macOS packages require a native macOS build host for ad hoc signing and verification; no signing credentials are required. The pinned MonoGame Mac runtime requires **macOS 26.0**. CI uses macOS 26 runners for both native architectures. Unix archives preserve executable modes.
 
+macOS bundles include the application icon in `Contents/Resources/application.icns`. Linux packages include the icon and optional desktop menu installer under `Data/Desktop/`, within the updater-owned payload. After extracting a Linux package to its permanent location, run `sh Data/Desktop/install-desktop.sh` from the package directory. This registers the launcher and icon at their absolute paths in `${XDG_DATA_HOME:-$HOME/.local/share}/applications/org.memoria.ff8.desktop`, without administrator access. Run it again after moving the package; remove that desktop entry to unregister it. Automatic updates preserve the package location and keep the bundled icon current.
+
 ### macOS toolchain
 
 macOS distribution and launcher builds require Microsoft's .NET SDK (the `dotnet-sdk` Homebrew cask or the official installer). Homebrew's source-built `dotnet` formula publishes a runtime linked against Homebrew libraries, so the build stops early when it is active. The Homebrew `powershell` formula depends on that formula, so install PowerShell 7 as a .NET tool or from its official package instead:
@@ -81,6 +83,8 @@ The required Albeoris.Frameworks source closure is included in [vendor/Albeoris.
 Ordinary builds copy bundled native mod files into `BundledMods/Memoria` beside the app and launcher, updating changed source defaults. Edit source packages under `Mods/Memoria` to change future distributions. User preferences and behavior overrides stay in the writable `Mods/Memoria` overlay; builds do not overwrite them.
 
 Ordinary builds use the checked-in compiled title shader. Shader regeneration and artwork preparation are component authoring tasks; see [Rendering](rendering.md) and the linked component READMEs.
+
+Application icons are checked in as ICO, ICNS, alpha BMP and PNG sizes from 16 to 1024 pixels. Their [generator](../../Artwork/Application/README.md) uses the same silver lion vector contours as the title screen. Native game windows load the embedded alpha BMP; Windows additionally selects small and large ICO images for its window metrics. Linux game and launcher window classes default to `org.memoria.ff8`, matching the desktop entry; explicit SDL window-class environment overrides are preserved.
 
 ## Distribution checks
 

@@ -12,6 +12,7 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../Artwork/Application/application.ico" LogicalName="Memoria.Application.ico" />
     <PackageReference Include="Tmds.DBus.Protocol" />
     <PackageReference Include="SharpCompress" />
     <PackageReference Include="Avalonia" />

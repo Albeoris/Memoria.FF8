@@ -61,6 +61,10 @@ internal sealed partial class LauncherWindow : Window
     {
         this.updateResume = updateResume;
         Title = "Memoria — FINAL FANTASY VIII";
+        using (Stream icon = typeof(LauncherWindow).Assembly.GetManifestResourceStream("Memoria.Application.ico") ?? throw new InvalidOperationException("The application icon is missing."))
+        {
+            Icon = new WindowIcon(icon);
+        }
         Width = 740;
         Height = 840;
         MinWidth = 600;
