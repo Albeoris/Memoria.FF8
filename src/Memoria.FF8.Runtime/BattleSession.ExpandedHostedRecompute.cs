@@ -30,7 +30,19 @@ public sealed partial class BattleSession
         candidate.producingExpandedAiInvocation = reservation;
         // Deferred counters must wait for the resolved source, even though the child already owns its preliminary packets.
         candidate.expandedOperationCursor.Operations = [invocation with { Contacts = default, Reservation = reservation }];
-        ExpandedHostedInvocation resolved = resolve(candidate);
+        if (candidate.HasEncounterDamageRoutes && (guardian is not null || trigger is not null && invocation.PendingGunblade))
+        {
+            candidate.deferredRoutedGraphicsContacts = ImmutableArray.CreateBuilder<NativeBattleContactPacket>();
+        }
+        ExpandedHostedInvocation resolved;
+        try
+        {
+            resolved = resolve(candidate) with { RoutedGraphicsContacts = candidate.deferredRoutedGraphicsContacts?.ToImmutable() ?? [] };
+        }
+        finally
+        {
+            candidate.deferredRoutedGraphicsContacts = null;
+        }
         if (!ReferenceEquals(resolved.Command, invocation.Command) || resolved.Header != invocation.Header ||
             resolved.HeaderReference != invocation.HeaderReference || resolved.FirstContact != invocation.FirstContact ||
             resolved.Contacts.IsDefault || resolved.Contacts.Length != invocation.Contacts.Length ||

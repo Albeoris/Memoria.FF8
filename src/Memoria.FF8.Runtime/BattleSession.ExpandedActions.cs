@@ -481,7 +481,7 @@ public sealed partial class BattleSession
         }
         if (!invocation.RoutedGraphicsContacts.IsEmpty && expandedInvocationProgress?.PresentedRoutedContacts != invocation.RoutedGraphicsContacts.Length)
         {
-            throw new InvalidDataException("The native Gunblade completed before publishing its routed graphics contacts.");
+            throw new InvalidDataException("The native action completed before publishing its routed graphics contacts.");
         }
     }
 

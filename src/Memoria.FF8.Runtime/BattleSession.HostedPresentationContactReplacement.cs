@@ -76,24 +76,6 @@ public sealed partial class BattleSession
             }
             replacementGraphics = graphics with { PendingTrigger = null };
         }
-        if (!routed.IsDefaultOrEmpty)
-        {
-            if (acknowledgeTrigger is null || replacementGraphics is null || header.Command is not (1 or 12 or 28) ||
-                replacements is not [var selected] || selected.Primary is not { Sequence: 0, PresentedAmount: 0 })
-            {
-                throw new InvalidDataException("Routed graphics contacts require the ordinary Gunblade's resolved zero-damage source contact.");
-            }
-            foreach (NativeBattleContactPacket packet in routed)
-            {
-                packet.Validate();
-                if (packet.Occurrence is not null || packet.Secondary is not null || !roster.Contains(packet.Primary.Recipient) ||
-                    packet.Primary.Recipient == selected.Primary.Recipient || packet.Primary.PresentedAmount <= 0)
-                {
-                    throw new InvalidDataException("A routed graphics contact requires its own allocated damage recipient.");
-                }
-            }
-            replacementGraphics = replacementGraphics with { PendingContacts = replacementGraphics.PendingContacts.AddRange(routed) };
-        }
         if (acknowledgeGuardian is not null)
         {
             if (acknowledgeTrigger is not null || acknowledgeGuardian.Token != token)
@@ -101,6 +83,26 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Hosted contact replacement requires one matching native recompute request.");
             }
             ValidateHostedGuardianBoostRequest(acknowledgeGuardian);
+        }
+        if (!routed.IsDefaultOrEmpty)
+        {
+            bool ordinaryGunblade = acknowledgeTrigger is not null && header.Command is 1 or 12 or 28;
+            bool guardianBoost = acknowledgeGuardian is not null && header.Command == 254;
+            if (!ordinaryGunblade && !guardianBoost || !replacements.Any(packet => packet.Primary is { Sequence: 0, PresentedAmount: 0 }))
+            {
+                throw new InvalidDataException("Routed graphics contacts require an admitted deferred formula and its resolved zero-damage source contact.");
+            }
+            foreach (NativeBattleContactPacket packet in routed)
+            {
+                packet.Validate();
+                if (packet.Occurrence is not null || packet.Secondary is not null || !roster.Contains(packet.Primary.Recipient) || packet.Primary.PresentedAmount <= 0 ||
+                    ordinaryGunblade && packet.Primary.Recipient == replacements[0].Primary.Recipient)
+                {
+                    throw new InvalidDataException("A routed graphics contact requires its own allocated damage recipient.");
+                }
+            }
+            replacementGraphics ??= graphics;
+            replacementGraphics = replacementGraphics with { PendingContacts = replacementGraphics.PendingContacts.AddRange(routed) };
         }
         if (append.IsDefault)
         {

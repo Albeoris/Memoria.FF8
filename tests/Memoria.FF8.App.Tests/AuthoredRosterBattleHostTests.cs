@@ -44,6 +44,98 @@ public sealed class AuthoredRosterBattleHostTests
         Assert.Equal(original.Random, hosted.Random);
     }
 
+    [Fact]
+    public void Guardian_routing_keeps_the_initial_targets_and_publishes_the_routed_impact()
+    {
+        var original = RunRoutedGuardian(attached: false);
+        var hosted = RunRoutedGuardian(attached: true);
+        Assert.Equal(original.Contacts, hosted.Contacts);
+        Assert.True((original.Presented, original.Applied) == (hosted.Presented, hosted.Applied),
+            $"Original {original.Presented}/{original.Applied} [{original.Trace}]; attached {hosted.Presented}/{hosted.Applied} [{hosted.Trace}].");
+        Assert.Equal(original.Random, hosted.Random);
+    }
+
+    private static (NativeBattleContactHalf[] Contacts, int Presented, int Applied, byte[] Random, string Trace) RunRoutedGuardian(bool attached)
+    {
+        const ushort formation = 89;
+        const int guardian = 1;
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindRoute(definition)) { UseAttachedBattlePresentation = attached };
+        ExpandedBattleInstalledEntry.Prepare(world, session, current =>
+        {
+            ExpandedBattleGuardianTests.PrepareParty(current, learnedBoost: false, guardianId: guardian);
+            current.SetCharacterVitals(current.State.CharacterVitals!.WithBattleParty([3], 3));
+        }, formation, allies: 3, additionalEnemies: 0);
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+        TickUntil(world, () => battle.NativeEntryReady && battle.ActiveAction is null && battle.QueuedActions.Count == 0, "routed GF entry");
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == Caster);
+        var route = Assert.Single(battle.ReadDefinition().EncounterMod!.DamageRoutes).Value;
+        BattleCombatant source = battle.Combatants.Single(actor => actor.Id == route.SourceActor);
+        BattleCombatant recipient = battle.Combatants.Single(actor => actor.Id == Assert.Single(route.Recipients));
+        BattleModelOwner sourceModel = battle.ReadPresentationModelOwner(source.Id);
+        BattleModelOwner recipientModel = battle.ReadPresentationModelOwner(recipient.Id);
+        int originalHp = source.CurrentHp;
+        int recipientHp = recipient.CurrentHp;
+        Ready(world, caster);
+        NativeBattleRandomState readyRandom = battle.Capture().Random!;
+        int eventsBefore = battle.Events.Count;
+        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: Caster, TargetId: source.Id, Ability: BattleAbility.GuardianForce, ActionId: guardian));
+        TickUntil(world, () => battle.GuardianForceCasts.Any(cast => cast.ActorId == Caster), "routed GF charge");
+        for (int callback = 0; callback < 1200 && battle.GuardianForceCasts.Any(cast => cast.ActorId == Caster); callback++)
+        {
+            if (battle.ActiveAction is null && battle.QueuedActions.Count == 0)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+            }
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.Empty(battle.GuardianForceCasts);
+        NativeBattleRandomState chargedRandom = battle.Capture().Random!;
+        NativeBattleRandomState beforeFormula = chargedRandom;
+        for (int callback = 0; callback < 1200 && !Routed(); callback++)
+        {
+            if (battle.NativeGuardianBoost is { Phase: >= 4, Remaining: <= 2 } || battle.ExpandedPresentationProcess?.PendingGuardianBoost is not null)
+            {
+                beforeFormula = battle.Capture().Random!;
+            }
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.True(Routed(), "The final GF formula did not route damage.");
+        ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
+        NativeBattleActionPacketsState packets = process?.ActionPackets ?? battle.NativeActionPackets;
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal((byte)254, header.Command);
+        Assert.Equal((ushort)(64 + guardian), header.Action);
+        NativeBattleContactHalf[] contacts = packets.ReadHeaderContacts(new BattleActionHeaderReference(0)).Select(packet => packet.Primary).ToArray();
+        Assert.Equal(2, contacts.Length);
+        NativeBattleContactHalf selected = Assert.Single(contacts, contact => contact.Recipient == sourceModel);
+        Assert.Equal(0, selected.PresentedAmount);
+        Assert.Equal((byte)0, selected.Sequence);
+        Assert.Contains(contacts, contact => contact.Recipient == recipientModel);
+        Assert.Equal(originalHp, source.CurrentHp);
+        Assert.Equal((byte)100, battle.Capture().NativeActionScratch!.GuardianBoostPercent);
+        IEnumerable<NativeBattleContactPacket> routedContacts = process is null ? battle.NativeGraphics!.PendingContacts :
+            process.LastFrameServices!.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Select(receipt => receipt.Packet);
+        NativeBattleContactPacket routed = Assert.Single(routedContacts, packet => packet.Occurrence is null && packet.Primary.Recipient == recipientModel);
+        Assert.Null(routed.Occurrence);
+        Assert.True(routed.Primary.PresentedAmount > 0);
+        int loss = recipientHp - recipient.CurrentHp;
+        Assert.True(loss > 0);
+        NativeBattleRandomState random = battle.Capture().Random!;
+        string trace = $"ready {FormatRandom(readyRandom)}, charged {FormatRandom(chargedRandom)}, before formula {FormatRandom(beforeFormula)}, resolved {FormatRandom(random)}, source spirit {source.Spirit}";
+        TickUntil(world, () => (process?.Graphics ?? battle.NativeGraphics!).Effects.Slots.Any(task => task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner == recipientModel), "routed GF presentation");
+        TickUntil(world, () => battle.ActiveAction is null && battle.QueuedActions.Count == 0 && process?.HasActiveAction != true, "routed GF completion");
+        return (contacts, routed.Primary.PresentedAmount, loss, random.Indexes.ToArray(), trace);
+
+        bool Routed() => battle.Events.Skip(eventsBefore).Any(entry => entry.Kind == "Damage" && entry.ActorId == Caster && entry.TargetId == recipient.Id);
+        static string FormatRandom(NativeBattleRandomState random) => $"{random.Lane}/{string.Join(",", random.Indexes)}";
+    }
+
     private static (int Presented, int Applied, byte[] Random) RunRoutedGunblade(bool attached)
     {
         const ushort formation = 89;
@@ -94,17 +186,17 @@ public sealed class AuthoredRosterBattleHostTests
             Assert.Equal(presented, contact.Amount);
         }
         return (presented, loss, random);
+    }
 
-        static BattleDefinition BindRoute(BattleDefinition definition)
-        {
-            const string encounter = "fixture.routed-weapon";
-            BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive).Take(2).ToArray();
-            Assert.Equal(2, enemies.Length);
-            EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(encounter, "Classic", ["original"]), []);
-            EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new(encounter, enemies[0].Id, 0, 0, [], true));
-            EncounterCompiledDamageRoute route = new("weapon-route", enemies[0].Id, [enemies[1].Id]);
-            return definition with { EncounterMod = compiled with { DamageRoutes = compiled.DamageRoutes.Add(route.Id, route) } };
-        }
+    private static BattleDefinition BindRoute(BattleDefinition definition)
+    {
+        const string encounter = "fixture.routed-contact";
+        BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive).Take(2).ToArray();
+        Assert.Equal(2, enemies.Length);
+        EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(encounter, "Classic", ["original"]), []);
+        EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, new(encounter, enemies[0].Id, 0, 0, [], true));
+        EncounterCompiledDamageRoute route = new("contact-route", enemies[0].Id, [enemies[1].Id]);
+        return definition with { EncounterMod = compiled with { DamageRoutes = compiled.DamageRoutes.Add(route.Id, route) } };
     }
 
     private sealed record ActionPacket(byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts);
