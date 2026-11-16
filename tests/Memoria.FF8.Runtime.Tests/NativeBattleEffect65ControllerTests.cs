@@ -76,6 +76,99 @@ public sealed class NativeBattleEffect65ControllerTests
         Assert.Equal(549, Read(step.Frame, ArenaAddress).ReadWord(12));
     }
 
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(false, 3)]
+    [InlineData(false, 4)]
+    [InlineData(true, 0)]
+    [InlineData(true, 3)]
+    [InlineData(true, 4)]
+    [InlineData(true, 11)]
+    public void Captured_target_rows_survive_the_main_programme_workspace_and_private_forks(bool hosted, int count)
+    {
+        BattleModelOwner[] targets = Enumerable.Range(0, count).Select(index => index < NativeBattleSlots.AllyCount ? OriginalOwner(index) : new BattlePartyActorModel(new($"party-{index}"))).ToArray();
+        BattleModelRoster roster = new(OriginalRoster.Owners.Concat(targets.Skip(NativeBattleSlots.AllyCount)));
+        NativeBattleModelAliases aliases = new(roster, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => (NativeBattleModelSlot.Decode((byte)index), OriginalOwner(index))));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedMemory.FromColdProcess().ActionPackets, aliases);
+        BattleModelOwner caster = OriginalOwner(5);
+        (packets, _) = packets.Prepare(new(caster, 8, 13, -1, 360, Effect, null));
+        foreach (BattleModelOwner target in targets)
+        {
+            (packets, _) = packets.AppendContact(new(new(target, 0, 0, 0, 0, 7, 0), null));
+        }
+        (packets, BattleActionHeaderReference header) = packets.Publish(count);
+        NativeBattleEffect65Frame frame = Frame();
+        frame = frame with { Effect = frame.Effect with { Parameters = new(caster, 0, BattleModelTargets.Empty, header, 0, 0) } };
+        List<NativeBattleEffect65Operation> operations = [];
+        NativeBattleEffect65Inputs inputs = Inputs(operations) with
+        {
+            ReadPackets = _ => packets,
+            ReadPosition8 = (_, model) => Position(model),
+            ReadAnchor571400 = (current, model) => new(current, Position(model)),
+            StorageContract = hosted ? BattleContactTaskStorageContract.ExpandableArena : BattleContactTaskStorageContract.OriginalArena
+        };
+        if (!hosted && count > NativeBattleSlots.AllyCount)
+        {
+            Assert.Throws<NotSupportedException>(() => CaptureActors(frame, ArenaAddress, inputs));
+            Assert.Equal(0, Read(frame, ArenaAddress).ReadWord(14));
+            Assert.Empty(operations);
+            return;
+        }
+
+        byte[] workspaceBefore = ReadBytes(frame, ArenaAddress + 0x48, 8).Read(0, 8);
+        frame = CaptureActors(frame, ArenaAddress, inputs);
+        Assert.Equal(count, Read(frame, ArenaAddress).ReadWord(14));
+        Assert.Equal(Math.Max(0, count - NativeBattleSlots.AllyCount), frame.State.HostedTargetOverflow.Length);
+        Assert.Equal(workspaceBefore, ReadBytes(frame, ArenaAddress + 0x48, 8).Read(0, 8));
+        if (count == 0)
+        {
+            Assert.Equal(new byte[6], frame.State.Read(CenterAddress, 6));
+        }
+
+        NativeBattleEffect65Frame other = NativeBattleStorageSnapshots.Fork(frame);
+        frame = NativeBattleStorageSnapshots.Fork(frame);
+        uint workspaceAddress = ArenaAddress + 0x48;
+        uint programmeAddress = ArenaAddress + FileOffset;
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, 0x3AC);
+        workspace.Initialize7016B0(new(programmeAddress, new byte[8].ToImmutableArray()), 0x3AC);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, workspace);
+        Assert.Equal(programmeAddress, ReadBytes(frame, workspaceAddress, 4).ReadUInt32(0));
+        Assert.Equal(workspaceBefore, ReadBytes(other, ArenaAddress + 0x48, 8).Read(0, 8));
+        inputs = inputs with { ReadPackets = _ => throw new InvalidOperationException("Restoration must use the initially captured targets.") };
+        RestoreTargetPoints(frame, ArenaAddress, 10000, clearScale: false, inputs);
+        RestoreTargetPoints(frame, ArenaAddress, 0, clearScale: true, inputs);
+        NativeBattleEffect65WriteActorPoint8[] writes = operations.OfType<NativeBattleEffect65WriteActorPoint8>().ToArray();
+        Assert.Equal(targets.Concat(targets), writes.Select(write => write.Actor));
+        for (int index = 0; index < writes.Length; index++)
+        {
+            int ordinal = index % count;
+            Assert.Equal((short)(ordinal * 100 + (index < count ? 10000 : 0)), BinaryPrimitives.ReadInt16LittleEndian(writes[index].Point8.Read(4, 2)));
+            if ((ordinal & 1) == 0)
+            {
+                Assert.Throws<NotSupportedException>(() => writes[index].Point8.Read(6, 2));
+            }
+            else
+            {
+                Assert.Equal((ushort)(0x7400 + ordinal), BinaryPrimitives.ReadUInt16LittleEndian(writes[index].Point8.Read(6, 2)));
+            }
+        }
+        Assert.Equal(targets, operations.OfType<NativeBattleEffect65SetActorScalePointer30>().Select(write => write.Actor));
+        if (count > NativeBattleSlots.AllyCount)
+        {
+            frame.State.HostedTargetOverflow[0].Point.Write(0, [0xF1]);
+            Assert.Equal((byte)3, other.State.HostedTargetOverflow[0].Point.Read(0, 1)[0]);
+            NativeBattleEffect65Frame malformed = Write(frame, ArenaAddress, Read(frame, ArenaAddress).WriteWord(14, checked((ushort)(count - 1))));
+            Assert.Throws<InvalidDataException>(() => RestoreTargetPoints(malformed, ArenaAddress, 0, clearScale: false, inputs));
+        }
+
+        NativeBattleEffectArena Position(BattleModelOwner model)
+        {
+            short ordinal = (short)Array.IndexOf(targets, model);
+            NativeBattleEffectArena point = PointView(new(ordinal, 12, checked((short)(ordinal * 100))));
+            return (ordinal & 1) == 0 ? point : point.Write(6, BitConverter.GetBytes((ushort)(0x7400 + ordinal)));
+        }
+    }
+
     [Fact]
     public void Root_paused_before_birth_still_toggles_packet_banks_but_keeps_its_clock()
     {
@@ -117,6 +210,7 @@ public sealed class NativeBattleEffect65ControllerTests
     public void Root_retirement_detaches_residual_child_records_instead_of_erasing_them()
     {
         NativeBattleEffect65Frame frame = InitializeChildBank(Frame());
+        frame = frame with { State = frame.State with { HostedTargetOverflow = [new(OriginalOwner(2), PointView(new(3, 5, 7)))] } };
         (frame, uint child) = Append(frame, ChildDescriptor, ChildCallback);
         frame = Write(frame, child, Read(frame, child).WriteDword(0x14, 0xA5A5A5A5));
         frame = WriteBytes(frame, ChildDescriptor, NativeBattleEffectArena.Clear().Write(0, new byte[8]), 8);
@@ -127,6 +221,7 @@ public sealed class NativeBattleEffect65ControllerTests
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.NotNull(result.State.RootBankStorage);
         Assert.NotNull(result.State.ChildQueueStorage);
+        Assert.Empty(result.State.HostedTargetOverflow);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Arena!.Read(ChildOffset, 2)));
         Assert.Equal(ChildCallback, BinaryPrimitives.ReadUInt32LittleEndian(result.Memory.Arena.Read(ChildOffset + 8, 4)));
         Assert.Equal(0xA5A5A5A5u, BinaryPrimitives.ReadUInt32LittleEndian(result.Memory.Arena.Read(ChildOffset + 0x14, 4)));

@@ -22,7 +22,7 @@ public static partial class NativeBattleEffect65Controller
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteModelAddress(CasterGlobal, parameters.Source, inputs.ReadPackets(frame).ModelAliases) };
         NativeBattleEffectTaskPool root = CreatePool(frame, Pools[0], false);
         (root, _) = root.Append(RootCallback);
-        frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, State = frame.State with { RootBankStorage = null } };
+        frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, State = frame.State with { RootBankStorage = null, HostedTargetOverflow = [] } };
         return ClearDwords701200(frame, RootBank + 12, 2);
     }
 
@@ -100,7 +100,7 @@ public static partial class NativeBattleEffect65Controller
         {
             throw new InvalidDataException("Effect65 root retirement requires its inactive bank destination.");
         }
-        frame = frame with { State = frame.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(root) } };
+        frame = frame with { State = frame.State with { RootBankStorage = NativeBattleEffectTaskMemory.CaptureBank(root), HostedTargetOverflow = [] } };
         if (frame.State.ChildQueueStorage is null)
         {
             frame = frame with { State = frame.State.AttachChildQueue(ReadBytes(frame, ChildDescriptor, ChildQueueLength)) };

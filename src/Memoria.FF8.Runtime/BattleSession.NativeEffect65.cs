@@ -13,7 +13,11 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect65 requires its current process memory.");
         NativeBattleEffect65Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect65 requires its current CRT stream."), memory.Effect65 ?? throw new NotSupportedException("Effect65 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect65 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect65 requires its arithmetic constants.");
-        NativeBattleEffect65Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect65 requires its current projection."), _ => Camera().Roll, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => Position8(actor), Anchor, WidePoint, WordPoint, PollIo, SelectIo, Execute) { CapturePresentation = true };
+        NativeBattleEffect65Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect65 requires its current projection."), _ => Camera().Roll, (_, actor) => graphics.ActorModels.Get(actor), (_, actor) => Position8(actor), Anchor, WidePoint, WordPoint, PollIo, SelectIo, Execute)
+        {
+            StorageContract = graphics.Effects.StorageContract,
+            CapturePresentation = true
+        };
         frame = initialize ? NativeBattleEffect65Controller.Initialize(frame, resources, inputs) : NativeBattleEffect65Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };

@@ -75,12 +75,11 @@ public static partial class NativeBattleEffect65Controller
         NativeBattleVector center = Vector(TaskView(task, 0x1C, 6));
         if (relative == 0)
         {
-            int count = Signed(task, 14);
+            int count = ReadCapturedTargetCount(frame, main);
             for (int index = 0; index < count; index++)
             {
-                task = Read(frame, main);
-                BattleModelOwner actor = task.ReadExecutionReference<BattleExecutionReference.Model>(0x24 + index * 12, 4).Owner;
-                NativeBattleVector saved = Vector(TaskView(task, 0x28 + index * 12, 8));
+                (BattleModelOwner actor, NativeBattleEffectArena captured) = ReadCapturedTarget(frame, main, index);
+                NativeBattleVector saved = Vector(captured);
                 NativeBattleVector placed = V(center.X + (saved.X - center.X) / 2, center.Y + (saved.Y - center.Y) / 2, center.Z + (saved.Z - center.Z) / 2 + 2000);
                 frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPositionXYZ(actor, placed, false));
                 frame = inputs.Execute(frame, new NativeBattleEffect65SetActorScalePointer30(actor, 0x133AB88));

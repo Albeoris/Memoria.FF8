@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect65Controller
 {
+    private const int OriginalTargetRows = 3;
+
     public static NativeBattleEffect65Step AdvanceRoot6E03F0(NativeBattleEffect65Frame frame, uint address, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs)
     {
         NativeBattleModulePoolTask root = Read(frame, address);
@@ -87,22 +89,38 @@ public static partial class NativeBattleEffect65Controller
         return frame;
     }
 
-    private static NativeBattleEffect65Frame CaptureActors(NativeBattleEffect65Frame frame, uint main, NativeBattleEffect65Inputs inputs)
+    internal static NativeBattleEffect65Frame CaptureActors(NativeBattleEffect65Frame frame, uint main, NativeBattleEffect65Inputs inputs)
     {
         NativeBattleActionPacketsState packets = inputs.ReadPackets(frame);
-        NativeBattleActionHeaderSlot header = Header(frame, packets);
-        int count = header.ReadContactCount();
+        BattleActionHeaderReference header = (frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its actual header pointer.")).Header;
+        ImmutableArray<NativeBattleContactPacket> contacts = packets.ReadHeaderContacts(header);
+        int count = contacts.Length;
+        if (count > OriginalTargetRows && inputs.StorageContract != BattleContactTaskStorageContract.ExpandableArena)
+        {
+            throw new NotSupportedException("Effect65 original target rows would overlap the main programme workspace.");
+        }
+        ImmutableArray<NativeBattleEffect65TargetRow>.Builder overflow = ImmutableArray.CreateBuilder<NativeBattleEffect65TargetRow>(Math.Max(0, count - OriginalTargetRows));
         frame = Write(frame, main, Read(frame, main).WriteWord(14, (ushort)count));
         int[] minimum = [32767, 32767, 32767];
         int[] maximum = [-32767, -32767, -32767];
         for (int index = 0; index < count; index++)
         {
-            BattleModelOwner model = packets.ReadContact(header.FirstContact.Advance(index)).Primary.Recipient;
-            uint row = checked(main + 0x24 + (uint)(index * 12));
-            NativeBattleModulePoolTask recipientTask = Read(frame, main);
-            recipientTask.WriteExecutionReference(0x24 + index * 12, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
-            frame = Write(frame, main, recipientTask);
-            frame = WriteBytes(frame, row + 4, inputs.ReadPosition8(frame, model), 8);
+            BattleModelOwner model = contacts[index].Primary.Recipient;
+            NativeBattleEffectArena position = inputs.ReadPosition8(frame, model);
+            if (index < OriginalTargetRows)
+            {
+                int offset = 0x24 + index * 12;
+                NativeBattleModulePoolTask recipientTask = Read(frame, main);
+                recipientTask.WriteExecutionReference(offset, 4, new BattleExecutionReference.Model(model), packets.ModelAliases.EncodeAddress(model));
+                frame = Write(frame, main, recipientTask);
+                frame = WriteBytes(frame, checked(main + (uint)offset + 4), position, 8);
+            }
+            else
+            {
+                // The fourth physical row begins at the live ACT workspace.
+                NativeBattleEffectArena captured = CopyBytes(position, 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8);
+                overflow.Add(new(model, captured));
+            }
             NativeBattleEffect65PointStep anchor = inputs.ReadAnchor571400(frame, model);
             frame = anchor.Frame;
             NativeBattleVector point = Vector(anchor.Point8);
@@ -118,7 +136,29 @@ public static partial class NativeBattleEffect65Controller
         frame = WriteBytes(frame, CenterAddress, PointView(center), 6);
         NativeBattleEffectArena caster = inputs.ReadPosition8(frame, frame.State.ReadModelAddress(CasterGlobal));
         frame = WriteBytes(frame, main + 0x14, caster, 8);
-        return WriteBytes(frame, CasterPointAddress, caster, 8);
+        frame = WriteBytes(frame, CasterPointAddress, caster, 8);
+        return frame with { State = frame.State with { HostedTargetOverflow = overflow.MoveToImmutable() } };
+    }
+
+    private static int ReadCapturedTargetCount(NativeBattleEffect65Frame frame, uint main)
+    {
+        int count = Signed(Read(frame, main), 14);
+        if (count < 0 || frame.State.HostedTargetOverflow.Length != Math.Max(0, count - OriginalTargetRows))
+        {
+            throw new InvalidDataException("Effect65 target count differs from its captured hosted rows.");
+        }
+        return count;
+    }
+
+    private static NativeBattleEffect65TargetRow ReadCapturedTarget(NativeBattleEffect65Frame frame, uint main, int index)
+    {
+        if (index >= OriginalTargetRows)
+        {
+            return frame.State.HostedTargetOverflow[index - OriginalTargetRows];
+        }
+        NativeBattleModulePoolTask task = Read(frame, main);
+        int offset = 0x24 + index * 12;
+        return new(task.ReadExecutionReference<BattleExecutionReference.Model>(offset, 4).Owner, TaskView(task, offset + 4, 8));
     }
 
     public static NativeBattleEffect65Frame InitializeOrbitRows(NativeBattleEffect65Frame frame, NativeBattleEffect65Resources resources)
@@ -159,6 +199,4 @@ public static partial class NativeBattleEffect65Controller
         int cosine = NativeBattleCameraMath.Cosine(polar);
         return new(unchecked((short)(NativeBattleCameraMath.Sine(angle) * cosine >> 12)), unchecked((short)-NativeBattleCameraMath.Sine(polar)), unchecked((short)(unchecked(-NativeBattleCameraMath.Cosine(angle) * cosine) >> 12)));
     }
-
-    private static NativeBattleActionHeaderSlot Header(NativeBattleEffect65Frame frame, NativeBattleActionPacketsState packets) => packets.ReadHeader((frame.Effect.Parameters ?? throw new NotSupportedException("Effect65 requires its actual header pointer.")).Header);
 }

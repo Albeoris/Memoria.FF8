@@ -5,10 +5,15 @@ using static Memoria.FF8.Runtime.NativeBattleEffect65Profile;
 
 namespace Memoria.FF8.Runtime;
 
+internal readonly record struct NativeBattleEffect65TargetRow(BattleModelOwner Model, NativeBattleEffectArena Point);
+
 public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] NativeBattleEffectArena LiteralStorage, [property: JsonRequired] NativeBattleEffectArena? RootBankStorage, [property: JsonRequired] NativeBattleEffectArena? ChildQueueStorage)
 {
     [JsonIgnore]
     internal ImmutableDictionary<BattleModelOwner, ushort> SavedFlags { get; init; } = ImmutableDictionary<BattleModelOwner, ushort>.Empty;
+
+    [JsonIgnore]
+    internal ImmutableArray<NativeBattleEffect65TargetRow> HostedTargetOverflow { get; init; } = [];
 
     public static NativeBattleEffect65State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear());
 

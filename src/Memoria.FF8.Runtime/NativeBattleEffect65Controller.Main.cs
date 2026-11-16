@@ -187,14 +187,13 @@ public static partial class NativeBattleEffect65Controller
         return inputs.Execute(frame, new NativeBattleEffect65WriteActorPositionXYZ(caster, V(point.X, point.Y, point.Z + delta), false));
     }
 
-    private static NativeBattleEffect65Frame RestoreTargetPoints(NativeBattleEffect65Frame frame, uint main, int deltaZ, bool clearScale, NativeBattleEffect65Inputs inputs)
+    internal static NativeBattleEffect65Frame RestoreTargetPoints(NativeBattleEffect65Frame frame, uint main, int deltaZ, bool clearScale, NativeBattleEffect65Inputs inputs)
     {
-        int count = Signed(Read(frame, main), 14);
+        int count = ReadCapturedTargetCount(frame, main);
         for (int index = 0; index < count; index++)
         {
-            NativeBattleModulePoolTask task = Read(frame, main);
-            BattleModelOwner model = task.ReadExecutionReference<BattleExecutionReference.Model>(0x24 + index * 12, 4).Owner;
-            NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x28 + index * 12, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8);
+            (BattleModelOwner model, NativeBattleEffectArena captured) = ReadCapturedTarget(frame, main, index);
+            NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(captured, 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8);
             point = point.Write(4, BitConverter.GetBytes(unchecked((short)(Vector(point).Z + deltaZ))));
             frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPoint8(model, point, false));
             if (clearScale)
