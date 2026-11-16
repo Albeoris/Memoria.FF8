@@ -168,7 +168,8 @@ public sealed class NativeBattleEffect80ControllerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 0xA0, 1);
         BattleModelOwner actor = OriginalOwner(0);
-        NativeBattleModulePoolTask task = pool.Slots[0].WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(actor), OriginalAliases.EncodeOperand(actor, 1));
+        NativeBattleModulePoolTask task = pool.Slots[0];
+        task.WriteExecutionReference(0x2C, 1, new BattleExecutionReference.Model(actor), OriginalAliases.EncodeOperand(actor, 1));
         pool.WriteSlot(0, task.WriteByte(0x28, 1).UpdateHeader(task.Flags, task.State, task.Next, ControlCallback));
         NativeBattleOriginalEffectState effect = new(80, 79, new(80, Entry, Initializer), null, null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), NativeBattleEffect80State.FromColdProcess());
