@@ -69,13 +69,14 @@ public sealed partial class FieldMachine
                     Variables.WriteWord(Bank(id, 2), B(id, 3), unchecked((short)((uint)value >> 16)));
                 });
             case 0x4D:
+            case 0x4F:
                 int healthSlot = B(id, 2);
                 if (healthSlot >= 3)
                 {
                     throw new NotSupportedException("FFVII HP adjustment requires a native script-party slot.");
                 }
                 int healthCharacter = ReadParty()[healthSlot];
-                return Host(id, new FieldHitPointCommand(healthCharacter, healthCharacter == 255 ? (short)0 : R16(id, 2, 3)), 5);
+                return Host(id, new FieldHitPointCommand(healthCharacter, healthCharacter == 255 ? (short)0 : R16(id, 2, 3), Subtract: opcode == 0x4F), 5);
             case 0x5E:
                 byte shakeAxes = B(id, 3);
                 return Host(id, new FieldCameraShake(shakeAxes, (shakeAxes & 1) != 0 ? R8(id, 1, 4) : (byte)0, (shakeAxes & 1) != 0 ? R8(id, 2, 5) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 3, 6) : (byte)0, (shakeAxes & 2) != 0 ? R8(id, 4, 7) : (byte)0), 8);

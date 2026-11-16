@@ -14,9 +14,13 @@ public static class Ff7NativePartyRecovery
     public static Ff7PartyRecoveryResult AddHitPoints(Ff7Progress progress, int characterId, short amount, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
     {
         Ff7PartyRecoveryResult prepared = Publish(progress, materiaRecords, statModifiers);
+        if (characterId == 255 || !progress.Party.Take(3).Contains(characterId))
+        {
+            return prepared;
+        }
         Ff7CharacterState[] characters = prepared.Progress.Characters.Select(character =>
         {
-            if (character.Id != Ff7NativeCharacterIdentity.RecordId(characterId) || !progress.Party.Contains(characterId))
+            if (character.Id != Ff7NativeCharacterIdentity.RecordId(characterId))
             {
                 return character;
             }
@@ -24,6 +28,33 @@ public static class Ff7NativePartyRecovery
             short current = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(44));
             short maximum = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(56));
             ushort adjusted = unchecked((ushort)Math.Min(unchecked((short)(current + amount)), maximum));
+            BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), adjusted);
+            return character with { HitPoints = adjusted, NativeRecord = record };
+        }).ToArray();
+        return prepared with { Progress = prepared.Progress with { Characters = characters } };
+    }
+
+    public static ushort SubtractHitPointWord(ushort current, short amount)
+    {
+        return unchecked((ushort)Math.Max(0, unchecked((short)current) - (int)amount));
+    }
+
+    public static Ff7PartyRecoveryResult SubtractHitPoints(Ff7Progress progress, int characterId, short amount, IReadOnlyList<ReadOnlyMemory<byte>> materiaRecords, IReadOnlyList<short> statModifiers)
+    {
+        Ff7PartyRecoveryResult prepared = Publish(progress, materiaRecords, statModifiers);
+        if (characterId == 255 || !progress.Party.Take(3).Contains(characterId))
+        {
+            return prepared;
+        }
+        int recordId = Ff7NativeCharacterIdentity.RecordId(characterId);
+        Ff7CharacterState[] characters = prepared.Progress.Characters.Select(character =>
+        {
+            if (character.Id != recordId)
+            {
+                return character;
+            }
+            byte[] record = character.NativeRecord.ToArray();
+            ushort adjusted = SubtractHitPointWord(BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(44)), amount);
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(44), adjusted);
             return character with { HitPoints = adjusted, NativeRecord = record };
         }).ToArray();

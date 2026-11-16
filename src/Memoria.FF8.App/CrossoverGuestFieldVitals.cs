@@ -34,7 +34,10 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
     public void AddHitPoints(short amount) => AddHitPoints(StoryCharacters.Single(), amount);
     public void AddHitPoints(int storyCharacter, short amount) => Update([storyCharacter], amount, false);
 
-    private void Update(IReadOnlyCollection<int> storyCharacters, short? amount, bool clearStatuses)
+    public void SubtractHitPoints(short amount) => SubtractHitPoints(StoryCharacters.Single(), amount);
+    public void SubtractHitPoints(int storyCharacter, short amount) => Update([storyCharacter], amount, false, subtract: true);
+
+    private void Update(IReadOnlyCollection<int> storyCharacters, short? amount, bool clearStatuses, bool subtract = false)
     {
         CombinedSessionSave source = read();
         Ff7MixedCombatBinding[] affected = source.GetMixedCombatBindings().Where(binding => storyCharacters.Contains(binding.StoryCharacter)).ToArray();
@@ -50,7 +53,11 @@ internal sealed class CrossoverGuestFieldVitals : IFf7GuestFieldVitals, IDisposa
             int row = ReadGuestRow(vitals, binding.OriginCharacter);
             NativeCharacterVital saved = vitals.Records[row];
             ushort maximum = CrossoverGuestRecord.MaximumHitPoints(vitals, row, binding.OriginCharacter);
-            ushort hp = amount is short delta ? checked((ushort)Math.Clamp((int)saved.HitPoints.Minimum + delta, 0, maximum)) : maximum;
+            ushort hp = maximum;
+            if (amount is short delta)
+            {
+                hp = subtract ? Ff7NativePartyRecovery.SubtractHitPointWord(saved.HitPoints.Minimum, delta) : checked((ushort)Math.Clamp((int)saved.HitPoints.Minimum + delta, 0, maximum));
+            }
             ushort statuses = (ushort)(saved.Status & ~(clearStatuses ? Ff7GuestBattleStatuses.SupportedOrigin : 1));
             if (hp == 0)
             {

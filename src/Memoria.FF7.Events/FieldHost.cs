@@ -86,7 +86,7 @@ public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
 public sealed record FieldPartyRecovery(bool AllCharacters = false) : FieldCommand;
 public sealed record FieldGilCommand(uint Amount, bool Subtract = false) : FieldCommand;
 public sealed record FieldGilQuery : FieldCommand;
-public sealed record FieldHitPointCommand(int Character, short Amount) : FieldCommand;
+public sealed record FieldHitPointCommand(int Character, short Amount, bool Subtract = false) : FieldCommand;
 public sealed record FieldCameraShake(byte Axes, byte XAmplitude, byte XDuration, byte YAmplitude, byte YDuration) : FieldCommand;
 public sealed record FieldAnimation(int Animation, int Speed, bool Blocking, bool HoldLast, bool Default = false, int? FirstFrame = null, int? LastFrame = null, bool DivideFirstFrameBySpeed = false) : FieldCommand;
 public enum FieldActorPropertyKind

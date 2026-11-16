@@ -437,16 +437,9 @@ public sealed partial class Ff7Session : IDisposable
         }
         if (command is FieldHitPointCommand health)
         {
-            Ff7PartyRecoveryResult adjusted = Ff7NativePartyRecovery.AddHitPoints(Progress, health.Character, health.Amount, Ff7MateriaResources.LoadRecords(installation), executable.NativeMateriaStatModifiers);
-            Ff7Progress adjustedProgress = PreserveGuestFieldCharacters(Progress, adjusted.Progress);
-            if (Progress.Party.Contains(health.Character))
-            {
-                if (GuestFieldVitals is { } guest)
-                {
-                    PublishFieldEntryEffect(() => guest.AddHitPoints(health.Character, health.Amount));
-                }
-            }
-            Progress = adjustedProgress;
+            IReadOnlyList<ReadOnlyMemory<byte>> healthMateriaRecords = Ff7MateriaResources.LoadRecords(installation);
+            Ff7PartyRecoveryResult adjusted = ApplyFieldHitPointAdjustment(Progress, health, healthMateriaRecords, executable.NativeMateriaStatModifiers, GuestFieldVitals, PublishFieldEntryEffect);
+            Progress = adjusted.Progress;
             byte flags = Machine.Variables.ReadByte(FieldBank.Persistent0Byte, 122);
             Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 122, (byte)((flags & 127) | (adjusted.Underwater ? 128 : 0)));
             return new(true);
