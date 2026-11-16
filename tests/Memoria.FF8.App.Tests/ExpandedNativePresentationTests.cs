@@ -25,13 +25,13 @@ public sealed class ExpandedNativePresentationTests
     [InlineData(226, 6)]
     public void Installed_enemy_effect_delivers_every_scheduled_contact(ushort effect, int contacts)
     {
-        VerifyScenario(effect, world => EnemyFanOutScenario(world, effect), contacts);
+        VerifyScenario(effect, world => EnemyScenario(world, effect), contacts);
     }
 
     [Fact]
     public void Installed_breath_keeps_captured_body_triangles_live_for_all_fibres()
     {
-        VerifyScenario(129, world => EnemyFanOutScenario(world, 129));
+        VerifyScenario(129, world => EnemyScenario(world, 129));
     }
 
     [Fact]
@@ -43,7 +43,13 @@ public sealed class ExpandedNativePresentationTests
     [Fact]
     public void Installed_boomerang_sword_crosses_every_prepared_actor()
     {
-        VerifyScenario(304, world => EnemyFanOutScenario(world, 304));
+        VerifyScenario(304, world => EnemyScenario(world, 304));
+    }
+
+    [Fact]
+    public void Installed_morph_preserves_its_self_context_without_publishing_an_impact()
+    {
+        VerifyScenario(172, world => EnemyScenario(world, 172), expectedContacts: 0);
     }
 
     [Theory]
@@ -226,12 +232,13 @@ public sealed class ExpandedNativePresentationTests
         };
     }
 
-    private static DiagnosticBattleRequest EnemyFanOutScenario(GameWorld world, ushort effect)
+    private static DiagnosticBattleRequest EnemyScenario(GameWorld world, ushort effect)
     {
         (int Formation, int Stage, int Model, byte AbilitySlot, ushort Action, byte Sequence, byte Selector, (int Formation, int Slot)[] Donors) scenario = effect switch
         {
             129 => (553, 105, 53, 3, 102, 12, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
             130 => (662, 105, 48, 2, 185, 13, 204, [(579, 1), (671, 1), (360, 1), (551, 1), (716, 0)]),
+            172 => (124, 35, 29, 1, 53, 13, 200, [(58, 0), (395, 0), (416, 1), (53, 0), (628, 1)]),
             226 => (548, 107, 46, 6, 276, 11, 205, [(408, 0), (574, 1), (370, 2), (527, 1), (36, 0)]),
             304 => (133, 75, 79, 3, 159, 13, 204, [(388, 2), (659, 0), (92, 1), (414, 1), (673, 2)]),
             _ => throw new ArgumentOutOfRangeException(nameof(effect))

@@ -140,7 +140,7 @@ public sealed partial class BattleSession
             invocation.Header.Source == reservation.Source && ReferenceEquals(invocation.Command, reservation.Command) && !invocation.Contacts.IsDefault);
     }
 
-    private static ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
+    private ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
         if (command.NativeQueuedCommand == 11 && header is { Command: 11, Action: 65531 } ||
             command.NativeQueuedCommand == 241 && header is { Command: 241, Action: 65530 })
@@ -172,8 +172,19 @@ public sealed partial class BattleSession
         return ExpandedHostedContactDisposition.RequiredImpacts;
     }
 
-    private static bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
+    private bool IsHostedCinematicContext(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (header.Effect == NativeBattleMorph172Profile.Effect)
+        {
+            if (header is not { Command: 8, Action: 53, Sequence: 13, Source: BattleEnemyActorModel source } ||
+                command is not { Ability: BattleAbility.EnemyAbility, NativeAction: { KernelSection: 3, KernelIndex: 53 } } ||
+                command.ActorId != command.TargetId || source.Actor.ActorId != command.ActorId || GetActor(command.ActorId).ModelId != 29 ||
+                command.TargetRequest.Selection is not BattleTargetSelection.Explicit { Actors: [BattleEnemyActorReference target] } || target != source.Actor)
+            {
+                throw new InvalidDataException("Hosted Morph requires its original self-targeted Turtapod action context.");
+            }
+            return true;
+        }
         // The dedicated 69 and 227 controllers retire a presentation context without a 506690 contact consumer.
         return command.NativeGraphic is null && command.NativeLimitCallback != NativeLimitCallback.ShotOpening &&
             (header.Effect is NativeBattleEffect69Profile.Effect or NativeBattleEffect227Profile.Effect ||
