@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--direct-spatial-transition-only", StringComparer.Ordinal))
+{
+    AutoPlayDirectSpatialTransitionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-facing-search-only", StringComparer.Ordinal))
 {
     AutoPlayWorldFacingSearchTests.Run();

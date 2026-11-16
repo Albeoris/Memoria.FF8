@@ -45,12 +45,17 @@ public sealed partial class FieldMachine
         None = 0,
         Coordinates = 1,
         Triangle = 2,
-        Unknown = 4
+        Unknown = 4,
+        Stochastic = 8
     }
 
     private readonly record struct SpatialScalarTaint(SpatialTaint Taint, int Scalar, int Width);
 
     private sealed class SpatialInspectionQueryException : Exception
+    {
+    }
+
+    private sealed class SpatialStochasticPredicateException(int entity, int pc) : Exception($"FFVII autoplay spatial projection requires a stochastic predicate contract for entity {entity}, PC {pc:X4}.")
     {
     }
 
@@ -69,20 +74,27 @@ public sealed partial class FieldMachine
         FieldVmSnapshot source = Capture() with { CycleCursor = null };
         List<FieldSpatialDemand> demands = [];
         HashSet<FieldVariableRead> observationReads = [];
-        for (int entity = 0; entity < entities.Length; entity++)
+        try
         {
-            if (source.Entities[entity].Priority != 7)
+            for (int entity = 0; entity < entities.Length; entity++)
             {
-                continue;
+                if (source.Entities[entity].Priority != 7)
+                {
+                    continue;
+                }
+                if (!Project(entity, null))
+                {
+                    continue;
+                }
+                foreach (FieldSpatialSample sample in samples)
+                {
+                    Project(entity, sample);
+                }
             }
-            if (!Project(entity, null))
-            {
-                continue;
-            }
-            foreach (FieldSpatialSample sample in samples)
-            {
-                Project(entity, sample);
-            }
+        }
+        catch (SpatialStochasticPredicateException error)
+        {
+            throw new NotSupportedException(error.Message, error);
         }
         FieldVariableRead[] observed = observationReads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
         string observationFacts = $"{ReadScriptAnalysisAllocationFingerprint()}|{string.Join(';', source.Entities.Select(entity => $"{entity.Priority}:{entity.ProgramCounter}"))}|{ReadScriptAnalysisFingerprint(controlledEntity, 0, observed)}";
@@ -102,6 +114,7 @@ public sealed partial class FieldMachine
             FieldActorQueryKind? queryKind = null;
             int queryWrites = 0;
             int scalar = 0;
+            HashSet<int> visited = [];
             detached.inspection = new()
             {
                 StopAtHost = true,
@@ -114,6 +127,10 @@ public sealed partial class FieldMachine
                     if (sample is null)
                     {
                         throw new SpatialInspectionQueryException();
+                    }
+                    if (!sampled)
+                    {
+                        visited.Clear();
                     }
                     sampled = true;
                     queryKind = query.Query;
@@ -153,7 +170,6 @@ public sealed partial class FieldMachine
                     taints[address] = value;
                 }
             };
-            HashSet<int> visited = [];
             for (int step = 0; step < instructionBudget; step++)
             {
                 Entity owner = detached.entities[entity];
@@ -170,6 +186,17 @@ public sealed partial class FieldMachine
                 try
                 {
                     byte opcode = program.Read(pc);
+                    if (opcode == 0x60)
+                    {
+                        if (sampled && (predicateTaint & (SpatialTaint.Coordinates | SpatialTaint.Triangle)) != 0 && (predicateTaint & SpatialTaint.Unknown) == 0)
+                        {
+                            detached.inspection = new() { ActorReply = detached.inspection.ActorReply };
+                            detached.Execute(entity);
+                            FieldTransitionCommand transition = detached.inspection.Commands.OfType<FieldTransitionCommand>().Single();
+                            RecordDemand(pc, entity, -1, [transition.Map], false, []);
+                        }
+                        break;
+                    }
                     if (opcode is >= 1 and <= 6)
                     {
                         if (sampled)
@@ -184,13 +211,35 @@ public sealed partial class FieldMachine
                         owner.Wait = 0;
                         continue;
                     }
-                    if (!IsSpatialInspectionOpcode(opcode))
+                    if (opcode is 0x99 or 0x33 or 0x4A)
                     {
-                        break;
+                        if (opcode == 0x99)
+                        {
+                            instructionTaint = SpatialTaint.Stochastic;
+                        }
+                        InstructionInspection prior = detached.inspection;
+                        detached.inspection = new() { ActorReply = prior.ActorReply };
+                        detached.Execute(entity);
+                        detached.inspection = prior;
                     }
-                    detached.Execute(entity);
+                    else
+                    {
+                        if (!IsSpatialInspectionOpcode(opcode))
+                        {
+                            break;
+                        }
+                        detached.Execute(entity);
+                    }
                     if (opcode is >= 0x14 and <= 0x19)
                     {
+                        if ((instructionTaint & SpatialTaint.Stochastic) != 0)
+                        {
+                            if (sampled && ((predicateTaint | instructionTaint) & (SpatialTaint.Coordinates | SpatialTaint.Triangle)) != 0)
+                            {
+                                throw new SpatialStochasticPredicateException(entity, pc);
+                            }
+                            break;
+                        }
                         predicateTaint |= instructionTaint;
                     }
                     // Stores own their result; only preceding source reads can define their dependencies.
@@ -236,12 +285,23 @@ public sealed partial class FieldMachine
                 dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read)));
                 foreach (FieldVariableRead read in child.Reads)
                 {
-                    dependencies.UnionWith(detached.Variables.SpatialSourceBytes(read).Where(value => !written.Contains(value)));
+                    FieldVariableRead[] bytes = detached.Variables.SpatialSourceBytes(read).ToArray();
+                    if (bytes.Any(value => (taints.GetValueOrDefault(value).Taint & SpatialTaint.Stochastic) != 0))
+                    {
+                        return;
+                    }
+                    dependencies.UnionWith(bytes.Where(value => !written.Contains(value)));
                 }
+                RecordDemand(pc, target, script, child.DestinationFields, child.ChangesStory, child.HostReads);
+            }
+
+            void RecordDemand(int pc, int target, int script, int[] destinations, bool changesStory, FieldHostRead[] hostReads)
+            {
+                dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read)));
                 FieldVariableRead[] reads = dependencies.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
-                string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, script, reads)}";
+                string facts = $"{ReadScriptAnalysisAllocationFingerprint()}|{entity}:{pc}:{target}:{script}|{ReadScriptAnalysisFingerprint(target, Math.Max(0, script), reads)}";
                 string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
-                demands.Add(new(entity, pc, target, script, sample!.Id, child.DestinationFields, child.ChangesStory, fingerprint, reads, child.HostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle });
+                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle });
             }
         }
     }

@@ -14,7 +14,36 @@ internal static class NativeSpatialInputTests
         BoundedWaitAndLoop();
         ByteAliasesRetainSourceDependencies();
         TrianglePredicateTaint();
+        DirectSpatialTransitions();
         Console.WriteLine("PASS native read-only autonomous spatial demands");
+    }
+
+    private static void DirectSpatialTransitions()
+    {
+        byte[] query = [0xB8, 0x66, 1, 17, 19];
+        (_, FieldMachine machine, RejectHost host) = Create([.. query, 0x16, 0x60, 19, 0, 5, 0, 0, 16, 0x33, 1, 0x4A, 1, .. Transition(99), 0], [0]);
+        string before = JsonSerializer.Serialize(machine.Capture());
+        FieldSpatialSample[] positions = [new(1, new(-3, 5, 0, 0)), new(2, new(5, -3, 0, 0))];
+        FieldSpatialDemand demand = machine.ReadCurrentSpatialDemands(1, positions).Demands.Single();
+        Check(demand is { SampleId: 1, TargetScript: -1, TriangleOnly: false } && demand.DestinationFields.SequenceEqual([99]), "A direct coordinate-guarded native MAP lost its spatial demand.");
+        Check(host.Calls == 0 && before == JsonSerializer.Serialize(machine.Capture()), "Direct MAP inspection dispatched a host or changed the source.");
+        (_, FieldMachine unguarded, _) = Create([.. query, .. Transition(99), 0], [0]);
+        Check(unguarded.ReadCurrentSpatialDemands(1, positions).Demands.Length == 0, "An unused position query fabricated a spatial predicate for an unconditional MAP.");
+        (_, FieldMachine housekeeping, RejectHost randomHost) = Create([0x99, 5, 30, .. query, 0x16, 0x60, 19, 0, 5, 0, 0, 12, .. Transition(99), 0], [0]);
+        string original = JsonSerializer.Serialize(housekeeping.Capture());
+        Check(housekeeping.ReadCurrentSpatialDemands(1, positions).Demands.Single().SampleId == 1, "Unrelated native random bookkeeping hid a proved coordinate transition.");
+        Check(randomHost.Calls == 0 && original == JsonSerializer.Serialize(housekeeping.Capture()), "Spatial inspection sampled or modified authoritative random bookkeeping.");
+        (_, FieldMachine stochastic, _) = Create([.. query, 0x99, 5, 19, 0x16, 0x60, 19, 0, 5, 0, 0, 12, .. Transition(99), 0], [0]);
+        bool rejected = false;
+        try
+        {
+            stochastic.ReadCurrentSpatialDemands(1, positions);
+        }
+        catch (NotSupportedException)
+        {
+            rejected = true;
+        }
+        Check(rejected, "A random-dependent spatial predicate was silently omitted or fabricated as a deterministic demand.");
     }
 
     private static void DirectActorQueries()
