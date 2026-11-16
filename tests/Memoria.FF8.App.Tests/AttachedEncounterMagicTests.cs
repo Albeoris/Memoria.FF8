@@ -166,6 +166,10 @@ public sealed class AttachedEncounterMagicTests
         BattleModelOwner livingOwner = battle.ReadPresentationModelOwner(livingId);
         int defeatedRow = ReadGraphics().ActorModels.Get(defeatedOwner).TextureResourceIndex!.Value;
         int livingRow = ReadGraphics().ActorModels.Get(livingOwner).TextureResourceIndex!.Value;
+        NativeBattleModelCpuResources before = ReadCpu();
+        NativeBattleModelCpuResourceRow extent = before.Rows[defeatedRow];
+        bool shared = extent.Require(16) == before.Rows[livingRow].Require(16);
+        int reclaimed = extent.PrivateLength4!.Value + (shared ? 0 : extent.SharedLength8!.Value);
         defeated.CurrentHp = 1;
         readyParty.Atb = BattleSession.AtbMaximum;
         TickUntil(world, () => battle.CanChoosePlayerCommand(readyParty.Id));
@@ -185,10 +189,12 @@ public sealed class AttachedEncounterMagicTests
         NativeBattleModelTextureCache cache = battle.ExpandedPresentationProcess?.ModelTextureCache ?? battle.NativeModelTextureCache!;
         Assert.Equal((byte)0, cache.Rows[defeatedRow].Kind);
         Assert.Equal((byte)3, cache.Rows[livingRow].Kind);
+        Assert.Equal(before.EnemyCursor - reclaimed, ReadCpu().EnemyCursor);
         Assert.Single(battle.Events.Skip(attackStart), entry => entry.Kind == "NativeModelRemoved" && entry.ActorId == defeatedId);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
 
         NativeBattleGraphicsState ReadGraphics() => battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
+        NativeBattleModelCpuResources ReadCpu() => battle.ExpandedPresentationProcess?.ModelCpuResources ?? battle.NativeModelCpuResources!;
     }
 
     private sealed record BattleRun((byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts, byte Repeats)[] Headers,

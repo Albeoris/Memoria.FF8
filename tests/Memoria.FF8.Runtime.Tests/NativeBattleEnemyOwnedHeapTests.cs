@@ -111,6 +111,33 @@ public sealed class NativeBattleEnemyOwnedHeapTests
     }
 
     [Fact]
+    public void Release_reclaims_the_independent_tail_and_linked_slot_of_a_repeat_model()
+    {
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 3, ScratchMaximum = 0 };
+        cpu = cpu with { Rows = cpu.Rows.SetItem(0, cpu.Rows[0] with { LinkedPhysicalIndex36 = 0 }).SetItem(1, cpu.Rows[1] with { LinkedPhysicalIndex36 = 1 }) };
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleModelDatSource source = Source(0x70004);
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 0, null, false);
+        (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, 1, null, false);
+        NativeBattleModelCpuReference survivingGeometry = cpu.Rows[1].Require(16);
+        Assert.NotEqual(cpu.Rows[0].Require(16).EnemyResourceId, survivingGeometry.EnemyResourceId);
+        byte[] geometry = NativeBattleModelEnemyHeap.Read(cpu, staging, survivingGeometry, cpu.Rows[1].Lengths[16]);
+        int released = cpu.Rows[0].PrivateLength4!.Value + cpu.Rows[0].SharedLength8!.Value;
+        int cursor = cpu.EnemyCursor!.Value;
+        NativeBattleModelTextureBinding binding = new(Enumerable.Repeat<byte?>(null, 16).ToImmutableArray());
+        NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
+        cache = cache with { Rows = cache.Rows.SetItem(0, new(3, 16, 0, binding)).SetItem(1, new(3, 16, 0, binding)) };
+
+        (cpu, staging) = NativeBattleModelEnemyHeap.Release(cpu, staging, cache, 0);
+
+        NativeBattleModelCpuReference current = cpu.Rows[1].Require(16);
+        Assert.Equal(cursor - released, cpu.EnemyCursor);
+        Assert.Equal((byte)2, cpu.EnemyLinkedSlots);
+        Assert.Equal(survivingGeometry with { Offset = survivingGeometry.Offset - released }, current);
+        Assert.Equal(geometry, NativeBattleModelEnemyHeap.Read(cpu, staging, current, geometry.Length));
+    }
+
+    [Fact]
     public void Special143_keeps_shared_model142_and_distinct_information_owners_until_row_replacement()
     {
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 };

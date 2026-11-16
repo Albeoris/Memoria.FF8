@@ -136,9 +136,12 @@ public static class NativeBattleModelEnemyHeap
         bool inactive = false;
         Compact(row.Require(12), row.PrivateLength4 ?? throw new NotSupportedException("Native5080D0 requires its actual private allocation length."));
         inactive = true;
-        if (!cache.Rows.Where((_, index) => index != resource).Any(candidate => candidate.Kind == 3 && candidate.ModelId == cache.Rows[resource].ModelId))
+        NativeBattleModelCpuReference shared = cpu.Rows[resource].Require(16);
+        bool tailRetained = cache.Rows.Index().Any(candidate => candidate.Index != resource && candidate.Item.Kind == 3 &&
+            candidate.Item.ModelId == cache.Rows[resource].ModelId && cpu.Rows[candidate.Index].Require(16) == shared);
+        if (!tailRetained)
         {
-            Compact(cpu.Rows[resource].Require(16), row.SharedLength8 ?? throw new NotSupportedException("Native5080D0 requires its actual shared allocation length."));
+            Compact(shared, row.SharedLength8 ?? throw new NotSupportedException("Native5080D0 requires its actual shared allocation length."));
             byte slot = row.LinkedPhysicalIndex36 ?? throw new NotSupportedException("Native5080D0 requires its observed linked sound slot.");
             if (slot != 255)
             {
