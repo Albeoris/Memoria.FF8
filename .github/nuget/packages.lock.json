@@ -297,6 +297,11 @@
       "sha512": "e78f0cea69c14895b1b089644077dbce8631a626055d96522f4d29e061d8bfc3e48aa1419e74faf265b998612c03f721f5f0cef4690f824150a5689764dee601"
     },
     {
+      "id": "nuget.versioning",
+      "version": "7.9.0",
+      "sha512": "09d09dd1fdb2e02d47cb5f3e5ea618dfe8563bb0cccf27b8f68686ac818adbf74a3e401e1729741629e9590e2347293a1394c05ab0ad1c29e049c29c3ab607e9"
+    },
+    {
       "id": "runtime.win-x64.microsoft.netcore.app",
       "version": "2.1.30",
       "sha512": "b10f4f0171c8bc8c581eef391e3a5b226182acb2cef3654fae419c302a0527b6115671c6383d6002bf2522dc8582f3845909956b8ae9eae46ed35b8e33e75100"
