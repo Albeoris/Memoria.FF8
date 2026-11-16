@@ -20,6 +20,8 @@ internal static class NativeSpatialInputTests
         SpatialInputPredicates();
         SpatialInputWitnesses();
         SpatialInputBounds();
+        SharedPhysicalAliasesAndDirectEffects();
+        AutonomousBodyExitProofs();
         Console.WriteLine("PASS native read-only autonomous spatial demands");
     }
 
@@ -322,6 +324,85 @@ internal static class NativeSpatialInputTests
             }
             throw new InvalidOperationException("The authored spatial input oracle reached an unrelated native host operation.");
         }
+    }
+
+    private static byte[] DirectBody(bool releaseDeclineMenu = true, bool unsafeIncomingPath = false)
+    {
+        byte[] body = [0x16, 0x60, 10, 0, 26, 0, 0, 44, 0x33, 1, 0x4A, 1, 0x48, 5, 0, 1, 0, 1, 12, 0x14, 0x50, 12, 0, 0, 11, 0x6D, 16, 0, 0, 0x33, 0, 0x4A, 0, 0x10, 17, 0x33, 0, 0x4A, 0, 0x16, 0x60, 10, 0, 26, 0, 0, 3, 0x12, 8, 0x12, 49, 0];
+        if (!releaseDeclineMenu)
+        {
+            body[38] = 1;
+        }
+        if (unsafeIncomingPath)
+        {
+            body[32] = 1;
+            body[34] = 5;
+        }
+        return body;
+    }
+
+    private static (FieldProgram Program, FieldMachine Machine, RejectHost Host, int Entry) SharedSource(byte[] producer, byte[]? clobber = null, bool producerLater = false, byte[]? body = null)
+    {
+        clobber ??= [0];
+        body ??= DirectBody();
+        int clobberEntry = producer.Length + 2;
+        int entry = clobberEntry + clobber.Length + 1;
+        byte[] code = [0, .. producer, 0, .. clobber, 0, .. body];
+        FieldProgram program = new(code, Enumerable.Range(0, 4).Select(_ => new ushort[32]).ToArray());
+        RejectHost host = new();
+        FieldMachine initialized = new(program, host: host);
+        initialized.Initialize();
+        initialized.Variables.WriteByte(FieldBank.Persistent1Byte, 9, 0);
+        initialized.Variables.WriteByte(FieldBank.Persistent1Byte, 10, 255);
+        initialized.Variables.WriteByte(FieldBank.Persistent1Byte, 11, 255);
+        initialized.Variables.WriteWord(FieldBank.MapWord, 10, 26);
+        FieldVmSnapshot source = initialized.Capture();
+        source.Entities[0] = source.Entities[0] with { ProgramCounter = producerLater ? entry : 1 };
+        source.Entities[1] = source.Entities[1] with { ProgramCounter = 0, ModelBound = true, PartyCharacter = 0 };
+        source.Entities[2] = source.Entities[2] with { ProgramCounter = clobberEntry };
+        source.Entities[3] = source.Entities[3] with { ProgramCounter = producerLater ? 1 : entry };
+        return (program, FieldMachine.Restore(program, source, host), host, entry);
+    }
+
+    private static void SharedPhysicalAliasesAndDirectEffects()
+    {
+        byte[] producer = [0xB9, 6, 1, 10, 0x12, 4];
+        (FieldProgram program, FieldMachine machine, RejectHost host, int entry) = SharedSource(producer);
+        string before = JsonSerializer.Serialize(machine.Capture());
+        int instructions = 0;
+        machine.InstructionExecuted = (_, _, _, _) => instructions++;
+        FieldSpatialDemand demand = machine.ReadCurrentSpatialDemands(1, Samples).Demands.Single();
+        FieldSpatialEffectOwner effect = demand.DirectEffectOwner ?? throw new InvalidOperationException("The direct autonomous effect owner is absent.");
+        Check(demand.Entity == 3 && demand.SampleId == 20 && demand.ProgramCounter == entry + 12 && demand.TriangleOnly && demand.MayChangeNavigation && demand.DirectEffectOwner is { Entity: 3, Priority: 7, Command: FieldDialogueCommand }, "A current earlier-owner triangle producer failed to expose its direct autonomous choice/topology consumer.");
+        Check(effect.ExitProgramCounters.Contains(entry + 39) && effect.ExitProgramCounters.Contains(entry + 51), "The direct effect lost its post-handback physical poll or native RET boundary.");
+        Check(host.Calls == 0 && instructions == 0 && before == JsonSerializer.Serialize(machine.Capture()), "Shared alias projection dispatched native effects, emitted live instruction receipts or changed its source.");
+        Check(JsonSerializer.Serialize(demand) == JsonSerializer.Serialize(FieldMachine.Restore(program, machine.Capture(), host).ReadCurrentSpatialDemands(1, Samples).Demands.Single()), "Cold shared-producer discovery changed its native effect provenance.");
+        (_, FieldMachine later, _, _) = SharedSource(producer, producerLater: true);
+        Check(later.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 0, "A later-cycle owner authorized a consumer using stale shared map coordinates.");
+        (_, FieldMachine partial, _, _) = SharedSource(producer, [0x80, 0x50, 11, 0, 0]);
+        Check(partial.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 0, "A byte overwrite retained physical ownership of an overlapping shared triangle WORD.");
+        (_, FieldMachine disjoint, _, _) = SharedSource(producer, [0x80, 0x50, 12, 0, 0]);
+        Check(disjoint.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 1, "A disjoint byte write destroyed an unchanged physical query alias.");
+        (_, FieldMachine unknown, _, _) = SharedSource(producer, [0x99, 5, 12, 0]);
+        Check(unknown.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 0, "An unknown intervening host/result tail authorized stale physical provenance.");
+        byte[] lateProducer = [0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, 0x80, 0x50, 20, 0, .. producer];
+        (_, FieldMachine budget, _, _) = SharedSource(lateProducer);
+        Check(budget.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 0, "A physical producer beyond the native eight-handler slice was projected into the current cycle.");
+        (_, FieldMachine waiting, _, _) = SharedSource([0x24, 3, 0, .. producer]);
+        Check(waiting.ReadCurrentSpatialDemands(1, Samples).Demands.Length == 0, "A yielding native wait was bypassed to fabricate a same-cycle shared physical producer.");
+    }
+
+    private static void AutonomousBodyExitProofs()
+    {
+        byte[] producer = [0xB9, 6, 1, 10, 0x12, 4];
+        (_, FieldMachine machine, _, int entry) = SharedSource(producer);
+        HashSet<FieldControlKind> acquired = [FieldControlKind.PlayerLocked, FieldControlKind.MenuDisabled];
+        FieldScriptAnalysis complete = machine.AnalyzeScriptAtProgramCounter(3, entry + 12, exitBoundaries: new HashSet<int> { entry }, acquiredControls: acquired);
+        Check(complete.Complete && complete.MayChangeNavigation && complete.ExitProgramCounters.Contains(entry + 39), "A post-effect physical predicate equivalent to its source was not proved after both control handbacks.");
+        (_, FieldMachine missing, _, int missingEntry) = SharedSource(producer, body: DirectBody(releaseDeclineMenu: false));
+        Check(!missing.AnalyzeScriptAtProgramCounter(3, missingEntry + 12, exitBoundaries: new HashSet<int> { missingEntry }, acquiredControls: acquired).ExitProgramCounters.Contains(missingEntry + 39), "A physical poll completed an effect while its menu control domain remained owned.");
+        (_, FieldMachine incoming, _, int incomingEntry) = SharedSource(producer, body: DirectBody(unsafeIncomingPath: true));
+        Check(!incoming.AnalyzeScriptAtProgramCounter(3, incomingEntry + 12, exitBoundaries: new HashSet<int> { incomingEntry }, acquiredControls: acquired).ExitProgramCounters.Contains(incomingEntry + 39), "One returned-control path hid another incoming path retaining control at the same physical poll.");
     }
 
     private static (FieldProgram Program, FieldMachine Machine, RejectHost Host) Create(byte[] main, byte[] child)

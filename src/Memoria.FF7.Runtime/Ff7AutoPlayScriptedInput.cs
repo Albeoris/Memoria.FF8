@@ -154,8 +154,8 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
     {
         Dictionary<int, int> owners = [];
         bool continuation = active is { Returned: true, SpatialOwner: not null };
-        int root = continuation ? active!.Entity : active?.SpatialOwner?.TargetEntity ?? active?.Entity ?? -1;
-        int rootPriority = continuation ? active!.SpatialOwner!.SourcePriority : active?.SpatialOwner?.TargetPriority ?? 1;
+        int root = continuation ? active!.Entity : active?.DirectEffectOwner?.Entity ?? active?.SpatialOwner?.TargetEntity ?? active?.Entity ?? -1;
+        int rootPriority = continuation ? active!.SpatialOwner!.SourcePriority : active?.DirectEffectOwner?.Priority ?? active?.SpatialOwner?.TargetPriority ?? 1;
         if (active is not { Accepted: true } || active.Returned && !continuation || active.Generation != generation || (uint)root >= vm.Entities.Length || vm.Entities[root].Priority != rootPriority)
         {
             return owners;

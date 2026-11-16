@@ -28,6 +28,7 @@ public sealed partial class FieldMachine
     public FieldInputState Input { get; private set; } = new();
     public FieldCycleCursor? CycleCursor { get; private set; }
     public Action<FieldScriptReturn>? ScriptReturned { get; set; }
+    public Action<int, int, int, byte>? InstructionExecuted { get; set; }
 
     public void SetInput(ushort held, ushort pressed, ushort? rawHeld = null, ushort? rawPressed = null)
     {
@@ -228,6 +229,15 @@ public sealed partial class FieldMachine
     }
 
     private bool Execute(int id)
+    {
+        int priority = entities[id].Priority;
+        int pc = entities[id].Pc;
+        bool yielded = ExecuteCore(id);
+        InstructionExecuted?.Invoke(id, priority, pc, program.Read(pc));
+        return yielded;
+    }
+
+    private bool ExecuteCore(int id)
     {
         Entity entity = entities[id];
         int pc = entity.Pc;

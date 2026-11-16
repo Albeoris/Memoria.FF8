@@ -45,6 +45,12 @@ if (args.Contains("--line-waypoint-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--spatial-direct-effect-only", StringComparer.Ordinal))
+{
+    AutoPlayDirectSpatialEffectTests.Run();
+    return 0;
+}
+
 if (args.Contains("--spatial-entry-input-only", StringComparer.Ordinal))
 {
     AutoPlaySpatialEntryInputTests.Run();

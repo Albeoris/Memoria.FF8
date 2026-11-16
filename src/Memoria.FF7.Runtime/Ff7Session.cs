@@ -130,6 +130,7 @@ public sealed partial class Ff7Session : IDisposable
             session.Machine = FieldMachine.Restore(FieldProgram.FromPcScripts(session.Field.Scripts), save.Vm with { Entities = fieldEntities }, session.Host);
             session.Machine.ScriptReturned = session.ObserveNativeScriptReturn;
             session.Machine.ScriptDispatched = session.ObserveNativeScriptDispatch;
+            session.Machine.InstructionExecuted = session.ObserveNativeInstruction;
             session.InitializeNativePartyPresentation(restoring: true);
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
@@ -372,6 +373,8 @@ public sealed partial class Ff7Session : IDisposable
         Machine = loadedMachine;
         Machine.ScriptReturned = ObserveNativeScriptReturn;
         Machine.ScriptDispatched = ObserveNativeScriptDispatch;
+        Machine.InstructionExecuted = ObserveNativeInstruction;
+        Host.NativeOperationExecuted += ObserveNativeHostOperation;
         if (prepareHost is null)
         {
             dialogueTokens.Clear();

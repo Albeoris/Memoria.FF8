@@ -96,6 +96,8 @@ public sealed partial class Ff7FieldHost : IFieldHost
     public Func<ushort>? ReadInputHeld { get; set; }
     public Func<Ff7Dialogue, Ff7Window, Ff7Dialogue>? AdvanceDialogue { get; set; }
 
+    internal event Action<FieldHostRequest, FieldHostReply>? NativeOperationExecuted;
+
     public FieldHostReply Execute(FieldHostRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -116,6 +118,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         }
         FieldHostReply reply = Dispatch(request);
         receipts[request.Id] = new Ff7HostReceipt(request, reply);
+        NativeOperationExecuted?.Invoke(request, reply);
         return reply;
     }
 

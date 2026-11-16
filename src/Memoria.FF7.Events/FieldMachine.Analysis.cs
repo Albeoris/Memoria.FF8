@@ -23,6 +23,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
 {
     public FieldHostRead[] HostReads { get; init; } = [];
     public bool MayChangeNavigation { get; init; }
+    public int[] ExitProgramCounters { get; init; } = [];
 }
 
 public sealed partial class FieldVariables
@@ -84,14 +85,71 @@ public sealed partial class FieldMachine
         {
             throw new ArgumentOutOfRangeException(nameof(entity));
         }
+        return AnalyzeScriptCore(entity, script, program.Entry(entity, script), instructionBudget, null, 0);
+    }
+
+    /// <summary>Inspects a native autonomous body from its observed entry, ending at represented source reentry boundaries or RET.</summary>
+    public FieldScriptAnalysis AnalyzeScriptAtProgramCounter(int entity, int programCounter, int instructionBudget = 8192, IReadOnlySet<int>? exitBoundaries = null, IReadOnlySet<FieldControlKind>? acquiredControls = null)
+    {
+        if ((uint)entity >= entities.Length || (uint)programCounter >= program.Length || instructionBudget is < 1 or > 65536)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entity));
+        }
+        byte ownership = 0;
+        foreach (FieldControlKind control in acquiredControls ?? new HashSet<FieldControlKind>())
+        {
+            ownership |= control switch
+            {
+                FieldControlKind.PlayerLocked => (byte)1,
+                FieldControlKind.MenuDisabled => (byte)2,
+                _ => throw new NotSupportedException("The autonomous body has an unsupported owned control domain.")
+            };
+        }
+        FieldScriptAnalysis result = AnalyzeScriptCore(entity, 0, programCounter, instructionBudget, exitBoundaries, ownership);
+        string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{result.Fingerprint}:pc:{programCounter}")));
+        return result with { Fingerprint = fingerprint };
+    }
+
+    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership)
+    {
         byte[] persistent = Variables.CopyPersistent();
         byte[] map = Variables.CopyMap();
-        HashSet<(int Entity, int Pc)> visited = [];
+        HashSet<(int Entity, int Pc, byte Controls, bool PhysicalValid)> visited = [];
         HashSet<FieldVariableRead> reads = [];
         HashSet<FieldHostRead> hostReads = [];
         HashSet<int> destinations = [];
-        Queue<(int Entity, int Pc)> pending = new();
-        pending.Enqueue((entity, program.Entry(entity, script)));
+        HashSet<int> exits = [];
+        Dictionary<int, bool> physicalExits = [];
+        HashSet<string> physicalPredicates = [];
+        HashSet<FieldVariableRead> physicalBytes = [];
+        string PredicateIdentity(int pc)
+        {
+            byte opcode = program.Read(pc);
+            if (opcode is < 0x14 or > 0x19)
+            {
+                return string.Empty;
+            }
+            int width = opcode >= 0x16 ? 7 : 5;
+            byte[] operands = Enumerable.Range(0, width).Select(offset => program.Read(pc + offset)).ToArray();
+            operands[0] &= 0xFE;
+            return Convert.ToHexString(operands);
+        }
+        foreach (int predicate in exitBoundaries ?? new HashSet<int>())
+        {
+            string identity = PredicateIdentity(predicate);
+            if (identity.Length == 0)
+            {
+                throw new ArgumentException("A physical body boundary requires a proved native conditional.", nameof(exitBoundaries));
+            }
+            physicalPredicates.Add(identity);
+            FieldMachine owner = new(program, new FieldVariables(persistent, map));
+            owner.entities[entity].Pc = predicate;
+            FieldConditional condition = owner.ReadConditional(entity, program.Read(predicate));
+            physicalBytes.UnionWith(Variables.SpatialSourceBytes(condition.LeftSource));
+            physicalBytes.UnionWith(Variables.SpatialSourceBytes(condition.RightSource));
+        }
+        Queue<(int Entity, int Pc, byte Controls, bool PhysicalValid)> pending = new();
+        pending.Enqueue((entity, entry, initialOwnership, true));
         bool changesStory = false;
         bool mayChangeNavigation = false;
         string? reason = null;
@@ -111,12 +169,27 @@ public sealed partial class FieldMachine
             {
                 int pc = location.Pc;
                 int owner = location.Entity;
+                byte controls = location.Controls;
+                bool physicalValid = location.PhysicalValid;
                 byte opcode = program.Read(pc);
+                if (owner == entity && physicalPredicates.Contains(PredicateIdentity(pc)))
+                {
+                    bool returned = controls == 0 && physicalValid;
+                    physicalExits[pc] = physicalExits.GetValueOrDefault(pc, true) && returned;
+                    if (returned)
+                    {
+                        continue;
+                    }
+                }
                 byte Byte(int offset) => program.Read(pc + offset);
                 ushort Word(int offset) => (ushort)(Byte(offset) | Byte(offset + 1) << 8);
-                void Enqueue(int offset) => pending.Enqueue((owner, unchecked((ushort)offset)));
+                void Enqueue(int offset) => pending.Enqueue((owner, unchecked((ushort)offset), controls, physicalValid));
                 if (opcode == 0)
                 {
+                    if (owner == entity)
+                    {
+                        exits.Add(pc);
+                    }
                     continue;
                 }
                 if (opcode is >= 1 and <= 6)
@@ -138,7 +211,7 @@ public sealed partial class FieldMachine
                         {
                             throw new InvalidDataException("Script request targets an absent entity.");
                         }
-                        pending.Enqueue((target, program.Entry(target, Byte(2) & 31)));
+                        pending.Enqueue((target, program.Entry(target, Byte(2) & 31), controls, physicalValid));
                     }
                     Enqueue(pc + 3);
                     continue;
@@ -196,6 +269,10 @@ public sealed partial class FieldMachine
                 variables.WriteObserved = write =>
                 {
                     instructionWrites.Add(write);
+                    if (variables.SpatialSourceBytes(write).Any(physicalBytes.Contains))
+                    {
+                        physicalValid = false;
+                    }
                     if ((write.Bank is FieldBank.Persistent0Byte or FieldBank.Persistent0Word) && (byte)write.Operand <= 1)
                     {
                         changesStory = true;
@@ -228,7 +305,12 @@ public sealed partial class FieldMachine
                 }
                 foreach (FieldCommand command in detached.inspection.Commands)
                 {
-                    mayChangeNavigation |= command is FieldActorLadder or FieldActorJump or FieldActorPlacement or FieldActorMove;
+                    if (exitBoundaries is not null && command is FieldControlCommand control && control.Property is FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled)
+                    {
+                        byte domain = control.Property == FieldControlKind.PlayerLocked ? (byte)1 : (byte)2;
+                        controls = control.Value != 0 ? (byte)(controls | domain) : (byte)(controls & ~domain);
+                    }
+                    mayChangeNavigation |= command is FieldActorLadder or FieldActorJump or FieldActorPlacement or FieldActorMove or FieldTriangleCommand;
                     FieldHostRead? read = command switch
                     {
                         FieldGilQuery => new(FieldHostReadKind.Gil),
@@ -272,6 +354,7 @@ public sealed partial class FieldMachine
             }
         }
         FieldVariableRead[] dependencies = reads.Where(read => read.Bank != FieldBank.Immediate).OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray();
+        exits.UnionWith(physicalExits.Where(exit => exit.Value).Select(exit => exit.Key));
         string fingerprint;
         try
         {
@@ -282,6 +365,6 @@ public sealed partial class FieldMachine
             reason ??= error.Message;
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, ExitProgramCounters = exits.Order().ToArray() };
     }
 }
