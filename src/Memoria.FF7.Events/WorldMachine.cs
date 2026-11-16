@@ -147,6 +147,8 @@ public sealed partial class WorldMachine
         }
     }
 
+    public string ProgramIdentity => program.Identity;
+
     public void StartMesh(int chunkX, int chunkZ, int eventId)
     {
         int header = WorldProgram.MeshDispatchHeader(chunkX, chunkZ, eventId);
@@ -453,6 +455,7 @@ public sealed partial class WorldMachine
             throw new InvalidDataException("FFVII world assignment requires a bank reference.");
         }
         (byte[] bank, int index) = Locate(operand);
+        inspection?.Writes.Add(new(operand.Opcode, operand.Value));
         switch (operand.Opcode & ~3)
         {
             case 0x114:

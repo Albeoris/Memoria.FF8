@@ -10,6 +10,8 @@ internal static class WorldScriptAnalysisTests
         RequestsReuseNativeExecution();
         HostDependenciesRemainIncomplete();
         BlockingAcknowledgementsDoNotReadAValue();
+        ObservableWorldEffectsExcludeTemporaryBookkeeping();
+        CurrentEntryPreservesConcreteGuards();
         ReloadAndAmbientClassification();
         PureFieldTransferProof();
         BoundsAndSourcePreservation();
@@ -117,6 +119,47 @@ internal static class WorldScriptAnalysisTests
         }
 
         public int ReadSpecial(int selector, int activeModel) => throw new InvalidOperationException("A scheduling acknowledgement read an external value.");
+    }
+
+    private static void ObservableWorldEffectsExcludeTemporaryBookkeeping()
+    {
+        foreach (ushort reference in new ushort[] { 0x114, 0x118, 0x11C })
+        {
+            WorldScriptAnalysis persistent = Machine([0, reference, 0, 0x110, 1, 0xE0, 0x203], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3);
+            Check(persistent.Complete && persistent.ChangesPersistentState && persistent.MayInteract && !persistent.MayEnterField && persistent.Writes.SequenceEqual(new[] { new WorldVariableRead(reference, 0) }), "A typed native persistent write disappeared from a standalone world interaction.");
+        }
+        WorldScriptAnalysis local = Machine([0, 0x119, 0, 0x110, 1, 0xE0, 0x203], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3);
+        Check(local.Complete && !local.ChangesPersistentState && !local.MayInteract && !local.IsInert, "Local scratch assignment fabricated a world progress frontier or an inert execution proof.");
+        WorldScriptAnalysis text = Machine([0, 0x110, 0, 0x325, 0x32E, 0x203], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3);
+        Check(text.Complete && text.HasDialogue && text.MayInteract && !text.MayEnterField, "Native world dialogue without a field transfer was lost.");
+        WorldScriptAnalysis sound = Machine([0, 0x110, 43, 0x31D, 0x203], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3);
+        Check(sound.Complete && !sound.MayInteract, "Ambient sound fabricated a persistent or dialogue frontier.");
+    }
+
+    private static void CurrentEntryPreservesConcreteGuards()
+    {
+        ushort[] code = [0, 0x114, 64, 0x201, 6, 0x203, 0x110, 1, 0x110, 0, 0x318, 0x203];
+        foreach (byte value in new byte[] { 0, 1 })
+        {
+            byte[] persistent = new byte[1280];
+            persistent[8] = value;
+            RejectHost rejected = new();
+            WorldMachine source = Machine(code, persistent, rejected);
+            string before = JsonSerializer.Serialize(source.Capture());
+            WorldScriptAnalysis potential = source.AnalyzeMeshDispatch(0, 0, 3);
+            WorldScriptAnalysis entry = source.AnalyzeMeshDispatch(0, 0, 3, currentEntryOnly: true);
+            RecordingHost host = new();
+            WorldMachine native = Machine(code, persistent.ToArray(), host);
+            native.StartMesh(0, 0, 0);
+            native.Tick();
+            bool transferred = host.Requests.Any(request => request.Command.Operation == WorldOperation.FieldTransition);
+            Check(potential.Complete && potential.MayEnterField && entry.Complete && entry.MayEnterField == transferred && entry.IsInert != transferred, "Current-entry inspection diverged from native branch execution or removed a potential discovery arm.");
+            Check(before == JsonSerializer.Serialize(source.Capture()) && persistent[8] == value && rejected.Calls == 0, "Current-entry inspection changed source execution or sampled its host.");
+        }
+        WorldScriptAnalysis unknown = Machine([0, 0x11B, 16, 0x201, 6, 0x203, 0x203], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3, currentEntryOnly: true);
+        Check(!unknown.Complete && !unknown.IsInert, "An unknown stochastic guard fabricated an inert native entry.");
+        WorldScriptAnalysis polling = Machine([0, 0x200, 1], new byte[1280], new RejectHost()).AnalyzeMeshDispatch(0, 0, 3, currentEntryOnly: true);
+        Check(polling.Complete && !polling.IsInert, "A side-effect-free infinite native poll was mistaken for a terminating inert callback.");
     }
 
     private static void ReloadAndAmbientClassification()

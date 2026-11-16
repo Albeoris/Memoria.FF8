@@ -265,7 +265,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 if (autoPlayPreview)
                 {
-                    observeBoundary?.Invoke(new(player.X >> 13, player.Z >> 13, script - 3, script == 7));
+                    observeBoundary?.Invoke(new(player.X >> 13, player.Z >> 13, script - 3, script == 7, script != 7 && ReadAutoPlayMeshAnalysis(player.X >> 13, player.Z >> 13, script, 2048, true).IsInert));
                 }
                 else
                 {

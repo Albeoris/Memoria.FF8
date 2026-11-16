@@ -255,9 +255,9 @@ public sealed partial class Ff7AutoPlayPolicy
             foreach (Ff7AutoPlayWorldScriptObservation script in catalog.Scripts)
             {
                 events.Remove(script.Id);
-                if (script.Complete && script.Analysis.MayEnterField)
+                if (script.Complete && (script.Analysis.MayEnterField || script.Analysis.MayInteract))
                 {
-                    events[script.Id] = new(script.Id, AutoPlayEventKind.Transition, ConditionSignature: WorldCondition(script));
+                    events[script.Id] = new(script.Id, script.Analysis.MayEnterField ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: script.Analysis.ChangesPersistentState, ConditionSignature: WorldCondition(script));
                 }
             }
         }
@@ -320,10 +320,6 @@ public sealed partial class Ff7AutoPlayPolicy
     private bool ObserveNextWorldChunk(Ff7WorldRuntime world)
     {
         Ff7AutoPlayWorldVisitState visited = State.WorldVisits[worldVisit!];
-        if (visited.DiscoveryComplete)
-        {
-            return false;
-        }
         while (worldChunkQueue.TryDequeue(out Ff7AutoPlayWorldChunk? chunk))
         {
             if (!worldCatalogs.ContainsKey(chunk))

@@ -21,6 +21,11 @@ public sealed record WorldScriptAnalysis(bool Complete, string? Reason, int Head
 {
     public WorldHostReadValue[] HostValues { get; init; } = [];
     public bool IsPureFieldTransfer { get; init; }
+    public bool IsInert { get; init; }
+    public WorldVariableRead[] Writes { get; init; } = [];
+    public bool HasDialogue { get; init; }
+    public bool ChangesPersistentState => Writes.Any(write => (write.Opcode & 3) == 0);
+    public bool MayInteract => ChangesPersistentState || HasDialogue;
     public bool MayEnterField => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition);
     public bool MayReloadWorld => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransitionSelector);
 }
@@ -32,6 +37,7 @@ public sealed partial class WorldMachine
     private sealed class WorldInspection
     {
         public HashSet<WorldVariableRead> Reads { get; } = [];
+        public HashSet<WorldVariableRead> Writes { get; } = [];
         public HashSet<WorldHostDependency> HostReads { get; } = [];
         public List<WorldHostRequest> Commands { get; } = [];
         public List<WorldInspectionRequest> Requests { get; } = [];
@@ -48,6 +54,7 @@ public sealed partial class WorldMachine
         public void BeginInstruction()
         {
             Reads.Clear();
+            Writes.Clear();
             HostReads.Clear();
             HostValues.Clear();
             Commands.Clear();
@@ -97,7 +104,7 @@ public sealed partial class WorldMachine
     private WorldInspection? inspection;
 
     /// <summary>Inspects potential native mesh-script paths using detached execution of the same single-instruction decoder. No live host, VM, persistent byte or RNG is advanced.</summary>
-    public WorldScriptAnalysis AnalyzeMeshDispatch(int chunkX, int chunkZ, int terrainScript, int instructionBudget = 2048, Func<WorldHostDependency, int?>? readHost = null)
+    public WorldScriptAnalysis AnalyzeMeshDispatch(int chunkX, int chunkZ, int terrainScript, int instructionBudget = 2048, Func<WorldHostDependency, int?>? readHost = null, bool currentEntryOnly = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(terrainScript, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(terrainScript, 7);
@@ -107,7 +114,7 @@ public sealed partial class WorldMachine
         int entry = terrainScript < 3 ? 0 : program.Find(header);
         if (entry == 0)
         {
-            return new(true, null, header, 0, [], [], [], []);
+            return new(true, null, header, 0, [], [], [], []) { IsInert = true };
         }
         WorldMachine initial = ForkInspection();
         initial.inspection!.ReadHost = readHost;
@@ -120,11 +127,15 @@ public sealed partial class WorldMachine
         pending.Enqueue(initial);
         HashSet<string> visited = new(StringComparer.Ordinal);
         HashSet<WorldVariableRead> reads = [];
+        HashSet<WorldVariableRead> writes = [];
         HashSet<WorldHostDependency> hostReads = [];
         Dictionary<WorldHostDependency, int?> hostValues = [];
         HashSet<WorldTransitionObservation> transitions = [];
         HashSet<int> counters = [];
         bool hasSideEffects = false;
+        bool hasDialogue = false;
+        bool terminated = false;
+        bool repeatedState = false;
         string? reason = null;
         int instructions = 0;
         while (pending.TryDequeue(out WorldMachine? machine))
@@ -132,8 +143,14 @@ public sealed partial class WorldMachine
             try
             {
                 Entity owner = machine.executing;
-                if (owner.Pc == 0 || !visited.Add(machine.InspectionIdentity()))
+                if (owner.Pc == 0)
                 {
+                    terminated = true;
+                    continue;
+                }
+                if (!visited.Add(machine.InspectionIdentity()))
+                {
+                    repeatedState = true;
                     continue;
                 }
                 if (instructions++ >= instructionBudget)
@@ -146,13 +163,16 @@ public sealed partial class WorldMachine
                 hasSideEffects |= instruction.Opcode == 0xE0 || instruction.Opcode >= 0x300 && instruction.Opcode != (ushort)WorldOperation.FieldTransition;
                 if (instruction.Opcode == 0x203 && owner.Calls.Count == 0)
                 {
+                    terminated = true;
                     continue;
                 }
                 WorldInspection observation = machine.inspection!;
                 observation.BeginInstruction();
                 bool yielded = machine.ExecuteInstruction(owner);
                 hasSideEffects |= observation.Commands.Any(command => command.Command.Operation != WorldOperation.FieldTransition);
+                hasDialogue |= observation.Commands.Any(command => command.Command.Operation is WorldOperation.Text or WorldOperation.Choice);
                 reads.UnionWith(observation.Reads);
+                writes.UnionWith(observation.Writes);
                 hostReads.UnionWith(observation.HostReads);
                 foreach (var value in observation.HostValues)
                 {
@@ -198,7 +218,7 @@ public sealed partial class WorldMachine
                 {
                     continue;
                 }
-                if (instruction.Opcode == 0x201)
+                if (instruction.Opcode == 0x201 && !currentEntryOnly)
                 {
                     int alternate = owner.Pc == instruction.Operand ? instruction.NextProgramCounter : instruction.Operand;
                     machine.CheckPc(alternate);
@@ -220,6 +240,9 @@ public sealed partial class WorldMachine
         return new(reason is null, reason, header, entry, reads.OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray(), hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Model).ThenBy(read => read.Selector).ThenBy(read => read.FreeModelIndex).ToArray(), transitions.OrderBy(transition => transition.ProgramCounter).ThenBy(transition => transition.Operation).ThenBy(transition => transition.Selector).ToArray(), counters.Order().ToArray())
         {
             HostValues = hostValues.OrderBy(value => value.Key.Kind).ThenBy(value => value.Key.Model).ThenBy(value => value.Key.Selector).ThenBy(value => value.Key.FreeModelIndex).Select(value => new WorldHostReadValue(value.Key, value.Value)).ToArray(),
+            Writes = writes.OrderBy(write => write.Opcode).ThenBy(write => write.Operand).ToArray(),
+            HasDialogue = hasDialogue,
+            IsInert = reason is null && terminated && !repeatedState && !hasSideEffects && transitions.Count == 0,
             IsPureFieldTransfer = reason is null && !hasSideEffects && transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition)
         };
     }

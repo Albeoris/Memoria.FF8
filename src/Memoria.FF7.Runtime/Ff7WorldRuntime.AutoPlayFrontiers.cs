@@ -18,8 +18,8 @@ public sealed record Ff7AutoPlayWorldFrontierCatalog(int WorldId, string Program
 public sealed partial class Ff7WorldRuntime
 {
     private sealed record AutoPlayMeshAnalysis(WorldScriptAnalysis Analysis, string ExecutionFingerprint, string PredicateFingerprint);
-    private readonly Dictionary<(int X, int Z, int Script, int Budget), AutoPlayMeshAnalysis> autoPlayMeshAnalyses = [];
-    private readonly Queue<(int X, int Z, int Script, int Budget)> autoPlayMeshAnalysisOrder = new();
+    private readonly Dictionary<(int X, int Z, int Script, int Budget, bool CurrentEntry), AutoPlayMeshAnalysis> autoPlayMeshAnalyses = [];
+    private readonly Queue<(int X, int Z, int Script, int Budget, bool CurrentEntry)> autoPlayMeshAnalysisOrder = new();
 
     /// <summary>Observes only the requested native collision chunk. A polygon identifies a possible script source; it does not prove physical reachability or terrain-script change admission.</summary>
     public Ff7AutoPlayWorldFrontierCatalog ReadAutoPlayFrontierCatalog(int chunkX, int chunkZ, int instructionBudget = 2048)
@@ -27,35 +27,36 @@ public sealed partial class Ff7WorldRuntime
         ArgumentOutOfRangeException.ThrowIfLessThan(instructionBudget, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(instructionBudget, 65536);
         PcWorldMesh mesh = GetWorldCollisionMesh(chunkX, chunkZ);
+        return BuildAutoPlayFrontierCatalog(Resources.World, Machine.ProgramIdentity, chunkX, chunkZ, mesh, script => ReadAutoPlayMeshAnalysis(chunkX, chunkZ, script, instructionBudget, false), Machine.ReadPredicateFingerprint, selector => (fieldTable ??= Resources.ReadFieldTable()).Select(selector));
+    }
+
+    private WorldScriptAnalysis ReadAutoPlayMeshAnalysis(int chunkX, int chunkZ, int script, int instructionBudget, bool currentEntryOnly)
+    {
         WorldSnapshot execution = Machine.Capture() with { Tick = 0, NextRequestId = 1 };
         string executionFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(execution)));
         int controlledOwner = ControlledModel;
         Ff7WorldEntity[] hostEntities = entities.Values.ToArray();
         Ff7WorldEntity[] hostFreeEntities = freeEntities.ToArray();
         int? ReadHost(WorldHostDependency dependency) => ProjectAutoPlayHostDependency(dependency, controlledOwner, hostEntities, hostFreeEntities);
-        WorldScriptAnalysis Analyze(int script)
+        var key = (chunkX, chunkZ, script, instructionBudget, currentEntryOnly);
+        if (autoPlayMeshAnalyses.TryGetValue(key, out AutoPlayMeshAnalysis? known) && known.ExecutionFingerprint == executionFingerprint && Machine.ReadPredicateFingerprint(known.Analysis.Reads) == known.PredicateFingerprint && known.Analysis.HostValues.All(value => ReadHost(value.Dependency) == value.Value))
         {
-            var key = (chunkX, chunkZ, script, instructionBudget);
-            if (autoPlayMeshAnalyses.TryGetValue(key, out AutoPlayMeshAnalysis? known) && known.ExecutionFingerprint == executionFingerprint && Machine.ReadPredicateFingerprint(known.Analysis.Reads) == known.PredicateFingerprint && known.Analysis.HostValues.All(value => ReadHost(value.Dependency) == value.Value))
-            {
-                return known.Analysis;
-            }
-            WorldScriptAnalysis analysis = Machine.AnalyzeMeshDispatch(chunkX, chunkZ, script, instructionBudget, ReadHost);
-            if (analysis.Complete)
-            {
-                if (!autoPlayMeshAnalyses.ContainsKey(key))
-                {
-                    if (autoPlayMeshAnalysisOrder.Count == 64)
-                    {
-                        autoPlayMeshAnalyses.Remove(autoPlayMeshAnalysisOrder.Dequeue());
-                    }
-                    autoPlayMeshAnalysisOrder.Enqueue(key);
-                }
-                autoPlayMeshAnalyses[key] = new(analysis, executionFingerprint, Machine.ReadPredicateFingerprint(analysis.Reads));
-            }
-            return analysis;
+            return known.Analysis;
         }
-        return BuildAutoPlayFrontierCatalog(Resources.World, execution.ProgramIdentity, chunkX, chunkZ, mesh, Analyze, Machine.ReadPredicateFingerprint, selector => (fieldTable ??= Resources.ReadFieldTable()).Select(selector));
+        WorldScriptAnalysis analysis = Machine.AnalyzeMeshDispatch(chunkX, chunkZ, script, instructionBudget, ReadHost, currentEntryOnly);
+        if (analysis.Complete)
+        {
+            if (!autoPlayMeshAnalyses.ContainsKey(key))
+            {
+                if (autoPlayMeshAnalysisOrder.Count == 64)
+                {
+                    autoPlayMeshAnalyses.Remove(autoPlayMeshAnalysisOrder.Dequeue());
+                }
+                autoPlayMeshAnalysisOrder.Enqueue(key);
+            }
+            autoPlayMeshAnalyses[key] = new(analysis, executionFingerprint, Machine.ReadPredicateFingerprint(analysis.Reads));
+        }
+        return analysis;
     }
 
     internal static int? ProjectAutoPlayHostDependency(WorldHostDependency dependency, int controlledModel, IReadOnlyList<Ff7WorldEntity>? entities = null, IReadOnlyList<Ff7WorldEntity>? freeEntities = null)

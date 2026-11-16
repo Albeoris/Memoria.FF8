@@ -1,3 +1,4 @@
+using Memoria.FF7.Events;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -100,6 +101,7 @@ public sealed partial class Ff7WorldRuntime
                 }
             }
         }
+        Dictionary<(int X, int Z, int Script), bool> inertSources = [];
         bool Eligible(Ff7WorldTerrainReference reference, int previousTerrain)
         {
             if (reference == start)
@@ -113,6 +115,17 @@ public sealed partial class Ff7WorldRuntime
             }
             Ff7AutoPlayWorldGuideFace face = faces[reference];
             bool allowed = face.Script < 3 || goals.Contains(reference) || face.Script == input.TerrainScript;
+            if (!allowed && face.Script != 7)
+            {
+                var source = (reference.ChunkX, reference.ChunkZ, face.Script);
+                if (!inertSources.TryGetValue(source, out bool inert))
+                {
+                    WorldScriptAnalysis entry = ReadAutoPlayMeshAnalysis(source.ChunkX, source.ChunkZ, source.Script, 2048, true);
+                    inert = entry.IsInert && entry.HostReads.All(read => read.Kind == WorldHostDependencyKind.Special && read.Selector == 8);
+                    inertSources[source] = inert;
+                }
+                allowed = inert;
+            }
             if (allowed)
             {
                 Vector3 center = face.Center;

@@ -165,15 +165,15 @@ public sealed partial class Ff7AutoplayDriver
                     continue;
                 }
                 bool targetBoundary = step.TerrainBoundary is { } boundary && boundary.Script == target.Script - 3 && target.Faces.Any(face => face.Source.ChunkX == boundary.ChunkX && face.Source.ChunkZ == boundary.ChunkZ && face.Source == step.State.Input.GroundTriangle);
-                // Forecasts stop at every native mesh dispatch; no child script is simulated.
-                if (step.TerrainBoundary is not null && (rearming || !targetBoundary))
+                // Effectful dispatches remain barriers; proved inert callbacks do not change movement.
+                if (step.TerrainBoundary is { Inert: false } && (rearming || !targetBoundary))
                 {
                     continue;
                 }
                 string key = WorldMovementKey(step.State);
                 string searchKey = WorldSearchKey(step.State);
                 double cost = node.Cost + Math.Max(1, WorldPointDistance(node.State.Player, new(step.State.Player.X, step.State.Player.Y, step.State.Player.Z)));
-                bool reached = rearming ? step.State.Input.TerrainScript != target.Script && step.TerrainBoundary is null : targetBoundary;
+                bool reached = rearming ? step.State.Input.TerrainScript != target.Script && (step.TerrainBoundary is null || step.TerrainBoundary.Inert) : targetBoundary;
                 if (!reached && costs.TryGetValue(searchKey, out double prior) && prior <= cost)
                 {
                     continue;

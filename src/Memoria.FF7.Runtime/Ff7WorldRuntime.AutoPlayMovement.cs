@@ -1,7 +1,7 @@
 namespace Memoria.FF7.Runtime;
 
 internal sealed record Ff7AutoPlayWorldMovementState(int WorldId, int WorldMapState, Ff7WorldEntity Player, Ff7WorldInputState Input, Ff7WorldCameraState Camera, int ViewMode, int RadarMode, byte[]? Random, int RandomIndex);
-internal sealed record Ff7AutoPlayWorldTerrainBoundary(int ChunkX, int ChunkZ, int Script, bool RestoresPreviousPosition);
+internal sealed record Ff7AutoPlayWorldTerrainBoundary(int ChunkX, int ChunkZ, int Script, bool RestoresPreviousPosition, bool Inert = false);
 internal sealed record Ff7AutoPlayWorldMovementPreview(bool Supported, string? Reason, Ff7AutoPlayWorldMovementState? State = null, bool Moved = false, Ff7AutoPlayWorldTerrainBoundary? TerrainBoundary = null)
 {
     public bool RequiresVmPhase => Supported;
