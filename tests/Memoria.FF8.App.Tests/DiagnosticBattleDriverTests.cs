@@ -152,7 +152,7 @@ public sealed class DiagnosticBattleDriverTests
             {
                 BattleDiagnosticEffectDispatch dispatch = Assert.Single(dispatches, value => value.ExecutedEffect == 211);
                 Assert.Equal(317, dispatch.ActionId);
-                Assert.Equal(3, dispatch.NativeAiCallbackStage);
+                Assert.Equal<byte?>(3, dispatch.NativeAiCallbackStage);
                 Assert.Equal(796, battle.EncounterId);
                 BattleCombatant rinoa = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 113);
                 Assert.Equal(1, rinoa.SceneSlot);

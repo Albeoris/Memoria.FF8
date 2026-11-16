@@ -190,8 +190,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         HashSet<string> defeated = [];
         for (int step = 0; step < 40 && battle.Outcome == BattleOutcome.Active; step++)
         {
-            BattleCombatant? enemy = Assert.SingleOrDefault(battle.Combatants.Where(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable &&
-                process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(candidate.Id), out _)));
+            BattleCombatant? enemy = battle.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.IsActive && candidate.IsAlive && !candidate.Untargetable &&
+                process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(candidate.Id), out _));
             if (enemy?.ModelId == finalModel)
             {
                 Assert.Equal(10, defeated.Count);
