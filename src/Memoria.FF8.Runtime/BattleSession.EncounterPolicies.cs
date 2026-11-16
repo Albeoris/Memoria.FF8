@@ -111,8 +111,17 @@ public sealed partial class BattleSession
             BattleNativeAction control = CreateEncounterSummonControl();
             BattleAttackCommand command = new(actor.Id, actor.Id, SelectBattleTarget(actor), BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control };
             QueueEncounterNativeEvents(actor, decision.OwnTurn);
-            EnqueueNativePacket(actor, command, "Summon");
-            encounterPolicies = encounterPolicies with { PendingSummon = decision, Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
+            BattleEncounterPolicyState admitted = encounterPolicies with { PendingSummon = decision, Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
+            if (producingExpandedAiCallback)
+            {
+                encounterPolicies = admitted;
+                ProduceExpandedAiCallbackCommand(command);
+            }
+            else
+            {
+                EnqueueNativePacket(actor, command, "Summon");
+                encounterPolicies = admitted;
+            }
         }
         else
         {
@@ -316,7 +325,13 @@ public sealed partial class BattleSession
         ValidateEncounterNativeTerminalWitness(state);
     }
 
-    private NativeBattleGraphicsState AdvanceEncounterPolicySpawn(NativeBattleGraphicsState graphics)
+    internal void AdvanceHostedEncounterPolicySpawn(BattleSession presentation)
+    {
+        presentation.NativeGraphics = AdvanceEncounterPolicySpawn(presentation.RequireNativeGraphics(), presentation);
+        encounterArrivals = presentation.encounterArrivals;
+    }
+
+    private NativeBattleGraphicsState AdvanceEncounterPolicySpawn(NativeBattleGraphicsState graphics, BattleSession presentation)
     {
         if (encounterPolicies?.PendingSummon is not { } summon || definition.EncounterMod is not { } mod || encounterAllocation is not { } batch)
         {
@@ -324,14 +339,13 @@ public sealed partial class BattleSession
         }
         if (batch.Phase == BattleEncounterAllocationPhase.Ready)
         {
-            NativeGraphics = graphics;
             List<EncounterArrivalTrack> tracks = [];
             NativeBattleModelTransform original = graphics.ActorModels.Get(CreatePresentationModelOwner(GetActor(batch.SourceActorId))).Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
             for (int index = 0; index < batch.ActorIds.Length; index++)
             {
                 EncounterCompiledSpawn spawn = summon.Spawns[index];
                 EncounterCompiledTemplate template = mod.Templates[spawn.Template];
-                EncounterCompiledPresentation presentation = mod.Presentations[template.Arrival];
+                EncounterCompiledPresentation arrival = mod.Presentations[template.Arrival];
                 EncounterCompiledPlacement placement = mod.Placements[spawn.Anchor];
                 BattleModelOwner physical = CreatePresentationModelOwner(GetActor(batch.ActorIds[index]));
                 NativeBattleVector Offset(NativeBattleVector value)
@@ -341,19 +355,19 @@ public sealed partial class BattleSession
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(physical);
                 NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Encounter arrival requires the copy's initialized native transform.");
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(physical, model with { Transform = transform with { Initial20 = Offset(original.Initial20), Position28 = Offset(original.Position28) } }) };
-                tracks.Add(new(batch.ActorIds[index], byte.Parse(presentation.Clip, System.Globalization.CultureInfo.InvariantCulture), checked((byte)presentation.StartFrame), checked((byte)presentation.EndFrame), graphics.Callback, OpacityFrom: (float)presentation.OpacityFrom, OpacityTo: (float)presentation.OpacityTo));
+                tracks.Add(new(batch.ActorIds[index], byte.Parse(arrival.Clip, System.Globalization.CultureInfo.InvariantCulture), checked((byte)arrival.StartFrame), checked((byte)arrival.EndFrame), graphics.Callback, OpacityFrom: (float)arrival.OpacityFrom, OpacityTo: (float)arrival.OpacityTo));
             }
-            NativeGraphics = graphics;
-            StartEncounterArrival(tracks);
-            BeginEncounterAllocationArrival();
-            return NativeGraphics!;
+            presentation.NativeGraphics = graphics;
+            presentation.StartEncounterArrival(tracks);
+            BeginEncounterAllocationArrival(presentation);
+            return presentation.NativeGraphics!;
         }
-        if (batch.Phase == BattleEncounterAllocationPhase.Arriving && batch.ActorIds.All(EncounterArrivalComplete))
+        if (batch.Phase == BattleEncounterAllocationPhase.Arriving && batch.ActorIds.All(presentation.EncounterArrivalComplete))
         {
-            NativeGraphics = graphics;
+            presentation.NativeGraphics = graphics;
             CompleteEncounterAllocationArrival();
             encounterPolicies = encounterPolicies with { PendingSummon = null };
-            return NativeGraphics!;
+            return presentation.NativeGraphics!;
         }
         return graphics;
     }

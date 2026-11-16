@@ -38,11 +38,11 @@ public sealed partial class BattleSession
         }
     }
 
-    private ImmutableArray<HostedModelLoadAdmission> PrepareExpandedModelLoadAdmissions(ExpandedBattlePresentationProcess process)
+    private ImmutableArray<HostedModelLoadAdmission> PrepareExpandedModelLoadAdmissions(ExpandedBattlePresentationProcess process, int firstOperation = 0)
     {
         var unloadChecks = new List<(HostedDispatchControl.LoadEnemy Load, ImmutableHashSet<BattleModelOwner> LaterOwners)>();
         HashSet<BattleModelOwner> laterOwners = [];
-        for (int i = expandedOperationCursor.Operations.Length - 1; i >= 0; i--)
+        for (int i = expandedOperationCursor.Operations.Length - 1; i >= firstOperation; i--)
         {
             switch (expandedOperationCursor.Operations[i])
             {
@@ -65,26 +65,7 @@ public sealed partial class BattleSession
             }
         }
         unloadChecks.Reverse();
-        return unloadChecks.Select(admission =>
-        {
-            (HostedDispatchControl.LoadEnemy load, ImmutableHashSet<BattleModelOwner> protectedOwners) = admission;
-            BattleCombatant actor = GetActor(load.Owner.Actor.ActorId);
-            NativeBattleEnemyAllocation allocation = nativeAllocations.Single(candidate => candidate.Id == actor.Id);
-            if (load.Owner != CreatePresentationModelOwner(actor) || load.Slot.Side != BattleSide.Enemies ||
-                actor.SceneSlot != allocation.SceneSlot || actor.SourceDefinition.SceneSlot != allocation.SceneSlot ||
-                load.SceneSlot != allocation.SceneSlot || load.ModelId != actor.ModelId)
-            {
-                throw new InvalidDataException("A staged model load requires its exact native allocation and original scene prototype.");
-            }
-            NativeBattleGraphicsBinding binding = process.PrepareModelBinding(this, load.Owner, NativeBattleSlots.Decode(load.Slot.Offset));
-            if (binding.ActorId != actor.Id || binding.InitialPosition is null || binding.ModelId != checked((byte)(actor.ModelId + 16)) ||
-                binding.Resource.AnimationFrames.IsDefaultOrEmpty || binding.Resource.ModelLoadSources is not { IsDefaultOrEmpty: false })
-            {
-                throw new InvalidDataException("The installed model binding does not match its staged allocation.");
-            }
-            binding.Resource.Validate();
-            return new HostedModelLoadAdmission(load, binding, protectedOwners);
-        }).ToImmutableArray();
+        return unloadChecks.Select(admission => PrepareHostedModelLoadAdmission(process, admission.Load, admission.LaterOwners)).ToImmutableArray();
 
         void AddOptional(BattleModelOwner? owner)
         {
@@ -93,6 +74,26 @@ public sealed partial class BattleSession
                 laterOwners.Add(owner);
             }
         }
+    }
+
+    private HostedModelLoadAdmission PrepareHostedModelLoadAdmission(ExpandedBattlePresentationProcess process, HostedDispatchControl.LoadEnemy load, ImmutableHashSet<BattleModelOwner> protectedOwners)
+    {
+        BattleCombatant actor = GetActor(load.Owner.Actor.ActorId);
+        NativeBattleEnemyAllocation allocation = nativeAllocations.Single(candidate => candidate.Id == actor.Id);
+        if (load.Owner != CreatePresentationModelOwner(actor) || load.Slot.Side != BattleSide.Enemies ||
+            actor.SceneSlot != allocation.SceneSlot || actor.SourceDefinition.SceneSlot != allocation.SceneSlot ||
+            load.SceneSlot != allocation.SceneSlot || load.ModelId != actor.ModelId)
+        {
+            throw new InvalidDataException("A staged model load requires its exact native allocation and original scene prototype.");
+        }
+        NativeBattleGraphicsBinding binding = process.PrepareModelBinding(this, load.Owner, NativeBattleSlots.Decode(load.Slot.Offset));
+        if (binding.ActorId != actor.Id || binding.InitialPosition is null || binding.ModelId != checked((byte)(actor.ModelId + 16)) ||
+            binding.Resource.AnimationFrames.IsDefaultOrEmpty || binding.Resource.ModelLoadSources is not { IsDefaultOrEmpty: false })
+        {
+            throw new InvalidDataException("The installed model binding does not match its staged allocation.");
+        }
+        binding.Resource.Validate();
+        return new(load, binding, protectedOwners);
     }
 
     private PreparedHostedModelRegistry? PrepareHostedModelRegistry(NativeBattleGraphicsState graphics, ImmutableArray<HostedModelLoadAdmission> additions)

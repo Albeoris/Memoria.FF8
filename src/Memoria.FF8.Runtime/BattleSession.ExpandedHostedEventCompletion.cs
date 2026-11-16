@@ -86,6 +86,10 @@ public sealed partial class BattleSession
             candidate.CompleteExpandedHostedDuelClosing(hostedEvent);
             candidate.CompleteExpandedHostedRenzokuken(hostedEvent);
             candidate.CompleteActionPresentation(hostedEvent.ActivePresentation, "Expanded action completed.");
+            if (candidate.encounterPolicies?.PendingSummon is not null && candidate.expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().SingleOrDefault(invocation => invocation.Command.NativeAction?.PresentationOnly == true) is { } summon)
+            {
+                candidate.CompleteEncounterPolicyPresentation(summon.Command);
+            }
             nextEvent = nextEvent with { LogicallyComplete = true };
             if (candidate.expandedOperationCursor.Next < candidate.expandedOperationCursor.Operations.Length || !process.IsControlPrefixRetired)
             {
@@ -93,8 +97,10 @@ public sealed partial class BattleSession
             }
         }
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
+        ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process, beforeAftercare);
+        candidate.PrepareHostedEncounterBatch(process, allocations);
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, ack,
-            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedOperationCursor.Next == candidate.expandedOperationCursor.Operations.Length, guardianForm: form);
+            acknowledgeOnly: !process.IsControlPrefixRetired || candidate.expandedOperationCursor.Next == candidate.expandedOperationCursor.Operations.Length, allocations: allocations, guardianForm: form);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };

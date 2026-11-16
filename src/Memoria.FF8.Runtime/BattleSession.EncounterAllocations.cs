@@ -16,6 +16,7 @@ public sealed partial class BattleSession
 {
     private BattleEncounterAllocationState? encounterAllocation;
     private BattleSnapshot? encounterAllocationRollback;
+    private ImmutableArray<HostedModelLoadAdmission> hostedEncounterLoadAdmissions = [];
 
     public BattleEncounterAllocationState? EncounterAllocation => encounterAllocation;
 
@@ -85,6 +86,10 @@ public sealed partial class BattleSession
             if (NativeGraphics is { } graphics)
             {
                 NativeGraphics = QueueEncounterAllocationLoad(graphics);
+            }
+            else if (preparingExpandedHostedAction)
+            {
+                StageHostedEncounterAllocationLoad();
             }
             else
             {
@@ -185,6 +190,93 @@ public sealed partial class BattleSession
         return QueueNativeDescriptor(graphics, 113, 0x48AD10);
     }
 
+    private void StageHostedEncounterAllocationLoad()
+    {
+        BattleEncounterAllocationState batch = encounterAllocation!;
+        BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
+        HostedDispatchControl.LoadEnemy load = ReadHostedEncounterAllocationLoad(actor);
+        BindCurrentEncounterAllocation(actor, load.SceneSlot);
+        StageExpandedHostedControl(load);
+        StageExpandedHostedControl(new HostedDispatchControl.AllocationStatistics());
+    }
+
+    private HostedDispatchControl.LoadEnemy ReadHostedEncounterAllocationLoad(BattleCombatant actor)
+    {
+        BattleModelOwner owner = CreatePresentationModelOwner(actor);
+        if (owner is not BattleEnemyActorModel enemy || actor.Slot is not { Side: BattleSide.Enemies } slot || actor.SceneSlot is not int scene)
+        {
+            throw new InvalidDataException("Hosted encounter load requires its reserved enemy generation and original slot.");
+        }
+        return new(enemy, NativeBattleModelSlot.Decode(checked((byte)NativeBattleSlots.Encode(slot))), scene, actor.ModelId);
+    }
+
+    private void BindCurrentEncounterAllocation(BattleCombatant actor, int scene)
+    {
+        RecordLastNativeAllocation(actor);
+        nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)scene), true, true) };
+    }
+
+    private void PrepareHostedEncounterBatch(ExpandedBattlePresentationProcess process, ImmutableArray<HostedModelLoadAdmission> initialLoads)
+    {
+        if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading, LoadingIndex: 0 } batch || !hostedEncounterLoadAdmissions.IsEmpty)
+        {
+            return;
+        }
+        HostedModelLoadAdmission first = initialLoads.Single(admission => admission.Load.Owner.Actor.ActorId == batch.ActorIds[0]);
+        var admissions = ImmutableArray.CreateBuilder<HostedModelLoadAdmission>(batch.ActorIds.Length);
+        admissions.Add(first);
+        foreach (string id in batch.ActorIds.Skip(1))
+        {
+            HostedDispatchControl.LoadEnemy load = ReadHostedEncounterAllocationLoad(GetActor(id));
+            admissions.Add(PrepareHostedModelLoadAdmission(process, load, ImmutableHashSet<BattleModelOwner>.Empty));
+        }
+        hostedEncounterLoadAdmissions = admissions.MoveToImmutable();
+    }
+
+    private void AdvanceHostedEncounterAllocation(ExpandedBattlePresentationProcess process)
+    {
+        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Ready or BattleEncounterAllocationPhase.Arriving })
+        {
+            process.AdvanceEncounterPolicySpawn(this);
+            return;
+        }
+        if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading } batch || !process.IsControlPrefixRetired)
+        {
+            return;
+        }
+        BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
+        BattleModelOwner owner = CreatePresentationModelOwner(actor);
+        if (actor.NativeAllocationPendingStatistics || !process.Graphics.ActorModels.TryGet(owner, out NativeBattleGraphicsModel? model) || !IsEncounterAllocationModelReady(model))
+        {
+            return;
+        }
+        int next = batch.LoadingIndex + 1;
+        if (hostedEncounterLoadAdmissions.Length != batch.ActorIds.Length)
+        {
+            throw new InvalidDataException("Hosted encounter batch lost its prepared model bindings.");
+        }
+        if (next == batch.ActorIds.Length)
+        {
+            encounterAllocation = batch with { Phase = BattleEncounterAllocationPhase.Ready, LoadingIndex = next };
+            encounterAllocationRollback = null;
+            hostedEncounterLoadAdmissions = [];
+            return;
+        }
+        BattleCombatant nextActor = GetActor(batch.ActorIds[next]);
+        HostedDispatchControl.LoadEnemy load = ReadHostedEncounterAllocationLoad(nextActor);
+        HostedModelLoadAdmission admission = hostedEncounterLoadAdmissions[next];
+        if (admission.Load != load)
+        {
+            throw new InvalidDataException("A hosted encounter load no longer matches its prepared generation and slot.");
+        }
+        HostedDispatchControls controls = new([load, new HostedDispatchControl.AllocationStatistics()], []);
+        PreparedHostedDispatch dispatch = process.PrepareDispatch([], controls: controls, allocations: [admission]);
+        process.ValidatePreparedDispatch(dispatch);
+        BindCurrentEncounterAllocation(nextActor, load.SceneSlot);
+        encounterAllocation = batch with { LoadingIndex = next };
+        process.CommitDispatch(dispatch);
+    }
+
     private NativeBattleGraphicsState CompleteEncounterAllocationLoad(NativeBattleGraphicsState graphics)
     {
         BattleEncounterAllocationState batch = encounterAllocation!;
@@ -211,7 +303,7 @@ public sealed partial class BattleSession
         foreach (string id in batch.ActorIds)
         {
             NativeBattleGraphicsModel model = graphics.ActorModels.Get(CreatePresentationModelOwner(GetActor(id)));
-            if ((model.Flags0 & 2) == 0 || model.EffectCounter97 != 2 || model.Flags2 is not ushort flags || (flags & 0x84) != 0 || model.Kind5 != 0 || model.SequenceState is not { } sequence || model.Sequence != sequence.Default2)
+            if (!IsEncounterAllocationModelReady(model))
             {
                 return graphics;
             }
@@ -221,8 +313,18 @@ public sealed partial class BattleSession
         return graphics;
     }
 
+    private static bool IsEncounterAllocationModelReady(NativeBattleGraphicsModel model)
+    {
+        return (model.Flags0 & 2) != 0 && model.EffectCounter97 == 2 && model.Flags2 is ushort flags && (flags & 0x84) == 0 && model.Kind5 == 0 && model.SequenceState is { } sequence && model.Sequence == sequence.Default2;
+    }
+
     /// <summary>Exposes the loaded models for an arrival track while keeping both actors outside active targeting and scheduling.</summary>
     public void BeginEncounterAllocationArrival()
+    {
+        BeginEncounterAllocationArrival(this);
+    }
+
+    private void BeginEncounterAllocationArrival(BattleSession presentation)
     {
         BattleEncounterAllocationState batch = encounterAllocation ?? throw new InvalidOperationException("No encounter allocation is staged.");
         if (batch.Phase is BattleEncounterAllocationPhase.Arriving or BattleEncounterAllocationPhase.Complete)
@@ -233,14 +335,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Encounter arrival requires every staged model to be loaded.");
         }
-        if (NativeGraphics is { } graphics)
+        if (presentation.NativeGraphics is { } graphics)
         {
             foreach (string id in batch.ActorIds)
             {
                 BattleModelOwner index = CreatePresentationModelOwner(GetActor(id));
                 graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 & ~4) }) };
             }
-            NativeGraphics = graphics;
+            presentation.NativeGraphics = graphics;
         }
         encounterAllocation = batch with { Phase = BattleEncounterAllocationPhase.Arriving };
     }
@@ -306,7 +408,7 @@ public sealed partial class BattleSession
 
     private BattleEncounterAllocationState? CaptureEncounterAllocation()
     {
-        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
+        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading } && !preparingExpandedHostedAction)
         {
             throw new InvalidOperationException("Capture must wait for the atomic encounter model allocation to finish loading.");
         }

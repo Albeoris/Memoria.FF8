@@ -65,7 +65,9 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException($"Arrival for actor '{supplied.ActorId}' has already been started.");
             }
-            BattleModelOwner owner = RequirePresentationModelOwner(models.Roster, GetActor(supplied.ActorId));
+            BattleModelOwner owner = hostedBattlePresentation
+                ? models.Roster.Owners.Single(model => StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(model), supplied.ActorId))
+                : RequirePresentationModelOwner(models.Roster, GetActor(supplied.ActorId));
             NativeBattleGraphicsModel model = models.Get(owner);
             if ((model.Flags0 & 2) == 0)
             {
@@ -94,7 +96,10 @@ public sealed partial class BattleSession
         }
         encounterArrivals = encounterArrivals.AddRange(pending);
         NativeGraphics = graphics with { ActorModels = models };
-        RefreshPreparedPresentation();
+        if (!hostedBattlePresentation)
+        {
+            RefreshPreparedPresentation();
+        }
     }
 
     private bool ApplyEncounterArrivalBeforeDraw(NativeBattleGraphicsState graphics, BattleModelOwner owner, ref NativeBattleGraphicsModel model)

@@ -392,10 +392,18 @@ internal sealed partial class GameWorld
         bool nativeTaunts = mod is { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } && mod.EventGates.Count <= 1 &&
             mod.EventGates.Values.All(gate => gate is { Actor: "original", Event: "nativeTaunts" });
         if (mod.NormalActionPolicies.Count != 0 &&
-            (!nativeTaunts && (mod.NativeEvents is not null || mod.EventGates.Count != 0) || mod.Templates.Count != 0 ||
-                mod.Policies.Values.SelectMany(policy => policy.Rules).Any(rule => !BattleSession.SupportsHostedEncounterSpellRule(rule.Action, effects))))
+            (!nativeTaunts && (mod.NativeEvents is not null || mod.EventGates.Count != 0 || mod.Templates.Count != 0) ||
+                mod.Policies.Values.Any(policy => policy.Rules.Any(rule => !SupportsAction(policy.Id, rule.Action)))))
         {
             throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires encounter AI and its native event callbacks, which are unavailable for an expanded roster.");
+        }
+
+        bool SupportsAction(string policyId, EncounterCompiledAction action)
+        {
+            return action.Kind == EncounterCompiledActionKind.SummonGroup
+                ? nativeTaunts && mod.NormalActionPolicies.GetValueOrDefault("original") == policyId && mod.Templates.Values.All(template => template.NormalActionPolicy != policyId) &&
+                    action.Spawns.Length is >= 1 and <= 3 && action.Spawns.All(spawn => mod.Templates.TryGetValue(spawn.Template, out EncounterCompiledTemplate? template) && template.InheritFrom == "original")
+                : BattleSession.SupportsHostedEncounterSpellRule(action, effects);
         }
     }
 

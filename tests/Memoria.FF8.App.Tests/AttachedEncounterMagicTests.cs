@@ -85,6 +85,81 @@ public sealed class AttachedEncounterMagicTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Installed_Edea_summon_loads_the_full_batch_before_its_arrival(bool attached)
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindSummonPolicy(definition, resource)) { UseAttachedBattlePresentation = attached };
+        ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == battle.ReadDefinition().EncounterMod!.OriginalActorId);
+        BattleCombatant readyParty = battle.Combatants.First(actor => actor.IsPlayer);
+        foreach (BattleCombatant actor in battle.Combatants)
+        {
+            actor.Atb = actor == readyParty ? BattleSession.AtbMaximum : 0;
+        }
+        TickUntil(world, () => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null && battle.CanChoosePlayerCommand(readyParty.Id));
+        caster.Atb = BattleSession.AtbMaximum;
+        int eventStart = battle.Events.Count;
+        HashSet<string> loaded = [];
+        bool originalControl = false;
+        bool fullArrival = false;
+        TickUntil(world, () =>
+        {
+            NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+            originalControl |= packets.PublishedHeaders().Any(entry => entry.Slot is { Command: 0, Action: 9, Sequence: 11, Effect: 0 } && entry.Slot.Source == battle.ReadPresentationModelOwner(caster.Id));
+            if (battle.EncounterAllocation is not { } batch)
+            {
+                return false;
+            }
+            NativeBattleGraphicsState graphics = battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
+            foreach (string id in batch.ActorIds)
+            {
+                BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == id);
+                if (graphics.ActorModels.TryGet(battle.ReadPresentationModelOwner(id), out NativeBattleGraphicsModel? model) && model.EffectCounter97 == 2)
+                {
+                    loaded.Add(id);
+                }
+                if (batch.Phase is BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready or BattleEncounterAllocationPhase.Arriving)
+                {
+                    Assert.False(actor.IsActive);
+                }
+            }
+            if (batch.Phase == BattleEncounterAllocationPhase.Arriving)
+            {
+                Assert.Equal(batch.ActorIds.Length, loaded.Count);
+                Assert.Equal(batch.ActorIds.Length, battle.CaptureEncounterArrivals().Length);
+                fullArrival = true;
+            }
+            return batch.Phase == BattleEncounterAllocationPhase.Complete;
+        });
+        Assert.True(originalControl);
+        Assert.True(fullArrival);
+        Assert.Equal(1ul, battle.EncounterPolicies!.Cursors[caster.Id].CommittedTurns);
+        Assert.Null(battle.EncounterPolicies.PendingSummon);
+        Assert.Equal(2, Assert.Single(battle.Events.Skip(eventStart), entry => entry.Kind == "EncounterSpawn").Amount);
+        Assert.All(battle.EncounterAllocation!.ActorIds, id =>
+        {
+            BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == id);
+            Assert.True(actor.IsActive);
+            Assert.False(actor.Hidden || actor.Untargetable || actor.Suspended);
+            Assert.Equal(caster.Level, actor.Level);
+            Assert.Equal(caster.MaximumHp, actor.CurrentHp);
+        });
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        Assert.Equal(battle.EncounterAllocation, restored.EncounterAllocation);
+        Assert.Equal(battle.EncounterAllocation.ActorIds.Select(id => battle.Combatants.Single(actor => actor.Id == id).NativeActorIndex),
+            restored.EncounterAllocation!.ActorIds.Select(id => restored.Combatants.Single(actor => actor.Id == id).NativeActorIndex));
+    }
+
     private sealed record BattleRun((byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts, byte Repeats)[] Headers,
         (string? Target, int Amount)[] Damage, byte[] Random, EncounterNativeEventState? Opening);
 
@@ -211,6 +286,25 @@ public sealed class AttachedEncounterMagicTests
         NativeCharacterVitals vitals = session.CharacterVitals!.WithGuestBattleRecords();
         NativeCharacterVital[] records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray();
         session.SetCharacterVitals((vitals with { Records = records }).Rest().WithBattleParty([0, 2, 4], 3));
+    }
+
+    private static BattleDefinition BindSummonPolicy(BattleDefinition definition, NativeBattleGraphicsResource resource)
+    {
+        definition = BindFirePolicy(definition, resource);
+        EncounterCompiledDefinition mod = definition.EncounterMod!;
+        EncounterCompiledAction summon = new(EncounterCompiledActionKind.SummonGroup, [], EncounterCompiledTargetKind.Self, null, false, false, null, [new("first-copy", "left"), new("second-copy", "right")]);
+        EncounterCompiledPolicy policy = new("summon", [new("first-turn", 1, 1, 0, summon)]);
+        return definition with
+        {
+            EncounterMod = mod with
+            {
+                Policies = mod.Policies.Add(policy.Id, policy),
+                NormalActionPolicies = mod.NormalActionPolicies.SetItem("original", policy.Id),
+                Templates = mod.Templates.Add("first-copy", new("first-copy", "original", "copies", "fire", "arrival")).Add("second-copy", new("second-copy", "original", "copies", "fire", "arrival")),
+                Presentations = mod.Presentations.Add("arrival", new("arrival", "002", 8, 28, 0, 1)),
+                Placements = mod.Placements.Add("left", new("left", -1500, 0, 0)).Add("right", new("right", 1500, 0, 0))
+            }
+        };
     }
 
     private static void TickUntil(GameWorld world, Func<bool> condition)

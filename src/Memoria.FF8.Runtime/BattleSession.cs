@@ -2126,7 +2126,8 @@ public sealed partial class BattleSession
         nativeLastAllocatedTarget = candidate.nativeLastAllocatedTarget;
         originalParticipantSlotsInitialized = candidate.originalParticipantSlotsInitialized;
         encounterAllocation = candidate.encounterAllocation;
-        encounterAllocationRollback = null;
+        encounterAllocationRollback = candidate.encounterAllocationRollback;
+        hostedEncounterLoadAdmissions = candidate.hostedEncounterLoadAdmissions;
         encounterPolicies = candidate.encounterPolicies;
         encounterArrivals = candidate.encounterArrivals;
         RestoreEncounterNativeEvents(candidate.CaptureEncounterNativeEvents());

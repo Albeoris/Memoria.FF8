@@ -142,6 +142,16 @@ public sealed partial class BattleSession
 
     private ExpandedHostedContactDisposition ReadExpandedHostedContactDisposition(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
+        if (command.NativeAction is { PresentationOnly: true })
+        {
+            if (header is not { Command: 0, Action: 9, Effect: 0, Source: BattleEnemyActorModel source } ||
+                definition.EncounterMod is not { } mod || header.Sequence != mod.CastingSequence || source.Actor.ActorId != command.ActorId ||
+                command.ActorId != mod.OriginalActorId || command.TargetId != command.ActorId || command.NativeAiCallbackStage != 1 || encounterPolicies?.PendingSummon is null)
+            {
+                throw new InvalidDataException("Hosted summon requires its admitted original command 0 casting control.");
+            }
+            return ExpandedHostedContactDisposition.ContextOnly;
+        }
         if (command.NativeQueuedCommand == 11 && header is { Command: 11, Action: 65531 } ||
             command.NativeQueuedCommand == 241 && header is { Command: 241, Action: 65530 })
         {
@@ -361,5 +371,6 @@ public sealed partial class BattleSession
             }
         }
         AdvanceExpandedHostedInvocation(actionToken);
+        AdvanceHostedEncounterAllocation(expandedPresentationProcess!);
     }
 }

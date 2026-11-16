@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         RefreshPreparedPresentation(this, null);
     }
 
-    internal void RefreshHostedPreparedPresentation(BattleSession logicalOwner, NativeBattleModelLifecycleServices services)
+    internal void RefreshHostedPreparedPresentation(BattleSession logicalOwner, NativeBattleModelLifecycleServices services, BattleModelRoster? rosterAtReceipts = null)
     {
         ArgumentNullException.ThrowIfNull(logicalOwner);
         ArgumentNullException.ThrowIfNull(services);
@@ -27,7 +27,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Hosted frame publication requires the current presentation process and expanded logical owner.");
         }
-        services.ValidateCurrentModels(HostedPlannedModelRoster, graphics);
+        BattleModelRoster roster = HostedPlannedModelRoster;
+        NativeBattleModelLifecycleServices currentFacts = rosterAtReceipts is not null && !ReferenceEquals(rosterAtReceipts, roster)
+            ? logicalOwner.CaptureHostedModelLifecycleServices(roster, hostedModelRegistry)
+            : services;
+        currentFacts.ValidateCurrentModels(roster, graphics);
         RefreshPreparedPresentation(logicalOwner, services);
     }
 
