@@ -20,8 +20,8 @@ public static class LiveMenuData
 
     internal static MenuData BuildJunctionSnapshot(GameState state, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog, int? placeId, MenuData? baseline = null, IReadOnlySet<int>? changedRows = null, Func<int, BattleNativePlayerStatRules>? readRules = null)
     {
-        int visibleRows = state.CharacterVitals is { ExtendedRosterEnabled: true, DreamEnabled: false } vitals ? vitals.Records.Length : NativeCharacterVitals.NativeRecordCount;
-        return BuildCore(state, names, catalog, Enumerable.Range(0, visibleRows).ToHashSet(), placeId, false, new JunctionReadOptions(baseline, changedRows, readRules));
+        int recordCount = state.CharacterVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount;
+        return BuildCore(state, names, catalog, Enumerable.Range(0, recordCount).ToHashSet(), placeId, false, new JunctionReadOptions(baseline, changedRows, readRules));
     }
 
     private sealed record JunctionReadOptions(MenuData? Baseline, IReadOnlySet<int>? ChangedRows, Func<int, BattleNativePlayerStatRules>? ReadRules);

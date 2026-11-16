@@ -9,6 +9,26 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MenuJunctionPlannerTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GuardianEditsIncludeEveryRetainedRecordWhenExtendedCharactersAreHidden(bool dream)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals source = Setup(assets, false).WithExtendedRoster(true);
+        source = dream ? source with { DreamEnabled = true } : source.WithExtendedRoster(false);
+        string original = JsonSerializer.Serialize(source);
+        MenuJunctionPlan plan = Planner(source, catalog).Plan(new("junction-gf", "gf-0", "character-0"));
+        Assert.True(plan.HasChanges, plan.UnavailableReason);
+        Assert.Equal(source.Records.Length, plan.Before.Characters.Count);
+        Assert.Equal(source.Records.Length, plan.After.Characters.Count);
+        NativeCharacterVitals result = Apply(source, plan);
+        Assert.DoesNotContain(0, result.Records[0].Junction.GuardianForceAssignments);
+        Assert.Equal(JsonSerializer.Serialize(source.Records.Skip(1)), JsonSerializer.Serialize(result.Records.Skip(1)));
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+    }
+
+    [Theory]
     [InlineData("Elem-Atk", 9)]
     [InlineData("ST-Atk", 10)]
     [InlineData("Elem-Def 1", 11)]

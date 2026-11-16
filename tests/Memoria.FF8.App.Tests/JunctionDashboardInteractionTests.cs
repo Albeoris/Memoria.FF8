@@ -470,7 +470,7 @@ public sealed class JunctionDashboardInteractionTests
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(source) && File.Exists(source), "An optional standalone state must be explicitly configured.");
         using Fixture fixture = new();
         byte[] originalFile = File.ReadAllBytes(source!);
-        GameState state = GameSession.Load(source!);
+        GameState state = PlayerStateLoader.Load(source!, TestResources.GameDirectory);
         NativeCharacterVitals vitals = Assert.IsType<NativeCharacterVitals>(state.CharacterVitals);
         string original = JsonSerializer.Serialize(vitals);
         MenuData data = LiveMenuData.Build(state, catalog: fixture.Catalog);
