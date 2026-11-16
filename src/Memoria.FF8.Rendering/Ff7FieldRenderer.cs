@@ -205,7 +205,7 @@ public sealed partial class Ff7FieldRenderer
     {
         IReadOnlyList<ushort[]>? liveRows = frame.PaletteRows is { Count: > 0 } ? frame.PaletteRows : null;
         bool samePalette = backgroundTiles is not null && ReferenceEquals(paletteRows, liveRows) && (liveRows is null || paletteVersion == frame.PaletteVersion);
-        backgroundTiles ??= field.Background.Layers.SelectMany(layer => layer).OrderBy(tile => tile.Blending != 0).ToArray();
+        backgroundTiles ??= field.Background.Layers.SelectMany(layer => layer).OrderBy(tile => tile.UsesFxPage).ToArray();
         if (samePalette && Array.TrueForAll(backgroundTiles, tile => !IsVisible(tile, frame) || backgroundAtlas.ContainsKey(tile)))
         {
             return;
@@ -247,7 +247,7 @@ public sealed partial class Ff7FieldRenderer
     {
         foreach (PcFieldTile tile in field.Background.Layers.SelectMany(layer => layer))
         {
-            if ((tile.Blending != 0) != blended || !IsVisible(tile, frame))
+            if (tile.UsesFxPage != blended || !IsVisible(tile, frame))
             {
                 continue;
             }

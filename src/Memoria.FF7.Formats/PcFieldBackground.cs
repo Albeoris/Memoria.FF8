@@ -57,12 +57,13 @@ public sealed record PcFieldPalettes(short X, short Y, ushort ColorsPerPalette, 
     }
 }
 
-public sealed record PcFieldTile(int Layer, int Index, short DestinationX, short DestinationY, short SourceX, short SourceY, short SourceX2, short SourceY2, short Width, short Height, short PaletteId, ushort Id, byte Parameter, byte State, byte Blending, byte BlendMode, short TextureId, short TextureId2, short Depth, int Z, int U, int V, ReadOnlyMemory<byte> Raw)
+public sealed record PcFieldTile(int Layer, int Index, short DestinationX, short DestinationY, short SourceX, short SourceY, short SourceX2, short SourceY2, short Width, short Height, short PaletteId, ushort Id, byte Parameter, byte State, byte Blending, ushort BlendMode, short TextureId, short TextureId2, short Depth, int Z, int U, int V, ReadOnlyMemory<byte> Raw)
 {
     public int PixelSize => Layer > 1 ? 32 : 16;
-    public int EffectiveTextureId => Layer > 0 && Blending != 0 ? TextureId2 : TextureId;
-    public int EffectiveSourceX => Layer > 0 && Blending != 0 ? SourceX2 : SourceX;
-    public int EffectiveSourceY => Layer > 0 && Blending != 0 ? SourceY2 : SourceY;
+    public bool UsesFxPage => Layer > 0 && Blending != 0;
+    public int EffectiveTextureId => UsesFxPage ? TextureId2 : TextureId;
+    public int EffectiveSourceX => UsesFxPage ? SourceX2 : SourceX;
+    public int EffectiveSourceY => UsesFxPage ? SourceY2 : SourceY;
 }
 public sealed record PcFieldTexturePage(int Id, ushort BigTile, ushort Depth, ReadOnlyMemory<byte> Pixels)
 {
@@ -159,8 +160,7 @@ public sealed record PcFieldBackground(short Width, short Height, IReadOnlyList<
             byte state = tile.U8();
             byte blending = tile.U8();
             tile.Skip(1);
-            byte blendMode = tile.U8();
-            tile.Skip(1);
+            ushort blendMode = tile.U16();
             tiles[i] = new PcFieldTile(layer, i, dx, dy, sx, sy, sx2, sy2, width, height, palette, id, parameter, state, blending, blendMode, tile.I16(), tile.I16(), tile.I16(), tile.I32(), tile.I32(), tile.I32(), raw);
         }
         return Array.AsReadOnly(tiles);
