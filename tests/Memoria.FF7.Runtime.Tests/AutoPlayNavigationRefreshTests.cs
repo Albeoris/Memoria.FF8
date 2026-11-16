@@ -139,7 +139,8 @@ internal static class AutoPlayNavigationRefreshTests
         int worldReturns = 0;
         bool wasWorld = true;
         controller.Start();
-        for (int step = 0; step < 1024 && controller.Running && !advanced; step++)
+        // Allow the observed native travel continuation and its long ladder animation to return.
+        for (int step = 0; step < 2048 && controller.Running && !advanced; step++)
         {
             controller.Advance(1);
             bool isWorld = session.World is not null;
@@ -149,12 +150,15 @@ internal static class AutoPlayNavigationRefreshTests
             }
             wasWorld = isWorld;
             Check(worldReturns < 3, "The original world frontier repeated field-entry/return travel instead of leaving its retained failed preferred goal.");
-            advanced = session.Battle is not null || Entries(policy.State).Any(entry => !consumed.Contains(entry) && policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == entry.Visit).Events.Single(item => item.Event.Id == entry.Event).Event.Kind == AutoPlayEventKind.Interaction);
+            bool newNativeAdmission = session.World is null && policy.State.Active is { Accepted: true, Kind: not Ff7AutoPlayTargetKind.Gateway and not Ff7AutoPlayTargetKind.WorldMesh } admitted && admitted.Generation == session.FieldGeneration && !consumed.Contains((admitted.VisitId, admitted.EventId, admitted.ConditionFingerprint));
+            advanced = newNativeAdmission || session.Battle is not null || Entries(policy.State).Any(entry => !consumed.Contains(entry) && policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == entry.Visit).Events.Single(item => item.Event.Id == entry.Event).Event.Kind == AutoPlayEventKind.Interaction);
         }
         Check(controller.Failure is null, $"The bounded original world-frontier continuation failed: {controller.Error}");
-        Check(advanced && policy.State.NavigationGoal != staleGoal, "The original world source did not execute a genuine alternative frontier within its bounded ordinary continuation.");
+        Ff7AutoPlayActiveEvent? active = policy.State.Active;
+        string diagnostics = $"field={session.Field.Name}, map={session.MapId}, generation={session.FieldGeneration}, tick={session.Host.Process.Tick}, worldTick={session.World?.Process.Tick}, steps={controller.Steps}, worldReturns={worldReturns}, active={active?.Kind}/{active?.EventId}, accepted={active?.Accepted}, returned={active?.Returned}, status={policy.State.Status}, goal={JsonSerializer.Serialize(policy.State.NavigationGoal)}";
+        Check(advanced && policy.State.NavigationGoal != staleGoal, $"The original world source did not reach a new native field interaction admission, completed interaction or encounter within its bounded ordinary continuation; {diagnostics}");
         Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "World frontier projection queued a replay or changed its original standalone source.");
-        Console.WriteLine($"PASS original world frontier leaves its retained failed field goal after {controller.Steps} ordinary steps; source unchanged.");
+        Console.WriteLine($"PASS original world frontier leaves its retained failed goal and reaches a new native interaction admission or completion/encounter after {controller.Steps} ordinary steps; source unchanged.");
 
         static HashSet<(string Visit, string Event, string Entry)> Entries(Ff7AutoPlayState state)
         {

@@ -130,7 +130,6 @@ public sealed partial class Ff7AutoPlayPolicy
         foreach (string key in visited.PhysicalGuards)
         {
             physicalGuards[key] = ReadWorldGuardFingerprint(visited, key, componentContext, movement.Input.GroundTriangle, physical);
-            visited.ObservedPhysicalGuards[key] = physicalGuards[key];
         }
         planner.RefreshUnavailable(observation.VisitId, physicalGuards);
         if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh, Accepted: false } && State.NavigationGoal is { EventId: string goalEvent } travelGoal && State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == travelGoal.NavigationKey) is { } goalVisit && State.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == goalVisit.VisitKey)?.Events.SingleOrDefault(item => item.Event.Id == goalEvent) is { Available: false })
@@ -140,7 +139,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (State.Active is null)
         {
-            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadRetainedNavigationAvailability(State, navigation, target));
+            AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => navigation.VisitKey == observation.VisitId ? null : ReadRetainedNavigationAvailability(State, navigation, target));
             if (ShouldDiscoverWorldChunk(State, observation.VisitId, next, !visited.DiscoveryComplete && worldChunkQueue.Count != 0) && ObserveNextWorldChunk(world))
             {
                 State.Status = "Discovering the next native world collision chunk";
@@ -184,6 +183,9 @@ public sealed partial class Ff7AutoPlayPolicy
             ObserveWorldChunk(world, source);
         }
         Ff7AutoPlayWorldScriptObservation goal = worldCatalogs[source].Scripts.Single(item => item.Script == selectedScript);
+        string selectedGuard = observation.VisitId + ":" + selected.EventId + ":physical";
+        // Only this target's actual approach updates its retained physical observation.
+        visited.ObservedPhysicalGuards[selectedGuard] = physical;
         Ff7AutoPlayWorldNavigationResult result = driver.ChooseWorldInput(goal);
         if (result.Status == Ff7AutoPlayWorldNavigationStatus.Unsupported)
         {
