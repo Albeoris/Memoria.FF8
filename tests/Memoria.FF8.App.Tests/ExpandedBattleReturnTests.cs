@@ -94,12 +94,13 @@ public sealed class ExpandedBattleReturnTests
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         Assert.Null(battle.NativeGraphics);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
-        Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
+        BattleCombatant[] activeEnemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
+        Assert.Equal(5, activeEnemies.Length);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == Caster);
         Assert.False(battle.ReadBattlePresentationPacketBindings().Aliases.TryEncodeExact(battle.ReadPresentationModelOwner(Caster), out _));
-        BattleCombatant target = battle.Combatants.Last(actor => !actor.IsPlayer);
+        BattleCombatant target = activeEnemies[^1];
         Assert.False(battle.ReadBattlePresentationPacketBindings().Aliases.TryEncodeExact(battle.ReadPresentationModelOwner(target.Id), out _));
-        string attackTarget = battle.Combatants.First(actor => !actor.IsPlayer).Id;
+        string attackTarget = activeEnemies[0].Id;
         NativeItemStock[] initialItems = battle.Capture().NativeItemInventory!;
         Assert.Equal(5, battle.GetAvailableMagicCasts(Caster, fire.Id));
 
@@ -111,7 +112,7 @@ public sealed class ExpandedBattleReturnTests
         Assert.Equal(initialItems, battle.Capture().NativeItemInventory);
 
         // Leave only the Bomb standing so the final Attack decides victory.
-        foreach (BattleCombatant other in battle.Combatants.Where(actor => !actor.IsPlayer && actor != target))
+        foreach (BattleCombatant other in activeEnemies.Where(actor => actor != target))
         {
             other.CurrentHp = 0;
             other.NativeStatus0 |= 1;
@@ -222,7 +223,7 @@ public sealed class ExpandedBattleReturnTests
             BattleSession next = Enter(resumed, loaded);
             Assert.NotSame(process, next.ExpandedPresentationProcess);
             Assert.Equal(4, next.Combatants.Count(actor => actor.IsPlayer));
-            Assert.Equal(5, next.Combatants.Count(actor => !actor.IsPlayer));
+            Assert.Equal(5, next.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
             Assert.Equal(4, next.GetAvailableMagicCasts(Caster, fire.Id));
             Assert.NotEqual(occurrence.OccurrenceId, loaded.State.PendingBattleEncounter!.OccurrenceId);
             Assert.Equal(initialResults + 1, loaded.State.AppliedBattleResultIds.Length);

@@ -457,7 +457,7 @@ public sealed class BattleUiTests
     [Fact]
     public void Victory_rewards_preview_is_cached_and_confirmed_in_native_result_order()
     {
-        BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
+        BattleSession session = new(Definition(magicRecordId: 0), BattleAtbMode.TurnBased);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, Enumerable.Range(0, 9).ToDictionary(id => (byte)id, id => (ushort)(id + 10)), Enumerable.Range(0, 9).ToDictionary(id => id, _ => (ushort)3), [new BattleStock(7, 2)], [4])
         {
             AbilityPointsNotice = 3,
@@ -701,8 +701,8 @@ public sealed class BattleUiTests
     [Fact]
     public void ExperienceCountdownUsesElapsedTimeAtThirtyAndSixtyUpdatesPerSecond()
     {
-        BattleSession slowSession = new(Definition(), BattleAtbMode.Normal);
-        BattleSession fastSession = new(Definition(), BattleAtbMode.Normal);
+        BattleSession slowSession = new(Definition(magicRecordId: 0), BattleAtbMode.Normal);
+        BattleSession fastSession = new(Definition(magicRecordId: 0), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 1000 }, new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [], []);
         BattleHudController slow = new(slowSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
         BattleHudController fast = new(fastSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
@@ -760,13 +760,13 @@ public sealed class BattleUiTests
         hud.Navigate(MenuInput.Confirm);
     }
 
-    private static BattleDefinition Definition()
+    private static BattleDefinition Definition(int? magicRecordId = null)
     {
         return new BattleDefinition
         {
             Combatants =
             [
-                new() { Id = "party-0", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum },
+                new() { Id = "party-0", Name = "Squall", IsPlayer = true, MagicRecordId = magicRecordId, InitialAtb = BattleSession.AtbMaximum },
                 new() { Id = "enemy-0", Name = "Bite Bug A" },
                 new() { Id = "enemy-1", Name = "Bite Bug B" }
             ]
