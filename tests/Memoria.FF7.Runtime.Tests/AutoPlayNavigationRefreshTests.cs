@@ -15,6 +15,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckSourceBoundaryCompatibility();
         CheckOriginalRemoteBoundaryProjection();
         CheckOriginalDestinationGoal();
+        CheckOriginalExhaustedHistoricalTravel();
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
         AutoPlayEvent ladder = new("ladder", AutoPlayEventKind.Interaction, ConditionSignature: "ladder-entry");
@@ -339,6 +340,33 @@ internal static class AutoPlayNavigationRefreshTests
         Check(controller.Failure is null && attempted, "Same-named source transport still skipped the requested native contact at its destination component.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Destination-goal validation changed the original standalone.");
         Console.WriteLine($"PASS original destination goal reaches its previously skipped native contact after {controller.Steps} ordinary callbacks; source unchanged.");
+    }
+
+    private static void CheckOriginalExhaustedHistoricalTravel()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_EXHAUSTED_ROUTE_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (path is null || game is null)
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        Check(source.AutoPlay is { Active: null, NavigationGoal: null }, "The historical travel fixture requires its exhausted native frontier.");
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded historical-route check must stop before new choice exploration."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        bool restoredEntryMode = false;
+        for (int step = 0; step < 1200 && controller.Running && session.MapId != 531; step++)
+        {
+            controller.Advance(1);
+            restoredEntryMode |= session.MapId == 544 && session.FieldGeneration > source.FieldGeneration && session.Machine.Variables.ReadByte(Memoria.FF7.Events.FieldBank.MapByte, 16) == 1;
+        }
+        Check(controller.Failure is null && restoredEntryMode && session.MapId == 531, $"The ordinary policy did not restore native entry mode and leave the exhausted local field cycle: {controller.Error}");
+        Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "Historical travel replayed a checkpoint or changed the original standalone.");
+        Console.WriteLine($"PASS original exhausted-route fallback restores native entry mode and reaches an outside field after {controller.Steps} ordinary callbacks; source unchanged.");
     }
 
     private static void Check(bool condition, string message)
