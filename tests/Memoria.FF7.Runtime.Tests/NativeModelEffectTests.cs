@@ -57,6 +57,7 @@ internal static class NativeModelEffectTests
         Check(bright == 0x7FFFFFFF && dark == 0x7FC0C0C0 && ambient == 0x7F303030, "Native cached light modulation, original-color tint or alpha changed.");
         RunSinglePart(table);
         RunStep32(table);
+        RunSingle54(table);
         RunFourPartDefault();
         RunFourPart35_36();
         RunInstalled();
@@ -82,7 +83,6 @@ internal static class NativeModelEffectTests
             Check(Ff7NativeModelEffect.Advance(cold, true) == Ff7NativeModelEffect.Advance(single, true), "The one-part35 cold next sample changed.");
         }
         Throws<InvalidDataException>(() => Ff7NativeModelEffect.Request(single, 1, [16, 42, 16, 33]));
-        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [54]));
         single = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(single, 2, [35]), true);
         Check(single.Restored && !single.Completed && Ff7NativeModelEffect.PartVisible(single, 0) && !single.SuppressesNativeLighting, "The one-part35 reset failed to restore the original model.");
         Check(Ff7NativeModelEffect.Advance(single, true).Completed, "The one-part35 reset completion clock changed.");
@@ -150,6 +150,55 @@ internal static class NativeModelEffectTests
         state = Ff7NativeModelEffect.Advance(state, true);
         Check(state.Restored && !state.Completed, "Step32 reset did not restore before completion.");
         Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Step32 reset did not complete on its second processed update.");
+    }
+
+    private static void RunSingle54(short[] table)
+    {
+        Ff7NativeModelEffectState requested = Ff7NativeModelEffect.Request(null, 0, [54]);
+        Check(requested.Profile == Ff7NativeModelEffect.SinglePart54Profile && Ff7NativeModelEffect.Request(null, 1, [54], 512, [1]) == requested, "The native single54 branch must ignore polygon counts and preserve equivalent request modes.");
+        Check(Ff7NativeModelEffect.OrbitPoint(requested, 0, table) == new Vector3(256, 0, 0) && Ff7NativeModelEffect.OrbitPoint(requested, 2, table) == new Vector3(0, -256, 8), "Single54 must retain XY shifts4, Z shift9 and zero Z offset.");
+        Check(Ff7NativeModelEffect.OrbitPoint(requested with { NativeScale = 1024 }, 2, table) == new Vector3(0, -512, 16), "Single54 must use the shared signed native scale contract.");
+        Check(Ff7NativeModelEffect.ShadeVertex(requested, 0, table, new Vector3(1500, 0, 0), -Vector3.UnitX, 0x7FFFFFFF, Matrix4x4.Identity) == 0x7FC0C0C0, "Single54 must use radius1024 rather than the default2048 light falloff.");
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Advance(requested, true);
+        Check(!Ff7NativeModelEffect.PartVisible(state, 0), "Single54 initialization must hide its part before the first cached application.");
+        for (int callback = 0; callback < 16; callback++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+        }
+        Check(state is { Stage: 1, Counter: 16, Phase: 0, SampleFrame: 0 }, "Single54 must leave its initial hold after16 eligible callbacks.");
+        for (int sample = 0; sample < 9; sample++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == sample, "Single54 must sample before advancing its step32 phase.");
+        }
+        Check(state is { Stage: 2, Phase: 288, Counter: 0 }, "Single54 must reach phase288 in nine ramp callbacks.");
+        for (int callback = 0; callback < 10; callback++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == 9, "Single54 endpoint hold must retain cache9 for ten callbacks.");
+        }
+        Check(state is { Stage: 3, Phase: 0 }, "Single54 endpoint hold must reset only the next ramp phase.");
+        for (int sample = 0; sample < 9; sample++)
+        {
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == sample, "Single54 second ramp changed its cache order.");
+        }
+        Check(state is { Stage: 0, Phase: 288, Counter: 0 }, "Single54 must retain the endpoint into its next short hold.");
+        for (int callback = 0; callback < 16; callback++)
+        {
+            Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+            Check(Ff7NativeModelEffect.Advance(cold, false) == state && Ff7NativeModelEffect.Advance(cold, true) == Ff7NativeModelEffect.Advance(state, true), "Single54 must freeze under its draw gate and preserve exact cold continuation.");
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(state.SampleFrame == 9 && Ff7NativeModelEffect.PartVisible(state, 0), "The subsequent short hold must display endpoint colors on the original part.");
+        }
+        Check(state is { Stage: 1, Phase: 0, Counter: 16 }, "Single54 recurring hold must also last16 callbacks.");
+        Throws<InvalidDataException>(() => (state with { Phase = 16 }).Validate());
+        Throws<InvalidDataException>(() => (state with { SampleFrame = 10 }).Validate());
+        Throws<InvalidDataException>(() => (state with { Counter = 17 }).Validate());
+        Throws<InvalidDataException>(() => Ff7NativeModelEffect.OrbitPoint(state, 10, table));
+        state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(state, 2, [54]), true);
+        Check(state.Restored && !state.Completed && Ff7NativeModelEffect.PartVisible(state, 0) && !state.SuppressesNativeLighting, "Single54 reset must restore ordinary visibility and lighting before completion.");
+        Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Single54 reset must complete on the next eligible callback.");
     }
 
     private static void RunFourPartDefault()
@@ -283,17 +332,29 @@ internal static class NativeModelEffectTests
         }
         using FileStream source = File.OpenRead(path);
         Ff7SessionSave saved = CombinedSessionCodec.Read(source).Ff7 ?? throw new InvalidDataException("The configured model-effect standalone has no FFVII owner.");
-        Check(saved.FieldName == "psdun_2", "The configured model-effect standalone must contain the reached Mine initializer.");
+        Check(saved.FieldName is "psdun_2" or "seto1", "The configured model-effect standalone must contain a supported reached initializer fixture.");
+        bool shortHold = saved.FieldName == "seto1";
         using Ff7Session warm = Ff7Session.Restore(installation, saved);
         using Ff7Session cold = Ff7Session.Restore(installation, JsonSerializer.Deserialize<Ff7SessionSave>(JsonSerializer.Serialize(saved))!);
         for (int callback = 0; callback < 3; callback++)
         {
             warm.AdvanceTick(advanceClock: false);
             cold.AdvanceTick(advanceClock: false);
-            Check(JsonSerializer.Serialize(warm.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The reached original Mine initializer and next procedural callback must retain exact independent JSON continuation.");
+            Check(JsonSerializer.Serialize(warm.Capture()) == JsonSerializer.Serialize(cold.Capture()), "The reached original initializer and next procedural callback must retain exact independent JSON continuation.");
         }
-        Ff7Actor actor = warm.Host.Process.Actors.Single(actor => actor.Entity == 8 && actor.EntityBound);
-        Check(actor.Model == 6 && actor.ModelEffect is { Profile: Ff7NativeModelEffect.FourPart35_36Profile, Initialized: true, Applied: true }, "Original entity8 initialization must enter its resource-selected step24 pulse instead of a default or script bypass.");
+        Ff7Actor actor = warm.Host.Process.Actors.Single(actor => actor.Entity == (shortHold ? 11 : 8) && actor.EntityBound);
+        Check(actor.ModelEffect is { Initialized: true, Applied: true } && actor.ModelEffect.Profile == (shortHold ? Ff7NativeModelEffect.SinglePart54Profile : Ff7NativeModelEffect.FourPart35_36Profile), "The original initializer must enter its resource-selected pulse instead of a default or script bypass.");
+        if (shortHold)
+        {
+            using LgpArchive characters = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.CharacterArchive).Path);
+            Ff7FieldModelResources model = Ff7FieldModelResources.Load(characters, warm.Field.Models.Models[actor.Model]);
+            Check(model.Geometry.Count == 1 && model.Geometry[0].Polygon.Vertices.Count == 54, "The actual reached resource must select the native one-part54 predicate.");
+            CheckInstalledPulse(model, Ff7PcExecutableData.Load(installation));
+        }
+        else
+        {
+            Check(actor.Model == 6, "The original Mine fixture model changed.");
+        }
     }
 
     private static void CheckInstalledPulse(Ff7FieldModelResources model, Ff7PcExecutableData native, int nativeScale = 512)
@@ -320,7 +381,7 @@ internal static class NativeModelEffectTests
                 foreach ((int vertex, int normal) in normals)
                 {
                     uint first = Ff7NativeModelEffect.ShadeVertex(state, 0, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
-                    uint middle = Ff7NativeModelEffect.ShadeVertex(state, state.Profile == Ff7NativeModelEffect.SinglePart72_140Profile ? 4 : 8, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
+                    uint middle = Ff7NativeModelEffect.ShadeVertex(state, state.Profile is Ff7NativeModelEffect.SinglePart72_140Profile or Ff7NativeModelEffect.SinglePart54Profile ? 4 : 8, native.NativeSinCos, part.Polygon.Vertices[group.VertexStart + vertex], part.Polygon.Normals[normal], part.Polygon.VertexColors[group.VertexStart + vertex], Matrix4x4.Identity);
                     changed |= first != middle;
                 }
             }
