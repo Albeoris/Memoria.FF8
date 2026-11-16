@@ -95,11 +95,11 @@ public sealed class NativeBattleEffect303PresentationTests
         Assert.Equal((byte)13, header.Sequence);
         Assert.Equal((int?)0, header.FirstContact.Ordinal);
         byte reaction = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 258 && action.MagicId == 303).DamagePresentation;
-        NativeBattleContactPacket contact = new(new(OriginalOwner(4), reaction, 1, 0, status.Saved, 7, status.Battle), null);
+        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(4), reaction, 1, 0, status.Saved, 7, status.Battle), null);
         packets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [contact]);
         packets.Validate();
         source = source with { NativeActionPackets = packets };
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!).Capture()));
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleStorageSnapshots.Capture(source)).Capture()));
         File.WriteAllText(Path.Combine(output, "original-loaded-pair.json"), JsonSerializer.Serialize(new { Scenario = "Original formation363 pair after actual loading; declared first physical recipient4 remains latent until selected effect activation; logical HP/status retained", Loaded = loaded, Latent = latent, Header = header, Contact = contact }));
         return source;
     }
