@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant source = GetActor(sourceId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || UsesExpandedRoster && RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(BattleAbility.Draw) || HasStatus(actor, BattleStatusKind.Silence) || !source.IsActive || !source.IsAlive || source.Untargetable || source.IsPlayer == actor.IsPlayer || selection is < 1 or >= 80 || !source.NativeDrawSlots.Any(slot => slot.Id == selection) || cast && selection >= 64 || !cast && castTargetId is not null)
         {
             throw new InvalidOperationException("Draw requires an available source entry, a ready caster and a valid Stock/Cast selection.");
         }
@@ -22,21 +22,11 @@ public sealed partial class BattleSession
             request = spell.NativeAction?.TargetFlags is byte flags
                 ? CreatePlayerTargetRequest(actor, recipient, flags)
                 : SelectBattleTarget(recipient, IsNativeRevive(spell), BattleTargetEligibility.DrawnMagic);
-            if (UsesExpandedRoster)
-            {
                 RequireExpandedAction(spell);
-            }
         }
         BattleAttackCommand queued = new(actorId, sourceId, request, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId, SmartAttack = pendingSmartAttack };
         OnNativePlayerCommandSubmitted(actor, 6);
-        if (UsesExpandedRoster)
-        {
             actions.Enqueue(queued);
-        }
-        else
-        {
-            EnqueueNativeInputCommand(queued);
-        }
         actor.Atb = 0;
         actor.IsBusy = true;
         nativeLimitLevels.Remove(actor.Id);
@@ -93,7 +83,7 @@ public sealed partial class BattleSession
                 if (!command.DrawCast)
                 {
                     added = actor.AddMagic(command.ActionId, quantity);
-                    if (UsesExpandedRoster && added > 0 && nativeKnownMagic is not null)
+                    if (added > 0 && nativeKnownMagic is not null)
                     {
                         DiscoverNativeMagic(command.ActionId);
                     }
@@ -146,10 +136,6 @@ public sealed partial class BattleSession
             {
                 ResolveAction(actor, recipient, command with { Ability = BattleAbility.Magic, NativeDraw = null });
             }
-            if (NativeGraphics is not null)
-            {
-                PresentNativeDrawResult(actor, source, result, true);
-            }
             return;
         }
         if (nativeProductionContext is not null)
@@ -162,10 +148,6 @@ public sealed partial class BattleSession
         {
             ApplyDamage(actor, source, 0, "Draw");
         }
-        if (NativeGraphics is not null)
-        {
-            PresentNativeDrawResult(actor, source, result, command.DrawCast);
-        }
     }
 
     private static BattleNativeAction NativeStockDrawAction(BattleNativeDrawContext result)
@@ -175,7 +157,7 @@ public sealed partial class BattleSession
 
     private void PublishNativeDrawComponentResult(BattleActionPresentation command)
     {
-        if (NativeGraphics is null && command.NativeDraw is { } result)
+        if (command.NativeDraw is { } result)
         {
             PresentNativeDrawResult(GetActor(command.ActorId), GetActor(command.TargetId), result, command.DrawCast);
         }

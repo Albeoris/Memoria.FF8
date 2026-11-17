@@ -9,7 +9,7 @@ public sealed class BattleLaboratoryPanelTests
     public void StartRequiresConfirmationRatherThanAnAdjustmentGesture()
     {
         int starts = 0;
-        BattleDebugController editor = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, BattleDebugDefaults.Dummy] }, new BattleDebugCatalog(), BattleAtbMode.Normal, (_, _) => starts++, () => { });
+        BattleDebugController editor = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Training opponent", ModelId = 1 }] }, new BattleDebugCatalog(), BattleAtbMode.Normal, (_, _) => starts++, () => { });
         editor.Navigate(MenuInput.Right);
         editor.Navigate(MenuInput.Left);
         Assert.Equal(0, starts);
@@ -66,7 +66,7 @@ public sealed class BattleLaboratoryPanelTests
 
     private static BattleDebugController Create()
     {
-        BattleDefinition definition = new() { StageId = 2, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, BattleDebugDefaults.Dummy] };
+        BattleDefinition definition = new() { StageId = 2, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Training opponent", ModelId = 1 }] };
         return new BattleDebugController(definition, new BattleDebugCatalog { StageIds = [2, 4] }, BattleAtbMode.Normal, (_, _) => { }, () => { });
     }
 

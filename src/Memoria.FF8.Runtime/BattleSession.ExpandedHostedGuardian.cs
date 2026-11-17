@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void DispatchExpandedGuardianBoost(ExpandedBattlePresentationProcess process)
+    private void DispatchExpandedGuardianBoost(BattlePresentationProcess process)
     {
         if (process.PendingGuardianBoost is not { } request)
         {

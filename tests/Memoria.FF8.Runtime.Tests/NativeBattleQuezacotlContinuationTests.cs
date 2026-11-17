@@ -11,8 +11,8 @@ public sealed class NativeBattleQuezacotlContinuationTests
         Assert.SkipUnless(source is not null && File.Exists(source), "A concrete active GF standalone is required.");
         BattleSnapshot saved = GameSession.Load(source!).Battle ?? throw new InvalidDataException("The selected standalone has no battle.");
         BattleSession battle = BattleSession.Restore(saved);
-        Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.True(battle.NativeGraphics.OriginalEffect.ReturnedDescriptor > 0);
+        Assert.Equal((ushort)116, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
+        Assert.True(battle.Presentation!.Graphics.OriginalEffect.ReturnedDescriptor > 0);
         TimeSpan elapsed = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond + 1);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero);
         for (int frame = 0; frame < 512; frame++)
@@ -28,7 +28,7 @@ public sealed class NativeBattleQuezacotlContinuationTests
             {
                 battle.AdvanceNativeGraphicsPresentation(elapsed);
             }
-            if (battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 } && battle.NativeEffectMemory!.Active == 0)
+            if (battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 } && battle.Presentation!.Memory.Active == 0)
             {
                 return;
             }

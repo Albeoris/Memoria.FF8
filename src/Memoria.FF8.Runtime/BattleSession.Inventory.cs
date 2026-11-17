@@ -97,7 +97,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Saved item reservation does not identify its physical inventory slot and item command.");
         }
         bool reflectedMagic = ability == BattleAbility.Magic && native?.Command == 247;
-        if (UsesExpandedRoster && actor.IsPlayer && ability == BattleAbility.EnemyAbility && native?.Command == 2 && !freeMagic)
+        if (actor.IsPlayer && ability == BattleAbility.EnemyAbility && native?.Command == 2 && !freeMagic)
         {
             throw new InvalidDataException("Saved expanded Angel Wing spell must retain its free-cast source.");
         }

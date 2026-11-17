@@ -33,9 +33,9 @@ public sealed class NativeBattleTextureMotionResourceTests
         Assert.Equal(logical ? resource : guest, Read().ToArray());
         typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
         Assert.Equal(logical ? 6 : 3, Read()[9]);
-        NativeBattleModelCpuResources changed = session.NativeModelCpuResources!;
+        NativeBattleModelCpuResources changed = session.Presentation!.ModelCpuResources;
         NativeBattleResourcePointer opposite = new(new(0, logical ? 4 : layout.BankLength + 4) { Layout = layout, ResourceOnly = !logical }, null, guest.Length);
-        Assert.Equal(logical ? guest : resource, NativeBattleModelResourceView.Open(changed, session.NativeFileStaging!, opposite, guest.Length).Read(0, guest.Length));
+        Assert.Equal(logical ? guest : resource, NativeBattleModelResourceView.Open(changed, session.Presentation!.NativeFileStaging!, opposite, guest.Length).Read(0, guest.Length));
         Set(nameof(BattleSession.NativeModelCpuResources), NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(changed)));
         Assert.Equal(logical ? 6 : 3, Read()[9]);
         Assert.Equal(guest, bank.ReadGuest(4, guest.Length));
@@ -57,15 +57,15 @@ public sealed class NativeBattleTextureMotionResourceTests
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
         cache = cache with { Rows = cache.Rows.SetItem(0, cache.Rows[0] with { Kind = 3 }) };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelTextureCache))!.SetValue(session, cache);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, NativeBattleFileStaging.Unknown().Write(target.NativePlacementAddress, bytes));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelTextureCache))!.SetValue(session.Presentation!, cache);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(session.Presentation!, NativeBattleFileStaging.Unknown().Write(target.NativePlacementAddress, bytes));
         NativeBattleGraphicsModel model = new(16) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
         typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
-        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
-        Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, new NativeBattleResourcePointer(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);
-        Assert.Equal(5, NativeBattleModelResourceView.Open(restored, session.NativeFileStaging!, pin, bytes.Length).Read(9, 1)[0]);
-        Assert.Equal(bytes, session.NativeFileStaging!.Read(target.NativePlacementAddress, bytes.Length));
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.Presentation!.ModelCpuResources));
+        Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.Presentation!.NativeFileStaging!, new NativeBattleResourcePointer(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);
+        Assert.Equal(5, NativeBattleModelResourceView.Open(restored, session.Presentation!.NativeFileStaging!, pin, bytes.Length).Read(9, 1)[0]);
+        Assert.Equal(bytes, session.Presentation!.NativeFileStaging!.Read(target.NativePlacementAddress, bytes.Length));
     }
 
     private static byte[] Table(byte counter)

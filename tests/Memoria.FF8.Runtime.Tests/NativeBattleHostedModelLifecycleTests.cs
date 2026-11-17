@@ -144,7 +144,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
         Assert.Equal(new NativeBattleModelTriggerRegistered(FourthAlly, "ally-3", widget), Assert.Single(services.ReadReceipts()));
         Assert.Equal(before, ObserveActors(session));
         Assert.Equal(limits, NativeBattleTestSnapshots.Json((BattleNativeLimitState[])captureLimits.Invoke(session, null)!));
-        Assert.Null(session.NativeGraphics);
+        Assert.Null(session.Presentation?.Graphics);
         Assert.Empty(session.Events);
     }
 
@@ -205,13 +205,13 @@ public sealed class NativeBattleHostedModelLifecycleTests
                 services = new(services.Facts.Add(MissingAlly, new("ally-4", true, 0, 0, 0)));
                 break;
         }
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
         var actors = ObserveActors(session);
 
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Advance(session, graphics, services));
 
         Assert.IsType<InvalidDataException>(error.InnerException);
-        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Same(memory, session.Presentation?.Memory);
         Assert.Equal(actors, ObserveActors(session));
         Assert.Empty(session.Events);
         if (services is not null)

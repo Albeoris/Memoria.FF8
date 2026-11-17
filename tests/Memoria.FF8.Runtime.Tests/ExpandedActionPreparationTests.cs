@@ -278,8 +278,8 @@ public sealed class ExpandedActionPreparationTests
         BattleSession child = Create();
         var (_, aliases) = owner.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = 0 });
-        PropertyInfo graphicsProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
-        graphicsProperty.SetValue(child, graphics with { EntryReady = true });
+        PropertyInfo graphicsProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!;
+        graphicsProperty.SetValue(child.Presentation!, graphics with { EntryReady = true });
         typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
         typeof(BattleSession).GetField("definition", privateInstance)!.SetValue(child, child.ReadDefinition() with
@@ -287,10 +287,10 @@ public sealed class ExpandedActionPreparationTests
             NativeGraphics = new(rules, [new("caster", 0, new([0, 0]))], [])
         });
         NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { Recipient = header.Source } };
-        long token = child.BeginHostedAction(header, [wrongRecipient]);
+        long token = child.Presentation!.BeginHostedAction(header, [wrongRecipient]);
         NativeBattleTriggerReceipt receipt = new(header.Source, 1, 1, 25, 32);
-        graphicsProperty.SetValue(child, child.NativeGraphics! with { PendingTrigger = receipt });
-        NativeBattleGraphicsState originalGraphics = child.NativeGraphics!;
+        graphicsProperty.SetValue(child.Presentation!, child.Presentation!.Graphics with { PendingTrigger = receipt });
+        NativeBattleGraphicsState originalGraphics = child.Presentation!.Graphics;
         NativeBattleActionPacketsState rejectedPackets = child.NativeActionPackets;
         BattleActionHeaderReference admittedHeader = Assert.Single(rejectedPackets.PublishedHeaders()).Reference;
         invocation.GetType().GetProperty("HeaderReference", privateInstance)!.SetValue(invocation, admittedHeader);
@@ -305,9 +305,9 @@ public sealed class ExpandedActionPreparationTests
         Type hostedEventType = typeof(BattleSession).GetNestedType("ExpandedHostedEvent", BindingFlags.NonPublic)!;
         object currentEvent = Activator.CreateInstance(hostedEventType, owner.ActiveAction, owner.ActiveAction, 0x47DE70u, null, false, header.Source)!;
         typeof(BattleSession).GetField("expandedHostedEvent", privateInstance)!.SetValue(owner, currentEvent);
-        var process = (ExpandedBattlePresentationProcess)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
-        typeof(ExpandedBattlePresentationProcess).GetField("logicalOwner", privateInstance)!.SetValue(process, owner);
-        typeof(ExpandedBattlePresentationProcess).GetField("presentation", privateInstance)!.SetValue(process, child);
+        var process = (BattlePresentationProcess)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
+        typeof(BattlePresentationProcess).GetField("logicalOwner", privateInstance)!.SetValue(process, owner);
+        typeof(BattlePresentationProcess).GetField("presentation", privateInstance)!.SetValue(process, child);
         typeof(BattleSession).GetField("expandedPresentationProcess", privateInstance)!.SetValue(owner, process);
         MethodInfo recompute = typeof(BattleSession).GetMethod("DispatchExpandedGunbladeTrigger", privateInstance)!;
         string before = Snapshot(owner);
@@ -317,7 +317,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Same(held, ReadBoundDraw());
         Assert.Same(newer, pending.GetValue(owner));
         Assert.Same(rejectedPackets, child.NativeActionPackets);
-        Assert.Same(originalGraphics, child.NativeGraphics);
+        Assert.Same(originalGraphics, child.Presentation?.Graphics);
 
         NativeBattleActionPacketsState corrected = NativeBattleActionPacketsState.Create(roster, rejectedPackets.ExportRetained(), aliases);
         (corrected, BattleActionHeaderReference reference) = corrected.Prepare(header);

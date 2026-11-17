@@ -3,38 +3,30 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Transient audio follows committed battle events without becoming saved simulation state.</summary>
-internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null, Action<NativeBattleModuleSound>? playModule = null, Action? stopSounds = null, Action<NativeBattleMusicCommandReceipt>? playMusicCommand = null, Action<int>? playUiSound = null, Action<byte>? stopSoundVoice = null)
+internal sealed class BattleAudioPresentation(Action<NativeBattleModuleSound> playModule, Action stopSounds, Action<NativeBattleMusicCommandReceipt> playMusicCommand, Action<int> playUiSound, Action<byte> stopSoundVoice)
 {
     private BattleSession? battle;
+    private IReadOnlyList<BattleEvent> receipts = [];
     private int consumedEvents;
-    private readonly HashSet<(string Actor, long Frame, int Index)> sequenceSounds = [];
-    private bool sequenceInitialized;
 
-    public bool Update(BattleSession? active, IReadOnlyList<BattleSequenceSoundCue>? sounds = null)
+    public void Update(BattleSession? active)
     {
-        bool ended = battle is not null && active is null;
-        bool changed = !ReferenceEquals(battle, active);
-        if (changed)
+        if (!ReferenceEquals(battle, active))
         {
             battle = active;
-            consumedEvents = active?.Events.Count ?? 0;
-            sequenceSounds.Clear();
-            sequenceInitialized = false;
+            receipts = active?.Events ?? [];
+            consumedEvents = receipts.Count;
         }
-        if (active is null)
+        while (consumedEvents < receipts.Count)
         {
-            return ended;
-        }
-        for (int index = consumedEvents; index < active.Events.Count; index++)
-        {
-            BattleEvent entry = active.Events[index];
+            BattleEvent entry = receipts[consumedEvents++];
             if (entry.NativeUiSound is int uiSound)
             {
-                (playUiSound ?? throw new NotSupportedException("Native4B92A0 requires its committed menu sound output handler."))(uiSound);
+                playUiSound(uiSound);
             }
             if (entry.NativeMusicCommand is { } musicCommand)
             {
-                (playMusicCommand ?? throw new NotSupportedException("Native501B60 requires its committed battle music output handler."))(musicCommand);
+                playMusicCommand(musicCommand);
             }
             if (entry.NativeStopSoundVoice is byte voice)
             {
@@ -42,41 +34,16 @@ internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<Bat
                 {
                     throw new InvalidDataException("Native sound stop requires a physical voice below32.");
                 }
-                (stopSoundVoice ?? throw new NotSupportedException("Native46B450 requires its selected sound voice output handler."))(voice);
+                stopSoundVoice(voice);
             }
             if (entry.NativeStopAllSounds)
             {
-                (stopSounds ?? throw new NotSupportedException("Native46B440 requires a sound-only device stop handler."))();
+                stopSounds();
             }
             if (entry.NativeModuleSound is { } module)
             {
-                playModule?.Invoke(module);
-            }
-            if (active.NativeGraphics is null && active.ExpandedPresentationProcess is null && (!active.UsesExpandedRoster || entry.Ability == BattleAbility.Attack) && entry.Kind == "Damage" && entry.ActorId is not null)
-            {
-                BattleCombatant actor = active.Combatants.Single(actor => actor.Id == entry.ActorId);
-                // Native47D970→502670 retains scene.out's enemy identity;507120 maps identity+150 to C0M(model).DAT.
-                int actorId = actor.IsPlayer ? actor.ModelId : checked(actor.ModelId + 16);
-                if (actor.ModelId >= 0 && (actor.IsPlayer ? actor.ModelId < 11 : actorId < 160))
-                {
-                    playImpact(actorId);
-                }
+                playModule(module);
             }
         }
-        consumedEvents = active.Events.Count;
-        bool suppressSequenceHistory = !sequenceInitialized;
-        foreach (BattleSequenceSoundCue cue in sounds ?? [])
-        {
-            if (sequenceSounds.Add((cue.ActorId, cue.ActionFrame, cue.CueIndex)) && !suppressSequenceHistory)
-            {
-                BattleCombatant actor = active.Combatants.Single(actor => actor.Id == cue.ActorId);
-                playSequence?.Invoke(actor, cue);
-            }
-        }
-        if (sounds is not null)
-        {
-            sequenceInitialized = true;
-        }
-        return ended;
     }
 }

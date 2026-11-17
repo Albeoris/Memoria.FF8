@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 using System.Diagnostics;
 
@@ -16,6 +17,7 @@ public sealed record BattleDiagnosticInvocationAftercareReceipt(Guid LifecycleId
 
 public sealed partial class BattleSession
 {
+
     public BattleDiagnosticInvocationAftercareReceipt? LastDiagnosticInvocationAftercare { get; private set; }
     public event Action<BattleDiagnosticInvocationAftercareReceipt>? DiagnosticInvocationAftercareCompleted;
     public object? DiagnosticInvocationAftercareProgress => diagnosticAftercare is not { } state ? null : new
@@ -72,10 +74,10 @@ public sealed partial class BattleSession
         internal NativeBattleDescriptorPacket? RetiredPacket;
     }
 
+    private DiagnosticAftercareState? diagnosticAftercare;
     private DiagnosticInvocationCompletion? diagnosticFocalCompletionScope;
     private BattleDiagnosticNoOpPlayerCallback? diagnosticBornNoOpCallback;
     private int diagnosticFocalCallbackCount;
-    private DiagnosticAftercareState? diagnosticAftercare;
 
     private void BeginDiagnosticInvocationFocalCompletion(DiagnosticInvocationCompletion? attempt)
     {
@@ -179,21 +181,6 @@ public sealed partial class BattleSession
 
     private static bool SameDiagnosticAftercareRandom(BattleDiagnosticRepairRandomState first, BattleDiagnosticRepairRandomState second) => first.Battle.Lane == second.Battle.Lane && first.Battle.Indexes.AsSpan().SequenceEqual(second.Battle.Indexes.AsSpan()) && first.Crt == second.Crt && first.Ui == second.Ui && first.Global == second.Global;
 
-    private void ObserveDiagnosticInvocationAftercareDescriptorQueued(int slot, NativeBattleDescriptorPacket packet)
-    {
-        if (diagnosticAftercare is not { HandlerActive: true } state)
-        {
-            return;
-        }
-        if (packet.Command != 10 || packet.Argument != 0x47DDA0 || state.CompletionPacket is not null)
-        {
-            state.Failed = true;
-            return;
-        }
-        state.CompletionSlot = slot;
-        state.CompletionPacket = packet;
-    }
-
     private void ObserveDiagnosticInvocationAftercareBankReleased(NativeBattleCommandLocation location, NativeBattleCommandPacket? original)
     {
         if (diagnosticAftercare is not { HandlerDone: true, BankReleased: false } state || location.Bank != state.Plan.Callback.Bank || location.Slot != state.Plan.Callback.Slot)
@@ -212,26 +199,19 @@ public sealed partial class BattleSession
         state.ReleasedBankLink = bank.Links[location.Slot];
     }
 
-    private bool IsDiagnosticInvocationAftercareCompletion(NativeBattleGraphicsState graphics, uint callback)
+    private void ObservePresentationDescriptorQueued(int slot, NativeBattleDescriptorPacket packet)
     {
-        if (diagnosticAftercare is not { HandlerDone: true, BankReleased: true, Failed: false, EventCompleted: false } state || callback != 0x47DDA0 || state.CompletionSlot < 0 || graphics.Descriptors.Queue.Length != 1 || graphics.Descriptors.Queue[0] != state.CompletionSlot || !ReferenceEquals(graphics.Descriptors.Packets[state.CompletionSlot], state.CompletionPacket) || nativeActionScratch.EventActorB0F != state.Plan.Callback.ActorIndex)
-        {
-            return false;
-        }
-        state.EventCallback = NativeHostCallbacks!.Value;
-        state.EventFrame = Frame;
-        state.EventGraphics = graphics.Callback;
-        return true;
-    }
-
-    private void ObserveDiagnosticInvocationAftercareNativeEvent(bool matched, bool completed)
-    {
-        if (!matched || diagnosticAftercare is not { } state)
+        if (diagnosticAftercare is not { HandlerActive: true } state)
         {
             return;
         }
-        state.EventCompleted = completed;
-        state.Failed |= !completed;
+        if (packet.Command != 10 || packet.Argument != 0x47DDA0 || state.CompletionPacket is not null)
+        {
+            state.Failed = true;
+            return;
+        }
+        state.CompletionSlot = slot;
+        state.CompletionPacket = packet;
     }
 
     private void ObserveDiagnosticInvocationAftercarePacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket original)
@@ -256,9 +236,31 @@ public sealed partial class BattleSession
         }
     }
 
+    private bool IsDiagnosticInvocationAftercareCompletion(NativeBattleGraphicsState graphics, uint callback)
+    {
+        if (diagnosticAftercare is not { HandlerDone: true, BankReleased: true, Failed: false, EventCompleted: false } state || callback != 0x47DDA0 || state.CompletionSlot < 0 || graphics.Descriptors.Queue.Length != 1 || graphics.Descriptors.Queue[0] != state.CompletionSlot || !ReferenceEquals(graphics.Descriptors.Packets[state.CompletionSlot], state.CompletionPacket) || nativeActionScratch.EventActorB0F != state.Plan.Callback.ActorIndex)
+        {
+            return false;
+        }
+        state.EventCallback = NativeHostCallbacks!.Value;
+        state.EventFrame = Frame;
+        state.EventGraphics = graphics.Callback;
+        return true;
+    }
+
+    private void ObserveDiagnosticInvocationAftercareNativeEvent(bool matched, bool completed)
+    {
+        if (!matched || diagnosticAftercare is not { } state)
+        {
+            return;
+        }
+        state.EventCompleted = completed;
+        state.Failed |= !completed;
+    }
+
     private void ObserveDiagnosticInvocationAftercareFrameEnd()
     {
-        if (diagnosticAftercare is not { EventCompleted: true, Failed: false } state || LastDiagnosticInvocationAftercare is not null || NativeGraphics is not { } graphics)
+        if (diagnosticAftercare is not { EventCompleted: true, Failed: false } state || LastDiagnosticInvocationAftercare is not null || Presentation?.Graphics is not { } graphics)
         {
             return;
         }
@@ -329,5 +331,4 @@ public sealed partial class BattleSession
         }
         return current.Tasks.All(row => state.MainTextures.TryGetValue(row.Slot, out NativeBattleAuxiliaryTask? task) && ReferenceEquals(task, graphics.Auxiliary.Slots[row.Slot]));
     }
-
 }

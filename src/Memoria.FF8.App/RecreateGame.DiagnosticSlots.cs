@@ -62,19 +62,15 @@ internal sealed partial class RecreateGame
                     DiagnosticSlotsObservation afterDo = DiagnosticSlotsObservations.Observe(active, source.BattleInstanceId, source.ActorId, source);
                     BattleAttackCommand command = active.QueuedActions.Single(candidate => candidate.ActorId == source.ActorId && candidate.NativeQueuedCommand == 16);
                     BattleNativeAction native = command.NativeAction ?? throw new InvalidDataException("Slots Do lost its actual native action.");
-                    BattleAbility queuedAbility = active.UsesExpandedRoster ? BattleAbility.LimitBreak : BattleAbility.EnemyAbility;
-                    int queuedAction = active.UsesExpandedRoster ? 16 << 16 | declaration.MagicAction : declaration.MagicAction;
-                    if (command.Ability != queuedAbility || command.ActionId != queuedAction || native.KernelSection != 1 || native.KernelIndex != declaration.MagicAction || !native.RawRecord.AsSpan().SequenceEqual(source.ActionRecord.AsSpan()))
+                    int queuedAction = 16 << 16 | declaration.MagicAction;
+                    if (command.Ability != BattleAbility.LimitBreak || command.ActionId != queuedAction || native.KernelSection != 1 || native.KernelIndex != declaration.MagicAction || !native.RawRecord.AsSpan().SequenceEqual(source.ActionRecord.AsSpan()))
                     {
                         throw new InvalidDataException("Slots Do did not publish the initialized native command action.");
                     }
-                    ushort? nativeTargetMask = active.UsesExpandedRoster ? null : active.NativeCommandBanks.Banks
-                        .SelectMany(bank => bank.LogicalCommands.Select((bound, index) => (bound, packet: bank.Packets[index])))
-                        .Single(entry => ReferenceEquals(entry.bound, command)).packet.ReadWord(6);
                     byte targetIndex = checked((byte)(active.ObserveDiagnosticCombatants().Single(candidate => candidate.Id == command.TargetId).NativeIndex ?? throw new InvalidDataException("Slots target lost its physical index.")));
-                    accepted = new(beforeDo, afterDo, command.ActorId, command.TargetId, targetIndex, command.NativeQueuedCommand!.Value, native.ActionId, native.MagicId, nativeTargetMask, command.NativeSlots ?? throw new InvalidDataException("Slots Do lost its consumed owned result."))
+                    accepted = new(beforeDo, afterDo, command.ActorId, command.TargetId, targetIndex, command.NativeQueuedCommand!.Value, native.ActionId, native.MagicId, null, command.NativeSlots ?? throw new InvalidDataException("Slots Do lost its consumed owned result."))
                     {
-                        ExpandedTargets = active.UsesExpandedRoster ? command.TargetRequest : null
+                        ExpandedTargets = command.TargetRequest
                     };
                     admission.Did(accepted);
                     return;

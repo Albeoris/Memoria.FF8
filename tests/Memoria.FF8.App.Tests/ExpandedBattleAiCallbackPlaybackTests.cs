@@ -33,11 +33,9 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         {
             NativeAi = (actor.NativeAi ?? throw new InvalidDataException("The installed test enemy is missing its original AI records.")) with { Scripts = [[0], actor.Id == owner.Id ? turn : [0], [0], [0], [0]] }
         }).ToArray();
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased });
-        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        GameWorld.AttachExpandedEffects(battle, game, world.BattleResources);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased }, game, world.BattleResources);
         world.CommitPreparedBattleEntry(entry with { Battle = battle });
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && (!process.EntryReady || battle.QueuedActions.Count > 0 || battle.ActiveAction is not null); callback++)
         {
             foreach (BattleCombatant actor in battle.Combatants)
@@ -52,7 +50,7 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
 
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant enemy = battle.Combatants.Single(actor => actor.Id == owner.Id);
         BattleCombatant target = battle.Combatants.Single(actor => actor.Id == AddedAlly);
         BattleModelOwner enemyOwner = battle.ReadPresentationModelOwner(enemy.Id);
@@ -79,7 +77,7 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         for (int callback = 0; callback < 1800 && !Completed(battle, events, enemy.Id); callback++)
         {
             battle.Tick();
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (process.LastFrameServices is { } services)
             {
                 if (process.LastStepActionToken is long token)
@@ -144,7 +142,7 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         for (int callback = 0; callback < 1200 && !Completed(battle, next, target.Id); callback++)
         {
             battle.Tick();
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         Assert.Equal(enemy.Id, Assert.Single(battle.Events.Skip(next), entry => entry.Kind == "EffectContact" && entry.ActorId == target.Id).TargetId);
         Assert.Single(battle.Events.Skip(next), entry => entry.Kind == "ActionComplete" && entry.ActorId == target.Id);

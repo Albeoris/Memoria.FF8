@@ -30,7 +30,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
             sliced.Tick();
         }
         Assert.True(sliced.CanSkipGuardianFormFinisher);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         byte[] visible = scene.Render(sliced, 320, 224).ToArray();
         Assert.True(sliced.SkipGuardianFormFinisher());
         Assert.True(sliced.GuardianAnimationSkipPending);
@@ -38,12 +38,12 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         synchronous.Tick();
         Assert.False(synchronous.GuardianAnimationSkipPending);
 
-        long initial = sliced.NativeGraphics!.Callback;
+        long initial = sliced.Presentation!.Graphics.Callback;
         sliced.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
-        Assert.Equal(initial + 1, sliced.NativeGraphics!.Callback);
+        Assert.Equal(initial + 1, sliced.Presentation!.Graphics.Callback);
         Assert.True(sliced.GuardianAnimationSkipPending);
         Assert.Equal(visible, scene.Render(sliced, 320, 224).ToArray());
-        BattleScenePresentation restoredScene = new(assets, definition, true);
+        BattleScenePresentation restoredScene = new(assets, definition);
         byte[] blank = restoredScene.Render(sliced, 320, 224).ToArray();
         Assert.True(blank.Where((value, index) => index % 4 != 3).All(value => value == 0));
         Assert.True(blank.Where((value, index) => index % 4 == 3).All(value => value == 255));
@@ -54,21 +54,21 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         int slices = 1;
         while (slices < 4096 && sliced.GuardianAnimationSkipPending)
         {
-            long before = sliced.NativeGraphics!.Callback;
+            long before = sliced.Presentation!.Graphics.Callback;
             sliced.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
-            Assert.Equal(before + 1, sliced.NativeGraphics!.Callback);
+            Assert.Equal(before + 1, sliced.Presentation!.Graphics.Callback);
             slices++;
         }
         Assert.True(slices > 1);
         Assert.False(sliced.GuardianAnimationSkipPending);
-        Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(sliced.NativeGraphics!.OriginalEffect!, sliced.NativeEffectMemory!));
+        Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(sliced.Presentation!.Graphics.OriginalEffect!, sliced.Presentation!.Memory));
         Assert.Equal(JsonSerializer.Serialize(synchronous.Capture()), JsonSerializer.Serialize(sliced.Capture()));
-        byte[] finale = new BattleScenePresentation(assets, definition, true).Render(synchronous, 320, 224).ToArray();
+        byte[] finale = new BattleScenePresentation(assets, definition).Render(synchronous, 320, 224).ToArray();
         Assert.Equal(finale, scene.Render(sliced, 320, 224).ToArray());
         Assert.Equal(finale, restoredScene.Render(sliced, 320, 224).ToArray());
 
-        long firstFinale = sliced.NativeGraphics!.Callback;
-        sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / NativeBattleGraphicsPresentationClock.CallbacksPerSecond)), TimeSpan.Zero);
-        Assert.Equal(firstFinale + 1, sliced.NativeGraphics!.Callback);
+        long firstFinale = sliced.Presentation!.Graphics.Callback;
+        sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)), TimeSpan.Zero);
+        Assert.Equal(firstFinale + 1, sliced.Presentation!.Graphics.Callback);
     }
 }

@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private void OnNativePlayerCommandSubmitted(BattleCombatant actor, byte command)
     {
-        NativeBattleGraphicsState? graphics = actor.IsPlayer && command is not (0 or 254) ? PrepareNativeUiReadyRemoval(actor) : NativeGraphics;
+        NativeBattleGraphicsState? graphics = actor.IsPlayer && command is not (0 or 254) ? PrepareNativeUiReadyRemoval(actor) : ((NativeBattleGraphicsState?)null);
         PublishNativePlayerCommandSubmission(actor, command, graphics);
     }
 
@@ -16,7 +16,6 @@ public sealed partial class BattleSession
         }
         if (actor.IsPlayer && command is not (0 or 254))
         {
-            NativeGraphics = graphics;
         }
         //4847F0 clears Defend/Charged when accepting an ordinary player command;0 and254 bypass this producer.
         if (actor.IsPlayer && command is not (0 or 254))
@@ -36,12 +35,12 @@ public sealed partial class BattleSession
         int previousLevel = recipient.Level;
         int missingHp = recipient.MaximumHp - recipient.CurrentHp;
         int level = ProjectNativeLevel(native, recipient.Level);
-        if (UsesExpandedRoster && !CanRebindExpandedEnemyLevel(recipient, level))
+        if (!CanRebindExpandedEnemyLevel(recipient, level))
         {
             Log("Miss", actor.Id, recipient.Id, 0, $"{native.Name}: the resulting level is unavailable in this battle.");
             return;
         }
-        int? previousBand = UsesExpandedRoster ? recipient.ExpandedEnemyLevels!.Levels[previousLevel - 1].AiLevelBand : null;
+        int? previousBand = recipient.ExpandedEnemyLevels!.Levels[previousLevel - 1].AiLevelBand;
         BattleLevelChange change = new(previousLevel, level);
         MarkNativeContactFlags(1, 0);
         recipient.BindNativeLevel(level);

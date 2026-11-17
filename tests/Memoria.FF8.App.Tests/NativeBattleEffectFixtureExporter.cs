@@ -466,12 +466,12 @@ internal static class NativeBattleEffectFixtureExporter
                         Save("last-complete-before-blocker", prior);
                         return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection);
                     }
-                    if (battle.NativeGraphics?.Callback != prior.NativeGraphics!.Callback + 1)
+                    if (battle.Presentation?.Graphics?.Callback != prior.NativeGraphics!.Callback + 1)
                     {
                         Save("last-complete-before-counter-blocker", prior);
                         throw new InvalidDataException("The diagnostic prefix did not advance exactly one native callback.");
                     }
-                    if (battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0 } selected && selected.Binding.Effect == request.Effect)
+                    if (battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: > 0 } selected && selected.Binding.Effect == request.Effect)
                     {
                         Save("initialized-prefix", battle.Capture());
                         return new(request.Id, request.Effect, "fixture-only", boundary, "The live initialized entry was reached; effect execution and termination acceptance remain pending.", artifacts.ToArray(), selection);

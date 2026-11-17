@@ -37,7 +37,7 @@ public sealed class NativeRenzokukenRawOwnerTests
         processes.Add("party", process);
         BattleNativeRenzokukenBlock block = new(1, [10, 10], NativeBattleRenzokukenRules.Timeline([10, 10]));
         NativeBattleTriggerWidget widget = new(new BattlePartyActorModel(new("party")), block, new() { Phase = 8, ContactIndex = 1 }, true, false, 0, 0, 4, -1);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, battle.NativeGraphics! with { TriggerWidget = widget });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, battle.Presentation!.Graphics with { TriggerWidget = widget });
 
         Invoke(battle, "MirrorNativeRenzokukenWidget", widget);
 
@@ -46,7 +46,7 @@ public sealed class NativeRenzokukenRawOwnerTests
         Assert.False(battle.NativeRenzokukenBarVisible);
         Assert.False(battle.NativeRenzokukenTriggerWindowOpen);
         Assert.False(battle.TriggerNativeRenzokuken());
-        Assert.Equal(widget, battle.NativeGraphics!.TriggerWidget);
+        Assert.Equal(widget, battle.Presentation!.Graphics.TriggerWidget);
     }
 
     [Fact]
@@ -58,11 +58,11 @@ public sealed class NativeRenzokukenRawOwnerTests
         Field<Dictionary<string, byte>>(battle, "nativeLimitLevels").Add("party", 1);
         BattleActionPresentation command = new("party", "enemy", BattleActionPhase.Windup, 1, TargetRequest(), BattleAbility.LimitBreak, 65533) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };
         typeof(BattleSession).GetField("nativeTimedAction", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new NativeBattleTimedAction(command, 0));
-        NativeBattleGraphicsState graphics = battle.NativeGraphics! with { PendingTrigger = new(new BattlePartyActorModel(new("party")), 1, 2, 25, 32) };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics with { PendingTrigger = new(new BattlePartyActorModel(new("party")), 1, 2, 25, 32) };
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
         Invoke(battle, "ValidateNativeRenzokukenOwners");
 
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics with { PendingTrigger = null });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics with { PendingTrigger = null });
         TargetInvocationException missing = Assert.Throws<TargetInvocationException>(() => Invoke(battle, "ValidateNativeRenzokukenOwners"));
         Assert.IsType<InvalidDataException>(missing.InnerException);
     }
@@ -73,7 +73,7 @@ public sealed class NativeRenzokukenRawOwnerTests
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, new BattlePartyActorModel(new("party")), new(0)), (3, new BattleEnemyActorModel(new("enemy")), new(0))]);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
         return battle;
     }
 

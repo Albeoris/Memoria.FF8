@@ -26,10 +26,10 @@ public sealed class NativeBattleCommandTitleTests
         Assert.Equal(1, title.NativeMessageMode);
         Assert.Equal(!player, title.IsEnemyActionTitle);
         Assert.Equal(new BattleTextIdentity("kernel_magicspells_name", 1), title.NativeTextIdentity);
-        Assert.Null(battle.NativeGraphics!.ActionGraphics!.PendingData);
-        Assert.Equal(1, battle.NativeGraphics.Callback);
+        Assert.Null(battle.Presentation!.Graphics.ActionGraphics!.PendingData);
+        Assert.Equal(1, battle.Presentation!.Graphics.Callback);
         Assert.Equal(battle.Events.ToArray(), restored.Events.ToArray());
-        Assert.Equal(battle.NativeGraphics.ActionGraphics, restored.NativeGraphics!.ActionGraphics);
+        Assert.Equal(battle.Presentation!.Graphics.ActionGraphics, restored.Presentation!.Graphics.ActionGraphics);
         Assert.Equal(battle.Events.ToArray(), Restore(battle).Events.ToArray());
     }
 
@@ -37,7 +37,7 @@ public sealed class NativeBattleCommandTitleTests
     public void Hosted_BB_uses_the_current_typed_actor_facts_and_emits_one_ordered_title()
     {
         BattleSession child = Create(false, 3, true);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(child.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(child.Presentation?.Graphics);
         BattleSession logical = Create(false, 3, false);
         NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(child.NativeActionPackets.Roster);
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -65,8 +65,8 @@ public sealed class NativeBattleCommandTitleTests
         battle.Tick();
 
         Assert.DoesNotContain(battle.Events, item => item.Kind == "NativeText");
-        Assert.Null(battle.NativeGraphics!.ActionGraphics!.PendingData);
-        Assert.Equal(1, battle.NativeGraphics.Callback);
+        Assert.Null(battle.Presentation!.Graphics.ActionGraphics!.PendingData);
+        Assert.Equal(1, battle.Presentation!.Graphics.Callback);
     }
 
     [Theory]
@@ -142,7 +142,7 @@ public sealed class NativeBattleCommandTitleTests
         {
             ActionGraphics = new(new BattleActionHeaderReference(0), new BattleRetainedModelReference.CanonicalOwner(owner), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, title, 0x50A9A0)
         };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
         return session;
     }
 

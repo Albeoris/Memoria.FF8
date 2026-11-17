@@ -104,7 +104,7 @@ public sealed class NativeBattlePrivateMorphResourceTests
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
         typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, new([0, 0]) { PoseSource = source })], []));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         NativeBattleGraphicsModel model = new(3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix]) };
         BattleModelOwner owner = session.ReadPresentationModelOwner("party");
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, owner, model), (3, session.ReadPresentationModelOwner("enemy"), new(0))]);
@@ -121,21 +121,21 @@ public sealed class NativeBattlePrivateMorphResourceTests
         Assert.Equal((byte)17, unrelated.Read(0, 1)[0]);
         NativeBattleModelGeometrySource selected = (NativeBattleModelGeometrySource)Invoke($"ReadNativeEffect{family}Geometry", graphics, frame, owner, true);
         NativeBattleEffect64GeometryCleanup.Clear(selected, (offset, value) => frame = Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, owner, offset, BitConverter.GetBytes(value)), NativeBattleEffectArena.Clear());
-        Assert.NotSame(bank, session.NativeModelCpuResources!.GetResourceBank(mesh));
+        Assert.NotSame(bank, session.Presentation!.ModelCpuResources.GetResourceBank(mesh));
         Assert.Equal((byte)0, (byte)(selected.Read(59, 1)[0] & 0x80));
         Assert.Equal((byte)0x80, (byte)(NativeBattleModelResourceView.Open(cpu, staging, new NativeBattleResourcePointer(mesh, null, geometry.Length), geometry.Length).Read(59, 1)[0] & 0x80));
         Assert.Throws<TargetInvocationException>(() => Invoke($"WriteNativeEffect{family}Geometry", graphics, frame, owner, geometry.Length, new byte[1]));
-        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.Presentation!.ModelCpuResources));
         Assert.Equal((byte)0, (byte)(NativeBattleModelResourceView.Open(restored, staging, new NativeBattleResourcePointer(mesh, null, geometry.Length), geometry.Length).Read(59, 1)[0] & 0x80));
         if (family == 314)
         {
-            string before = NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!);
+            string before = NativeBattleTestSnapshots.Json(session.Presentation!.ModelCpuResources);
             NativeBattleActionMatrix replacement = matrix with { X = 999999 };
             object?[] arguments = [graphics, frame, owner, 0, NativeBattlePackedMatrix32.FromMatrix(replacement, 77)];
             typeof(BattleSession).GetMethod("WriteNativeEffect314BoneMatrix", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments);
             graphics = (NativeBattleGraphicsState)arguments[0]!;
             Assert.Equal(999999, graphics.ActorModels.Get(owner).CurrentBodyBoneMatrices!.Matrices[0].X);
-            Assert.Equal(before, NativeBattleTestSnapshots.Json(session.NativeModelCpuResources!));
+            Assert.Equal(before, NativeBattleTestSnapshots.Json(session.Presentation!.ModelCpuResources));
         }
     }
 

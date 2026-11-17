@@ -11,6 +11,24 @@ internal sealed class NativeBattleHostedModelPackets
     private readonly NativeBattleWorkingMemory?[] banks = new NativeBattleWorkingMemory?[4];
     private readonly int[] cursors = new int[4];
 
+    internal sealed record Snapshot(ImmutableArray<NativeBattleWorkingMemorySnapshot?> Banks, ImmutableArray<int> Cursors);
+
+    internal Snapshot Capture()
+    {
+        return new(banks.Select(bank => bank?.Capture()).ToImmutableArray(), cursors.ToImmutableArray());
+    }
+
+    internal static NativeBattleHostedModelPackets Restore(Snapshot snapshot)
+    {
+        NativeBattleHostedModelPackets result = new();
+        for (int index = 0; index < result.banks.Length; index++)
+        {
+            result.banks[index] = snapshot.Banks[index] is { } bank ? NativeBattleWorkingMemory.Restore(bank) : null;
+            result.cursors[index] = snapshot.Cursors[index];
+        }
+        return result;
+    }
+
     internal long AllocatedBytes => banks.Sum(bank => (long)(bank?.Capacity ?? 0));
     internal long StoredBytes => banks.Sum(bank => (long)(bank?.StoredLength ?? 0));
 

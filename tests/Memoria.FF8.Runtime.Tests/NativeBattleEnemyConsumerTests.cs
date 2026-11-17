@@ -42,13 +42,13 @@ public sealed class NativeBattleEnemyConsumerTests
         frame = typeof(BattleSession).GetMethod($"WriteNativeEffect{family}BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, frame, enemy, 0, (ushort)0x5678])!;
         staging = (NativeBattleFileStaging)frame.GetType().GetProperty("Staging")!.GetValue(frame)!;
         NativeBattleResourcePointer current = new(reference, null, 64);
-        Assert.Equal((ushort)0x5678, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, staging, current, 64).Read(50, 2)));
+        Assert.Equal((ushort)0x5678, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleModelResourceView.Open(session.Presentation!.ModelCpuResources, staging, current, 64).Read(50, 2)));
         if (owned)
         {
-            Assert.Equal((ushort)0x1234, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, staging, held, 64).Read(50, 2)));
+            Assert.Equal((ushort)0x1234, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleModelResourceView.Open(session.Presentation!.ModelCpuResources, staging, held, 64).Read(50, 2)));
             Assert.Equal(bytes, staging.Read((owned ? reference.NativePlacementAddress : reference.SharedAddress), bytes.Length));
         }
-        Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(session.NativeModelCpuResources!, staging, held)));
+        Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(session.Presentation!.ModelCpuResources, staging, held)));
         Assert.Equal((ushort)0x5678, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleModelResourceView.Open(restored.Cpu, restored.Staging, current, 64).Read(50, 2)));
         if (owned)
         {
@@ -100,18 +100,18 @@ public sealed class NativeBattleEnemyConsumerTests
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(reference.NativePlacementAddress, bytes);
         NativeBattleResourcePointer held = new NativeBattleResourcePointer(reference, null, bytes.Length).Pin(cpu);
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         BattleModelOwner enemy = new BattleEnemyActorModel(new("enemy"));
         NativeBattleGraphicsState graphics = OriginalGraphics([(3, enemy, new(16) { ActiveResourceRow100 = 0 })]);
         NativeBattleEffect64Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), new(64, 63, new(64, 1, 1), null, 0), new(42), NativeBattleEffect64State.FromColdProcess()) { Staging = staging };
         frame = (NativeBattleEffect64Frame)typeof(BattleSession).GetMethod("ClearNativeEffect64Geometry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, frame, enemy])!;
-        Assert.Equal(0, NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, frame.Staging!, new NativeBattleResourcePointer(reference, null, bytes.Length), bytes.Length).Read(59, 1)[0] & 0x80);
+        Assert.Equal(0, NativeBattleModelResourceView.Open(session.Presentation!.ModelCpuResources, frame.Staging!, new NativeBattleResourcePointer(reference, null, bytes.Length), bytes.Length).Read(59, 1)[0] & 0x80);
         if (owned)
         {
-            Assert.Equal(0x80, NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, frame.Staging!, held, bytes.Length).Read(59, 1)[0] & 0x80);
+            Assert.Equal(0x80, NativeBattleModelResourceView.Open(session.Presentation!.ModelCpuResources, frame.Staging!, held, bytes.Length).Read(59, 1)[0] & 0x80);
             Assert.Equal(bytes, frame.Staging!.Read(reference.NativePlacementAddress, bytes.Length));
         }
-        Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(session.NativeModelCpuResources!, frame.Staging!, held)));
+        Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(session.Presentation!.ModelCpuResources, frame.Staging!, held)));
         Assert.Equal(0, NativeBattleModelResourceView.Open(restored.Cpu, restored.Staging, new NativeBattleResourcePointer(reference, null, bytes.Length), bytes.Length).Read(59, 1)[0] & 0x80);
     }
 

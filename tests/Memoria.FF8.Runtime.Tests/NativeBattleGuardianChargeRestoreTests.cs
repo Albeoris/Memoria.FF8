@@ -219,12 +219,12 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat((ushort)3100, 16).ToArray(), Speed = 21 }, new() { Id = "enemy", Name = "Enemy" }]
         };
         BattleSession session = new(definition, BattleAtbMode.Normal);
-        Property(nameof(BattleSession.NativeGraphics)).SetValue(session, OriginalGraphics([]) with { EntryReady = true });
+        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(session, OriginalGraphics([]) with { EntryReady = true });
         session.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
         Assert.Equal((byte?)3, Assert.Single(session.QueuedActions).NativeQueuedCommand);
         Invoke(session, "DispatchAction");
         Assert.Equal((ushort)1060, Assert.Single(session.GuardianForceCasts).InitialTicks);
-        Method("RunNativeDescriptorActionCallback").Invoke(session, [session.NativeGraphics!, 0x47DDA0u]);
+        Method("RunNativeDescriptorActionCallback").Invoke(session, [session.Presentation!.Graphics, 0x47DDA0u]);
         for (int service = 0; service < 4; service++)
         {
             Method("AdvanceNativeAtbParticipant").Invoke(session, [session.Combatants[0], null]);

@@ -46,9 +46,9 @@ public sealed class NativeBattleHoly175PresentationTests
         NativeBattleHoly175Resources resources = installed.Holy175Resources!;
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add, stopSounds: () => { }, playMusicCommand: _ => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         heard.Clear();
         int initialEvents = battle.Events.Count;
@@ -136,7 +136,7 @@ public sealed class NativeBattleHoly175PresentationTests
                     cold.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
-                    Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
                     boundaries.Add(new(name!, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
@@ -161,10 +161,10 @@ public sealed class NativeBattleHoly175PresentationTests
             NativeBattleOriginalEffectState finished = Selected(battle.Capture())!;
             Assert.Equal(2, finished.Pools.Length);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(0, battle.NativeEffectMemory!.Active);
-            Assert.Equal(0, Active(battle.NativeEffectMemory.Holy175!.Sprite31Rows, 100));
-            Assert.Equal(0, Active(battle.NativeEffectMemory.Holy175.Sprite4Rows, 80));
-            Assert.All(battle.NativeStage!.Groups, group =>
+            Assert.Equal(0, battle.Presentation!.Memory.Active);
+            Assert.Equal(0, Active(battle.Presentation!.Memory.Holy175!.Sprite31Rows, 100));
+            Assert.Equal(0, Active(battle.Presentation!.Memory.Holy175.Sprite4Rows, 80));
+            Assert.All(battle.Presentation!.Stage.Groups, group =>
             {
                 Assert.Equal((short)0, group.ColorDepth);
                 Assert.True((group.Flags & 2) != 0);
@@ -178,7 +178,7 @@ public sealed class NativeBattleHoly175PresentationTests
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224).ToArray());
             Assert.False(HasAction(battle));
             Report("checked", null);
         }
@@ -198,7 +198,7 @@ public sealed class NativeBattleHoly175PresentationTests
 
     private static int Active(NativeBattleEffectArena rows, int count) => Enumerable.Range(0, count).Count(index => (rows.Read(index * 24, 1)[0] & 1) != 0);
     private static bool CommonIo(BattleSnapshot snapshot) => snapshot.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
-    private static bool HasAction(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+    private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 175, Binding.Entry: 0x5D1AD0 } effect ? effect : null;
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> requested)
     {

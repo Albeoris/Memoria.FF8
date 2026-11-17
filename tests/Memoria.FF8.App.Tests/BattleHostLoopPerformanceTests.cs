@@ -21,7 +21,7 @@ public sealed class BattleHostLoopPerformanceTests
         GameWorld world = RestorePerformanceWorld(session);
         BattleSession battle = world.Battle!;
         long initialFrame = battle.Frame;
-        long initialCallback = battle.NativeGraphics!.Callback;
+        long initialCallback = battle.Presentation!.Graphics.Callback;
         string directory = TestResources.ArtifactFile("battle-host-loop");
         Directory.CreateDirectory(directory);
         GlobalSettingsPaths settings = new(directory);
@@ -55,13 +55,13 @@ public sealed class BattleHostLoopPerformanceTests
         GameLoopSample sample = Get<GameLoopMetrics>(game, "metrics").Latest!;
         Assert.NotNull(sample);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-measurement", new { Speed = speed, FramesPerSecondLimit = fps, VSync = vSync, Seconds = seconds, sample, PresentedScenes = Get<GpuTriangleRenderer?>(game, "battleGpu")?.PresentationVersion, InitialFrame = initialFrame, FinalFrame = battle.Frame, InitialCallback = initialCallback, FinalCallback = battle.NativeGraphics.Callback });
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-measurement", new { Speed = speed, FramesPerSecondLimit = fps, VSync = vSync, Seconds = seconds, sample, PresentedScenes = Get<GpuTriangleRenderer?>(game, "battleGpu")?.PresentationVersion, InitialFrame = initialFrame, FinalFrame = battle.Frame, InitialCallback = initialCallback, FinalCallback = battle.Presentation!.Graphics.Callback });
         session.SetLiveBattle(battle);
         session.SetEventState(world.Events.Capture());
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-after", session.State);
         Assert.False(Get<bool>(game, "fieldFaulted"), Get<string?>(game, "error"));
-        Assert.True(battle.Mode == BattleAtbMode.TurnBased || battle.Frame > initialFrame + 200 * speed, $"Frame {initialFrame} -> {battle.Frame}; callback {initialCallback} -> {battle.NativeGraphics.Callback}; mode {battle.Mode}; outcome {battle.Outcome}");
-        Assert.True(battle.NativeGraphics.Callback > initialCallback + 200 * speed);
+        Assert.True(battle.Mode == BattleAtbMode.TurnBased || battle.Frame > initialFrame + 200 * speed, $"Frame {initialFrame} -> {battle.Frame}; callback {initialCallback} -> {battle.Presentation!.Graphics.Callback}; mode {battle.Mode}; outcome {battle.Outcome}");
+        Assert.True(battle.Presentation!.Graphics.Callback > initialCallback + 200 * speed);
     }
 
     internal static GameWorld RestorePerformanceWorld(GameSession session)

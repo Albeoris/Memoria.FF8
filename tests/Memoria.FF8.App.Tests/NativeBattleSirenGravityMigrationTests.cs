@@ -67,10 +67,10 @@ public sealed class NativeBattleSirenGravityMigrationTests
                 Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             }
             Assert.Equal(snapshot.Frame + 1, first.Frame);
-            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
+            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
             using BattleAssets assets = new(game.GameDirectory);
-            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
             using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
             {
                 JsonSerializer.Serialize(stream, migrated);

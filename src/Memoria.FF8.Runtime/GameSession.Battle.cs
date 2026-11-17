@@ -237,7 +237,7 @@ public sealed partial class GameSession
         BattleSnapshot snapshot = liveBattle.Capture();
         NativeBattleRetainedMemory retained = liveBattle.CaptureRetainedBattleMemory(snapshot, source.NativeBattleMemory?.ColdExecutableSha256 ?? snapshot.Definition.NativeRetainedMemory?.ColdExecutableSha256);
         GameState capture = source with { Battle = snapshot, NativeBattleMemory = retained, ExamTimer = snapshot.NativeExamTimer ?? source.ExamTimer, VibrationProcess = snapshot.NativeVibrationProcess ?? source.VibrationProcess, GlobalSoundProcess = snapshot.NativeGlobalSoundProcess ?? source.GlobalSoundProcess };
-        if (liveBattle.ExpandedPresentationProcess is not null && snapshot.Outcome != BattleOutcome.Active)
+        if (liveBattle.Presentation is not null && snapshot.Outcome != BattleOutcome.Active)
         {
             if (!IsCompletedExpandedRetainedPair(snapshot, retained))
             {

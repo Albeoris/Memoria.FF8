@@ -12,7 +12,7 @@ public sealed class NativeBattleGuardianCheckpointTests
         Assert.SkipUnless(path is not null, "A concrete standalone GF checkpoint is required.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
         BattleSession battle = BattleSession.Restore(snapshot);
-        Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)116, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         string first = Advance(battle);

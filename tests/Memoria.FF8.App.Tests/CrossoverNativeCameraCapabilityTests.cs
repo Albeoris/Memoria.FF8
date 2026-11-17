@@ -12,7 +12,7 @@ public sealed class CrossoverNativeCameraCapabilityTests
         NativeBattleCameraState registered = host.RegisterControlResource(resource);
         Assert.Equal(0, registered.ControlCursor);
         Assert.Same(resource, registered.ControlResource);
-        NativeBattleCameraState held = BattleSession.HoldEffectPresentationCamera(registered, host);
+        NativeBattleCameraState held = BattlePresentationProcess.HoldEffectPresentationCamera(registered, host);
         Assert.Same(resource, held.ControlResource);
         Assert.Null(held.ControlCursor);
         Assert.Equal(host.Projection, held.Projection);
@@ -24,7 +24,7 @@ public sealed class CrossoverNativeCameraCapabilityTests
         NativeBattleCameraState host = NativeBattleCameraState.FromColdProcess();
         NativeBattleCameraState requested = host.Start(new([1, 0, 4, 0, 2, 0, 0, 0, 0, 0]), 0);
         Assert.Contains(requested.Tasks, task => task is not null);
-        NativeBattleCameraState held = BattleSession.HoldEffectPresentationCamera(requested, host);
+        NativeBattleCameraState held = BattlePresentationProcess.HoldEffectPresentationCamera(requested, host);
         Assert.All(held.Tasks, task => Assert.Null(task));
         Assert.Equal(host.CurrentPose, held.CurrentPose);
         Assert.Equal(host.Projection, held.Projection);
@@ -37,9 +37,9 @@ public sealed class CrossoverNativeCameraCapabilityTests
         NativeBattleCameraState host = NativeBattleCameraState.FromColdProcess();
         NativeBattleCameraPose original = host.CurrentPose!;
         NativeBattleCameraPose moved = original with { Eye = original.Eye with { X = 1 } };
-        Assert.Equal(host.CurrentPose, BattleSession.HoldEffectPresentationCamera(host with { CurrentPose = moved }, host).CurrentPose);
-        Assert.Equal(host.FocalLength, BattleSession.HoldEffectPresentationCamera(host with { FocalLength = 512 }, host).FocalLength);
-        Assert.Equal(host.Projection, BattleSession.HoldEffectPresentationCamera(host with { Projection = host.Projection! with { FocalLength = 512 } }, host).Projection);
+        Assert.Equal(host.CurrentPose, BattlePresentationProcess.HoldEffectPresentationCamera(host with { CurrentPose = moved }, host).CurrentPose);
+        Assert.Equal(host.FocalLength, BattlePresentationProcess.HoldEffectPresentationCamera(host with { FocalLength = 512 }, host).FocalLength);
+        Assert.Equal(host.Projection, BattlePresentationProcess.HoldEffectPresentationCamera(host with { Projection = host.Projection! with { FocalLength = 512 } }, host).Projection);
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public sealed class CrossoverNativeCameraCapabilityTests
         NativeBattleCameraState host = NativeBattleCameraState.FromColdProcess();
         NativeBattleCameraState requested = host.AddViewTranslationY61B8D5(24);
 
-        Assert.Equal<short?>(0, BattleSession.HoldEffectPresentationCamera(requested, host).ViewTranslationScratch!.Y);
-        NativeBattleCameraState held = BattleSession.HoldEffectPresentationCamera(requested, host, NativeBattleEffectCameraMode.HostPoseWithEffectTranslation);
+        Assert.Equal<short?>(0, BattlePresentationProcess.HoldEffectPresentationCamera(requested, host).ViewTranslationScratch!.Y);
+        NativeBattleCameraState held = BattlePresentationProcess.HoldEffectPresentationCamera(requested, host, NativeBattleEffectCameraMode.HostPoseWithEffectTranslation);
         Assert.Equal<short?>(24, held.ViewTranslationScratch!.Y);
         Assert.Equal(host.Projection, held.Projection);
     }

@@ -37,8 +37,8 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         }
         Assert.True(battle.NativeEntryReady);
         Assert.True(battle.CanChoosePlayerCommand("party"));
-        Assert.NotNull(battle.NativeGraphics);
-        Assert.NotNull(battle.NativeEffectMemory);
+        Assert.NotNull(battle.Presentation?.Graphics);
+        Assert.NotNull(battle.Presentation?.Memory);
         AssertSubmission(battle.Capture(), game);
     }
 
@@ -63,8 +63,8 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal(actor.Id);
         BattleNativeSlotsRoll selected = deal.Candidates[0];
         Assert.True(battle.SelectNativeSlotsCard(deal.Id, 0));
-        NativeBattleGraphicsState? graphics = battle.NativeGraphics;
-        NativeBattleEffectMemory? memory = battle.NativeEffectMemory;
+        NativeBattleGraphicsState? graphics = battle.Presentation?.Graphics;
+        NativeBattleEffectMemory? memory = battle.Presentation?.Memory;
         NativeGlobalRandomChange? randomReceipt = battle.NativeGlobalRandomChange;
         long resets = battle.DiagnosticResetCount;
         long restores = battle.DiagnosticRestoreCount;
@@ -80,10 +80,10 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         Assert.True(submitted);
         Assert.Equal(resets, battle.DiagnosticResetCount);
         Assert.Equal(restores, battle.DiagnosticRestoreCount);
-        Assert.Same(memory, battle.NativeEffectMemory);
+        Assert.Same(memory, battle.Presentation?.Memory);
         if (graphics is not null)
         {
-            NativeBattleGraphicsState current = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics);
+            NativeBattleGraphicsState current = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics);
             Assert.Same(graphics.Effects, current.Effects);
             Assert.Same(graphics.Auxiliary, current.Auxiliary);
             Assert.Same(graphics.ModuleEffects, current.ModuleEffects);

@@ -12,7 +12,7 @@ public sealed class BattleWorkingStorageIsolationTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!.BeginLoad(0);
+        NativeBattleEffectMemory memory = session.Presentation!.Memory.BeginLoad(0);
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x3000000, 0x20DFAB8, 20, 1).BindArena(memory.Arena!);
         NativeBattleEffectTaskPool auxiliary = NativeBattleEffectTaskPool.Initialize(0x3100000, 0x3200000, 20, 1);
         Assert.Throws<InvalidOperationException>((Action)(() =>
@@ -20,12 +20,12 @@ public sealed class BattleWorkingStorageIsolationTests
             using NativeBattleTaskOperation operation = new([main, auxiliary]);
             main.Slots[0].WriteDword(12, 17);
             auxiliary.Slots[0].WriteDword(12, 23);
-            typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+            typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, memory);
             main.Slots[0].WriteDword(12, 99);
             auxiliary.Slots[0].WriteDword(12, 100);
             throw new InvalidOperationException("Unpublished suffix failed.");
         }));
-        Assert.Equal(17u, session.NativeEffectMemory!.Arena!.ReadUInt32(12));
+        Assert.Equal(17u, session.Presentation!.Memory.Arena!.ReadUInt32(12));
         Assert.Equal(17u, main.Slots[0].ReadDword(12));
         Assert.Equal(0u, auxiliary.Slots[0].ReadDword(12));
         Assert.Equal(17u, session.Capture().NativeEffectMemory!.Arena!.ReadUInt32(12));
@@ -46,7 +46,7 @@ public sealed class BattleWorkingStorageIsolationTests
             ]
         };
         BattleSession live = new(definition, BattleAtbMode.Normal);
-        NativeBattleQuake38State fields = live.NativeEffectMemory!.Quake38!;
+        NativeBattleQuake38State fields = live.Presentation!.Memory.Quake38!;
         fields.SetDword(0x278C8E0, 17);
         BattleSnapshot first = live.Capture();
         string firstJson = JsonSerializer.Serialize(first);
@@ -54,9 +54,9 @@ public sealed class BattleWorkingStorageIsolationTests
         BattleSnapshot second = live.Capture();
         BattleSession a = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(firstJson)!);
         BattleSession b = BattleSession.Restore(first);
-        a.NativeEffectMemory!.Quake38!.SetDword(0x278C8E0, 19);
+        a.Presentation!.Memory.Quake38!.SetDword(0x278C8E0, 19);
 
-        Assert.Equal(17u, b.NativeEffectMemory!.Quake38!.Dword(0x278C8E0));
+        Assert.Equal(17u, b.Presentation!.Memory.Quake38!.Dword(0x278C8E0));
         Assert.Equal(18u, second.NativeEffectMemory!.Quake38!.Dword(0x278C8E0));
         Assert.Equal(18u, fields.Dword(0x278C8E0));
         Assert.Equal(firstJson, JsonSerializer.Serialize(first));
@@ -74,7 +74,7 @@ public sealed class BattleWorkingStorageIsolationTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        NativeBattleQuake38State fields = live.NativeEffectMemory!.Quake38!;
+        NativeBattleQuake38State fields = live.Presentation!.Memory.Quake38!;
         fields.BeginCheckpoint();
         fields.SetDword(0x278C8E0, 20);
         Assert.Throws<InvalidOperationException>(() => live.Capture());

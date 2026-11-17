@@ -16,7 +16,7 @@ public sealed class NativeBattleShotContinuationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot input = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
         BattleSession battle = Restore(input);
-        BattleScenePresentation scene = new(assets, input.Definition, true);
+        BattleScenePresentation scene = new(assets, input.Definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "shot-continuation-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Shot continuation evidence: " + output);
@@ -55,7 +55,7 @@ public sealed class NativeBattleShotContinuationTests
             // This visual component has no enemy AI; select one real host poll instead of accelerating to another combatant's turn.
             battle.SetMode(BattleAtbMode.Normal);
             CompareNext("completed");
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Source = source, Effect = input.NativeGraphics?.OriginalEffect?.Binding.Effect, InputMode = input.Mode, CompletionHostMode = battle.Mode, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Source = source, Effect = input.NativeGraphics?.OriginalEffect?.Binding.Effect, InputMode = input.Mode, CompletionHostMode = battle.Mode, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
         }
         catch (Exception error)
         {
@@ -67,7 +67,7 @@ public sealed class NativeBattleShotContinuationTests
 
         bool Released()
         {
-            return battle.GetNativeShot("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 };
+            return battle.GetNativeShot("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 };
         }
 
         bool HasDamage()
@@ -101,7 +101,7 @@ public sealed class NativeBattleShotContinuationTests
             battle.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, input.Definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, input.Definition).Render(clone, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output, name + "-next", battle.Capture(), null);
         }
     }

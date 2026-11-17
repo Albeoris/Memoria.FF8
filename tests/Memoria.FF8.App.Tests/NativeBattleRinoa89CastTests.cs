@@ -27,7 +27,7 @@ public sealed partial class NativeBattleRinoa89CastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot before = battle.Capture();
         bool selected = false;
         bool drawn = false;
@@ -51,7 +51,7 @@ public sealed partial class NativeBattleRinoa89CastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
                 {
@@ -61,7 +61,7 @@ public sealed partial class NativeBattleRinoa89CastTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutEffect = graphics.PrimitiveFrame with { LastCommands = graphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(battle.Capture() with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
                     if (!midpoint && callback >= 60)
@@ -75,15 +75,15 @@ public sealed partial class NativeBattleRinoa89CastTests
                     Assert.True(drawn);
                     Assert.True(midpoint);
                     Assert.Equal(8, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
-                    Assert.Equal((ushort)89, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
+                    Assert.Equal((ushort)89, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
                     Publish("completed-before-host-mode", battle);
                     battle.SetMode(BattleAtbMode.Normal);
                     //The final raw descriptor releases before the next host poll admits the observed victory.
                     before = battle.Capture();
                     battle.Tick();
-                    Assert.Equal((byte?)4, battle.NativeGraphics!.NativeOutcome?.ResultByte6E7);
+                    Assert.Equal((byte?)4, battle.Presentation!.Graphics.NativeOutcome?.ResultByte6E7);
                     CompareNext("completed", battle);
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, selected, drawn, midpoint, HostModeAfterRelease = "Normal", OriginalActionId = originalAction.ActionId }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, selected, drawn, midpoint, HostModeAfterRelease = "Normal", OriginalActionId = originalAction.ActionId }));
                     return;
                 }
             }
@@ -111,14 +111,14 @@ public sealed partial class NativeBattleRinoa89CastTests
             current.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(current.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next", current);
         }
     }
 
     private static bool Released(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 

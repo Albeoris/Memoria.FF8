@@ -47,7 +47,7 @@ internal sealed partial class GameWorld
     private void ConfigureBattleHost()
     {
         BattleSnapshot? saved = session.State.Battle;
-        RequireInstalledExpandedEnemyAi(saved?.Definition);
+        RequireInstalledEnemyAi(saved?.Definition);
         if (saved is { Definition.NativeGil: null, NativeGil: null } && session.State.Economy is { } economy)
         {
             NativeBattleGil gil = new(economy.Gil, economy.PastGil);
@@ -55,9 +55,9 @@ internal sealed partial class GameWorld
         }
         if (saved is not null)
         {
-            if (saved.Definition.UsesExpandedRoster)
+            if (saved.Definition.EncounterId is not null)
             {
-                NativeCharacterVitals current = session.State.CharacterVitals ?? throw new InvalidDataException("Saved expanded battle has no character owner.");
+                NativeCharacterVitals current = session.State.CharacterVitals ?? throw new InvalidDataException("Saved encounter has no character owner.");
                 byte[] boundRows = ExpandedBattlePartyRows.ReadBoundRows(saved.Definition, current);
                 NativeCharacterVitals? frozen = saved.Definition.MagicVitals;
                 saved = saved with
@@ -81,7 +81,7 @@ internal sealed partial class GameWorld
                 saved = saved with { Definition = BindExpandedEscapeResources(BindExpandedEnemyMug(BindExpandedEnemySpecials(definition)), definition.EncounterId!.Value) };
             }
         }
-        battle = saved is null ? null : AttachNativeEffectResources(BattleSession.Restore(saved));
+        battle = saved is null ? null : InstalledBattlePresentation.Restore(saved, assets, BattleResources);
         synchronizedNativeBattleCallbacks = battle is null ? 0 : ReadExecutedBattleCallbacks(battle);
         if (battle is not null)
         {
@@ -125,7 +125,7 @@ internal sealed partial class GameWorld
 
     public BattleDefinition CreateEncounterBattle(int encounterId, byte nativeSeed = 0, ushort activeFlags = 0, BattleDefinition? restoredDefinition = null)
     {
-        RequireInstalledExpandedEnemyAi(restoredDefinition);
+        RequireInstalledEnemyAi(restoredDefinition);
         NativeInputConfiguration input = session.InputConfiguration ?? throw new NotSupportedException("Battle command restrictions require the current native saved options owner.");
         input.Validate();
         byte fieldRules = input.CommandRestrictions;
@@ -136,21 +136,17 @@ internal sealed partial class GameWorld
         NativeCharacterVitals entryVitals = (session.State.CharacterVitals ?? throw new NotSupportedException("Battle entry requires the saved GF owner.")).RebuildParty();
         NativeEconomy entryEconomy = session.State.Economy ?? throw new NotSupportedException("Interactive battle requires the canonical economy owner.");
         NativeBattleModelCpuResources retainedCpu = session.State.NativeBattleMemory?.ModelCpuResources ?? throw new NotSupportedException("Battle entry requires its retained party CPU allocation.");
-        string allocationImage = restoredDefinition is { UsesExpandedRoster: true }
-            ? retainedCpu.Cpu.EffectiveLayout.ExecutableHash
-            : restoredDefinition is not null
-            ? ActiveBattleResourceCompatibility.AllocationImage(session.State.PendingBattleEncounter?.SourceScene == SceneKind.WorldMap ? null : Events.NativeRuntimeProfile, restoredDefinition.NativeGraphics?.Rules)
-            : assets.NativeExecutableHash ?? throw new NotSupportedException("Battle entry requires an authenticated native image.");
-        if (retainedCpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(allocationImage) || restoredDefinition is { UsesExpandedRoster: true } && assets.NativeExecutableHash != allocationImage)
+        string allocationImage = assets.NativeExecutableHash ?? throw new NotSupportedException("Battle entry requires an authenticated native image.");
+        if (retainedCpu.Cpu.EffectiveLayout != NativeBattlePartyCpuLayout.ForImage(allocationImage))
         {
             throw new NotSupportedException("Battle entry requires the edition's retained party CPU allocation; migrate this save explicitly.");
         }
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         DiagnosticBattleRoster? diagnosticRoster = restoredDefinition is null ? diagnosticBattle?.Request.Roster : null;
-        _ = BattleResources.LoadStage(encounter.StageId);
+        BattleStage stage = BattleResources.LoadStage(encounter.StageId);
         BattleEncounterRosterAdmission rosterAdmission = restoredDefinition?.EncounterRosterAdmission ?? BattleEncounterRosterAdmission.Unrestricted;
         HashSet<int> reserveSlots = [];
-        if (effectPreviewRequest is null && (restoredDefinition is null || restoredDefinition is { UsesExpandedRoster: true, UsesOriginalEnemySlots: true }))
+        if (effectPreviewRequest is null && (restoredDefinition is null || restoredDefinition.UsesOriginalEnemySlots))
         {
             (HashSet<int> referenced, BattleEncounterRosterAdmission inspected) = InspectEncounterRoster(encounter, model => BattleResources.ReadEnemyAi(model, 0), BattleResources.NativeActions);
             reserveSlots = referenced;
@@ -161,7 +157,7 @@ internal sealed partial class GameWorld
         }
         byte[] nativeParty = entryVitals.GetBattlePartyRows(3);
         byte[]? selectedParty = null;
-        if (restoredDefinition is { UsesExpandedRoster: true })
+        if (restoredDefinition is not null)
         {
             selectedParty = ExpandedBattlePartyRows.ReadBoundRows(restoredDefinition, entryVitals);
             entryVitals = entryVitals with { AdditionalCombatParty = restoredDefinition.MagicVitals!.AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities = restoredDefinition.MagicVitals.AdditionalCombatPartyMinimumCapacities };
@@ -186,41 +182,33 @@ internal sealed partial class GameWorld
                 addedEnemySources = SelectAdditionalEnemies(encounter, requested, nativeSeed);
             }
         }
-        bool hasRosterExtensions = expandedParty is not null || addedEnemySources is { Count: > 0 };
-        bool physicalDiagnostic = diagnosticBattle is not null && diagnosticRoster is null && !hasRosterExtensions;
-        bool expanded = restoredDefinition?.UsesExpandedRoster ?? !(UsePhysicalBattlePresentation || physicalDiagnostic || effectPreviewRequest is not null);
-        if (!expanded && hasRosterExtensions)
-        {
-            throw new NotSupportedException("The physical battle fixture requires an authored party and enemy roster.");
-        }
-        if (expanded && restoredDefinition is null)
+        if (restoredDefinition is null)
         {
             addedEnemySources ??= ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty;
         }
-        bool useOriginalEnemySlots = restoredDefinition?.UsesOriginalEnemySlots ?? expanded;
-        BattleEnemyPlacement[]? expandedEnemies = null;
-        if (expanded && useOriginalEnemySlots)
+        bool useOriginalEnemySlots = restoredDefinition?.UsesOriginalEnemySlots ?? true;
+        BattleEnemyPlacement[] entryPlacements;
+        if (useOriginalEnemySlots)
         {
-            expandedEnemies = diagnosticRoster is not null ? SelectDiagnosticRosterOriginals(encounter, diagnosticRoster, reserveSlots)
+            entryPlacements = diagnosticRoster is not null ? SelectDiagnosticRosterOriginals(encounter, diagnosticRoster, reserveSlots)
                 : restoredDefinition is not null ? OriginalExpandedEnemyPlacements(encounter, restoredDefinition, reserveSlots)
                 : AuthoredEnemyPlacements(encounter).Concat(encounter.Slots.Where(placement => reserveSlots.Contains(placement.Slot))).DistinctBy(placement => placement.Slot).OrderBy(placement => placement.Slot).ToArray();
             if (addedEnemySources is { Count: > 0 })
             {
-                expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: expandedEnemies, diagnosticRoster: diagnosticRoster is not null);
+                entryPlacements = ResolveExpandedEnemyPlacements(encounter, addedEnemySources, originalSlots: true, originalPlacements: entryPlacements, diagnosticRoster: diagnosticRoster is not null);
             }
         }
-        else if (expanded)
+        else
         {
-            expandedEnemies = ResolveExpandedEnemyPlacements(encounter, addedEnemySources ?? throw new NotSupportedException("Legacy expanded combat requires admitted enemy placement provenance."));
+            entryPlacements = ResolveExpandedEnemyPlacements(encounter, addedEnemySources ?? throw new NotSupportedException("Legacy expanded combat requires admitted enemy placement provenance."));
         }
-        bool validExpandedRoster = expandedEnemies is not null && (useOriginalEnemySlots
-            ? expandedEnemies.Length is >= 1 and <= ExpandedBattleFormation.MaximumRewardSlots && allyCount is >= 1 and <= ExpandedBattleFormation.MaximumAllies && expandedEnemies.Count(enemy => enemy.Enabled) <= ExpandedBattleFormation.MaximumEnemies
-            : ExpandedBattleFormation.SupportsRoster(allyCount, expandedEnemies.Length));
-        if (expanded && !validExpandedRoster)
+        bool validRoster = useOriginalEnemySlots
+            ? entryPlacements.Length is >= 1 and <= ExpandedBattleFormation.MaximumRewardSlots && allyCount is >= 1 and <= ExpandedBattleFormation.MaximumAllies && entryPlacements.Count(enemy => enemy.Enabled) <= ExpandedBattleFormation.MaximumEnemies
+            : ExpandedBattleFormation.SupportsRoster(allyCount, entryPlacements.Length);
+        if (!validRoster)
         {
-            throw new InvalidDataException($"Expanded formation {encounterId} does not have a supported party and authored enemy roster.");
+            throw new InvalidDataException($"Formation {encounterId} does not have a supported party and authored enemy roster.");
         }
-        BattleEnemyPlacement[] entryPlacements = expanded ? expandedEnemies! : AuthoredEnemyPlacements(encounter).ToArray();
         foreach (BattleEnemyPlacement placement in entryPlacements)
         {
             RequireEnemyStatisticsContract(placement);
@@ -233,7 +221,7 @@ internal sealed partial class GameWorld
         byte[] partyLevels = combatants.Select(actor => checked((byte)actor.Level)).ToArray();
         foreach (BattleEnemyPlacement enemy in entryPlacements)
         {
-            bool addedEnemy = expanded && addedEnemySources?.ContainsKey(enemy.Slot) == true;
+            bool addedEnemy = addedEnemySources?.ContainsKey(enemy.Slot) == true;
             bool originalEnemy = useOriginalEnemySlots && !addedEnemy;
             _ = BattleResources.LoadEnemy(enemy.ModelId);
             byte roll = 0;
@@ -248,7 +236,7 @@ internal sealed partial class GameWorld
                 random = random.Draw(out byte second);
                 secondRoll = second;
             }
-            int level = enemy.Enabled ? (expanded ? NativeBattleEnemyLevelRules.ResolveExpanded(checked((byte)enemy.Level), partyLevels, roll, secondRoll) : BattleEnemyNativeStats.ResolveLevel(checked((byte)enemy.Level), partyLevels, roll, secondRoll)) : 0;
+            int level = enemy.Enabled ? NativeBattleEnemyLevelRules.ResolveExpanded(checked((byte)enemy.Level), partyLevels, roll, secondRoll) : 0;
             byte entryRoll = 0;
             if (enemy.Enabled)
             {
@@ -258,26 +246,23 @@ internal sealed partial class GameWorld
             BattleEnemyNativeProjection stats = BattleResources.ReadEnemyNativeStats(enemy.ModelId).Project(level);
             int initialAtb = enemy.Enabled ? BattleInitialAtb.Calculate(stats.Speed, entryRoll) : 0;
             NativeBattleStatusAllocation nativeStatuses = BattleResources.ReadEnemyNativeStatusData(enemy.ModelId);
-            NativeBattleAiDefinition enemyAi = BattleResources.ReadEnemyAi(enemy.ModelId, level, includeDeathLifecycle: expanded && originalEnemy);
-            if (expanded)
+            NativeBattleAiDefinition enemyAi = BattleResources.ReadEnemyAi(enemy.ModelId, level, includeDeathLifecycle: originalEnemy);
+            HashSet<string> blockers = new(StringComparer.Ordinal);
+            ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(enemyAi, BattleResources.NativeActions, encounterId, blockers, originalEnemySlots: originalEnemy);
+            if (admission != ExpandedAiAdmission.Supported)
             {
-                HashSet<string> blockers = new(StringComparer.Ordinal);
-                ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(enemyAi, BattleResources.NativeActions, encounterId, blockers, originalEnemySlots: originalEnemy);
-                if (admission != ExpandedAiAdmission.Supported)
-                {
-                    string detail = string.Join(", ", blockers.Order(StringComparer.Ordinal));
-                    throw new NotSupportedException($"Expanded enemy AI for formation {encounterId}, scene slot {enemy.Slot}, model {enemy.ModelId}, level band {enemyAi.LevelBand} requires {admission}: {detail}.");
-                }
+                string detail = string.Join(", ", blockers.Order(StringComparer.Ordinal));
+                throw new NotSupportedException($"Enemy AI for formation {encounterId}, scene slot {enemy.Slot}, model {enemy.ModelId}, level band {enemyAi.LevelBand} requires {admission}. {detail}.");
             }
-            combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialOriginalEnemyOrdinal = DiagnosticOriginalEnemyOrdinal(encounter, diagnosticRoster, enemy, originalEnemy), InitialActive = enemy.Enabled, InitialAtb = initialAtb, NativeStatus0 = nativeStatuses.Saved, NativeStatus1 = nativeStatuses.Battle, NativeStatusResistances = nativeStatuses.Resistances.ToArray(), NativeCombatantFlags = BattleResources.ReadEnemyNativeCombatantFlags(enemy.ModelId), Information246 = expanded ? BattleResources.ReadEnemyNativeInformation246(enemy.ModelId) : null, Information254 = expanded ? BattleResources.ReadEnemyNativeEntryFlags(enemy.ModelId) : null, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = enemyAi, ExpandedEnemyBaseStatistics = expanded && !originalEnemy && (restoredDefinition is null || restoredDefinition.Combatants.Single(actor => actor.Id == $"enemy-{enemy.Slot}").ExpandedEnemyBaseStatistics.HasValue) ? stats.BaseStatistics.ToImmutableArray() : null, NativeTemplate = !expanded || originalEnemy ? BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)) : null, Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, Evasion = stats.Evasion, PhysicalPower = 0, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeDrawSlots = BattleResources.ReadEnemyDrawSlots(enemy.ModelId, level), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
+            combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialOriginalEnemyOrdinal = DiagnosticOriginalEnemyOrdinal(encounter, diagnosticRoster, enemy, originalEnemy), InitialActive = enemy.Enabled, InitialAtb = initialAtb, NativeStatus0 = nativeStatuses.Saved, NativeStatus1 = nativeStatuses.Battle, NativeStatusResistances = nativeStatuses.Resistances.ToArray(), NativeCombatantFlags = BattleResources.ReadEnemyNativeCombatantFlags(enemy.ModelId), Information246 = BattleResources.ReadEnemyNativeInformation246(enemy.ModelId), Information254 = BattleResources.ReadEnemyNativeEntryFlags(enemy.ModelId), InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = enemyAi, ExpandedEnemyBaseStatistics = !originalEnemy && (restoredDefinition is null || restoredDefinition.Combatants.Single(actor => actor.Id == $"enemy-{enemy.Slot}").ExpandedEnemyBaseStatistics.HasValue) ? stats.BaseStatistics.ToImmutableArray() : null, NativeTemplate = originalEnemy ? BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)) : null, Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, Evasion = stats.Evasion, PhysicalPower = 0, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeDrawSlots = BattleResources.ReadEnemyDrawSlots(enemy.ModelId, level), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
         }
         BattleDefinition definition = new() { MagicVitals = entryVitals.DeepCopy(), Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeActions = BattleResources.NativeActions.ToArray(), NativeDevourEffects = BattleResources.ReadNativeDevourEffects(), NativeCards = session.State.CardInventory?.DeepCopy(), NativeCrtRandom = session.State.CrtRandom, NativeGlobalRandom = session.State.GlobalRandom, NativeElapsedCounter = ReadNativeElapsedCounter(), NativeCardNames = Enumerable.Range(0, 110).Select(id => battleCatalog!.CardName(id)).ToArray(), NativeItemNames = Enumerable.Range(0, 256).Select(id => battleCatalog!.ItemName(id)).ToArray(), NativeGlobalMessages = BattleResources.ReadNativeGlobalBattleMessages(), NativeScannedModels = session.State.ScannedModels, NativeKnownMagic = session.State.KnownMagic, NativeCommandNames = BattleResources.ReadNativeCommandNames(), NativeScanAlwaysShow = ((session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options & 0x100) != 0, GuardianForces = entryVitals.GuardianForces.Select((gf, id) => new BattleGuardianForceVital(id, gf.HitPoints, entryVitals.Definitions.GuardianForceMaximum(id, gf), (gf.Flags & 1) != 0) { KillCount = gf.KillCount, DeathCount = gf.DeathCount }).ToArray(), NativePocketStation = session.State.PocketStation, NativeChocoboName = Events.Scene.Names.GetValueOrDefault(GameNames.BokoSubject) ?? NativePocketStationText.ChocoboName(session.State.PocketStation), NativeBattleSpeed = session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte, LimitProgress = session.State.LimitProgress, NativeShotAvailability = session.State.ShotAvailability, NativeFieldBattleRules = fieldRules, NativeLimitsDisabled = (fieldRules & 0x20) != 0, NativeStatusRules = BattleResources.ReadNativeStatusRules(session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte ?? throw new InvalidDataException("Native battle status timing requires the original saved speed BYTE.")), NativeSeed = nativeSeed, NativeFlags = activeFlags, NativeFieldBattleMode = ReadNativeFieldBattleMode(), NativeMessageSpeed = session.State.InputConfiguration?.BattleMessageSpeed ?? assets.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeExamTimerAtEntry = session.ExamTimer, NativeSavedBattleFlags = session.State.SavedBattleFlags?.Value ?? (byte)(session.State.CharacterVitals!.DreamEnabled ? 1 : 0), NativeSavedBattleFlagsKnownMask = session.State.SavedBattleFlags?.EffectiveKnownMask ?? (byte)1, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (encounterAbilities & 2) != 0, NativeItemInventory = entryEconomy.Items.ToArray() };
         definition = definition with
         {
             EncounterRosterAdmission = rosterAdmission,
-            UsesExpandedRoster = expanded,
-            UsesOriginalEnemySlots = expanded && useOriginalEnemySlots,
-            AddedEnemySources = expanded ? addedEnemySources : null,
+            UsesExpandedRoster = true,
+            UsesOriginalEnemySlots = useOriginalEnemySlots,
+            AddedEnemySources = addedEnemySources,
             NativeGil = new(entryEconomy.Gil, entryEconomy.PastGil),
             Tuning = session.State.GameplayPreferences.Tuning,
             StatusStatModifiers = restoredDefinition?.StatusStatModifiers ?? GameplayPolicy.StatusStatModifiers,
@@ -292,21 +277,20 @@ internal sealed partial class GameWorld
             NativeScanNames = new Dictionary<byte, int> { [0x30] = 0, [0x34] = 1, [0x50] = GameNames.GrieverSubject }.ToDictionary(pair => pair.Key, pair => Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN).GetBytes(Events.Scene.Names.GetValueOrDefault(pair.Value) ?? GameNames.DefaultName(pair.Value)).Append((byte)0).ToArray()),
             NativeScanActorNames = combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => EncodeScanName24(actor.Name)),
             NativeInputButtonMap = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).ButtonMap,
-            NativeSupportRules = !expanded || (restoredDefinition is not null ? restoredDefinition.NativeSupportRules is not null :
+            NativeSupportRules = (restoredDefinition is not null ? restoredDefinition.NativeSupportRules is not null :
                 (definition.NativeSavedBattleFlagsKnownMask & 0x0A) == 0x0A && ((definition.NativeSavedBattleFlags.GetValueOrDefault() & 0x0A) != 0 ||
                     (definition.NativeSavedBattleFlagsKnownMask & 0x10) != 0 && (definition.NativeSavedBattleFlags.GetValueOrDefault() & 0x10) == 0 &&
                     ((definition.LimitProgress?.AngeloFlags ?? 0) & 0x0E) != 0 && combatants.Any(actor => actor is { IsPlayer: true, ModelId: 4, InitialActive: true })))
                 ? BattleResources.ReadNativeSupportRules() : null,
-            NativeGraphics = expanded ? null : BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
             NativeClockRules = BattleResources.ReadNativeClockRules(),
             NativeRetainedMemory = session.CaptureNativeFieldMemory(),
             NativeVibrationProcess = session.State.VibrationProcess,
             NativeGlobalSoundProcess = session.State.GlobalSoundProcess,
             NativeEntry = new(encounter.Flags, encounterAbilities),
-            NativeStageCameraBank = BattleResources.LoadStage(encounter.StageId).NativeCameraBank,
-            NativeStageSource = BattleResources.LoadStage(encounter.StageId).NativeSource,
+            NativeStageCameraBank = stage.NativeCameraBank,
+            NativeStageSource = stage.NativeSource,
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
-            NativeStageCameraControl = BattleResources.LoadStage(encounter.StageId).NativeCameraControl,
+            NativeStageCameraControl = stage.NativeCameraControl,
             NativeRenzokukenResources = assets.ReadNativeRenzokukenResources(),
             NativeCommandSequences = assets.ReadNativeBattleCommandSequences(),
             NativeModuleResources = assets.ReadNativeBattleModuleResources(),
@@ -331,17 +315,12 @@ internal sealed partial class GameWorld
         {
             definition = definition with { EncounterId = null, Combatants = definition.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null, NativeCombatantFlags = 1, NativeStatus0 = 0, NativeStatus1 = 0, InitialAtb = 0 }).ToArray() };
         }
-        if (restoredDefinition is not null && !expanded)
-        {
-            definition = ActiveBattleResourceCompatibility.RetainAllocatedResources(definition, restoredDefinition, allocationImage, assets.NativeExecutableHash ?? throw new InvalidDataException("Restored battle requires its selected resource image identity."));
-        }
-        _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
     }
 
-    private static void RequireInstalledExpandedEnemyAi(BattleDefinition? definition)
+    private static void RequireInstalledEnemyAi(BattleDefinition? definition)
     {
-        if (definition is not { UsesExpandedRoster: true, EncounterId: int formation })
+        if (definition is not { EncounterId: int formation })
         {
             return;
         }
@@ -358,10 +337,6 @@ internal sealed partial class GameWorld
 
     private BattleDefinition BindExpandedEscapeResources(BattleDefinition definition, int encounterId)
     {
-        if (!definition.UsesExpandedRoster)
-        {
-            return definition;
-        }
         return definition with
         {
             ExpandedFormationFlags = definition.ExpandedFormationFlags ?? BattleResources.LoadEncounter(encounterId).Flags,
@@ -388,7 +363,7 @@ internal sealed partial class GameWorld
             }
             definition = GameResourceHost.ApplyCompiledEncounterDefinition(definition, binding, retained);
         }
-        if (definition.UsesExpandedRoster && definition.EncounterMod is { } mod)
+        if (definition.EncounterMod is { } mod)
         {
             ValidateExpandedEncounterPolicy(mod, definition.NativeEffectCatalog);
         }
@@ -423,7 +398,7 @@ internal sealed partial class GameWorld
 
     private BattleDefinition BindExpandedEnemyLevels(BattleDefinition definition)
     {
-        if (!definition.UsesExpandedRoster || !definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 33 or 34)))
+        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 33 or 34)))
         {
             return definition;
         }
@@ -440,7 +415,7 @@ internal sealed partial class GameWorld
 
     private BattleDefinition BindExpandedEnemySpecials(BattleDefinition definition)
     {
-        if (!definition.UsesExpandedRoster || !definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 7 or 29)))
+        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommands.Any(binding => binding.Command is 7 or 29)))
         {
             return definition;
         }
@@ -465,7 +440,7 @@ internal sealed partial class GameWorld
 
     private BattleDefinition BindExpandedEnemyMug(BattleDefinition definition)
     {
-        if (!definition.UsesExpandedRoster || !definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommandSlots.Contains((byte)12)))
+        if (!definition.Combatants.Any(actor => actor.IsPlayer && actor.NativeCommandSlots.Contains((byte)12)))
         {
             return definition;
         }
@@ -545,14 +520,14 @@ internal sealed partial class GameWorld
             return current with { NativeExamTimerAtEntry = null };
         }
         NativeExamTimerState advanced = entry;
-        long remaining = saved.NativeGraphics is null ? saved.Frame : saved.NativeHostCallbacks ?? throw new NotSupportedException("Saved native battle requires its executed47CF60 callback ledger before host clock validation.");
+        long remaining = saved.NativeHostCallbacks ?? (saved.NativeGraphics is null ? saved.Frame : throw new NotSupportedException("Saved native battle requires its executed47CF60 callback ledger before host clock validation."));
         while (remaining > 0)
         {
             int callbacks = (int)Math.Min(remaining, 30000);
             advanced = advanced.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks);
             remaining -= callbacks;
         }
-        NativeExamTimerState canonical = saved.NativeGraphics is null ? advanced : saved.NativeExamTimer ?? throw new NotSupportedException("Saved native battle requires its canonical timer and display owners; explicitly migrate the named checkpoint.");
+        NativeExamTimerState canonical = saved.NativeExamTimer ?? (saved.NativeGraphics is null ? advanced : throw new NotSupportedException("Saved native battle requires its canonical timer and display owners; explicitly migrate the named checkpoint."));
         if (!advanced.HasSameClock(canonical) || timer is null || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(canonical), System.Text.Json.JsonSerializer.SerializeToElement(timer)))
         {
             throw new InvalidDataException("Saved battle's entry timer and combat callbacks disagree with the current process timer owner.");

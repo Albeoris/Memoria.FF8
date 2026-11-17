@@ -86,7 +86,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(accepted, command.NativeSlots);
         Assert.Equal(0, battle.NativeScriptState.LimitSpecialSetMask);
 
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleModelOwner casterModel = battle.ReadPresentationModelOwner(caster.Id);
         NativeBattleActionHeaderSlot? header = null;
         for (int callback = 0; callback < 900 && (caster.IsBusy || process.HasActiveAction); callback++)

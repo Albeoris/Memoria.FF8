@@ -28,7 +28,7 @@ public sealed class NativeBattleAquaContinuationTests
         int maximum = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF8_AQUA_CALLBACKS") ?? "15", System.Globalization.CultureInfo.InvariantCulture);
         Assert.InRange(maximum, 1, 128);
         BattleSession battle = Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         BattleSnapshot current = source;
         BattleSnapshot prior = source;
         int callbacks = 0;
@@ -57,7 +57,7 @@ public sealed class NativeBattleAquaContinuationTests
                 {
                     NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
                     BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
-                    byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(Restore(without), 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(Restore(without), 320, 224).ToArray();
                     for (int offset = 0; offset < pixels.Length; offset += 4)
                     {
                         if (!pixels.AsSpan(offset, 3).SequenceEqual(plain.AsSpan(offset, 3)))
@@ -106,8 +106,8 @@ public sealed class NativeBattleAquaContinuationTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, source.Definition).Render(direct, 320, 224).ToArray(), pixels);
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
         }
     }

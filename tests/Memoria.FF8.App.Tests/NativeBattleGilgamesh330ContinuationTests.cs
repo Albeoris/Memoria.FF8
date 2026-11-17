@@ -26,13 +26,13 @@ public sealed class NativeBattleGilgamesh330ContinuationTests
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(path!));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
-        BattleScenePresentation firstScene = new(assets, source.Definition, true);
-        BattleScenePresentation secondScene = new(assets, source.Definition, true);
+        BattleScenePresentation firstScene = new(assets, source.Definition);
+        BattleScenePresentation secondScene = new(assets, source.Definition);
         Assert.Equal(firstScene.Render(first, 320, 224), secondScene.Render(second, 320, 224));
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
-        Assert.Equal(source.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(source.NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(firstScene.Render(first, 320, 224), secondScene.Render(second, 320, 224));
         NativeBattleRestorationPresentationTests.Publish(output, "continued", first.Capture(), firstScene.Render(first, 320, 224));

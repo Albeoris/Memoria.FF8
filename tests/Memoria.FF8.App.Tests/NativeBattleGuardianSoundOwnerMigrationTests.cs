@@ -47,14 +47,14 @@ public sealed class NativeBattleGuardianSoundOwnerMigrationTests
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
+        BattleScenePresentation scene = new(assets, migrated.Definition);
         byte[] beforePixels = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(320 * 224 * 4, beforePixels.Length);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        Assert.Equal(230L, first.NativeGraphics!.Callback);
+        Assert.Equal(230L, first.Presentation!.Graphics.Callback);
         Assert.Equal((ushort)90, Phase(first.Capture()));
         Assert.Null(first.NativeGlobalSoundProcess!.Rotation);
         Assert.All(first.NativeGlobalSoundProcess.OriginalEffectIds, value => Assert.Null(value));

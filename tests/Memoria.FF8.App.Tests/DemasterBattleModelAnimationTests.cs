@@ -31,7 +31,7 @@ public sealed class DemasterBattleModelAnimationTests
         Assert.All(directories, directory => Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages, package => package.RootDirectory.Equals(directory, StringComparison.OrdinalIgnoreCase)).Status));
         BattleSnapshot snapshot = GameSession.Load(statePath!).Battle ?? throw new InvalidDataException("The standalone fixture must contain an active battle.");
         BattleSession battle = BattleSession.Restore(snapshot);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics);
         using BattleAssets assets = new(game, host.Resources);
         int verified = 0;
         List<object> report = [];
@@ -55,7 +55,7 @@ public sealed class DemasterBattleModelAnimationTests
             NativeBattleTextureCopy open = Assert.IsType<NativeBattleTextureCopy>(NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, ReadOriginalModelCell(graphics, index).TextureAllocationMask, 0, 0));
             NativeBattleTextureCopy closed = Assert.IsType<NativeBattleTextureCopy>(NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, ReadOriginalModelCell(graphics, index).TextureAllocationMask, 0, 1));
             Assert.NotEqual(open, closed);
-            NativeBattleEffectTextureState initial = Assert.IsType<NativeBattleEffectTextureState>(battle.NativeEffectMemory?.Textures);
+            NativeBattleEffectTextureState initial = Assert.IsType<NativeBattleEffectTextureState>(battle.Presentation?.Memory?.Textures);
             NativeBattleEffectTextureState opened = Copy(initial, open);
             NativeBattleEffectTextureState shut = Copy(opened, closed);
             IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeBattleTextureReplacements.Bind(model, binding);

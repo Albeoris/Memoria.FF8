@@ -223,29 +223,7 @@ public sealed partial class BattleSession
         return expandedPartyPresentation is { } expanded && actor.IsPlayer && actor.Slot is not null ? RequireExpandedPartyPresentedRow(expanded, actor.Id) : null;
     }
 
-    private void PublishNativePresentedContact(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)
-    {
-        if (half.Recipient.Side != BattleSide.Allies)
-        {
-            return;
-        }
-        NativeBattlePartyPresentation state = nativePartyPresentation ?? throw new InvalidDataException("Native493D80 lacks the current party presentation cache.");
-        if (!graphics.NativeBindings.TryEncodeExactActor(half.Recipient, graphics.ActorModels, out byte original))
-        {
-            throw new InvalidDataException("Native presented contact requires its original party cache slot.");
-        }
-        NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(original);
-        BattleCombatant actor = GraphicsActor(graphics, half.Recipient);
-        if (actor.GuardianFormVitals is not null && (half.HitFlags & 0x20) != 0)
-        {
-            row = row with { GuardianForceHitPoints = checked((ushort)actor.CurrentHp), GuardianForceMaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedGuardianForceHitPointsQ12 = actor.CurrentHp << 12 };
-        }
-        else
-        {
-            row = row.Apply(half);
-        }
-        nativePartyPresentation = state with { Rows = state.Rows.SetItem(original, row) };
-    }
+
 
     private NativeBattlePartyPresentedVital RequireNativePartyPresentedRow(int index)
     {

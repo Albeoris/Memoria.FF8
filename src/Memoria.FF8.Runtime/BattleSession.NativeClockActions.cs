@@ -50,48 +50,11 @@ public sealed partial class BattleSession
 
     private void QueueNativeActionClockCompletion(uint callback, string? eventActorId = null, byte? eventActorIndex = null)
     {
-        if (NativeGraphics is { } graphics)
-        {
-            NativeGraphics = QueueNativeDescriptor(graphics, 10, callback);
-        }
-        else
-        {
             nativeActionScratch = nativeActionScratch with { ComponentCompletion = callback };
             TryCompleteNativeComponentCommand(eventActorId, eventActorIndex);
-        }
     }
 
-    private NativeBattleGraphicsState RunNativeDescriptorActionCallback(NativeBattleGraphicsState graphics, uint callback)
-    {
-        if (callback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
-        {
-            throw new InvalidDataException("Native action clock callback differs from47DDA0/47DE70.");
-        }
-        BattleActionPresentation? presentation = CaptureNativeEventPresentation();
-        BattleAttackCommand[] queuedPresentations = CaptureNativeQueuedEventPresentations();
-        DiagnosticInvocationCompletion? diagnosticCompletion = CaptureDiagnosticInvocationCompletion(graphics, callback);
-        NativeGraphics = graphics;
-        ReleaseNativeRawRenzokukenActionOwners(callback);
-        bool aftercareCompletion = IsDiagnosticInvocationAftercareCompletion(graphics, callback);
-        bool completed;
-        BeginDiagnosticInvocationFocalCompletion(diagnosticCompletion);
-        try
-        {
-            completed = CompleteNativeActionEvent(callback);
-        }
-        finally
-        {
-            EndDiagnosticInvocationFocalCompletion();
-        }
-        ObserveDiagnosticInvocationAftercareNativeEvent(aftercareCompletion, completed);
-        bool diagnosticAcknowledged = diagnosticCompletion is { } observed && completed && (presentation is not null && ReferenceEquals(ActiveAction, presentation) && presentation.ActorId == observed.Dispatch.ActorId && OriginalDiagnosticHeaderIndex(presentation.NativeHeader) == observed.Dispatch.NativeHeaderIndex || queuedPresentations.Any(command => command.ActorId == observed.Dispatch.ActorId && OriginalDiagnosticHeaderIndex(command.NativeHeader) == observed.Dispatch.NativeHeaderIndex));
-        if (completed)
-        {
-            AcknowledgeNativeEventPresentations(presentation, queuedPresentations);
-        }
-        ObserveDiagnosticInvocationCompletion(diagnosticCompletion, completed, diagnosticAcknowledged);
-        return NativeGraphics ?? throw new InvalidDataException("Native completion lost its graphical descriptor owner.");
-    }
+
 
     private void AcknowledgeNativeEventPresentations(BattleActionPresentation? presentation, BattleAttackCommand[] queuedPresentations)
     {
@@ -170,7 +133,7 @@ public sealed partial class BattleSession
 
     private void RunNativePlayerReaction(BattleCombatant actor, int stage)
     {
-        if (nativeActionCommitDepth == 0 && !flushingNativeReactions)
+        if (nativeActionCommitDepth == 0)
         {
             BeginNativeReactionBatch();
         }
@@ -188,12 +151,12 @@ public sealed partial class BattleSession
 
     private void RunNativeAi(BattleCombatant actor, int callback, Action? interpret = null)
     {
-        byte? physicalEventActor = UsesExpandedRoster ? null : checked((byte)actor.RequireNativeActorIndex());
+        byte? physicalEventActor = null;
         if (callback == 1)
         {
             actor.AiTurnCount = unchecked((byte)(actor.AiTurnCount + 1));
         }
-        if (physicalEventActor is not null && callback is >= 0 and <= 3 && nativeActionCommitDepth == 0 && !flushingNativeReactions)
+        if (physicalEventActor is not null && callback is >= 0 and <= 3 && nativeActionCommitDepth == 0)
         {
             BeginNativeReactionBatch();
         }

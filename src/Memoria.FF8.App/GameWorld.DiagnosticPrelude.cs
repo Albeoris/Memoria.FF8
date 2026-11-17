@@ -35,8 +35,8 @@ internal sealed partial class GameWorld
         long restores = active.DiagnosticRestoreCount;
         long resets = active.DiagnosticResetCount;
         List<BattleEvent> events = [];
-        IReadOnlyList<BattleEvent>? hostedEvents = active.ExpandedPresentationProcess is null ? null : active.Events;
-        int nextHostedEvent = hostedEvents?.Count ?? 0;
+        IReadOnlyList<BattleEvent> receipts = active.Events;
+        int nextReceipt = receipts.Count;
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         long ordinaryDamage = 0;
         void ObserveEvent(BattleEvent value)
@@ -66,22 +66,15 @@ internal sealed partial class GameWorld
             BattleEvent[] spawns = events.Where(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id).TakeLast(4).ToArray();
             return new(identities, spawns);
         }
-        if (hostedEvents is null)
-        {
-            active.DiagnosticEventPublished += ObserveEvent;
-        }
         active.DiagnosticEffectDispatched += ObserveDispatch;
         try
         {
             int attacks = 0;
             for (int callbacks = 0; callbacks <= declaration.MaximumCallbacks; callbacks++)
             {
-                if (hostedEvents is not null)
+                while (nextReceipt < receipts.Count)
                 {
-                    while (nextHostedEvent < hostedEvents.Count)
-                    {
-                        ObserveEvent(hostedEvents[nextHostedEvent++]);
-                    }
+                    ObserveEvent(receipts[nextReceipt++]);
                 }
                 if (active.Outcome != BattleOutcome.Active || active.DiagnosticRestoreCount != restores || active.DiagnosticResetCount != resets || !ReferenceEquals(active, battle))
                 {
@@ -166,10 +159,6 @@ internal sealed partial class GameWorld
         }
         finally
         {
-            if (hostedEvents is null)
-            {
-                active.DiagnosticEventPublished -= ObserveEvent;
-            }
             active.DiagnosticEffectDispatched -= ObserveDispatch;
         }
     }

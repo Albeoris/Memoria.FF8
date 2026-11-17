@@ -140,7 +140,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         int before = battle.Events.Count;
         bool dispatched = false;
         BattleActionPresentation? cast = null;
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         HashSet<string>? recipientsAtFirstContact = null;
         string[]? resolvedRecipientsAtFirstContact = null;
         int observationWindows = effect.Effect == 158 ? 360 : effect.Effect is 153 or 154 ? 300 : extendOriginalTurns ? 240 : battle.Mode == BattleAtbMode.Normal ? 120 : 24;
@@ -179,7 +179,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     before = battle.Events.Count;
                     continue;
                 }
-                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live)
+                if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live)
                 {
                     presentation ??= live;
                     Assert.Same(presentation, live);

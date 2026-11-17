@@ -88,12 +88,12 @@ public sealed class BattleRewardLearningCommitTests
         vitals = vitals.AwardGuardianForceAbilityPoints(0, checked((ushort)(completing.RequiredPoints - 1 - completing.Progress)));
         GameSession session = new(new GameState { InputConfiguration = assets.ReadNewGameInputConfiguration(), NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom(), KnownMagic = assets.ReadNewGameKnownMagic() });
         BattleResult result;
-        using (GameWorld setup = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true })
+        using (GameWorld setup = new(session, assets.GameDirectory))
         {
             BattleDefinition original = setup.CreateEncounterBattle(512);
             // Explicit combat inputs accelerate a real victory and retain the native defeat and AP receipts.
             BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
-            BattleSession active = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal);
+            BattleSession active = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, setup.BattleResources);
             for (int frame = 0; frame < 1000 && active.Outcome == BattleOutcome.Active; frame++)
             {
                 BattleCombatant? player = active.Combatants.FirstOrDefault(actor => actor.IsPlayer && actor.IsReady);

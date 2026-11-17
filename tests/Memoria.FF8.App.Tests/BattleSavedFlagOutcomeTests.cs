@@ -13,7 +13,7 @@ public sealed class BattleSavedFlagOutcomeTests
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().Rest();
         NativeSavedBattleFlags originalFlags = new(NativeInputConfiguration.OriginalInitHash, 0xF6);
         GameSession session = new(new GameState { NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), InputConfiguration = assets.ReadNewGameInputConfiguration(), Economy = assets.ReadNewGameEconomy(), SavedBattleFlags = originalFlags, BattleVariables = NativeBattleVariableState.CreateNewGame(), GlobalRandom = assets.ReadNewGameGlobalRandom() });
-        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition installed = world.CreateEncounterBattle(512);
         // Isolated component combat: original reward sources, short HP/ATB inputs and an explicit opcode54 callback.
         BattleDefinition definition = installed with { NativeGraphics = null, NativeClockRules = null, Combatants = installed.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1, NativeAi = actor.NativeAi! with { Scripts = [[54, 0], [0], [0], [0], [0]] } }).ToArray() };

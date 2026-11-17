@@ -19,10 +19,11 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         selected = selected with { NativeActionCameraRules = game.ReadNativeActionCameraRules() };
         BattleSession logical = new(definition, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int frame = 0; frame < EntryBudget && !process.EntryReady; frame++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
         }
         Assert.True(process.EntryReady);
         const string actorId = "party-1";
@@ -31,7 +32,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         var models = Models(process);
         NativeBattleModelCpuResources cpu = process.ModelCpuResources;
         string before = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
-        BattleSession.PreparedHostedDispatch prepared = process.PrepareCompletion(0x47DDA0, owner, actorId);
+        BattlePresentationProcess.PreparedHostedDispatch prepared = process.PrepareCompletion(0x47DDA0, owner, actorId);
         process.ValidatePreparedCompletion(prepared);
         long token = process.PublishCompletion(prepared);
         BattleCombatant actor = Assert.Single(logical.Combatants, candidate => candidate.Id == actorId);
@@ -45,7 +46,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         uint? prePostUi = null;
         for (int frame = 0; frame < ActionBudget && nextAction is null; frame++)
         {
-            process.Advance(logical, afterGraphics: (services, graphicsToken) =>
+            process.Advance(static () => { }, afterGraphics: (services, graphicsToken) =>
             {
                 NativeBattlePresentationCompletionRequested? request = services.ReadOrderedReceipts().OfType<NativeBattlePresentationCompletionRequested>().SingleOrDefault();
                 if (request is null)
@@ -57,7 +58,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 Assert.Same(request, process.PendingCompletion);
                 Assert.False(process.IsCompletionAcknowledged(token));
                 prePostUi = process.Graphics.UiServices!.Counter;
-                Assert.Throws<InvalidOperationException>(() => process.Advance(logical));
+                Assert.Throws<InvalidOperationException>(() => process.Advance(static () => { }, static (_, _) => { }));
                 Assert.Throws<InvalidOperationException>(() => process.AccumulateElapsed(TimeSpan.FromSeconds(1)));
                 Assert.Throws<InvalidOperationException>(() => process.SetActionMenu(true));
                 process.PublishCompletionAck(process.PrepareCompletionAck(token, true));
@@ -84,7 +85,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             NativeBattleEffectPresentationStep previous = process.LastStep;
             try
             {
-                process.Advance(logical, afterGraphics: (services, graphicsToken) =>
+                process.Advance(static () => { }, afterGraphics: (services, graphicsToken) =>
                 {
                     NativeBattlePresentationContactReceived? contact = services.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().SingleOrDefault();
                     if (contact is not null)
@@ -106,7 +107,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.NotNull(nextDescriptor);
         for (int frame = 0; frame < ActionBudget && !process.IsActionComplete(action); frame++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
             Assert.Empty(process.LastStep.Contacts);
         }
         Assert.True(process.IsActionComplete(action));
@@ -143,8 +144,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 : actor).ToArray()
         };
         BattleSession logical = new(logicalDefinition, nativeClock ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
-        logical.AttachExpandedPresentationProcess(process);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
             logical.Tick();
@@ -207,7 +208,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         }
         Assert.Null(logical.ActiveAction);
         Assert.True(enemy.CurrentHp < 6000);
-        Assert.Same(process, logical.ExpandedPresentationProcess);
+        Assert.Same(process, logical.Presentation);
         Assert.Equal(models, Models(process));
     }
 
@@ -244,8 +245,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
         };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
-        logical.AttachExpandedPresentationProcess(process);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
             logical.Tick();
@@ -323,8 +324,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         BattleSession control = new(logicalDefinition, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
-        logical.AttachExpandedPresentationProcess(process);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
             logical.Tick();
@@ -347,8 +348,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Equal(4, logical.GetAvailableMagicCasts(fireActor, fire.Id));
         Assert.Equal(originalModels, Models(process));
         Assert.Same(cpu, process.ModelCpuResources);
-        Assert.Same(process, logical.ExpandedPresentationProcess);
-        Assert.Null(logical.NativeGraphics);
+        Assert.Same(process, logical.Presentation);
+        Assert.Null(logical.Presentation?.Graphics);
 
         void RunMain(BattleAbility ability, int id, string actor, BattleModelOwner sourceOwner, uint service, bool alreadyQueued = false)
         {
@@ -428,8 +429,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         void RejectPreparedFireWithoutPublication()
         {
             const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-            BattleSession child = (BattleSession)typeof(ExpandedBattlePresentationProcess).GetField("presentation", privateInstance)!.GetValue(process)!;
-            PropertyInfo graphicsProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
+            PropertyInfo graphicsProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!;
             MethodInfo commit = typeof(BattleSession).GetMethod("PrepareAndPublishExpandedAction", privateInstance)!;
             NativeBattleDescriptorState full = NativeBattleDescriptorState.Clear();
             for (int index = 0; index < 29; index++)
@@ -442,7 +442,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             Assert.Equal(BattleActionPhase.Windup, action.Phase);
             NativeBattleGraphicsState original = process.Graphics;
             NativeBattleGraphicsState blocked = original with { Descriptors = full };
-            graphicsProperty.SetValue(child, blocked);
+            graphicsProperty.SetValue(process, blocked);
             string before = JsonSerializer.Serialize(logical.Capture());
             try
             {
@@ -454,7 +454,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             }
             finally
             {
-                graphicsProperty.SetValue(child, original);
+                graphicsProperty.SetValue(process, original);
             }
         }
     }
@@ -497,8 +497,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         selected = selected with { NativeActionCameraRules = game.ReadNativeActionCameraRules() };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         Assert.Empty(logical.GetNativePlayerActionChoices(caster, limits: false, command: 28));
-        ExpandedBattlePresentationProcess process = new(logical, selected);
-        logical.AttachExpandedPresentationProcess(process);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
             logical.Tick();
@@ -601,8 +601,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         };
         selected = selected with { LimitProgress = options, NativeActionCameraRules = game.ReadNativeActionCameraRules() };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
-        logical.AttachExpandedPresentationProcess(process);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
             logical.Tick();
@@ -716,8 +716,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         BattleSession control = new(logicalDefinition, BattleAtbMode.TurnBased);
         control.SetGunbladeMode(expectedTrigger ? BattleGunbladeMode.Automatic : BattleGunbladeMode.Manual);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
-        logical.AttachExpandedPresentationProcess(process);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
             logical.Tick();
@@ -805,7 +805,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Equal(JsonSerializer.Serialize(control.Capture().Random), JsonSerializer.Serialize(logical.Capture().Random));
         Assert.Equal(originalModels, Models(process));
         Assert.Same(cpu, process.ModelCpuResources);
-        Assert.Same(process, logical.ExpandedPresentationProcess);
+        Assert.Same(process, logical.Presentation);
 
         void RunControl()
         {
@@ -835,7 +835,8 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string logicalBefore = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
-        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         BattleModelRoster roster = logical.ReadBattlePresentationRoster();
         BattleModelOwner attackOwner = logical.ReadPresentationModelOwner(attackId);
         BattleModelOwner attackTarget = logical.ReadPresentationModelOwner(targetId);
@@ -851,16 +852,16 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.Throws<InvalidOperationException>(() => process.BeginAction(attackHeader, [attackPacket]));
         for (int callback = 0; callback < EntryBudget && !process.EntryReady; callback++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
         }
         Assert.True(process.EntryReady, $"Installed entry stalled at callback {process.Graphics.Callback}.");
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
         ExpandedBattlePresentationProcessEntryTests.AssertRandomExchange(logical, process);
 
-        BattleSession.PreparedHostedDispatch stale = process.PrepareAction(attackHeader, [attackPacket]);
+        BattlePresentationProcess.PreparedHostedDispatch stale = process.PrepareAction(attackHeader, [attackPacket]);
         process.ValidatePreparedAction(stale);
         long previousCallback = process.Graphics.Callback;
-        process.Advance(logical);
+        process.Advance(static () => { }, static (_, _) => { });
         Assert.Equal(previousCallback + 1, process.Graphics.Callback);
         NativeBattleGraphicsState afterIdle = process.Graphics;
         NativeBattleEffectMemory idleMemory = process.Memory;
@@ -897,7 +898,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         // Descriptor 104 can finish on the action callback bit before the standing sequence clears displacement.
         for (int callback = 0; callback < StandingReturnBudget && !ReturnedToStanding(process.Graphics.ActorModels.Get(attackOwner), initialDisplacement); callback++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
             Assert.True(process.IsActionComplete(attackToken));
             Assert.Null(process.LastStepActionToken);
             Assert.Empty(process.LastStep.Contacts);
@@ -916,7 +917,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         ImmutableArray<NativeBattleContactPacket> firePackets = roster.Enemies.Select((owner, index) => Contact(owner, fire, checked((ushort)(201 + index)))).ToImmutableArray();
         Assert.Equal(enemyCount, firePackets.Length);
         long beforeFire = process.Graphics.Callback;
-        NativeCrtRandomState crtBeforeFire = Assert.IsType<NativeCrtRandomState>(logical.CurrentCrtRandom);
+        NativeCrtRandomState crtBeforeFire = Assert.IsType<NativeCrtRandomState>(logical.Presentation!.CurrentCrtRandom);
         long fireToken = process.BeginAction(fireHeader, firePackets);
         Descriptor fireDescriptor = ReadDescriptor(process);
         Assert.NotEqual(attackDescriptor.Serial, fireDescriptor.Serial);
@@ -937,13 +938,13 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.NotNull(process.Camera.Projection);
         Assert.True(process.GlobalRandomCalls >= initialRandomCalls);
         ExpandedBattlePresentationProcessEntryTests.AssertRandomExchange(logical, process);
-        Assert.NotEqual(crtBeforeFire, logical.CurrentCrtRandom);
+        Assert.NotEqual(crtBeforeFire, logical.Presentation!.CurrentCrtRandom);
         Assert.Same(originalCpu, process.ModelCpuResources);
         Assert.Same(originalCache, process.ModelTextureCache);
         Assert.Equal(originalModelOwners, Models(process));
         Assert.Equal(logicalBefore, ExpandedBattlePresentationProcessEntryTests.LogicalState(logical));
 
-        process.Advance(logical);
+        process.Advance(static () => { }, static (_, _) => { });
         Assert.Null(process.LastStepActionToken);
         Assert.Empty(process.LastStep.Contacts);
     }
@@ -961,7 +962,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return new(new(target, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, 0, amount, 0), null);
     }
 
-    private static bool RotateCompletedActionBehindCompletion(ExpandedBattlePresentationProcess process)
+    private static bool RotateCompletedActionBehindCompletion(BattlePresentationProcess process)
     {
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleDescriptorState descriptors = graphics.Descriptors;
@@ -972,13 +973,11 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             return false;
         }
         Assert.Equal((byte)128, descriptors.Priorities[descriptors.Depth]);
-        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-        BattleSession child = (BattleSession)typeof(ExpandedBattlePresentationProcess).GetField("presentation", privateInstance)!.GetValue(process)!;
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics with { Descriptors = descriptors.Rotate() });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(process, graphics with { Descriptors = descriptors.Rotate() });
         return true;
     }
 
-    private static Descriptor ReadDescriptor(ExpandedBattlePresentationProcess process)
+    private static Descriptor ReadDescriptor(BattlePresentationProcess process)
     {
         NativeBattleDescriptorState descriptors = process.Graphics.Descriptors;
         int slot = Assert.Single(descriptors.Queue, index => descriptors.Packets[index].Command == 104);
@@ -989,7 +988,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return new(slot, packet.Serial, packet.Argument);
     }
 
-    private static ActionObservation AdvanceAction(ExpandedBattlePresentationProcess process, BattleSession logical, long token, Descriptor descriptor, NativeBattleActionHeaderPreparation header, uint service, BattleModelOwner? movementTarget = null)
+    private static ActionObservation AdvanceAction(BattlePresentationProcess process, BattleSession logical, long token, Descriptor descriptor, NativeBattleActionHeaderPreparation header, uint service, BattleModelOwner? movementTarget = null)
     {
         ActionObservation observed = new();
         NativeBattleVector? destination = movementTarget is not null ? process.Graphics.ActorModels.Get(movementTarget).Transform!.Position28 : null;
@@ -1003,7 +1002,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         Assert.False(process.IsActionComplete(token));
         for (int callback = 0; callback < ActionBudget && !process.IsActionComplete(token); callback++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
             observed.Frames++;
             Assert.Equal(token, process.LastStepActionToken);
             NativeBattleGraphicsState graphics = process.Graphics;
@@ -1073,7 +1072,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return observed;
     }
 
-    private static (BattleModelOwner Owner, byte? Model, int? Body, int? Linked)[] Models(ExpandedBattlePresentationProcess process)
+    private static (BattleModelOwner Owner, byte? Model, int? Body, int? Linked)[] Models(BattlePresentationProcess process)
     {
         return process.Graphics.ActorModels.Entries.Select(entry =>
         {
@@ -1097,7 +1096,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         return HeaderDisplacement(model) == initialDisplacement && (model.ResourceFlags44 & 0x40) != 0;
     }
 
-    private static MotionObservation ObserveMotion(ExpandedBattlePresentationProcess process, BattleModelOwner owner)
+    private static MotionObservation ObserveMotion(BattlePresentationProcess process, BattleModelOwner owner)
     {
         NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
         NativeBattleActionMatrix matrix = Assert.IsType<NativeBattleActionMatrix>(model.GeometryWorldMatrix);

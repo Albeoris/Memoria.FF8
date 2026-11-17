@@ -48,7 +48,7 @@ public sealed class DiagnosticGuardianRepeatTests
         Assert.True(world.DiagnosticReceipt!.InstantGuardianForceCharge);
         Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
         Assert.Equal(BattleAtbMode.TurnBased, world.DiagnosticReceipt.Preparation.AtbMode);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         Guid lifecycle = battle.DiagnosticLifecycleId;
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         List<JsonElement> boundaries = [];

@@ -22,7 +22,7 @@ public sealed class NativeBattleEffect207PilotPresentationTests
         active.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         FieldInfo hold = typeof(BattleSession).GetField("diagnosticHoldEnemyCommands", BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingFieldException(typeof(BattleSession).FullName, "diagnosticHoldEnemyCommands");
         hold.SetValue(active, true);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         BattleDiagnosticEnemyAbility selection = new(100, 2, 1, 2, 8, 338, 11, 204);
         string actor = active.Combatants.Single(candidate => !candidate.IsPlayer && candidate.ModelId == selection.Model && candidate.SceneSlot == selection.SceneSlot).Id;
         for (int step = 0; step < 4096 && !active.CanSubmitDiagnosticEnemyAbility(actor, selection); step++)
@@ -46,7 +46,7 @@ public sealed class NativeBattleEffect207PilotPresentationTests
                 continue;
             }
             previousCallback = earlier.Callback;
-            if (earlier.PilotEffect != 207 || active.NativeGraphics?.OriginalEffect is not { Binding.Effect: 207, ReturnedDescriptor: > 0 })
+            if (earlier.PilotEffect != 207 || active.Presentation?.Graphics?.OriginalEffect is not { Binding.Effect: 207, ReturnedDescriptor: > 0 })
             {
                 continue;
             }

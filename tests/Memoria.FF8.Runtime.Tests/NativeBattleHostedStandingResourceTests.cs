@@ -59,15 +59,15 @@ public sealed class NativeBattleHostedStandingResourceTests
             ActiveStagedResourceRow100 = row
         };
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => owner == ally ? source : new(0)) with { EntryReady = true };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, staging);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(session.Presentation!, staging);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
         Field("hostedBattlePresentation").SetValue(session, true);
 
         NativeBattleActionHeaderPreparation closing = new(ally, 238, 1, -1, 0, 0, null);
-        BattleSession.PreparedHostedDispatch dispatch = session.PrepareHostedAction(closing, [new(new(enemy, 0, 1, 0, 0, 0, 0), null)]);
-        session.PublishHostedAction(dispatch);
+        BattlePresentationProcess.PreparedHostedDispatch dispatch = session.Presentation!.PrepareHostedAction(closing, [new(new(enemy, 0, 1, 0, 0, 0, 0), null)]);
+        session.Presentation!.PublishHostedAction(dispatch);
         NativeBattleGraphicsResource staged = dispatch.Action!.Source;
         Assert.Same(staged, Field("presentationSourceResource").GetValue(session));
         Assert.Equal(stagedBytes, staged.SequenceSection.ToArray());
@@ -80,7 +80,7 @@ public sealed class NativeBattleHostedStandingResourceTests
         Assert.Equal(0x10, step.Model.ActiveResourceRow100);
         Assert.Equal((byte)2, step.Model.Sequence);
         Assert.Equal((byte)5, step.Model.SequenceState!.Pose);
-        graphics = session.NativeGraphics! with { ActorModels = graphics.ActorModels.Set(ally, step.Model) };
+        graphics = session.Presentation!.Graphics with { ActorModels = graphics.ActorModels.Set(ally, step.Model) };
 
         Assert.Same(original, restored);
         Assert.Same(original, ReadResource(session, "NativeGraphicsPoseResource", graphics, ally));

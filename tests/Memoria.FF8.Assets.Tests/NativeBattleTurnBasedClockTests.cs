@@ -5,7 +5,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleTurnBasedClockTests
 {
-    private static readonly TimeSpan PresentationFrame = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan PresentationFrame = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void Zero_work_budget_reaches_readiness_with_one_graphics_callback_and_resumes_exactly()
@@ -21,7 +21,7 @@ public sealed class NativeBattleTurnBasedClockTests
 
         Assert.True(battle.Combatants[0].IsReady);
         Assert.True(battle.Frame > before.Frame + 1);
-        Assert.Equal(before.NativeGraphics!.Callback + 1, battle.NativeGraphics!.Callback);
+        Assert.Equal(before.NativeGraphics!.Callback + 1, battle.Presentation!.Graphics.Callback);
         long logicalSteps = battle.Frame - before.Frame;
         Assert.Equal(before.NativeHostCallbacks!.Value + logicalSteps + 1, battle.NativeHostCallbacks!.Value);
         Assert.Equal(before.NativeExamTimer!.ClockCalls + 4 * (logicalSteps + 1), battle.NativeExamTimer!.ClockCalls);
@@ -154,13 +154,13 @@ public sealed class NativeBattleTurnBasedClockTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        for (int callback = 0; callback < 200 && (battle.QueuedActions.Count != 0 || !battle.NativeGraphics!.Descriptors.Queue.IsEmpty || !battle.NativeGraphics.Requests.IsEmpty); callback++)
+        for (int callback = 0; callback < 200 && (battle.QueuedActions.Count != 0 || !battle.Presentation!.Graphics.Descriptors.Queue.IsEmpty || !battle.Presentation!.Graphics.Requests.IsEmpty); callback++)
         {
             battle.Tick();
         }
         Assert.Empty(battle.QueuedActions);
-        Assert.True(battle.NativeGraphics!.Descriptors.Queue.IsEmpty);
-        Assert.True(battle.NativeGraphics.Requests.IsEmpty);
+        Assert.True(battle.Presentation!.Graphics.Descriptors.Queue.IsEmpty);
+        Assert.True(battle.Presentation!.Graphics.Requests.IsEmpty);
         return battle;
     }
 

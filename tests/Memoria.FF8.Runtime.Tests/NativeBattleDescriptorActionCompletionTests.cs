@@ -77,7 +77,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     public void AaContactAloneCannotFinishAPublishedFactualHeader()
     {
         var fixture = Fixture();
-        Property(nameof(BattleSession.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { ActionCallbackReady = true });
+        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { ActionCallbackReady = true });
         Method("DispatchAction").Invoke(fixture.Session, null);
         Assert.Equal(BattleActionPhase.Windup, fixture.Session.ActiveAction!.Phase);
         Assert.Equal(1, fixture.Session.ActiveAction.RemainingFrames);
@@ -166,7 +166,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         var captured = Fixture();
         NativeBattleGraphicsState Prepare(BattleSession session, NativeBattleGraphicsState graphics)
         {
-            Property(nameof(BattleSession.NativeCamera)).SetValue(session, NativeBattleCameraState.Initialize());
+            Property(nameof(BattlePresentationProcess.NativeCamera)).SetValue(session, NativeBattleCameraState.Initialize());
             Property(nameof(BattleSession.NativeFileIo)).SetValue(session, NativeBattleFileIoState.FromColdProcess());
             Property(nameof(BattleSession.NativeEffectMemory)).SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = fault == "returned-task" ? 1u : 0u, SoundPublishedFlags = 0 });
             Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(session, 20L);
@@ -293,7 +293,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
                 {
                 }), new BattleDiagnosticEffectDispatch(2, 20, "enemy", BattleAbility.Attack, 0, 9, 9)]);
             }
-            Property(nameof(BattleSession.NativeGraphics)).SetValue(captured.Session, post);
+            Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(captured.Session, post);
             Method("ObserveDiagnosticInvocationGraphicsFrameEnd").Invoke(captured.Session, null);
             if (fault is "post-frame" or "post-duplicate")
             {

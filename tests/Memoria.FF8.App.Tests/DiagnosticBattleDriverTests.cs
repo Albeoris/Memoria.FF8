@@ -137,8 +137,8 @@ public sealed class DiagnosticBattleDriverTests
         session.StartNewGame();
         using GameWorld world = new(session, directory!);
         BattleSession battle = world.StartDiagnosticBattle(request);
-        ExpandedBattlePresentationProcess hosted = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattlePresentationProcess hosted = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         world.PrepareDiagnosticEntryBeforePresentation(request);
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         battle.DiagnosticEffectDispatched += dispatches.Add;
@@ -148,7 +148,7 @@ public sealed class DiagnosticBattleDriverTests
         {
             battle.Tick();
             audio.Update(battle);
-            if (battle.ObserveComponentHeldScreenBlend(211) is { } observation)
+            if (battle.Presentation!.ObserveComponentHeldScreenBlend(211) is { } observation)
             {
                 BattleDiagnosticEffectDispatch dispatch = Assert.Single(dispatches, value => value.ExecutedEffect == 211);
                 Assert.Equal(317, dispatch.ActionId);

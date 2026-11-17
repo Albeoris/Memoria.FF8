@@ -14,17 +14,17 @@ public sealed class NativeBattleHostedContactReplacementTests
     [Fact]
     public void ReplacesExtendedOccurrencePayloadsWithoutChangingTheHeaderCursorOrInvocation()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         NativeBattleContactPacket[] original = Enumerable.Range(0, 260).Select(index => Contact(index % 2 == 0 ? Enemy : Ally)).ToArray();
         long token = session.BeginHostedAction(Header, original.ToImmutableArray());
         NativeBattleActionPacketsState packets = session.NativeActionPackets.ActivateHeader(new BattleActionHeaderReference(0)).AdvanceContact().ResetCounts();
         Field("nativeActionPackets").SetValue(session, packets);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleContactPacket[] replacements = original.Select((packet, index) => Contact(packet.Primary.Recipient, (ushort)(index + 1), index == 259 ? Ally : null)).ToArray();
 
-        BattleSession.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, replacements.ToImmutableArray());
+        BattlePresentationProcess.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, replacements.ToImmutableArray());
         Assert.Same(packets, session.NativeActionPackets);
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         session.ValidatePreparedHostedContactReplacement(prepared);
         session.PublishHostedContactReplacement(prepared);
 
@@ -38,7 +38,7 @@ public sealed class NativeBattleHostedContactReplacementTests
         Assert.Equal(new BattleContactCursor(1), published.ActiveContact);
         Assert.Equal(replacements, published.ReadHeaderContacts(new BattleActionHeaderReference(0)));
         Assert.Equal(new BattleContactOccurrence(259), published.ReadContact(new BattleContactOccurrence(259)).Occurrence);
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         Assert.Equal(token, session.HostedActiveActionToken);
         Assert.False(session.IsHostedActionComplete(token));
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
@@ -48,10 +48,10 @@ public sealed class NativeBattleHostedContactReplacementTests
     [Fact]
     public void LateInvalidReplacementKeepsAllExistingPacketsAndDescriptorOwnership()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         Assert.Throws<InvalidOperationException>(() => session.PrepareHostedContactReplacement(1, [Contact(Enemy)]));
         long token = session.BeginHostedAction(Header, [Contact(Enemy), Contact(Ally), Contact(Enemy)]);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         NativeBattleContactPacket malformed = Contact(Enemy, 20) with { Primary = Contact(Enemy, 20).Primary with { ExtendedDamageAmount = 40_000 } };
 
@@ -63,21 +63,21 @@ public sealed class NativeBattleHostedContactReplacementTests
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedContactReplacement(token, [Contact(Enemy), Contact(Ally), Contact(Enemy, 1, Enemy)]));
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedContactReplacement(token, [Contact(Enemy), Contact(Ally), malformed]));
         Assert.Same(packets, session.NativeActionPackets);
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         Assert.Equal(token, session.HostedActiveActionToken);
     }
 
     [Fact]
     public void PreparedReplacementRejectsForeignProcessesAndStaleOwnerFacts()
     {
-        BattleSession session = Fixture();
-        BattleSession other = Fixture();
+        BattlePresentationProcess session = Fixture();
+        BattlePresentationProcess other = Fixture();
         long token = session.BeginHostedAction(Header, [Contact(Enemy)]);
         Assert.Equal(token, other.BeginHostedAction(Header, [Contact(Enemy)]));
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleActionPacketsState original = session.NativeActionPackets;
         NativeBattleActionPacketsState foreign = other.NativeActionPackets;
-        BattleSession.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2)]);
+        BattlePresentationProcess.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2)]);
 
         Assert.Throws<InvalidOperationException>(() => other.PublishHostedContactReplacement(prepared));
         Assert.Same(foreign, other.NativeActionPackets);
@@ -100,23 +100,23 @@ public sealed class NativeBattleHostedContactReplacementTests
         epoch.SetValue(session, (long)epoch.GetValue(session)! + 1);
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
         Assert.Same(activated, session.NativeActionPackets);
-        Assert.Equal(graphics.Descriptors, session.NativeGraphics!.Descriptors);
+        Assert.Equal(graphics.Descriptors, session.Graphics.Descriptors);
         Assert.Equal(token, session.HostedActiveActionToken);
     }
 
     [Fact]
     public void AtomicAppendPreservesTheActiveCursorAndExistingCompletionQueue()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         long token = BeginWithCompletion(session);
         NativeBattleActionPacketsState original = session.NativeActionPackets;
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
-        BattleSession.HostedDispatchHeader nested = new(new(Enemy, 2, 0, -1, 13, 107, null), [Contact(Ally, 7)]);
-        BattleSession.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2), Contact(Ally, 3)], append: [nested]);
+        NativeBattleGraphicsState graphics = session.Graphics;
+        BattlePresentationProcess.HostedDispatchHeader nested = new(new(Enemy, 2, 0, -1, 13, 107, null), [Contact(Ally, 7)]);
+        BattlePresentationProcess.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2), Contact(Ally, 3)], append: [nested]);
         BattleActionHeaderReference suffix = Assert.Single(prepared.AppendedHeaders);
         Assert.Equal(new BattleActionHeaderReference(1), suffix);
         Assert.Same(original, session.NativeActionPackets);
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
 
         session.PublishHostedContactReplacement(prepared);
 
@@ -131,7 +131,7 @@ public sealed class NativeBattleHostedContactReplacementTests
         Assert.Equal(new ushort[] { 2, 3 }, packets.ReadHeaderContacts(new BattleActionHeaderReference(0)).Select(packet => packet.Primary.Amount6));
         Assert.Equal(Ally, Assert.Single(packets.ReadHeaderContacts(suffix)).Primary.Recipient);
         Assert.Equal(Enemy, packets.ReadHeader(suffix).Source);
-        Assert.Same(graphics.Descriptors, session.NativeGraphics!.Descriptors);
+        Assert.Same(graphics.Descriptors, session.Graphics.Descriptors);
         Assert.Equal(new ushort[] { 104, 10 }, graphics.Descriptors.Queue.Select(index => graphics.Descriptors.Packets[index].Command));
         Assert.Equal(token, session.HostedActiveActionToken);
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
@@ -140,19 +140,19 @@ public sealed class NativeBattleHostedContactReplacementTests
     [Fact]
     public void BadOrStaleAppendCannotPublishResolvedContactsOrOverwriteABoundHeader()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         long token = BeginWithCompletion(session);
         NativeBattleActionPacketsState original = session.NativeActionPackets;
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleContactPacket[] contacts = [Contact(Enemy, 2), Contact(Ally, 3)];
-        BattleSession.HostedDispatchHeader valid = new(new(Enemy, 2, 0, -1, 13, 107, null), [Contact(Ally)]);
-        BattleSession.HostedDispatchHeader invalid = valid with { Contacts = [Contact(Missing)] };
+        BattlePresentationProcess.HostedDispatchHeader valid = new(new(Enemy, 2, 0, -1, 13, 107, null), [Contact(Ally)]);
+        BattlePresentationProcess.HostedDispatchHeader invalid = valid with { Contacts = [Contact(Missing)] };
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedContactReplacement(token, [.. contacts], append: [valid, invalid]));
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedContactReplacement(token, [.. contacts], append: [valid with { Header = valid.Header with { Source = Missing } }]));
         Assert.Same(original, session.NativeActionPackets);
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
 
-        BattleSession.PreparedHostedContactReplacement stale = session.PrepareHostedContactReplacement(token, [.. contacts], append: [valid]);
+        BattlePresentationProcess.PreparedHostedContactReplacement stale = session.PrepareHostedContactReplacement(token, [.. contacts], append: [valid]);
         NativeBattleActionPacketsState reset = original.ResetCounts();
         Field("nativeActionPackets").SetValue(session, reset);
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(stale));
@@ -160,20 +160,20 @@ public sealed class NativeBattleHostedContactReplacementTests
         Assert.Same(reset, session.NativeActionPackets);
         Assert.Same(original.ReadHeader(new BattleActionHeaderReference(0)), reset.ReadHeader(new BattleActionHeaderReference(0)));
         Assert.Equal(original.ReadHeaderContacts(new BattleActionHeaderReference(0)), reset.ReadHeaderContacts(new BattleActionHeaderReference(0)));
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
     }
 
-    private static long BeginWithCompletion(BattleSession session)
+    private static long BeginWithCompletion(BattlePresentationProcess session)
     {
-        BattleSession.PreparedHostedDispatch admission = session.PrepareHostedDispatch([new(Header, [Contact(Enemy), Contact(Ally)])], dispatchAppended: true, completion: new(0x47DE70, Ally, "ally"));
+        BattlePresentationProcess.PreparedHostedDispatch admission = session.PrepareHostedDispatch([new(Header, [Contact(Enemy), Contact(Ally)])], dispatchAppended: true, completion: new(0x47DE70, Ally, "ally"));
         long token = session.PublishHostedAction(admission);
         Field("nativeActionPackets").SetValue(session, session.NativeActionPackets.ActivateHeader(new BattleActionHeaderReference(0)).AdvanceContact());
         return token;
     }
 
-    private static BattleSession Fixture()
+    private static BattlePresentationProcess Fixture()
     {
-        BattleSession session = new(new BattleDefinition
+        BattleSession logical = new(new BattleDefinition
         {
             UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
@@ -181,35 +181,32 @@ public sealed class NativeBattleHostedContactReplacementTests
         BattleModelRoster roster = new([Ally, Enemy]);
         NativeBattleModelAliases aliases = new(roster, []);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Ally ? (byte)1 : (byte)16 });
-        SetGraphics(session, graphics with { EntryReady = true });
-        Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
-        Field("hostedBattlePresentation").SetValue(session, true);
-        NativeBattleHostedTestFixture.InstallModelBindings(session, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
-        return session;
+        NativeBattleHostedTestFixture.InstallModelBindings(logical, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
+        return NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
     }
 
     [Fact]
     public void Ordinary_trigger_replacement_acknowledges_only_the_exact_pending_receipt()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         long token = session.BeginHostedAction(Header, [Contact(Enemy)]);
         NativeBattleTriggerReceipt receipt = new(Ally, 1, 1, 25, 32);
-        NativeBattleGraphicsState graphics = session.NativeGraphics! with { PendingTrigger = receipt };
+        NativeBattleGraphicsState graphics = session.Graphics with { PendingTrigger = receipt };
         SetGraphics(session, graphics);
         NativeBattleActionPacketsState original = session.NativeActionPackets;
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2)], receipt with { }));
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         Assert.Same(original, session.NativeActionPackets);
 
-        BattleSession.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2)], receipt);
+        BattlePresentationProcess.PreparedHostedContactReplacement prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2)], receipt);
         SetGraphics(session, graphics with { });
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedContactReplacement(prepared));
-        Assert.Same(receipt, session.NativeGraphics!.PendingTrigger);
+        Assert.Same(receipt, session.Graphics.PendingTrigger);
         Assert.Same(original, session.NativeActionPackets);
 
         prepared = session.PrepareHostedContactReplacement(token, [Contact(Enemy, 2)], receipt);
         session.PublishHostedContactReplacement(prepared);
-        Assert.Null(session.NativeGraphics!.PendingTrigger);
+        Assert.Null(session.Graphics.PendingTrigger);
         Assert.Same(original.ReadHeader(new BattleActionHeaderReference(0)), session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)));
         Assert.Equal((ushort)2, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.Equal(token, session.HostedActiveActionToken);
@@ -221,6 +218,6 @@ public sealed class NativeBattleHostedContactReplacementTests
         return new(new(owner, 0, 1, 0, 0, amount, 0), secondary is null ? null : new(secondary, 0, 0, 0, 0, 0, 0));
     }
 
-    private static void SetGraphics(BattleSession session, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
+    private static void SetGraphics(BattlePresentationProcess session, NativeBattleGraphicsState graphics) => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session, graphics);
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
 }

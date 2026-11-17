@@ -2,6 +2,19 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record EncounterNativeEventBinding(string ActorId, int ModelId, byte OpeningVariable, byte PartyVariable, ushort PartyCountLimit, ushort LowHpPercent, byte LowHpAbility, EncounterNativeEventResources Resources)
+{
+    public static EncounterNativeEventBinding Bind(EncounterBindingResult verified, BattleCombatantDefinition actor, NativeBattleGraphicsResource resource)
+    {
+        if (actor.Id != verified.OriginalActorId || actor.IsPlayer || actor.NativeAi is null)
+        {
+            throw new InvalidDataException("Native encounter events require the verified source actor and its installed AI.");
+        }
+        // EncounterBindingResolver verifies these AI operands and their selected sequences before resource admission.
+        return new(actor.Id, actor.ModelId, 220, 221, 2, 10, verified.LowHpTerminalAbility, EncounterNativeEventResourceReader.Bind(resource));
+    }
+}
+
 public sealed record EncounterNativeEventState(ulong LastOwnTurn = 0, bool OpeningPending = true, bool PartyPending = false, int OpeningCursor = 0, int PartyCursor = 0)
 {
     public (EncounterNativeEventState State, EncounterNativeTextCue? Line) Admit(ulong ownTurn, ulong minimumTurn, EncounterNativeEventResources resources)
@@ -27,7 +40,6 @@ public sealed record EncounterNativeEventState(ulong LastOwnTurn = 0, bool Openi
 public sealed partial class BattleSession
 {
     private ImmutableDictionary<string, EncounterNativeEventState> encounterNativeEventTurns = ImmutableDictionary<string, EncounterNativeEventState>.Empty;
-    private EncounterNativeEventResources? encounterNativeEventResources;
 
     public ImmutableDictionary<string, EncounterNativeEventState> CaptureEncounterNativeEvents() => encounterNativeEventTurns;
 
@@ -39,32 +51,46 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native encounter event snapshot requires allocated actor identities and valid deferred native text cursors.");
         }
         encounterNativeEventTurns = turns;
-        encounterNativeEventResources = null;
     }
 
-    private EncounterNativeEventResources RequireEncounterNativeEventResources(BattleCombatant actor)
+    private EncounterNativeEventBinding? ReadEncounterNativeEventBinding(BattleCombatant actor)
     {
-        return encounterNativeEventResources ??= definition.EncounterMod?.NativeEvents ?? throw new InvalidDataException($"Native encounter events for actor '{actor.Id}' require their selected-resource binding in the captured encounter definition.");
+        if (definition.EncounterMod?.NativeEvents is not { } binding || actor.IsPlayer || actor.ModelId != binding.ModelId)
+        {
+            return null;
+        }
+        string? current = actor.Id;
+        for (int remaining = nativeAllocations.Count; current is not null && remaining >= 0; remaining--)
+        {
+            if (current == binding.ActorId)
+            {
+                return binding;
+            }
+            current = nativeAllocations.SingleOrDefault(allocation => allocation.Id == current)?.InheritedFromActorId;
+        }
+        return null;
     }
 
     private EncounterCompiledEventGate? EncounterNativeGate(BattleCombatant actor)
     {
-        if (definition.EncounterMod is not { } mod || mod.Encounter != EncounterBindingResolver.Disc1Edea || actor.Id != mod.OriginalActorId || EncounterPolicyOf(actor) is null)
+        if (definition.EncounterMod is not { } mod || ReadEncounterNativeEventBinding(actor) is not { } binding || EncounterPolicyOf(actor) is null)
         {
             return null;
         }
-        EncounterCompiledEventGate[] gates = mod.EventGates.Values.Where(gate => gate.Event == "nativeTaunts" && ResolveEncounterRole(gate.Actor) == actor.Id).ToArray();
+        string role = EncounterRoleOf(actor.Id);
+        EncounterCompiledEventGate[] gates = mod.EventGates.Values.Where(gate => gate.Event == "nativeTaunts" && gate.Actor == role).ToArray();
         if (gates.Length > 1)
         {
-            throw new InvalidDataException("An original actor requires exactly one composed native taunt gate.");
+            throw new InvalidDataException("An actor can own only one compiled native taunt gate.");
         }
-        return gates.SingleOrDefault() ?? new("original", "nativeTaunts", 1);
+        return gates.SingleOrDefault() ?? (actor.Id == binding.ActorId ? new(role, "nativeTaunts", 1) : null);
     }
 
     /// <summary>Native terminal eligibility precedes normal policy admission and its silence checks.</summary>
     private bool TryRunEncounterNativeTerminal(BattleCombatant actor, int callback)
     {
-        if (callback != 1 || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null || (NativeSavedStatusBits(actor) & 0x20) != 0)
+        if (callback != 1 || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null ||
+            ReadEncounterNativeEventBinding(actor) is not { } binding || (NativeSavedStatusBits(actor) & 0x20) != 0)
         {
             return false;
         }
@@ -72,33 +98,33 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        _ = RequireEncounterNativeEventResources(actor);
-        bool openingUnused = EvaluateNativeAiCondition(actor, 220, 200, 0, 0);
+        bool openingUnused = EvaluateNativeAiCondition(actor, binding.OpeningVariable, 200, 0, 0);
         if (openingUnused)
         {
             return false;
         }
-        bool partyCountAtMostTwo = EvaluateNativeAiCondition(actor, 6, 200, 4, 2);
-        if (EvaluateNativeAiCondition(actor, 221, 200, 0, 0) && partyCountAtMostTwo)
+        bool partyCountEligible = EvaluateNativeAiCondition(actor, 6, 200, 4, binding.PartyCountLimit);
+        if (EvaluateNativeAiCondition(actor, binding.PartyVariable, 200, 0, 0) && partyCountEligible)
         {
-            WriteNativeActorVariable(actor, 221, 1, false);
+            WriteNativeActorVariable(actor, binding.PartyVariable, 1, false);
             EncounterNativeEventState pending = encounterNativeEventTurns.GetValueOrDefault(actor.Id) ?? new();
             encounterNativeEventTurns = encounterNativeEventTurns.SetItem(actor.Id, pending with { PartyPending = true });
             // The native party dialogue branch returns from this callback. Deferring its text
             // must not replace that non-attacking turn with an authored spell.
             return true;
         }
-        if (!EvaluateNativeAiCondition(actor, 0, 0, 1, 10) || !partyCountAtMostTwo)
+        if (actor.Id != binding.ActorId || !EvaluateNativeAiCondition(actor, 0, 0, 1, binding.LowHpPercent) || !partyCountEligible)
         {
             return false;
         }
-        QueueEncounterNativeTerminal(actor);
+        QueueEncounterNativeTerminal(actor, binding);
         return true;
     }
 
     private bool TryRunEncounterNativeDefeatTerminal()
     {
-        if (DebugOutcome is not null || NativeGraphics is null && !OwnsExpandedHostedInvocation || definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod || !byId.TryGetValue(mod.OriginalActorId, out BattleCombatant? actor) || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null)
+        if (DebugOutcome is not null || definition.EncounterMod?.NativeEvents is not { } binding ||
+            !byId.TryGetValue(binding.ActorId, out BattleCombatant? actor) || !actor.IsActive || !actor.IsAlive || EncounterNativeGate(actor) is null)
         {
             return false;
         }
@@ -106,33 +132,25 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        _ = RequireEncounterNativeEventResources(actor);
-        if (EvaluateNativeAiCondition(actor, 221, 200, 0, 0))
+        if (EvaluateNativeAiCondition(actor, binding.PartyVariable, 200, 0, 0))
         {
-            WriteNativeActorVariable(actor, 221, 1, false);
+            WriteNativeActorVariable(actor, binding.PartyVariable, 1, false);
             EncounterNativeEventState pending = encounterNativeEventTurns.GetValueOrDefault(actor.Id) ?? new();
             encounterNativeEventTurns = encounterNativeEventTurns.SetItem(actor.Id, pending with { PartyPending = true });
         }
         // Additional policy actors can exhaust the party before the original's next main callback.
         // At that boundary this composed encounter retains its genuine low-HP cinematic body.
         // Party incapacity need not lower Squall's raw HP, so no HP or status owner is rewritten.
-        if (OwnsExpandedHostedInvocation)
-        {
-            QueueEncounterNativeTerminal(actor);
-        }
-        else
-        {
-            DispatchNativeCallback(new(checked((byte)actor.RequireNativeActorIndex()), 1), () => QueueEncounterNativeTerminal(actor));
-        }
+        QueueEncounterNativeTerminal(actor, binding);
         return true;
     }
 
-    private void QueueEncounterNativeTerminal(BattleCombatant actor)
+    private void QueueEncounterNativeTerminal(BattleCombatant actor, EncounterNativeEventBinding binding)
     {
         byte command = 0;
         ushort action = 0;
         byte sequence = 0;
-        PrepareNativeAiAbility(actor, 10, ref command, ref action, ref sequence);
+        PrepareNativeAiAbility(actor, binding.LowHpAbility, ref command, ref action, ref sequence);
         byte? previousStage = nativeAiCallbackStage;
         nativeAiCallbackStage = 1;
         try
@@ -153,17 +171,16 @@ public sealed partial class BattleSession
     private void QueueEncounterNativeEvents(BattleCombatant actor, ulong ownTurn)
     {
         EncounterCompiledEventGate? gate = EncounterNativeGate(actor);
-        if (gate is null)
+        if (gate is null || ReadEncounterNativeEventBinding(actor) is not { } binding)
         {
             return;
         }
-        EncounterNativeEventResources resources = RequireEncounterNativeEventResources(actor);
         EncounterNativeEventState state = encounterNativeEventTurns.GetValueOrDefault(actor.Id) ?? new();
-        if (EvaluateNativeAiCondition(actor, 220, 200, 0, 0))
+        if (EvaluateNativeAiCondition(actor, binding.OpeningVariable, 200, 0, 0))
         {
-            WriteNativeActorVariable(actor, 220, 1, false);
+            WriteNativeActorVariable(actor, binding.OpeningVariable, 1, false);
         }
-        (state, EncounterNativeTextCue? line) = state.Admit(ownTurn, gate.MinimumOwnTurn, resources);
+        (state, EncounterNativeTextCue? line) = state.Admit(ownTurn, gate.MinimumOwnTurn, binding.Resources);
         if (line is not null)
         {
             if (actor.NativeAi is not { } program || (uint)line.Text >= program.Texts.Length)

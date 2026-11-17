@@ -22,50 +22,50 @@ public sealed class NativeBattleStageLifecycleTests
         BattleStage source = assets.LoadStage(stageId);
         BattleDefinition definition = CreateDefinition(game, assets, formation, source, stageId);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        Assert.Null(battle.NativeStage!.Task);
-        for (int callback = 0; callback < 200 && battle.NativeStage.PaletteAllocation is null; callback++)
+        Assert.Null(battle.Presentation!.Stage.Task);
+        for (int callback = 0; callback < 200 && battle.Presentation!.Stage.PaletteAllocation is null; callback++)
         {
             battle.Tick();
         }
-        NativeBattleStagePaletteAllocation palette = Assert.IsType<NativeBattleStagePaletteAllocation>(battle.NativeStage.PaletteAllocation);
-        NativeBattlePrimitiveProcess primitive = battle.NativeEffectMemory!.PrimitiveProcess!;
+        NativeBattleStagePaletteAllocation palette = Assert.IsType<NativeBattleStagePaletteAllocation>(battle.Presentation!.Stage.PaletteAllocation);
+        NativeBattlePrimitiveProcess primitive = battle.Presentation!.Memory.PrimitiveProcess!;
         Assert.Equal(0, palette.Address.ByteOffset);
         Assert.Equal(palette.Address.Bank, primitive.PacketBank);
         Assert.Equal(palette.Address.Buffer, primitive.PacketBuffer);
         //500900 resets the selected primitive cursor later in this same Tick; the pure506CF0 test checks its512-byte advance before reset.
         Assert.Equal(0, primitive.ByteCursor);
-        Assert.Equal(palette.Source.Data.ToArray(), battle.NativeEffectMemory.Textures!.ReadVram().AsSpan(239 * 1024 * 2, 512).ToArray());
+        Assert.Equal(palette.Source.Data.ToArray(), battle.Presentation!.Memory.Textures!.ReadVram().AsSpan(239 * 1024 * 2, 512).ToArray());
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(palette.Source.Data.AsSpan()));
         for (int color = 1; color < 256; color++)
         {
             Assert.Equal((ushort)0xC210, BinaryPrimitives.ReadUInt16LittleEndian(palette.Source.Data.AsSpan().Slice(2 * color)));
         }
-        Assert.DoesNotContain(battle.NativeGraphics!.PrimitiveFrame!.Pending.Packets, packet => packet.Reference.Bank == palette.Address.Bank && packet.Reference.Buffer == palette.Address.Buffer && packet.Reference.ByteOffset < palette.Address.ByteOffset + 512 && packet.Reference.ByteOffset + packet.Words.Length * 4 > palette.Address.ByteOffset);
-        for (int callback = 0; callback < 200 && battle.NativeStage.Task is null; callback++)
+        Assert.DoesNotContain(battle.Presentation!.Graphics.PrimitiveFrame!.Pending.Packets, packet => packet.Reference.Bank == palette.Address.Bank && packet.Reference.Buffer == palette.Address.Buffer && packet.Reference.ByteOffset < palette.Address.ByteOffset + 512 && packet.Reference.ByteOffset + packet.Words.Length * 4 > palette.Address.ByteOffset);
+        for (int callback = 0; callback < 200 && battle.Presentation!.Stage.Task is null; callback++)
         {
             battle.Tick();
         }
-        Assert.NotNull(battle.NativeStage.Task);
-        Assert.Equal((short)1, battle.NativeStage.Task!.Phase);
-        Assert.Equal(0, battle.NativeStage.Rotation);
-        Assert.All(battle.NativeStage.Groups, group => Assert.Equal((byte)1, group.Counter));
-        Assert.False(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions.IsEmpty);
+        Assert.NotNull(battle.Presentation!.Stage.Task);
+        Assert.Equal((short)1, battle.Presentation!.Stage.Task!.Phase);
+        Assert.Equal(0, battle.Presentation!.Stage.Rotation);
+        Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((byte)1, group.Counter));
+        Assert.False(NativeBattleStorageSnapshots.Capture(battle.Presentation!.Memory.Textures!).VramRegions.IsEmpty);
         BattleSnapshot boundary = battle.Capture();
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(boundary))!);
         if (source.NativeSource!.Callback!.UpdateTexture0 == true)
         {
-            Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), battle.NativeStage.TextureAnimations!.Value.ToArray());
+            Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), battle.Presentation!.Stage.TextureAnimations!.Value.ToArray());
         }
         battle.Tick();
         restored.Tick();
-        Assert.Equal(source.NativeSource!.RotationSpeed, battle.NativeStage.Rotation);
+        Assert.Equal(source.NativeSource!.RotationSpeed, battle.Presentation!.Stage.Rotation);
         if (source.NativeSource.Callback!.UpdateTexture0 == true)
         {
-            Assert.Equal(NativeBattleStageTextureMotion.Advance50CB20(source.NativeSource.TextureAnimations, 0).Source.ToArray(), battle.NativeStage.TextureAnimations!.Value.ToArray());
+            Assert.Equal(NativeBattleStageTextureMotion.Advance50CB20(source.NativeSource.TextureAnimations, 0).Source.ToArray(), battle.Presentation!.Stage.TextureAnimations!.Value.ToArray());
             BattleSession frozenTexture = BattleSession.Restore(boundary with { NativeStage = boundary.NativeStage! with { Flags = boundary.NativeStage.Flags | 2 } });
             frozenTexture.Tick();
-            Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), frozenTexture.NativeStage!.TextureAnimations!.Value.ToArray());
-            Assert.Equal(source.NativeSource.RotationSpeed, frozenTexture.NativeStage.Rotation);
+            Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), frozenTexture.Presentation!.Stage.TextureAnimations!.Value.ToArray());
+            Assert.Equal(source.NativeSource.RotationSpeed, frozenTexture.Presentation!.Stage.Rotation);
         }
         Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
@@ -73,7 +73,7 @@ public sealed class NativeBattleStageLifecycleTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Where(model => (model.Flags0 & 2) != 0), model =>
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Where(model => (model.Flags0 & 2) != 0), model =>
         {
             Assert.Equal(source.NativeSource!.ModelColors!.Color40, model.Color40);
             Assert.Equal(source.NativeSource.ModelColors.Color44, model.Color44);
@@ -81,7 +81,7 @@ public sealed class NativeBattleStageLifecycleTests
         BattleSnapshot completed = battle.Capture();
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, NativeFieldRuntimeProfile.FF8EnExecutableHash);
         Assert.Same(completed.NativeStage, retained.Stage);
-        Assert.NotSame(battle.NativeStage, retained.Stage);
+        Assert.NotSame(battle.Presentation?.Stage, retained.Stage);
         BattleSession unknown = BattleSession.Restore(boundary with { NativeStage = null });
         Assert.Throws<NotSupportedException>(() => unknown.Tick());
     }
@@ -110,41 +110,41 @@ public sealed class NativeBattleStageLifecycleTests
             definition = definition with { NativeRetainedMemory = retained147 with { Stage = stage with { Extended = extended with { Stage147 = new() { Subphase = -1, Counter = 5 } } } } };
         }
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        Assert.Null(battle.NativeStage!.Task);
-        for (int callback = 0; callback < 400 && battle.NativeStage.Task is null; callback++)
+        Assert.Null(battle.Presentation!.Stage.Task);
+        for (int callback = 0; callback < 400 && battle.Presentation!.Stage.Task is null; callback++)
         {
             battle.Tick();
         }
-        NativeBattleStageTask task = Assert.IsType<NativeBattleStageTask>(battle.NativeStage.Task);
+        NativeBattleStageTask task = Assert.IsType<NativeBattleStageTask>(battle.Presentation!.Stage.Task);
         Assert.Equal(stageId == 147 ? new NativeBattleStageCallback(0x511EB0, null) : source.NativeSource!.Callback, task.Callback);
         Assert.Equal((short)1, task.Phase);
         if (stageId == 147)
         {
-            Assert.Equal(new NativeBattleStage147State(), battle.NativeStage.Extended!.Stage147);
+            Assert.Equal(new NativeBattleStage147State(), battle.Presentation!.Stage.Extended!.Stage147);
         }
-        Assert.NotNull(battle.NativeStage.PaletteAllocation);
-        Assert.False(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions.IsEmpty);
-        Assert.All(battle.NativeStage.Groups, group =>
+        Assert.NotNull(battle.Presentation!.Stage.PaletteAllocation);
+        Assert.False(NativeBattleStorageSnapshots.Capture(battle.Presentation!.Memory.Textures!).VramRegions.IsEmpty);
+        Assert.All(battle.Presentation!.Stage.Groups, group =>
         {
             Assert.NotNull(group.Source);
             Assert.False(group.Matrices.IsEmpty);
         });
-        int rotationBeforeDraw = battle.NativeStage.Rotation;
+        int rotationBeforeDraw = battle.Presentation!.Stage.Rotation;
         AssertResumesNextCallback(battle);
-        Assert.Equal((battle.NativeStage.Flags & 1) == 0 ? unchecked(rotationBeforeDraw + battle.NativeStage.RotationSpeed) : rotationBeforeDraw, battle.NativeStage.Rotation);
-        Assert.Equal((short)1, battle.NativeStage.Task!.Phase);
-        Assert.NotEmpty(battle.NativeGraphics!.PrimitiveFrame!.LastCommands);
+        Assert.Equal((battle.Presentation!.Stage.Flags & 1) == 0 ? unchecked(rotationBeforeDraw + battle.Presentation!.Stage.RotationSpeed) : rotationBeforeDraw, battle.Presentation!.Stage.Rotation);
+        Assert.Equal((short)1, battle.Presentation!.Stage.Task!.Phase);
+        Assert.NotEmpty(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands);
         for (int callback = 0; callback < 400 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        Assert.NotEmpty(battle.NativeGraphics!.PrimitiveFrame!.LastCommands);
+        Assert.NotEmpty(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands);
         AssertResumesNextCallback(battle);
         BattleSnapshot completed = battle.Capture();
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, NativeFieldRuntimeProfile.FF8EnExecutableHash);
         Assert.Same(completed.NativeStage, retained.Stage);
-        Assert.NotSame(battle.NativeStage, retained.Stage);
+        Assert.NotSame(battle.Presentation?.Stage, retained.Stage);
     }
 
     [Theory]
@@ -158,17 +158,17 @@ public sealed class NativeBattleStageLifecycleTests
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage source = assets.LoadStage(37);
         BattleSession battle = new(CreateDefinition(game, assets, formation, source, 37), BattleAtbMode.TurnBased);
-        for (int callback = 0; callback < 400 && battle.NativeStage!.Task is null; callback++)
+        for (int callback = 0; callback < 400 && battle.Presentation!.Stage.Task is null; callback++)
         {
             battle.Tick();
         }
-        Assert.Equal((short)1, battle.NativeStage!.Task!.Phase);
-        NativeBattleStageExtendedState extended = battle.NativeStage.Extended!;
+        Assert.Equal((short)1, battle.Presentation!.Stage.Task!.Phase);
+        NativeBattleStageExtendedState extended = battle.Presentation!.Stage.Extended!;
         NativeBattleStage37State state = extended.Stage37;
         if (service == 0)
         {
             state = NativeBattleStage37.UpdateHp518A80(state, 7, 8);
-            state = NativeBattleStage37.Advance518F50(state, 1, battle.NativeStage.RotationSpeed, 0).State;
+            state = NativeBattleStage37.Advance518F50(state, 1, battle.Presentation!.Stage.RotationSpeed, 0).State;
             Assert.Equal(5, state.FadeRemaining);
         }
         else
@@ -177,26 +177,26 @@ public sealed class NativeBattleStageLifecycleTests
         }
         BattleSnapshot boundary = battle.Capture();
         battle = BattleSession.Restore(boundary with { NativeStage = boundary.NativeStage! with { Extended = extended with { Stage37 = state } } });
-        short shake = battle.NativeCamera!.ScreenOffsetScratchY ?? 0;
-        NativeBattleStage37Step expected = NativeBattleStage37.Advance518F50(state, 1, battle.NativeStage!.RotationSpeed, shake);
+        short shake = battle.Presentation!.Camera.ScreenOffsetScratchY ?? 0;
+        NativeBattleStage37Step expected = NativeBattleStage37.Advance518F50(state, 1, battle.Presentation!.Stage.RotationSpeed, shake);
         Assert.Single(expected.Draws);
         AssertResumesNextCallback(battle);
-        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected.State), NativeBattleSnapshotJson.Serialize(battle.NativeStage!.Extended!.Stage37));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected.State), NativeBattleSnapshotJson.Serialize(battle.Presentation!.Stage.Extended!.Stage37));
         if (service == 2)
         {
-            Assert.Contains(battle.NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Command.Opcode == 0x66);
+            Assert.Contains(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands, command => command.Command.Opcode == 0x66);
         }
         else
         {
-            Assert.NotNull(battle.NativeStage.Extended.Stage37.ClutSource);
+            Assert.NotNull(battle.Presentation!.Stage.Extended.Stage37.ClutSource);
             AssertStage37OverlayPhysicalPackets(battle, expected.Draws[0]);
         }
     }
 
     private static void AssertStage37OverlayPhysicalPackets(BattleSession battle, NativeBattleStage37Draw draw)
     {
-        NativeBattlePrimitiveProcess process = battle.NativeEffectMemory!.PrimitiveProcess!;
-        NativeBattleLogicalOrdering ordering = battle.NativeGraphics!.PrimitiveFrame!.Pending;
+        NativeBattlePrimitiveProcess process = battle.Presentation!.Memory.PrimitiveProcess!;
+        NativeBattleLogicalOrdering ordering = battle.Presentation!.Graphics.PrimitiveFrame!.Pending;
         int[] offsets = [0, 12, 24, 40, 52, 64];
         NativeBattleLogicalProxy[] block = Enumerable.Range(0, Math.Max(0, ordering.Proxies.Length - 5)).Select(index => ordering.Proxies.Skip(index).Take(6).ToArray()).First(proxies => proxies.Select((proxy, index) => proxy.Flags20 == 0 && proxy.Packet.Bank == proxies[0].Packet.Bank && proxy.Packet.Buffer == proxies[0].Packet.Buffer && proxy.Packet.ByteOffset == proxies[0].Packet.ByteOffset + offsets[index]).All(matches => matches));
         NativeBattlePrimitiveProcess selected = process with { PacketBank = block[0].Packet.Bank, PacketBuffer = block[0].Packet.Buffer };

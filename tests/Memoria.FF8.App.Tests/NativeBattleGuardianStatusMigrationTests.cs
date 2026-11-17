@@ -40,9 +40,9 @@ public sealed class NativeBattleGuardianStatusMigrationTests
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         Assert.Equal(snapshot.Frame + 1, first.Frame);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         byte[] pixels = scene.Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
         string directory = Path.GetDirectoryName(Path.GetFullPath(output!))!;
         Directory.CreateDirectory(directory);
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))

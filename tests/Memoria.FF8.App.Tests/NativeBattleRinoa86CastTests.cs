@@ -74,7 +74,7 @@ public sealed class NativeBattleRinoa86CastTests
                 battle.Tick();
                 clone.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+                Assert.Equal(new BattleScenePresentation(assets, definition).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
                 contact |= killed;
                 releasedDuringEffect |= released;
             }
@@ -108,7 +108,7 @@ public sealed class NativeBattleRinoa86CastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot before = battle.Capture();
         bool selected = false;
         bool drawn = false;
@@ -134,16 +134,16 @@ public sealed class NativeBattleRinoa86CastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
                 {
                     selected = true;
-                    Assert.Equal("FF8_EN:1565C90", battle.NativeCamera!.ControlResource?.Source.Identity);
-                    bool followsBody = battle.NativeCamera.Tasks.Any(task => task?.Pose?.Knots.Any(knot => knot.EyeReference == 0xF9 || knot.TargetReference == 0xF9) == true);
+                    Assert.Equal("FF8_EN:1565C90", battle.Presentation!.Camera.ControlResource?.Source.Identity);
+                    bool followsBody = battle.Presentation!.Camera.Tasks.Any(task => task?.Pose?.Knots.Any(knot => knot.EyeReference == 0xF9 || knot.TargetReference == 0xF9) == true);
                     if (followsBody)
                     {
-                        NativeBattleCameraPose pose = battle.NativeCamera.CurrentPose!;
+                        NativeBattleCameraPose pose = battle.Presentation!.Camera.CurrentPose!;
                         if (!following && previousFollowPose is not null && pose != previousFollowPose)
                         {
                             CompareNext("following", battle);
@@ -158,7 +158,7 @@ public sealed class NativeBattleRinoa86CastTests
                         NativeBattleGraphicsState capturedGraphics = captured.NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = capturedGraphics.PrimitiveFrame! with { LastCommands = capturedGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(captured with { NativeGraphics = capturedGraphics with { PrimitiveFrame = withoutEffect } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
                     if (!midpoint && callback >= 60)
@@ -172,7 +172,7 @@ public sealed class NativeBattleRinoa86CastTests
                     Assert.True(drawn);
                     Assert.True(midpoint);
                     Assert.True(following, "The original camera must follow the moving effect-owned body.");
-                    Assert.Equal((ushort)86, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
+                    Assert.Equal((ushort)86, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
                     Publish("completed-before-host-mode", battle);
                     battle.SetMode(BattleAtbMode.Normal);
                     CompareNext("completed", battle);
@@ -197,7 +197,7 @@ public sealed class NativeBattleRinoa86CastTests
                         }
                     }
                     Assert.True(nextActionCompleted, "The next Combine action must finish after camera cleanup.");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, selected, drawn, midpoint, HostModeAfterRelease = "Normal", OriginalActionId = originalAction.ActionId }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, selected, drawn, midpoint, HostModeAfterRelease = "Normal", OriginalActionId = originalAction.ActionId }));
                     return;
                 }
             }
@@ -225,14 +225,14 @@ public sealed class NativeBattleRinoa86CastTests
             current.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(current.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next", current);
         }
     }
 
     private static bool Released(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 

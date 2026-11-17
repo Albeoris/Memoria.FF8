@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleMusicSessionPresentationTests
 {
-    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void Fresh_original_entry_executes_501C60_but_restore_preserves_the_live_pending_command()
@@ -49,12 +49,12 @@ public sealed class NativeBattleMusicSessionPresentationTests
         BattleSession first = Restore(source);
         BattleSession independent = Restore(source);
         List<NativeBattleMusicCommandReceipt> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, playMusicCommand: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playMusicCommand: heard.Add);
         audio.Update(first);
-        long callback = first.NativeGraphics!.Callback;
+        long callback = first.Presentation!.Graphics.Callback;
         first.AdvanceNativeGraphicsPresentation(Callback);
         independent.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(independent.Capture()));
         NativeBattleMusicCommandReceipt receipt = Assert.Single(first.Events, entry => entry.NativeMusicCommand is not null).NativeMusicCommand!;
         Assert.Equal((byte)3, receipt.Command);
@@ -69,7 +69,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
         Assert.Single(heard);
 
         BattleSession restored = Restore(first.Capture());
-        BattleAudioPresentation attached = new(_ => { }, playModule: _ => { }, playMusicCommand: _ => Assert.Fail("Restoring a committed receipt must not replay device output."));
+        BattleAudioPresentation attached = BattleAudioTestOutput.Create(playMusicCommand: _ => Assert.Fail("Restoring a committed receipt must not replay device output."));
         attached.Update(restored);
         restored.AdvanceNativeGraphicsPresentation(Callback);
         attached.Update(restored);

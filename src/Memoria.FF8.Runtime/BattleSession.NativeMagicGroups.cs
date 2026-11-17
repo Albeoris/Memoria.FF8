@@ -78,7 +78,7 @@ public sealed partial class BattleSession
             return [];
         }
         if (action.Ability != BattleAbility.Magic || action.NativeAction is not { Command: 2, TargetFlags: byte flags } || targets.Count is < 1 or > 3 || targets[0] != firstTarget ||
-            !(!UsesExpandedRoster && GetNativeMagicCastCounts(actor.Id, action.Id).Contains(targets.Count) || actor.IsPlayer && GetPlayerMagicCastCounts(actor.Id, action.Id).Any(count => targets.Count <= count)))
+            !(actor.IsPlayer && GetPlayerMagicCastCounts(actor.Id, action.Id).Any(count => targets.Count <= count)))
         {
             throw new InvalidOperationException("Magic target groups require the current native Double/Triple status, sufficient stock and one installed spell.");
         }
@@ -92,12 +92,10 @@ public sealed partial class BattleSession
                 throw new InvalidOperationException("Every selected magic target must satisfy the original spell's target contract.");
             }
             BattleTargetRequest request = CreatePlayerTargetRequest(actor, target, flags);
-            BattleTargetSelection preflight = UsesExpandedRoster
-                ? new BattleTargetSelection.Explicit([TargetActorReference(target)])
-                : NativeBattleTargetRequestAdapter.CreatePlayerRequest(flags, target.RequireNativeActorIndex()).OriginalProjection!.Operands;
-            casts.Add(new(request, preflight, UsesExpandedRoster ? TargetActorReference(target) : anchor));
+            BattleTargetSelection preflight = new BattleTargetSelection.Explicit([TargetActorReference(target)]);
+            casts.Add(new(request, preflight, TargetActorReference(target)));
         }
-        return UsesExpandedRoster && targets.Count == 1 ? [] : casts.MoveToImmutable();
+        return targets.Count == 1 ? [] : casts.MoveToImmutable();
     }
 
     private BattleCombatant ReadMagicPreflightAnchor(BattleMagicCastInvocation cast, bool requireActive)
@@ -435,7 +433,7 @@ public sealed partial class BattleSession
     private void ValidateExpandedMagicTargets(string actorId, string targetId, BattleAbility ability, int actionId, ImmutableArray<BattleMagicCastInvocation> casts, int mode)
     {
         ValidateNativeMagicTargets(ability, actionId, casts, mode);
-        if (!UsesExpandedRoster || casts.IsEmpty)
+        if (casts.IsEmpty)
         {
             return;
         }

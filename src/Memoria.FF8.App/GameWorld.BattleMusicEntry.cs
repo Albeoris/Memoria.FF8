@@ -42,7 +42,7 @@ internal sealed partial class GameWorld
     {
         BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = music.SoundProcess, NativeMusicProcess = music.MusicProcess };
         definition = PrepareDiagnosticCapabilities(definition);
-        return AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
+        return CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }, assets, BattleResources, effectPreviewRequest?.CreateArena());
     }
 
     private void ValidateCommittedBattleEntryMusic(NativeBattleMusicEntryPreparation music)
@@ -122,7 +122,7 @@ internal sealed partial class GameWorld
 
     private static long ReadExecutedBattleCallbacks(BattleSession active)
     {
-        return active.NativeGraphics is null && active.ExpandedPresentationProcess is null ? active.Frame : active.NativeHostCallbacks ?? throw new NotSupportedException("Native battle host transport requires its executed47CF60 callback ledger; explicitly migrate the named older checkpoint.");
+        return active.NativeHostCallbacks ?? throw new NotSupportedException("Native battle host transport requires its executed47CF60 callback ledger; explicitly migrate the named older checkpoint.");
     }
 
     private void SynchronizeNativeBattleHostCallbacks(BattleSession active)

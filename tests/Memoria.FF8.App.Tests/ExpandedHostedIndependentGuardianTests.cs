@@ -101,8 +101,8 @@ public sealed class ExpandedHostedIndependentGuardianTests
     private static void RunAction(GameWorld world, GameSession session, string route, int item, bool miniMog, bool phoenix)
     {
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
         BattleModelOwner owner = battle.ReadPresentationModelOwner(CasterId);
         Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out _));
@@ -153,7 +153,7 @@ public sealed class ExpandedHostedIndependentGuardianTests
             {
                 receipts.AddRange(services.ReadOrderedReceipts());
             }
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             Assert.Equal(BattleOutcome.Active, battle.Outcome);
         }
         Assert.Single(battle.Events.Skip(firstEvent), entry => entry is { Kind: "ActionComplete", ActorId: CasterId });
@@ -242,7 +242,7 @@ public sealed class ExpandedHostedIndependentGuardianTests
             for (int frame = 0; frame < 1200 && !Completed(battle, attackStart); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
             }
             Assert.True(Completed(battle, attackStart));
         }

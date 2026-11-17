@@ -8,7 +8,7 @@ internal sealed partial class BattleHudElement
     private void DrawNativeShot(IUiCanvas canvas, UiTheme theme, BattleNativeShotState state)
     {
         BattleTimedInputUi ui = controller.ShotUi ?? new(BattleTimedInputUiPhase.Active);
-        float reveal = ui.Reveal(BattleSession.FramesPerSecond);
+        float reveal = ui.Reveal(BattlePresentationTiming.ShotInputTicksPerSecond);
         if (reveal <= 0)
         {
             return;
@@ -21,7 +21,8 @@ internal sealed partial class BattleHudElement
             string targets = string.Join(", ", controller.ShotTargets.Select(controller.CombatantDisplayName));
             Text(canvas, theme, controller.SystemText("battle.hud.target", "TARGET") + ": " + targets, 54, 504, 540, 30);
             int timer = Math.Max(0, (int)state.RemainingTimer);
-            Text(canvas, theme, $"{timer / BattleSession.FramesPerSecond}.{100 * (timer % BattleSession.FramesPerSecond) / BattleSession.FramesPerSecond:00}", 636, 504, 108, 30);
+            int rate = BattlePresentationTiming.ShotInputTicksPerSecond;
+            Text(canvas, theme, $"{timer / rate}.{100 * (timer % rate) / rate:00}", 636, 504, 108, 30);
             Text(canvas, theme, controller.FormatSystemText("battle.ui.shot.ammo", "Ammo: {0}", state.RemainingAmmo), 54, 540, 480, 28);
             bool ready = state.Phase == BattleNativeShotPhase.Ready && state.RemainingTimer > 0 && state.RemainingAmmo > 0;
             theme.Panel(canvas, Rect(42, 576, 342, 60));

@@ -102,7 +102,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
 
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
             battle = new(definition, BattleAtbMode.TurnBased);
-            BattleScenePresentation scene = new(assets, definition, true);
+            BattleScenePresentation scene = new(assets, definition);
             prior = battle.Capture();
             CheckNext("before-entry", prior);
             for (int callback = 0; callback < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
@@ -205,7 +205,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                         NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
-                        byte[] plain = new BattleScenePresentation(assets, definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         peakChangedRgb = CountRgbChanges(pixels, plain);
                         if (peakChangedRgb > 0)
                         {

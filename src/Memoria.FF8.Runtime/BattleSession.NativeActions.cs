@@ -112,12 +112,6 @@ public sealed partial class BattleSession
         {
             header = PrepareReflectedHeader(header, source);
         }
-        if (NativeGraphics is { } entryGraphics && header.Command == 241 && command.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
-        {
-            //48D200 publishes the input callback before the corresponding effect header.
-            uint callback = command.NativeLimitCallback == NativeLimitCallback.DuelOpening ? 0x48E5A0u : 0x48E5E0u;
-            NativeGraphics = QueueNativeDescriptor(entryGraphics, 10, callback);
-        }
         (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
         ObserveDiagnosticPreparedHeader(headerIndex);
         nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(actor), Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
@@ -151,20 +145,6 @@ public sealed partial class BattleSession
         }
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);
         RecordPublishedNativeTargetCount(produced.PublishedTargetCount);
-        //487DF0 calls 485F00 (descriptor104) only after 48E830 publishes a header and B0E is clear.
-        if (queueGraphics && !rejectedEmptyAiTarget && NativeGraphics is { } graphics)
-        {
-            graphics = QueueNativeActionDescriptor(graphics, headerIndex);
-            if (header.Command == 14 && command.NativeLimitCallback == NativeLimitCallback.ShotOpening)
-            {
-                graphics = QueueNativeDescriptor(graphics, 10, 0x48D1A0);
-            }
-            else if (header.Command == 237 && command.NativeLimitCallback == NativeLimitCallback.ShotEffect)
-            {
-                graphics = QueueNativeDescriptor(graphics, 10, 0x4AD7C0);
-            }
-            NativeGraphics = graphics;
-        }
         int? miniMogMessage = miniMogFailure ?? (header.Command == 38 && produced.Contacts.Length != 0 ? 54 : null);
         if (miniMogMessage is int message)
         {
@@ -195,7 +175,7 @@ public sealed partial class BattleSession
             return 72;
         }
         // 48B2E0 averages the levels in the occupied physical party slots, including KO members.
-        BattleCombatant[] party = UsesExpandedRoster ? allies.Where(member => member.IsActive).ToArray() : allies.Where(member => member.NativeActorIndex is >= 0 and < 3).ToArray();
+        BattleCombatant[] party = allies.Where(member => member.IsActive).ToArray();
         uint cost = checked((uint)(100 * (party.Sum(member => member.Level) / party.Length)));
         return TrySpendNativeMoogleGil(cost) ? null : 53;
     }
@@ -329,7 +309,7 @@ public sealed partial class BattleSession
                     MarkNativeContactFlags(0, 4);
                 }
                 int divisor = 8;
-                if (native.AttackType == 5 && native.Command is 4 or 13 && (UsesExpandedRoster ? actor.IsPlayer : actor.NativeActorIndex is < 3))
+                if (native.AttackType == 5 && native.Command is 4 or 13 && (actor.IsPlayer))
                 {
                     uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item revival requires the equipped character-ability flags.");
                     divisor = (passiveFlags & 2) != 0 ? 4 : 8;
@@ -445,7 +425,7 @@ public sealed partial class BattleSession
                         return;
                     }
                     damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
-                    if ((native.AttackFlags & 3) == 2 && (UsesExpandedRoster ? actor.IsPlayer : actor.NativeActorIndex is < 3))
+                    if ((native.AttackFlags & 3) == 2 && (actor.IsPlayer))
                     {
                         uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
                         if ((passiveFlags & 2) != 0)

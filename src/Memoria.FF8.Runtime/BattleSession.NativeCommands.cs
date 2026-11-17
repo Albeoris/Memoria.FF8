@@ -84,7 +84,7 @@ public sealed partial class BattleSession
             }
         }
         BattleAbility ability = limits ? BattleAbility.LimitBreak : BattleAbility.NativeCommand;
-        if (UsesExpandedRoster && limits)
+        if (limits)
         {
             if (actor.NativeLimit?.Command == 16 && nativeSlotsRolls.TryGetValue(actorId, out BattleNativeSlotsRoll? expandedRoll))
             {
@@ -103,20 +103,7 @@ public sealed partial class BattleSession
             }
             return choices.Where(SupportsExpandedLimit).Select(action => ExpandedLimitDefinition(actor, action)).ToArray();
         }
-        if (UsesExpandedRoster)
-        {
             return choices.Where(CanInvokeExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
-        }
-        return choices.Select(action =>
-        {
-            byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == action.Command).TargetFlags;
-            string? name = action.Command == 38 ? actor.NativeCommands.Single(binding => binding.Command == 38).Name : action.Name;
-            return CreateNativePlayerActionChoice(ability, action, targetFlags, name) with
-            {
-                Available = action.Command != 14 || nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0),
-                DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null
-            };
-        }).ToArray();
     }
 
     private static BattleActionDefinition CreateNativePlayerActionChoice(BattleAbility ability, BattleNativeAction action, byte targetFlags, string? name)
@@ -189,11 +176,8 @@ public sealed partial class BattleSession
         }
         bool disabled = definition.NativeLimitsDisabled ?? throw new NotSupportedException("Native Limit selection requires the actual battle prohibition flag.");
         int deadParty = combatants.Count(member => member.IsPlayer && member.IsActive && (NativeSavedStatusBits(member) & 1) != 0);
-        if (UsesExpandedRoster)
-        {
             // The expanded roster saturates the KO contribution at the original physical party capacity.
             deadParty = Math.Min(deadParty, NativeBattleSlots.AllyCount);
-        }
         ushort savedStatuses = NativeSavedStatusBits(actor);
         uint battleStatuses = NativeBattleStatusBits(actor);
         byte roll = disabled || (battleStatuses & 0x200) != 0 ? (byte)0 : (byte)NextRandomByte();
@@ -219,7 +203,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Native player command requires an active battle and a ready player.");
         }
         bool limit = actor.NativeLimit?.Command == command;
-        if (UsesExpandedRoster && limit && !SupportsPlayerLimitSelection(actorId))
+        if (limit && !SupportsPlayerLimitSelection(actorId))
         {
             throw new NotSupportedException("This command requires a battle process outside the expanded host.");
         }
@@ -237,8 +221,6 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native command is not equipped in this character's saved command slots.");
         }
-        if (UsesExpandedRoster)
-        {
             if (limit && command == 5)
             {
                 QueueNativeRenzokuken(actor, target, crisis!.Value);
@@ -268,44 +250,6 @@ public sealed partial class BattleSession
             BattleActionDefinition expandedAction = limit ? ExpandedLimitDefinition(actor, native) : ExpandedOrdinaryCommandDefinition(actor, native);
             QueueExpandedPlayerAction(actor, target, expandedAction, sequence);
             return;
-        }
-        if (target.NativeActorIndex is null)
-        {
-            throw new InvalidOperationException("Native player target has no allocated physical battle slot.");
-        }
-        if (command == 5)
-        {
-            QueueNativeRenzokuken(actor, target, crisis!.Value);
-            return;
-        }
-        if (command == 11)
-        {
-            QueueNativeDuelInvocation(actor, target, crisis!.Value);
-            return;
-        }
-        BattleNativeAction action = FindNativeCommandAction(actor, command, actionId, crisis);
-        byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == command).TargetFlags;
-        OnNativePlayerCommandSubmitted(actor, command);
-        if (command == 14)
-        {
-            BeginNativeShot(actor, target, action, crisis!.Value);
-            return;
-        }
-        if (command == 19 && actionId == 4)
-        {
-            targetFlags = actor.NativeLimit!.InvocationChoices[1].TargetFlags;
-        }
-        if (command == 16)
-        {
-            QueueNativeSlots(actor, action, sequence, crisis);
-            nativeLimitLevels.Remove(actorId);
-            nativeSlotsRolls.Remove(actorId);
-            return;
-        }
-        BattleTargetRequest targets = command == 19 && actionId != 4 ? CreateAutomaticTargetRequest(targetFlags) : CreatePlayerTargetRequest(actor, target, targetFlags);
-        BattleAttackCommand queued = new(actor.Id, target.Id, targets, BattleAbility.EnemyAbility, actionId) { NativeQueuedCommand = command, NativeAction = action, NativeSequence = sequence };
-        EnqueueNativePacket(actor, queued, action.Name ?? $"native command {command}/{actionId}", playerInput: true);
-        nativeLimitLevels.Remove(actorId);
     }
 
     private static ushort NativeBindingActionId(BattleNativeCommandBinding binding)

@@ -55,8 +55,8 @@ public sealed class JunctionBattleInstalledTests
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             Bind(battle);
             using BattleAssets assets = new(TestResources.GameDirectory, host.Resources);
-            BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
-            Console.WriteLine($"junction-battle-source field={session.State.FieldId} battle={battle.Frame} native={battle.NativeGraphics!.Callback} stage={battle.Capture().Definition.StageId}");
+            BattleScenePresentation scene = new(assets, battle.Capture().Definition);
+            Console.WriteLine($"junction-battle-source field={session.State.FieldId} battle={battle.Frame} native={battle.Presentation!.Graphics.Callback} stage={battle.Capture().Definition.StageId}");
             Select();
             string original = Signature(scene.Render(battle, 640, 448));
             foreach (string role in Roles)
@@ -76,11 +76,11 @@ public sealed class JunctionBattleInstalledTests
             bool approach = false;
             bool contact = false;
             bool completed = false;
-            int modelIndex = FindOriginalModelSlot(battle.NativeGraphics, actor);
+            int modelIndex = FindOriginalModelSlot(battle.Presentation?.Graphics, actor);
             for (int callback = 0; callback < 4096; callback++)
             {
                 battle.Tick();
-                NativeBattleSequenceState sequence = ReadOriginalModelCell(battle.NativeGraphics!, modelIndex).SequenceState!;
+                NativeBattleSequenceState sequence = ReadOriginalModelCell(battle.Presentation!.Graphics, modelIndex).SequenceState!;
                 if (!approach && (sequence.Header36 != 0 || sequence.Header38 != 0 || sequence.Header40 != 0))
                 {
                     approach = true;
@@ -99,7 +99,7 @@ public sealed class JunctionBattleInstalledTests
                     Capture("contact");
                     CompareNext();
                 }
-                if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is not { ReturnedDescriptor: > 0 })
+                if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is not { ReturnedDescriptor: > 0 })
                 {
                     completed = true;
                     Capture("completed");
@@ -137,7 +137,7 @@ public sealed class JunctionBattleInstalledTests
                 battle.Tick();
                 clone.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Equal(scene.Render(battle, 640, 448), new BattleScenePresentation(assets, snapshot.Definition, true).Render(clone, 640, 448));
+                Assert.Equal(scene.Render(battle, 640, 448), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 640, 448));
             }
 
             void Capture(string name)
@@ -149,7 +149,7 @@ public sealed class JunctionBattleInstalledTests
                 byte[] pixels = scene.Render(battle, 640, 448);
                 using var image = GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 640, 448);
                 image.Save(Path.Combine(output, "battle-" + name + ".png"));
-                Console.WriteLine($"junction-battle-checkpoint name={name} field={session.State.FieldId} battle={battle.Frame} native={battle.NativeGraphics!.Callback} path={path}");
+                Console.WriteLine($"junction-battle-checkpoint name={name} field={session.State.FieldId} battle={battle.Frame} native={battle.Presentation!.Graphics.Callback} path={path}");
             }
         }
         finally

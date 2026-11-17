@@ -11,7 +11,7 @@ public sealed class NativeBattleProcessTransportTests
         NativeVibrationProcessState vibration = NativeVibrationProcessState.FromColdProcess() with { GraphicsSpeed20409F0 = 123, QuarterClockRemainder = 2 };
         BattleDefinition definition = Definition() with { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { FileIo = io }, NativeVibrationProcess = vibration };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        Assert.Same(io, battle.NativeFileIo);
+        Assert.Same(io, battle.Presentation?.NativeFileIo);
         Assert.Same(vibration, battle.NativeVibrationProcess);
         BattleSnapshot saved = battle.Capture();
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
@@ -35,7 +35,7 @@ public sealed class NativeBattleProcessTransportTests
         BattleSession fresh = new(Definition() with { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess() }, BattleAtbMode.Normal);
         BattleSnapshot missing = fresh.Capture() with { NativeFileIo = null, NativeVibrationProcess = null };
         BattleSession restored = BattleSession.Restore(missing);
-        Assert.Null(restored.NativeFileIo);
+        Assert.Null(restored.Presentation?.NativeFileIo);
         Assert.Null(restored.NativeVibrationProcess);
         NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.Capture(restored.Capture(), null);
         Assert.Null(memory.FileIo);

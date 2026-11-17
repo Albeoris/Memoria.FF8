@@ -59,7 +59,7 @@ public sealed class NativeBattleRenzokukenCastTests
             definition = definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)) };
         }
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         int capturedFrames = 0;
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {
@@ -74,7 +74,7 @@ public sealed class NativeBattleRenzokukenCastTests
             for (byte slot = 0; slot < partyIds.Length; slot++)
             {
                 BattleModelOwner owner = battle.ReadPresentationModelOwner(partyIds[slot]);
-                Assert.Same(battle.NativeGraphics!.ActorModels.Get(owner), ReadOriginalModelCell(battle.NativeGraphics, slot));
+                Assert.Same(battle.Presentation!.Graphics.ActorModels.Get(owner), ReadOriginalModelCell(battle.Presentation?.Graphics, slot));
                 Assert.True(battle.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte alias));
                 Assert.Equal(slot, alias);
             }
@@ -89,7 +89,7 @@ public sealed class NativeBattleRenzokukenCastTests
         const uint transitionColor = 0x00312617;
         battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } }));
         const int actorIndex = 0;
-        uint? shadowColor = ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44;
+        uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
         Assert.NotNull(shadowColor);
         uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
         bool interpolatedCurrentStageColor = false;
@@ -103,29 +103,29 @@ public sealed class NativeBattleRenzokukenCastTests
         for (int callback = 0; callback < 4096; callback++)
         {
             battle.Tick();
-            Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
-            interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color40 == interpolatedColor;
-            selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+            Assert.Equal(shadowColor, ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44);
+            interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color40 == interpolatedColor;
+            selected |= battle.Presentation!.Graphics.OriginalEffect?.Binding.Effect == effectId;
             if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
             {
                 capturedFrames++;
             }
-            if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
+            if (battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
             {
-                NativeBattleEffectAnimationRegisters registers = Assert.IsType<NativeBattleEffectAnimationRegisters>(battle.NativeEffectMemory!.Textures!.Animation);
-                NativeBattleEffectAnimationRegisters camera = Assert.IsType<NativeBattleEffectAnimationRegisters>(battle.NativeCamera!.ControlResource);
+                NativeBattleEffectAnimationRegisters registers = Assert.IsType<NativeBattleEffectAnimationRegisters>(battle.Presentation!.Memory.Textures!.Animation);
+                NativeBattleEffectAnimationRegisters camera = Assert.IsType<NativeBattleEffectAnimationRegisters>(battle.Presentation!.Camera.ControlResource);
                 Assert.Equal((registers.BaseOffset, registers.StreamOffset, registers.ModelTableOffset), (camera.BaseOffset, camera.StreamOffset, camera.ModelTableOffset));
                 Assert.Equal(registers.Source.Identity, camera.Source.Identity);
                 Assert.Equal(registers.Source.Data, camera.Source.Data);
-                Assert.Null(battle.NativeCamera.ControlStagingSource);
+                Assert.Null(battle.Presentation!.Camera.ControlStagingSource);
                 registeredCamera = true;
             }
-            if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
+            if (!capturedMidpoint && battle.Presentation!.Graphics.TriggerWidget?.Input.ContactIndex > 0)
             {
                 CompareNext();
                 capturedMidpoint = true;
             }
-            if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
+            if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 })
             {
                 if (effectId is 141 or 160 or 259 or 332 or 333)
                 {
@@ -156,7 +156,7 @@ public sealed class NativeBattleRenzokukenCastTests
             }
             _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
             CompareState(battle, clone);
-            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224));
+            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(clone, 320, 224));
         }
 
         static void CompareState(BattleSession actual, BattleSession copy)

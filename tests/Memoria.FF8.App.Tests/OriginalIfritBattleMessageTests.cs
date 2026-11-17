@@ -62,7 +62,7 @@ public sealed class OriginalIfritBattleMessageTests
             using Bitmap bitmap = new(960, 720, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory))
             {
-                BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
+                BattleScenePresentation scene = new(assets, battle.Capture().Definition);
                 canvas.DrawRgba(scene.Render(battle, 960, 720), 960, 720, new UiRect(0, 0, 960, 720));
                 UiView view = hud.BuildView();
                 view.Resize(960, 720);

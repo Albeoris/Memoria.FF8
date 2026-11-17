@@ -11,7 +11,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleChoco100PresentationTests
 {
-    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void External_ChocoBuckle_runs_original_IO_models_nodes_programs_contact_and_independent_live_restores()
@@ -46,9 +46,9 @@ public sealed class NativeBattleChoco100PresentationTests
         NativeBattleChoco100Resources resources = installed.Choco100Resources!;
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         heard.Clear();
         HashSet<string> requested = ["io-pending", "static-model", "static-node", "program492-uv", "program496-live", "loaded495-node", "loaded-reveal", "loaded-y", "loaded-pose1", "loaded-fade", "loaded501-node", "program502-live", "camera-late", "wave-live", "contact-before", "common-io"];
@@ -228,7 +228,7 @@ public sealed class NativeBattleChoco100PresentationTests
                     ownership.Accept(cold.Capture());
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
-                    Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
                     boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
@@ -257,11 +257,11 @@ public sealed class NativeBattleChoco100PresentationTests
             Assert.True(waveWorkWritten && sawHiddenActor);
             Assert.True(sawVibration && commonIo && visible);
             Assert.True(stagePeak >= 1536);
-            Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
+            Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
             NativeBattleOriginalEffectState finished = Selected(battle.Capture())!;
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(0, battle.NativeEffectMemory!.Active);
-            Assert.Equal((ushort)0, battle.NativeEffectMemory.Choco100!.Io!.Busy);
+            Assert.Equal(0, battle.Presentation!.Memory.Active);
+            Assert.Equal((ushort)0, battle.Presentation!.Memory.Choco100!.Io!.Busy);
             Assert.Equal((ushort)93, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.All(new[] { resources.SoundInitial, resources.SoundModel, resources.SoundDirector, resources.SoundCamera }, sound => Assert.Contains(heard, item => item.Sound == sound));
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
@@ -269,7 +269,7 @@ public sealed class NativeBattleChoco100PresentationTests
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224).ToArray());
             Assert.False(HasAction(battle));
             Report("checked", null);
         }
@@ -439,7 +439,7 @@ public sealed class NativeBattleChoco100PresentationTests
     private static ushort U16(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan().Slice(offset));
     private static uint U32(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset));
     private static bool CommonIo(BattleSnapshot snapshot) => snapshot.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
-    private static bool HasAction(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+    private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 100, Binding.Entry: 0x70D390 } effect ? effect : null;
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback, bool active = true) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (!active || (task.Flags & 1) != 0) && task.Callback == callback) ?? [];
     private sealed record Boundary(string Name, long Before, long After, string RgbaSha256);

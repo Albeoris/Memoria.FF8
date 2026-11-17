@@ -46,7 +46,7 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
             KnownMagic = game.ReadNewGameKnownMagic(),
             NativeBattleMemory = game.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(context, directory!, sharedAssets: game) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(context, directory!, sharedAssets: game);
         BattleAssets assets = world.BattleResources;
         BattleEncounter formation = assets.LoadEncounter(795);
         NativeBattleMusicProcessState music = baseline.Definition.NativeMusicProcess ?? throw new InvalidDataException("The selected original baseline lacks its transferred battle music owner.");

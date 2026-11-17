@@ -125,7 +125,7 @@ public sealed class NativeBattleHostedStageContactSamplingTests
             Callback = new(final ? NativeBattleFinalStage142.CallbackAddress : NativeBattleStage37.CallbackAddress, false)
         };
         definition.SetValue(session, existing with { NativeStageSource = source });
-        typeof(BattleSession).GetProperty("NativeStage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session, NativeBattleStageState.FromColdProcess());
+        typeof(BattlePresentationProcess).GetProperty("NativeStage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session.Presentation!, NativeBattleStageState.FromColdProcess());
     }
 
     private static NativeBattleGraphicsModel Loaded() => new(2) { ModelId4 = 140 };
@@ -145,7 +145,7 @@ public sealed class NativeBattleHostedStageContactSamplingTests
 
     private static NativeBattleStageState Stage(BattleSession session)
     {
-        return (NativeBattleStageState)typeof(BattleSession).GetProperty("NativeStage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(session)!;
+        return (NativeBattleStageState)typeof(BattlePresentationProcess).GetProperty("NativeStage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(session.Presentation!)!;
     }
 
     private static int Ratio(BattleSession session, bool final)

@@ -50,6 +50,18 @@ public sealed class BattleModelRoster
         return membership.Contains(owner);
     }
 
+    internal bool ContainsPartyActor(string actorId)
+    {
+        foreach (BattlePartyModelOwner owner in party)
+        {
+            if (owner is BattlePartyActorModel actor && actor.Actor.ActorId == actorId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     internal static void RegisterIdentity(BattleModelOwner owner, HashSet<(string Key, bool Actor)> identities)
     {
         (string Key, bool Actor) identity = owner switch

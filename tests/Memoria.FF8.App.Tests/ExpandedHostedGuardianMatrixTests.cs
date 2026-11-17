@@ -64,8 +64,8 @@ public sealed class ExpandedHostedGuardianMatrixTests
         uint initialVictories = session.State.BattleStatistics!.Victories;
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleActionDefinition action = Assert.Single(battle.ReadDefinition().ActionDefinitions, candidate => candidate.Ability == BattleAbility.GuardianForce && candidate.Id == guardianId);
         BattleNativeAction native = Assert.IsType<BattleNativeAction>(action.NativeAction);
         Assert.Equal((byte)254, native.Command);
@@ -97,7 +97,7 @@ public sealed class ExpandedHostedGuardianMatrixTests
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         Assert.Single(battle.Events.Skip(chargeStart), entry => entry is { Kind: "GuardianForceReady", ActorId: CasterId });
 
@@ -110,7 +110,7 @@ public sealed class ExpandedHostedGuardianMatrixTests
                 ? BattleModelTargets.From(battle.Combatants.Where(target => BattleSession.IsValidSelectedActionTarget(caster, action, target)).Select(target => battle.ReadPresentationModelOwner(target.Id)))
                 : null;
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (token is null && child.NativeActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Command == 254 && header.Slot.Source == casterOwner) is { Slot: not null } admitted)
             {
                 token = Assert.IsType<long>(process.ActiveActionToken);
@@ -162,12 +162,12 @@ public sealed class ExpandedHostedGuardianMatrixTests
         return battle.Events.Skip(start).Any(entry => entry is { Kind: "ActionComplete", ActorId: CasterId });
     }
 
-    private static void VerifyTerminalReturn(GameWorld world, GameSession session, BattleSession battle, ExpandedBattlePresentationProcess process, BattleEncounterOccurrence occurrence, int initialResults, uint initialVictories)
+    private static void VerifyTerminalReturn(GameWorld world, GameSession session, BattleSession battle, BattlePresentationProcess process, BattleEncounterOccurrence occurrence, int initialResults, uint initialVictories)
     {
         for (int callback = 0; callback < 500 && battle.Outcome == BattleOutcome.Active; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, world.Battle!.ExpandedPresentationProcess);
+            Assert.Same(process, world.Battle!.Presentation);
             Assert.Equal(initialResults, session.State.AppliedBattleResultIds.Length);
         }
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
@@ -187,7 +187,7 @@ public sealed class ExpandedHostedGuardianMatrixTests
         Assert.Equal(133, receipt.Reload.FieldId);
     }
 
-    private static void VerifyNextAttack(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster)
+    private static void VerifyNextAttack(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant caster)
     {
         BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsAlive && !actor.Untargetable && !actor.IsEjected);
         caster.Atb = BattleSession.AtbMaximum;
@@ -196,7 +196,7 @@ public sealed class ExpandedHostedGuardianMatrixTests
         for (int callback = 0; callback < 1200 && !Completed(battle, start); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         Assert.True(Completed(battle, start), "The next Attack did not complete on the attached Guardian Force process.");
         Assert.Equal(target.Id, Assert.Single(battle.Events.Skip(start), entry => entry is { Kind: "EffectContact", ActorId: CasterId, Ability: BattleAbility.Attack }).TargetId);

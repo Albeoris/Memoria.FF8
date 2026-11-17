@@ -39,17 +39,17 @@ public sealed class NativeBattleCameraScratchMigrationTests
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
+        BattleScenePresentation scene = new(assets, migrated.Definition);
         byte[] before = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(before, scene.Render(BattleSession.Restore(original), 320, 224).ToArray());
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
-        Assert.Equal(546L, first.NativeGraphics!.Callback);
-        Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 0, 0), first.NativeCamera!.ViewTranslationScratch);
+        Assert.Equal(546L, first.Presentation!.Graphics.Callback);
+        Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 0, 0), first.Presentation!.Camera.ViewTranslationScratch);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition, true).Render(second, 320, 224).ToArray());
-        Assert.Equal(0x00464B6Eu, ReadOriginalModelCell(first.NativeGraphics, 0).Color40);
+        Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition).Render(second, 320, 224).ToArray());
+        Assert.Equal(0x00464B6Eu, ReadOriginalModelCell(first.Presentation?.Graphics, 0).Color40);
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
         {
             JsonSerializer.Serialize(stream, migratedNode);

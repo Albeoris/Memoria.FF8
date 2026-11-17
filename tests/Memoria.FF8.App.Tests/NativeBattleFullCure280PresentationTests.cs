@@ -30,7 +30,7 @@ public sealed class NativeBattleFullCure280PresentationTests
         Assert.Equal(2, Assert.Single(beforeInput.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!, stock => stock.SpellId == action.ActionId).Count);
         Assert.Equal(1, Assert.Single(source.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!, stock => stock.SpellId == action.ActionId).Count);
         BattleSession battle = BattleSession.Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         BattleSnapshot prior = source;
         bool initialized = false;
         bool liveRestore = false;
@@ -82,7 +82,7 @@ public sealed class NativeBattleFullCure280PresentationTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame hidden = graphics.PrimitiveFrame with { LastCommands = graphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession plain = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = hidden } });
-                        byte[] background = new BattleScenePresentation(assets, source.Definition, true).Render(plain, 320, 224).ToArray();
+                        byte[] background = new BattleScenePresentation(assets, source.Definition).Render(plain, 320, 224).ToArray();
                         int changed = Enumerable.Range(0, pixels.Length / 4).Count(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(background.AsSpan(index * 4, 3)));
                         if (changed > maximumChangedPixels)
                         {
@@ -106,7 +106,7 @@ public sealed class NativeBattleFullCure280PresentationTests
             Assert.Single(battle.Events, item => item.NativeModuleSound?.Sound == game.ReadNativeFullCure280Resources().Sound);
             NativeBattleRestorationPresentationTests.Publish(output!, "visible-peak", visiblePeak!, visiblePixels);
             CompareNext("completed");
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, maximumChangedPixels, presentedHealings }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, maximumChangedPixels, presentedHealings }));
         }
         catch (Exception error)
         {
@@ -126,7 +126,7 @@ public sealed class NativeBattleFullCure280PresentationTests
             cold.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", battle.Capture(), pixels);
         }
     }

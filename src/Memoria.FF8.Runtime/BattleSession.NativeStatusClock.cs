@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         }
         ObserveNativeUnknownStackCallback(0x483470, "admitted status clock");
         // The caller already admitted the earlier DEB/UI gates.
-        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && (UsesExpandedRoster || HasNativeRosterSlot(candidate))))
+        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive))
         {
             if ((NativeSavedStatusBits(actor) & 5) != 0)
             {
@@ -48,17 +48,9 @@ public sealed partial class BattleSession
                     }
                     if (bit == 4 && decrement != 0 && timer / decrement % (60 / decrement) == 0)
                     {
-                        //483470 requests callback6; its later0/4 command owns HP and presentation contacts.
-                        if (UsesExpandedRoster)
-                        {
                             BattleNativeAction regen = NativePostActionEffect(4);
                             BattleActionDefinition action = new(BattleAbility.EnemyAbility, 4, regen.Name!, BattleActionEffect.Native, 0, true) { NativeAction = regen };
                             ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, SelectBattleTarget(actor), action.Ability, action.Id) { NativeAction = regen }, action, regen);
-                        }
-                        else
-                        {
-                            QueueNativeCallback(actor, 6);
-                        }
                     }
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
@@ -92,16 +84,6 @@ public sealed partial class BattleSession
                 {
                     actor.RefreshNativeHpStatusFlags();
                     RefreshNativePresentationStatus(actor);
-                    if (NativeGraphics is { } graphics && actor.NativeActorIndex is int physicalIndex)
-                    {
-                        byte index = checked((byte)physicalIndex);
-                        BattleModelOwner owner = CreatePresentationModelOwner(actor);
-                        (ushort saved, uint battle) = NativeContactStatusMirror(actor);
-                        graphics = PublishNativeReadyStatus(graphics, new(owner, 0, 0, 0, saved, 0, battle));
-                        //483470 ->47E250 refreshes the mirrors and queues50A070 through descriptor117.
-                        RefreshNativePresentationStatus(actor);
-                        NativeGraphics = QueueNativeModelDescriptor(graphics, 117, NativeParticipantAddress(index), owner);
-                    }
                 }
             }
         }

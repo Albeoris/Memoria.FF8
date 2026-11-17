@@ -40,8 +40,8 @@ public sealed class NativeBattleHostedAudioReceiptsTests
             item => Assert.Equal(new NativeBattlePresentationSoundCommitted(expectedSound.Sound, "ally", sequence), item),
             item => Assert.Equal(released, item),
             item => Assert.Equal(new NativeBattlePresentationMusicCommandCommitted(expectedMusic.Receipt!), item));
-        Assert.Equal(expectedSound.Sound, Assert.Single(session.ReadAndClearHostedPresentationFrameOutputs().Sounds));
-        Assert.Empty(session.ReadAndClearHostedPresentationFrameOutputs().Sounds);
+        Assert.Equal(expectedSound.Sound, Assert.Single(session.Presentation!.ReadAndClearHostedPresentationFrameOutputs().Sounds));
+        Assert.Empty(session.Presentation!.ReadAndClearHostedPresentationFrameOutputs().Sounds);
         Assert.Empty(session.Events);
     }
 
@@ -83,7 +83,7 @@ public sealed class NativeBattleHostedAudioReceiptsTests
 
         Assert.Same(before, session.NativeGlobalSoundProcess);
         Assert.Same(music, session.NativeMusicProcess);
-        Assert.Empty(session.ReadAndClearHostedPresentationFrameOutputs().Sounds);
+        Assert.Empty(session.Presentation!.ReadAndClearHostedPresentationFrameOutputs().Sounds);
         Assert.Empty(session.Events);
     }
 

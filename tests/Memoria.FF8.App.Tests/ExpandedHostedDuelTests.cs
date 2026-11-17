@@ -64,8 +64,8 @@ public sealed class ExpandedHostedDuelTests
     private static void VerifyRejectedOpening(GameWorld world)
     {
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         for (int frame = 0; frame < CallbackBudget && (battle.QueuedActions.Count != 0 || battle.ActiveAction is not null || process.ActiveActionToken is not null); frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
@@ -85,7 +85,7 @@ public sealed class ExpandedHostedDuelTests
         int[] hp = battle.Combatants.Select(actor => actor.CurrentHp).ToArray();
         BattleSnapshot before = battle.Capture();
         NativeBattleActionPacketsState packets = child.NativeActionPackets;
-        NativeBattleDescriptorState descriptors = child.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = child.Presentation!.Graphics.Descriptors;
         const string reason = "Injected failure while reading the original Duel opening resource.";
         List<ushort> requests = [];
         battle.AttachNativeEffectResourceResolver(effect =>
@@ -105,17 +105,17 @@ public sealed class ExpandedHostedDuelTests
         Assert.Null(battle.ActiveAction);
         Assert.Equal(hp, battle.Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(before.Random, battle.Capture().Random);
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
         Assert.Null(process.ActiveActionToken);
         Assert.Same(packets, child.NativeActionPackets);
-        Assert.Same(descriptors, child.NativeGraphics!.Descriptors);
+        Assert.Same(descriptors, child.Presentation!.Graphics.Descriptors);
     }
 
     private static void RunDuel(GameWorld world, bool timeout)
     {
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant zell = Assert.Single(battle.Combatants, actor => actor.Id == ZellId);
         BattleModelOwner owner = battle.ReadPresentationModelOwner(ZellId);
         Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out _));
@@ -207,9 +207,9 @@ public sealed class ExpandedHostedDuelTests
             for (int callback = 0; callback < CallbackBudget && !expected(); callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
                 if (process.LastStepActionToken is long token && headers.All(header => header.Token != token) &&
-                    child.NativeGraphics is { ActionGraphics: { Header: { } reference } action } graphics && action.ResolveActor(graphics) == owner)
+                    child.Presentation?.Graphics is { ActionGraphics: { Header: { } reference } action } graphics && action.ResolveActor(graphics) == owner)
                 {
                     NativeBattleActionHeaderSlot header = child.NativeActionPackets.ReadHeader(reference);
                     headers.Add((token, header.Command, header.Action));
@@ -221,7 +221,7 @@ public sealed class ExpandedHostedDuelTests
             }
             if (!expected())
             {
-                NativeBattleGraphicsState graphics = child.NativeGraphics!;
+                NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
                 string queue = string.Join(", ", graphics.Descriptors.Queue.Select(slot => $"{graphics.Descriptors.Packets[slot].Command}/{graphics.Descriptors.Packets[slot].PriorityState:X2}"));
                 string effect = graphics.OriginalEffect is { } current ? $"{current.Binding.Effect}/{current.ReturnedDescriptor:X}" : "none";

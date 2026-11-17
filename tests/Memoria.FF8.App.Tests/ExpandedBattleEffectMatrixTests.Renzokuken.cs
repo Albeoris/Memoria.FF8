@@ -183,7 +183,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     private static bool AdvanceSorceressAllocations(GameWorld world, BattleSession battle, int finalModel)
     {
         BattleCombatant attacker = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         HashSet<string> defeated = [];
         for (int step = 0; step < 40 && battle.Outcome == BattleOutcome.Active; step++)
         {
@@ -214,7 +214,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static void CompleteExpandedRenzokuken(GameWorld world, BattleSession battle, string casterId, string targetId, ushort magic, int expectedContacts)
     {
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleActionPresentation action = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         BattleModelOwner caster = battle.ReadPresentationModelOwner(casterId);
         BattleModelOwner target = battle.ReadPresentationModelOwner(targetId);
@@ -230,7 +230,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.True(battle.TriggerNativeRenzokuken());
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (process.Graphics.Callback != observedCallback && process.LastFrameServices is { } services)
             {
                 observedCallback = process.Graphics.Callback;

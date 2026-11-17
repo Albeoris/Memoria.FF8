@@ -51,7 +51,6 @@ public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int Max
 public sealed partial class BattleSession
 {
     private long diagnosticDispatchSerial;
-    private BattleDiagnosticNativeContact? diagnosticNativeContact;
     private BattleDiagnosticPeriodicStatus? diagnosticPeriodicStatus;
     public Guid DiagnosticLifecycleId { get; } = Guid.NewGuid();
     public long DiagnosticRestoreCount { get; private set; }
@@ -66,6 +65,82 @@ public sealed partial class BattleSession
     private bool diagnosticHoldEnemyCommands;
     private bool diagnosticInstantGuardianForceCharge;
     private BattleCombatant? diagnosticReadinessActor;
+
+    private void ObservePresentationEffect(BattlePresentationProcess process, BattlePresentationEffectObservation observation)
+    {
+        diagnosticDispatchSerial++;
+        if (DiagnosticEffectDispatched is not { } observer)
+        {
+            return;
+        }
+        string? actorId = observation.ActorId;
+        BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
+        if (action?.ActorId != actorId)
+        {
+            action = null;
+        }
+        BattleNativeAction? native = action?.NativeAction;
+        BattleAbility? ability = action?.Ability;
+        int? actionId = observation.Header?.Action ?? native?.ActionId ?? action?.ActionId;
+        byte? command = observation.Header?.Command ?? native?.Command;
+        byte? callbackStage = action?.NativeAiCallbackStage;
+        if (CurrentExpandedHostedInvocation is { } invocation && invocation.Command.ActorId == actorId &&
+            invocation.Header.Command == command && invocation.Header.Action == actionId && invocation.Header.Effect == observation.Effect.RequestedEffect)
+        {
+            ability ??= invocation.Command.Ability;
+            callbackStage = invocation.Command.NativeAiCallbackStage ?? callbackStage;
+        }
+        BattleCombatant? source = actorId is null ? null : byId.GetValueOrDefault(actorId);
+        if (source is not null && command is byte nativeCommand)
+        {
+            ability = ResolveDiagnosticHeaderAbility(source, ability, nativeCommand);
+        }
+        string? scriptSha256 = callbackStage is byte stage && source?.NativeAi is { } ai && stage < ai.Scripts.Length
+            ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage]))
+            : null;
+        BattleDiagnosticEffectDispatch dispatch = new(diagnosticDispatchSerial, NativeHostCallbacks ?? observation.Callback, actorId, ability, actionId, observation.Effect.RequestedEffect, observation.Effect.Binding.Effect, command)
+        {
+            NativeAiCallbackStage = callbackStage,
+            NativeAiScriptSha256 = scriptSha256,
+            NativeTargetMask = observation.OriginalTargets,
+            NativeActorIndex = observation.OriginalActor,
+            NativeHeaderIndex = observation.OriginalHeader,
+            NativeHeaderGeneration = observation.HeaderGeneration
+        };
+        dispatch = CompleteDiagnosticReflection(dispatch);
+        ObserveDiagnosticInvocationDispatch(dispatch);
+        process.PublishDiagnosticEnteredEffect(observer, dispatch, observation.Effect);
+    }
+
+    private static BattleAbility ResolveDiagnosticHeaderAbility(BattleCombatant actor, BattleAbility? knownAbility, byte nativeCommand)
+    {
+        if (!actor.IsPlayer)
+        {
+            return BattleAbility.EnemyAbility;
+        }
+        byte? limit = actor.NativeLimit?.Command;
+        if (limit == 14 && nativeCommand is 237 or 238)
+        {
+            return BattleAbility.NativeCommand;
+        }
+        if (knownAbility is { } known && known != BattleAbility.EnemyAbility)
+        {
+            return known;
+        }
+        if (limit == nativeCommand || limit == 5 && nativeCommand == 250)
+        {
+            return BattleAbility.LimitBreak;
+        }
+        return nativeCommand switch
+        {
+            1 => BattleAbility.Attack,
+            2 => BattleAbility.Magic,
+            4 or 13 or 244 => BattleAbility.Item,
+            6 => BattleAbility.Draw,
+            254 => BattleAbility.GuardianForce,
+            _ => BattleAbility.NativeCommand
+        };
+    }
 
     public void ConfigureDiagnosticScheduling(bool holdEnemyCommands, bool instantGuardianForceCharge = false, string? readinessActorId = null, bool observeAutomaticSupport = false)
     {
@@ -132,30 +207,14 @@ public sealed partial class BattleSession
             BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
             BattleDiagnosticPeriodicStatus? periodic = diagnosticPeriodicStatus is { } receipt && receipt.RecipientId == target.Id && receipt.ResolvedAmount == amount ? receipt : null;
             string? actorId = periodic is null ? actor?.Id ?? action?.ActorId : null;
-            BattleDiagnosticNativeContact? contact = diagnosticNativeContact is { } current && current.ActorId == actorId && current.RecipientId == action?.TargetId ? current : null;
             BattleDiagnosticNativeStatusRemoval? removal = null;
-            if (periodic is null && contact is null && kind == "damage" && before > amount && after == 0 && actor is not null && actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
+            if (periodic is null && kind == "damage" && before > amount && after == 0 && actor is not null && actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
             {
                 removal = new(0x494410, checked((byte)actor.RequireNativeActorIndex()), checked((byte)target.RequireNativeActorIndex()), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
             }
             BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.NativeActorIndex && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null && periodic is null ? projection : null;
-            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic, NativeStatusRemoval = removal, DiagnosticRepair = repair });
+            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { PeriodicStatus = periodic, NativeStatusRemoval = removal, DiagnosticRepair = repair });
         }
-    }
-
-    private BattleDiagnosticNativeContact? ObserveDiagnosticGuardianContact(BattleActionPresentation? submitted, BattleCombatant actor, BattleCombatant recipient, BattleActionHeaderReference header, BattleContactOccurrence occurrence, int contactIndex, ushort actionId)
-    {
-        if (DiagnosticResolution is null || submitted is null || submitted.ActorId != actor.Id || submitted.Ability != BattleAbility.GuardianForce || submitted.ActionId != actionId - 64 || submitted.NativeHeader != new BattleActionHeaderReference(0) || submitted.NativeQueuedCommand is byte queued && queued != 254 || submitted.NativeAction is { } native && (native.Command != 254 || native.ActionId != actionId) || diagnosticDispatchSerial == 0)
-        {
-            return null;
-        }
-        NativeBattleRetainedActionPackets retained = nativeActionPackets.RetainedStorage;
-        if (OriginalDiagnosticHeaderIndex(header) is not int originalHeader || occurrence.Ordinal >= NativeBattleRetainedActionPackets.ContactCapacity || retained.Contacts[occurrence.Ordinal] is not { } raw)
-        {
-            return null;
-        }
-        NativeBattleRetainedActionHeaderSlot physical = retained.Headers[originalHeader];
-        return new(0x4850A0, diagnosticDispatchSerial, submitted.TargetId, actor.Id, checked((byte)actor.RequireNativeActorIndex()), recipient.Id, checked((byte)recipient.RequireNativeActorIndex()), originalHeader, physical.Payload, physical.UnknownByteMask, physical.FirstContactIndex, contactIndex, NativeBattleContactPacketCodec.Encode(raw).ToImmutableArray());
     }
 
     private sealed class DiagnosticBattleEventLog : List<BattleEvent>
@@ -167,88 +226,6 @@ public sealed partial class BattleSession
             base.Add(value);
             Published?.Invoke(value);
         }
-    }
-
-    private void ObserveDiagnosticEffectDispatch(NativeBattleGraphicsState graphics, NativeBattleOriginalEffectState effect)
-    {
-        BattleSession owner = hostedDiagnosticOwner ?? this;
-        owner.diagnosticDispatchSerial++;
-        if (owner.DiagnosticEffectDispatched is not { } observer)
-        {
-            return;
-        }
-        NativeBattleActionHeaderSlot? enteredHeader = effect.Parameters is { } entered ? nativeActionPackets.ReadHeader(entered.Header) : null;
-        string? actorId = enteredHeader?.ReflectedCaster is { } caster ? ReadGraphicsPresentationId(caster) :
-            effect.Parameters is { } parameters ? ReadGraphicsPresentationId(parameters.Source) : graphics.ActionActorId;
-        BattleActionPresentation? action = owner.resolvingNativeAction ?? owner.ActiveAction;
-        if (action?.ActorId != actorId)
-        {
-            action = null;
-        }
-        BattleAttackCommand? bound = action is null ? owner.nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect) : null;
-        BattleAbility? ability = action?.Ability ?? bound?.Ability;
-        int? actionId = action?.NativeAction?.ActionId ?? action?.ActionId ?? bound?.NativeAction?.ActionId ?? bound?.ActionId;
-        byte? nativeCommand = action?.NativeAction?.Command ?? bound?.NativeAction?.Command;
-        if (enteredHeader is { } enteredSlot)
-        {
-            actionId = enteredSlot.Action;
-            nativeCommand = enteredSlot.Command;
-            if (actorId is not null && owner.byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
-            {
-                ability = ResolveDiagnosticHeaderAbility(selectedActor.IsPlayer, ability, selectedActor.NativeLimit?.Command, nativeCommand.Value);
-            }
-        }
-        BattleAttackCommand? callbackBound = bound ?? owner.nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect);
-        byte? callbackStage = action?.NativeAiCallbackStage ?? callbackBound?.NativeAiCallbackStage;
-        if (hostedDiagnosticOwner is not null && owner.CurrentExpandedHostedInvocation is { } invocation &&
-            invocation.Command.ActorId == actorId && invocation.Header.Command == nativeCommand &&
-            invocation.Header.Action == actionId && invocation.Header.Effect == effect.RequestedEffect)
-        {
-            callbackStage = invocation.Command.NativeAiCallbackStage ?? callbackStage;
-        }
-        string? scriptSha256 = callbackStage is byte stage && actorId is not null && owner.byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
-        BattleDiagnosticEffectDispatch dispatch = new(owner.diagnosticDispatchSerial, owner.NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = OriginalDiagnosticTargets(effect.Parameters), NativeActorIndex = OriginalDiagnosticSource(effect.Parameters), NativeHeaderIndex = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header) };
-        if (hostedDiagnosticOwner is not null)
-        {
-            if (dispatch.NativeHeaderIndex is int header && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long generation))
-            {
-                dispatch = dispatch with { NativeHeaderGeneration = generation };
-            }
-            PublishDiagnosticEnteredEffect(observer, dispatch, effect);
-            return;
-        }
-        PublishDiagnosticEnteredEffect(observer, CompleteDiagnosticReflection(dispatch), effect);
-    }
-
-    private static BattleAbility ResolveDiagnosticHeaderAbility(bool isPlayer, BattleAbility? knownAbility, byte? limitCommand, byte nativeCommand)
-    {
-        if (!isPlayer)
-        {
-            return BattleAbility.EnemyAbility;
-        }
-        if (limitCommand == 14 && nativeCommand is 237 or 238)
-        {
-            return BattleAbility.NativeCommand;
-        }
-        if (knownAbility is { } known && known != BattleAbility.EnemyAbility)
-        {
-            // The actor-matched action or effect-matched bank binding owns semantic
-            // identity. The actual header command/action above remain independently recorded.
-            return known;
-        }
-        if (limitCommand == nativeCommand || limitCommand == 5 && nativeCommand == 250)
-        {
-            return BattleAbility.LimitBreak;
-        }
-        return nativeCommand switch
-        {
-            1 => BattleAbility.Attack,
-            2 => BattleAbility.Magic,
-            4 or 13 or 244 => BattleAbility.Item,
-            6 => BattleAbility.Draw,
-            254 => BattleAbility.GuardianForce,
-            _ => BattleAbility.NativeCommand
-        };
     }
 
     /// <summary>Conservative normal-owner drain observation, without serialization or owner mutation.</summary>
@@ -263,36 +240,7 @@ public sealed partial class BattleSession
         {
             blockers.Add("timed-input-or-mandatory-reaction");
         }
-        if (expandedPresentationProcess is { } hosted)
-        {
-            hosted.AppendDiagnosticPresentationBlockers(blockers);
-        }
-        else
-        {
-            AppendDiagnosticGraphicsBlockers(blockers);
-        }
+        (Presentation ?? throw new InvalidOperationException("Diagnostic drain requires its current presentation process.")).AppendDiagnosticPresentationBlockers(blockers);
         return blockers;
-    }
-
-    internal void AppendDiagnosticGraphicsBlockers(List<string> blockers)
-    {
-        NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Diagnostic drain requires normal native graphical owners.");
-        NativeBattleFileIoState files = NativeFileIo ?? throw new NotSupportedException("Diagnostic drain requires the actual file completion owner.");
-        if (files.ActiveCount is null)
-        {
-            throw new NotSupportedException("Diagnostic drain cannot infer an unknown file scheduler count.");
-        }
-        if (!graphics.PendingContacts.IsEmpty || graphics.Descriptors.Queue.Length != 0 || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0))
-        {
-            blockers.Add("contact-or-descriptor");
-        }
-        if (graphics.Effects.Head is not null || graphics.Effects.PublishedCount != 0 || graphics.Auxiliary.Head is not null || graphics.ModuleEffects.Head is not null)
-        {
-            blockers.Add("effect-or-auxiliary-task");
-        }
-        if (files.ActiveCount != 0 || NativeOriginalEffectBusy(graphics))
-        {
-            blockers.Add("file-camera-sound-or-effect-resource");
-        }
     }
 }

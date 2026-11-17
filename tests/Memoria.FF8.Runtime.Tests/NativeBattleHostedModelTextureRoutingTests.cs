@@ -18,14 +18,14 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         NativeBattleModelCpuBank first = fixture.Cpu.Palettes.Write(0, Palette(0x1F));
         NativeBattleModelCpuBank second = fixture.Cpu.Palettes.Write(0, Palette(0x3E0));
         Set(session, nameof(BattleSession.NativeModelCpuResources), fixture.Cpu with { PresentationPalettes = ImmutableDictionary<BattlePartyModelOwner, NativeBattleModelCpuBank>.Empty.Add(First, first).Add(Second, second) });
-        NativeBattleEffectTextureState prior = session.NativeEffectMemory!.Textures!;
+        NativeBattleEffectTextureState prior = session.Presentation!.Memory.Textures!;
         NativeBattlePcTextureWindowCache firstCache = prior.RequirePresentationTexture("first").Cache;
 
         Upload(session, First, 0x10);
-        NativeBattleEffectHeapAllocation queuedFirst = session.NativeEffectMemory!.Textures!.RequirePresentationTexture("first").Textures.Slots[0]!.Source!;
+        NativeBattleEffectHeapAllocation queuedFirst = session.Presentation!.Memory.Textures!.RequirePresentationTexture("first").Textures.Slots[0]!.Source!;
         Upload(session, Second, 0x10);
 
-        NativeBattleEffectTextureState queued = session.NativeEffectMemory!.Textures!;
+        NativeBattleEffectTextureState queued = session.Presentation!.Memory.Textures!;
         NativeBattlePresentationTextureBank actor1 = queued.RequirePresentationTexture("first");
         NativeBattlePresentationTextureBank actor2 = queued.RequirePresentationTexture("second");
         Assert.Equal(0, queued.Count);
@@ -36,7 +36,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         byte[] firstPayload = NativeBattleStatusPalette.Transform509E00(first.Read(0, 1024), 0x10).ToArray();
         byte[] secondPayload = NativeBattleStatusPalette.Transform509E00(second.Read(0, 1024), 0x10).ToArray();
         Assert.NotEqual(firstPayload[2], secondPayload[2]);
-        NativeBattlePrimitiveProcess process = session.NativeEffectMemory!.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess process = session.Presentation!.Memory.PrimitiveProcess!;
         Assert.Equal(2048, process.ByteCursor);
         Assert.Equal(firstPayload, process.ReadCommonPacket(0, 1024));
         Assert.Equal(secondPayload, process.ReadCommonPacket(1024, 1024));
@@ -67,10 +67,10 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
 
         Set(session, nameof(BattleSession.NativeEffectMemory), first);
         Motion(session, Second, copy);
-        NativeBattleEffectMemory pending = session.NativeEffectMemory!;
+        NativeBattleEffectMemory pending = session.Presentation!.Memory;
         NativeBattleEffectMemory independentlyRestored = NativeBattleTestSnapshots.Independent(pending);
         NativeBattleEffectMemory second = Drain(session);
-        NativeBattleEffectMemory restored = BattleSession.DrainNativeTextureUploads(independentlyRestored, independentlyRestored.Textures!, null);
+        NativeBattleEffectMemory restored = BattlePresentationProcess.DrainNativeTextureUploads(independentlyRestored, independentlyRestored.Textures!, null);
         AssertActor(second.Textures!, "first", 0x51, 0x11);
         AssertActor(second.Textures!, "second", 0x62, 0x22);
         Assert.Equal((ushort)0x33, second.Textures!.ReadVramWord(0, 0));
@@ -84,12 +84,12 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
     {
         var fixture = Fixture();
         BattleSession session = fixture.Session;
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleEffectTextureState global = memory.Textures! with { PresentationTextures = null };
         Set(session, nameof(BattleSession.NativeEffectMemory), memory with { Textures = global });
         Upload(session, OriginalOwner(index), 0x10);
         Motion(session, First, new(1, 0, 1, 1, 0, 0));
-        NativeBattleEffectMemory queued = session.NativeEffectMemory!;
+        NativeBattleEffectMemory queued = session.Presentation!.Memory;
         NativeBattlePrimitiveProcess process = queued.PrimitiveProcess!;
         NativeBattleEffectTextureState textures = queued.Textures!;
         Assert.Equal(1024, process.ByteCursor);
@@ -114,20 +114,20 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         }
         else
         {
-            NativeBattleEffectMemory memory = session.NativeEffectMemory!;
+            NativeBattleEffectMemory memory = session.Presentation!.Memory;
             NativeBattleEffectTextureState textures = memory.Textures!;
             Set(session, nameof(BattleSession.NativeEffectMemory), memory with { Textures = textures with { PresentationTextures = textures.PresentationTextures!.Remove("first") } });
         }
-        NativeBattleEffectMemory before = session.NativeEffectMemory!;
+        NativeBattleEffectMemory before = session.Presentation!.Memory;
         TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Upload(session, First, 0x10));
         Assert.IsType<InvalidDataException>(failure.InnerException);
-        Assert.Same(before, session.NativeEffectMemory);
+        Assert.Same(before, session.Presentation?.Memory);
         Assert.Equal(0, before.PrimitiveProcess!.ByteCursor);
         if (!wrongRoster)
         {
             TargetInvocationException motionFailure = Assert.Throws<TargetInvocationException>(() => Motion(session, First, new(1, 0, 1, 1, 0, 0)));
             Assert.IsType<InvalidDataException>(motionFailure.InnerException);
-            Assert.Same(before, session.NativeEffectMemory);
+            Assert.Same(before, session.Presentation?.Memory);
         }
     }
 
@@ -143,7 +143,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0) with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { TextureWindowCache = cache }, Textures = textures };
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, Aliases(roster));
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        Set(session, nameof(BattleSession.NativeGraphics), graphics);
+        Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         Set(session, nameof(BattleSession.NativeEffectMemory), memory);
         Set(session, nameof(BattleSession.NativeModelCpuResources), cpu);
         return (session, cpu, roster);
@@ -169,15 +169,15 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
 
     private static NativeBattleEffectMemory Drain(BattleSession session)
     {
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
-        return BattleSession.DrainNativeTextureUploads(memory, memory.Textures!, null);
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
+        return BattlePresentationProcess.DrainNativeTextureUploads(memory, memory.Textures!, null);
     }
 
     private static NativeBattleModelAliases Aliases(BattleModelRoster roster) => new(roster, [(NativeBattleModelSlot.Decode(0), OriginalOwner(0)), (NativeBattleModelSlot.Decode(2), OriginalOwner(2))]);
 
     private static void Upload(BattleSession session, BattleModelOwner owner, uint flags) => Invoke(session, "UploadNativeStatusPalette509E00", owner, flags);
 
-    private static void Motion(BattleSession session, BattleModelOwner owner, NativeBattleTextureCopy copy) => Invoke(session, "EnqueueNativeTextureMotion", owner, session.NativeGraphics!.ActorModels.Get(owner), copy);
+    private static void Motion(BattleSession session, BattleModelOwner owner, NativeBattleTextureCopy copy) => Invoke(session, "EnqueueNativeTextureMotion", owner, session.Presentation!.Graphics.ActorModels.Get(owner), copy);
 
     private static void Invoke(BattleSession session, string name, params object[] args) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, args);
 

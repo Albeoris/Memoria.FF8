@@ -59,16 +59,16 @@ public sealed class DiagnosticActionPacketObservationTests
     public void Packet_observation_is_scoped_to_the_exact_synchronous_dispatch_object()
     {
         var (battle, dispatch) = Fixture();
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(dispatch));
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(dispatch));
         Publish(battle, dispatch, current =>
         {
-            Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(current with { }));
+            Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(current with { }));
             Exception? workerError = null;
             Thread worker = new(() =>
             {
                 try
                 {
-                    battle.ObserveDiagnosticActionPackets(current);
+                    battle.Presentation!.ObserveDiagnosticActionPackets(current);
                 }
                 catch (Exception exception)
                 {
@@ -78,10 +78,10 @@ public sealed class DiagnosticActionPacketObservationTests
             worker.Start();
             Assert.True(worker.Join(TimeSpan.FromSeconds(5)));
             Assert.IsType<InvalidOperationException>(workerError);
-            NativeBattleRetainedActionPackets observed = battle.ObserveDiagnosticActionPackets(current);
+            NativeBattleRetainedActionPackets observed = battle.Presentation!.ObserveDiagnosticActionPackets(current);
             Assert.Equal((byte)3, observed.Contacts[0]!.Primary.ActorIndex);
         });
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(dispatch));
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(dispatch));
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class DiagnosticActionPacketObservationTests
         string random = RandomOwners(battle);
         int events = battle.Events.Count;
         NativeBattleRetainedActionPackets? captured = null;
-        Publish(battle, dispatch, current => captured = battle.ObserveDiagnosticActionPackets(current));
+        Publish(battle, dispatch, current => captured = battle.Presentation!.ObserveDiagnosticActionPackets(current));
         NativeBattleRetainedActionPackets copy = Assert.IsType<NativeBattleRetainedActionPackets>(captured);
         Assert.NotSame(source, copy);
         Assert.NotSame(ImmutableCollectionsMarshal.AsArray(source.Headers), ImmutableCollectionsMarshal.AsArray(copy.Headers));
@@ -143,7 +143,7 @@ public sealed class DiagnosticActionPacketObservationTests
             {
                 Invoke(battle, "ObserveDiagnosticPreparedHeader", new BattleActionHeaderReference(0));
             }
-            Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(current));
+            Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(current));
         });
     }
 
@@ -166,16 +166,16 @@ public sealed class DiagnosticActionPacketObservationTests
             "fallback" => original with { ExecutedEffect = 192 },
             _ => original with { NativeTargetMask = 16 }
         };
-        Publish(battle, dispatch, current => Assert.Throws<InvalidDataException>(() => battle.ObserveDiagnosticActionPackets(current)));
+        Publish(battle, dispatch, current => Assert.Throws<InvalidDataException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(current)));
     }
 
     [Fact]
     public void Missing_native_payload_writer_remains_a_failure_and_exception_closes_the_read_window()
     {
         var (battle, dispatch) = Fixture(writeRepeat: false);
-        Publish(battle, dispatch, current => Assert.Throws<NotSupportedException>(() => battle.ObserveDiagnosticActionPackets(current)));
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(dispatch));
+        Publish(battle, dispatch, current => Assert.Throws<NotSupportedException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(current)));
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(dispatch));
         Assert.Throws<IOException>(() => Publish(battle, dispatch, _ => throw new IOException("Observer stopped.")));
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticActionPackets(dispatch));
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(dispatch));
     }
 }

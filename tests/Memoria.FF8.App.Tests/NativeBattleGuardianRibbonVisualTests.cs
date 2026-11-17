@@ -22,7 +22,7 @@ public sealed class NativeBattleGuardianRibbonVisualTests
         BattleSnapshot without = snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !Ribbon(command)).ToImmutableArray() } } };
         BattleSession control = BattleSession.Restore(without);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         byte[] full = scene.Render(original, 320, 224).ToArray();
         byte[] removed = scene.Render(control, 320, 224);
         int changed = Enumerable.Range(0, 320 * 224).Count(index => !full.AsSpan(4 * index, 3).SequenceEqual(removed.AsSpan(4 * index, 3)));

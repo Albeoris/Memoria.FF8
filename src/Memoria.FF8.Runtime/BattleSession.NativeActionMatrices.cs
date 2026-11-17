@@ -1,13 +1,5 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed partial class BattleSession
-{
-    private NativeBattleGraphicsState PrepareNativeActionMatrices(NativeBattleGraphicsState graphics)
-    {
-        return NativeBattleActionGeometryRules.PrepareMatrices50D300(graphics, ReadNativeGraphicsBone);
-    }
-}
-
 public static partial class NativeBattleActionGeometryRules
 {
     public static NativeBattleGraphicsState PrepareMatrices50D300(NativeBattleGraphicsState graphics, Func<NativeBattleGraphicsState, BattleModelOwner, byte, short, NativeBattleVector> readBone)

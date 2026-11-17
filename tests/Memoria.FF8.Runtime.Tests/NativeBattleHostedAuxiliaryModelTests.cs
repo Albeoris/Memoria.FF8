@@ -237,7 +237,7 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => advance.Invoke(battle, arguments));
         Assert.IsType<InvalidDataException>(invocation.InnerException);
         Assert.Same(graphics, arguments[0]);
-        Assert.Null(battle.NativeGraphics);
+        Assert.Null(battle.Presentation?.Graphics);
     }
 
     private static NativeBattleAuxiliaryState RemoveOwner(NativeBattleAuxiliaryState state, bool target = false)

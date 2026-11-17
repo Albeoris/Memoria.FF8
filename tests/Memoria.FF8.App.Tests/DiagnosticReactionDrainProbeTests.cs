@@ -33,7 +33,7 @@ public sealed class DiagnosticReactionDrainProbeTests
         session.StartNewGame();
         using GameWorld world = new(session, directory!);
         BattleSession battle = world.StartDiagnosticBattle(request);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         List<BattleDiagnosticResolution> resolutions = [];
         List<object> changes = [];

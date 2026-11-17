@@ -33,7 +33,7 @@ public sealed partial class BattleSession
 
     public bool CanCastNativeSlotsCard(BattleNativeSlotsRoll roll)
     {
-        return !UsesExpandedRoster || CanCastExpandedSlots(FindInstalledNativeAction(16, roll.MagicId), roll);
+        return CanCastExpandedSlots(FindInstalledNativeAction(16, roll.MagicId), roll);
     }
 
     public BattleNativeSlotsDeal BeginNativeSlotsDeal(string actorId)
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                 BattleNativeSlotsRoll roll = GenerateNativeSlotsRoll(rules, actor.Level, crisis);
                 BattleNativeAction action = FindInstalledNativeAction(16, roll.MagicId);
                 ValidateNativeActionContract(action);
-                if (roll.Repetitions is < 1 or > 3 || action.TargetFlags is null || (action.TargetFlags.Value & 0x30) == 0x30 || !UsesExpandedRoster && action.ActionId >= 51 && definition.LimitProgress?.SpecialMagicFlags is null)
+                if (roll.Repetitions is < 1 or > 3 || action.TargetFlags is null || (action.TargetFlags.Value & 0x30) == 0x30)
                 {
                     throw new NotSupportedException("Card Slots requires supported native repetitions, targeting and saved special magic ownership.");
                 }
@@ -117,26 +117,10 @@ public sealed partial class BattleSession
             BattleCombatant actor = GetActor(deal.ActorId);
             BattleNativeSlotsRoll roll = deal.Candidates[selected];
             BattleNativeAction action = FindNativeCommandAction(actor, 16, roll.MagicId, deal.CrisisLevel);
-            if (UsesExpandedRoster)
-            {
                 QueueExpandedSlots(actor, action, 0, roll);
                 pendingSlotsDeal = null;
                 CloseNativeActionMenu();
                 return true;
-            }
-            BattleAttackCommand command = PrepareNativeSlotsCommand(actor, action, 0, roll);
-            NativeBattleCommandBanks input = PrepareNativeInputCommand(command);
-            NativeBattleGraphicsState? graphics = PrepareNativeUiReadyRemoval(actor);
-
-            // Admission only prepares the immutable packet bank and its target RNG draws.
-            // Publish through the ordinary command owners without restoring unrelated battle state.
-            pendingSlotsDeal = null;
-            PublishNativePlayerCommandSubmission(actor, 16, graphics);
-            PublishNativePacket(actor, command, action.Name ?? "Slots", input);
-            nativeLimitLevels.Remove(deal.ActorId);
-            nativeSlotsRolls.Remove(deal.ActorId);
-            CloseNativeActionMenu();
-            return true;
         }
         catch
         {
@@ -151,7 +135,7 @@ public sealed partial class BattleSession
 
     private bool NativeSlotsDealOwnerValid(BattleNativeSlotsDeal deal)
     {
-        return Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && byId.TryGetValue(deal.ActorId, out BattleCombatant? actor) && actor.IsActive && actor.IsAlive && actor.IsPlayer && actor.NativeLimit?.Command == 16 && CanChoosePlayerCommand(actor.Id) && CanNativeBattleActorAct(actor) && GetNativeLimitLevel(actor.Id) == deal.CrisisLevel;
+        return Outcome == BattleOutcome.Active && byId.TryGetValue(deal.ActorId, out BattleCombatant? actor) && actor.IsActive && actor.IsAlive && actor.IsPlayer && actor.NativeLimit?.Command == 16 && CanChoosePlayerCommand(actor.Id) && CanNativeBattleActorAct(actor) && GetNativeLimitLevel(actor.Id) == deal.CrisisLevel;
     }
 
     private void RequireNoPendingSlotsDeal()

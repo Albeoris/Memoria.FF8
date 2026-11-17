@@ -115,7 +115,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
             Kernel = kernel
         }, new JsonSerializerOptions { WriteIndented = true }));
         BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "prepared-support.battle.json")));
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         int initialEventCount = battle.Events.Count;
         string targetId = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
         var originalTarget = source.Combatants.Single(actor => actor.Id == targetId);
@@ -188,7 +188,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                 independentProducer.Tick();
                 BattleSnapshot afterProducer = battle.Capture();
                 Assert.Equal(JsonSerializer.Serialize(afterProducer), JsonSerializer.Serialize(independentProducer.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(independentProducer, 320, 224));
+                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(independentProducer, 320, 224));
                 ObserveFormula(afterProducer);
                 produced |= sawFormulaHeader;
                 supportProducerTicks.Add(new { beforeProducer.Frame, BeforeRandom = beforeProducer.Random, Chance = producerChance, Selector = producerSelector, FormulaCandidate = nextFormulaRandom, AfterRandom = afterProducer.Random, afterProducer.ActiveAction, FormulaProduced = sawFormulaHeader });
@@ -226,7 +226,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-before", before, pixels);
                     cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(pixels, new BattleScenePresentation(assets, definition, true).Render(cold, 320, 224));
+                    Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(cold, 320, 224));
                 }
                 if (!produced)
                 {
@@ -249,7 +249,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                         NativeBattlePrimitiveFrame frame = after.NativeGraphics!.PrimitiveFrame!;
                         BattleSnapshot without = after with { NativeGraphics = after.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        byte[] plain = new BattleScenePresentation(assets, definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         int changed = 0;
                         for (int pixel = 0; pixel < pixels.Length; pixel += 4)
                         {
@@ -330,7 +330,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                 if (cold is not null)
                 {
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(cold, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(cold, 320, 224));
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-after", after, scene.Render(battle, 320, 224));
                     boundaries.Add(boundary!);
                 }
@@ -340,11 +340,11 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                     NativeBattleRestorationPresentationTests.Publish(output, "completed-before", after, pixels);
                     BattleSession independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(independent.Capture()));
-                    Assert.Equal(pixels, new BattleScenePresentation(assets, definition, true).Render(independent, 320, 224));
+                    Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(independent, 320, 224));
                     battle.AdvanceNativeGraphicsPresentation(Callback);
                     independent.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(independent, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(independent, 320, 224));
                     int damageBeforeHandoff = battle.Events.Count(item => item.Kind == "Damage");
                     string? originalActor = battle.ActiveAction?.ActorId;
                     for (; handoffCallbacks < 4 && battle.ActiveAction is not null; handoffCallbacks++)
@@ -357,7 +357,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                         battle.AdvanceNativeGraphicsPresentation(Callback);
                         independent.AdvanceNativeGraphicsPresentation(Callback);
                         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-                        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(independent, 320, 224));
+                        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(independent, 320, 224));
                         Assert.Equal(damageBeforeHandoff, battle.Events.Count(item => item.Kind == "Damage"));
                     }
                     Assert.Null(battle.ActiveAction);
@@ -403,12 +403,12 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                 }
                 audioReceipts.Add(new { sound.Sound, sound.Flags, sound.RawPan, sound.Volume, sound.Allocation });
             }
-            Assert.False(battle.NativeVibrationProcess!.IsPlaying(battle.NativeEffectMemory!.Gilgamesh!.VibrationHandle!.Value));
+            Assert.False(battle.NativeVibrationProcess!.IsPlaying(battle.Presentation!.Memory.Gilgamesh!.VibrationHandle!.Value));
             for (int group = 0; group < 4; group++)
             {
-                Assert.Equal((byte)(source.NativeStage!.Groups[group].Flags | 2), battle.NativeStage!.Groups[group].Flags);
-                Assert.Equal((short)0, battle.NativeStage.Groups[group].ColorDepth);
-                Assert.Equal(0u, battle.NativeStage.Groups[group].ColorFlags);
+                Assert.Equal((byte)(source.NativeStage!.Groups[group].Flags | 2), battle.Presentation!.Stage.Groups[group].Flags);
+                Assert.Equal((short)0, battle.Presentation!.Stage.Groups[group].ColorDepth);
+                Assert.Equal(0u, battle.Presentation!.Stage.Groups[group].ColorFlags);
             }
             BattleEvent damage = Assert.Single(battle.Events.Skip(initialEventCount), item => item.Kind == "Damage");
             Assert.Equal(targetId, damage.TargetId);
@@ -418,7 +418,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
             {
                 Assert.Equal(original.CurrentHp, battle.Combatants.Single(actor => actor.Id == original.Id).CurrentHp);
             }
-            Assert.All(battle.NativeGraphics!.OriginalEffect!.Pools, pool => Assert.DoesNotContain(pool.Slots, task => (task.Flags & 1) != 0));
+            Assert.All(battle.Presentation!.Graphics.OriginalEffect!.Pools, pool => Assert.DoesNotContain(pool.Slots, task => (task.Flags & 1) != 0));
             if (selectedEffect == 328)
             {
                 Assert.True(peakEffectRgb > 0, "No attributed Masamune polygons changed the actual framebuffer.");
@@ -435,8 +435,8 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                 directPeak.AdvanceNativeGraphicsPresentation(Callback);
                 coldPeak.AdvanceNativeGraphicsPresentation(Callback);
                 Assert.Equal(JsonSerializer.Serialize(directPeak.Capture()), JsonSerializer.Serialize(coldPeak.Capture()));
-                Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(directPeak, 320, 224), new BattleScenePresentation(assets, definition, true).Render(coldPeak, 320, 224));
-                NativeBattleRestorationPresentationTests.Publish(output, "peak-after", coldPeak.Capture(), new BattleScenePresentation(assets, definition, true).Render(coldPeak, 320, 224));
+                Assert.Equal(new BattleScenePresentation(assets, definition).Render(directPeak, 320, 224), new BattleScenePresentation(assets, definition).Render(coldPeak, 320, 224));
+                NativeBattleRestorationPresentationTests.Publish(output, "peak-after", coldPeak.Capture(), new BattleScenePresentation(assets, definition).Render(coldPeak, 320, 224));
                 boundaries.Add("peak");
             }
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));

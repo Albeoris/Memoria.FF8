@@ -52,7 +52,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             definition = definition with { Combatants = participants, ActionDefinitions = [definition.ActionDefinitions[0], fire], NativeGraphics = assets.ReadNativeGraphicsDefinition(participants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([1, 201]), GuardianForces = [new(2, 600, 1200)] };
         }
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         string? output = root is null ? null : Path.Combine(root, statusStanding ? "status-standing" : retainedMemory is not null ? "loaded-finisher" : skip ? skipAfterContact ? "skip-after-contact" : "skip" : "finisher");
         if (output is not null)
@@ -63,7 +63,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         try
         {
             WaitFor(() => battle.CanRequestGuardianForm("party", 2));
-            ushort[] visibility = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
+            ushort[] visibility = ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
             if (statusStanding)
@@ -101,7 +101,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                     battle.QueueGuardianFormAction("party", "enemy", action);
                     WaitFor(() => battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "party") == count + 1 && battle.ActiveAction is null);
                     Assert.Empty(battle.Combatants.Single(actor => actor.Id == "party").MagicStocks);
-                    Assert.Null(battle.NativeGraphics!.TriggerWidget);
+                    Assert.Null(battle.Presentation!.Graphics.TriggerWidget);
                     RoundTripNext();
                 }
             }
@@ -116,8 +116,8 @@ public sealed class NativeBattleIfritFormPresentationTests
             int finaleCallbacks = 0;
             for (int callback = 0; callback < 1200 && battle.GetGuardianForm("party") is not null; callback++)
             {
-                bool finalePlaying = battle.NativeGraphics?.GuardianFormPresentation is { SkipRequested: true } && NativeBattleIfritContinuation.HasReachedFinale(battle.NativeEffectMemory!.ScriptedEffects!);
-                long previousGraphicsCallback = battle.NativeGraphics!.Callback;
+                bool finalePlaying = battle.Presentation?.Graphics?.GuardianFormPresentation is { SkipRequested: true } && NativeBattleIfritContinuation.HasReachedFinale(battle.Presentation!.Memory.ScriptedEffects!);
+                long previousGraphicsCallback = battle.Presentation!.Graphics.Callback;
                 if (skip)
                 {
                     battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((2 * TimeSpan.TicksPerSecond + 30) / 31));
@@ -128,9 +128,9 @@ public sealed class NativeBattleIfritFormPresentationTests
                 }
                 if (finalePlaying)
                 {
-                    Assert.Equal(previousGraphicsCallback + 1, battle.NativeGraphics!.Callback);
+                    Assert.Equal(previousGraphicsCallback + 1, battle.Presentation!.Graphics.Callback);
                 }
-                if (skip && battle.NativeGraphics?.GuardianFormPresentation is { SkipRequested: true } && NativeBattleIfritContinuation.HasReachedFinale(battle.NativeEffectMemory!.ScriptedEffects!))
+                if (skip && battle.Presentation?.Graphics?.GuardianFormPresentation is { SkipRequested: true } && NativeBattleIfritContinuation.HasReachedFinale(battle.Presentation!.Memory.ScriptedEffects!))
                 {
                     if (finaleCallbacks is 0 or 6 or 12 or 24)
                     {
@@ -138,11 +138,11 @@ public sealed class NativeBattleIfritFormPresentationTests
                     }
                     finaleCallbacks++;
                 }
-                if (battle.NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5 } && output is not null)
+                if (battle.Presentation?.Graphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5 } && output is not null)
                 {
                     TraceContinuation(trace!, continuationCallback++);
                 }
-                if (!visible && battle.NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5 })
+                if (!visible && battle.Presentation?.Graphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5 })
                 {
                     visible = true;
                     AssertFinisherTextures();
@@ -153,7 +153,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                         Assert.True(battle.SkipGuardianFormFinisher());
                         Assert.False(battle.SkipGuardianFormFinisher());
                         RoundTripNext();
-                        Assert.True(NativeBattleIfritContinuation.HasReachedFinale(battle.NativeEffectMemory!.ScriptedEffects!));
+                        Assert.True(NativeBattleIfritContinuation.HasReachedFinale(battle.Presentation!.Memory.ScriptedEffects!));
                     }
                 }
                 if (!restoredAfterContact && battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "party") > priorPartyDamage)
@@ -178,7 +178,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             AssertCommonTexture();
             Assert.Single(battle.Events, item => item.Kind == "GuardianForceCharging");
             Assert.Equal(priorPartyDamage + 1, battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "party"));
-            Assert.Equal((byte)0, ReadOriginalModelCell(battle.NativeGraphics!, 0).ModelId4);
+            Assert.Equal((byte)0, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).ModelId4);
             Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
             Assert.Equal(affinityBeforeFinisher, battle.Capture().Combatants.Single(actor => actor.Id == "party").GuardianForceCompatibility![2]);
             NativeBattleRestorationPresentationTests.Publish(output, "returned", battle.Capture(), output is null ? null : scene.Render(battle, 320, 224).ToArray());
@@ -189,14 +189,14 @@ public sealed class NativeBattleIfritFormPresentationTests
                 WaitForCommand("party");
                 battle.QueueAction("party", "enemy", BattleAbility.GuardianForce, 2);
                 advanceClassicCharge = true;
-                WaitFor(() => battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 201, ReturnedDescriptor: > 0 } && battle.NativeEffectMemory?.Cinematic is { Effect: 201 });
+                WaitFor(() => battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 201, ReturnedDescriptor: > 0 } && battle.Presentation?.Memory?.Cinematic is { Effect: 201 });
                 advanceClassicCharge = false;
-                Assert.Null(battle.NativeGraphics!.GuardianFormPresentation);
-                NativeBattleScriptedEffectMemory core = battle.NativeEffectMemory!.ScriptedEffects!;
+                Assert.Null(battle.Presentation!.Graphics.GuardianFormPresentation);
+                NativeBattleScriptedEffectMemory core = battle.Presentation!.Memory.ScriptedEffects!;
                 uint manager = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));
                 uint bank = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(manager + 0x90, 4));
                 uint resource = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x2798A68, 4));
-                uint pc = BinaryPrimitives.ReadUInt32LittleEndian(battle.NativeEffectMemory.Arena!.Read(checked((int)(bank - 0x20DFAB8u)), 4));
+                uint pc = BinaryPrimitives.ReadUInt32LittleEndian(battle.Presentation!.Memory.Arena!.Read(checked((int)(bank - 0x20DFAB8u)), 4));
                 Assert.Equal(resource + 0xFE, pc);
                 WaitFor(() => battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "party") == priorPartyDamage + 2 && battle.ActiveAction is null);
                 Assert.Equal(2, battle.Events.Count(item => item.Kind == "GuardianForceCharging"));
@@ -205,7 +205,7 @@ public sealed class NativeBattleIfritFormPresentationTests
 
             void AssertVisibility()
             {
-                Assert.Equal(visibility, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)));
+                Assert.Equal(visibility, ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => (ushort)(model.Flags0 & 0xC)));
             }
         }
         catch
@@ -249,19 +249,19 @@ public sealed class NativeBattleIfritFormPresentationTests
             if (skip)
             {
                 TimeSpan elapsed = TimeSpan.FromTicks((2 * TimeSpan.TicksPerSecond + 30) / 31);
-                long before = battle.NativeGraphics!.Callback;
+                long before = battle.Presentation!.Graphics.Callback;
                 battle.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
                 restored.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
-                Assert.Equal(before + 1, battle.NativeGraphics!.Callback);
+                Assert.Equal(before + 1, battle.Presentation!.Graphics.Callback);
                 AssertSameContinuation(battle.Capture(), restored.Capture());
                 for (int callback = 0; callback < 1200 && battle.GuardianAnimationSkipPending; callback++)
                 {
                     Assert.True(restored.GuardianAnimationSkipPending);
-                    before = battle.NativeGraphics.Callback;
+                    before = battle.Presentation!.Graphics.Callback;
                     battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
                     restored.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
-                    Assert.Equal(before + 1, battle.NativeGraphics.Callback);
-                    Assert.Equal(battle.NativeGraphics.Callback, restored.NativeGraphics!.Callback);
+                    Assert.Equal(before + 1, battle.Presentation!.Graphics.Callback);
+                    Assert.Equal(battle.Presentation!.Graphics.Callback, restored.Presentation!.Graphics.Callback);
                 }
                 Assert.False(battle.GuardianAnimationSkipPending);
                 Assert.False(restored.GuardianAnimationSkipPending);
@@ -280,7 +280,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             NativeBattleEffectTextureState expected = NativeBattleEffectTextureState.FromColdProcess();
             (expected, _) = expected.EnqueueTim505E30(new(common.Name, common.Data));
             NativeBattleEffectArena baseline = new(NativeBattleStorageSnapshots.Capture(expected.Drain505D20().State).VramRegions);
-            NativeBattleEffectArena actual = new(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions);
+            NativeBattleEffectArena actual = new(NativeBattleStorageSnapshots.Capture(battle.Presentation!.Memory.Textures!).VramRegions);
             for (int y = 256; y < 512; y++)
             {
                 Assert.Equal(baseline.Read(2 * (y * 1024 + 704), 192 * 2), actual.Read(2 * (y * 1024 + 704), 192 * 2));
@@ -293,8 +293,8 @@ public sealed class NativeBattleIfritFormPresentationTests
 
         void AssertFinisherTextures()
         {
-            NativeBattleCinematicResources resources = battle.NativeGraphics!.OriginalEffect!.Binding.CinematicResources!;
-            NativeBattleEffectArena actual = new(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions);
+            NativeBattleCinematicResources resources = battle.Presentation!.Graphics.OriginalEffect!.Binding.CinematicResources!;
+            NativeBattleEffectArena actual = new(NativeBattleStorageSnapshots.Capture(battle.Presentation!.Memory.Textures!).VramRegions);
             foreach ((int fileIndex, int textureIndex) in new[] { (2, 21), (3, 13), (4, 12) })
             {
                 NativeBattleArchiveFile file = resources.Files.Single(file => file.FileId == NativeBattleCinematicProfile.ForEffect(201).SourceBase + fileIndex);
@@ -314,7 +314,7 @@ public sealed class NativeBattleIfritFormPresentationTests
 
         void TraceContinuation(StreamWriter trace, int callback)
         {
-            NativeBattleEffectMemory memory = battle.NativeEffectMemory!;
+            NativeBattleEffectMemory memory = battle.Presentation!.Memory;
             NativeBattleScriptedEffectMemory core = memory.ScriptedEffects!;
             uint Read(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
             uint bank = Read(Read(0x27973EC) + 0x90);
@@ -342,7 +342,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         for (int index = 0; index < 400 && (!battle.NativeEntryReady || !battle.CanChoosePlayerCommand("party")); index++)
         {
             battle.Tick();
@@ -356,7 +356,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         for (int index = 0; index < 1000 && battle.GetGuardianForm("party")?.Phase != BattleGuardianFormPhase.Active; index++)
         {
             battle.Tick();
-            if (!restoredEmergence && battle.NativeGraphics?.GuardianFormPresentation is { Phase: 1 } && ++emergenceCallbacks == 30)
+            if (!restoredEmergence && battle.Presentation?.Graphics?.GuardianFormPresentation is { Phase: 1 } && ++emergenceCallbacks == 30)
             {
                 BattleSnapshot emerging = battle.Capture();
                 BattleSession emergingRestored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(emerging));
@@ -377,8 +377,8 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm("party")?.Phase);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        Assert.Equal((byte)77, ReadOriginalModelCell(battle.NativeGraphics!, 0).ModelId4);
-        Assert.Equal("party", ReadOriginalModelActorId(battle.NativeGraphics!, 0));
+        Assert.Equal((byte)77, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).ModelId4);
+        Assert.Equal("party", ReadOriginalModelActorId(battle.Presentation!.Graphics, 0));
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         NativeBattleRestorationPresentationTests.Publish(output, "landed", landed, output is null ? null : scene.Render(battle, 320, 224).ToArray());
         BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(landed));
@@ -412,7 +412,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         for (int index = 0; index < 400 && (!battle.NativeEntryReady || !battle.CanChoosePlayerCommand("party")); index++)
         {
             battle.Tick();

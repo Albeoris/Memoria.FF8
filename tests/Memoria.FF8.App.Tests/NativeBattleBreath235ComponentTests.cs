@@ -46,7 +46,7 @@ public sealed class NativeBattleBreath235ComponentTests
         string? resumePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_BREATH_COMPONENT_RESUME");
         BattleSnapshot component = resumePath is null ? PrepareComponent() : JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(resumePath))!;
         BattleSession battle = BattleSession.Restore(component);
-        BattleScenePresentation scene = new(assets, component.Definition, true);
+        BattleScenePresentation scene = new(assets, component.Definition);
         string startName = resumePath is null ? "controlled-before-entry" : "resume-source";
         Publish(startName, component);
         battle = Load(startName);
@@ -74,7 +74,7 @@ public sealed class NativeBattleBreath235ComponentTests
                     {
                         byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                         BattleSession background = BattleSession.Restore(current with { NativeGraphics = currentGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } });
-                        byte[] plain = new BattleScenePresentation(assets, component.Definition, true).Render(background, 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, component.Definition).Render(background, 320, 224).ToArray();
                         int changed = 0;
                         for (int offset = 0; offset < rendered.Length; offset += 4)
                         {
@@ -107,7 +107,7 @@ public sealed class NativeBattleBreath235ComponentTests
             Assert.True(visible, "Original235 submitted no visible packet contribution.");
             Assert.True(restoredLive, "The controlled235 component did not check a live disk continuation.");
             Assert.True(completed, "Original235 did not release its module and controlled descriptor.");
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scope = "controlled-outside-region-original-owner41-module235", callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scope = "controlled-outside-region-original-owner41-module235", callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
         }
         catch (Exception error)
         {
@@ -161,7 +161,7 @@ public sealed class NativeBattleBreath235ComponentTests
             first.AdvanceNativeGraphicsPresentation(Callback);
             second.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            Assert.Equal(scene.Render(first, 320, 224), new BattleScenePresentation(assets, component.Definition, true).Render(second, 320, 224));
+            Assert.Equal(scene.Render(first, 320, 224), new BattleScenePresentation(assets, component.Definition).Render(second, 320, 224));
             Publish(name + "-next", first.Capture());
         }
     }

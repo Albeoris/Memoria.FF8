@@ -1,0 +1,90 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattlePresentationProcess
+{
+    private NativeBattleScanFrame SubmitNativeScanPackets(NativeBattleScanFrame current, NativeBattleModulePacketBatch batch, ref NativeBattleGraphicsState graphics)
+    {
+        if (batch.CapturedWrites is { } captured)
+        {
+            return SubmitNativeScanGeometry(current, captured, ref graphics);
+        }
+        NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Scan drawing requires its current ordering table.");
+        int cursor = current.State.CurrentDrawOffset ?? throw new NotSupportedException("Native Scan drawing requires its current private packet cursor.");
+        NativeBattleEffectPacketWrite written;
+        if (!batch.Primitives.IsDefaultOrEmpty && batch.Primitives.All(allocation => allocation.Primitive.Words.Length == 4 && (allocation.Primitive.Words[1] >> 24 & 0xFC) == 0x40))
+        {
+            ushort flags = batch.Primitives[0].Flags20;
+            if (batch.Primitives.Any(allocation => allocation.Flags20 != flags))
+            {
+                throw new InvalidDataException("Native Scan line batch requires its actual shared submission kind.");
+            }
+            ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>(batch.Primitives.Length);
+            foreach (NativeBattleAllocatedPrimitive allocation in batch.Primitives)
+            {
+                byte[] bytes = new byte[16];
+                for (int word = 0; word < 4; word++)
+                {
+                    BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(word * 4), allocation.Primitive.Words[word]);
+                }
+                attempts.Add(new(allocation.ByteOffset, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 16).ToImmutableArray(), allocation.Primitive));
+            }
+            written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, new NativeBattleGfGeometryBatch(attempts.MoveToImmutable(), batch.AllocationBytes), flags);
+        }
+        else
+        {
+            written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
+        }
+        graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+        return current with { Memory = written.Memory, State = current.State with { CurrentDrawOffset = written.Cursor } };
+    }
+
+    private NativeBattleScanFrame SubmitNativeScanGeometry(NativeBattleScanFrame current, NativeBattleGfGeometryBatch batch, ref NativeBattleGraphicsState graphics)
+    {
+        NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Scan geometry requires its current ordering table.");
+        int cursor = current.State.CurrentDrawOffset ?? throw new NotSupportedException("Native Scan geometry requires its current private packet cursor.");
+        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
+        graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+        return current with { Memory = written.Memory, State = current.State with { CurrentDrawOffset = written.Cursor } };
+    }
+
+    private NativeBattleScanReticleFrame DrawNativeScanRing(NativeBattleScanReticleFrame current, NativeBattleModulePoolTask task, short radius, short angle, short count, ref NativeBattleGraphicsState graphics)
+    {
+        NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), radius, angle, count, NativeBattlePilotVisualLifetimes.Identity(40, task));
+        return current with { Scan = SubmitNativeScanPackets(current.Scan, ring.Packets, ref graphics) };
+    }
+
+    private NativeBattleScanReticleFrame DrawNativeScanFourLines(NativeBattleScanReticleFrame current, NativeBattleModulePoolTask task, ref NativeBattleGraphicsState graphics)
+    {
+        NativeBattleModulePacketBatch lines = NativeBattleScanReticleLines.FourLines84E1F0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), NativeBattlePilotVisualLifetimes.Identity(40, task, 100));
+        return current with { Scan = SubmitNativeScanPackets(current.Scan, lines, ref graphics) };
+    }
+
+    private NativeBattleScanPairMorphFrame DrawNativeScanMesh(NativeBattleScanPairMorphFrame current, NativeBattleScanMeshDraw draw, NativeBattleScanVisualResources resources, ref NativeBattleGraphicsState graphics)
+    {
+        ImmutableArray<byte> source;
+        if (draw.ResourceAddress is 0x15CDDEC or 0x15CE1D4)
+        {
+            if (!current.MutableMeshes.TryGetValue(draw.ResourceAddress, out NativeBattleScanByteOwner? mutable) || mutable.Bytes.IsDefault || mutable.Known.IsDefault || mutable.Bytes.Length != mutable.Known.Length || mutable.Known.Any(known => !known))
+            {
+                throw new NotSupportedException("Native Scan morph drawing requires its actual retained process mesh bytes.");
+            }
+            source = mutable.Bytes;
+        }
+        else if (resources.MeshesByAddress.TryGetValue(draw.ResourceAddress, out NativeBattleStaticMeshResource? mesh))
+        {
+            source = mesh.Bytes;
+        }
+        else
+        {
+            throw new NotSupportedException("Native Scan mesh drawing requires its selected original resource.");
+        }
+        NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Scan mesh drawing requires its current projection registers.");
+        NativeBattleSummonColors colors = this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Scan mesh drawing requires its original interpolation constants.");
+        NativeBattleModuleMeshContext context = new(0xF0, draw.Color, draw.Fade, null, null, null, 17, 2);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source, 0, default, draw.Matrix, projection, context, colors, pilotIdentity: draw.PilotIdentity);
+        return current with { Scan = SubmitNativeScanGeometry(current.Scan, batch, ref graphics) };
+    }
+}

@@ -309,7 +309,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             throw new InvalidDataException("The native Limit input clock moved backwards.");
         }
         processClock = hostTick;
-        int rate = mixedShot is null ? 60 : 30;
+        int rate = mixedShot is null ? 60 : BattlePresentationTiming.ShotInputTicksPerSecond;
         processRemainder += elapsed * rate;
         int frames = checked((int)(processRemainder / Ff7BattleSession.LogicUpdatesPerSecond));
         processRemainder %= Ff7BattleSession.LogicUpdatesPerSecond;
@@ -829,7 +829,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         NativeBattleContactHalf contact = NativeBattleContactHalf.FromScratch(ReadProcessParticipantOwner(target.Slot), 0, 1, 0, 0, 0, 0);
         CrossoverNativeMagicPresentationState presentation = fireProgram.Begin(visual.Model, target.Slot, encounter.CrtRandom, contact, action, encounter.GlobalRandom, CreateArena(placement), RetainedProcessOwner(action), ProcessParticipantBindings, RetainedProcessState(action));
         processBackground = null;
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         fire = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, target.CollisionRadius, new(CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit), new(0, 0, 0), 0), null, presentation, false);
     }
 }

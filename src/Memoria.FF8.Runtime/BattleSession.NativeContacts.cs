@@ -42,10 +42,6 @@ public sealed partial class BattleSession
     private void ResolveInstalledNativeHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
         NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, command, action, native);
-        if (NativeGraphics is not null)
-        {
-            QueueNativeContactPacket(packet);
-        }
     }
 
     private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, BattleModelOwner? coverSource = null, bool preliminary = false)

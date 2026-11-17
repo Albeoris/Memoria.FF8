@@ -54,24 +54,24 @@ public sealed class NativeBattleGuardianPhase86MigrationTests
             first.AdvanceNativeGraphicsPresentation(callback);
             second.AdvanceNativeGraphicsPresentation(callback);
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            Assert.Equal((byte)(phase - 84), first.NativeEffectMemory!.Arena!.Read(0x9A, 1)[0]);
+            Assert.Equal((byte)(phase - 84), first.Presentation!.Memory.Arena!.Read(0x9A, 1)[0]);
             if (phase == 86)
             {
                 BattleSnapshot before87 = first.Capture();
                 ushort random = before87.NativeGraphics!.OriginalEffect!.Quezacotl!.Random17A0;
                 BattleSession paused = BattleSession.Restore(before87 with { NativeEffectMemory = before87.NativeEffectMemory! with { QuezacotlPause = 1 } });
                 paused.AdvanceNativeGraphicsPresentation(callback);
-                Assert.Equal((ushort)88, paused.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-                Assert.Null(paused.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521728).Head);
-                Assert.Equal(random, paused.NativeGraphics.OriginalEffect.Quezacotl!.Random17A0);
-                Assert.Equal((byte)2, paused.NativeEffectMemory!.Arena!.Read(0x9A, 1)[0]);
+                Assert.Equal((ushort)88, paused.Presentation!.Graphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+                Assert.Null(paused.Presentation!.Graphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521728).Head);
+                Assert.Equal(random, paused.Presentation!.Graphics.OriginalEffect.Quezacotl!.Random17A0);
+                Assert.Equal((byte)2, paused.Presentation!.Memory.Arena!.Read(0x9A, 1)[0]);
             }
         }
         BattleSnapshot boundary = first.Capture();
         Assert.Equal(148L, boundary.Frame);
         Assert.Equal(228L, boundary.NativeGraphics!.Callback);
         Assert.Equal((ushort)88, boundary.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        BattleScenePresentation scene = new(presentationAssets, migrated.Definition, true);
+        BattleScenePresentation scene = new(presentationAssets, migrated.Definition);
         Assert.Equal(scene.Render(first, 320, 224), scene.Render(second, 320, 224));
         BattleSession boundaryClone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(boundary))!);
         BattleSession boundaryClone2 = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(boundary))!);

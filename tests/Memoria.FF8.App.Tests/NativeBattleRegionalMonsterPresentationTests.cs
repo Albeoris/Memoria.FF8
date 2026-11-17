@@ -40,11 +40,11 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             first.Tick();
             second.Tick();
         }
-        Assert.Equal(snapshot.NativeGraphics!.Callback + callbacks, first.NativeGraphics!.Callback);
+        Assert.Equal(snapshot.NativeGraphics!.Callback + callbacks, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
+        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
         NativeBattleRestorationPresentationTests.Publish(output!, "next", first.Capture(), pixels);
     }
 
@@ -83,7 +83,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         BattleDefinition definition = source?.Definition ?? CreateDefinition(game, assets, model, level, slot, installedAi, native);
         Assert.Equal(model, definition.Combatants.Single(actor => actor.Id == "monster").ModelId);
         BattleSession battle = source is null ? new(definition, BattleAtbMode.Normal) : BattleSession.Restore(source);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot prior = battle.Capture();
         string startName = source is null ? "before-entry" : "resume-source";
         Publish(startName, prior);
@@ -192,7 +192,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, native.MagicId, game);
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                     BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } });
-                    byte[] plain = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     int changed = 0;
                     for (int offset = 0; offset < rendered.Length; offset += 4)
                     {
@@ -234,7 +234,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             }
             Assert.Single(battle.Events, item => item.Kind == "Windup" && item.ActorId == "monster");
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "monster");
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", model, level, slot, Driver = control is null ? "bank" : "opcode30-control", ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", model, level, slot, Driver = control is null ? "bank" : "opcode30-control", ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
         }
         catch (Exception error)
         {
@@ -284,7 +284,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 NativeBattleCinematicCaptureAssertions.AssertFrame(second.Capture(), 248);
             }
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
+            Assert.Equal(new BattleScenePresentation(assets, definition).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(second, 320, 224).ToArray());
             Publish(name + "-next", first.Capture());
         }
     }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -31,20 +32,9 @@ public sealed partial class BattleSession
 
     private void InitializeNativeParticipants()
     {
-        if (NativeGraphics is not null)
-        {
-            return;
-        }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsActive && !actor.Suspended && actor.NativeAi is not null).ToArray())
         {
-            if (UsesExpandedRoster)
-            {
                 QueueExpandedAiCallback(actor, 0);
-            }
-            else
-            {
-                QueueNativeParticipantInitialization(actor);
-            }
         }
     }
 
@@ -58,11 +48,7 @@ public sealed partial class BattleSession
         actor.Suspended = false;
         actor.AiDeathHandled = false;
         Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");
-        if (!UsesExpandedRoster)
-        {
-            QueueNativeParticipantInitialization(actor);
-        }
-        else if (actor.NativeAi is not null)
+        if (actor.NativeAi is not null)
         {
             QueueExpandedAiCallback(actor, 0);
         }
@@ -178,13 +164,8 @@ public sealed partial class BattleSession
                             actor.NativeCombatantFlags &= ~0xCu;
                             actor.Atb = 0;
                         }
-                        else if (UsesExpandedRoster)
-                        {
+                        else {
                             CompleteExpandedEnemyDeath(actor);
-                        }
-                        else
-                        {
-                            QueueNativeGraphicsDeath(actor);
                         }
                         break;
                     case 9:
@@ -225,12 +206,8 @@ public sealed partial class BattleSession
                         {
                             if (operand == 203)
                             {
-                                if (UsesExpandedRoster)
-                                {
-                                    StoreExpandedAiLastAttacker(actor, variable, opcode == 18);
-                                    break;
-                                }
-                                operand = checked((uint)NativeConditionLastAttackerIndex(actor));
+                                StoreExpandedAiLastAttacker(actor, variable, opcode == 18);
+                                break;
                             }
                             WriteNativeActorVariable(actor, variable, operand, opcode == 18);
                             break;
@@ -284,11 +261,7 @@ public sealed partial class BattleSession
                             break;
                         }
                         BattleCombatant removed = removal == 200 ? actor : FindNativeActor(removal + 3);
-                        if (NativeGraphics is not null)
-                        {
-                            QueueNativeGraphicsRemoval(removed);
-                        }
-                        else if (UsesExpandedRoster && HasExpandedAiAction(removed))
+                        if (HasExpandedAiAction(removed))
                         {
                             removed.ExpandedAiRemovalPending = true;
                         }
@@ -302,13 +275,8 @@ public sealed partial class BattleSession
                         break;
                     case 30:
                         byte effect = instruction[0];
-                        if (UsesExpandedRoster)
                         {
                             QueueExpandedGraphicCommand(actor, effect, sequenceOverride, selected);
-                        }
-                        else
-                        {
-                            QueueNativeGraphicCommand(actor, effect, sequenceOverride, selected);
                         }
                         break;
                     case 28:
@@ -400,13 +368,8 @@ public sealed partial class BattleSession
                         {
                             StageExpandedHostedControl(new HostedDispatchControl.Barrier());
                         }
-                        else if (UsesExpandedRoster)
-                        {
+                        else {
                             QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Barrier));
-                        }
-                        else
-                        {
-                            QueueNativeGraphicsBarrier();
                         }
                         break;
                     case 55:
@@ -550,7 +513,7 @@ public sealed partial class BattleSession
         {
             return true;
         }
-        return UsesExpandedRoster ? QueueExpandedAiAction(actor, command, id, sequence, selected) : QueueNativeCommand(actor, command, id, sequence, selected);
+        return QueueExpandedAiAction(actor, command, id, sequence, selected);
     }
 
     private static bool NativeAiPathOnlyReturns(byte[] code, int pc)
@@ -608,7 +571,7 @@ public sealed partial class BattleSession
 
     private bool IsAddedEnemy(BattleCombatantDefinition actor) => !actor.IsPlayer && actor.SceneSlot is int slot && definition.AddedEnemySources?.ContainsKey(slot) == true;
 
-    private bool RetainsNativeActorIndex(BattleCombatant actor) => !UsesExpandedRoster || UsesOriginalEnemySlots && !actor.IsPlayer && !IsAddedEnemy(actor);
+    private bool RetainsNativeActorIndex(BattleCombatant actor) => UsesOriginalEnemySlots && !actor.IsPlayer && !IsAddedEnemy(actor);
 
     private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, RetainsNativeActorIndex(actor) ? actor.NativeActorIndex ?? NativeBattleSlots.Unassigned : NativeBattleSlots.Unassigned, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { ReprojectedEncounterCopy = actor.NativeLevelReprojected && nativeAllocations.Any(allocation => allocation.Id == actor.Id && allocation.ResolvedDefinition is not null), MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, ExpandedAiRemovalPending = actor.ExpandedAiRemovalPending, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
 
@@ -636,7 +599,7 @@ public sealed partial class BattleSession
         {
             foreach ((int index, string id) in references)
             {
-                if (!UsesExpandedRoster || actor.NativeAi is null || (uint)index >= actor.AiVariables.Length || id is null || !byId.ContainsKey(id) || saved.Variables[index] != 0)
+                if (actor.NativeAi is null || (uint)index >= actor.AiVariables.Length || id is null || !byId.ContainsKey(id) || saved.Variables[index] != 0)
                 {
                     throw new InvalidDataException("Battle participant has an invalid logical AI actor reference.");
                 }
@@ -673,7 +636,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                if (UsesExpandedRoster && (actor.NativeTemplate is null || copy is not null) && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level, saved.Variables)))
+                if ((actor.NativeTemplate is null || copy is not null) && (level is < 1 or > 100 || !CanRebindExpandedEnemyLevel(actor, level, saved.Variables)))
                 {
                     throw new InvalidDataException("Saved expanded enemy level is outside its installed level or AI contract.");
                 }
@@ -693,7 +656,7 @@ public sealed partial class BattleSession
         saved.PendingReaction?.Validate();
         actor.NativePendingReaction = saved.PendingReaction ?? new(null, null);
         actor.NativeRemainingHits = saved.RemainingHits;
-        if (saved.PreviousTarget is BattlePreviousTarget.Actor previous && (!UsesExpandedRoster || actor.NativeAi is null || !byId.TryGetValue(previous.Reference.ActorId, out BattleCombatant? previousActor) || previousActor.Side != previous.Reference.Side))
+        if (saved.PreviousTarget is BattlePreviousTarget.Actor previous && (actor.NativeAi is null || !byId.TryGetValue(previous.Reference.ActorId, out BattleCombatant? previousActor) || previousActor.Side != previous.Reference.Side))
         {
             throw new InvalidDataException("Battle participant has an invalid previous logical AI target.");
         }

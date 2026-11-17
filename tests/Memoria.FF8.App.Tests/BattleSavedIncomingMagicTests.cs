@@ -11,7 +11,7 @@ public sealed class BattleSavedIncomingMagicTests(ITestOutputHelper output)
     {
         string input = TestResources.FixturePath("App.Tests.BattleSavedIncomingMagicTests.1");
         GameSession session = new(GameplaySaveSessionLoader.Load(input, TestResources.GameDirectory));
-        using GameWorld world = new(session, TestResources.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.NotNull(world.Field!.RandomEncounters);
         foreach (ushort formation in world.Field.RandomEncounters.Formations.Distinct())

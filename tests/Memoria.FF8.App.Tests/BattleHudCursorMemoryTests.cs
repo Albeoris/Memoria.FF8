@@ -87,7 +87,7 @@ public sealed class BattleHudCursorMemoryTests
     [Fact]
     public void InitialCursorResetsSubmittedCommandSpellAndDrawPage()
     {
-        BattleHudController hud = new(Create(), (_, _) => { }, () => { }, () => { }, execute: _ => { });
+        BattleHudController hud = new(Create(), (_, _) => { }, () => { }, () => { }, execute: _ => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         Assert.False(hud.CursorMemory);
         OpenDraw(hud);
         hud.Navigate(MenuInput.Right);

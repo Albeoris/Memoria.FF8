@@ -23,10 +23,10 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
 
         BattleModelRoster roster = new(Enumerable.Range(0, 7).Select(index => new BattlePartyActorModel(new($"party-{index}"))));
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown().WithPresentationRoster(roster, new(roster, []));
-        PropertyInfo owner = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!;
-        owner.SetValue(session, cpu);
+        PropertyInfo owner = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!;
+        owner.SetValue(session.Presentation!, cpu);
         Assert.Equal(NativeBattleModelResourceRowAddress.Encode(11, cpu.Rows.Length), Address(session, extended));
-        owner.SetValue(session, cpu with { Rows = cpu.Rows[..11] });
+        owner.SetValue(session.Presentation!, cpu with { Rows = cpu.Rows[..11] });
         AssertOutOfExtent();
 
         void AssertOutOfExtent()

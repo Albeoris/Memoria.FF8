@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleZombieContinuationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void Selected_standalone_continues_its_actual_zombie_packets_and_releases_the_action()
@@ -22,7 +22,7 @@ public sealed class NativeBattleZombieContinuationTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         BattleSession battle = Restore(initial);
-        BattleScenePresentation scene = new(assets, initial.Definition, true);
+        BattleScenePresentation scene = new(assets, initial.Definition);
         string output = Path.Combine(evidence!, "zombie-continuation-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Zombie continuation evidence: " + output);
@@ -60,7 +60,7 @@ public sealed class NativeBattleZombieContinuationTests
                 long start = System.Diagnostics.Stopwatch.GetTimestamp();
                 long allocated = GC.GetAllocatedBytesForCurrentThread();
                 battle.AdvanceNativeGraphicsPresentation(Callback);
-                Console.WriteLine($"callback {callbacks}: {System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds:F2}ms; {(GC.GetAllocatedBytesForCurrentThread() - allocated) / 1048576.0:F2}MB; effect {battle.NativeGraphics?.OriginalEffect?.Binding.Effect}");
+                Console.WriteLine($"callback {callbacks}: {System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds:F2}ms; {(GC.GetAllocatedBytesForCurrentThread() - allocated) / 1048576.0:F2}MB; effect {battle.Presentation?.Graphics?.OriginalEffect?.Binding.Effect}");
                 BattleSnapshot current = battle.Capture();
                 if (callbacks % 16 == 0)
                 {
@@ -110,7 +110,7 @@ public sealed class NativeBattleZombieContinuationTests
             direct.AdvanceNativeGraphicsPresentation(Callback);
             cold.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(new BattleScenePresentation(assets, initial.Definition, true).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(new BattleScenePresentation(assets, initial.Definition).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition).Render(cold, 320, 224).ToArray());
             Publish(name + "-next", cold.Capture(), true);
         }
 

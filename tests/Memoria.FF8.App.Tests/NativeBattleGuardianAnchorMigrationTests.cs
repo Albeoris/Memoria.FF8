@@ -55,11 +55,11 @@ public sealed class NativeBattleGuardianAnchorMigrationTests
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
         Assert.Equal(218L, first.Frame);
-        Assert.Equal(298L, first.NativeGraphics!.Callback);
-        Assert.Equal((ushort)158, first.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal(298L, first.Presentation!.Graphics.Callback);
+        Assert.Equal((ushort)158, first.Presentation!.Graphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
+        BattleScenePresentation scene = new(assets, migrated.Definition);
         byte[] firstPixels = scene.Render(first, 320, 224).ToArray();
         byte[] secondPixels = scene.Render(second, 320, 224).ToArray();
         Assert.Equal(firstPixels, secondPixels);

@@ -33,8 +33,8 @@ public sealed class NativeBattleExpandedModelLifecycleTests
             NativeRetainedMemory = retained with { EffectMemory = NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() } }
         };
         session.PublishHostedEntryMusic(resources.NativeMusicProcess!);
-        ExpandedBattlePresentationProcess process = new(session, resources);
-        session.AttachExpandedPresentationProcess(process);
+        session.AttachPresentation(new(resources));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(session.Presentation);
         Assert.Null(process.ActiveActionToken);
         Assert.Null(Field("expandedInvocationProgress").GetValue(session));
         BattleCombatant party = Actor(session, "ally-10");

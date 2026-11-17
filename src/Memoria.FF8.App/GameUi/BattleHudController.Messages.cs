@@ -9,7 +9,7 @@ public sealed partial class BattleHudController
     private int messageEventCursor;
     private bool collectedInitialMessages;
     private BattleEvent? activeBattleMessage;
-    private double battleMessageFrames;
+    private TimeSpan battleMessageElapsed;
     private BattleEvent? formattedBattleMessageEvent;
     private DialogueDocument? formattedBattleMessage;
     private string? formattedBattleMessageBindings;
@@ -45,7 +45,7 @@ public sealed partial class BattleHudController
             if (activeBattleMessage is { IsEnemyActionTitle: true })
             {
                 activeBattleMessage = battleMessages.TryDequeue(out BattleEvent? next) ? next : null;
-                battleMessageFrames = 0;
+                battleMessageElapsed = TimeSpan.Zero;
             }
         }
     }
@@ -57,15 +57,15 @@ public sealed partial class BattleHudController
 
     internal double BattlePresentationSeconds => battlePresentationSeconds;
 
-    internal double BattleCallbackRate => session.NativeGraphics is null ? BattleSession.FramesPerSecond : NativeBattleGraphicsPresentationClock.CallbacksPerSecond;
+    internal double BattleCallbackRate => BattlePresentationTiming.CallbacksPerSecond;
 
-    internal int GuardianFormSeconds(int remainingTicks) => checked((int)Math.Ceiling(remainingTicks / BattleCallbackRate));
+    internal int GuardianFormSeconds(int remainingTicks) => checked((int)Math.Ceiling(BattlePresentationTiming.ElapsedForCallbacks(remainingTicks).TotalSeconds));
 
     internal DialogueDocument? BattleMessageDocument
     {
         get
         {
-            if (activeBattleMessage is not { } message || message.IsEnemyActionTitle && !ShowEnemySpellNames || battleMessageFrames < message.NativeMessageDelayFrames)
+            if (activeBattleMessage is not { } message || message.IsEnemyActionTitle && !ShowEnemySpellNames || battleMessageElapsed < BattlePresentationTiming.ElapsedForCallbacks(message.NativeMessageDelayFrames))
             {
                 return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
@@ -129,22 +129,27 @@ public sealed partial class BattleHudController
         AdvanceCommandRowTransition(elapsed);
         CollectBattleMessages();
         battlePresentationSeconds += elapsed.TotalSeconds;
-        battleMessageFrames += elapsed.TotalSeconds * BattleCallbackRate;
-        while (activeBattleMessage is { } message && battleMessageFrames >= message.NativeMessageDelayFrames + Math.Max(1, message.Amount))
+        battleMessageElapsed += elapsed;
+        while (activeBattleMessage is { } message && battleMessageElapsed >= MessageDuration(message))
         {
-            battleMessageFrames -= message.NativeMessageDelayFrames + Math.Max(1, message.Amount);
+            battleMessageElapsed -= MessageDuration(message);
             activeBattleMessage = battleMessages.TryDequeue(out BattleEvent? next) ? next : null;
         }
         if (activeBattleMessage is null)
         {
-            battleMessageFrames = 0;
+            battleMessageElapsed = TimeSpan.Zero;
         }
         ObserveBattleMessage();
     }
 
+    private static TimeSpan MessageDuration(BattleEvent message)
+    {
+        return BattlePresentationTiming.ElapsedForCallbacks((long)message.NativeMessageDelayFrames + Math.Max(1, message.Amount));
+    }
+
     private void ObserveBattleMessage()
     {
-        if (activeBattleMessage is not { } message || battleMessageFrames < message.NativeMessageDelayFrames || ReferenceEquals(observedBattleMessage, message))
+        if (activeBattleMessage is not { } message || battleMessageElapsed < BattlePresentationTiming.ElapsedForCallbacks(message.NativeMessageDelayFrames) || ReferenceEquals(observedBattleMessage, message))
         {
             return;
         }
@@ -169,7 +174,7 @@ public sealed partial class BattleHudController
         if (activeBattleMessage is null && battleMessages.TryDequeue(out BattleEvent? first))
         {
             activeBattleMessage = first;
-            battleMessageFrames = 0;
+            battleMessageElapsed = TimeSpan.Zero;
         }
     }
 }

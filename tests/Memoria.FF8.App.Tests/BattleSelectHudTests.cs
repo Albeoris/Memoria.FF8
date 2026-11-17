@@ -10,7 +10,7 @@ public sealed class BattleSelectHudTests
     public void Select_hides_the_command_panel_and_party_vitals_and_release_restores_them()
     {
         BattleSession battle = CreateBattle();
-        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         RecordingCanvas visible = Draw(hud);
         Assert.Contains("COMMAND", visible.Texts);
         Assert.Contains("Attack", visible.Texts);
@@ -40,7 +40,7 @@ public sealed class BattleSelectHudTests
     {
         BattleSession battle = CreateBattle();
         List<(string Actor, string Target)> commands = [];
-        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
+        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.SelectParty("party-1");
         int choice = hud.ChoiceIndex;
         UiView view = hud.BuildView();
@@ -70,7 +70,7 @@ public sealed class BattleSelectHudTests
     {
         BattleSession battle = CreateBattle();
         List<(string Actor, string Target)> commands = [];
-        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
+        BattleHudController hud = new(battle, (actor, target) => commands.Add((actor, target)), () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Down);
         Assert.Equal("enemy-1", hud.SelectedTarget!.Id);
@@ -106,7 +106,7 @@ public sealed class BattleSelectHudTests
         definition.Combatants[0] = definition.Combatants[0] with { Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(1, 5)] };
         definition = definition with { ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)] };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Down);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingAction);

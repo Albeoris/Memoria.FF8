@@ -8,7 +8,7 @@ public sealed class NativeBattleAuxiliaryScreenBlendTests
     public void Effect77_screen_blend_capture_preserves_native_packet_and_discrete_screen_operation()
     {
         NativeBattleGeometryPrimitive original = new(3, [0x03000000, 0x62FFFFFF, 0, 0x00D80140], [0, 0, 0, 0]);
-        NativeBattleGeometryPrimitive captured = BattleSession.CaptureNativeScreenBlend501E80(original, 77);
+        NativeBattleGeometryPrimitive captured = BattlePresentationProcess.CaptureNativeScreenBlend501E80(original, 77);
         Assert.Equal(NativeBattleTestSnapshots.Json(original), NativeBattleTestSnapshots.Json(captured));
         NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.PilotGeometry);
         Assert.Equal((ushort)77, geometry.Identity.Effect);
@@ -18,8 +18,8 @@ public sealed class NativeBattleAuxiliaryScreenBlendTests
         Assert.Equal(8, geometry.ScreenScale);
         Assert.Equal(new System.Numerics.Vector3(320, 216, 0), geometry.D);
         Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
-        Assert.Same(original, BattleSession.CaptureNativeScreenBlend501E80(original, 69));
-        Assert.Same(original, BattleSession.CaptureNativeScreenBlend501E80(original, null));
+        Assert.Same(original, BattlePresentationProcess.CaptureNativeScreenBlend501E80(original, 69));
+        Assert.Same(original, BattlePresentationProcess.CaptureNativeScreenBlend501E80(original, null));
     }
 
     [Fact]

@@ -26,8 +26,8 @@ public sealed class NativeBattleForeignParticipantServicesTests
         var result = ((NativeBattleEffectMemory Memory, NativeBattleVector Point))observe.Invoke(battle, [NativeBattleEffectMemory.FromColdProcess(), graphics, owner, (byte)0, (short)1024])!;
         Assert.Equal(new NativeBattleVector(110, 220, 330), result.Point);
         Assert.Equal(new int?[] { 110, 220, 330 }, result.Memory.ScriptedColorRegisters!.Mac.ToArray());
-        Assert.Null(battle.NativeModelCpuResources);
-        Assert.Null(battle.NativeFileStaging);
+        Assert.Null(battle.Presentation?.ModelCpuResources);
+        Assert.Null(battle.Presentation?.NativeFileStaging);
     }
 
     [Fact]

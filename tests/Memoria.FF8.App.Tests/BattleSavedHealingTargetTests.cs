@@ -21,10 +21,10 @@ public sealed class BattleSavedHealingTargetTests
         foreach (BattleSession session in new[] { direct, cold })
         {
             session.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            session.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond));
+            session.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
         }
         Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray());
+        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray());
         Directory.CreateDirectory(output!);
         File.WriteAllBytes(Path.Combine(output!, "component-next.battle.json"), JsonSerializer.SerializeToUtf8Bytes(cold.Capture()));
     }
@@ -47,7 +47,7 @@ public sealed class BattleSavedHealingTargetTests
                       from action in initial.Definition.ActionDefinitions
                       where action.Ability == BattleAbility.Magic && action.NativeAction?.AttackType == 3 && battle.GetAvailableMagicCasts(actor.Id, action.Id) > 0
                       select new { ActorId = actor.Id, Action = action }).First();
-        TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         for (int ready = 0; ready < 512 && !battle.CanChoosePlayerCommand(choice.ActorId); ready++)
         {
             battle.AdvanceTurn();
@@ -73,7 +73,7 @@ public sealed class BattleSavedHealingTargetTests
                 battle.AdvanceNativeGraphicsPresentation(callback);
                 cold.AdvanceNativeGraphicsPresentation(callback);
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
-                Assert.Equal(new BattleScenePresentation(assets, initial.Definition, true).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition, true).Render(cold, 320, 224).ToArray());
+                Assert.Equal(new BattleScenePresentation(assets, initial.Definition).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition).Render(cold, 320, 224).ToArray());
                 Save("completed-next");
                 File.WriteAllText(Path.Combine(path, "result.json"), JsonSerializer.Serialize(new { source.FieldId, SourceFrame = initial.Frame, current.Frame, NativeCallback = current.NativeGraphics.Callback, choice.ActorId, choice.Action.Name, choice.Action.Id, TargetId = target.Id, BeforeHp = hp, AfterHp = current.Combatants.Single(actor => actor.Id == target.Id).CurrentHp, Callbacks = count + 1, RestoredNextEqual = true }));
                 return;

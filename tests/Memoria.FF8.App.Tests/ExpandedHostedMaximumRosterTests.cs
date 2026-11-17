@@ -20,7 +20,7 @@ public sealed class ExpandedHostedMaximumRosterTests
         Assert.Equal(4, authored.Enemies.Count);
 
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleCombatant[] allies = battle.Combatants.Where(actor => actor.IsPlayer && actor.IsAlive).OrderBy(actor => actor.Slot!.Value.Position).ToArray();
         BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsAlive).OrderBy(actor => actor.Slot!.Value.Position).ToArray();
         Assert.Equal(11, allies.Length);
@@ -56,7 +56,7 @@ public sealed class ExpandedHostedMaximumRosterTests
         var next = AttackAndDrain(world, battle, process, caster, casterOwner, nextTarget);
         Assert.Equal(0x47DE70u, next.Callbacks[0]);
         Assert.NotEqual(first.CompletionToken, next.CompletionToken);
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
     }
 
     private static void SelectAllAllies(GameSession session)
@@ -67,7 +67,7 @@ public sealed class ExpandedHostedMaximumRosterTests
         session.SetCharacterVitals(vitals.Rest().WithBattleParty(selected, selected.Length));
     }
 
-    private static (NativeBattleContactPacket? Aftercare, uint[] Callbacks, long CompletionToken) AttackAndDrain(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleModelOwner casterOwner, BattleCombatant target)
+    private static (NativeBattleContactPacket? Aftercare, uint[] Callbacks, long CompletionToken) AttackAndDrain(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant caster, BattleModelOwner casterOwner, BattleCombatant target)
     {
         BattleModelOwner targetOwner = battle.ReadPresentationModelOwner(target.Id);
         caster.Atb = BattleSession.AtbMaximum;
@@ -79,7 +79,7 @@ public sealed class ExpandedHostedMaximumRosterTests
         for (int callback = 0; callback < 1600; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (process.LastFrameServices is { } services && !ReferenceEquals(services, previous))
             {
                 previous = services;

@@ -57,7 +57,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(command.TargetRequest.Selection);
         Assert.Equal(limit.Command, command.NativeQueuedCommand);
         Assert.Equal(limit.ActionId, command.NativeAction!.ActionId);
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         if (limit.KernelSection == 19 && limit.ActionId == 1 || command.NativeAction.HitCount > 1 || command.NativeAction.AttackType == 25 || eject)
         {
             BattleSnapshot queued = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
@@ -74,7 +74,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             for (int frame = 0; frame < 1000 && caster.IsBusy; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
+                if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
                 {
                     presentation = live;
                     Assert.Equal(limit.MagicId, live.Graphics.OriginalEffect!.RequestedEffect);
@@ -128,9 +128,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 BattleEnemyDefeat defeat = Assert.Single(battle.EnemyDefeats, entry => entry.AllocationId == target.Id);
                 Assert.Equal(command.NativeQueuedCommand, defeat.NativeCommand);
                 Assert.False(battle.Capture().Combatants.Single(actor => actor.Id == target.Id).NativeParticipant!.DeathHandled);
-                BattleModel model = world.BattleResources.LoadEnemy(target.ModelId);
-                BattleAnimationPresentation animation = new(model, model.Sequences, battle.GetCombatantDefinition(target.Id));
-                Assert.Equal(0f, animation.Sample(battle, target, default, default).Opacity);
+                BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+                BattleModelOwner modelOwner = battle.ReadPresentationModelOwner(target.Id);
+                Assert.True(!process.Graphics.ActorModels.Contains(modelOwner) || (process.Graphics.ActorModels.Get(modelOwner).Flags0 & 4) != 0);
             }
             else
             {

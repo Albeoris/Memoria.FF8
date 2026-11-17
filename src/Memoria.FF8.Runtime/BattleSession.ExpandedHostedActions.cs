@@ -1,19 +1,20 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private enum ExpandedHostedContactDisposition
+    internal enum ExpandedHostedContactDisposition
     {
         RequiredImpacts,
         ContextOnly
     }
 
-    private abstract record ExpandedHostedOperation;
+    internal abstract record ExpandedHostedOperation;
     private sealed record ExpandedHostedDescriptor(HostedDispatchControl Control) : ExpandedHostedOperation;
 
-    private sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw, ExpandedHostedContactDisposition ContactDisposition) : ExpandedHostedOperation
+    internal sealed record ExpandedHostedInvocation(BattleActionPresentation Command, NativeBattleActionHeaderPreparation Header, ImmutableArray<ExpandedBattleContact> Contacts, BattlePendingEnemyDraw? EnemyDraw, ExpandedHostedContactDisposition ContactDisposition) : ExpandedHostedOperation
     {
         internal ExpandedAiInvocationReservation? Reservation { get; init; }
         internal ImmutableArray<ExpandedHostedInvocation> FollowingCasts { get; init; } = [];
@@ -29,13 +30,13 @@ public sealed partial class BattleSession
         internal IEnumerable<ExpandedBattleContact> AllContacts => Contacts.Concat(FollowingCasts.SelectMany(cast => cast.Contacts));
     }
 
-    private sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null)
+    internal sealed record ExpandedHostedEvent(BattleActionPresentation Command, BattleActionPresentation ActivePresentation, uint Callback, long? CompletionToken, bool LogicallyComplete = false, BattleModelOwner? CompletionOwner = null)
     {
         internal HostedDuelPoll? DuelPoll { get; init; }
         internal HostedRenzokukenOwner? Renzokuken { get; init; }
     }
 
-    private sealed class ExpandedInvocationProgress(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
+    internal sealed class ExpandedInvocationProgress(ExpandedHostedInvocation invocation, BattleModelRoster roster, NativeBattleEffectContactBridge<string>? bridge)
     {
         internal BattleActionPresentation Command => invocation.Command;
         internal int ExpectedContacts { get; } = invocation.RequiredContactCount;
@@ -48,7 +49,7 @@ public sealed partial class BattleSession
 
     private ExpandedInvocationProgress? expandedInvocationProgress;
     private bool preparingExpandedHostedAction;
-    private record struct ExpandedOperationCursor(ImmutableArray<ExpandedHostedOperation> Operations, int Next = 0, int? Current = null);
+    internal record struct ExpandedOperationCursor(ImmutableArray<ExpandedHostedOperation> Operations, int Next = 0, int? Current = null);
 
     private ExpandedOperationCursor expandedOperationCursor = new([]);
     private long? expandedHostedActionToken;
@@ -295,6 +296,12 @@ public sealed partial class BattleSession
         {
             switch (receipt)
             {
+                case NativeBattlePresentationContactReceived { Invocation: { Provenance: BattlePresentationInvocationProvenance.ExternalDiagnostic } invocation } external:
+                    if (actionToken != invocation.Token || external.Renzokuken is not null || external.Packet.Primary.Amount6 != 0 || external.Packet.Secondary is not null)
+                    {
+                        throw new InvalidDataException("External presentation contact lost its diagnostic invocation ownership.");
+                    }
+                    break;
                 case NativeBattlePresentationContactReceived contact:
                     if (actionToken is null || actionToken != expandedHostedActionToken || expandedInvocationProgress is not { } progress)
                     {
@@ -365,6 +372,12 @@ public sealed partial class BattleSession
                     _ = RequireEmittingHostedActor(services, stop);
                     StopTurnAdvance();
                     break;
+                case NativeBattleShotWidgetUpdated shotWidget:
+                    ApplyNativeShotWidgetUpdate(shotWidget);
+                    break;
+                case NativeBattlePresentationHostEvent presentationEvent:
+                    events.Add(presentationEvent.Event);
+                    break;
                 case NativeBattlePresentationDescriptorText descriptorText:
                     events.Add(descriptorText.Message with { Frame = Frame });
                     break;
@@ -417,7 +430,7 @@ public sealed partial class BattleSession
             }
         }
         AdvanceExpandedHostedInvocation(actionToken);
-        ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
+        BattlePresentationProcess process = expandedPresentationProcess!;
         AdvanceHostedEncounterAllocation(process);
         if (HasPendingEncounterRetirements)
         {

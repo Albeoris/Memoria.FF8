@@ -27,7 +27,7 @@ public sealed class ExpandedHostedTraumaCounterTests
         try
         {
             ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
-            ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
             Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
             BattleCombatant trauma = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
             Assert.Equal(109, trauma.ModelId);
@@ -104,7 +104,7 @@ public sealed class ExpandedHostedTraumaCounterTests
             Assert.DoesNotContain(battle.Events.Skip(eventStart), entry => entry.Kind == "EffectContact" && entry.ActorId == trauma.Id && entry.TargetId == droma.Id);
             Assert.Equal(0u, trauma.AiVariables[0]);
             Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         finally
         {

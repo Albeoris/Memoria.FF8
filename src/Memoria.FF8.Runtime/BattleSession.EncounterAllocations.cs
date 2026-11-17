@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -17,18 +18,10 @@ public sealed partial class BattleSession
     private BattleEncounterAllocationState? encounterAllocation;
     private BattleSnapshot? encounterAllocationRollback;
     private ImmutableArray<HostedModelLoadAdmission> hostedEncounterLoadAdmissions = [];
-    private HostedEncounterLoadCheckpoint? hostedEncounterLoadCheckpoint;
-
-    internal sealed record HostedEncounterLoadCheckpoint(
-        BattleEncounterAllocationState Batch, HostedModelRegistry Registry, NativeBattleGraphicsState Graphics,
-        NativeBattleActionPacketsState Packets, ImmutableArray<HostedControlPacket> Controls,
-        NativeBattleModelCpuResources? Cpu, NativeBattleModelTextureCache? TextureCache, NativeBattleEffectMemory? Memory,
-        NativeBattleFileStaging? Staging, NativeBattleFileIoState? FileIo, int? IoResult, NativeBattleModelLoader? Loader,
-        NativeBattleCameraState? Camera, NativeBattleStageState? Stage);
 
     public BattleEncounterAllocationState? EncounterAllocation => encounterAllocation;
 
-    /// <summary>Reserves free physical slots and stages resolved copies without replacing an active participant.</summary>
+    /// <summary>Reserves free roster slots and stages resolved copies without replacing an active participant.</summary>
     public BattleEncounterAllocationState BeginEncounterAllocation(string batchId, string sourceActorId, params string[] roles)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(batchId);
@@ -39,49 +32,53 @@ public sealed partial class BattleSession
             {
                 return existing;
             }
-            throw new InvalidOperationException("This battle already owns an encounter allocation batch.");
+            if (existing.Phase != BattleEncounterAllocationPhase.Complete)
+            {
+                throw new InvalidOperationException("This battle is still loading an encounter allocation batch.");
+            }
         }
         BattleCombatant source = GetActor(sourceActorId);
-        if (source.IsPlayer || !source.IsAlive || source.SceneSlot is not int sceneSlot || source.NativeTemplate is null || source.ResolvedNativeLevel is null || source.NativeAllocationPendingStatistics)
+        if (source.IsPlayer || !source.IsAlive || source.SceneSlot is not int sceneSlot || source.NativeAllocationPendingStatistics)
         {
-            throw new InvalidOperationException("Encounter copies require a living enemy with fully resolved native statistics and a scene resource.");
+            throw new InvalidOperationException("Encounter allocation requires its living enemy caster and scene owner.");
         }
-        if (roles.Length is < 1 or > 3 || roles.Any(string.IsNullOrWhiteSpace) || roles.Distinct(StringComparer.Ordinal).Count() != roles.Length)
+        if (roles.Length is < 1 or > ExpandedBattleFormation.MaximumEnemies || roles.Any(string.IsNullOrWhiteSpace) || roles.Distinct(StringComparer.Ordinal).Count() != roles.Length)
         {
-            throw new ArgumentException("Encounter allocation requires one to three distinct role identities.", nameof(roles));
+            throw new ArgumentException("Encounter allocation requires distinct role identities within the battle roster capacity.", nameof(roles));
         }
-        if (NativeScriptAllocationPending || NativeScriptAllocationPaused || NativeModelLoader?.Task is not null || NativeGraphics?.ModelLoadCount > 0)
+        if (NativeScriptAllocationPending || NativeScriptAllocationPaused || Presentation is { HasPendingModelLoad: true } or { Graphics.ModelLoadCount: > 0 })
         {
             throw new InvalidOperationException("Encounter allocation cannot overlap another native model allocation.");
         }
-        int[] slots = Enumerable.Range(3, 4).Where(index => !enemies.Any(actor => actor.Slot == NativeBattleSlots.Decode(index) && actor.IsActive) && !IsEncounterRetirementPending(index)).Take(roles.Length).ToArray();
+        BattleRosterSlot[] slots = ReadFreeEncounterRosterSlots(roles.Length);
         if (slots.Length != roles.Length)
         {
-            throw new InvalidOperationException($"Encounter allocation requires {roles.Length} free enemy slots; only {slots.Length} are available within physical slots 3–6.");
+            throw new InvalidOperationException($"Encounter allocation needs {roles.Length} free enemy roster positions and has {slots.Length}.");
         }
+        BattlePresentationProcess? process = preparingExpandedHostedAction ? null :
+            Presentation ?? throw new InvalidOperationException("Encounter allocation requires its presentation process.");
         BattleSnapshot rollback = Capture();
-        List<NativeBattleEnemyAllocation> prepared = [];
+        var prepared = ImmutableArray.CreateBuilder<BattleRosterAllocationRequest>(roles.Length);
         for (int index = 0; index < roles.Length; index++)
         {
             int generation = checked(nativeAllocations.Count + index + 1);
             string id = $"native-allocation-{generation}";
-            BattleCombatantDefinition resolved = CreateEncounterCopyDefinition(source, id, roles[index]);
-            prepared.Add(new(id, sceneSlot, generation) { ResolvedDefinition = resolved, EncounterBatchId = batchId, EncounterRole = roles[index] });
+            string role = roles[index];
+            BattleCombatant copySource = ReadEncounterCopySource(source, role);
+            BattleCombatantDefinition resolved = CreateEncounterCopyDefinition(copySource, id, role);
+            NativeBattleEnemyAllocation allocation = new(id, copySource.SceneSlot!.Value, generation) { ResolvedDefinition = resolved, EncounterBatchId = batchId, EncounterRole = roles[index], InheritedFromActorId = copySource.Id };
+            BattleRosterSlot slot = slots[index];
+            NativeBattleModelSlot? original = NativeBattleSlots.TryEncode(slot) is int indexAlias ? NativeBattleModelSlot.Decode(checked((byte)indexAlias)) : null;
+            prepared.Add(new(allocation, slot, original, ReplaceOccupant: false));
         }
         encounterAllocationRollback = rollback;
-        encounterAllocation = new(batchId, sourceActorId, prepared.Select(allocation => allocation.Id).ToImmutableArray(), roles.ToImmutableArray(), BattleEncounterAllocationPhase.Loading, 0);
+        encounterAllocation = new(batchId, sourceActorId, prepared.Select(request => request.Allocation.Id).ToImmutableArray(), roles.ToImmutableArray(), BattleEncounterAllocationPhase.Loading, 0);
         try
         {
-            for (int index = 0; index < prepared.Count; index++)
+            BattleRosterMutationResult mutation = ApplyRosterMutation(new(TargetActorReference(source), prepared.MoveToImmutable()));
+            foreach (BattleRosterAllocation allocation in mutation.Allocations)
             {
-                BattleRosterSlot slot = NativeBattleSlots.Decode(slots[index]);
-                foreach (BattleCombatant previous in enemies.Where(actor => actor.Slot == slot).ToArray())
-                {
-                    previous.BindRosterSlot(null);
-                }
-                BattleCombatant actor = CreateNativeAllocation(prepared[index]);
-                nativeAllocations.Add(prepared[index]);
-                actor.BindRosterSlot(slot);
+                BattleCombatant actor = GetActor(allocation.Actor.ActorId);
                 actor.NativeAllocationPendingStatistics = true;
                 actor.NativeCombatantFlags = 0xC2;
             }
@@ -91,23 +88,22 @@ public sealed partial class BattleSession
             {
                 SetNativeBattleClockActive(false);
             }
-            if (NativeGraphics is { } graphics)
-            {
-                NativeGraphics = QueueEncounterAllocationLoad(graphics);
-            }
-            else if (preparingExpandedHostedAction)
+            if (process is null)
             {
                 StageHostedEncounterAllocationLoad();
             }
             else
             {
-                foreach (string id in encounterAllocation.ActorIds)
-                {
-                    InitializeEncounterAllocatedStatistics(GetActor(id));
-                }
-                RefreshNativePacketBindings();
-                encounterAllocation = encounterAllocation with { Phase = BattleEncounterAllocationPhase.Ready, LoadingIndex = roles.Length };
-                encounterAllocationRollback = null;
+                BattleCombatant first = GetActor(encounterAllocation.ActorIds[0]);
+                HostedDispatchControl.LoadEnemy load = ReadHostedEncounterAllocationLoad(first);
+                HostedModelLoadAdmission initial = PrepareHostedModelLoadAdmission(process, load, ImmutableHashSet<BattleModelOwner>.Empty);
+                PrepareHostedEncounterBatch(process, [initial]);
+                HostedDispatchControls controls = new([load, new HostedDispatchControl.AllocationStatistics()], []);
+                PreparedHostedDispatch dispatch = process.PrepareDispatch([], controls: controls, allocations: [initial]);
+                process.ValidatePreparedDispatch(dispatch);
+                HostedEncounterLoadCheckpoint? checkpoint = process.PrepareEncounterLoad(encounterAllocation, dispatch);
+                BindCurrentEncounterAllocation(first, load.SceneSlot);
+                process.CommitDispatch(dispatch, checkpoint);
             }
             return encounterAllocation;
         }
@@ -116,6 +112,31 @@ public sealed partial class BattleSession
             AbortEncounterAllocation();
             throw;
         }
+    }
+
+    private BattleRosterSlot[] ReadFreeEncounterRosterSlots(int limit)
+    {
+        return Enumerable.Range(0, ExpandedBattleFormation.MaximumEnemies).Select(BattleRosterSlot.Enemy)
+            .Where(slot => !enemies.Any(actor => actor.Slot == slot && actor.IsActive) && !IsEncounterRetirementPending(slot)).Take(limit).ToArray();
+    }
+
+    private BattleCombatant ReadEncounterCopySource(BattleCombatant caster, string role)
+    {
+        BattleCombatant source = caster;
+        if (definition.EncounterMod?.Templates.GetValueOrDefault(role) is { } template)
+        {
+            string inherited = ResolveEncounterRole(template.InheritFrom) ?? throw new InvalidDataException($"Encounter template '{role}' has no allocated source for role '{template.InheritFrom}'.");
+            source = GetActor(inherited);
+        }
+        if (!source.IsAlive || source.IsPlayer || source.SceneSlot is null || source.NativeTemplate is null || source.ResolvedNativeLevel is null || source.NativeAllocationPendingStatistics)
+        {
+            throw new InvalidOperationException($"Encounter role '{role}' requires a living enemy source with resolved statistics and installed model data.");
+        }
+        if (nativeAllocations.Any(allocation => allocation.EncounterRole == role && GetActor(allocation.Id).IsActive))
+        {
+            throw new InvalidOperationException($"Encounter role '{role}' already owns a live allocation.");
+        }
+        return source;
     }
 
     private BattleCombatantDefinition CreateEncounterCopyDefinition(BattleCombatant source, string id, string role)
@@ -127,7 +148,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEnemyTemplate template = resolved.NativeTemplate!;
         NativeBattleStatusAllocation freshStatuses = template.NativeStatusAllocation ?? new(0, 0, resolved.NativeStatusResistances.ToImmutableArray());
-        NativeBattleAiDefinition? combatAbilities = resolved.NativeAi is { } ai ? new([[0], [0], [0], [0], [0]], ai.Abilities.ToArray(), ai.LevelBand, []) : null;
+        NativeBattleAiDefinition? combatAbilities = resolved.NativeAi is { } ai ? new([[0], [0], [0], [0], [0]], ai.Abilities.ToArray(), ai.LevelBand, ai.Texts.ToArray()) : null;
         double maximumHpMultiplier = definition.EncounterMod is { } mod && mod.Templates.ContainsKey(role) ? mod.ActorProperties.GetValueOrDefault(role + "/stats.maximumHpMultiplier", 1) : 1;
         int maximumHp = EncounterActorProperties.ScaleMaximumHp(source.MaximumHp, maximumHpMultiplier);
         return resolved with
@@ -173,8 +194,11 @@ public sealed partial class BattleSession
     {
         actor.ResolvedNativeLevel = actor.Level;
         actor.NativeCombatantFlags = (actor.SourceDefinition.NativeCombatantFlags & ~0xE3u) | 0xC2;
-        nativeActionMemory.State = nativeActionMemory.State with { Rows = nativeActionMemory.State.Rows.SetItem(actor.RequireNativeActorIndex(), ImmutableArray.CreateRange(new byte?[8] { 0, 0, 0, 0, 0, 0, 0, 0 })) };
-        nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(actor.RequireNativeActorIndex(), new(0, 0));
+        if (actor.NativeActorIndex is int original)
+        {
+            nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(original);
+            nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(original, new(0, 0));
+        }
         actor.NativePendingReaction = new(0, 0);
         actor.NativeReturnDamage = 0;
         actor.NativeRemainingHits = 0;
@@ -186,16 +210,6 @@ public sealed partial class BattleSession
         Array.Clear(actor.AiVariables);
         Array.Fill(actor.NativeStatMultipliers, (byte)10);
         actor.NativeAllocationPendingStatistics = false;
-    }
-
-    private NativeBattleGraphicsState QueueEncounterAllocationLoad(NativeBattleGraphicsState graphics)
-    {
-        BattleEncounterAllocationState batch = encounterAllocation!;
-        BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
-        RecordLastNativeAllocation(actor);
-        nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)actor.SceneSlot!.Value), true, true) };
-        graphics = QueueNativePlannedModelDescriptor(graphics, 102, actor, checked((ushort)(actor.ModelId + 16)));
-        return QueueNativeDescriptor(graphics, 113, 0x48AD10);
     }
 
     private void StageHostedEncounterAllocationLoad()
@@ -213,9 +227,10 @@ public sealed partial class BattleSession
         BattleModelOwner owner = CreatePresentationModelOwner(actor);
         if (owner is not BattleEnemyActorModel enemy || actor.Slot is not { Side: BattleSide.Enemies } slot || actor.SceneSlot is not int scene)
         {
-            throw new InvalidDataException("Hosted encounter load requires its reserved enemy generation and original slot.");
+            throw new InvalidDataException("Hosted encounter load requires its reserved enemy generation and scene resource.");
         }
-        return new(enemy, NativeBattleModelSlot.Decode(checked((byte)NativeBattleSlots.Encode(slot))), scene, actor.ModelId);
+        NativeBattleModelSlot? original = actor.NativeActorIndex is int alias ? NativeBattleModelSlot.Decode(checked((byte)alias)) : null;
+        return new(enemy, slot, original, scene, actor.ModelId);
     }
 
     private void BindCurrentEncounterAllocation(BattleCombatant actor, int scene)
@@ -224,7 +239,7 @@ public sealed partial class BattleSession
         nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)scene), true, true) };
     }
 
-    private void PrepareHostedEncounterBatch(ExpandedBattlePresentationProcess process, ImmutableArray<HostedModelLoadAdmission> initialLoads)
+    private void PrepareHostedEncounterBatch(BattlePresentationProcess process, ImmutableArray<HostedModelLoadAdmission> initialLoads)
     {
         if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading, LoadingIndex: 0 } batch || !hostedEncounterLoadAdmissions.IsEmpty)
         {
@@ -241,11 +256,11 @@ public sealed partial class BattleSession
         hostedEncounterLoadAdmissions = admissions.MoveToImmutable();
     }
 
-    private void AdvanceHostedEncounterAllocation(ExpandedBattlePresentationProcess process)
+    private void AdvanceHostedEncounterAllocation(BattlePresentationProcess process)
     {
         if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Ready or BattleEncounterAllocationPhase.Arriving })
         {
-            process.AdvanceEncounterPolicySpawn(this);
+            AdvanceHostedEncounterPolicySpawn(process);
             return;
         }
         if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading } batch || !process.IsControlPrefixRetired)
@@ -286,117 +301,6 @@ public sealed partial class BattleSession
         process.CommitDispatch(dispatch);
     }
 
-    internal HostedEncounterLoadCheckpoint? PrepareHostedEncounterLoad(BattleEncounterAllocationState? batch, PreparedHostedDispatch dispatch)
-    {
-        if (batch is not { Phase: BattleEncounterAllocationPhase.Loading, LoadingIndex: 0 } ||
-            hostedEncounterLoadCheckpoint is not null || dispatch.Registry is not { } registry ||
-            !registry.Replacement.Loads.Keys.Any(owner => owner.Actor.ActorId == batch.ActorIds[0]))
-        {
-            return null;
-        }
-        if (dispatch.Action is not null || dispatch.Completion is not null || NativeModelLoader?.Task is not null)
-        {
-            throw new InvalidOperationException("An attached encounter batch requires exclusive ownership of its native model load.");
-        }
-        // The summon action is already complete. Save its acknowledged packets together with the
-        // resource graph that existed before the first member's model registry was published.
-        return NativeBattleStorageSnapshots.CapturePrivate(new HostedEncounterLoadCheckpoint(
-            batch, registry.Original, dispatch.Graphics, dispatch.Acknowledgment?.AcknowledgedPackets ?? nativeActionPackets,
-            hostedControlPackets, NativeModelCpuResources, NativeModelTextureCache, NativeEffectMemory, NativeFileStaging,
-            NativeFileIo, NativeEffectIoResult, NativeModelLoader, NativeCamera, NativeStage));
-    }
-
-    internal void PublishHostedEncounterLoad(HostedEncounterLoadCheckpoint? checkpoint)
-    {
-        if (checkpoint is not null)
-        {
-            hostedEncounterLoadCheckpoint = checkpoint;
-        }
-    }
-
-    internal void CompleteHostedEncounterLoad()
-    {
-        hostedEncounterLoadCheckpoint = null;
-    }
-
-    internal bool RollbackHostedEncounterLoad()
-    {
-        if (hostedEncounterLoadCheckpoint is not { } saved)
-        {
-            return false;
-        }
-        HostedEncounterLoadCheckpoint checkpoint = NativeBattleStorageSnapshots.Restore(saved);
-        NativeBattleGraphicsState current = RequireNativeGraphics();
-        NativeGraphics = checkpoint.Graphics with
-        {
-            Callback = current.Callback,
-            PresentationSubticks = current.PresentationSubticks,
-            PresentationHalfSubtick = current.PresentationHalfSubtick
-        };
-        hostedModelRegistry = checkpoint.Registry;
-        nativeActionPackets = checkpoint.Packets;
-        hostedControlPackets = checkpoint.Controls;
-        NativeModelCpuResources = checkpoint.Cpu;
-        NativeModelTextureCache = checkpoint.TextureCache;
-        NativeEffectMemory = checkpoint.Memory;
-        NativeFileStaging = checkpoint.Staging;
-        NativeFileIo = checkpoint.FileIo;
-        NativeEffectIoResult = checkpoint.IoResult;
-        NativeModelLoader = checkpoint.Loader;
-        NativeCamera = checkpoint.Camera;
-        NativeStage = checkpoint.Stage;
-        hostedEncounterLoadCheckpoint = null;
-        hostedPreparationEpoch = checked(hostedPreparationEpoch + 1);
-        ClearHostedPresentationFrameOutputs();
-        return true;
-    }
-
-    private void ValidateHostedEncounterLoadResult(NativeBattleFileIoCompletion completion)
-    {
-        if (completion.Result < 0 && hostedEncounterLoadCheckpoint is { } checkpoint &&
-            NativeModelLoader?.Task is { Phase: 1, Owner: BattleEnemyActorModel owner, File: { } file } &&
-            checkpoint.Batch.ActorIds.Contains(owner.Actor.ActorId))
-        {
-            throw new IOException($"Native model file {file.Name} failed to load for {owner.Actor.ActorId} (result {completion.Result}).");
-        }
-    }
-
-    private NativeBattleGraphicsState CompleteEncounterAllocationLoad(NativeBattleGraphicsState graphics)
-    {
-        BattleEncounterAllocationState batch = encounterAllocation!;
-        BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
-        NativeBattleGraphicsModel model = graphics.ActorModels.Get(CreatePresentationModelOwner(actor));
-        if (actor.NativeAllocationPendingStatistics || model.EffectCounter97 != 2 || (model.Flags0 & 2) == 0)
-        {
-            throw new InvalidDataException("Encounter allocation reached completion before its resolved statistics and model were loaded.");
-        }
-        encounterAllocation = batch with { LoadingIndex = batch.LoadingIndex + 1 };
-        if (encounterAllocation.LoadingIndex < batch.ActorIds.Length)
-        {
-            return QueueEncounterAllocationLoad(graphics);
-        }
-        return graphics;
-    }
-
-    private NativeBattleGraphicsState AdvanceEncounterAllocationPreparation(NativeBattleGraphicsState graphics)
-    {
-        if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading } batch || batch.LoadingIndex != batch.ActorIds.Length)
-        {
-            return graphics;
-        }
-        foreach (string id in batch.ActorIds)
-        {
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(CreatePresentationModelOwner(GetActor(id)));
-            if (!IsEncounterAllocationModelReady(model))
-            {
-                return graphics;
-            }
-        }
-        encounterAllocation = batch with { Phase = BattleEncounterAllocationPhase.Ready };
-        encounterAllocationRollback = null;
-        return graphics;
-    }
-
     private static bool IsEncounterAllocationModelReady(NativeBattleGraphicsModel model)
     {
         return (model.Flags0 & 2) != 0 && model.EffectCounter97 == 2 && model.Flags2 is ushort flags && (flags & 0x84) == 0 && model.Kind5 == 0 && model.SequenceState is { } sequence && model.Sequence == sequence.Default2;
@@ -405,10 +309,10 @@ public sealed partial class BattleSession
     /// <summary>Exposes the loaded models for an arrival track while keeping both actors outside active targeting and scheduling.</summary>
     public void BeginEncounterAllocationArrival()
     {
-        BeginEncounterAllocationArrival(this);
+        BeginEncounterAllocationArrival(Presentation ?? throw new InvalidOperationException("Encounter arrival requires its presentation process."));
     }
 
-    private void BeginEncounterAllocationArrival(BattleSession presentation)
+    private void BeginEncounterAllocationArrival(BattlePresentationProcess process)
     {
         BattleEncounterAllocationState batch = encounterAllocation ?? throw new InvalidOperationException("No encounter allocation is staged.");
         if (batch.Phase is BattleEncounterAllocationPhase.Arriving or BattleEncounterAllocationPhase.Complete)
@@ -419,15 +323,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Encounter arrival requires every staged model to be loaded.");
         }
-        if (presentation.NativeGraphics is { } graphics)
-        {
-            foreach (string id in batch.ActorIds)
-            {
-                BattleModelOwner index = CreatePresentationModelOwner(GetActor(id));
-                graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, graphics.ActorModels.Get(index) with { Flags0 = (ushort)(graphics.ActorModels.Get(index).Flags0 & ~4) }) };
-            }
-            presentation.NativeGraphics = graphics;
-        }
+        process.RevealEncounterArrivalActors(batch.ActorIds.Select(id => CreatePresentationModelOwner(GetActor(id))).ToImmutableArray());
         encounterAllocation = batch with { Phase = BattleEncounterAllocationPhase.Arriving };
     }
 
@@ -504,16 +400,11 @@ public sealed partial class BattleSession
             if (presentationRolledBack)
             {
                 process.RefreshRolledBackEncounter();
+            RefreshPreparedPresentation();
             }
             return;
         }
         PublishCandidate(Restore(rollback));
-    }
-
-    internal void RefreshRolledBackHostedEncounter(BattleSession logicalOwner)
-    {
-        NativeBattleModelLifecycleServices services = logicalOwner.CaptureHostedModelLifecycleServices(HostedPlannedModelRoster, hostedModelRegistry);
-        RefreshHostedPreparedPresentation(logicalOwner, services);
     }
 
     private void RequireNoPendingEncounterAllocation()
@@ -537,7 +428,7 @@ public sealed partial class BattleSession
     {
         if (state is not null)
         {
-            if (string.IsNullOrWhiteSpace(state.BatchId) || !byId.ContainsKey(state.SourceActorId) || state.ActorIds.IsDefaultOrEmpty || state.ActorIds.Length > 3 || state.Roles.IsDefault || state.Roles.Length != state.ActorIds.Length || state.ActorIds.Distinct(StringComparer.Ordinal).Count() != state.ActorIds.Length || state.Roles.Any(string.IsNullOrWhiteSpace) || state.Roles.Distinct(StringComparer.Ordinal).Count() != state.Roles.Length || !Enum.IsDefined(state.Phase) || state.Phase == BattleEncounterAllocationPhase.Loading || state.LoadingIndex != state.ActorIds.Length)
+            if (string.IsNullOrWhiteSpace(state.BatchId) || !byId.ContainsKey(state.SourceActorId) || state.ActorIds.IsDefaultOrEmpty || state.ActorIds.Length > ExpandedBattleFormation.MaximumEnemies || state.Roles.IsDefault || state.Roles.Length != state.ActorIds.Length || state.ActorIds.Distinct(StringComparer.Ordinal).Count() != state.ActorIds.Length || state.Roles.Any(string.IsNullOrWhiteSpace) || state.Roles.Distinct(StringComparer.Ordinal).Count() != state.Roles.Length || !Enum.IsDefined(state.Phase) || state.Phase == BattleEncounterAllocationPhase.Loading || state.LoadingIndex != state.ActorIds.Length)
             {
                 throw new InvalidDataException("Invalid encounter allocation publication state.");
             }

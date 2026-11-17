@@ -9,12 +9,10 @@ public sealed class AttachedEncounterEnemyModelCloneTests
     [Fact]
     public void Formation89_shares_the_original_enemy_heap_tail_and_reclaims_it_after_both_skeletons()
     {
-        FormationHeap physical = ReadHeap(attached: false);
-        FormationHeap attached = ReadHeap(attached: true);
+        FormationHeap heap = ReadHeap();
 
-        Assert.Equal(48356, physical.Cursor);
-        Assert.Equal(22792, physical.SecondSkeleton - physical.FirstSkeleton);
-        Assert.Equal(physical, attached);
+        Assert.Equal(48356, heap.Cursor);
+        Assert.Equal(22792, heap.SecondSkeleton - heap.FirstSkeleton);
     }
 
     [Fact]
@@ -49,7 +47,7 @@ public sealed class AttachedEncounterEnemyModelCloneTests
         Assert.Equal(1, state.RequirePresentationTexture("source").Textures.Count);
         Assert.Equal(1, state.RequirePresentationTexture("clone").Textures.Count);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0) with { Textures = state };
-        NativeBattleEffectTextureState drained = BattleSession.DrainNativeTextureUploads(memory, state, null).Textures!;
+        NativeBattleEffectTextureState drained = BattlePresentationProcess.DrainNativeTextureUploads(memory, state, null).Textures!;
         NativeBattleEffectTextureState shared = drained.RequirePresentationTexture("source").Textures;
         Assert.Same(shared, drained.RequirePresentationTexture("clone").Textures);
         Assert.Equal(0, shared.Count);
@@ -80,14 +78,14 @@ public sealed class AttachedEncounterEnemyModelCloneTests
         Assert.Equal(independentOwner, Assert.Single(cache.PresentationActors!).Value);
     }
 
-    private static FormationHeap ReadHeap(bool attached)
+    private static FormationHeap ReadHeap()
     {
         const ushort formation = 89;
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
+        using GameWorld world = new(session, directory, sharedAssets: game);
         ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, formation, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -97,11 +95,10 @@ public sealed class AttachedEncounterEnemyModelCloneTests
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.True(battle.NativeEntryReady);
-        ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
-        Assert.Equal(attached, process is not null);
-        NativeBattleGraphicsState graphics = process?.Graphics ?? battle.NativeGraphics!;
-        NativeBattleModelCpuResources cpu = process?.ModelCpuResources ?? battle.NativeModelCpuResources!;
-        NativeBattleModelTextureCache cache = process?.ModelTextureCache ?? battle.NativeModelTextureCache!;
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        NativeBattleGraphicsState graphics = process.Graphics;
+        NativeBattleModelCpuResources cpu = process.ModelCpuResources;
+        NativeBattleModelTextureCache cache = process.ModelTextureCache;
         BattleCombatant[] actors = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && actor.ModelId == 18).OrderBy(actor => actor.SceneSlot).ToArray();
         Assert.Equal(2, actors.Length);
         int[] rows = actors.Select(actor => graphics.ActorModels.Get(battle.ReadPresentationModelOwner(actor.Id)).TextureResourceIndex!.Value).ToArray();
@@ -116,7 +113,7 @@ public sealed class AttachedEncounterEnemyModelCloneTests
         }
         NativeBattleModelCpuResourceRow first = cpu.Rows[rows[0]];
         NativeBattleModelCpuResourceRow second = cpu.Rows[rows[1]];
-        NativeBattleFileStaging staging = battle.NativeFileStaging ?? NativeBattleFileStaging.Unknown();
+        NativeBattleFileStaging staging = battle.Presentation?.NativeFileStaging ?? NativeBattleFileStaging.Unknown();
         FormationHeap heap = new(cpu.EnemyCursor!.Value, first.Require(12).Offset, second.Require(12).Offset, first.Require(32).Offset,
             first.PrivateLength4!.Value, first.SharedLength8!.Value, 0, 0, 0);
         (cpu, staging) = NativeBattleModelEnemyHeap.Release(cpu, staging, cache, rows[0]);

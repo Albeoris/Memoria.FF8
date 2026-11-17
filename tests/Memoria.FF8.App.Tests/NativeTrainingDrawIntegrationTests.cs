@@ -32,14 +32,14 @@ public sealed class NativeTrainingDrawIntegrationTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             KnownMagic = assets.ReadNewGameKnownMagic()
         });
-        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition installed = world.CreateEncounterBattle(59) with { NativeGraphics = null, NativeClockRules = null };
         Assert.Null(installed.NativeGraphics);
         BattleCombatantDefinition[] actors = installed.Combatants.ToArray();
         int casterIndex = Array.FindIndex(actors, actor => actor.IsPlayer);
         actors[casterIndex] = actors[casterIndex] with { InitialAtb = BattleSession.AtbMaximum, Abilities = [.. actors[casterIndex].Abilities.Append(BattleAbility.Draw).Distinct()] };
         BattleDefinition definition = installed with { Name = "Installed field215 encounter59 two-Grat Draw component", Combatants = actors };
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
         BattleCombatant caster = battle.Combatants[casterIndex];
         BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         Assert.Equal(2, enemies.Length);

@@ -7130,13 +7130,13 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         {
                             NativeBattlePrimitiveFrame withoutBodyFrame = frame with { LastCommands = frame.LastCommands.Where(command => !acid170BodyPackets.Contains(command.Command.Packet)).ToImmutableArray() };
                             BattleSnapshot withoutBody = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutBodyFrame } };
-                            byte[] withoutBodyPixels = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(withoutBody), 320, 224).ToArray();
+                            byte[] withoutBodyPixels = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(withoutBody), 320, 224).ToArray();
                             acid170BodyChangedRgb = Math.Max(acid170BodyChangedRgb, CountRgbChanges(pixels, withoutBodyPixels));
                         }
 
                         NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() };
                         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutFrame } };
-                        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         int changed = CountRgbChanges(pixels, plain);
                         if (changed > visibleChangedRgb)
                         {
@@ -8364,7 +8364,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     _ = AssertMeltingAnchors(snapshot, cold.Capture());
                 }
-                byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
+                byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
                 Assert.Equal(scene.Render(direct, 320, 224).ToArray(), pixels);
                 NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
                 restoredBoundaries.Add(name);
@@ -8466,8 +8466,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
         NativeBattleRestorationPresentationTests.Publish(output!, "selected", current, null);
         NativeBattlePrimitiveFrame frame = current.NativeGraphics!.PrimitiveFrame!;
         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
-        byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(battle, 320, 224).ToArray();
-        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+        byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(battle, 320, 224).ToArray();
+        byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
         int changed = CountRgbChanges(pixels, plain);
         NativeBattleRestorationPresentationTests.Publish(output!, "with-effect", current, pixels);
         NativeBattleRestorationPresentationTests.Publish(output!, "without-effect", without, plain);
@@ -10023,7 +10023,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static NativeBattleVector BladeShot12PointOracle(BattleSnapshot prior, int actor, byte[] selectors)
     {
         BattleSession oracle = BattleSession.Restore(prior);
-        NativeBattleGraphicsState graphics = oracle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = oracle.Presentation!.Graphics;
         NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actor);
         if ((model.Flags0 & 2) == 0)
         {
@@ -10031,7 +10031,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         }
         NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", graphics!, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Blade Shot point queries require the original current skeleton.");
-        NativeBattleEffectMemory memory = oracle.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = oracle.Presentation!.Memory;
         List<NativeBattleVector> points = [];
         foreach (byte selector in selectors)
         {
@@ -10057,7 +10057,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static object AssertBladeShot12ScopedRandom(BattleSnapshot prior, int oldAge, int draws)
     {
         BattleSession oracle = BattleSession.Restore(prior);
-        NativeBattleGraphicsState graphics = oracle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = oracle.Presentation!.Graphics;
         if (graphics.PrimitiveFrame is not null)
         {
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = NativeBattleLogicalOrdering.Clear() } };

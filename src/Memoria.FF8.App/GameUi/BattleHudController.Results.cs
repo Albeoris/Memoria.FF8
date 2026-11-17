@@ -30,6 +30,7 @@ public sealed partial class BattleHudController
     private bool experienceFinished;
     private long experienceSubticks;
     private long experienceTicks;
+    private const int ResultAnimationTicksPerSecond = 30;
     private long resultAgeSubticks = 16 * TimeSpan.TicksPerSecond;
     private long itemTransitionSubticks;
     private int resultItem;
@@ -55,7 +56,7 @@ public sealed partial class BattleHudController
     internal IReadOnlyList<BattleRewardOffer> ResultLoot => resultLoot;
     internal bool ItemAcknowledged => itemAcknowledged;
     internal IReadOnlyList<(BattleGuardianForceRewardPresentation Growth, int? AbilityId)> ResultGuardianForceRows => resultGuardianForcePager.Rows(resultGuardianForceRows).ToArray();
-    internal double ResultAnimationSeconds => resultAgeSubticks / (double)(BattleSession.FramesPerSecond * TimeSpan.TicksPerSecond);
+    internal double ResultAnimationSeconds => resultAgeSubticks / (double)(ResultAnimationTicksPerSecond * TimeSpan.TicksPerSecond);
     internal int ResultAbilityPoints => ResultRewards is { } rewards ? rewards.AbilityPointsNotice ?? rewards.GuardianForceAbilityPoints.Values.Select(value => (int)value).DefaultIfEmpty().Max() : 0;
     internal float ResultOpacity
     {
@@ -105,7 +106,7 @@ public sealed partial class BattleHudController
             Complete();
             return;
         }
-        long subticks = checked(elapsed.Ticks * BattleSession.FramesPerSecond);
+        long subticks = checked(elapsed.Ticks * ResultAnimationTicksPerSecond);
         resultAgeSubticks = checked(resultAgeSubticks + subticks);
         if (ResultPage == BattleResultPage.Items && itemAcknowledged)
         {

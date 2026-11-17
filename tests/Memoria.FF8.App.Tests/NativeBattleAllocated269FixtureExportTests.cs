@@ -54,7 +54,7 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         string queuedPath = Save("queued-action104", queued);
         BattleSession cold = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(queued));
         Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(cold.Capture()));
-        Assert.Null(cold.NativeGraphics!.OriginalEffect);
+        Assert.Null(cold.Presentation!.Graphics.OriginalEffect);
         Assert.Equal((byte)caster, ReadOriginalModelOperand(packets.ModelAliases, packets.ReadHeader(header).Source));
         Assert.Equal((byte)15, packets.ReadHeader(header).Sequence);
         Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());

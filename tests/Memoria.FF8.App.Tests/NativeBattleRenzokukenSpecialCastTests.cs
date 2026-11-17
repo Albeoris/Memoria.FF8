@@ -108,7 +108,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         int contacts = definition.NativeRenzokukenResources.Single(resource => resource.MagicId == effectId).Timeline.InputThresholds.Length;
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         Bind(battle);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "renzokuken-special-" + effectId + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Renzokuken evidence: " + output);
@@ -129,7 +129,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 for (int callback = 0; callback < 4096; callback++)
                 {
                     battle.Tick();
-                    NativeBattleSequenceState? state = ReadOriginalModelCell(battle.NativeGraphics!, 0).SequenceState;
+                    NativeBattleSequenceState? state = ReadOriginalModelCell(battle.Presentation!.Graphics, 0).SequenceState;
                     if (!approach && state is { } sequence && (sequence.Header36 != 0 || sequence.Header38 != 0 || sequence.Header40 != 0))
                     {
                         CompareNext("physical-approach");
@@ -162,7 +162,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
             Bind(battle);
             const int actorIndex = 0;
-            uint? shadowColor = ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44;
+            uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
             Assert.NotNull(shadowColor);
             uint interpolatedColor = NativeBattleGteColorInterpolation.CodeConstants45F270.Interpolate(transitionColor, 1 << 9, 0x4060F0);
             bool interpolatedCurrentStageColor = false;
@@ -186,19 +186,19 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                Assert.Equal(shadowColor, ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color44);
-                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.NativeGraphics!, actorIndex).Color40 == interpolatedColor;
-                selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+                Assert.Equal(shadowColor, ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44);
+                interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color40 == interpolatedColor;
+                selected |= battle.Presentation!.Graphics.OriginalEffect?.Binding.Effect == effectId;
                 if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
                 {
                     capturedFrames++;
                 }
-                targetAnimated |= ReadOriginalModelCells(battle.NativeGraphics).Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
-                if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
+                targetAnimated |= ReadOriginalModelCells(battle.Presentation?.Graphics).Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
+                if (battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
                 {
-                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
-                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
-                    Assert.Null(battle.NativeCamera.ControlStagingSource);
+                    Assert.NotNull(battle.Presentation!.Memory.Textures!.Animation);
+                    Assert.Equal(JsonSerializer.Serialize(battle.Presentation!.Memory.Textures.Animation), JsonSerializer.Serialize(battle.Presentation!.Camera.ControlResource));
+                    Assert.Null(battle.Presentation!.Camera.ControlStagingSource);
                     registeredCamera = true;
                 }
                 if (physicalFirst && !checkedApproach && battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy") > priorDamage)
@@ -206,12 +206,12 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                     Assert.True(Distance() < initialDistance, "Renzokuken must approach its physical target before the first damage contact.");
                     checkedApproach = true;
                 }
-                if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
+                if (!capturedMidpoint && battle.Presentation!.Graphics.TriggerWidget?.Input.ContactIndex > 0)
                 {
                     CompareNext("midpoint");
                     capturedMidpoint = true;
                 }
-                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
+                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     if (effectId is 159 or 161 or 334 or 335 or 336 or 337 or 339 or 340 or 341 or 342 or 343)
                     {
@@ -219,14 +219,14 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                     }
                     Assert.True(capturedMidpoint);
                     Assert.True(targetAnimated, "The special native target must execute its own embedded animation sequence.");
-                    Assert.All(ReadOriginalModelCells(battle.NativeGraphics), target => Assert.Null(target.ResourceRenzokukenTargetBank));
+                    Assert.All(ReadOriginalModelCells(battle.Presentation?.Graphics), target => Assert.Null(target.ResourceRenzokukenTargetBank));
                     Assert.True(registeredCamera);
                     Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
                     Assert.Equal(priorDamage + contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
                     CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, NativeCallback = battle.NativeGraphics.Callback }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
                     return;
                 }
             }
@@ -247,9 +247,9 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
 
         double Distance()
         {
-            NativeBattleActionMatrix matrix = ReadOriginalModelCell(battle.NativeGraphics!, 0).GeometryWorldMatrix!;
-            int targetIndex = FindOriginalModelSlot(battle.NativeGraphics!, "enemy");
-            NativeBattleVector destination = ReadOriginalModelCell(battle.NativeGraphics!, targetIndex).Transform!.Position28;
+            NativeBattleActionMatrix matrix = ReadOriginalModelCell(battle.Presentation!.Graphics, 0).GeometryWorldMatrix!;
+            int targetIndex = FindOriginalModelSlot(battle.Presentation!.Graphics, "enemy");
+            NativeBattleVector destination = ReadOriginalModelCell(battle.Presentation!.Graphics, targetIndex).Transform!.Position28;
             return Math.Pow(matrix.X - destination.X, 2) + Math.Pow(matrix.Z - destination.Z, 2);
         }
 
@@ -276,7 +276,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
             }
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");
         }
     }

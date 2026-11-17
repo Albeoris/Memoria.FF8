@@ -36,7 +36,7 @@ public sealed partial class BattleSession
 
     private bool CanRetainBattleActionActor(BattleCombatant actor, BattleNativePlayerReaction? reaction, byte? stage, BattleTargetRequest? request)
     {
-        return CanRetainNativeSupportActor(actor, reaction) || UsesExpandedRoster && IsExpandedEnemyDeathAction(actor, stage, request);
+        return CanRetainNativeSupportActor(actor, reaction) || IsExpandedEnemyDeathAction(actor, stage, request);
     }
 
     private bool HasExpandedEnemyDeathAction(BattleCombatant actor)
@@ -64,7 +64,7 @@ public sealed partial class BattleSession
 
     private void ValidateExpandedAiRemovals()
     {
-        if (combatants.Any(actor => actor.ExpandedAiRemovalPending && (!UsesExpandedRoster || actor.IsPlayer || !actor.IsActive || actor.NativeAi is null || !HasExpandedAiAction(actor))))
+        if (combatants.Any(actor => actor.ExpandedAiRemovalPending && (actor.IsPlayer || !actor.IsActive || actor.NativeAi is null || !HasExpandedAiAction(actor))))
         {
             throw new InvalidDataException("Saved expanded AI removal requires its active enemy and pending action.");
         }

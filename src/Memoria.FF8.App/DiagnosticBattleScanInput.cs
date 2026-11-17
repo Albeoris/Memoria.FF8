@@ -55,9 +55,9 @@ internal sealed partial class RecreateGame
 
     private ushort ReadDiagnosticScanMappedButtons(BattleSession active, ushort actualButtons)
     {
-        ExpandedBattlePresentationProcess? process = active.ExpandedPresentationProcess;
-        NativeBattleEffectMemory? memory = process?.Memory ?? active.NativeEffectMemory;
-        NativeBattleGraphicsState? graphics = process?.Graphics ?? active.NativeGraphics;
+        BattlePresentationProcess? process = active.Presentation;
+        NativeBattleEffectMemory? memory = process?.Memory;
+        NativeBattleGraphicsState? graphics = process?.Graphics;
         bool enabled = ReferenceEquals(active, diagnosticDriverBattle) && diagnosticDriver is { Finished: false, Stage: DiagnosticDriverStage.Drain } && diagnosticDriverRecipe?.ExpectedEffect == 40 && memory?.Scan is { InputInitialized: true, Text.Initialized: true };
         long callback = enabled ? active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic Scan input requires its current native callback publication.") : 0;
         return (ushort)(actualButtons | diagnosticScanInput.Advance(graphics?.OriginalEffect, enabled, callback));

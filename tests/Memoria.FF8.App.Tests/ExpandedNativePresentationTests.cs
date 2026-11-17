@@ -121,11 +121,11 @@ public sealed class ExpandedNativePresentationTests
                 driver.EnemyTrigger?.Prepare(battle);
                 world.ApplyBattleInput(driver.Input);
             }
-            BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition(), true);
+            BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition());
             bool rendered = false;
             bool entered = false;
             long? token = null;
-            ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
             for (int tick = 0; tick < 1400 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.GuardianForceCasts.Count != 0 || battle.ObserveDiagnosticDrainBlockers().Count != 0); tick++)
             {
                 battle.Tick();

@@ -38,7 +38,7 @@ public sealed class ExpandedBattleMagicGroupPresentationTests
         int before = battle.Events.Count;
         battle.QueueAction(caster.Id, targets[0], BattleAbility.Magic, fire.Id, magicTargets: targets);
 
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         HashSet<long> presentations = [];
         for (int frame = 0; frame < 2048 && caster.IsBusy; frame++)
         {

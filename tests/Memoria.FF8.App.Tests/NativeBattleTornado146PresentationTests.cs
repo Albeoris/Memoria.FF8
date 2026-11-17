@@ -28,7 +28,7 @@ public sealed class NativeBattleTornado146PresentationTests
         BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         BattleSession battle = BattleSession.Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
         int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
@@ -158,9 +158,9 @@ public sealed class NativeBattleTornado146PresentationTests
             Assert.True(targetLifted);
             Assert.True(groundHidden);
             Assert.Equal(2, battle.Capture().NativeStage!.Groups[1].Flags & 2);
-            Assert.Equal(originalTarget.Position28, ReadOriginalModelCell(battle.NativeGraphics!, 3).Transform!.Position28);
-            Assert.Equal(originalTarget.Vertical34, ReadOriginalModelCell(battle.NativeGraphics!, 3).Transform!.Vertical34);
-            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.NativeGraphics!, 3).Flags0 & 0x1020);
+            Assert.Equal(originalTarget.Position28, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Transform!.Position28);
+            Assert.Equal(originalTarget.Vertical34, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Transform!.Vertical34);
+            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 0x1020);
             Assert.Equal(new[] { "funnel", "landing", "pieces-ground" }, renderedPhases.Order().ToArray());
             Assert.True(pixelChanges > 100);
             Assert.Equal(1, contacts);
@@ -199,12 +199,12 @@ public sealed class NativeBattleTornado146PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, scene.Render(battle, 320, 224));
             BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + "-before.battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             battle.Tick();
             cold.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output, name + "-after", battle.Capture(), pixels);
             restored.Add(name);
         }

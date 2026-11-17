@@ -33,7 +33,7 @@ public sealed class NativeBattleMegaSpark279CurrentBonesTests
         };
 
         BattleSession battle = world.StartDiagnosticBattle(request);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         int effectStart = 0;
         battle.DiagnosticEffectDispatched += dispatch =>

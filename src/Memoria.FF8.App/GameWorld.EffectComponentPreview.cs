@@ -3,14 +3,12 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record EffectComponentPreviewSource(BattleSnapshot Snapshot, string Sha256);
-
-internal sealed record ComponentSourceAdmission(ushort Effect, byte Command, ushort Action, byte Actor, int HeaderIndex, long Callback);
+internal sealed record EffectComponentPreviewSource(BattleSession Battle, string Sha256);
 
 internal sealed partial class GameWorld
 {
     internal bool IsEffectComponentPreview { get; private set; }
-    internal ComponentSourceAdmission? ComponentSourceAdmission { get; private set; }
+    internal BattleDiagnosticComponentAdmission? ComponentSourceAdmission { get; private set; }
 
     private BattleSession StartEffectComponentPreview(EffectPreviewRequest request, EffectComponentPreviewSource component)
     {
@@ -22,23 +20,24 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("A private component preview requires its native effect and scenario input SHA256.");
         }
-        BattleSnapshot source = component.Snapshot;
+        _ = ValidateEffectComponentSource(component.Battle, effect);
+        BattleSnapshot source = component.Battle.CaptureForContinuation();
         string executable = source.Definition.NativeRetainedMemory?.ColdExecutableSha256 ?? throw new InvalidDataException("The component source lacks its authenticated executable owner.");
         if (!string.Equals(executable, assets.NativeExecutableHash, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("The component source executable differs from the installed resources.");
         }
         NativeBattleEffectBinding installed = assets.ReadNativeEffectCatalogForEffects([effect]).Single(binding => binding.Effect == effect);
-        NativeBattleEffectBinding supplied = source.Definition.NativeEffectCatalog.Single(binding => binding.Effect == effect);
+        NativeBattleEffectBinding supplied = component.Battle.Presentation!.ReadDiagnosticComponentResources(effect);
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(installed), JsonSerializer.SerializeToElement(supplied)))
         {
             throw new InvalidDataException("The component source differs from the installed native effect binding and resources.");
         }
-        BattleSession active = AttachNativeEffectResources(BattleSession.Restore(source));
-        ComponentSourceAdmission? admission = ValidateEffectComponentSource(source, active, effect);
+        BattleSession active = InstalledBattlePresentation.Restore(source, assets, BattleResources);
+        BattleDiagnosticComponentAdmission admission = ValidateEffectComponentSource(active, effect);
         long callbacks = active.NativeHostCallbacks ?? throw new NotSupportedException("Component preview requires its restored native callback ledger.");
         IsEffectComponentPreview = true;
-        ComponentSourceAdmission = admission;
+        ComponentSourceAdmission = admission.ModuleLoaded ? admission : null;
         battle = active;
         synchronizedNativeBattleCallbacks = callbacks;
         session.SetLiveBattle(active);
@@ -46,79 +45,13 @@ internal sealed partial class GameWorld
         return active;
     }
 
-    internal static ComponentSourceAdmission? ValidateEffectComponentSource(BattleSnapshot source, BattleSession active, ushort expectedEffect)
+    internal static BattleDiagnosticComponentAdmission ValidateEffectComponentSource(BattleSession active, ushort expectedEffect)
     {
-        if (!active.NativeEntryReady || active.Outcome != BattleOutcome.Active || active.NativeGraphics is not { } graphics || source.NativeEffectMemory is null)
+        if (active.Outcome != BattleOutcome.Active || active.Presentation is not { } process)
         {
-            throw new InvalidDataException("A component preview requires completed original entry and one unstarted native effect.");
+            throw new InvalidDataException("A component source requires an active canonical battle presentation.");
         }
-        int[] queued = graphics.Descriptors.Queue.Where(index => graphics.Descriptors.Packets[index].Command == 104).ToArray();
-        if (graphics.OriginalEffect is { ReturnedDescriptor: null } admitted)
-        {
-            NativeBattleActionPacketsState admittedPackets = active.NativeActionPackets;
-            BattleActionHeaderReference reference;
-            BattleModelOwner actor;
-            NativeBattleActionGraphicsState? context = null;
-            if (admitted.Parameters is { } parameters)
-            {
-                reference = parameters.Header;
-                actor = parameters.Source;
-            }
-            else
-            {
-                context = graphics.ActionGraphics ?? throw new InvalidDataException("The loaded component lacks its native invocation context.");
-                reference = context.Header;
-                actor = context.ResolveActor(graphics);
-            }
-            int headerIndex = Enumerable.Range(0, admittedPackets.ActionCount).SingleOrDefault(index => new BattleActionHeaderReference(index) == reference, -1);
-            BattleCombatant? participant = active.Combatants.SingleOrDefault(candidate => candidate.NativeActorIndex is >= 0 and < 7 && active.ReadPresentationModelOwner(candidate.Id) == actor);
-            if (admitted.RequestedEffect != expectedEffect || admitted.Binding.Effect != expectedEffect || !admitted.Pools.IsEmpty || headerIndex < 0 || headerIndex >= NativeBattleRetainedActionPackets.HeaderCapacity ||
-                participant?.NativeActorIndex is not int actorIndex || !graphics.ActorModels.TryGet(actor, out _))
-            {
-                throw new InvalidDataException("The admitted component does not retain its exact unstarted native effect and physical owners.");
-            }
-            uint invocationPointer = checked(0x1D280C4u + (uint)headerIndex * 20);
-            if (context is not null && !graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 &&
-                (context.Callback == 0x50BC20 && task.Phase is 1 or 2 || context.Callback == 0x50B190 && task.Phase is 2 or 3) &&
-                graphics.Descriptors.Packets[task.PacketSlot].Command == 104 && graphics.Descriptors.Packets[task.PacketSlot].Argument == invocationPointer))
-            {
-                throw new InvalidDataException("The loaded component lacks its unstarted native module invocation descriptor.");
-            }
-            NativeBattleActionHeaderSlot admittedHeader = admittedPackets.ReadHeader(reference);
-            NativeBattleEffectBinding selected = source.Definition.NativeEffectCatalog.Single(binding => binding.Effect == expectedEffect);
-            if (admittedHeader.Effect != expectedEffect || admittedHeader.Source != actor || context is not null && NativeBattleActionGraphics.SelectService(admittedHeader).Callback != context.Callback ||
-                !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(selected), JsonSerializer.SerializeToElement(admitted.Binding)) || queued.Length > 1 || queued.Any(index => graphics.Descriptors.Packets[index].Argument != invocationPointer))
-            {
-                throw new InvalidDataException("The admitted component parameters, installed binding and physical action header disagree.");
-            }
-            return new(expectedEffect, admittedHeader.Command, admittedHeader.Action, checked((byte)actorIndex), headerIndex, graphics.Callback);
-        }
-        if (queued.Length != 1)
-        {
-            throw new InvalidDataException("A component preview requires exactly one original queued action104 descriptor.");
-        }
-        uint pointer = graphics.Descriptors.Packets[queued[0]].Argument;
-        if (pointer < 0x1D280C4 || (pointer - 0x1D280C4) % 20 != 0)
-        {
-            throw new InvalidDataException("The component action104 does not refer to its original physical header table.");
-        }
-        uint header = (pointer - 0x1D280C4) / 20;
-        NativeBattleActionPacketsState packets = active.NativeActionPackets;
-        if (header >= packets.ActionCount || header >= NativeBattleRetainedActionPackets.HeaderCapacity || packets.ReadHeader(new BattleActionHeaderReference((int)header)).Effect != expectedEffect)
-        {
-            throw new InvalidDataException("The component physical header does not identify the declared queued native effect.");
-        }
-        if (graphics.OriginalEffect is { } previous)
-        {
-            IReadOnlyList<string> blockers = active.ObserveDiagnosticDrainBlockers();
-            bool resourceBlocker = blockers.Any(blocker => blocker is "effect-or-auxiliary-task" or "file-camera-sound-or-effect-resource");
-            bool descriptorBlocker = !graphics.PendingContacts.IsEmpty || graphics.Descriptors.Queue.Length != 1 || graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
-            if (previous.ReturnedDescriptor != 0 || active.NativeEffectMemory?.ReadReturnedTask5044B0() != 0 || resourceBlocker || descriptorBlocker)
-            {
-                throw new InvalidDataException("The component source retains an unreleased previous module: " + string.Join(", ", blockers));
-            }
-        }
-        return null;
+        return process.ReadDiagnosticComponentAdmission(expectedEffect);
     }
 
     private void AdvanceEffectComponentClock(BattleSession active, int callbacks)

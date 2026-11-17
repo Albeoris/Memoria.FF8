@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Memoria.FF8.Runtime;
@@ -7,58 +6,29 @@ public sealed partial class BattleSession
 {
     private NativeBattleActionPacketsState nativeActionPackets;
     private NativeBattlePartyStatusMirrors nativePartyStatusMirrors = NativeBattlePartyStatusMirrors.Unknown();
-    private NativeBattleEffectMemory? nativeEffectMemory;
-    private ImmutableDictionary<long, NativeBattleSceneReplaySource>? nativeRetainedSceneReplaySources;
     public NativeBattleActionPacketsState NativeActionPackets => nativeActionPackets;
     public NativeBattlePartyStatusMirrors NativePartyStatusMirrors => nativePartyStatusMirrors;
-    public int? NativeEffectIoResult { get; private set; }
-    public NativeBattleEffectMemory? NativeEffectMemory
-    {
-        get => nativeEffectMemory;
-        private set
-        {
-            if (NativeBattleTaskOperation.IsActive && !NativeBattleTaskCallerOperation.IsActive)
-            {
-                NativeBattleTaskOperation.AcceptPublishedMemory(value);
-            }
-            nativeEffectMemory = value;
-        }
-    }
-    public NativeBattleModelTextureCache? NativeModelTextureCache { get; private set; }
+    public int? NativeEffectIoResult => Presentation?.NativeEffectIoResult;
+    public NativeBattleEffectMemory? NativeEffectMemory => Presentation?.NativeEffectMemory;
+    public NativeBattleModelTextureCache? NativeModelTextureCache => Presentation?.NativeModelTextureCache;
 
     [MemberNotNull(nameof(nativeActionPackets))]
     private void InitializeNativeRetainedMemory()
     {
-        NativeFileIo = definition.NativeGraphics is null ? definition.NativeRetainedMemory?.FileIo : (definition.NativeRetainedMemory?.FileIo ?? NativeBattleFileIoState.Unknown()).Reset482560();
-        NativeVibrationProcess = definition.NativeVibrationProcess ?? definition.NativeRetainedMemory?.VibrationProcess;
-        BattleModelRoster emptyRoster = new([]);
-        NativeBattleModelAliases emptyAliases = new(emptyRoster, []);
+        BattleModelRoster empty = new([]);
+        NativeBattleModelAliases aliases = new(empty, []);
         if (definition.NativeRetainedMemory is not { } memory)
         {
-            nativeActionPackets = NativeBattleActionPacketsState.Create(emptyRoster, NativeBattleRetainedActionPackets.Fresh(), emptyAliases);
+            nativeActionPackets = NativeBattleActionPacketsState.Create(empty, NativeBattleRetainedActionPackets.Fresh(), aliases);
             return;
         }
         memory.Validate();
-        memory = NativeBattleSceneCopyProvenance.RestoreRetainedSources(NativeBattleStorageSnapshots.RestoreForNewBattle(memory));
-        nativeRetainedSceneReplaySources = memory.SceneReplaySources;
-        //47CCB0 initial entry calls48D1F0; the physical arenas, pointer and independent gates survive it.
-        nativeActionPackets = NativeBattleActionPacketsState.Create(emptyRoster, memory.ActionPackets, emptyAliases);
-        ResetDiagnosticReflectionHeaders();
+        memory = NativeBattleStorageSnapshots.RestoreForNewBattle(memory);
+        nativeActionPackets = NativeBattleActionPacketsState.Create(empty, memory.ActionPackets, aliases);
         nativePartyStatusMirrors = memory.PartyStatusMirrors;
         RestoreNativePresentationStatusMemory(memory.PresentationStatusMemory);
         nativeActionScratch = memory.ActionScratch with { PublishedTargetCount = memory.ActionScratch.LastPublishedTargetCountE05 };
         RestoreNativeElementAttack(memory.ElementAttack);
-        NativeEffectIoResult = memory.EffectIoResult;
-        NativeEffectMemory = memory.EffectMemory;
-        NativeStage = memory.Stage;
-        NativeModelTextureCache = memory.ModelTextureCache;
-        NativeModelLoader = memory.ModelLoader;
-        NativeFileStaging = memory.FileStaging;
-        NativeModelCpuResources = memory.ModelCpuResources;
-        if (NativeCamera is not null)
-        {
-            NativeCamera = NativeBattleCameraState.Initialize5041E0(memory.Camera);
-        }
         RestoreNativeActionMemory(memory.ActionMemory);
         nativeScriptState = nativeScriptState with { AllocationControl = memory.AllocationControl };
     }
@@ -75,13 +45,5 @@ public sealed partial class BattleSession
     {
         var (roster, aliases) = ReadBattlePresentationPacketBindings();
         nativeActionPackets = nativeActionPackets.WithRoster(roster, aliases);
-    }
-
-    private NativeBattleGraphicsState ResetNativeActionPacketCounts(NativeBattleGraphicsState graphics)
-    {
-        //47DD90 ->48D1F0 clears C0/C1 only, preserving C2, action pause and physical packet payload.
-        nativeActionPackets = nativeActionPackets.ResetCounts();
-        ResetDiagnosticReflectionHeaders(retainHostedPending: true);
-        return graphics;
     }
 }

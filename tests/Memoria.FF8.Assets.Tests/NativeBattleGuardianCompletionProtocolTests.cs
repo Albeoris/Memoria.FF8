@@ -22,8 +22,8 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(protocol))!);
         AdvanceBoth(ref session, ref clone);
         Assert.Equal((byte)8, ActionTask(session).Phase);
-        NativeBattleGraphicsModel caster = ReadOriginalModelCell(session.NativeGraphics!, 0);
-        NativeBattleGraphicsModel neighbor = ReadOriginalModelCell(session.NativeGraphics!, 1);
+        NativeBattleGraphicsModel caster = ReadOriginalModelCell(session.Presentation!.Graphics, 0);
+        NativeBattleGraphicsModel neighbor = ReadOriginalModelCell(session.Presentation!.Graphics, 1);
         Assert.Equal(2, caster.Flags0 & 0xE);
         Assert.Equal(4, caster.Flags2 & 4);
         Assert.Equal(4, neighbor.Flags2 & 4);
@@ -34,7 +34,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         Assert.Equal((byte)11, caster.Sequence);
         if (parameter81 == 2)
         {
-            Assert.Equal(session.NativeStage!.ModelColors!.Color44, neighbor.Color44);
+            Assert.Equal(session.Presentation!.Stage.ModelColors!.Color44, neighbor.Color44);
             Assert.Equal((byte)0, neighbor.Kind5);
             Assert.Equal((short)0, caster.SequenceState!.Header40);
             Assert.Equal((byte)2, caster.SequenceState.Pending3);
@@ -45,31 +45,31 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             Assert.Equal((short)123, caster.SequenceState!.Header40);
             Assert.Equal((byte)0, caster.SequenceState.Pending3);
         }
-        Assert.Equal(0x10u, session.NativeGraphics!.Flags & 0x10);
-        Assert.Equal((byte)1, session.NativeEffectMemory!.Active);
+        Assert.Equal(0x10u, session.Presentation!.Graphics.Flags & 0x10);
+        Assert.Equal((byte)1, session.Presentation!.Memory.Active);
         Assert.DoesNotContain(session.Events, item => item.NativeModuleSound is { Sound: 0x87 or 0x88 });
-        Assert.DoesNotContain(session.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
+        Assert.DoesNotContain(session.Presentation!.Graphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
         SetCameraGate(ref session, waitForLowCameraByte ? (ushort)0x101 : (ushort)0x100);
         SetCameraGate(ref clone, waitForLowCameraByte ? (ushort)0x101 : (ushort)0x100);
         AdvanceBoth(ref session, ref clone);
         if (waitForLowCameraByte)
         {
             Assert.Equal((byte)8, ActionTask(session).Phase);
-            Assert.Equal((ushort)0x101, session.NativeCamera!.Mask);
-            Assert.Equal((byte)1, session.NativeEffectMemory!.Active);
+            Assert.Equal((ushort)0x101, session.Presentation!.Camera.Mask);
+            Assert.Equal((byte)1, session.Presentation!.Memory.Active);
             SetCameraGate(ref session, 0x100);
             SetCameraGate(ref clone, 0x100);
             AdvanceBoth(ref session, ref clone);
         }
         Assert.Equal((byte)9, ActionTask(session).Phase);
-        Assert.Equal((ushort)0, session.NativeCamera!.Mask);
-        Assert.False(session.NativeCamera.ForceCamera);
-        Assert.Equal((byte)1, session.NativeEffectMemory!.Active);
-        Assert.Equal(0x10u, session.NativeGraphics!.Flags & 0x10);
+        Assert.Equal((ushort)0, session.Presentation!.Camera.Mask);
+        Assert.False(session.Presentation!.Camera.ForceCamera);
+        Assert.Equal((byte)1, session.Presentation!.Memory.Active);
+        Assert.Equal(0x10u, session.Presentation!.Graphics.Flags & 0x10);
         AdvanceBoth(ref session, ref clone);
-        Assert.DoesNotContain(session.NativeGraphics!.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
-        Assert.Equal(0u, session.NativeGraphics!.Flags & 0x10);
-        Assert.Equal((byte)0, session.NativeEffectMemory!.Active);
+        Assert.DoesNotContain(session.Presentation!.Graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
+        Assert.Equal(0u, session.Presentation!.Graphics.Flags & 0x10);
+        Assert.Equal((byte)0, session.Presentation!.Memory.Active);
         NativeBattleModuleSound[] sounds = session.Events.Where(item => item.NativeModuleSound is { Sound: 0x87 or 0x88 }).Select(item => item.NativeModuleSound!).ToArray();
         Assert.Equal(parameter81 == 3 ? new uint[] { 0x87, 0x88 } : [], sounds.Select(sound => sound.Sound).ToArray());
         Assert.All(sounds, sound =>
@@ -78,13 +78,13 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             Assert.Equal((byte)128, sound.Pan);
             Assert.Null(sound.Anchor);
         });
-        int numberTasks = session.NativeGraphics.Effects.Slots.Count(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
+        int numberTasks = session.Presentation!.Graphics.Effects.Slots.Count(task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0);
         Assert.Equal(parameter81 == 3 ? 1 : 0, numberTasks);
         Assert.Equal(protocol.Combatants.Select(actor => actor.CurrentHp), session.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(protocol.NativeCrtRandom, session.Capture().NativeCrtRandom);
         Assert.Equal(protocol.NativeGlobalRandomCalls, session.Capture().NativeGlobalRandomCalls);
         AdvanceBoth(ref session, ref clone);
-        Assert.DoesNotContain(session.NativeGraphics!.Descriptors.Queue, slot => session.NativeGraphics!.Descriptors.Packets[slot].Command == 104);
+        Assert.DoesNotContain(session.Presentation!.Graphics.Descriptors.Queue, slot => session.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
         Assert.Equal(sounds.Length, session.Events.Count(item => item.NativeModuleSound is { Sound: 0x87 or 0x88 }));
     }
 
@@ -144,7 +144,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         (NativeBattleDescriptorState descriptors, _) = entry.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header.Ordinal));
         session = BattleSession.Restore(entry with { NativeActionPackets = packets, NativeGraphics = entry.NativeGraphics with { Descriptors = descriptors } });
         //Run actual50AFC0/phase1 preparation once; the module entry has not been invoked at phase2.
-        for (int callback = 0; callback < 200 && !session.NativeGraphics!.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2); callback++)
+        for (int callback = 0; callback < 200 && !session.Presentation!.Graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2); callback++)
         {
             session.Tick();
         }
@@ -180,5 +180,5 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
     }
 
-    private static NativeBattleDescriptorTask ActionTask(BattleSession session) => Assert.Single(session.NativeGraphics!.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
+    private static NativeBattleDescriptorTask ActionTask(BattleSession session) => Assert.Single(session.Presentation!.Graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
 }

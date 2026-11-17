@@ -219,7 +219,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         {
             return;
         }
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(state.Subticks, state.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(state.HostTick)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(state.Subticks, state.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(state.HostTick)));
         NativeBattleGraphicsModel model = presentation.Model;
         ushort saved = Ff7GuestBattleStatuses.ToOrigin(statuses);
         uint transient = Ff7GuestBattleStatuses.ToOriginBattle(statuses);
@@ -319,7 +319,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         model = model with { Rotation14 = yaw, Flags2 = (ushort)(model.Flags2!.Value & ~4) };
         model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, resource.PoseSource!) };
         CrossoverGunbladePresentationState presentation = CrossoverGunbladePresentation.Begin(sourceOwner, model, resource, sequences, null);
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         state = new(roster.EncounterId, invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, false, placement, presentation, global, state.Auxiliary, state.Sine, state.Cosine, distance)
         {
             OriginGlobalRandom = state.OriginGlobalRandom,
@@ -336,7 +336,7 @@ internal sealed partial class CrossoverGunbladeHostAttack : IFf7BattleGuestAttac
         {
             throw new InvalidOperationException("Guest Attack advances one admitted host tick at a time.");
         }
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(state.Subticks, state.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(state.HostTick)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(state.Subticks, state.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(state.HostTick)));
         CrossoverGunbladeHostSnapshot next = state with { HostTick = hostTick, Subticks = clock.Subticks, HalfSubtick = clock.HalfSubtick };
         if (clock.Callbacks == 0)
         {

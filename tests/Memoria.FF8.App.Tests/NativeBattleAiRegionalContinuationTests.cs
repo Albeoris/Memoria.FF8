@@ -14,7 +14,7 @@ public sealed class NativeBattleAiRegionalContinuationTests
         using GameAssets assets = new(directory);
         using WorldAssets worldAssets = new(directory);
         GameSession session = CreateSession(assets);
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory);
         ushort[] formations = new byte[] { 6, 4, 10, 24 }.SelectMany(ground => worldAssets.ReadRandomEncounterDefinition(24576, -29406, ground, 1)!.Formations).Distinct().Order().ToArray();
         Assert.Equal(Enumerable.Range(512, 10).Select(id => (ushort)id), formations);
         NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
@@ -23,7 +23,7 @@ public sealed class NativeBattleAiRegionalContinuationTests
             BattleDefinition definition = world.CreateEncounterBattle(formation);
             Assert.Equal(session.State.CharacterVitals!.CombatParty.Where(row => row != 255).Select(row => (int)row), definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId!.Value));
             NativeBattleMusicEntryPreparation entry = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, new(1, null, null, null, 0, null), 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
-            BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = entry.MusicProcess, NativeGlobalSoundProcess = entry.SoundProcess }, BattleAtbMode.Normal);
+            BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = entry.MusicProcess, NativeGlobalSoundProcess = entry.SoundProcess }, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, world.BattleResources);
             for (int callback = 0; callback < 2500 && !HasEnemyTurn(battle); callback++)
             {
                 battle.Tick();

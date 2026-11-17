@@ -25,7 +25,7 @@ public sealed class BattleExpandedViewportTests
             Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0 }, new() { Id = "enemy", Name = "Opponent", ModelId = 1 }]
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, false);
+        BattleScenePresentation scene = new(assets, definition);
         CaptureBackend actual = new();
         scene.Render(session, width, height, actual);
         CaptureBackend expected = new();

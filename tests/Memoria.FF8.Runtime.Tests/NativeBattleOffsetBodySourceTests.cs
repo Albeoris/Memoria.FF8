@@ -54,7 +54,7 @@ public sealed class NativeBattleOffsetBodySourceTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 100, CurrentHp = 100 }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 100, CurrentHp = 100 }]
         };
         BattleSession session = new(definition, BattleAtbMode.Normal);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         uint rowAddress = NativeBattleFileStaging.Address + 0x1000;
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         if (staged)
@@ -75,7 +75,7 @@ public sealed class NativeBattleOffsetBodySourceTests
         NativeBattleModelGeometrySource source = (NativeBattleModelGeometrySource)select.Invoke(session, [graphics, frame, OriginalOwner(0)])!;
         Assert.Same(pointer.CpuPublication, source.Owner.CpuPublication);
         Assert.Equal(bytes, source.Read(0, bytes.Length));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, fixture.Current);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, fixture.Current);
         Assert.Equal(bytes, source.Read(0, bytes.Length));
         Assert.Throws<InvalidDataException>(() => source.Read(bytes.Length, 1));
         NativeBattleEffectArena context = new NativeBattleModelGeometryCursor(source, 4).Write(NativeBattleEffectArena.Clear(), 0);

@@ -80,7 +80,7 @@ public sealed partial class BattleSession
         bool allowReplacement = request.Replacement == BattleTargetReplacement.UseCurrentBattlePolicy && !nativeScriptState.DisableAutomaticTargetReplacement;
         IEnumerable<BattleCombatant> SidePopulation(BattleSide side)
         {
-            return Roster(side).Where(actor => actor.Slot is not null && (UsesExpandedRoster || HasNativeRosterSlot(actor))).OrderBy(actor => actor.Slot!.Value.Position);
+            return Roster(side).Where(actor => actor.Slot is not null).OrderBy(actor => actor.Slot!.Value.Position);
         }
 
         BattleCombatant[] ResolveSelection(BattleTargetSelection selection, out bool unavailable)

@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleWaterDepthContinuationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void Selected_standalone_continues_its_actual_water_packets_and_releases_the_action()
@@ -22,7 +22,7 @@ public sealed class NativeBattleWaterDepthContinuationTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         BattleSession battle = Restore(initial);
-        BattleScenePresentation scene = new(assets, initial.Definition, true);
+        BattleScenePresentation scene = new(assets, initial.Definition);
         string output = Path.Combine(evidence!, "water-continuation-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Water continuation evidence: " + output);
@@ -98,7 +98,7 @@ public sealed class NativeBattleWaterDepthContinuationTests
             direct.AdvanceNativeGraphicsPresentation(Callback);
             cold.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(new BattleScenePresentation(assets, initial.Definition, true).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(new BattleScenePresentation(assets, initial.Definition).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition).Render(cold, 320, 224).ToArray());
             Publish(name + "-next", cold.Capture(), true);
         }
 

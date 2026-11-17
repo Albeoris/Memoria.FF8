@@ -11,7 +11,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleCuraPresentationTests
 {
-    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void Installed_Cura_casting_runs_original_callbacks_pixels_sound_and_one_healing_contact_through_restore()
@@ -86,9 +86,9 @@ public sealed class NativeBattleCuraPresentationTests
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } }));
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_CURA_EVIDENCE");
         string evidenceId = "cura-casting-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
@@ -129,7 +129,7 @@ public sealed class NativeBattleCuraPresentationTests
                 {
                     clone.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(clone, 320, 224));
                     continuedClone = true;
                     clone = null;
                 }
@@ -160,7 +160,7 @@ public sealed class NativeBattleCuraPresentationTests
                     string json = JsonSerializer.Serialize(snapshot);
                     clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
                     Assert.Equal(json, JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(visible, new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224));
+                    Assert.Equal(visible, new BattleScenePresentation(assets, definition).Render(clone, 320, 224));
                     PublishEvidence(evidence, evidenceId + "-mid", snapshot, visible);
                 }
             }
@@ -184,9 +184,9 @@ public sealed class NativeBattleCuraPresentationTests
         Assert.Equal(1, healingTransitions);
         Assert.Equal((ushort)200, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.False(HasActionDescriptor(battle), "Original Cura104 did not complete within the diagnostic callback bound.");
-        Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
-        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0 & 4);
+        Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags0 & 4);
         Assert.Equal(before.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(before.Random, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");
@@ -204,7 +204,7 @@ public sealed class NativeBattleCuraPresentationTests
 
     private static bool HasActionDescriptor(BattleSession battle)
     {
-        NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
         return descriptors.Queue.Any(slot => descriptors.Packets[slot].Command == 104);
     }
 

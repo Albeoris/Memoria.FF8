@@ -34,7 +34,7 @@ public sealed class NativeBattlePcPageTailMigrationTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         string status = "pending";
         try
         {
@@ -42,7 +42,7 @@ public sealed class NativeBattlePcPageTailMigrationTests
             second.Tick();
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(directory, Path.GetFileNameWithoutExtension(output!) + ".after-tail", first.Capture(), pixels);
             status = "validated";
         }

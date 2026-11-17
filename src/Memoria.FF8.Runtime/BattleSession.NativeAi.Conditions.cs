@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         else if (subject is >= 220 and <= 227)
         {
             BattleCombatant owner = FindNativeConditionActor(actor, selector);
-            if (UsesExpandedRoster && owner.AiActorReferences.ContainsKey(subject - 220))
+            if (owner.AiActorReferences.ContainsKey(subject - 220))
             {
                 // A native reference occupies slot 0..6. Constants above that range are distinct markers.
                 if (!NativeBattleAiCondition.CanCompareActorReference(comparison, value))
@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         if (definition.NativeExamTimerAtEntry is { } entry)
         {
             NativeExamTimerState current = nativeConditionTimer ?? entry;
-            long callbacks = NativeGraphics is null ? Frame : NativeHostCallbacks ?? throw new NotSupportedException("Native timer conditions require the executed47CF60 callback ledger; explicitly migrate the named older checkpoint.");
+            long callbacks = Frame;
             long remaining = callbacks - nativeConditionTimerFrame;
             while (remaining > 0)
             {
@@ -147,13 +147,8 @@ public sealed partial class BattleSession
         }
         else if (selector == 203)
         {
-            if (UsesExpandedRoster)
-            {
                 string? expected = value == 200 ? actor.Id : ExpandedAiModelActor(value)?.Id;
                 return CompareNativeConditionBit(actor.LastAttackerId == expected, comparison);
-            }
-            left = NativeConditionLastAttackerIndex(actor);
-            right = value == 200 ? actor.RequireNativeActorIndex() : NativeConditionActorIndex(value);
         }
         else
         {
@@ -188,8 +183,6 @@ public sealed partial class BattleSession
 
     private BattleCombatant FindNativeConditionActor(BattleCombatant actor, int selector)
     {
-        if (UsesExpandedRoster)
-        {
             return selector switch
             {
                 200 => actor,
@@ -200,15 +193,6 @@ public sealed partial class BattleSession
                 _ => ExpandedAiModelActor(selector)
                     ?? throw new NotSupportedException($"Expanded battle AI model selector {selector} has no current participant.")
             };
-        }
-        int index = selector switch
-        {
-            200 => actor.RequireNativeActorIndex(),
-            203 => NativeConditionLastAttackerIndex(actor),
-            >= 220 and <= 227 => checked((int)ReadNativeActorVariable(actor, selector)),
-            _ => NativeConditionActorIndex(selector)
-        };
-        return combatants.FirstOrDefault(candidate => candidate.NativeActorIndex == index) ?? throw new NotSupportedException($"Native battle AI condition actor index {index} has no retained allocation.");
     }
 
     private BattleCombatant FindExpandedNumericConditionActor(uint index)
@@ -230,14 +214,14 @@ public sealed partial class BattleSession
 
     private IEnumerable<BattleCombatant> NativeConditionModelActors(int model)
     {
-        IEnumerable<BattleCombatant> population = UsesExpandedRoster ? ExpandedAiModelQueryPopulation(model) : NativeTargetActors();
+        IEnumerable<BattleCombatant> population = ExpandedAiModelQueryPopulation(model);
         return population.Where(candidate => NativeModelId(candidate) == model);
     }
 
     private IEnumerable<BattleCombatant> NativeConditionGroup(int selector)
     {
         //48A830 scans physical slots0..2 or3..6; model selectors inspect exactly the same seven slots.
-        if (UsesExpandedRoster && selector is not (200 or 201))
+        if (selector is not (200 or 201))
         {
             return NativeConditionModelActors(selector);
         }

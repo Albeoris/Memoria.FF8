@@ -39,7 +39,7 @@ public sealed class ExpandedBattleReturnTests
         PrepareParty(session, fire.Id);
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 4, AdditionalEnemies = 4 });
         BattleSession battle = Enter(world, session);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == Caster);
         BattleCombatant target = battle.Combatants.Last(actor => !actor.IsPlayer);
         int initialHp = target.CurrentHp;
@@ -69,7 +69,7 @@ public sealed class ExpandedBattleReturnTests
         }
         Assert.True(observedRecovery);
         Assert.Null(battle.ActiveAction);
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
         Assert.Equal(5, battle.GetAvailableMagicCasts(Caster, fire.Id));
         Assert.Equal(initialHp, target.CurrentHp);
         Assert.DoesNotContain(battle.Events.Skip(eventStart), item => item.Kind == "EffectContact" && item.ActorId == Caster);
@@ -90,9 +90,9 @@ public sealed class ExpandedBattleReturnTests
         Assert.Equal(new[] { 0, 255, 255 }, fieldParty);
 
         BattleSession battle = Enter(world, session);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
-        Assert.Null(battle.NativeGraphics);
+        Assert.Null(battle.Presentation?.Graphics);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant[] activeEnemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         Assert.Equal(5, activeEnemies.Length);
@@ -150,7 +150,7 @@ public sealed class ExpandedBattleReturnTests
         for (int callback = 0; callback < 500 && battle.Outcome == BattleOutcome.Active; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, world.Battle!.ExpandedPresentationProcess);
+            Assert.Same(process, world.Battle!.Presentation);
             Assert.Equal(initialResults, session.State.AppliedBattleResultIds.Length);
         }
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
@@ -161,8 +161,8 @@ public sealed class ExpandedBattleReturnTests
         Assert.Null(battle.DebugOutcome);
         Assert.Single(battle.Events, item => item.Kind == "Outcome");
 
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
-        Assert.Equal(child.CurrentCrtRandom, battle.CurrentCrtRandom);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        Assert.Equal(child.Presentation!.CurrentCrtRandom, battle.Presentation!.CurrentCrtRandom);
         Assert.Equal(child.NativeGlobalRandomChange, battle.NativeGlobalRandomChange);
         Assert.Same(child.NativeMusicProcess, battle.NativeMusicProcess);
         Assert.Same(child.NativeGlobalSoundProcess, battle.NativeGlobalSoundProcess);
@@ -221,7 +221,7 @@ public sealed class ExpandedBattleReturnTests
             resumed.EnsureField();
             AssertFieldParty(resumed, loaded, fieldParty, fieldBindings);
             BattleSession next = Enter(resumed, loaded);
-            Assert.NotSame(process, next.ExpandedPresentationProcess);
+            Assert.NotSame(process, next.Presentation);
             Assert.Equal(4, next.Combatants.Count(actor => actor.IsPlayer));
             Assert.Equal(5, next.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
             Assert.Equal(4, next.GetAvailableMagicCasts(Caster, fire.Id));
@@ -275,17 +275,17 @@ public sealed class ExpandedBattleReturnTests
         session.SetRandomEncounters(new(true, random, new(SceneKind.Field, 133, world.Events.Frame, Formation, source)));
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.True(process.EntryReady);
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
         return battle;
     }
 
-    private static (BattleEvent Event, NativeBattleContactHalf Contact) CompleteCommand(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, int eventStart, string target, BattleAbility ability)
+    private static (BattleEvent Event, NativeBattleContactHalf Contact) CompleteCommand(GameWorld world, BattleSession battle, BattlePresentationProcess process, int eventStart, string target, BattleAbility ability)
     {
         HashSet<long> tokens = [];
         List<NativeBattleContactHalf> contacts = [];
@@ -293,7 +293,7 @@ public sealed class ExpandedBattleReturnTests
         for (int callback = 0; callback < 1500 && !battle.Events.Skip(eventStart).Any(item => item.Kind == "ActionComplete" && item.ActorId == Caster); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (process.LastStepActionToken is long token)
             {
                 tokens.Add(token);

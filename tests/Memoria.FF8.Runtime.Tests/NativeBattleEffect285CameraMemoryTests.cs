@@ -9,10 +9,10 @@ public sealed class NativeBattleEffect285CameraMemoryTests
     public void Position_WORD_stores_retain_destination_padding_and_current_camera_scalars()
     {
         NativeBattleCameraState camera = Camera();
-        NativeBattleEffect285CameraSnapshot captured = BattleSession.CaptureNativeEffect285Camera(camera);
+        NativeBattleEffect285CameraSnapshot captured = BattlePresentationProcess.CaptureNativeEffect285Camera(camera);
         Assert.Throws<NotSupportedException>(() => captured.SavedEye8.Read(6, 2));
         Assert.Equal((short)14, BinaryPrimitives.ReadInt16LittleEndian(captured.SavedTarget8.Read(6, 2)));
-        NativeBattleCameraState moved = BattleSession.ApplyNativeEffect285CameraPoint(camera, new(true, Point(4, 5, 6)));
+        NativeBattleCameraState moved = BattlePresentationProcess.ApplyNativeEffect285CameraPoint(camera, new(true, Point(4, 5, 6)));
         Assert.Equal(new NativeBattleCameraPoint(4, 5, 6), moved.CurrentPose!.Eye);
         Assert.Equal(camera.CurrentPose!.Target, moved.CurrentPose.Target);
         Assert.Equal((short)10, moved.EyePaddingF6);
@@ -27,27 +27,27 @@ public sealed class NativeBattleEffect285CameraMemoryTests
     public void Saved_DWORD_restores_copy_padding_knownness_without_restoring_saved_roll_or_focal()
     {
         NativeBattleCameraState camera = Camera();
-        NativeBattleEffect285CameraSnapshot captured = BattleSession.CaptureNativeEffect285Camera(camera);
-        NativeBattleCameraState eye = BattleSession.ApplyNativeEffect285CameraPoint(camera, new(true, captured.SavedEye8, true));
-        NativeBattleCameraState restored = BattleSession.ApplyNativeEffect285CameraPoint(eye, new(false, captured.SavedTarget8, true));
+        NativeBattleEffect285CameraSnapshot captured = BattlePresentationProcess.CaptureNativeEffect285Camera(camera);
+        NativeBattleCameraState eye = BattlePresentationProcess.ApplyNativeEffect285CameraPoint(camera, new(true, captured.SavedEye8, true));
+        NativeBattleCameraState restored = BattlePresentationProcess.ApplyNativeEffect285CameraPoint(eye, new(false, captured.SavedTarget8, true));
         Assert.Equal(camera.CapturedPose!.Eye, restored.CurrentPose!.Eye);
         Assert.Equal(camera.CapturedPose.Target, restored.CurrentPose.Target);
         Assert.Null(restored.EyePaddingF6);
         Assert.Equal((short)14, restored.TargetPaddingFE);
         Assert.Equal(camera.FocalLength, restored.FocalLength);
         Assert.Equal(camera.Roll, restored.Roll);
-        Assert.Throws<NotSupportedException>(() => BattleSession.ApplyNativeEffect285CameraPoint(camera, new(true, captured.SavedEye8.Write(6, [1]), true)));
+        Assert.Throws<NotSupportedException>(() => BattlePresentationProcess.ApplyNativeEffect285CameraPoint(camera, new(true, captured.SavedEye8.Write(6, [1]), true)));
     }
 
     [Fact]
     public void Model_BYTE_stores_preserve_high_flags_and_WORD_stores_restore_only_selected_bits()
     {
         NativeBattleGraphicsModel model = new(0xABFD);
-        NativeBattleGraphicsModel cleared = BattleSession.ApplyNativeEffect285ModelFlags(model, new(OriginalOwner(3), 1, 0xFB, 0));
+        NativeBattleGraphicsModel cleared = BattlePresentationProcess.ApplyNativeEffect285ModelFlags(model, new(OriginalOwner(3), 1, 0xFB, 0));
         Assert.Equal((ushort)0xABF9, cleared.Flags0);
-        NativeBattleGraphicsModel restored = BattleSession.ApplyNativeEffect285ModelFlags(cleared, new(OriginalOwner(3), 2, 0xFFFB, 4));
+        NativeBattleGraphicsModel restored = BattlePresentationProcess.ApplyNativeEffect285ModelFlags(cleared, new(OriginalOwner(3), 2, 0xFFFB, 4));
         Assert.Equal(model.Flags0, restored.Flags0);
-        Assert.Throws<NotSupportedException>(() => BattleSession.ApplyNativeEffect285ModelFlags(model, new(OriginalOwner(3), 4, 0, 0)));
+        Assert.Throws<NotSupportedException>(() => BattlePresentationProcess.ApplyNativeEffect285ModelFlags(model, new(OriginalOwner(3), 4, 0, 0)));
     }
 
     private static NativeBattleCameraState Camera() => NativeBattleCameraState.Initialize() with { CurrentPose = new(new(1, 2, 3), new(7, 8, 9), 777, 123), CapturedPose = new(new(-1, -2, -3), new(-7, -8, -9), 555, -5), FocalLength = 777, Roll = 123, EyePaddingF6 = 10, CapturedEyePadding806 = null, CapturedTargetPadding80E = 14, ForceCamera = true };

@@ -16,8 +16,8 @@ public sealed class ExpandedBattlePresentationProcessClockTests
         uint options = (definition.NativeSavedOptions!.Value & ~1u) | (wait ? 1u : 0u);
         definition = definition with { NativeSavedOptions = options };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        ExpandedBattlePresentationProcess process = new(battle, selected);
-        battle.AttachExpandedPresentationProcess(process);
+        battle.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleCombatant polling = battle.Combatants.First(actor => actor.IsPlayer);
         BattleCombatant ready = battle.Combatants.Last(actor => actor.IsPlayer);
         polling.Atb = 0;
@@ -53,12 +53,11 @@ public sealed class ExpandedBattlePresentationProcessClockTests
         battle.Tick();
         Assert.Equal(before + 4 * gain, polling.NativeAtb!.Current);
 
-        BattleSession child = (BattleSession)typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process)!;
-        PropertyInfo graphics = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!;
+        PropertyInfo graphics = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!;
         int presentedBefore = battle.ReadDisplayedVital(polling.Id).HitPoints;
         NativeBattleContactHalf damage = new(battle.ReadPresentationModelOwner(polling.Id), 4, 0, 0, polling.NativeStatus0, 200, polling.NativeStatus1);
         typeof(BattleSession).GetMethod("PublishExpandedPartyPresentedContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.ReadBattlePresentationRoster(), damage]);
-        graphics.SetValue(child, process.Graphics with { UiServices = process.Graphics.UiServices!.SetFlags(2) });
+        graphics.SetValue(process, process.Graphics with { UiServices = process.Graphics.UiServices!.SetFlags(2) });
         battle.Tick();
         Assert.True(process.Graphics.UiServices!.PauseDE9);
         int pausedHp = battle.ReadDisplayedVital(polling.Id).HitPoints;
@@ -73,7 +72,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
         Assert.Equal(pausedUi + 4, process.Graphics.UiServices!.Counter);
         Assert.Equal(pausedGauge, polling.NativeAtb.Current);
         Assert.Equal(pausedHp, battle.ReadDisplayedVital(polling.Id).HitPoints);
-        graphics.SetValue(child, process.Graphics with { UiServices = process.Graphics.UiServices.SetFlags(0, 2) });
+        graphics.SetValue(process, process.Graphics with { UiServices = process.Graphics.UiServices.SetFlags(0, 2) });
         battle.Tick();
         Assert.False(process.Graphics.UiServices!.PauseDE9);
         Assert.Equal(pausedGraphics + 1, process.Graphics.Callback);
@@ -113,8 +112,8 @@ public sealed class ExpandedBattlePresentationProcessClockTests
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
         };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        ExpandedBattlePresentationProcess process = new(battle, selected);
-        battle.AttachExpandedPresentationProcess(process);
+        battle.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         while (!battle.NativeEntryReady && process.Graphics.Callback < 1200)
         {
             battle.Tick();
@@ -185,8 +184,8 @@ public sealed class ExpandedBattlePresentationProcessClockTests
             Combatants = definition.Combatants.Select(actor => actor with { InitialAtb = 0 }).ToArray()
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationProcess process = new(battle, selected);
-        battle.AttachExpandedPresentationProcess(process);
+        battle.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         while (!battle.NativeEntryReady && process.Graphics.Callback < 1200)
         {
             battle.Tick();

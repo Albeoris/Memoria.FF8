@@ -434,20 +434,15 @@ internal sealed partial class BattleHudElement : UiElement
         {
             yield break;
         }
-        NativeBattleGraphicsState? graphics = controller.Session.NativeGraphics;
-        NativeBattleUiWindows? windows = null;
-        if (graphics?.UiServices is { } nativeUi)
+        BattlePresentationUiState presentation = controller.PresentationUi;
+        if (!presentation.VitalsVisible)
         {
-            windows = nativeUi.Windows ?? throw new NotSupportedException("Native battle HUD requires its retained UI window bank; migrate the named snapshot explicitly.");
-            if (!windows.DrawsVitals4B1740(nativeUi.Flags942))
-            {
-                yield break;
-            }
+            yield break;
         }
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];
-            if (windows is null || actor.NativeActorIndex is int originalSlot && windows.IsVitalsRowVisible4B1740(originalSlot))
+            if (presentation.AllowsVitalsRow(actor.Id))
             {
                 yield return (actor, BattleHudLayout.PartyRow(index, party.Count, controller.TextScale));
             }

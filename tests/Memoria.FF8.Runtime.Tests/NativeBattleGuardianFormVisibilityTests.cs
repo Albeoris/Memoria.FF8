@@ -38,12 +38,12 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         BattleSession battle = Session();
         NativeBattleGuardianFormPresentation presentation = Presentation(mode, phase) with { SkipRequested = skip };
         NativeBattleGraphicsState graphics = HiddenGraphics() with { Flags = 0x10, GuardianFormPresentation = presentation };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
         Return(battle);
-        Assert.Null(battle.NativeGraphics!.GuardianFormPresentation);
-        AssertVisibility(battle.NativeGraphics, presentation);
-        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0);
-        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags2);
+        Assert.Null(battle.Presentation!.Graphics.GuardianFormPresentation);
+        AssertVisibility(battle.Presentation?.Graphics, presentation);
+        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags0);
+        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags2);
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 3);
         NativeBattleGraphicsState current = HiddenGraphics();
         NativeBattleGraphicsState graphics = current with { GuardianFormPresentation = presentation };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
         Return(battle);
-        Assert.Equal(current.ActorModels.Entries.Where(entry => entry.Owner != Actor), battle.NativeGraphics!.ActorModels.Entries.Where(entry => entry.Owner != Actor));
+        Assert.Equal(current.ActorModels.Entries.Where(entry => entry.Owner != Actor), battle.Presentation!.Graphics.ActorModels.Entries.Where(entry => entry.Owner != Actor));
     }
 
     [Fact]

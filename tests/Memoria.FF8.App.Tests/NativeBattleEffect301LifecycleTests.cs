@@ -80,9 +80,9 @@ public sealed class NativeBattleEffect301LifecycleTests(ITestOutputHelper output
 
     private static Lifecycle Observe(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         NativeBattleOriginalEffectState? effect = graphics.OriginalEffect;
-        NativeBattleEffect301State state = battle.NativeEffectMemory!.Effect301!;
+        NativeBattleEffect301State state = battle.Presentation!.Memory.Effect301!;
         (byte[] bytes, bool[] known) = state.ScriptCursor4.ReadSnapshot(0, 4);
         uint? cursor = known.All(value => value) ? BinaryPrimitives.ReadUInt32LittleEndian(bytes) : null;
         NativeBattleEffectTaskPool? main = effect?.Pools.FirstOrDefault(pool => pool.DescriptorAddress == NativeBattleEffect301Profile.MainDescriptor);

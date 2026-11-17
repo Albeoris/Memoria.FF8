@@ -48,8 +48,8 @@ public sealed class NativeBattleModelLoaderSessionTests
         Assert.Equal(0x5077B0u, session.NativeModelLoader!.Task!.Callback);
         Assert.Equal((byte)1, session.NativeModelLoader.Task.Phase);
         Assert.Equal(-1, session.NativeEffectIoResult);
-        Assert.Equal((byte?)1, ReadOriginalModelCell(session.NativeGraphics!, 0).EffectCounter97);
-        Assert.Equal(0, ReadOriginalModelCell(session.NativeGraphics!, 0).Flags0 & 2);
+        Assert.Equal((byte?)1, ReadOriginalModelCell(session.Presentation!.Graphics, 0).EffectCounter97);
+        Assert.Equal(0, ReadOriginalModelCell(session.Presentation!.Graphics, 0).Flags0 & 2);
         BattleSnapshot pending = session.Capture();
         string json = JsonSerializer.Serialize(pending);
         BattleSession first = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
@@ -64,12 +64,12 @@ public sealed class NativeBattleModelLoaderSessionTests
         Assert.True(second.NativeEntryReady);
         NativeBattleGraphicsEntryTests.AssertOwnedEnemyResources(first);
         NativeBattleGraphicsEntryTests.AssertOwnedEnemyResources(second);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(first.NativeGraphics!, 0);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(first.Presentation!.Graphics, 0);
         Assert.Equal((byte?)2, model.EffectCounter97);
         Assert.Equal(model.ActiveResourceRow100, model.OriginalResourceRow104);
         Assert.NotNull(model.TextureResourceIndex);
         Assert.NotNull(model.LinkedTextureResourceIndex);
-        Assert.Equal(1024, first.NativeModelCpuResources!.Palettes.Read(0, 1024).Length);
+        Assert.Equal(1024, first.Presentation!.ModelCpuResources.Palettes.Read(0, 1024).Length);
         Assert.Equal(first.Capture().NativeGlobalRandomCalls, second.Capture().NativeGlobalRandomCalls);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         ExportPendingSnapshot(pending);

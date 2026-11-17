@@ -186,9 +186,9 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
         try
         {
             WaitFor(() => battle.CanChoosePlayerCommand("caster"), 600);
-            Assert.Equal(slot, FindOriginalModelSlot(battle.NativeGraphics!, "caster"));
-            ushort[] visibility = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
-            string?[] ids = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => ReadOriginalModelActorId(battle.NativeGraphics!, index)).ToArray();
+            Assert.Equal(slot, FindOriginalModelSlot(battle.Presentation!.Graphics, "caster"));
+            ushort[] visibility = ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => (ushort)(model.Flags0 & 0xC)).ToArray();
+            string?[] ids = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => ReadOriginalModelActorId(battle.Presentation!.Graphics, index)).ToArray();
             BattleActionDefinition action = definition.ActionDefinitions.Single(item => item.Ability == BattleAbility.GuardianForce && item.Id == guardian);
             string target = action.Allies ? "caster" : "enemy";
             battle.QueueAction("caster", target, BattleAbility.GuardianForce, guardian);
@@ -199,7 +199,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
                     battle.AdvanceTurn();
                 }
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (graphics.OriginalEffect is { ReturnedDescriptor: > 0 } original && original.Binding.Effect == effect)
                 {
                     NativeBattleEffectParameters parameters = Assert.IsType<NativeBattleEffectParameters>(original.Parameters);
@@ -229,11 +229,11 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             Assert.Single(battle.Events, item => item.Kind == "GuardianForceCharging" && item.ActorId == "caster");
             Assert.Single(battle.Events, item => item.Kind == "GuardianForceReady" && item.ActorId == "caster");
             Assert.Contains(battle.Events, item => item.Kind == "Damage" && item.ActorId == "caster" && item.TargetId == target);
-            Assert.Equal(ids, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => ReadOriginalModelActorId(battle.NativeGraphics!, index)));
-            Assert.Equal(visibility, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => (ushort)(model.Flags0 & 0xC)));
+            Assert.Equal(ids, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Select(index => ReadOriginalModelActorId(battle.Presentation!.Graphics, index)));
+            Assert.Equal(visibility, ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => (ushort)(model.Flags0 & 0xC)));
             for (int index = 0; index < 3; index++)
             {
-                Assert.Equal((byte)actors[index].ModelId, ReadOriginalModelCell(battle.NativeGraphics!, index).ModelId4);
+                Assert.Equal((byte)actors[index].ModelId, ReadOriginalModelCell(battle.Presentation!.Graphics, index).ModelId4);
             }
             RoundTripNext();
             Record("passed");
@@ -279,7 +279,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             if (root is not null)
             {
                 Directory.CreateDirectory(root);
-                File.AppendAllText(Path.Combine(root, "classic-results.jsonl"), JsonSerializer.Serialize(new { guardian, effect, character, slot, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, Status = status }) + Environment.NewLine);
+                File.AppendAllText(Path.Combine(root, "classic-results.jsonl"), JsonSerializer.Serialize(new { guardian, effect, character, slot, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, Status = status }) + Environment.NewLine);
             }
         }
 

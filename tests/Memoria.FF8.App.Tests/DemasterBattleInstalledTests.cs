@@ -166,7 +166,7 @@ public sealed class DemasterBattleInstalledTests
                 session.Save(Path.Combine(evidenceDirectory, "demaster-stage-regenerated.json"), compact: true);
             }
             using BattleAssets assets = new(GameDirectory(), host.Resources);
-            BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
+            BattleScenePresentation scene = new(assets, battle.Capture().Definition);
             BattleStage stage = assets.LoadStage(battle.Capture().Definition.StageId ?? throw new InvalidDataException("The standalone fixture must identify its original battle stage."));
             Assert.Contains(stage.NativePages.Values, handle => handle.Value.IsReplacement);
             Assert.Contains(NativeBattleTextureReplacements.Bind(stage), value => value.SourceOwner == $"battle/a0stg{stage.Id:D3}.x");
@@ -196,7 +196,7 @@ public sealed class DemasterBattleInstalledTests
             BattleSnapshot snapshot = battle.Capture();
             BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
             Bind(clone);
-            BattleScenePresentation restoredScene = new(assets, snapshot.Definition, true);
+            BattleScenePresentation restoredScene = new(assets, snapshot.Definition);
             Assert.Equal(scene.Render(battle, 640, 448), restoredScene.Render(clone, 640, 448));
             for (int tick = 0; tick < 8; tick++)
             {

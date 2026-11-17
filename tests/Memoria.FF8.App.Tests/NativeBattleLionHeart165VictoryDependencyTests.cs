@@ -40,14 +40,14 @@ public sealed class NativeBattleLionHeart165VictoryDependencyTests
         BattleSession battle = Restore(migrated);
         BattleSession independent = Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path))!);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
-        Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition, true).Render(independent, 320, 224).ToArray());
+        BattleScenePresentation scene = new(assets, migrated.Definition);
+        Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition).Render(independent, 320, 224).ToArray());
         for (int callback = 0; callback < 2; callback++)
         {
             battle.Tick();
             independent.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition, true).Render(independent, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition).Render(independent, 320, 224).ToArray());
         }
         BattleSnapshot after = battle.Capture();
         Assert.Equal(0u, after.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);

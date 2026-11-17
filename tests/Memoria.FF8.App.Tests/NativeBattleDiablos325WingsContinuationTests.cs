@@ -37,7 +37,7 @@ public sealed class NativeBattleDiablos325WingsContinuationTests
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(migrated)!);
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         NativeBattleRestorationPresentationTests.Publish(output, "source", source, null);
         List<object> rows = [];

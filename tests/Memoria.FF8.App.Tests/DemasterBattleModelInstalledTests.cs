@@ -28,7 +28,7 @@ public sealed class DemasterBattleModelInstalledTests
         battle.Tick();
         using BattleAssets assets = new(GameDirectory(), host.Resources);
         BattleSnapshot snapshot = battle.Capture();
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics);
         List<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon)> materials = [];
         for (int index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
@@ -78,7 +78,7 @@ public sealed class DemasterBattleModelInstalledTests
             targetReport.Add(new { model = material.Model.Name, material.Weapon, replacement = hasReplacement, nativeBindings = bindings.Length, provenance = enabled.Where(value => value.IsReplacement).Select(value => value.Provenance).ToArray() });
         }
         Assert.True(replaced > 0, "The configured packages must replace an actual participant's body or linked weapon in the supplied standalone battle.");
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         byte[] enabledPixels = scene.Render(battle, 640, 448);
         string cpuEnabled = Signature(enabledPixels);
         CaptureCpu("battle-model-enabled-cpu.png", enabledPixels);
@@ -106,7 +106,7 @@ public sealed class DemasterBattleModelInstalledTests
         Assert.Equal(gpuEnabled, GpuSignature());
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Bind(clone);
-        BattleScenePresentation restored = new(assets, snapshot.Definition, true);
+        BattleScenePresentation restored = new(assets, snapshot.Definition);
         Assert.Equal(scene.Render(battle, 640, 448), restored.Render(clone, 640, 448));
         for (int tick = 0; tick < 8; tick++)
         {
@@ -115,14 +115,14 @@ public sealed class DemasterBattleModelInstalledTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(scene.Render(battle, 640, 448), restored.Render(clone, 640, 448));
         }
-        Assert.True(battle.NativeGraphics!.Callback > graphics.Callback, "The restored standalone battle must execute its next native callbacks.");
+        Assert.True(battle.Presentation!.Graphics.Callback > graphics.Callback, "The restored standalone battle must execute its next native callbacks.");
         Assert.DoesNotContain(host.Mods.Diagnostics, diagnostic => diagnostic.Code is "replacement-failed" or "demaster-import-failed");
         world.CaptureBattleState();
         string? evidence = EvidenceDirectory();
         if (evidence is not null)
         {
             session.Save(Path.Combine(evidence, "battle-model-validated.json"), compact: true);
-            File.WriteAllText(Path.Combine(evidence, "battle-model-render.json"), JsonSerializer.Serialize(new { targets = targetReport, cpuEnabled, cpuDisabled, gpuEnabled, gpuDisabled, resumedTicks = 8, callbackBefore = graphics.Callback, callbackAfter = battle.NativeGraphics.Callback }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(evidence, "battle-model-render.json"), JsonSerializer.Serialize(new { targets = targetReport, cpuEnabled, cpuDisabled, gpuEnabled, gpuDisabled, resumedTicks = 8, callbackBefore = graphics.Callback, callbackAfter = battle.Presentation!.Graphics.Callback }, new JsonSerializerOptions { WriteIndented = true }));
         }
 
         void Bind(BattleSession selected)

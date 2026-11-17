@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -30,28 +31,10 @@ public sealed partial class BattleSession
             StageExpandedHostedControl(new HostedDispatchControl.ResetCounts());
             return;
         }
-        if (NativeGraphics is not { } graphics)
-        {
             // TODO(TD-009): Logical-only components retain the participant activation without driving the physical sequence VM.
             Log("NativeSequence", actor.Id, target.Id, sequence, $"Native entrance sequence {sequence}.");
             ActivateNativeParticipant(target);
             return;
-        }
-        BattleModelOwner targetOwner = CreatePresentationModelOwner(target);
-        if (target.IsPlayer || (NativeSavedStatusBits(target) & 1) != 0 || !graphics.ActorModels.Contains(targetOwner))
-        {
-            throw new NotSupportedException("Native entrance requires the live, loaded physical enemy selected by the script.");
-        }
-        // 487DF0 selects command 0/id 3. 48FE20 writes ADC from the second operand and suppresses action memory with DF5.
-        (nativeActionPackets, BattleActionHeaderReference header) = nativeActionPackets.Prepare(PrepareNativeEntranceHeader(actor));
-        (nativeActionPackets, _) = nativeActionPackets.AppendContact(PrepareNativeEntranceContact(target, targetOwner, sequence));
-        PublishNativeSingleActionHeader(1);
-        RecordPublishedNativeTargetCount(1);
-        BeginNativeBattleActionPause();
-        graphics = QueueNativeDescriptor(graphics, 112, 0);
-        graphics = QueueNativeActionDescriptor(graphics, header);
-        graphics = QueueNativeModelDescriptor(graphics, 113, 0x487670, targetOwner);
-        NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);
     }
 
     private static NativeBattleActionHeaderPreparation PrepareNativeEntranceHeader(BattleCombatant actor)
@@ -113,10 +96,6 @@ public sealed partial class BattleSession
         int count = targets.Length;
         PublishNativeSingleActionHeader(count);
         RecordPublishedNativeTargetCount(count);
-        if (NativeGraphics is { } graphics)
-        {
-            NativeGraphics = QueueNativeActionDescriptor(graphics, headerIndex);
-        }
         if (nativeAiDepth == 0 && context.MultiCastMode != 0 && !aborted)
         {
             nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
@@ -126,7 +105,7 @@ public sealed partial class BattleSession
     private BattleNativeAction NativeGraphicContactAction(BattleCombatant actor, byte effect)
     {
         //48FE20's first switch defaults to actorBD5; its second switch252 sets ADD1 without4922B0.
-        return new(252, 1, -1, -1) { MagicId = effect, Name = "Native graphical effect", AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = UsesExpandedRoster ? (byte)(3 | NativeGraphicsTargetFlags()) : (byte)3, DamagePresentation = 0, Element = UsesExpandedRoster ? checked((byte)actor.ElementAttack) : ReadNativeElementAttack(actor), ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
+        return new(252, 1, -1, -1) { MagicId = effect, Name = "Native graphical effect", AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = (byte)(3 | NativeGraphicsTargetFlags()), DamagePresentation = 0, Element = checked((byte)actor.ElementAttack), ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
     }
 
     private bool ResolveNativeGraphicHit(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction native)

@@ -16,7 +16,7 @@ public sealed class BattleDebugDefaultActionsTests
         BattleStock[] items = assets.ReadNewGameEconomy().Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
         // Explicit laboratory actor stock is separate from the authentic New Game owner above.
         BattleCombatantDefinition actor = new() { Id = "party-0", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce, BattleAbility.Item], EquipmentIds = [0], MagicStocks = [new(1, 4)] };
-        BattleDefinition initial = BattleDebugDefaults.Create([actor], null, 0, actionDefinitions: actions, items: items) with { NativeCommandSequences = assets.ReadNativeBattleCommandSequences() };
+        BattleDefinition initial = BattleDebugDefaults.Create([actor], new() { Id = "enemy-0", Name = resources.ReadEnemyName(1), ModelId = 1 }, 0, actionDefinitions: actions, items: items) with { NativeCommandSequences = assets.ReadNativeBattleCommandSequences() };
         using TemporaryPresetFile file = new();
         BattleDebugPresets presets = new(file.Path);
         BattleDefinition? started = null;
@@ -35,7 +35,7 @@ public sealed class BattleDebugDefaultActionsTests
             Assert.Equal(vitals.GuardianForces[gf.Id].HitPoints > 0 && (vitals.GuardianForces[gf.Id].Flags & 1) != 0, gf.Available);
         }
         BattleSession battle = new(started, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }, execute: input => battle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast));
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }, execute: input => battle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast), readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Down);
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal("Fire", Assert.Single(hud.ActionChoices).Name);
@@ -61,7 +61,7 @@ public sealed class BattleDebugDefaultActionsTests
         {
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Custom action", BattleActionEffect.Heal, 3, true)],
             Items = [new(91, 2)],
-            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, BattleDebugDefaults.Dummy]
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Training opponent", ModelId = 1 }]
         };
         BattleDebugPresets presets = new();
         presets.Save(0, custom, BattleAtbMode.TurnBased);
@@ -74,7 +74,7 @@ public sealed class BattleDebugDefaultActionsTests
     public void OpeningDefaultEditorDuringCombatCopiesCurrentMagicAndItemStocks()
     {
         BattleCombatantDefinition actor = new() { Id = "party-0", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(1, 2)] };
-        BattleDefinition definition = new() { Combatants = [actor, BattleDebugDefaults.Dummy], ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 18, false)], Items = [new(1, 2)] };
+        BattleDefinition definition = new() { Combatants = [actor, new() { Id = "enemy-0", Name = "Training opponent", ModelId = 1 }], ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 18, false)], Items = [new(1, 2)] };
         BattleSession active = new(definition, BattleAtbMode.TurnBased);
         active.QueueAction("party-0", "enemy-0", BattleAbility.Magic, 1);
         Assert.Equal(2, Assert.Single(active.Combatants[0].MagicStocks).Count);
@@ -83,7 +83,7 @@ public sealed class BattleDebugDefaultActionsTests
             active.Tick();
         }
         Assert.Equal(1, Assert.Single(active.Combatants[0].MagicStocks).Count);
-        BattleDefinition defaults = BattleDebugDefaults.Create([actor], null, 0, active, definition.ActionDefinitions, [new(1, 99)]);
+        BattleDefinition defaults = BattleDebugDefaults.Create([actor], definition.Combatants[1], 0, active, definition.ActionDefinitions, [new(1, 99)]);
         Assert.Equal(new BattleStock(1, 1), Assert.Single(defaults.Combatants[0].MagicStocks));
         Assert.Equal(new BattleStock(1, 2), Assert.Single(defaults.Items));
         Assert.Single(defaults.ActionDefinitions);

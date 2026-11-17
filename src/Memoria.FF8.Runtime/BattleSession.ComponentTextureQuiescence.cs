@@ -28,61 +28,7 @@ public sealed partial class BattleSession
     /// <summary>Observe a conditional resident-texture fixed point without changing any native owner or the raw drain contract.</summary>
     public BattleComponentTextureQuiescenceObservation? ObserveComponentTerminalTextures(ushort expectedEffect)
     {
-        if (NativeGraphics is not { OriginalEffect: { ReturnedDescriptor: 0 } selected } graphics || selected.RequestedEffect != expectedEffect || selected.Binding.Effect != expectedEffect || NativeEffectMemory is not { Active: 0 } memory)
-        {
             return null;
-        }
-        BattleDiagnosticTextureQuiescence textures = CaptureDiagnosticTextureQuiescence(graphics);
-        if (!textures.IsTerminalQuiescent)
-        {
-            return null;
-        }
-        nativeActionPackets.Validate();
-        BattleDiagnosticInvocationOwners owners = CaptureDiagnosticInvocationOwnerState(graphics);
-        uint returned = checked((uint)memory.ReadReturnedTask5044B0());
-        ImmutableArray<string> blockers = ObserveDiagnosticDrainBlockers().ToImmutableArray();
-        BattleComponentTextureQuiescenceObservation observation = new(expectedEffect, graphics.Callback, 0, returned, owners, DiagnosticPhysicalCommandBanksMatch(null), textures, "", blockers);
-        if (!observation.IsEligible)
-        {
-            return null;
-        }
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        HashValue(hash, owners.ActionHeaders);
-        HashValue(hash, owners.ContactRows);
-        HashValue(hash, owners.RetainedActiveHeader ?? -1);
-        HashValue(hash, owners.RetainedActiveContact ?? -1);
-        HashValue(hash, graphics.Auxiliary.Head!.Value);
-        HashValue(hash, graphics.Auxiliary.Tail!.Value);
-        foreach (BattleDiagnosticTextureTask row in textures.Tasks)
-        {
-            NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[row.Slot];
-            NativeBattleGraphicsModel model = graphics.ActorModels.Get(task.ModelOwner ?? throw new InvalidDataException("Observed texture task lost its live model owner."));
-            HashValue(hash, row.Slot);
-            HashValue(hash, task.Flags);
-            HashValue(hash, task.State);
-            HashValue(hash, task.Next ?? -1);
-            HashValue(hash, (int)task.Kind);
-            HashValue(hash, task.UnknownByteMask);
-            hash.AppendData(task.Payload.AsSpan());
-            HashValue(hash, task.Program!.Offset);
-            HashValue(hash, task.Program.Source.Length);
-            hash.AppendData(task.Program.Source.AsSpan());
-            HashValue(hash, row.ModelIndex!.Value);
-            HashValue(hash, model.Flags0 & 2);
-            HashValue(hash, model.ResourceFlags44!.Value & 0x40);
-            HashValue(hash, model.Sequence!.Value);
-            HashValue(hash, model.ActiveResourceRow100 ?? -1);
-            HashValue(hash, model.ActiveStagedResourceRow100 is uint staged ? staged : -1L);
-            HashValue(hash, model.ResourceMagicId is ushort magic ? magic : -1L);
-            if (model.BodyTextureSlots is { } binding)
-            {
-                foreach (byte? slot in binding.PaletteRows)
-                {
-                    HashValue(hash, slot is byte value ? value : -1);
-                }
-            }
-        }
-        return observation with { ResidentFingerprint = Convert.ToHexStringLower(hash.GetHashAndReset()) };
     }
 
     private static void HashValue(IncrementalHash hash, long value)

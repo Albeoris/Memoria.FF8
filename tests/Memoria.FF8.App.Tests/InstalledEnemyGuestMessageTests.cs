@@ -10,23 +10,20 @@ public sealed class InstalledEnemyGuestMessageTests
     private const byte Death = 43;
 
     [Theory]
-    [InlineData(509, false)]
-    [InlineData(509, true)]
-    [InlineData(510, false)]
-    [InlineData(510, true)]
-    [InlineData(981, false)]
-    [InlineData(981, true)]
-    public void Original_reserve_scripts_admit_on_the_installed_formation(ushort formation, bool attached)
+    [InlineData(509)]
+    [InlineData(510)]
+    [InlineData(981)]
+    public void Original_reserve_scripts_admit_on_the_installed_formation(ushort formation)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, assets.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: assets) { UsePhysicalBattlePresentation = !attached };
+        using GameWorld world = new(session, directory, sharedAssets: assets);
         ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, knockedOutAlly: formation == 981, survivorHpBonus: formation == 509 ? (ushort)9999 : null), formation, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: ExpandedBattleInstalledEntry.Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.Equal(attached, battle.ExpandedPresentationProcess is not null);
+        Assert.NotNull(battle.Presentation);
         TickUntil(battle, () => Settled(battle) && (formation != 981 || battle.Combatants.Any(IsLoadedReserve)), "original formation entry");
 
         if (formation == 509)
@@ -38,23 +35,18 @@ public sealed class InstalledEnemyGuestMessageTests
             Assert.True(hidden.Untargetable);
             Assert.DoesNotContain(battle.Events, item => item.Kind == "Queued" && item.ActorId == hidden.Id && item.Amount == 352);
 
-            BattleSnapshot? initialTurnSnapshot = attached ? null : battle.Capture();
+            BattleSession restored = battle.ForkForContinuation();
             byte initialTurn = initial.AiTurnCount;
             SetReadyActor(battle, initial);
             TickUntil(battle, () => initial.AiTurnCount > initialTurn && Settled(battle), "model 122 original Turn");
             Assert.Equal(initialTurn + 1, initial.AiTurnCount);
             Assert.True(hidden.IsActive);
-            if (initialTurnSnapshot is not null)
-            {
-                BattleSession restored = BattleSession.Restore(initialTurnSnapshot);
-                restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-                BattleCombatant restoredInitial = Assert.Single(restored.Combatants, actor => actor.Id == initial.Id);
-                Assert.Contains(restored.Combatants, actor => actor.Id == hidden.Id && actor.IsActive && actor.Untargetable);
-                SetReadyActor(restored, restoredInitial);
-                TickUntil(restored, () => restoredInitial.AiTurnCount > initialTurn && Settled(restored), "model 122 restored Turn");
-                Assert.Equal(initial.AiTurnCount, restoredInitial.AiTurnCount);
-                Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), restored.Capture().Random!.Indexes.ToArray());
-            }
+            BattleCombatant restoredInitial = Assert.Single(restored.Combatants, actor => actor.Id == initial.Id);
+            Assert.Contains(restored.Combatants, actor => actor.Id == hidden.Id && actor.IsActive && actor.Untargetable);
+            SetReadyActor(restored, restoredInitial);
+            TickUntil(restored, () => restoredInitial.AiTurnCount > initialTurn && Settled(restored), "model 122 restored Turn");
+            Assert.Equal(initial.AiTurnCount, restoredInitial.AiTurnCount);
+            Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), restored.Capture().Random!.Indexes.ToArray());
 
             BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party-0");
             BattleCombatant observer = battle.Combatants.Single(actor => actor.Id == "party-1");
@@ -85,7 +77,7 @@ public sealed class InstalledEnemyGuestMessageTests
         Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.IsActive && !actor.IsAlive);
 
         BattleModelOwner owner = battle.ReadPresentationModelOwner(reserve.Id);
-        NativeBattleGraphicsState graphics = battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         int resourceRow = Assert.IsType<int>(graphics.ActorModels.Get(owner).OriginalResourceRow104);
         BattleSnapshot beforeTurn = battle.Capture();
         NativeBattleRetainedMemory retained = NativeBattleStorageSnapshots.Fork(battle.CaptureRetainedBattleMemory(beforeTurn, NativeFieldRuntimeProfile.FF8EnExecutableHash));
@@ -129,7 +121,7 @@ public sealed class InstalledEnemyGuestMessageTests
         ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, knockedOutAlly: true, survivorHpBonus: 9999), 510, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: ExpandedBattleInstalledEntry.Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         TickUntil(battle, () => Settled(battle), "formation 510 entry");
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party-0");
         BattleCombatant observer = battle.Combatants.Single(actor => actor.Id == "party-1");
@@ -260,7 +252,7 @@ public sealed class InstalledEnemyGuestMessageTests
     private static bool IsAllocatedKnockout(BattleCombatant actor) => actor.IsPlayer && actor.IsActive && actor.NativeActorIndex is >= 0 and < 3 && (actor.NativeStatus0 & 1) != 0;
 
     private static bool Settled(BattleSession battle) => battle.NativeEntryReady && battle.QueuedActions.Count == 0 && battle.ActiveAction is null &&
-        battle.NativeScriptState.AllocationControl?.ActionGate != true && battle.ExpandedPresentationProcess is not { HasActiveAction: true } and not { HasPendingModelLoad: true };
+        battle.NativeScriptState.AllocationControl?.ActionGate != true && battle.Presentation is not { HasActiveAction: true } and not { HasPendingModelLoad: true };
 
     private static void TickUntil(BattleSession battle, Func<bool> reached, string boundary)
     {

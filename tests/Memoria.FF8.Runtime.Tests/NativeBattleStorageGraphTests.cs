@@ -14,8 +14,8 @@ public sealed class NativeBattleStorageGraphTests
         BattleSnapshot captured = live.Capture() with { StorageGraph = null };
         BattleSession first = BattleSession.Restore(captured);
         BattleSession second = BattleSession.Restore(captured);
-        NativeBattleEffectArena main = first.NativeEffectMemory!.Arena!;
-        NativeBattleNodeSource source = first.NativeEffectMemory.Recover93!.Nodes.Data!;
+        NativeBattleEffectArena main = first.Presentation!.Memory.Arena!;
+        NativeBattleNodeSource source = first.Presentation!.Memory.Recover93!.Nodes.Data!;
         Assert.Same(main.Working, source.Arena.Working);
         main.Write(SourceOffset + 4, [71]);
         Assert.Equal((byte)71, source.ReadByte(4));
@@ -26,8 +26,8 @@ public sealed class NativeBattleStorageGraphTests
         Assert.Equal(73u, source.ReadUInt32(76));
         source.Arena.Write(80, [74]);
         Assert.Equal((byte)74, task.Slots[0].ReadByte(16));
-        Assert.Equal((byte)0, second.NativeEffectMemory!.Recover93!.Nodes.Data!.ReadByte(4));
-        Assert.Equal((byte)0, live.NativeEffectMemory!.Recover93!.Nodes.Data!.ReadByte(4));
+        Assert.Equal((byte)0, second.Presentation!.Memory.Recover93!.Nodes.Data!.ReadByte(4));
+        Assert.Equal((byte)0, live.Presentation!.Memory.Recover93!.Nodes.Data!.ReadByte(4));
         byte[] raw = new byte[1];
         bool[] known = new bool[1];
         source.ReadWithKnownness(100, raw, known);
@@ -128,15 +128,15 @@ public sealed class NativeBattleStorageGraphTests
         BattleSnapshot captured = live.Capture() with { StorageGraph = null };
         BattleSession first = BattleSession.Restore(captured);
         BattleSession second = BattleSession.Restore(captured);
-        NativeBattleNodeSource source = first.NativeEffectMemory!.Rinoa88!.NodeData!;
+        NativeBattleNodeSource source = first.Presentation!.Memory.Rinoa88!.NodeData!;
         Assert.True(source.IsStaging);
         uint address = NativeBattleRinoa88NodeResources.Address;
-        first.NativeFileStaging!.Write(address + 4, [91]);
+        first.Presentation!.NativeFileStaging!.Write(address + 4, [91]);
         Assert.Equal((byte)91, source.ReadByte(4));
         source.StagingAuthority.Write(address + 5, [92]);
-        Assert.Equal((byte)92, first.NativeFileStaging.ReadByte(address + 5));
-        Assert.Equal((byte)0, second.NativeEffectMemory!.Rinoa88!.NodeData!.ReadByte(4));
-        Assert.Equal((byte)0, live.NativeEffectMemory!.Rinoa88!.NodeData!.ReadByte(4));
+        Assert.Equal((byte)92, first.Presentation!.NativeFileStaging.ReadByte(address + 5));
+        Assert.Equal((byte)0, second.Presentation!.Memory.Rinoa88!.NodeData!.ReadByte(4));
+        Assert.Equal((byte)0, live.Presentation!.Memory.Rinoa88!.NodeData!.ReadByte(4));
         byte[] raw = new byte[1];
         bool[] known = new bool[1];
         source.ReadWithKnownness(100, raw, known);
@@ -173,9 +173,9 @@ public sealed class NativeBattleStorageGraphTests
         staging.Write(address + 100, [123]);
         staging.MarkUnknown(address + 100, 1);
         NativeBattleNodeSource source = NativeBattleNodeSource.Borrow(staging, address, NativeBattleRinoa88NodeResources.Length);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory! with { Rinoa88 = NativeBattleRinoa88State.FromColdProcess() with { NodeData = source } };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, staging);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+        NativeBattleEffectMemory memory = session.Presentation!.Memory with { Rinoa88 = NativeBattleRinoa88State.FromColdProcess() with { NodeData = source } };
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(session.Presentation!, staging);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, memory);
         return session;
     }
 
@@ -201,7 +201,7 @@ public sealed class NativeBattleStorageGraphTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!.BeginLoad(0);
+        NativeBattleEffectMemory memory = session.Presentation!.Memory.BeginLoad(0);
         NativeBattleEffectArena arena = memory.Arena!;
         NativeBattleNodeSource source = NativeBattleNodeSource.Borrow(arena, SourceOffset, NativeBattleRecover93Nodes.SourceLength);
         arena.Write(SourceOffset + 100, [123]);
@@ -209,7 +209,7 @@ public sealed class NativeBattleStorageGraphTests
         source.Arena.WriteResourcePointer(32, new(null, null) { CpuRow = 2 });
         NativeBattleRecover93NodeState nodes = NativeBattleRecover93NodeState.FromColdProcess() with { Data = source };
         memory = memory with { Recover93 = new(null, [], null, null, null, 0, 0, nodes) };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, memory);
         return session;
     }
 }

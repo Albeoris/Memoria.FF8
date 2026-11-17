@@ -35,11 +35,9 @@ public sealed class ExpandedHostedEventOrderTests
                 Scripts = [[0], [0], [0], [0], actor.Id == support.Id ? [4, 203, 3, 13, 6, 0] : [0]]
             }
         }).ToArray();
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors, EncounterMod = route }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased });
-        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        GameWorld.AttachExpandedEffects(battle, game, world.BattleResources);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors, EncounterMod = route }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased }, game, world.BattleResources);
         world.CommitPreparedBattleEntry(entry with { Battle = battle });
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleSession presentation = ReadPresentation(process);
         DrainEntry(battle, process);
 
@@ -68,7 +66,7 @@ public sealed class ExpandedHostedEventOrderTests
         for (int frame = 0; frame < 2400 && (!BattleCompletedAction(battle, firstEvent, caster.Id) || battle.ActiveAction is not null); frame++)
         {
             battle.Tick();
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (counterHeader is null && presentation.NativeActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Source == counterOwner && header.Slot.Action == demi.ActionId) is { Slot: not null } produced)
             {
                 counterHeader = produced.Reference;
@@ -146,7 +144,7 @@ public sealed class ExpandedHostedEventOrderTests
         for (int frame = 0; frame < 1200 && !BattleCompletedAction(battle, nextEvent, caster.Id); frame++)
         {
             battle.Tick();
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         Assert.Equal(next.Id, Assert.Single(battle.Events.Skip(nextEvent), item => item.Kind == "EffectContact" && item.ActorId == caster.Id).TargetId);
         Assert.True(BattleCompletedAction(battle, nextEvent, caster.Id));
@@ -164,7 +162,7 @@ public sealed class ExpandedHostedEventOrderTests
         string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         field.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, 29, source)));
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleSession presentation = ReadPresentation(process);
         DrainEntry(battle, process);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
@@ -184,7 +182,7 @@ public sealed class ExpandedHostedEventOrderTests
         for (int frame = 0; frame < 1600 && !BattleCompletedAction(battle, start, wedge.Id); frame++)
         {
             battle.Tick();
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (!entranceObserved && presentation.NativeActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Command == 0 && header.Slot.Action == 3) is { Slot: not null } entrance)
             {
                 entranceObserved = true;
@@ -217,7 +215,7 @@ public sealed class ExpandedHostedEventOrderTests
         Assert.True(wedge.IsAlive);
     }
 
-    private static void DrainEntry(BattleSession battle, ExpandedBattlePresentationProcess process)
+    private static void DrainEntry(BattleSession battle, BattlePresentationProcess process)
     {
         for (int frame = 0; frame < 1200 && (!process.EntryReady || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
@@ -232,9 +230,9 @@ public sealed class ExpandedHostedEventOrderTests
         Assert.Null(battle.ActiveAction);
     }
 
-    private static BattleSession ReadPresentation(ExpandedBattlePresentationProcess process)
+    private static BattleSession ReadPresentation(BattlePresentationProcess process)
     {
-        return Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        return Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
     }
 
     private static bool BattleCompletedAction(BattleSession battle, int start, string actorId)

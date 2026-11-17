@@ -13,7 +13,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        uint? returned = active.NativeGraphics?.OriginalEffect?.ReturnedDescriptor;
+        uint? returned = active.Presentation?.Graphics.OriginalEffect?.ReturnedDescriptor;
         string? boundary = effectPreviewDrainObservations.Observe(returned is > 0, returned == 0, blocked, timeout);
         if (boundary is null)
         {
@@ -22,7 +22,7 @@ internal sealed partial class RecreateGame
         try
         {
             string directory = effectPreview!.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
-            object observation = new { schema_version = 1, boundary, effect = effectPreviewExpectedEffect, source_sha256 = effectComponentSource.Sha256, drain_blockers = active.ObserveDiagnosticDrainBlockers(), owners = active.ObserveDiagnosticEffectPreviewOwners() };
+            object observation = new { schema_version = 1, boundary, effect = effectPreviewExpectedEffect, source_sha256 = effectComponentSource.Sha256, drain_blockers = active.ObserveDiagnosticDrainBlockers(), owners = active.ObserveDiagnosticOwners() };
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(observation, DiagnosticBattleJson);
             if (bytes.Length > 32768)
             {

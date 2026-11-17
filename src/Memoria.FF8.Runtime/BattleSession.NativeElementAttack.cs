@@ -4,7 +4,6 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private ImmutableArray<byte?> nativeElementAttack = [null, null, null, null, null, null, null];
     public ImmutableArray<byte?> NativeElementAttack => nativeElementAttack;
 
     private byte ReadNativeElementAttack(BattleCombatant actor)
@@ -18,11 +17,6 @@ public sealed partial class BattleSession
 
     private void PublishNativeElementAttack(BattleCombatant actor)
     {
-        if (!UsesExpandedRoster && actor.NativePlayerStatRules is not null && actor.NativeActorIndex is int slot && slot < NativeBattleSlots.AllyCount)
-        {
-            //48B310 writes BD5 from the current junction projection; enemy48BBD0 leaves that byte retained.
-            nativeElementAttack = nativeElementAttack.SetItem(slot, checked((byte)actor.ElementAttack));
-        }
     }
 
     private void ReprojectNativePlayerStatistics(BattleCombatant actor)
@@ -30,6 +24,8 @@ public sealed partial class BattleSession
         actor.ReprojectNativePlayerStatistics();
         PublishNativeElementAttack(actor);
     }
+
+    private ImmutableArray<byte?> nativeElementAttack = [null, null, null, null, null, null, null];
 
     private void RestoreNativeElementAttack(ImmutableArray<byte?> bytes)
     {

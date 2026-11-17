@@ -27,7 +27,7 @@ public sealed class BattleUiTests
         definition.Combatants[1] = definition.Combatants[1] with { NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] };
         definition = definition with { ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), readPresentationUi: BattleHudTestPresentation.Visible);
         UiView view = hud.BuildView();
         view.Resize(960, 672);
         UiTheme theme = new();
@@ -60,7 +60,7 @@ public sealed class BattleUiTests
             ],
             ActionDefinitions = [new(BattleAbility.GuardianForce, 1, "Shiva", BattleActionEffect.Damage, 10, false), new(BattleAbility.GuardianForce, 2, "Ifrit", BattleActionEffect.Damage, 10, false)]
         }, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Choose(0);
         TestCanvas canvas = new();
         UiView view = hud.BuildView();
@@ -99,7 +99,7 @@ public sealed class BattleUiTests
             ],
             ActionDefinitions = [new(BattleAbility.Magic, 2, "Blizzard", BattleActionEffect.Damage, 10, false), new(BattleAbility.Magic, 3, "Sleep", BattleActionEffect.Damage, 10, false)]
         }, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Choose(0);
         Assert.Equal(count == 100, hud.DrawCast);
         TestCanvas canvas = new();
@@ -154,7 +154,7 @@ public sealed class BattleUiTests
         BattleDefinition definition = Definition();
         definition = definition with { Combatants = [.. definition.Combatants, new() { Id = "party-1", Name = "Quistis", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), readPresentationUi: BattleHudTestPresentation.Visible);
         UiTheme theme = new();
         UiView view = hud.BuildView();
         view.Resize(960, 672);
@@ -184,7 +184,7 @@ public sealed class BattleUiTests
         BattleDefinition definition = Definition();
         definition = definition with { Combatants = [definition.Combatants[0] with { CurrentHp = hp, MaximumHp = 100, InitialAtb = 0, NativeStatus0 = hp == 0 ? (ushort)1 : (ushort)0 }, new() { Id = "party-1", Name = "Quistis", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, .. definition.Combatants.Skip(1)] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         TestCanvas canvas = new();
         hud.BuildView().Draw(canvas, new UiTheme());
         Assert.Equal(hp == 0 ? new UiColor(148, 148, 164) : new UiColor(238, 238, 238), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
@@ -204,7 +204,7 @@ public sealed class BattleUiTests
         BattleDefinition definition = Definition();
         definition = definition with { Combatants = [definition.Combatants[0] with { CurrentHp = 24 }, .. definition.Combatants.Skip(1)] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.AdvancePresentation(TimeSpan.FromSeconds(3.125 / BattleSession.FramesPerSecond));
         TestCanvas canvas = new();
         hud.BuildView().Draw(canvas, new UiTheme());
@@ -218,7 +218,7 @@ public sealed class BattleUiTests
         BattleDefinition definition = Definition();
         definition = definition with { Combatants = [.. definition.Combatants, new() { Id = "party-1", Name = "Quistis", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), readPresentationUi: BattleHudTestPresentation.Visible);
         hud.SelectParty("party-1");
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
@@ -245,7 +245,7 @@ public sealed class BattleUiTests
         GameState state = GameSession.Load(TestResources.FixturePath("battle-reserved-target"));
         BattleSession session = BattleSession.Restore(state.Battle!);
         BattleCombatant reserve = Assert.Single(session.Combatants, actor => actor.IsActive && actor.Hidden && actor.Untargetable);
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, execute: _ => { });
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, execute: _ => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.SelectParty(session.Combatants.First(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.Magic)).Id);
         hud.Choose(hud.Commands.ToList().IndexOf(BattleAbility.Magic));
         hud.Navigate(MenuInput.Confirm);
@@ -284,7 +284,7 @@ public sealed class BattleUiTests
         {
             session = BattleSession.Restore(session.Capture());
         }
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, execute: _ => { });
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, execute: _ => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Choose(0);
         if (ability != BattleAbility.Attack)
         {
@@ -341,7 +341,7 @@ public sealed class BattleUiTests
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
         List<(string Actor, string Target)> commands = [];
-        BattleHudController hud = new(session, (actor, target) => commands.Add((actor, target)), () => { }, () => { });
+        BattleHudController hud = new(session, (actor, target) => commands.Add((actor, target)), () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         Assert.Empty(commands);
@@ -357,7 +357,7 @@ public sealed class BattleUiTests
     public void Failed_command_displays_a_compact_timed_error_without_closing_target_selection()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, (_, _) => throw new InvalidOperationException("Rejected command"), () => { }, () => { });
+        BattleHudController hud = new(session, (_, _) => throw new InvalidOperationException("Rejected command"), () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Confirm);
         TestCanvas canvas = new();
@@ -375,7 +375,7 @@ public sealed class BattleUiTests
         BattleDefinition definition = Definition();
         definition.Combatants[0] = definition.Combatants[0] with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep, DurationFrames = 1 }] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), readPresentationUi: BattleHudTestPresentation.Visible);
         Assert.Null(hud.SelectedActor);
         Assert.Empty(hud.Commands);
         hud.SelectParty("party-0");
@@ -392,7 +392,7 @@ public sealed class BattleUiTests
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
         int advances = 0;
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => advances++);
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => advances++, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Cancel);
         Assert.False(hud.SelectingTarget);
@@ -427,7 +427,7 @@ public sealed class BattleUiTests
     {
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
         int completions = 0;
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++);
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Complete();
         Assert.Equal(0, completions);
         session.InstantVictory();
@@ -549,7 +549,7 @@ public sealed class BattleUiTests
     {
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
         int completions = 0;
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, () => completions++);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, () => completions++, readPresentationUi: BattleHudTestPresentation.Visible);
         session.InstantVictory();
         TestCanvas canvas = new();
         SettleResultFade(hud);
@@ -681,7 +681,7 @@ public sealed class BattleUiTests
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [new BattleStock(1, 2), new BattleStock(2, 1)], []);
         int completions = 0;
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
         session.InstantVictory();
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);
@@ -704,8 +704,8 @@ public sealed class BattleUiTests
         BattleSession slowSession = new(Definition(magicRecordId: 0), BattleAtbMode.Normal);
         BattleSession fastSession = new(Definition(magicRecordId: 0), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 1000 }, new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [], []);
-        BattleHudController slow = new(slowSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
-        BattleHudController fast = new(fastSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
+        BattleHudController slow = new(slowSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
+        BattleHudController fast = new(fastSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
         slowSession.InstantVictory();
         fastSession.InstantVictory();
         ConfirmSettledResult(slow);
@@ -730,7 +730,7 @@ public sealed class BattleUiTests
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [new BattleStock(1, 1)], []);
         int completions = 0;
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
         session.InstantVictory();
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);

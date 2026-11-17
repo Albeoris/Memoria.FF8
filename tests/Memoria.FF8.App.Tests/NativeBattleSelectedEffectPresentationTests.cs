@@ -68,7 +68,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int maximum = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_MAX_CALLBACKS") is { } limit ? int.Parse(limit) : 2400;
         Assert.True(maximum > 0);
         BattleSession battle = Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         NativeBattleSelectedCinematicObserver? observer = NativeBattleCinematicProfile.IsSupported(effect) || effect == 9 ? new(source, effect) : null;
         NativeBattleSelectedEffect314Observer? observer314 = effect == 314 ? new() : null;
         HashSet<string> boundaries = [];
@@ -286,7 +286,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ownedCommands.Select(command => command.Packet).ToImmutableHashSet();
                     BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
-                    byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                     int changed = 0;
                     for (int pixel = 0; pixel < pixels.Length; pixel += 4)
                     {
@@ -491,12 +491,12 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 NativeBattleGilgameshCaptureAssertions.AssertFrame(cold.Capture(), effect);
             }
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            if (effect == 18 && cold.NativeGraphics?.OriginalEffect?.Binding.Effect == 18)
+            if (effect == 18 && cold.Presentation?.Graphics?.OriginalEffect?.Binding.Effect == 18)
             {
                 NativeBattleControl18CastingAssertions.AssertFrame(cold.Capture());
                 NativeBattleControl18CastingAssertions.AssertFrame(direct.Capture());
             }
-            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray());
         }
 
         bool Released(BattleSnapshot snapshot)

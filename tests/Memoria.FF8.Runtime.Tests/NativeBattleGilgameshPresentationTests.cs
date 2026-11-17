@@ -188,7 +188,7 @@ public sealed class NativeBattleGilgameshPresentationTests
         NativeBattleOriginalEffectState recorded = advanced.State.RecordGilgameshFlashPackets(polled.OriginalEffect, draw.GilgameshFlashPresentation!, "off_B6D070", 0, 52, batch)!;
         Assert.Equal(new NativeBattlePrimitiveReference("off_B6D070", 0, 52), Assert.Single(recorded.PresentationPackets));
         Assert.DoesNotContain(obsolete, recorded.PresentationPackets);
-        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Same(memory, session.Presentation?.Memory);
     }
 
     [Fact]

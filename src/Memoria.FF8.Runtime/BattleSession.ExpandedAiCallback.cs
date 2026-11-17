@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record ExpandedAiInvocationReservation(BattleModelOwner Source, BattleActionPresentation Command);
+    internal sealed record ExpandedAiInvocationReservation(BattleModelOwner Source, BattleActionPresentation Command);
     private bool producingExpandedAiCallback;
     private ExpandedAiInvocationReservation? producingExpandedAiInvocation;
 
@@ -31,7 +31,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant ValidateExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request)
     {
-        if (!UsesExpandedRoster || request.Stage > 3 || request.Actor is null || FindTargetActor(request.Actor) is not { NativeAi: not null } actor ||
+        if (request.Stage > 3 || request.Actor is null || FindTargetActor(request.Actor) is not { NativeAi: not null } actor ||
             !packet.MagicCasts.IsEmpty || (packet with { MagicCasts = [] }) != ExpandedAiCallbackPacket(request))
         {
             throw new InvalidDataException("An expanded AI callback must identify its exact allocated actor and native stage.");

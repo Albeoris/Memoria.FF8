@@ -21,11 +21,11 @@ public sealed class BattleRewardPreviewTests
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(1).AcquireGuardianForce(2).ToggleGuardianForceJunction(0, 1).ToggleGuardianForceJunction(0, 2).RebuildParty().Rest();
         vitals.GuardianForces[1] = vitals.GuardianForces[1] with { HitPoints = checked((ushort)shivaHpBefore) };
         GameSession session = new(new GameState { InputConfiguration = assets.ReadNewGameInputConfiguration(), NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom(), KnownMagic = assets.ReadNewGameKnownMagic() });
-        using GameWorld setup = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld setup = new(session, assets.GameDirectory);
         BattleDefinition original = setup.CreateEncounterBattle(512);
         // Explicit component combat inputs shorten this test without fabricating any defeat/reward receipts.
         BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
-        BattleSession active = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal);
+        BattleSession active = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, setup.BattleResources);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_FIX_EVIDENCE");
         if (evidence is not null)
         {
@@ -64,7 +64,7 @@ public sealed class BattleRewardPreviewTests
             File.WriteAllText(Path.Combine(evidence, $"formation512-victory-frame{active.Frame}.json"), JsonSerializer.Serialize(active.Capture(), new JsonSerializerOptions { WriteIndented = true }));
             using BattleAssets battles = new(assets.GameDirectory);
             BattleDefinition display = active.Capture().Definition;
-            BattleScenePresentation scene = new(battles, display, true);
+            BattleScenePresentation scene = new(battles, display);
             using Bitmap bitmap = new(1280, 896, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
             {

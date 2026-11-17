@@ -21,7 +21,7 @@ public sealed class BattleSavedTargetPerformanceTests
         BattleSnapshot snapshot = Assert.IsType<BattleSnapshot>(source.Battle);
         BattleSession battle = BattleSession.Restore(snapshot);
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         UiRect viewport = new(0, 0, 1280, 720);
         using SKBitmap bitmap = new(1280, 720, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         BattleHudController hud = new(battle, (_, _) => Assert.Fail("Drawing must not submit an action."), () => { }, () => { })

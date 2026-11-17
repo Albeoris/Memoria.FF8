@@ -78,14 +78,14 @@ public sealed class BattleStageOverlayCheckpointTests
         restored.EnsureField();
         BattleSession restoredBattle = Assert.IsType<BattleSession>(restored.Battle);
         AssertOverlay(restoredBattle);
-        Console.WriteLine($"Stage overlay: field {checkpoint.FieldId}, field frame {world.Events.Frame}, encounter {definition.EncounterId}, stage {definition.StageId}, callback {callback:X8}, battle frame {battle.Frame}, graphics callback {battle.NativeGraphics!.Callback}.");
+        Console.WriteLine($"Stage overlay: field {checkpoint.FieldId}, field frame {world.Events.Frame}, encounter {definition.EncounterId}, stage {definition.StageId}, callback {callback:X8}, battle frame {battle.Frame}, graphics callback {battle.Presentation!.Graphics.Callback}.");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_STAGE_OVERLAY_OUTPUT");
         if (output is not null)
         {
             Directory.CreateDirectory(output);
             File.WriteAllText(Path.Combine(output, "stage-overlay-standalone.json"), json);
             File.WriteAllText(Path.Combine(output, "stage-overlay-battle.json"), JsonSerializer.Serialize(checkpoint.Battle));
-            BattleScenePresentation scene = new(world.BattleResources, definition, true);
+            BattleScenePresentation scene = new(world.BattleResources, definition);
             byte[] pixels = scene.Render(battle, 1280, 720);
             using var bitmap = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 1280, 720);
             bitmap.Save(Path.Combine(output, "stage-overlay.png"));
@@ -94,7 +94,7 @@ public sealed class BattleStageOverlayCheckpointTests
         Advance(restored);
         AssertOverlay(battle);
         AssertOverlay(restoredBattle);
-        Assert.Equal(battle.NativeGraphics!.Callback, restoredBattle.NativeGraphics!.Callback);
+        Assert.Equal(battle.Presentation!.Graphics.Callback, restoredBattle.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restoredBattle.Capture()));
 
         GameWorld World(GameSession selected) => new(selected, directory, resources: resources.Resources, resolveGameFile: resources.ResolveGameFile, sharedAssets: assets, readSceneMods: () => resources.SceneMods, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy, applyEncounterMods: resources.ApplyEncounterMods);
@@ -102,7 +102,7 @@ public sealed class BattleStageOverlayCheckpointTests
 
     private static IEnumerable<NativeBattleLogicalCommand> Commands(BattleSession battle)
     {
-        return battle.NativeGraphics?.PrimitiveFrame?.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "1D9BDC8" or "1D9B958") ?? [];
+        return battle.Presentation?.Graphics?.PrimitiveFrame?.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "1D9BDC8" or "1D9B958") ?? [];
     }
 
     private static void AssertOverlay(BattleSession battle)

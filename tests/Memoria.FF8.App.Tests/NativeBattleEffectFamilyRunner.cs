@@ -137,16 +137,16 @@ internal static class NativeBattleEffectFamilyRunner
             Require(source.NativeGraphics is not null && source.NativeEffectMemory is not null, "The standalone fixture lacks its native graphics or effect memory owner.");
             battle = BattleSession.Restore(source);
             Require(JsonSerializer.Serialize(source) == JsonSerializer.Serialize(battle.Capture()), "Restore changed the supplied standalone state.");
-            NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
+            NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
             Require(descriptors.Queue.Count(slot => descriptors.Packets[slot].Command == 104) == 1, "The fixture requires exactly one live action104 descriptor.");
             NativeBattleDescriptorPacket descriptor = descriptors.Packets[descriptors.Queue.Single(slot => descriptors.Packets[slot].Command == 104)];
             ValidateActionIdentity(descriptor, source.NativeActionPackets, source.NativeGraphics!.ActionGraphics, item);
             passed.Add(stage);
-            BattleScenePresentation scene = new(assets, source.Definition, true);
+            BattleScenePresentation scene = new(assets, source.Definition);
             if (phase == "cold")
             {
                 stage = "cold-next-callback";
-                Require(IsInitialized(battle.NativeGraphics?.OriginalEffect, item), "The independent cold fixture does not contain the expected live initialized effect.");
+                Require(IsInitialized(battle.Presentation?.Graphics?.OriginalEffect, item), "The independent cold fixture does not contain the expected live initialized effect.");
                 string expectedPath = Path.Combine(fixtureDirectory, item.ExpectedNextSnapshot);
                 inputHashes["ExpectedNextSnapshot"] = Hash(expectedPath);
                 BattleSnapshot expected = LoadSnapshot(expectedPath);
@@ -155,22 +155,22 @@ internal static class NativeBattleEffectFamilyRunner
                 Require(JsonSerializer.Serialize(expected) == JsonSerializer.Serialize(reference.Capture()), "Expected-next fixture changes during restore.");
                 Advance();
                 callbacks++;
-                Require(battle.NativeGraphics!.Callback == source.NativeGraphics!.Callback + 1, "The cold fixture did not advance exactly one native callback.");
+                Require(battle.Presentation!.Graphics.Callback == source.NativeGraphics!.Callback + 1, "The cold fixture did not advance exactly one native callback.");
                 Require(JsonSerializer.Serialize(expected) == JsonSerializer.Serialize(battle.Capture()), "Cold next callback differs from the supplied expected-next fixture.");
-                Require(scene.Render(battle, 320, 224).SequenceEqual(new BattleScenePresentation(assets, expected.Definition, true).Render(reference, 320, 224)), "Cold next-callback pixels differ.");
+                Require(scene.Render(battle, 320, 224).SequenceEqual(new BattleScenePresentation(assets, expected.Definition).Render(reference, 320, 224)), "Cold next-callback pixels differ.");
                 passed.Add(stage);
             }
             else
             {
                 stage = "initialization";
-                bool initialized = IsInitialized(battle.NativeGraphics?.OriginalEffect, item);
+                bool initialized = IsInitialized(battle.Presentation?.Graphics?.OriginalEffect, item);
                 Save("initial", source);
                 bool midpointSaved = false;
                 bool nextSaved = false;
                 string contact = ReadPointer(JsonSerializer.SerializeToElement(battle.Capture()), item.ContactPointer).GetRawText();
                 while (HasDescriptor(battle) && callbacks < item.MaximumCallbacks)
                 {
-                    if (initialized && !midpointSaved && battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor is > 0)
+                    if (initialized && !midpointSaved && battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor is > 0)
                     {
                         Save("cold", battle.Capture());
                         midpointSaved = true;
@@ -182,7 +182,7 @@ internal static class NativeBattleEffectFamilyRunner
                         Save("next", battle.Capture());
                         nextSaved = true;
                     }
-                    initialized |= IsInitialized(battle.NativeGraphics?.OriginalEffect, item);
+                    initialized |= IsInitialized(battle.Presentation?.Graphics?.OriginalEffect, item);
                     if (initialized && !passed.Contains("initialization"))
                     {
                         passed.Add("initialization");
@@ -206,12 +206,12 @@ internal static class NativeBattleEffectFamilyRunner
                 Save("after", battle.Capture());
                 passed.Add("completion");
                 stage = "task-owner-release";
-                Require(battle.NativeGraphics!.Descriptors.Tasks.All(task => task.Kind != NativeBattleDescriptorTaskKind.Action104 || (task.Flags & 1) == 0), "An action104 task remains live.");
-                NativeBattleOriginalEffectState completedEffect = battle.NativeGraphics.OriginalEffect ?? throw new InvalidDataException("The completed effect owner is absent.");
+                Require(battle.Presentation!.Graphics.Descriptors.Tasks.All(task => task.Kind != NativeBattleDescriptorTaskKind.Action104 || (task.Flags & 1) == 0), "An action104 task remains live.");
+                NativeBattleOriginalEffectState completedEffect = battle.Presentation!.Graphics.OriginalEffect ?? throw new InvalidDataException("The completed effect owner is absent.");
                 Require(completedEffect.Binding.Effect == item.Effect && completedEffect.Binding.Entry == item.Entry, "The completed effect owner differs from the manifest identity.");
                 Require(completedEffect.ReturnedDescriptor == 0, "The effect returned task is not released.");
                 Require(completedEffect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)), "An original effect child task remains live.");
-                Require(battle.NativeEffectMemory is { Active: 0 }, "The effect memory remains active.");
+                Require(battle.Presentation?.Memory is { Active: 0 }, "The effect memory remains active.");
                 JsonElement final = JsonSerializer.SerializeToElement(battle.Capture());
                 foreach (NativeEffectFamilyValue expected in item.FinalValues)
                 {
@@ -235,7 +235,7 @@ internal static class NativeBattleEffectFamilyRunner
 
         NativeEffectFamilyResult Result(string status, string? blocker)
         {
-            return new(item.Id, phase, status, blocker, passed.ToArray(), callbacks, contacts, completions, battle?.Frame, battle?.NativeGraphics?.Callback)
+            return new(item.Id, phase, status, blocker, passed.ToArray(), callbacks, contacts, completions, battle?.Frame, battle?.Presentation?.Graphics?.Callback)
             {
                 SavedFixtures = saved.ToArray(),
                 Metrics = new(elapsed.Elapsed.TotalSeconds, callbackElapsed.TotalSeconds, inputHashes, binaryHashes, artifactBytes)
@@ -247,9 +247,9 @@ internal static class NativeBattleEffectFamilyRunner
             long started = Stopwatch.GetTimestamp();
             try
             {
-                long beforeCallback = battle!.NativeGraphics!.Callback;
+                long beforeCallback = battle!.Presentation!.Graphics.Callback;
                 battle!.AdvanceNativeGraphicsPresentation(Callback);
-                Require(battle.NativeGraphics!.Callback == beforeCallback + 1, "Presentation did not advance exactly one native callback.");
+                Require(battle.Presentation!.Graphics.Callback == beforeCallback + 1, "Presentation did not advance exactly one native callback.");
             }
             finally
             {
@@ -286,7 +286,7 @@ internal static class NativeBattleEffectFamilyRunner
 
     private static bool HasDescriptor(BattleSession battle)
     {
-        NativeBattleDescriptorState state = battle.NativeGraphics?.Descriptors ?? throw new InvalidDataException("The native graphics owner is absent.");
+        NativeBattleDescriptorState state = battle.Presentation?.Graphics?.Descriptors ?? throw new InvalidDataException("The native graphics owner is absent.");
         return state.Queue.Any(slot => state.Packets[slot].Command == 104);
     }
 

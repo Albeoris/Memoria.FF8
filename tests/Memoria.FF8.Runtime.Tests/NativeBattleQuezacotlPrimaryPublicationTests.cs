@@ -82,7 +82,7 @@ public sealed class NativeBattleQuezacotlPrimaryPublicationTests
                 }
                 NativeBattleQuezacotlPacketArena.Append(input.Memory, input.Effect, producer.View, Batch(22));
                 Assert.Throws<InvalidOperationException>(() => NativeBattleTaskOperation.AcceptPublishedOrdering(producer.View));
-                NativeBattleLogicalOrdering published = BattleSession.FreezeNativeQuezacotlOrderingPublication(producer.View, provisional ? input.Ordering : null, continuation);
+                NativeBattleLogicalOrdering published = BattlePresentationProcess.FreezeNativeQuezacotlOrderingPublication(producer.View, provisional ? input.Ordering : null, continuation);
                 NativeBattleTaskOperation.AcceptPublishedOrdering(published);
                 accepted = OrderingReceipt(published);
                 Assert.Null(published.Transaction);

@@ -93,7 +93,7 @@ public sealed class NativeLimitGraphicsCallbackTests
     public void Raw_action_acknowledgment_cannot_substitute_for_the_Shot_or_Duel_readiness_descriptor()
     {
         BattleSession session = Fixture();
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, Graphics());
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, Graphics());
         Dictionary<string, BattleNativeShotState> shots = Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses");
         Dictionary<string, BattleNativeDuelState> duels = Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses");
         BattleNativeShotState shot = new(0, Target, 160, 139, 9, BattleNativeShotPhase.AwaitingEffect);

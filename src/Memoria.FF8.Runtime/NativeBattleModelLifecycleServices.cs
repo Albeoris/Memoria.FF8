@@ -4,16 +4,21 @@ namespace Memoria.FF8.Runtime;
 
 internal sealed record NativeBattleModelActorFacts(string ActorId, bool IsParty, int OriginalModelId, short DoomTimer, short PetrifyTimer)
 {
+    internal IReadOnlyList<string>? EnemyMessages { get; init; }
     internal uint? RawBattleStatuses { get; init; }
     internal int? CurrentHp { get; init; }
     internal int? MaximumHp { get; init; }
     internal byte? Information246 { get; init; }
     internal ushort SavedStatus { get; init; }
+    internal ushort? PresentationSavedStatus { get; init; }
+    internal uint? PresentationBattleStatus { get; init; }
     internal bool PendingAllocationStatistics { get; init; }
 }
 
 internal sealed record HostedNativeAllocationFrame(BattleEnemyActorModel Owner, byte SceneSlot, bool Hidden);
-internal sealed record HostedShotFrameOwner(BattleModelOwner Owner, string ActorId, long ActionToken, uint Callback, BattleNativeShotPhase? Phase);
+internal sealed record HostedShotFrameOwner(BattleModelOwner Owner, string ActorId, long ActionToken, uint Callback, BattleNativeShotPhase? Phase, BattleNativeShotState? State = null);
+internal sealed record NativeBattleShotWidgetFacts(BattleModelOwner Owner, string ActorId, BattleNativeShotState State);
+internal sealed record NativeBattleShotWidgetUpdated(NativeBattleShotWidgetFacts Facts, NativeBattleShotWidgetStep Step) : NativeBattlePresentationReceipt;
 internal enum NativeBattleContactOrigin
 {
     Ordinary,
@@ -22,12 +27,13 @@ internal enum NativeBattleContactOrigin
 }
 
 internal abstract record NativeBattlePresentationReceipt;
-internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet, HostedRenzokukenContact? Renzokuken = null) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationContactReceived(NativeBattleContactPacket Packet, HostedRenzokukenContact? Renzokuken = null, BattlePresentationProcess.HostedPresentationInvocation? Invocation = null) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationCompletionRequested(long Token, uint Callback, BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationSoundCommitted(NativeBattleModuleSound Sound, string? ActorId, NativeBattleSequenceSound? Sequence) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationStopAllSoundsRequested(string Message) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationFileAudioRequested(NativeBattleFileAudioRequest Request) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationMusicCommandCommitted(NativeBattleMusicCommandReceipt Command) : NativeBattlePresentationReceipt;
+internal sealed record NativeBattlePresentationHostEvent(BattleEvent Event) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattlePresentationDescriptorText(BattleEvent Message) : NativeBattlePresentationReceipt;
 internal abstract record NativeBattleModelLifecycleReceipt(BattleModelOwner Owner, string ActorId) : NativeBattlePresentationReceipt;
 internal sealed record NativeBattleAllocationStatisticsRequested(BattleEnemyActorModel Model, byte SceneSlot) : NativeBattleModelLifecycleReceipt(Model, Model.Actor.ActorId);
@@ -45,7 +51,7 @@ internal sealed record NativeBattleModelTextPublished(BattleModelOwner Owner, st
 internal sealed record NativeBattleModelTurnAdvanceStopRequested(BattleModelOwner Owner, string ActorId) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
 internal sealed record NativeBattleShotReadinessReached(HostedShotFrameOwner Shot) : NativeBattleModelLifecycleReceipt(Shot.Owner, Shot.ActorId);
 internal sealed record NativeBattleModelTriggerRegistered(BattleModelOwner Owner, string ActorId, NativeBattleTriggerWidget Widget) : NativeBattleModelLifecycleReceipt(Owner, ActorId);
-internal sealed record NativeBattleGuardianFormLanded(BattleSession.HostedGuardianFormVisualOwner Form) : NativeBattleModelLifecycleReceipt(Form.Actor, Form.ActorId);
+internal sealed record NativeBattleGuardianFormLanded(BattlePresentationProcess.HostedGuardianFormVisualOwner Form) : NativeBattleModelLifecycleReceipt(Form.Actor, Form.ActorId);
 
 internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> facts)
 {
@@ -54,7 +60,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts> Facts { get; } = facts ?? throw new ArgumentNullException(nameof(facts));
     internal HostedNativeAllocationFrame? Allocation { get; init; }
-    internal BattleSession.HostedGuardianFormFrameFacts? GuardianForm { get; init; }
+    internal BattlePresentationProcess.HostedGuardianFormFrameFacts? GuardianForm { get; init; }
     internal ImmutableDictionary<string, float>? ActorOpacities { get; init; }
     internal HostedShotFrameOwner? Shot { get; init; }
     internal HostedDuelFrameOwner? Duel { get; init; }
@@ -68,9 +74,11 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
 
     internal void Emit(NativeBattleModelLifecycleReceipt receipt) => receipts.Add(receipt);
 
+    internal void EmitShotWidget(NativeBattleShotWidgetUpdated update) => receipts.Add(update);
+
     internal void EmitAllocationGate() => receipts.Add(new NativeBattleAllocationGateReached());
 
-    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary)
+    internal void EmitContact(NativeBattleContactPacket packet, HostedRenzokukenContact? renzokuken = null, NativeBattleContactOrigin origin = NativeBattleContactOrigin.Ordinary, BattlePresentationProcess.HostedPresentationInvocation? invocation = null)
     {
         // Bomb's director and the caster's AA both run the same physical contact in one frame.
         if (origin == NativeBattleContactOrigin.SourceModelSequence && packet.Occurrence is not null && packet == bombDirectorContact)
@@ -82,12 +90,13 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
         {
             bombDirectorContact = packet;
         }
-        receipts.Add(new NativeBattlePresentationContactReceived(packet, renzokuken));
+        receipts.Add(new NativeBattlePresentationContactReceived(packet, renzokuken, invocation));
     }
 
     internal void EmitCompletion(NativeBattlePresentationCompletionRequested request) => receipts.Add(request);
     internal void EmitSound(NativeBattleModuleSound sound, string? actorId, NativeBattleSequenceSound? sequence) => receipts.Add(new NativeBattlePresentationSoundCommitted(sound, actorId, sequence));
     internal void EmitStopAllSounds(string message) => receipts.Add(new NativeBattlePresentationStopAllSoundsRequested(message));
+    internal void EmitHostEvent(BattleEvent message) => receipts.Add(new NativeBattlePresentationHostEvent(message));
     internal void EmitFileAudio(NativeBattleFileAudioRequest request) => receipts.Add(new NativeBattlePresentationFileAudioRequested(request));
     internal void EmitMusicCommand(NativeBattleMusicCommandReceipt command) => receipts.Add(new NativeBattlePresentationMusicCommandCommitted(command));
     internal void EmitDescriptorText(BattleEvent message) => receipts.Add(new NativeBattlePresentationDescriptorText(message));

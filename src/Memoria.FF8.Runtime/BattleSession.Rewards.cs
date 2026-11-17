@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Battle snapshot repeats an observed enemy defeat allocation.");
             }
             // A revived expanded enemy can change level while retaining its first defeat's reward operands.
-            bool hasHistoricalLevel = UsesExpandedRoster && source.NativeAi is not null && defeated.ResolvedNativeLevel is not null && (defeated.NativeCombatantFlags & NativeEnemyRewardedFlag) != 0;
+            bool hasHistoricalLevel = source.NativeAi is not null && defeated.ResolvedNativeLevel is not null && (defeated.NativeCombatantFlags & NativeEnemyRewardedFlag) != 0;
             if (defeated.IsAlive && source.NativeAi is null || defeated.Level != defeat.Level && !hasHistoricalLevel)
             {
                 throw new InvalidDataException("Observed enemy defeat contradicts its actual combatant state.");

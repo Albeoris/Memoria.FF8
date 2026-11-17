@@ -25,7 +25,7 @@ public sealed class NativeBattleDiablos325BodyContinuationTests
         using BattleAssets assets = new(directory!);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(original)!);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         List<object> rows = [];
         BattleSnapshot before = source;

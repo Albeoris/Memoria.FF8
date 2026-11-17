@@ -35,7 +35,7 @@ public sealed class NativeRetainedStorageGraphTests
             NativeRetainedMemory = initial.Memory,
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        battle.NativeEffectMemory!.Arena!.Write(Offset + 4, [51]);
+        battle.Presentation!.Memory.Arena!.Write(Offset + 4, [51]);
         BattleSnapshot snapshot = battle.Capture();
         string original = JsonSerializer.Serialize(snapshot);
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(snapshot, snapshot.Definition.NativeRetainedMemory!.ColdExecutableSha256);
@@ -78,7 +78,7 @@ public sealed class NativeRetainedStorageGraphTests
                 Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
             }, BattleAtbMode.Normal);
 
-            NativeBattleEffectMemory fresh = battle.NativeEffectMemory!;
+            NativeBattleEffectMemory fresh = battle.Presentation!.Memory;
             Assert.Null(fresh.DetachedReturnedTask);
             Assert.Equal(0u, fresh.ReturnedTaskPointer1D96AAC);
             Assert.Same(fresh.Arena!.Working, fresh.Recover93!.Nodes.Data!.Arena.Working);
@@ -101,7 +101,7 @@ public sealed class NativeRetainedStorageGraphTests
             NativeRetainedMemory = NativeBattleStorageSnapshots.Capture(live),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        NativeBattleEffectMemory effect = battle.NativeEffectMemory!;
+        NativeBattleEffectMemory effect = battle.Presentation!.Memory;
         const int taskOffset = Offset + 128;
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8 + taskOffset, 48, 2).BindArena(effect.Arena!);
         pool.Append(0x1000);

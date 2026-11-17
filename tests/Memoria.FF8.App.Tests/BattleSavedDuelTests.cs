@@ -32,7 +32,7 @@ public sealed class BattleSavedDuelTests
         Assert.True(battle.CanChoosePlayerCommand(actor.Id));
         Assert.True(battle.GetNativeLimitLevel(actor.Id) > 0);
         battle.QueueAction(actor.Id, target.Id, BattleAbility.LimitBreak, 11 << 16);
-        TimeSpan elapsed = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan elapsed = BattlePresentationTiming.ElapsedForCallbacks(1);
         string directory = Path.Combine(output!, enterCommands ? "commands" : "timeout");
         Directory.CreateDirectory(directory);
         bool ready = false;

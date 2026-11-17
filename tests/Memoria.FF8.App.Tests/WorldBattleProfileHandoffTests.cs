@@ -60,12 +60,12 @@ public sealed class WorldBattleProfileHandoffTests
         AssertCurrentCpu(coldSession, targetAssets);
         Assert.Equal(JsonSerializer.Serialize(target.WorldScene.State), JsonSerializer.Serialize(cold.WorldScene!.State));
         EnterActualWorldEncounter(cold, coldSession);
-        Assert.Equal(targetAssets.NativeRuntimeProfile!.ExecutableHash, cold.Battle!.NativeModelCpuResources!.Cpu.EffectiveLayout.ExecutableHash);
+        Assert.Equal(targetAssets.NativeRuntimeProfile!.ExecutableHash, cold.Battle!.Presentation!.ModelCpuResources.Cpu.EffectiveLayout.ExecutableHash);
         GameSession nextColdSession = ColdDiskCopy(coldSession);
         using (GameWorld nextCold = new(nextColdSession, targetDirectory, sharedAssets: targetAssets, validateWorldPresentation: false))
         {
             nextCold.EnsureField();
-            Assert.Equal(targetAssets.NativeRuntimeProfile.ExecutableHash, nextCold.Battle!.NativeModelCpuResources!.Cpu.EffectiveLayout.ExecutableHash);
+            Assert.Equal(targetAssets.NativeRuntimeProfile.ExecutableHash, nextCold.Battle!.Presentation!.ModelCpuResources.Cpu.EffectiveLayout.ExecutableHash);
         }
         FinishActualBattle(cold, coldSession);
         AssertCurrentCpu(coldSession, targetAssets);

@@ -31,10 +31,10 @@ public sealed class NativeBattleForeignModelContextTests
         NativeBattleGraphicsModel model = new(0x22) { Transform = transform, Color40 = 0x808080 };
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, session.ReadPresentationModelOwner("party"), new(0)), (3, enemy, model)]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [enemy] = actor });
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         NativeCrtRandomState random = new(123);
         typeof(BattleSession).GetField("nativeCrtRandom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, random);
-        NativeBattleFileStaging? staging = session.NativeFileStaging;
+        NativeBattleFileStaging? staging = session.Presentation?.NativeFileStaging;
         NativeBattleCameraProjection projection = new(identity, 128, 160, 108);
         NativeBattlePilotVisualIdentity visual = new(274, 1, 0, 1, 0);
         string method = compactContext ? "DrawNativeDuel215Body69D100" : "DrawNativeEffectModelContext92";
@@ -49,9 +49,9 @@ public sealed class NativeBattleForeignModelContextTests
         Assert.Same(surface, actual.PilotGeometry!.ForeignSurface);
         Assert.Equal(expectedPrimitive.PilotGeometry!.Identity, actual.PilotGeometry.Identity);
         Assert.Null(model.SequenceState);
-        Assert.Null(session.NativeModelCpuResources);
-        Assert.Same(staging, session.NativeFileStaging);
+        Assert.Null(session.Presentation?.ModelCpuResources);
+        Assert.Same(staging, session.Presentation?.NativeFileStaging);
         Assert.Same(random, typeof(BattleSession).GetField("nativeCrtRandom", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session));
-        Assert.True(session.NativeEffectMemory!.PrimitiveProcess!.ByteCursor is > 0);
+        Assert.True(session.Presentation!.Memory.PrimitiveProcess!.ByteCursor is > 0);
     }
 }

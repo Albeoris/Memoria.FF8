@@ -13,7 +13,7 @@ public sealed class NativeAllocationDescriptorTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, [0]);
-        NativeBattleGraphicsState before = battle.NativeGraphics!;
+        NativeBattleGraphicsState before = battle.Presentation!.Graphics;
         Assert.False(battle.NativeEntryReady);
         if (victory)
         {
@@ -28,8 +28,8 @@ public sealed class NativeAllocationDescriptorTests
         Assert.Equal(expected, battle.DebugOutcome);
         Assert.Equal(0, battle.Frame);
         Assert.False(battle.NativeEntryReady);
-        Assert.Equal(before.EntryLifecycle, battle.NativeGraphics!.EntryLifecycle);
-        Assert.Equal(before.Callback, battle.NativeGraphics.Callback);
+        Assert.Equal(before.EntryLifecycle, battle.Presentation!.Graphics.EntryLifecycle);
+        Assert.Equal(before.Callback, battle.Presentation!.Graphics.Callback);
         string json = JsonSerializer.Serialize(battle.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
@@ -53,10 +53,10 @@ public sealed class NativeAllocationDescriptorTests
         NativeBattleGraphicsState graphics = before.NativeGraphics! with { NativeOutcome = new() { ResultByte6E7 = 4, VictoryQueuedDFE = 1, FadeDurationB0C = 0 } };
         battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before with { NativeGraphics = graphics }))!);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        long callbackBefore = battle.NativeGraphics!.Callback;
+        long callbackBefore = battle.Presentation!.Graphics.Callback;
         battle.Tick();
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-        Assert.Equal(callbackBefore, battle.NativeGraphics!.Callback);
+        Assert.Equal(callbackBefore, battle.Presentation!.Graphics.Callback);
         Assert.Equal(before.Frame, battle.Frame);
         Assert.Single(battle.Events, item => item.Kind == "Outcome");
         string completed = JsonSerializer.Serialize(battle.Capture());
@@ -64,7 +64,7 @@ public sealed class NativeAllocationDescriptorTests
         Assert.Equal(completed, JsonSerializer.Serialize(battle.Capture()));
         battle.Tick();
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-        Assert.Equal(callbackBefore, battle.NativeGraphics!.Callback);
+        Assert.Equal(callbackBefore, battle.Presentation!.Graphics.Callback);
         Assert.Single(battle.Events, item => item.Kind == "Outcome");
     }
 
@@ -91,8 +91,8 @@ public sealed class NativeAllocationDescriptorTests
         battle = BattleSession.Restore(snapshot with { Combatants = actors });
         battle.Tick();
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        Assert.Null(battle.NativeGraphics!.NativeOutcome);
-        Assert.DoesNotContain(battle.NativeGraphics.Descriptors.Packets, packet => packet.Command == 115);
+        Assert.Null(battle.Presentation!.Graphics.NativeOutcome);
+        Assert.DoesNotContain(battle.Presentation!.Graphics.Descriptors.Packets, packet => packet.Command == 115);
     }
 
     [Fact]
@@ -111,11 +111,11 @@ public sealed class NativeAllocationDescriptorTests
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
         graphics = graphics with { NativeOutcome = new() { ResultByte6E7 = 4 }, Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DF60).State };
         battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics });
-        for (int callback = 0; callback < 10 && battle.NativeGraphics!.NativeOutcome!.AdmissionDFD != 1; callback++)
+        for (int callback = 0; callback < 10 && battle.Presentation!.Graphics.NativeOutcome!.AdmissionDFD != 1; callback++)
         {
             battle.Tick();
         }
-        Assert.Equal((byte?)1, battle.NativeGraphics!.NativeOutcome!.AdmissionDFD);
+        Assert.Equal((byte?)1, battle.Presentation!.Graphics.NativeOutcome!.AdmissionDFD);
         Assert.Equal((byte)0, battle.Capture().NativeClock!.Active);
         int?[] gauges = battle.Capture().Combatants.Select(actor => actor.NativeAtb?.Current).ToArray();
         battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
@@ -141,24 +141,24 @@ public sealed class NativeAllocationDescriptorTests
         battle.Tick();
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal((byte?)1, battle.NativeResult);
-        Assert.Equal((byte?)3, battle.NativeGraphics!.NativeOutcome!.FadeStyleE01);
+        Assert.Equal((byte?)3, battle.Presentation!.Graphics.NativeOutcome!.FadeStyleE01);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Outcome");
         long combatFrame = battle.Frame;
         battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-        for (int callback = 0; callback < 150 && battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C != 0; callback++)
+        for (int callback = 0; callback < 150 && battle.Presentation!.Graphics.NativeOutcome!.FadeDurationB0C != 0; callback++)
         {
             battle.Tick();
         }
-        Assert.Equal((byte?)0, battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C);
+        Assert.Equal((byte?)0, battle.Presentation!.Graphics.NativeOutcome!.FadeDurationB0C);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal(combatFrame, battle.Frame);
         Assert.Contains(battle.Events, item => item.Kind == "NativeText" && item.Message == assets.ReadNativeGlobalBattleMessages()[0]);
         battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-        long graphicsFrame = battle.NativeGraphics!.Callback;
+        long graphicsFrame = battle.Presentation!.Graphics.Callback;
         battle.Tick();
         Assert.Equal(BattleOutcome.Defeat, battle.Outcome);
         Assert.Equal((byte?)1, battle.NativeResult);
-        Assert.Equal(graphicsFrame, battle.NativeGraphics!.Callback);
+        Assert.Equal(graphicsFrame, battle.Presentation!.Graphics.Callback);
         Assert.Single(battle.Events, item => item.Kind == "Outcome");
         Assert.Empty(battle.QueuedActions);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
@@ -183,10 +183,10 @@ public sealed class NativeAllocationDescriptorTests
         model = model with { Flags8 = 0x800000, Flags2 = (ushort)(model.Flags2!.Value | 4), Sequence = 19, SequenceState = model.SequenceState! with { Pending3 = 2 } };
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model), Descriptors = graphics.Descriptors.Enqueue(114, 128, 240, 0).State };
         battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics });
-        battle.AdvanceNativeGraphicsPresentation(NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1));
-        Assert.Equal(0u, battle.NativeGraphics!.ActorModels.Get(owner).Flags8!.Value & 0x800000u);
-        Assert.Equal((byte)1, battle.NativeGraphics.ActorModels.Get(owner).Sequence);
-        Assert.Equal((byte)0, battle.NativeGraphics.ActorModels.Get(owner).SequenceState!.Pending3);
+        battle.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
+        Assert.Equal(0u, battle.Presentation!.Graphics.ActorModels.Get(owner).Flags8!.Value & 0x800000u);
+        Assert.Equal((byte)1, battle.Presentation!.Graphics.ActorModels.Get(owner).Sequence);
+        Assert.Equal((byte)0, battle.Presentation!.Graphics.ActorModels.Get(owner).SequenceState!.Pending3);
     }
 
     [Theory]
@@ -273,7 +273,7 @@ public sealed class NativeAllocationDescriptorTests
         battle = BattleSession.Restore(ready with { NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } });
         BattleCombatant caller = battle.Combatants.Single(actor => actor.Id == "caller");
         typeof(BattleSession).GetMethod("AllocateNativeEnemy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, [caller, 6, 0, true]);
-        NativeBattleDescriptorPacket statistics = battle.NativeGraphics!.Descriptors.Packets.Single(packet => packet.PriorityState != 0 && packet.Command == 113 && packet.Argument == 0x48AD10);
+        NativeBattleDescriptorPacket statistics = battle.Presentation!.Graphics.Descriptors.Packets.Single(packet => packet.PriorityState != 0 && packet.Command == 113 && packet.Argument == 0x48AD10);
         Assert.Equal(unchecked((short)duration), statistics.ScalarWord8);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int callback = 0; callback < 100 && battle.NativeScriptState.AllocationControl!.ActionGate; callback++)
@@ -295,7 +295,7 @@ public sealed class NativeAllocationDescriptorTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, [0]);
-        NativeBattleGraphicsState graphics = battle.NativeGraphics! with { Descriptors = NativeBattleDescriptorState.Clear() };
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics with { Descriptors = NativeBattleDescriptorState.Clear() };
         NativeBattleDescriptorState descriptors = graphics.Descriptors;
         for (int slot = 0; slot < 3; slot++)
         {

@@ -52,7 +52,7 @@ public sealed partial class BattleHudController
             return 0;
         }
         int capacity = cast ? 100 : DrawStockCapacity(id);
-        if (capacity == 0 || cast && (session.UsesExpandedRoster && !session.SupportsExpandedAction(spell) || !session.Combatants.Any(target => BattleSession.IsValidSelectedActionTarget(actor, spell, target))))
+        if (capacity == 0 || cast && (!session.SupportsExpandedAction(spell) || !session.Combatants.Any(target => BattleSession.IsValidSelectedActionTarget(actor, spell, target))))
         {
             return 0;
         }
@@ -209,9 +209,9 @@ public sealed partial class BattleHudController
             return [];
         }
         IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
-        if (SelectingExpandedBothSides(action))
+        if (SelectingBothSides(action))
         {
-            return ExpandedBothSideTargets(action);
+            return BothSideTargets(action);
         }
         bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? (caster.IsPlayer == action.Allies);
         if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)

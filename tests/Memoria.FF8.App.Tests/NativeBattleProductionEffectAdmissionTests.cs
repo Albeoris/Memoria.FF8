@@ -56,14 +56,14 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         using GameWorld world = RestoreWorld(session, directory);
         BattleSnapshot originalBattle = GameSession.Load(source!).Battle!;
         BattleSession before = BattleSession.Restore(originalBattle);
-        byte[] beforePixels = new BattleScenePresentation(world.BattleResources, originalBattle.Definition, true).Render(before, 320, 224).ToArray();
+        byte[] beforePixels = new BattleScenePresentation(world.BattleResources, originalBattle.Definition).Render(before, 320, 224).ToArray();
         Assert.Equal(beforePixels, RenderBattle(world));
         GameSession independent = new(GameSession.Load(migratedPath));
         using GameWorld clone = RestoreWorld(independent, directory);
-        long callback = world.Battle!.NativeGraphics!.Callback;
+        long callback = world.Battle!.Presentation!.Graphics.Callback;
         world.ApplyBattleInput(new(BattleInputKind.Tick));
         clone.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.True(world.Battle.NativeGraphics!.Callback > callback);
+        Assert.True(world.Battle.Presentation!.Graphics.Callback > callback);
         Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
         Assert.Equal(RenderBattle(world), RenderBattle(clone));
         session.SetEventState(world.Events.Capture());
@@ -120,7 +120,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         using GameWorld world = RestoreWorld(session, directory);
         GameSession independent = new(GameSession.Load(source!));
         using GameWorld clone = RestoreWorld(independent, directory);
-        long callback = world.Battle!.NativeGraphics!.Callback;
+        long callback = world.Battle!.Presentation!.Graphics.Callback;
         int initialCompletions = world.Battle.Events.Count(item => item.Kind == "ActionComplete");
         string id = "production-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
@@ -145,10 +145,10 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             session.SetEventState(world.Events.Capture());
             Publish(evidence, id + "-last-published", session.State);
             Publish(evidence, id + "-failed-live.battle", world.Battle.Capture());
-            Publish(evidence, id + "-failure", new { Error = exception.ToString(), SavedCallback = callback, LiveCallback = world.Battle.NativeGraphics!.Callback, RequestedCallbacks = callbacks, CompletedCallbacks = completed });
+            Publish(evidence, id + "-failure", new { Error = exception.ToString(), SavedCallback = callback, LiveCallback = world.Battle.Presentation!.Graphics.Callback, RequestedCallbacks = callbacks, CompletedCallbacks = completed });
             throw;
         }
-        Assert.True(world.Battle.NativeGraphics!.Callback > callback);
+        Assert.True(world.Battle.Presentation!.Graphics.Callback > callback);
         session.SetEventState(world.Events.Capture());
         Publish(evidence, id + "-after", session.State);
         PublishPixels(evidence, id + "-after", RenderBattle(world));
@@ -310,7 +310,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             session.SetEventState(world.Events.Capture());
             Publish(evidence, id + "-before-current-gf", session.State);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Assert.NotNull(battle.NativeGraphics);
+            Assert.NotNull(battle.Presentation?.Graphics);
             Assert.NotNull(battle.NativeMusicProcess!.Commands);
             BattleSnapshot initial = battle.Capture();
             bool requested = initial.ActiveAction is { Ability: BattleAbility.GuardianForce, ActionId: 0 } || battle.QueuedActions.Any(action => action.Ability == BattleAbility.GuardianForce && action.ActionId == 0) || initial.GuardianForceCasts.Length != 0;
@@ -335,11 +335,11 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             for (int callback = 0; callback < 4096; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 116 } effect)
+                if (battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 116 } effect)
                 {
                     Assert.NotNull(effect.Binding.NativeQuezacotlResources);
                     materialized = true;
-                    packets |= battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                    packets |= battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
                     if (!restored && packets && effect.ReturnedDescriptor > 0)
                     {
                         session.SetEventState(world.Events.Capture());
@@ -355,7 +355,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
                         PublishPixels(evidence, id + "-mid-gf", RenderBattle(world));
                         restored = true;
                     }
-                    if (effect.ReturnedDescriptor == 0 && battle.NativeEffectMemory!.Active == 0)
+                    if (effect.ReturnedDescriptor == 0 && battle.Presentation!.Memory.Active == 0)
                     {
                         finished = true;
                         break;
@@ -391,7 +391,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             {
                 Publish(evidence, id + "-failed-live.battle", world.Battle.Capture());
             }
-            Publish(evidence, id + "-failure", new { Error = exception.ToString(), BattleFrame = world.Battle?.Frame, Callback = world.Battle?.NativeGraphics?.Callback });
+            Publish(evidence, id + "-failure", new { Error = exception.ToString(), BattleFrame = world.Battle?.Frame, Callback = world.Battle?.Presentation?.Graphics?.Callback });
             throw;
         }
     }
@@ -409,7 +409,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             session.SetEventState(world.Events.Capture());
             Publish(evidence, id + "-before-current-cast", session.State);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Assert.NotNull(battle.NativeGraphics);
+            Assert.NotNull(battle.Presentation?.Graphics);
             Assert.NotNull(battle.NativeMusicProcess!.Commands);
             Assert.Null(battle.Capture().Definition.NativeEffectCatalog[143].BlizzardResources);
             BattleSnapshot initial = battle.Capture();
@@ -431,11 +431,11 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             for (int callback = 0; callback < 2000; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 144 } effect)
+                if (battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 144 } effect)
                 {
                     Assert.NotNull(effect.Binding.BlizzardResources);
                     materialized = true;
-                    packets |= battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                    packets |= battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
                     if (!restored && effect.ReturnedDescriptor > 0 && packets)
                     {
                         session.SetEventState(world.Events.Capture());
@@ -450,7 +450,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
                         Assert.Equal(RenderBattle(world), RenderBattle(clone));
                         restored = true;
                     }
-                    if (effect.ReturnedDescriptor == 0 && battle.NativeEffectMemory!.Active == 0)
+                    if (effect.ReturnedDescriptor == 0 && battle.Presentation!.Memory.Active == 0)
                     {
                         break;
                     }
@@ -459,7 +459,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             Assert.True(materialized);
             Assert.True(packets);
             Assert.True(restored);
-            Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
+            Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
             Assert.Single(battle.Events, item => item.NativeModuleSound?.Sound == 300012);
             for (int callback = 0; callback < 64 && battle.ActiveAction is { Ability: BattleAbility.Magic, ActionId: 4 }; callback++)
             {
@@ -477,7 +477,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             {
                 Publish(evidence, id + "-failed-live.battle", world.Battle.Capture());
             }
-            Publish(evidence, id + "-failure", new { Error = exception.ToString(), BattleFrame = world.Battle?.Frame, Callback = world.Battle?.NativeGraphics?.Callback });
+            Publish(evidence, id + "-failure", new { Error = exception.ToString(), BattleFrame = world.Battle?.Frame, Callback = world.Battle?.Presentation?.Graphics?.Callback });
             throw;
         }
     }
@@ -503,7 +503,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
     internal static byte[] RenderBattle(GameWorld world)
     {
         BattleSession battle = world.Battle!;
-        return new BattleScenePresentation(world.BattleResources, battle.Capture().Definition, true).Render(battle, 320, 224).ToArray();
+        return new BattleScenePresentation(world.BattleResources, battle.Capture().Definition).Render(battle, 320, 224).ToArray();
     }
 
     internal static void Publish(string? directory, string name, object value)

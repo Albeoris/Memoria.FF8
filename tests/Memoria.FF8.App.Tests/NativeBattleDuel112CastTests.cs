@@ -71,14 +71,14 @@ public sealed partial class NativeBattleDuel112CastTests
         Assert.Contains(selectedEffectId, new ushort[] { 112, 212, 215, 216 });
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         Directory.CreateDirectory(output!);
         BattleSnapshot before = source;
         try
         {
             for (int callback = 0; callback < 512; callback++)
             {
-                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == selectedEffectId && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
+                if (battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == selectedEffectId && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
                 {
                     BattleSnapshot selected = battle.Capture();
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected", selected, scene.Render(battle, 320, 224).ToArray());
@@ -90,7 +90,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     clone.Tick();
 
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(clone, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
                     File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.NativeGraphics.Callback }));
                     return;
@@ -146,7 +146,7 @@ public sealed partial class NativeBattleDuel112CastTests
         BattleDefinition definition = namedSource?.Definition ?? source with { NativeVictoryFile = assets.ReadNativeBattleFile(766), Combatants = [actor, source.Combatants[1]] };
         BattleSession battle = namedSource is null ? new(definition, BattleAtbMode.TurnBased) : BattleSession.Restore(namedSource);
         battle.AttachNativeEffectResourceResolver(requestedEffect => game.ReadNativeEffectCatalogForEffects([requestedEffect])[requestedEffect - 1]);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "duel-" + effectId + "-" + (duelCommandRoute ? "command-" : "raw-") + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Duel evidence: " + output);
@@ -208,7 +208,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     File.WriteAllText(Path.Combine(output, "duel-input-" + duelInputs + ".json"), JsonSerializer.Serialize(choice));
                     CompareNext("duel-input-" + duelInputs++);
                 }
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (basicQueued && !basicMidpoint && graphics.OriginalEffect is { Binding.Effect: 274, ReturnedDescriptor: > 0 } opening)
                 {
                     NativeBattleEffectTaskPool? targetPool = opening.Pools.SingleOrDefault(pool => pool.DescriptorAddress == 0x25084A8);
@@ -250,7 +250,7 @@ public sealed partial class NativeBattleDuel112CastTests
                         NativeBattleGraphicsState backgroundGraphics = backgroundSource.NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(backgroundSource with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
                     int expectedPools = effectId switch { 112 or 216 => 5, 212 => 4, 215 => 3, _ => throw new NotSupportedException("The selected Duel finisher has no original task-bank contract in this fixture.") };
@@ -281,7 +281,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
                     battle.SetMode(BattleAtbMode.Normal);
                     CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", duelCommandRoute, requiredBasicAction, basicQueued, basicObserved, basicMidpoint, duelInputs, queuedChoice, selected, drawn, midpoint, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, Mode = battle.Mode.ToString() }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", duelCommandRoute, requiredBasicAction, basicQueued, basicObserved, basicMidpoint, duelInputs, queuedChoice, selected, drawn, midpoint, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, Mode = battle.Mode.ToString() }));
                     return;
                 }
             }
@@ -325,7 +325,7 @@ public sealed partial class NativeBattleDuel112CastTests
         }
         bool Released()
         {
-            NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
         }
         void Publish(string name)
@@ -355,7 +355,7 @@ public sealed partial class NativeBattleDuel112CastTests
                 _ = NativeBattleDuel28CaptureAssertions.AssertFrame(clone.Capture(), effectId);
             }
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");
         }
     }

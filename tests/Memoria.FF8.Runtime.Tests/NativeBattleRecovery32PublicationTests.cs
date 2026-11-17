@@ -32,8 +32,8 @@ public sealed class NativeBattleRecovery32PublicationTests
         MethodInfo poll = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;
         NativeBattleGraphicsState direct = (NativeBattleGraphicsState)poll.Invoke(session, [graphics])!;
         NativeBattleGraphicsState cold = (NativeBattleGraphicsState)poll.Invoke(session, [graphics with { OriginalEffect = coldSelected }])!;
-        Assert.Same(memory, session.NativeEffectMemory);
-        Assert.Equal(frozenMemory, NativeBattleTestSnapshots.Json(session.NativeEffectMemory));
+        Assert.Same(memory, session.Presentation?.Memory);
+        Assert.Equal(frozenMemory, NativeBattleTestSnapshots.Json(session.Presentation?.Memory));
         Assert.Equal(NativeBattleTestSnapshots.Json(graphics), NativeBattleTestSnapshots.Json(direct));
         Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(cold));
         Assert.Equal(frozen, JsonSerializer.Serialize(direct.OriginalEffect));

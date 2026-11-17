@@ -16,11 +16,11 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
     {
         NativeBattleEffectTextureState global = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(640, 0, 1, 1, [0x61, 0]);
         NativeBattleEffectPresentationInputs inputs = Inputs(partyCount, enemyCount, global);
-        BattleSession session = BattleSession.CreateEffectPresentation(inputs);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
-        NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
-        NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
-        NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
+        BattlePresentationProcess session = BattlePresentationProcess.CreateEffectPresentation(inputs);
+        NativeBattleGraphicsState graphics = session.Graphics;
+        NativeBattleModelCpuResources cpu = session.ModelCpuResources;
+        NativeBattleModelTextureCache cache = session.ModelTextureCache;
+        NativeBattleEffectTextureState textures = session.Memory.Textures!;
         BattleModelRoster roster = graphics.ActorModels.Roster;
         Assert.Equal(roster.Owners, cpu.Cpu.PresentationRoster!.Owners);
         Assert.Equal(roster.Owners, cache.PresentationRoster!.Owners);
@@ -75,9 +75,9 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess(hash) with { EffectMemory = input.Resources.NativeRetainedMemory!.EffectMemory };
         input = input with { Resources = input.Resources with { NativeRetainedMemory = retained, NativeGraphics = input.Resources.NativeGraphics! with { Rules = input.Resources.NativeGraphics!.Rules with { ExecutableSha256 = hash } } } };
 
-        BattleSession session = BattleSession.CreateEffectPresentation(input);
+        BattlePresentationProcess session = BattlePresentationProcess.CreateEffectPresentation(input);
 
-        NativeBattleModelCpuBanks banks = session.NativeModelCpuResources!.Cpu;
+        NativeBattleModelCpuBanks banks = session.ModelCpuResources.Cpu;
         Assert.Equal(NativeBattlePartyCpuLayout.Remastered, banks.EffectiveLayout);
         Assert.Equal(0x20000, banks.GetBank(0).Capacity);
         Assert.Equal(0x20000, banks.GetBank(banks.PartyBankIndex(Source)).Capacity);
@@ -90,8 +90,8 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
     {
         NativeBattleEffectTextureState global = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [7, 0]).EnqueueCopy505EB0(0, 0, 1, 1, 1, 0);
         NativeBattleEffectPresentationInputs inputs = Inputs(2, 2, global, loadSources: false);
-        BattleSession session = BattleSession.CreateEffectPresentation(inputs);
-        NativeBattleEffectTextureState current = session.NativeEffectMemory!.Textures!;
+        BattlePresentationProcess session = BattlePresentationProcess.CreateEffectPresentation(inputs);
+        NativeBattleEffectTextureState current = session.Memory.Textures!;
         Assert.Same(global.VramPublicationIdentity, current.VramPublicationIdentity);
         Assert.Equal(global.Slots, current.Slots);
         Assert.Equal(global.Count, current.Count);
@@ -110,20 +110,20 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
     {
         NativeBattleEffectTextureState global = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattleEffectTextureState incomplete = global.WithPresentationTexture("actor-7", new(global, NativeBattlePcTextureWindowCache.Reset4647A0(null)));
-        Assert.Throws<InvalidDataException>(() => BattleSession.CreateEffectPresentation(Inputs(2, 2, incomplete)));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(Inputs(2, 2, incomplete)));
 
         NativeBattleEffectPresentationInputs input = Inputs(2, 2, global);
         NativeBattleModelDatSource changed = input.SourceResource.ModelLoadSources!.Value[0] with { FileId = 123 };
         NativeBattleGraphicsResource conflict = input.SourceResource with { ModelLoadSources = [changed] };
         input = input with { Resources = input.Resources with { NativeGraphics = input.Resources.NativeGraphics! with { Bindings = [new("actor-7", 0, conflict)] } } };
-        Assert.Contains("conflicting immutable sources", Assert.Throws<InvalidDataException>(() => BattleSession.CreateEffectPresentation(input)).Message);
+        Assert.Contains("conflicting immutable sources", Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(input)).Message);
     }
 
     [Fact]
     public void Legacy_incoming_texture_publications_keep_current_actor_banks_and_declared_banks_are_validated()
     {
-        BattleSession session = BattleSession.CreateEffectPresentation(Inputs(2, 2, NativeBattleEffectTextureState.FromColdProcess(), loadSources: false));
-        NativeBattleEffectTextureState current = session.NativeEffectMemory!.Textures!;
+        BattlePresentationProcess session = BattlePresentationProcess.CreateEffectPresentation(Inputs(2, 2, NativeBattleEffectTextureState.FromColdProcess(), loadSources: false));
+        NativeBattleEffectTextureState current = session.Memory.Textures!;
         NativeBattleEffectTextureState legacy = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [9, 0]);
         NativeBattleEffectTextureState accepted = Accept(session, legacy);
         Assert.Same(current.PresentationTextures, accepted.PresentationTextures);
@@ -140,9 +140,9 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleEffectPresentationInputs input = Inputs(2, 2, NativeBattleEffectTextureState.FromColdProcess(), loadSources: false);
         NativeBattleEffectModelBinding enemy = input.NativeTargets[^1];
         input = input with { NativeTargets = input.NativeTargets.SetItem(input.NativeTargets.Length - 1, enemy with { Model = enemy.Model with { ActiveResourceRow100 = 3 } }) };
-        BattleSession session = BattleSession.CreateEffectPresentation(input);
+        BattlePresentationProcess session = BattlePresentationProcess.CreateEffectPresentation(input);
 
-        Assert.Same(enemy.Resource, Pose(session, session.NativeGraphics!, enemy.Owner));
+        Assert.Same(enemy.Resource, Pose(session, session.Graphics, enemy.Owner));
     }
 
     private static NativeBattleEffectPresentationInputs Inputs(int partyCount, int enemyCount, NativeBattleEffectTextureState textures, bool loadSources = true)

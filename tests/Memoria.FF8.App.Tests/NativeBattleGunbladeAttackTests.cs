@@ -19,12 +19,12 @@ public sealed class NativeBattleGunbladeAttackTests
         BattleSession battle = BattleSession.Restore(snapshot);
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         using BattleAssets assets = new(TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
-        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition, true).Render(clone, 320, 224));
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
+        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224));
         battle.Tick();
         clone.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition, true).Render(clone, 320, 224));
+        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224));
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class NativeBattleGunbladeAttackTests
         int before = battle.Events.Count;
         battle.Tick();
         clone.Tick();
-        Assert.Null(battle.NativeGraphics!.PendingTriggerSoundActor);
+        Assert.Null(battle.Presentation!.Graphics.PendingTriggerSoundActor);
         Assert.Single(battle.Events.Skip(before), item => item.Kind == "NativeModuleSound" && item.ActorId == "party");
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
     }
@@ -74,15 +74,15 @@ public sealed class NativeBattleGunbladeAttackTests
         bool sawFlash = false;
         bool continuedVisual = false;
         BattleSession? visualClone = null;
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         byte particleId = checked((byte)(character == 0 ? early ? 12 : 13 : early ? 15 : 16));
         List<NativeBattleModuleSound> sounds = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: sounds.Add, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: sounds.Add);
         audio.Update(battle);
         List<int> distances = [];
         for (int callback = 0; callback < 400 && !battle.Events.Any(item => item.Kind == "ActionComplete" && item.ActorId == "party"); callback++)
         {
-            if (battle.NativeGraphics!.TriggerWidget is { ClosingPhase: 0 } widget)
+            if (battle.Presentation!.Graphics.TriggerWidget is { ClosingPhase: 0 } widget)
             {
                 distances.Add(widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex]);
                 if (mode == BattleGunbladeMode.Manual && !pressed && (early || battle.GunbladeTriggerWindowOpen))
@@ -107,9 +107,9 @@ public sealed class NativeBattleGunbladeAttackTests
                     continue;
                 }
             }
-            if (!restoredSound && battle.NativeGraphics.PendingTriggerSoundActor is BattleModelOwner owner)
+            if (!restoredSound && battle.Presentation!.Graphics.PendingTriggerSoundActor is BattleModelOwner owner)
             {
-                Assert.Equal(RequireOriginalModelOwner(battle.NativeGraphics, 0), owner);
+                Assert.Equal(RequireOriginalModelOwner(battle.Presentation?.Graphics, 0), owner);
                 BattleSnapshot snapshot = battle.Capture();
                 string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_OUTPUT");
                 if (output is not null)
@@ -123,7 +123,7 @@ public sealed class NativeBattleGunbladeAttackTests
                 audio.Update(battle);
                 ObservePresentation();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Null(battle.NativeGraphics.PendingTriggerSoundActor);
+                Assert.Null(battle.Presentation!.Graphics.PendingTriggerSoundActor);
                 restoredSound = true;
                 continue;
             }
@@ -162,11 +162,11 @@ public sealed class NativeBattleGunbladeAttackTests
             {
                 visualClone.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(visualClone.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(visualClone, 320, 224));
+                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(visualClone, 320, 224));
                 visualClone = null;
                 continuedVisual = true;
             }
-            NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             sawFlash |= graphics.ModuleDraws.Any(draw => draw.Kind == NativeBattleModuleDrawKind.Flash);
             if (visibleParticle)
             {
@@ -184,7 +184,7 @@ public sealed class NativeBattleGunbladeAttackTests
             byte[] pixels = scene.Render(battle, 320, 224);
             NativeBattlePrimitiveFrame withoutParticle = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.ModuleDraw is not int index || !draws.Contains(index)).ToImmutableArray() };
             BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot with { NativeGraphics = graphics with { PrimitiveFrame = withoutParticle } }));
-            byte[] background = new BattleScenePresentation(assets, definition, true).Render(plain, 320, 224);
+            byte[] background = new BattleScenePresentation(assets, definition).Render(plain, 320, 224);
             int changed = 0;
             for (int offset = 0; offset < pixels.Length; offset += 4)
             {

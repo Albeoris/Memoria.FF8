@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private bool diagnosticEffectPreview;
-    private bool diagnosticEffectPreviewPublished;
+    private long? diagnosticPreviewToken;
 
     public void ConfigureDiagnosticEffectPreview()
     {
@@ -48,14 +48,14 @@ public sealed partial class BattleSession
 
     private void PublishDiagnosticEffectPreviewHeader(ushort effect, byte command, ushort action)
     {
-        if (!diagnosticEffectPreview || diagnosticEffectPreviewPublished || effect is < 1 or > 400)
+        if (!diagnosticEffectPreview || diagnosticPreviewToken is not null || effect is < 1 or > 400)
         {
             throw new InvalidOperationException("Graphical preview requires one native effect publication in its own arena.");
         }
         RequireNativeEntryReady();
-        NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        BattleModelOwner? source = graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(0), graphics.ActorModels);
-        BattleModelOwner? target = graphics.NativeBindings.FindOriginalOwner(NativeBattleModelSlot.Decode(3), graphics.ActorModels);
+        BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("Graphical preview requires its presentation process.");
+        BattleModelOwner? source = process.FindOriginalActor(NativeBattleModelSlot.Decode(0));
+        BattleModelOwner? target = process.FindOriginalActor(NativeBattleModelSlot.Decode(3));
         if (ObserveDiagnosticDrainBlockers().Count != 0 || source is null || target is null)
         {
             throw new InvalidOperationException("Graphical preview requires its initialized ally0/enemy3 resource owners.");
@@ -63,11 +63,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = combatants.Single(actor => actor.NativeActorIndex == 0);
         byte sequence = ResolveNativeDispatchSequence(actor, command, 0, action);
         NativeBattleActionHeaderPreparation header = new(source, command, sequence, -1, action, effect, null);
-        (nativeActionPackets, BattleActionHeaderReference index) = nativeActionPackets.Prepare(header);
-        (nativeActionPackets, _) = nativeActionPackets.AppendContact(new(new(target, 0, 1, 0, 0, 0, 0), null));
-        PublishNativeSingleActionHeader(1);
-        ObserveDiagnosticPreparedHeader(index);
-        NativeGraphics = QueueNativeActionDescriptor(graphics, index);
-        diagnosticEffectPreviewPublished = true;
+        NativeBattleContactPacket contact = new(new(target, 0, 1, 0, 0, 0, 0), null);
+        diagnosticPreviewToken = process.BeginDiagnosticAction(header, [contact]);
     }
 }

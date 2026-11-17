@@ -1,0 +1,106 @@
+using static Memoria.FF8.Runtime.NativeBattleEffect308Profile;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattlePresentationProcess
+{
+    private NativeBattleGraphicsState RunNativeEffect308(NativeBattleGraphicsState graphics, bool initialize)
+    {
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect308 requires its current effect.");
+        effect = effect with { PresentationPackets = [] };
+        NativeBattleEffect308Resources resources = effect.Binding.Effect308Resources ?? throw new NotSupportedException("Effect308 requires its original resources.");
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect308 requires current process memory.");
+        NativeBattleEffect308State state = memory.Effect308 ?? throw new NotSupportedException("Effect308 requires its retained state.");
+        NativeBattleEffect308Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect308 requires its current CRT stream."), state) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.") };
+        Dictionary<BattleModelOwner, NativeBattlePoseSource> poseSources = [];
+        NativeBattleEffect308Inputs? inputs = null;
+        inputs = new(this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect308 requires its color tables."), (_, actor) => CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), (_, actor) => graphics.ActorModels.Get(actor), ReadBody, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect308 requires its current projection."), _ => Camera().Roll, Point, _ => nativeActionPackets, SelectIo, Random, (current, operation) => ExecuteNativeEffect308Operation(ref graphics, current, operation, resources, inputs!), ResolveResourceModel) { CapturePresentation = true, ReadPoseSource = Pose };
+        frame = initialize ? NativeBattleEffect308Controller.Initialize(frame, resources, inputs) : NativeBattleEffect308Controller.Advance(frame, resources, inputs);
+        PublishNativeEffect308Frame(frame);
+        return graphics with { OriginalEffect = frame.Effect };
+
+        NativeBattlePoseSource Pose(BattleModelOwner actor)
+        {
+            if (!poseSources.TryGetValue(actor, out NativeBattlePoseSource? source))
+            {
+                source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect308 requires its current physical rig.");
+                poseSources.Add(actor, source);
+            }
+            return source;
+        }
+
+        BattleModelOwner ResolveResourceModel(BattleModelOwner source, int role)
+        {
+            if (role == 0)
+            {
+                return source;
+            }
+            if (role is not (1 or 2) || !graphics.NativeBindings.TryEncodeExactActor(source, graphics.ActorModels, out byte original))
+            {
+                throw new NotSupportedException("Effect308 requires its explicit companion model role binding.");
+            }
+            return graphics.NativeBindings.DecodeLiteral(checked((byte)(original + role)), graphics.ActorModels);
+        }
+
+        NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect308 requires its current camera.");
+
+        NativeBattleEffect308BodySource ReadBody(NativeBattleEffect308Frame current, BattleModelOwner actor)
+        {
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+            NativeBattlePoseSource pose = Pose(actor);
+            NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(model.SequenceState ?? throw new NotSupportedException("Effect308 requires its current decoded pose."), pose);
+            System.Collections.Immutable.ImmutableArray<NativeBattlePackedMatrix32> bones = ReadNativeEffect308PackedBones(graphics, current, actor, pose);
+            NativeBattleModelGeometrySource geometry = ReadNativeEffect308Geometry(graphics, current, actor);
+            int length = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect308 requires its current CPU scratch capacity.")) * 8);
+            return new(pose, decoded, bones, geometry) { VertexScratchAddress = checked(0x196B018u - (uint)length), VertexScratchLength = length };
+        }
+
+        NativeBattleEffect308PointStep Point(NativeBattleEffect308Frame current, BattleModelOwner actor, int selector, int fraction, NativeBattleEffectArena retained)
+        {
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
+            NativeFileStaging = current.Staging ?? throw new NotSupportedException("Effect308 point queries require their current addressed memory.");
+            NativeBattlePoseSource? source = (model.Flags0 & 2) == 0 ? null : Pose(actor);
+            NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(model, source!, checked((byte)selector), checked((short)fraction));
+            NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(current.Memory, producer);
+            NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters.Mac[2]!.Value)) : producer.DisabledPosition;
+            retained = retained.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));
+            return new(current with { Memory = observed, Staging = NativeFileStaging }, retained);
+        }
+
+        NativeBattleEffect308PollStep SelectIo(NativeBattleEffect308Frame current, int index)
+        {
+            NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Select5342C0(current.Memory, index);
+            current = current with { Memory = poll.Memory };
+            return new(poll.Request is { } request ? QueueNativeEffect308File(current, resources, request) : current, poll.Busy);
+        }
+
+        NativeBattleEffect308RandomStep Random(NativeBattleEffect308Frame current)
+        {
+            NativeBattleEffectMemory drawn = current.Memory.DrawSharedEffectRandom7059E0(out ushort value);
+            return new(current with { Memory = drawn }, value);
+        }
+    }
+
+    private NativeBattleEffect308Frame QueueNativeEffect308File(NativeBattleEffect308Frame frame, NativeBattleEffect308Resources resources, NativeBattleEffectFileRequest request)
+    {
+        NativeBattleEffectFileAsset file = resources.Files.TryGetValue(request.FileId, out NativeBattleEffectFileAsset? selected) ? selected : throw new NotSupportedException("Effect308 selected an unsupported original completion file.");
+        int offset = NativeBattleWaterExecutionFields.ArenaOffset(request.DestinationAddress, file.Data.Length);
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect308 requires its current file destination.");
+        frame = frame with { Memory = frame.Memory with { Arena = arena.Write(offset, file.Data.AsSpan()) } };
+        QueueNativeFileIo482610(file.Data.Length, request.CompletionCallback);
+        return frame;
+    }
+
+    private void PublishNativeEffect308Frame(NativeBattleEffect308Frame frame)
+    {
+        NativeEffectMemory = frame.Memory with { Effect308 = frame.State };
+        NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect308 lost its current addressed memory.");
+        nativeCrtRandom = frame.Random;
+    }
+
+    private NativeBattleEffect308Frame ImportNativeEffect308Frame(NativeBattleEffect308Frame frame)
+    {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect308 lost its current process memory.");
+        return frame with { Memory = memory, State = memory.Effect308 ?? throw new NotSupportedException("Effect308 lost its retained state."), Staging = NativeFileStaging, Random = nativeCrtRandom ?? throw new NotSupportedException("Effect308 lost its CRT stream.") };
+    }
+}

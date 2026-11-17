@@ -129,16 +129,16 @@ public sealed class NativeScanFixtureMigrationTests
         BattleSession first = BattleSession.Restore(disk);
         BattleSession second = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(output!));
         Assert.Equal(JsonSerializer.Serialize(disk), JsonSerializer.Serialize(first.Capture()));
-        BattleScenePresentation scene = new(assets, disk.Definition, true);
+        BattleScenePresentation scene = new(assets, disk.Definition);
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-        Assert.Equal(443L, first.NativeGraphics!.Callback);
+        Assert.Equal(443L, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
         Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input!))));
-        Receipt receipt = new(expectedHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!))), "Controlled Scan fixture: explicit settled HUD/text schema, original new-game scanned-model history and retained loader color bank; only unknown inactive model1/2/4/5/6 Color40 receive authentic cold values, loaded0/3 retained. Enemy eight element defenses come from installed native stats at its existing level; HP and all other stats retained. Installed resources/cold Scan process; first party member receives Scan stock2/full native gauge using existing registration and ready dispatch. Replacement names30/34 use that party name and50 explicit Griever. No gameplay replay.", changes.ToArray(), disk.Frame, disk.NativeGraphics!.Callback, first.NativeGraphics.Callback);
+        Receipt receipt = new(expectedHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!))), "Controlled Scan fixture: explicit settled HUD/text schema, original new-game scanned-model history and retained loader color bank; only unknown inactive model1/2/4/5/6 Color40 receive authentic cold values, loaded0/3 retained. Enemy eight element defenses come from installed native stats at its existing level; HP and all other stats retained. Installed resources/cold Scan process; first party member receives Scan stock2/full native gauge using existing registration and ready dispatch. Replacement names30/34 use that party name and50 explicit Griever. No gameplay replay.", changes.ToArray(), disk.Frame, disk.NativeGraphics!.Callback, first.Presentation!.Graphics.Callback);
         using (FileStream stream = new(output + ".changes.json", FileMode.CreateNew, FileAccess.Write))
         {
             JsonSerializer.Serialize(stream, receipt, new JsonSerializerOptions { WriteIndented = true });

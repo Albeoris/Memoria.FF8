@@ -52,7 +52,7 @@ public sealed class NativeBattleDispel109PresentationTests
         int hp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
         Assert.Equal(beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp, hp);
         BattleSession battle = BattleSession.Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         HashSet<string> restored = [];
         Dictionary<string, int> peaks = [];
         int contacts = 0;
@@ -169,12 +169,12 @@ public sealed class NativeBattleDispel109PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-before", snapshot, scene.Render(battle, 320, 224));
             BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + "-before.battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             battle.Tick();
             cold.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-after", battle.Capture(), pixels);
             restored.Add(name);
         }

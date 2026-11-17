@@ -45,14 +45,14 @@ public sealed class NativeBattleStatusTests
         BattleSnapshot snapshot = battle.Capture();
         snapshot.Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[0] = 0;
         battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, OriginalGraphics([]));
 
         typeof(BattleSession).GetMethod("DispatchNativeStatusTimers", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, null);
 
         NativeBattleStatusSnapshot status = battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!;
         Assert.Equal(0u, status.Battle);
         Assert.Equal(0u, status.Presentation!.Battle);
-        NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
         NativeBattleDescriptorPacket packet = descriptors.Packets[Assert.Single(descriptors.Queue)];
         Assert.Equal((ushort)117, packet.Command);
         Assert.Equal((short)3, packet.ScalarWord8);

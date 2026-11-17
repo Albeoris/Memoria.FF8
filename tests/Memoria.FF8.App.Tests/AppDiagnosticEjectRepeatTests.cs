@@ -82,7 +82,7 @@ public sealed class AppDiagnosticEjectRepeatTests
                 completions.Add(entry);
             }
         };
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         int ticks = 0;
         bool completed = false;
         try
@@ -144,7 +144,7 @@ public sealed class AppDiagnosticEjectRepeatTests
                 Assert.Equal(3, afterStates[caster.Id].NativeIndex);
                 Assert.Equal(BattleOutcome.Active, battle.Outcome);
                 Assert.Null(battle.DiagnosticTerminalHold);
-                Assert.True(battle.NativeGraphics!.NativeOutcome?.ResultByte6E7 is null or 0);
+                Assert.True(battle.Presentation!.Graphics.NativeOutcome?.ResultByte6E7 is null or 0);
                 casts.Add(new { cast, submission, dispatch, completion = completions[cast - 1], victim = victim.Id, activeBefore, activeAfter = party.Where(actor => actor.IsActive).Select(actor => actor.Id).ToArray(), before, after });
             }
             Assert.Equal(2, focal.Count);

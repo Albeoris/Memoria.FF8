@@ -61,7 +61,7 @@ public sealed class NativeBattleGuardianCommonTextureMigrationTests
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(BattleSession.Restore(after).Capture()));
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
+        BattleScenePresentation scene = new(assets, migrated.Definition);
         byte[] pixels = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))

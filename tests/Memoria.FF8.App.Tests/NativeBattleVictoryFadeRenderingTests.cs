@@ -21,15 +21,15 @@ public sealed class NativeBattleVictoryFadeRenderingTests
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.Equal((byte)4, battle.NativeGraphics!.NativeOutcome!.ResultByte6E7);
-        Assert.Equal((byte)128, battle.NativeEffectMemory!.PrimitiveProcess!.ScreenFadeEB8);
+        Assert.Equal((byte)4, battle.Presentation!.Graphics.NativeOutcome!.ResultByte6E7);
+        Assert.Equal((byte)128, battle.Presentation!.Memory.PrimitiveProcess!.ScreenFadeEB8);
         TimeSpan elapsed = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         bool checkedDarkening = false;
         for (int callback = 0; callback < 14; callback++)
         {
             battle.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
             world.SynchronizeBattlePresentation();
-            NativeBattlePrimitiveFrame frame = battle.NativeGraphics!.PrimitiveFrame!;
+            NativeBattlePrimitiveFrame frame = battle.Presentation!.Graphics.PrimitiveFrame!;
             NativeBattleLogicalResolvedCommand fade = ReadFade(frame);
             Assert.Equal((ushort)1, fade.Command.Flags20);
             Assert.Equal(new uint[] { 0, 320, 216u << 16, (216u << 16) | 320 }, fade.Command.Words.Skip(1));
@@ -72,9 +72,9 @@ public sealed class NativeBattleVictoryFadeRenderingTests
         restored.Battle!.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
         world.SynchronizeBattlePresentation();
         restored.SynchronizeBattlePresentation();
-        NativeBattlePrimitiveFrame next = battle.NativeGraphics!.PrimitiveFrame!;
-        NativeBattlePrimitiveFrame restoredNext = restored.Battle.NativeGraphics!.PrimitiveFrame!;
-        Assert.Equal(battle.NativeGraphics.Callback, restored.Battle.NativeGraphics.Callback);
+        NativeBattlePrimitiveFrame next = battle.Presentation!.Graphics.PrimitiveFrame!;
+        NativeBattlePrimitiveFrame restoredNext = restored.Battle.Presentation!.Graphics.PrimitiveFrame!;
+        Assert.Equal(battle.Presentation!.Graphics.Callback, restored.Battle.Presentation!.Graphics.Callback);
         Assert.Equal(ReadFade(next).Command.Words.ToArray(), ReadFade(restoredNext).Command.Words.ToArray());
         Assert.Equal(ReadFade(next).Command.Flags20, ReadFade(restoredNext).Command.Flags20);
         Assert.Equal(Render(battle, next, hardware, width, height), Render(restored.Battle, restoredNext, hardware, width, height));
@@ -87,7 +87,7 @@ public sealed class NativeBattleVictoryFadeRenderingTests
 
     private static byte[] Render(BattleSession battle, NativeBattlePrimitiveFrame frame, bool hardware, int width, int height)
     {
-        NativeBattleEffectMemory memory = battle.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = battle.Presentation!.Memory;
         using GpuTestDevice? device = hardware ? new() : null;
         using GpuTriangleRenderer? gpu = device is null ? null : new(device.Device);
         BattleRenderer renderer = new(width, height, ViewportLayout.Fit(320, 240, width, height)) { TriangleRenderer = gpu };

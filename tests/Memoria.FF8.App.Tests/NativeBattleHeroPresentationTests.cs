@@ -144,7 +144,7 @@ public sealed class NativeBattleHeroPresentationTests
             int initialSounds = source.Events.Count(item => item.NativeModuleSound?.Sound == original.HeroResources!.Sound);
             battle = Restore(source);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-            BattleScenePresentation scene = new(assets, source.Definition, true);
+            BattleScenePresentation scene = new(assets, source.Definition);
             ColdNext("queued", source);
             // This is a diagnostic liveness guard, not an inferred native effect duration.
             for (; callbacks < 4096; callbacks++)
@@ -227,7 +227,7 @@ public sealed class NativeBattleHeroPresentationTests
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
-                        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(Restore(without), 320, 224).ToArray();
                         measuredPacketFrames++;
                         int changed = CountRgbChanges(pixels, plain);
                         if (changed > visibleChangedRgb)
@@ -300,15 +300,15 @@ public sealed class NativeBattleHeroPresentationTests
             void ColdNext(string name, BattleSnapshot snapshot)
             {
                 boundary = "cold-" + name;
-                NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, new BattleScenePresentation(assets, source.Definition, true).Render(Restore(snapshot), 320, 224).ToArray());
+                NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, new BattleScenePresentation(assets, source.Definition).Render(Restore(snapshot), 320, 224).ToArray());
                 BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
                 BattleSession direct = Restore(snapshot);
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 cold.Tick();
                 direct.Tick();
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-                byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
-                Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+                byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
+                Assert.Equal(new BattleScenePresentation(assets, source.Definition).Render(direct, 320, 224).ToArray(), pixels);
                 NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
                 restoredBoundaries.Add(name);
             }

@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -6,7 +7,7 @@ public sealed partial class BattleSession
 {
     private void CompleteExpandedHostedEvent(NativeBattlePresentationCompletionRequested receipt, long? graphicsToken)
     {
-        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted completion lost its presentation process.");
+        BattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Hosted completion lost its presentation process.");
         BattleModelRoster roster = process.PlannedModelRoster;
         if (expandedHostedEvent is not { } hostedEvent || hostedEvent.CompletionToken != receipt.Token ||
             hostedEvent.Callback != receipt.Callback || hostedEvent.Command.ActorId != receipt.ActorId ||
@@ -30,6 +31,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("A completion-only event cannot own outstanding contacts.");
         }
 
+        ObserveDiagnosticHostedCompletionBeforeAck(process, receipt);
         BattleSnapshot before = CaptureState();
         if (!ReferenceEquals(before.ActiveAction, hostedEvent.ActivePresentation))
         {
@@ -113,6 +115,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = nextEvent;
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch, encounterLoad);
+        ObserveDiagnosticHostedCompletionAcknowledged(process, receipt);
         PublishHostedGuardianFormAudio(form);
     }
 

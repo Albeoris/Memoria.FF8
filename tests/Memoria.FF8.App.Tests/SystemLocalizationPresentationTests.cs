@@ -164,7 +164,7 @@ public sealed class SystemLocalizationPresentationTests
     [Fact]
     public void DebugTranslationsPreserveGroupSelectionAndReadCurrentTemplates()
     {
-        BattleDefinition initial = new() { Combatants = [new() { Id = "party", Name = "Player text", IsPlayer = true }, BattleDebugDefaults.Dummy] };
+        BattleDefinition initial = new() { Combatants = [new() { Id = "party", Name = "Player text", IsPlayer = true }, new() { Id = "enemy-0", Name = "Training opponent", ModelId = 1 }] };
         BattleDebugController editor = new(initial, new BattleDebugCatalog(), BattleAtbMode.Normal, (_, _) => { }, () => { });
         string state = JsonSerializer.Serialize(editor.Definition);
         string maximum = "{0}最大HP";

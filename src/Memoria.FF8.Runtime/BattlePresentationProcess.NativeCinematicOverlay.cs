@@ -1,0 +1,53 @@
+using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattlePresentationProcess
+{
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicOverlay(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)
+    {
+        uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
+        NativeBattlePilotVisualIdentity? pilotIdentity = null;
+        ushort effect = graphics.OriginalEffect!.Binding.Effect;
+        if (effect is 18 or 77 or 238 or 230 or 242 or 252 or 257 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(effect) || NativeBattleCinematic31Presentation.Owns(effect) || NativeBattleCinematic33Presentation.Owns(effect)))
+        {
+            NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, NativeBattleEffectInitializerPolicy.Assets(graphics.OriginalEffect.Binding)[1].Data.Length);
+            pilotIdentity = NativeBattleCinematicVisualIdentity.Identity(effect, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank));
+        }
+        NativeBattleCinematicOverlayStep overlay = NativeBattleCinematicOverlay.Draw(frame, OtBucket, pilotIdentity);
+        frame = overlay.Frame;
+        NativeBattleEffectMemory memory = RequireWaterMemory() with { Arena = frame.Arena, ScriptedEffects = frame.Core };
+        NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic overlay requires its current ordering table.");
+        if (graphics.OriginalEffect is { Binding.Effect: 331 })
+        {
+            overlay = overlay with { Packets = NativeBattleCinematic33Presentation.Depths(overlay.Packets) };
+        }
+        if ((ReadSlot(frame, 0x4C, 1)[0] & 1) != 0)
+        {
+            if (graphics.OriginalEffect is { } selected && (selected.Binding.Effect is 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic31Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic33Presentation.Owns(selected.Binding.Effect))))
+            {
+                graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, "20DFAB8", 0, ArenaOffset(start, 0), overlay.Packets) } };
+            }
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, ArenaOffset(start, 0), primitive.Pending, overlay.Packets);
+            memory = written.Memory;
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+        }
+        else
+        {
+            NativeBattlePrimitiveProcess common = memory.PrimitiveProcess ?? throw new NotSupportedException("Native cinematic overlay requires its current COMMON packet owner.");
+            if (start != common.ByteCursor)
+            {
+                throw new InvalidDataException("Native cinematic overlay COMMON cursor disagrees with its current packet owner.");
+            }
+            if (graphics.OriginalEffect is { } selected && (selected.Binding.Effect is 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 || (NativeBattleCinematic30Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic31Presentation.Owns(selected.Binding.Effect) || NativeBattleCinematic33Presentation.Owns(selected.Binding.Effect))))
+            {
+                graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, common.PacketBank!, common.PacketBuffer, common.ByteCursor!.Value, overlay.Packets) } };
+            }
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(common, primitive.Pending, overlay.Packets);
+            memory = memory with { PrimitiveProcess = written.Process };
+            graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
+        }
+        NativeEffectMemory = memory;
+        return (frame with { Arena = memory.Arena!, Core = memory.ScriptedEffects! }, graphics);
+    }
+}

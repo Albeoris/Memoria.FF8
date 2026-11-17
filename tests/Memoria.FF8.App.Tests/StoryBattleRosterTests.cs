@@ -19,7 +19,7 @@ public sealed class StoryBattleRosterTests
         byte[] party = [5, 0, 1];
         GameSession session = GameSession.CreateColdProcess(assets.ReadColdProcessNativeBattleMemory());
         session.StartNewGame();
-        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory, sharedAssets: assets, expandedBattleAllyCount: 3);
         world.EnsureField();
         session.SetFullBattlePlaythrough(true);
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = party }).WithGuestBattleRecords();
@@ -134,8 +134,8 @@ public sealed class StoryBattleRosterTests
         NativeBattleAiDefinition rinoaAi = Assert.IsType<NativeBattleAiDefinition>(battle.ReadDefinition().Combatants.Single(actor => actor.Id == enemyRinoa.Id).NativeAi);
         Assert.Equal(new byte[] { 24, 1, 57, 0 }, rinoaAi.Scripts[3].Take(4));
 
-        ExpandedBattlePresentationProcess? process = battle.ExpandedPresentationProcess;
-        bool EntryReady() => process?.EntryReady ?? battle.NativeGraphics!.EntryReady;
+        BattlePresentationProcess? process = battle.Presentation;
+        bool EntryReady() => process?.EntryReady ?? battle.Presentation!.Graphics.EntryReady;
         for (int callback = 0; callback < 1200 && !EntryReady(); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
@@ -145,7 +145,7 @@ public sealed class StoryBattleRosterTests
         int eventStart = battle.Events.Count;
         int issuedAttacks = 0;
         bool comparedPrivateCallback = false;
-        for (int callback = 0; callback < 4800 && world.Battle is not null && (battle.Outcome == BattleOutcome.Active || battle.NativeGraphics is { } terminal && terminal.NativeOutcome?.FadeDurationB0C != 0); callback++)
+        for (int callback = 0; callback < 4800 && world.Battle is not null && (battle.Outcome == BattleOutcome.Active || battle.Presentation?.Graphics is { } terminal && terminal.NativeOutcome?.FadeDurationB0C != 0); callback++)
         {
             if (battle.Outcome == BattleOutcome.Active && !battle.NativeScriptState.ScriptedExitRequested && enemyRinoa is { IsAlive: true, CurrentHp: > 0 } && !squall.IsBusy && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
             {
@@ -158,15 +158,15 @@ public sealed class StoryBattleRosterTests
                 BattleSession copy = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 copy.Tick();
-                Assert.Equal(copy.NativeGraphics!.NativeOutcome, battle.NativeGraphics!.NativeOutcome);
-                Assert.Equal(copy.NativeGraphics.Descriptors.Queue.ToArray(), battle.NativeGraphics.Descriptors.Queue.ToArray());
+                Assert.Equal(copy.Presentation!.Graphics.NativeOutcome, battle.Presentation!.Graphics.NativeOutcome);
+                Assert.Equal(copy.Presentation!.Graphics.Descriptors.Queue.ToArray(), battle.Presentation!.Graphics.Descriptors.Queue.ToArray());
                 Assert.Equal(copy.NativeHostCallbacks, battle.NativeHostCallbacks);
                 Assert.Equal(copy.Capture().Random, battle.Capture().Random);
                 comparedPrivateCallback = true;
                 continue;
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
 
         Assert.True(enemyRinoa.CurrentHp == 0, $"Expanded={battle.UsesExpandedRoster}, frame={battle.Frame}, callbacks={battle.NativeHostCallbacks}, outcome={battle.Outcome}, Squall HP={squall.CurrentHp}, busy={squall.IsBusy}, Rinoa HP={enemyRinoa.CurrentHp}/{enemyRinoa.MaximumHp}, attacks={issuedAttacks}, pending={battle.QueuedActions.Count}/{battle.ActiveAction?.ActionId}, events={string.Join(", ", battle.Events.Skip(eventStart).TakeLast(8).Select(item => $"{item.Kind}:{item.ActorId}>{item.TargetId}({item.Amount})"))}.");
@@ -177,7 +177,7 @@ public sealed class StoryBattleRosterTests
         Assert.Contains(battle.Events.Skip(eventStart), item => item.ActorId == enemyRinoa.Id && item.NativeTextIdentity == BattleTextIdentity.Enemy(113, 1));
         Assert.Equal(BattleOutcome.ScriptedExit, battle.Outcome);
         Assert.Equal((byte)1, battle.NativeResult);
-        NativeBattleOutcomeState terminalOutcome = Assert.IsType<NativeBattleOutcomeState>((process?.Graphics ?? battle.NativeGraphics)!.NativeOutcome);
+        NativeBattleOutcomeState terminalOutcome = Assert.IsType<NativeBattleOutcomeState>((process?.Graphics ?? battle.Presentation?.Graphics)!.NativeOutcome);
         Assert.Equal((byte)1, terminalOutcome.ResultByte6E7);
         Assert.Equal((byte)3, terminalOutcome.FadeStyleE01);
         Assert.Equal((byte)0, terminalOutcome.FadeDurationB0C);
@@ -194,7 +194,7 @@ public sealed class StoryBattleRosterTests
         }
         else
         {
-            Assert.True(world.Battle is null, $"Scripted result1 with saved mode 0x{branch.PersistentFlags182:X4} must settle through native field75 abandonment (expanded={battle.UsesExpandedRoster}, original fade={battle.NativeGraphics?.NativeOutcome?.FadeDurationB0C}).");
+            Assert.True(world.Battle is null, $"Scripted result1 with saved mode 0x{branch.PersistentFlags182:X4} must settle through native field75 abandonment (expanded={battle.UsesExpandedRoster}, original fade={battle.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C}).");
             Assert.Equal(75, session.State.FieldId);
             NativeBattleAbandonment abandoned = Assert.Single(session.State.AbandonedNativeBattles!, entry => entry.Encounter.OccurrenceId == encounter.OccurrenceId);
             Assert.Equal(abandonments + 1, session.State.AbandonedNativeBattles!.Length);
@@ -225,8 +225,8 @@ public sealed class StoryBattleRosterTests
         string directory = TestResources.GameDirectory;
         GameSession original = new(GameSession.Load(path));
         GameSession expanded = new(GameSession.Load(path));
-        using GameWorld originalWorld = new(original, directory, expandedBattleAllyCount: 3) { UsePhysicalBattlePresentation = true };
-        using GameWorld expandedWorld = new(expanded, directory, expandedBattleAllyCount: 11) { UsePhysicalBattlePresentation = true };
+        using GameWorld originalWorld = new(original, directory, expandedBattleAllyCount: 3);
+        using GameWorld expandedWorld = new(expanded, directory, expandedBattleAllyCount: 11);
         originalWorld.EnsureField();
         expandedWorld.EnsureField();
         Assert.Equal(3, originalWorld.ConfiguredBattleAllyCount);
@@ -275,7 +275,7 @@ public sealed class StoryBattleRosterTests
     public void TowerStoryEntryPreservesOriginalSlotsWithAnEligibleFourthPartyMember(int expandedBattleAllyCount)
     {
         GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.TowerEntry.1")));
-        using GameWorld world = new(session, TestResources.GameDirectory, expandedBattleAllyCount: expandedBattleAllyCount) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, TestResources.GameDirectory, expandedBattleAllyCount: expandedBattleAllyCount);
         world.EnsureField();
         for (int frame = 0; frame < 3000 && !world.HasPendingBattle; frame++)
         {
@@ -295,7 +295,7 @@ public sealed class StoryBattleRosterTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.False(battle.UsesExpandedRoster);
-        Assert.NotNull(battle.NativeGraphics);
+        Assert.NotNull(battle.Presentation?.Graphics);
         Assert.Equal(new byte[] { 1, 0, 5 }, session.State.CharacterVitals!.CombatParty);
         AssertTowerSlots(battle);
 
@@ -308,13 +308,13 @@ public sealed class StoryBattleRosterTests
     {
         string directory = TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(TestResources.FixturePath("story-battle-136")));
-        using GameWorld original = new(session, directory, expandedBattleAllyCount: 3) { UsePhysicalBattlePresentation = true };
+        using GameWorld original = new(session, directory, expandedBattleAllyCount: 3);
         original.EnsureField();
         Assert.Equal((ushort)136, original.Events.PendingInteractiveBattle!.Encounter);
         original.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(original.Battle);
         Assert.False(battle.UsesExpandedRoster);
-        Assert.NotNull(battle.NativeGraphics);
+        Assert.NotNull(battle.Presentation?.Graphics);
         original.ApplyBattleInput(new(BattleInputKind.InstantVictory));
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
 
@@ -329,7 +329,7 @@ public sealed class StoryBattleRosterTests
         using (GameWorld legacy = new(new GameSession(saved.Deserialize<GameState>()!), directory, expandedBattleAllyCount: 3))
         {
             BattleSession restored = Assert.IsType<BattleSession>(legacy.Battle);
-            Assert.NotNull(restored.NativeGraphics);
+            Assert.NotNull(restored.Presentation?.Graphics);
             Assert.Null(Assert.Single(restored.Combatants, actor => actor.Id == actorId).MagicRecordId);
             AssertJsonEqual(expected, legacy.PreviewBattleRewards());
         }
@@ -351,13 +351,13 @@ public sealed class StoryBattleRosterTests
         string directory = TestResources.GameDirectory;
         GameSession original = new(GameSession.Load(path));
         GameSession expanded = new(GameSession.Load(path));
-        using GameWorld originalWorld = new(original, directory) { UsePhysicalBattlePresentation = true };
-        using GameWorld expandedWorld = new(expanded, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld originalWorld = new(original, directory);
+        using GameWorld expandedWorld = new(expanded, directory);
         BattleSession originalBattle = EnterMagicalLampBattle(originalWorld, original, 3);
         BattleSession expandedBattle = EnterMagicalLampBattle(expandedWorld, expanded, 11);
         Assert.Equal(originalWorld.Events.PendingMenuBattle, expandedWorld.Events.PendingMenuBattle);
         AssertOriginalStoryState(originalBattle, expandedBattle, original.State.CharacterVitals!.CombatParty);
-        AssertJsonEqual(originalBattle.NativeCamera, expandedBattle.NativeCamera);
+        AssertJsonEqual(originalBattle.Presentation?.Camera, expandedBattle.Presentation?.Camera);
 
         const int callbacks = 120;
         BattleInput tick = new(BattleInputKind.Tick, Frames: callbacks);
@@ -368,13 +368,13 @@ public sealed class StoryBattleRosterTests
         Assert.Equal(originalWorld.Events.Frame, expandedWorld.Events.Frame);
         Assert.Equal(originalWorld.Events.PendingMenuBattle, expandedWorld.Events.PendingMenuBattle);
         AssertOriginalStoryState(originalBattle, expandedBattle, original.State.CharacterVitals.CombatParty);
-        AssertJsonEqual(originalBattle.NativeCamera, expandedBattle.NativeCamera);
+        AssertJsonEqual(originalBattle.Presentation?.Camera, expandedBattle.Presentation?.Camera);
 
         BattleSession originalRestored = RestoreAndAdvance(originalWorld, originalBattle);
         BattleSession expandedRestored = RestoreAndAdvance(expandedWorld, expandedBattle);
         Assert.Equal(callbacks + 1, originalRestored.NativeHostCallbacks);
         AssertOriginalStoryState(originalRestored, expandedRestored, original.State.CharacterVitals.CombatParty);
-        AssertJsonEqual(originalRestored.NativeCamera, expandedRestored.NativeCamera);
+        AssertJsonEqual(originalRestored.Presentation?.Camera, expandedRestored.Presentation?.Camera);
     }
 
     private static BattleSession EnterMagicalLampBattle(GameWorld world, GameSession session, int battleAllyCount)
@@ -390,7 +390,7 @@ public sealed class StoryBattleRosterTests
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.Equal(811, battle.EncounterId);
         Assert.False(battle.UsesExpandedRoster);
-        Assert.NotNull(battle.NativeGraphics);
+        Assert.NotNull(battle.Presentation?.Graphics);
         Assert.Equal(combatParty, session.State.CharacterVitals!.CombatParty);
         BattleCombatant[] allies = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
         Assert.Equal(combatParty.Select(row => $"party-{row}"), allies.Select(actor => actor.Id));
@@ -403,8 +403,8 @@ public sealed class StoryBattleRosterTests
     {
         Assert.False(original.UsesExpandedRoster);
         Assert.False(candidate.UsesExpandedRoster);
-        Assert.NotNull(original.NativeGraphics);
-        Assert.NotNull(candidate.NativeGraphics);
+        Assert.NotNull(original.Presentation?.Graphics);
+        Assert.NotNull(candidate.Presentation?.Graphics);
         Assert.Equal(original.EncounterId, candidate.EncounterId);
         BattleCombatant[] allies = candidate.Combatants.Where(actor => actor.IsPlayer).ToArray();
         Assert.Equal(combatParty.Where(row => row != byte.MaxValue).Select(row => $"party-{row}"), allies.Select(actor => actor.Id));

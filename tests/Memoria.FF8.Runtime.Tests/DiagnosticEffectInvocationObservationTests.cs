@@ -11,22 +11,22 @@ public sealed class DiagnosticEffectInvocationObservationTests
     public void Actual_entered_parameters_are_observed_while_the_published_graphics_view_is_stale()
     {
         var (battle, dispatch, entered, published) = Fixture();
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticEffectInvocation(dispatch));
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticEffectInvocation(dispatch));
         BattleDiagnosticEffectInvocation? observed = null;
         Publish(battle, dispatch, entered, current =>
         {
-            Assert.Same(published, battle.NativeGraphics!.OriginalEffect);
-            Assert.Equal((byte)2, battle.NativeGraphics.OriginalEffect!.Parameters!.Parameter80);
-            observed = battle.ObserveDiagnosticEffectInvocation(current);
+            Assert.Same(published, battle.Presentation!.Graphics.OriginalEffect);
+            Assert.Equal((byte)2, battle.Presentation!.Graphics.OriginalEffect!.Parameters!.Parameter80);
+            observed = battle.Presentation!.ObserveDiagnosticEffectInvocation(current);
             Assert.Equal((byte)8, observed.Parameter80);
             Assert.Equal((byte)0, observed.Parameter82);
             Assert.Equal((ushort)274, observed.RequestedEffect);
             Assert.Equal(0, observed.HeaderIndex);
-            Assert.Throws<InvalidDataException>(() => battle.ObserveDiagnosticActionPackets(current));
+            Assert.Throws<InvalidDataException>(() => battle.Presentation!.ObserveDiagnosticActionPackets(current));
         });
         Assert.Equal((byte)8, observed!.Parameter80);
-        Assert.Same(published, battle.NativeGraphics!.OriginalEffect);
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticEffectInvocation(dispatch));
+        Assert.Same(published, battle.Presentation!.Graphics.OriginalEffect);
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticEffectInvocation(dispatch));
     }
 
     [Fact]
@@ -35,13 +35,13 @@ public sealed class DiagnosticEffectInvocationObservationTests
         var (battle, dispatch, entered, _) = Fixture();
         Assert.Throws<InvalidDataException>(() => Publish(battle, dispatch, entered, current =>
         {
-            Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticEffectInvocation(current with { }));
+            Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticEffectInvocation(current with { }));
             Exception? failure = null;
             Thread worker = new(() =>
             {
                 try
                 {
-                    battle.ObserveDiagnosticEffectInvocation(current);
+                    battle.Presentation!.ObserveDiagnosticEffectInvocation(current);
                 }
                 catch (Exception error)
                 {
@@ -53,8 +53,8 @@ public sealed class DiagnosticEffectInvocationObservationTests
             Assert.IsType<InvalidOperationException>(failure);
             throw new InvalidDataException("Bounded observer failure.");
         }));
-        Assert.Throws<InvalidOperationException>(() => battle.ObserveDiagnosticEffectInvocation(dispatch));
-        Publish(battle, dispatch, entered, current => Assert.Equal((byte)8, battle.ObserveDiagnosticEffectInvocation(current).Parameter80));
+        Assert.Throws<InvalidOperationException>(() => battle.Presentation!.ObserveDiagnosticEffectInvocation(dispatch));
+        Publish(battle, dispatch, entered, current => Assert.Equal((byte)8, battle.Presentation!.ObserveDiagnosticEffectInvocation(current).Parameter80));
     }
 
     private static (BattleSession Battle, BattleDiagnosticEffectDispatch Dispatch, NativeBattleOriginalEffectState Entered, NativeBattleOriginalEffectState Published) Fixture()
@@ -75,7 +75,7 @@ public sealed class DiagnosticEffectInvocationObservationTests
         NativeBattleOriginalEffectState entered = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 8, Parameter82 = 0 }, 0);
         NativeBattleOriginalEffectState published = entered with { Parameters = entered.Parameters! with { Parameter80 = 2, Parameter81 = 1 } };
         NativeBattleGraphicsState graphics = OriginalUnboundGraphics(_ => new(3)) with { OriginalEffect = published };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
         BattleDiagnosticEffectDispatch dispatch = new(5, 485, "party", BattleAbility.NativeCommand, 65532, 274, 274, 241) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
         return (battle, dispatch, entered, published);
     }

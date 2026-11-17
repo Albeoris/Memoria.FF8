@@ -60,7 +60,7 @@ public sealed partial class BattleSession
 
     private ushort ReadDiagnosticOriginalTargetWord(BattleTargetRequest request)
     {
-        if (UsesExpandedRoster && (request.Selection is not BattleTargetSelection.Explicit selected || selected.Actors.Any(actor => ReadOriginalTargetSlot(actor) is null)))
+        if (request.Selection is not BattleTargetSelection.Explicit selected || selected.Actors.Any(actor => ReadOriginalTargetSlot(actor) is null))
         {
             throw new InvalidOperationException("The expanded Limit diagnostic requires explicit targets with actual physical aliases.");
         }

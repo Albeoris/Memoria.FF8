@@ -168,7 +168,7 @@ internal static class NativeBattleLimitComponentSources
                 }
                 if (descriptors.Length <= 1)
                 {
-                    _ = GameWorld.ValidateEffectComponentSource(snapshot, battle, effect);
+                    _ = GameWorld.ValidateEffectComponentSource(battle, effect);
                     return snapshot;
                 }
             }

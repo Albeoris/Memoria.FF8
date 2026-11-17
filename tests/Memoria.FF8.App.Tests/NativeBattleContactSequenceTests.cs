@@ -15,20 +15,20 @@ public sealed class NativeBattleContactSequenceTests
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        NativeBattleGraphicsModel before = ReadOriginalModelCell(battle.NativeGraphics!, 4);
+        NativeBattleGraphicsModel before = ReadOriginalModelCell(battle.Presentation!.Graphics, 4);
         Assert.Equal(3217, battle.Frame);
         Assert.Equal((byte)50, before.ModelId4);
         Assert.Equal((byte)4, before.Sequence);
         Assert.Equal((ushort)8, before.SequenceState!.Offset46);
-        NativeBattleGraphicsResource resource = ContactResource(battle, battle.NativeGraphics!);
+        NativeBattleGraphicsResource resource = ContactResource(battle, battle.Presentation!.Graphics);
         Assert.Equal(12, resource.AnimationFrames.Length);
         Assert.False(resource.Contains(9));
         int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
 
         battle.Tick();
         Assert.Equal(3218, battle.Frame);
-        Assert.NotEqual((byte)9, ReadOriginalModelCell(battle.NativeGraphics!, 4).Sequence);
-        Assert.InRange(ReadOriginalModelCell(battle.NativeGraphics!, 4).SequenceState!.Pose!.Value, (byte)0, (byte)11);
+        Assert.NotEqual((byte)9, ReadOriginalModelCell(battle.Presentation!.Graphics, 4).Sequence);
+        Assert.InRange(ReadOriginalModelCell(battle.Presentation!.Graphics, 4).SequenceState!.Pose!.Value, (byte)0, (byte)11);
         for (int callback = 1; callback < 30; callback++)
         {
             battle.Tick();
@@ -63,7 +63,7 @@ public sealed class NativeBattleContactSequenceTests
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        NativeBattleGraphicsState source = battle.NativeGraphics!;
+        NativeBattleGraphicsState source = battle.Presentation!.Graphics;
         NativeBattleGraphicsModel original = ReadOriginalModelCell(source, 4);
         Assert.Null(original.ReadLinkedModel());
         Assert.True(ContactResource(battle, source).Contains(4));

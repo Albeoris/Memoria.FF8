@@ -41,7 +41,7 @@ public sealed class NativeBattleSlotsContinuationTests
         BattleSnapshot initial = Assert.IsType<BattleSnapshot>(source.Battle);
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleScenePresentation scene = new(assets, initial.Definition, true);
+        BattleScenePresentation scene = new(assets, initial.Definition);
         BattleSession battle = Restore(initial);
         Directory.CreateDirectory(evidence!);
         Console.WriteLine($"Slots source field {source.FieldId}, battle frame {initial.Frame}");
@@ -53,7 +53,7 @@ public sealed class NativeBattleSlotsContinuationTests
         Assert.True(battle.SubmitNativeSlotsCard(deal.Id));
         File.WriteAllBytes(Path.Combine(evidence!, "accepted.battle.json"), JsonSerializer.SerializeToUtf8Bytes(battle.Capture()));
         using StreamWriter trace = new(Path.Combine(evidence!, "callbacks.jsonl")) { AutoFlush = true };
-        TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         BattleSnapshot before = battle.Capture();
         bool restoredMidpoint = false;
         bool produced = false;

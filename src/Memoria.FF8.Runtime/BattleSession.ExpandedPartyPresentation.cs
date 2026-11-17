@@ -8,7 +8,7 @@ public sealed partial class BattleSession
 
     private void InitializeExpandedPartyPresentation()
     {
-        if (!UsesExpandedRoster || expandedPartyPresentation is not null)
+        if (expandedPartyPresentation is not null)
         {
             throw new InvalidOperationException("Expanded party presentation requires an expanded roster and one initialization.");
         }

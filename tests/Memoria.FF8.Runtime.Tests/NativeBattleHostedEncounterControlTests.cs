@@ -99,7 +99,7 @@ public sealed class NativeBattleHostedEncounterControlTests
 
     private static NativeBattleGraphicsState AdvanceDescriptors(BattleSession child, NativeBattleGraphicsState graphics)
     {
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(child.Presentation!, graphics);
         return Assert.IsType<NativeBattleGraphicsState>(Invoke(child, "AdvanceNativeDescriptors", graphics));
     }
 

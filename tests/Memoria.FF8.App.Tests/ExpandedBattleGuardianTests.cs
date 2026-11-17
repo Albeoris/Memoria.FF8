@@ -46,7 +46,7 @@ public sealed class ExpandedBattleGuardianTests
         uint initialVictories = session.State.BattleStatistics!.Victories;
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         Assert.True(process.EntryReady);
         Assert.Equal(NativeBattlePcDirectTextureFormat.Rgb555, battle.PreparedPresentation?.PrimitiveCapabilities?.DirectTextureFormat);
 
@@ -84,7 +84,7 @@ public sealed class ExpandedBattleGuardianTests
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
 
         int? admittedAt = null;
@@ -105,7 +105,7 @@ public sealed class ExpandedBattleGuardianTests
             int beforeTick = battle.Events.Count;
             int[]? hpBeforeAdmission = admittedAt is null ? enemies.Select(enemy => enemy.CurrentHp).ToArray() : null;
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             sawModule |= process.Graphics.OriginalEffect?.RequestedEffect == native.MagicId;
             if (battle.NativeGuardianBoost is { Phase: < 6 } widget)
             {
@@ -178,17 +178,17 @@ public sealed class ExpandedBattleGuardianTests
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
         Assert.True(Completed(battle, next), "The next Attack did not complete on the attached Guardian Force process.");
         Assert.Equal(nextTarget, Assert.Single(battle.Events.Skip(next), entry => entry is { Kind: "EffectContact", ActorId: CasterId }).TargetId);
     }
 
-    private static void VerifyLethalSummonReturn(GameWorld world, GameSession session, BattleSession battle, ExpandedBattlePresentationProcess process, BattleEncounterOccurrence occurrence, int initialResults, uint initialVictories)
+    private static void VerifyLethalSummonReturn(GameWorld world, GameSession session, BattleSession battle, BattlePresentationProcess process, BattleEncounterOccurrence occurrence, int initialResults, uint initialVictories)
     {
         for (int callback = 0; callback < 500 && battle.Outcome == BattleOutcome.Active; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, world.Battle!.ExpandedPresentationProcess);
+            Assert.Same(process, world.Battle!.Presentation);
             Assert.Equal(initialResults, session.State.AppliedBattleResultIds.Length);
         }
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
@@ -211,7 +211,7 @@ public sealed class ExpandedBattleGuardianTests
         Assert.Equal(133, receipt.Reload.FieldId);
     }
 
-    private static string DescribeStalledGuardian(BattleSession battle, BattleSession child, ExpandedBattlePresentationProcess process, bool sawModule, bool sawWidget, int delivered)
+    private static string DescribeStalledGuardian(BattleSession battle, BattleSession child, BattlePresentationProcess process, bool sawModule, bool sawWidget, int delivered)
     {
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleActionPacketsState action = child.NativeActionPackets;

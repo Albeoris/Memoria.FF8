@@ -55,7 +55,7 @@ internal sealed partial class RecreateGame
         {
             long started = Stopwatch.GetTimestamp();
             GameWorld.PreparedBattleEntry prepared = world.PrepareCommittedBattleEntry(formation, flags, seed, mode, music);
-            BattleScenePresentation scene = new(world.BattleResources, prepared.Battle.ReadDefinition(), true);
+            BattleScenePresentation scene = new(world.BattleResources, prepared.Battle.ReadDefinition());
             EnsureLiveMenuCatalog();
             return new PreparedBattlePresentation(prepared, scene, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         });

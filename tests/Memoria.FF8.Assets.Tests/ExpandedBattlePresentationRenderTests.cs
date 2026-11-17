@@ -73,15 +73,16 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
                 ? binding with { InitialPosition = position }
                 : binding).ToImmutableArray();
         selected = selected with { NativeGraphics = graphics with { Bindings = bindings } };
-        ExpandedBattlePresentationProcess process = new(logical, selected);
+        logical.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
         }
         Assert.True(process.EntryReady, $"Entry stopped at lifecycle {process.Graphics.EntryLifecycle}, callback {process.Graphics.Callback}.");
         for (int callback = 0; callback < 30; callback++)
         {
-            process.Advance(logical);
+            process.Advance(static () => { }, static (_, _) => { });
         }
 
         NativeBattlePreparedPresentation prepared = Assert.IsType<NativeBattlePreparedPresentation>(process.PreparedPresentation);
@@ -125,12 +126,11 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
             NativeBattleCameraState raw = process.Camera;
             NativeBattleCameraProjection original = Assert.IsType<NativeBattleCameraProjection>(prepared.PilotProjection);
             AssertProjection(original, raw.Projection);
-            BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
-            PropertyInfo cameraProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!;
+            PropertyInfo cameraProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!;
             NativeBattlePreparedPresentation AdvanceProjection(NativeBattleCameraProjection projection)
             {
-                cameraProperty.SetValue(child, raw with { Projection = projection });
-                process.Advance(logical);
+                cameraProperty.SetValue(process, raw with { Projection = projection });
+                process.Advance(static () => { }, static (_, _) => { });
                 NativeBattlePreparedPresentation frame = Assert.IsType<NativeBattlePreparedPresentation>(process.PreparedPresentation);
                 AssertProjection(projection, frame.PilotProjection);
                 Assert.Equal(raw.FocalLength, process.Camera.FocalLength);

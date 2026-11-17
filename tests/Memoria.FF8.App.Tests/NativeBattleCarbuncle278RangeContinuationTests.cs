@@ -39,7 +39,7 @@ public sealed class NativeBattleCarbuncle278RangeContinuationTests
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(migrated)!);
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         NativeBattleRestorationPresentationTests.Publish(output, "source", source, null);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         string? hiddenPose = JsonSerializer.Serialize(source.NativeEffectMemory!.CarbuncleExecutableMemory);

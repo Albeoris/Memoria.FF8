@@ -81,13 +81,13 @@ public sealed class ExpandedBattleEntryAdmissionTests
 
     internal static void ReachReady(GameWorld world, BattleSession battle)
     {
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.True(process.EntryReady);
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
     }
 
     internal static void SelectFourAllies(GameWorld world, GameSession session)

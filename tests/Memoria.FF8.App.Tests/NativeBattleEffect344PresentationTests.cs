@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect344PresentationTests
         using GameAssets game = new(directory);
         BattleSnapshot source = PrepareSource(game, assets, output);
         BattleSession battle = Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         NativeBattleEffect344PresentationObserver observer = new();
         HashSet<string> restored = [];
         HashSet<int> observedTexts = [];
@@ -123,8 +123,8 @@ public sealed class NativeBattleEffect344PresentationTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, source.Definition).Render(direct, 320, 224).ToArray(), pixels);
             NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
             restored.Add(name);
         }

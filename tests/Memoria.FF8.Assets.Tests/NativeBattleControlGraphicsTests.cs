@@ -65,16 +65,16 @@ public sealed class NativeBattleControlGraphicsTests
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(battle.Capture()))!);
         bool selected = false;
         bool waitedForSequence = false;
-        for (int tick = 0; tick < 200 && battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104); tick++)
+        for (int tick = 0; tick < 200 && battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104); tick++)
         {
             battle.Tick();
             restored.Tick();
             Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
-            selected |= battle.NativeGraphics.ActionGraphics?.Callback == callback;
-            waitedForSequence |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2);
+            selected |= battle.Presentation!.Graphics.ActionGraphics?.Callback == callback;
+            waitedForSequence |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2);
         }
         Assert.True(selected);
-        Assert.DoesNotContain(battle.NativeGraphics!.Descriptors.Queue, slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+        Assert.DoesNotContain(battle.Presentation!.Graphics.Descriptors.Queue, slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
         Assert.Equal(sequence == 10 && !contact, waitedForSequence);
         if (sequence == 4)
         {

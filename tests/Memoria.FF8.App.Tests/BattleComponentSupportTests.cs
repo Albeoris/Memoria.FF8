@@ -11,12 +11,12 @@ public sealed class BattleComponentSupportTests
     public void Live_turn_based_component_automatically_refills_after_queued_action_completion_and_restores_at_the_boundary()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
-        using GameWorld world = new(CreateSession(assets, 0), assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(CreateSession(assets, 0), assets.GameDirectory);
         BattleDefinition seed = ComponentDefinition(world, 512);
         BattleCombatantDefinition party = seed.Combatants.First(actor => actor.IsPlayer) with { Speed = 1_000 };
         BattleCombatantDefinition enemy = seed.Combatants.First(actor => !actor.IsPlayer) with { MaximumHp = 50_000, CurrentHp = 50_000 };
-        BattleSession battle = GameWorld.CreateLiveBattleSession(seed with { Combatants = [party, enemy] }, BattleAtbMode.TurnBased);
-        Assert.Null(battle.NativeGraphics);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(seed with { Combatants = [party, enemy] }, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
+        Assert.NotNull(battle.Presentation);
         for (int callback = 0; callback < 128 && battle.QueuedActions.Count != 0; callback++)
         {
             battle.Tick();
@@ -61,11 +61,11 @@ public sealed class BattleComponentSupportTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = CreateSession(assets, flags);
-        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition definition = ComponentDefinition(world, 512);
         Assert.NotNull(definition.NativeSupportRules);
         Assert.Null(definition.NativeClockRules);
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
         NativeBattleRandomState expected = definition.InitialRandom!.Draw(out _);
         if (flags == 8)
         {
@@ -78,9 +78,7 @@ public sealed class BattleComponentSupportTests
         Assert.Equal(new BattleNativeCallback(0, 7), battle.QueuedActions.Last().NativeCallback);
         string before = JsonSerializer.Serialize(battle.Capture());
 
-        battle.CompleteComponentBattleEntry();
-        BattleScenePresentation scene = new(world.BattleResources, definition, true);
-        scene.AdvancePresentation(TimeSpan.FromSeconds(1));
+        BattleScenePresentation scene = new(world.BattleResources, definition);
         _ = scene.Render(battle, 320, 224);
 
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
@@ -94,9 +92,9 @@ public sealed class BattleComponentSupportTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = CreateSession(assets, 0, rinoa: true);
-        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition definition = ComponentDefinition(world, 512);
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
         for (int callback = 0; callback < 128 && (battle.QueuedActions.Count != 0 || battle.ActiveAction is not null || battle.Capture().NativeActionScratch!.ComponentCompletion is not null); callback++)
         {
             battle.Tick();
@@ -112,8 +110,7 @@ public sealed class BattleComponentSupportTests
         string before = JsonSerializer.Serialize(waiting.Capture());
 
         waiting.Tick();
-        BattleScenePresentation scene = new(world.BattleResources, definition, true);
-        scene.AdvancePresentation(TimeSpan.FromSeconds(1));
+        BattleScenePresentation scene = new(world.BattleResources, definition);
         _ = scene.Render(waiting, 320, 224);
 
         Assert.Equal(before, JsonSerializer.Serialize(waiting.Capture()));

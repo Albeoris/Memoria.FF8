@@ -178,7 +178,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
             NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed
         };
         BattleSession battle = new(selected, BattleAtbMode.Normal);
-        NativeBattleGraphicsState graphics = battle.NativeGraphics! with { Descriptors = NativeBattleDescriptorState.Clear() };
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics with { Descriptors = NativeBattleDescriptorState.Clear() };
         MethodInfo prepare = typeof(BattleSession).GetMethod("BuildNativeTerminalGraphics", PrivateInstance)!;
         NativeBattleGraphicsState queued = Assert.IsType<NativeBattleGraphicsState>(prepare.Invoke(battle, [graphics, outcome]));
         NativeBattleDescriptorPacket[] packets = queued.Descriptors.Queue.Select(slot => queued.Descriptors.Packets[slot]).ToArray();
@@ -199,12 +199,11 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
         Assert.All(packets, packet => Assert.Equal((byte)128, packet.PriorityState));
     }
 
-    private static void SetPauseRequest(ExpandedBattlePresentationProcess process, bool paused)
+    private static void SetPauseRequest(BattlePresentationProcess process, bool paused)
     {
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", PrivateInstance)!.GetValue(process));
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleUiServices ui = graphics.UiServices!;
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics with { UiServices = paused ? ui.SetFlags(2) : ui.SetFlags(0, 2) });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(process, graphics with { UiServices = paused ? ui.SetFlags(2) : ui.SetFlags(0, 2) });
     }
 
     [Fact]
@@ -214,13 +213,13 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
         using BattleAssets assets = new(game.GameDirectory);
         var (battle, process) = Enter(game, assets, BattleAtbMode.TurnBased, missingText: true);
         NativeBattleGraphicsState before = process.Graphics;
-        Assert.Throws<NotSupportedException>(() => process.PrepareTerminal(battle, BattleOutcome.Defeat));
+        Assert.Throws<NotSupportedException>(() => process.PrepareTerminal(BattleOutcome.Defeat, battle.EscapeFlags));
         Assert.Same(before, process.Graphics);
         Assert.Null(process.Graphics.NativeOutcome?.ResultByte6E7);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        BattleSession foreign = new(battle.ReadDefinition(), BattleAtbMode.Normal);
-        Assert.Throws<InvalidOperationException>(() => process.PrepareTerminal(foreign, BattleOutcome.Victory));
-        ExpandedBattlePresentationProcess.PreparedTerminal stale = process.PrepareTerminal(battle, BattleOutcome.Victory);
+        var (_, foreign) = Enter(game, assets, BattleAtbMode.TurnBased, missingText: false);
+        BattlePresentationProcess.PreparedTerminal stale = process.PrepareTerminal(BattleOutcome.Victory, battle.EscapeFlags);
+        Assert.Throws<InvalidOperationException>(() => foreign.ValidateTerminal(stale));
         battle.Tick();
         Assert.Throws<InvalidOperationException>(() => process.ValidateTerminal(stale));
         Assert.Null(process.Graphics.NativeOutcome?.ResultByte6E7);
@@ -241,7 +240,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
         Assert.False(battle.CanReturnToField);
     }
 
-    private static (BattleSession Battle, ExpandedBattlePresentationProcess Process) Enter(GameAssets game, BattleAssets assets, BattleAtbMode mode, bool skipVictory = false, bool missingText = false)
+    private static (BattleSession Battle, BattlePresentationProcess Process) Enter(GameAssets game, BattleAssets assets, BattleAtbMode mode, bool skipVictory = false, bool missingText = false)
     {
         var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true, nativeClock: true);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
@@ -279,8 +278,8 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
             LimitProgress = options
         };
         BattleSession battle = new(definition, mode);
-        ExpandedBattlePresentationProcess process = new(battle, selected);
-        battle.AttachExpandedPresentationProcess(process);
+        battle.AttachPresentation(new(selected));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

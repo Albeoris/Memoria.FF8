@@ -33,7 +33,7 @@ public sealed class CrossEditionBattleReturnTests
         NativeBattleEffectMemory environment = NativeBattleEffectMemory.FromColdProcess() with { ExecutionStack = execution, HeroCrtStack = crt };
         GameSession sourceSession = new(GameplaySaveSessionLoader.Restore(GameplaySaveSessionLoaderTests.Document(sourceAssets, false), directory, sharedAssets: sourceAssets, executionEnvironment: environment));
         sourceSession.SetFullBattlePlaythrough(true);
-        using GameWorld source = new(sourceSession, directory, sharedAssets: sourceAssets) { UsePhysicalBattlePresentation = true };
+        using GameWorld source = new(sourceSession, directory, sharedAssets: sourceAssets);
         source.EnsureField();
         for (int callback = 0; callback < 4 && !source.HasPendingBattle; callback++)
         {
@@ -79,8 +79,8 @@ public sealed class CrossEditionBattleReturnTests
                 target.ApplyBattleInput(new(BattleInputKind.Tick));
             }
         }
-        Assert.True(physicalSource.Battle is null, $"Source defeat remains: outcome={physicalSource.Battle?.Outcome}, result={physicalSource.Battle?.NativeResult}, frame={physicalSource.Battle?.Frame}, callbacks={physicalSource.Battle?.NativeHostCallbacks}, entry={physicalSource.Battle?.NativeEntryReady}, fade={physicalSource.Battle?.NativeGraphics?.NativeOutcome?.FadeDurationB0C}, nativeResult={physicalSource.Battle?.NativeGraphics?.NativeOutcome?.ResultByte6E7}.");
-        Assert.True(target.Battle is null, $"Target defeat remains: outcome={target.Battle?.Outcome}, result={target.Battle?.NativeResult}, frame={target.Battle?.Frame}, callbacks={target.Battle?.NativeHostCallbacks}, entry={target.Battle?.NativeEntryReady}, fade={target.Battle?.NativeGraphics?.NativeOutcome?.FadeDurationB0C}, nativeResult={target.Battle?.NativeGraphics?.NativeOutcome?.ResultByte6E7}.");
+        Assert.True(physicalSource.Battle is null, $"Source defeat remains: outcome={physicalSource.Battle?.Outcome}, result={physicalSource.Battle?.NativeResult}, frame={physicalSource.Battle?.Frame}, callbacks={physicalSource.Battle?.NativeHostCallbacks}, entry={physicalSource.Battle?.NativeEntryReady}, fade={physicalSource.Battle?.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C}, nativeResult={physicalSource.Battle?.Presentation?.Graphics?.NativeOutcome?.ResultByte6E7}.");
+        Assert.True(target.Battle is null, $"Target defeat remains: outcome={target.Battle?.Outcome}, result={target.Battle?.NativeResult}, frame={target.Battle?.Frame}, callbacks={target.Battle?.NativeHostCallbacks}, entry={target.Battle?.NativeEntryReady}, fade={target.Battle?.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C}, nativeResult={target.Battle?.Presentation?.Graphics?.NativeOutcome?.ResultByte6E7}.");
         Assert.Null(target.Events.LastFault);
         Assert.Equal(resume ? 165 : 75, targetSession.State.FieldId);
         GameState physical = physicalSession.PrepareSnapshot();
@@ -126,7 +126,7 @@ public sealed class CrossEditionBattleReturnTests
         byte[] hash = Hash(path);
         using GameAssets sourceAssets = new(sourceDirectory);
         GameSession sourceSession = new(PlayerStateLoader.Load(path, sourceDirectory, sharedAssets: sourceAssets));
-        using GameWorld source = new(sourceSession, sourceDirectory, sharedAssets: sourceAssets) { UsePhysicalBattlePresentation = true };
+        using GameWorld source = new(sourceSession, sourceDirectory, sharedAssets: sourceAssets);
         source.EnsureField();
         Assert.True(source.Apply(new(PlayerActionKind.UseFieldItem, 168, Quantity: 0)).Accepted);
         Assert.NotNull(source.Events.PendingMenuBattle);

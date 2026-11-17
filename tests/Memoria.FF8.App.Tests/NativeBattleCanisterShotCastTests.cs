@@ -15,7 +15,7 @@ public sealed class NativeBattleCanisterShotCastTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 195) with { Items = [new(105, 2)], NativeShotAvailability = game.ReadNewGameShotAvailability() };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "canister-shot-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Canister Shot evidence: " + output);
@@ -29,7 +29,7 @@ public sealed class NativeBattleCanisterShotCastTests
             CompareNext("queued");
             Until(() => battle.GetNativeShot("party")?.Phase == BattleNativeShotPhase.Ready);
             Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-            Assert.Equal((ushort)195, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
+            Assert.Equal((ushort)195, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
             CompareNext("opening-ready");
             Assert.Equal((byte)4, battle.GetNativeLimitLevel("party"));
             Assert.True(battle.TriggerNativeShot("party"));
@@ -40,14 +40,14 @@ public sealed class NativeBattleCanisterShotCastTests
             Until(() => battle.GetNativeShot("party")?.Phase == BattleNativeShotPhase.Ready);
             battle.EndNativeShot("party");
             CompareNext("ending-queued");
-            Until(() => battle.GetNativeShot("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
+            Until(() => battle.GetNativeShot("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 });
             Assert.Single(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
             Assert.Equal(1, battle.Items.Single(item => item.Id == 105).Count);
             Publish("completed-before-host-mode");
             // This visual component has no enemy AI; select one real host poll after releasing the Limit.
             battle.SetMode(BattleAtbMode.Normal);
             CompareNext("completed");
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", CompletionHostMode = battle.Mode, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", CompletionHostMode = battle.Mode, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
         }
         catch (Exception error)
         {
@@ -81,7 +81,7 @@ public sealed class NativeBattleCanisterShotCastTests
             battle.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");
         }
     }

@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         if (member is >= 36 and <= 64)
         {
             int index = (member - 36) / 4;
-            if (UsesExpandedRoster && owner.AiActorReferences.ContainsKey(index))
+            if (owner.AiActorReferences.ContainsKey(index))
             {
                 throw new NotSupportedException("Expanded battle AI cannot read an actor reference as a number.");
             }
@@ -25,14 +25,11 @@ public sealed partial class BattleSession
         if (member is >= 36 and <= 64)
         {
             int index = (member - 36) / 4;
-            if (UsesExpandedRoster)
-            {
                 if (add && owner.AiActorReferences.ContainsKey(index))
                 {
                     throw new NotSupportedException("Expanded battle AI cannot perform arithmetic on an actor reference.");
                 }
                 owner.AiActorReferences.Remove(index);
-            }
             owner.AiVariables[index] = add ? unchecked(owner.AiVariables[index] + operand) : operand;
             return;
         }
@@ -45,11 +42,11 @@ public sealed partial class BattleSession
     {
         //487DF0 indexes1D277C4 by52*actor+U8 variable; actor records begin1D27B10,211 DWORDs later.
         //48B310/48BBD0 own the forty resistance bytes at actor+144;48C5C0 deliberately retains them.
-        if (UsesExpandedRoster && variable is >= 220 and <= 227)
+        if (variable is >= 220 and <= 227)
         {
             return (actor, 4 * (variable - 211));
         }
-        if (UsesExpandedRoster && (!UsesOriginalEnemySlots || !HasNativeRosterSlot(actor)))
+        if ((!UsesOriginalEnemySlots || !HasNativeRosterSlot(actor)))
         {
             throw new NotSupportedException($"Expanded battle AI variable {variable} requires a physical actor-bank alias.");
         }

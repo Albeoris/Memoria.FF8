@@ -14,14 +14,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Rinoa Limit menu requires both original kernel24 records.");
         }
-        if ((flags & 0x10) == 0 && (!UsesExpandedRoster || HasExpandedCombine(actor)))
+        if ((flags & 0x10) == 0 && (HasExpandedCombine(actor)))
         {
             NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Combine requires the actual saved Angelo learned flags.");
             progress.Validate();
             ushort id = NativeBattleLimitRules.AngeloActionId(crisis, (byte)(progress.AngeloFlags >> 4));
             yield return FindInstalledNativeAction(19, id) with { Name = limit.InvocationChoices[0].Name };
         }
-        if ((flags & 0x20) != 0 && (!UsesExpandedRoster || HasExpandedAngelWing(actor)))
+        if ((flags & 0x20) != 0 && (HasExpandedAngelWing(actor)))
         {
             yield return FindInstalledNativeAction(19, 4) with { Name = limit.InvocationChoices[1].Name };
         }
@@ -36,10 +36,6 @@ public sealed partial class BattleSession
     private BattleTargetRequest CreatePlayerTargetRequest(BattleCombatant actor, BattleCombatant target, byte targetFlags)
     {
         BattleCombatant selected = NativePlayerSelectedTarget(actor, target, targetFlags);
-        if (!UsesExpandedRoster)
-        {
-            return NativeBattleTargetRequestAdapter.CreatePlayerRequest(targetFlags, selected.RequireNativeActorIndex());
-        }
 
         BattleTargetSide side = selected.IsPlayer ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
         BattleTargetSelection selection = (targetFlags & 0x30) switch
@@ -71,13 +67,6 @@ public sealed partial class BattleSession
         };
         originalPreflight = selection as NativeBattleTargetRequestAdapter.DeferredOperands;
         bool allowsKnockedOutAllies = (targetFlags & 1) != 0;
-        if (!UsesExpandedRoster)
-        {
-            NativeBattleTargetRequestAdapter.OriginalWordProjection original = selection is BattleTargetSelection.SideGroup group
-                ? NativeBattleTargetRequestAdapter.OriginalGroup(group.Side)
-                : new(originalPreflight ?? throw new InvalidDataException("The automatic action requires its reached original target operand."));
-            return NativeBattleTargetRequestAdapter.CreateOriginalRequest(original with { Random = (targetFlags & 2) != 0 }, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies);
-        }
 
         if ((targetFlags & 2) != 0)
         {

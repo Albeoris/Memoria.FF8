@@ -68,7 +68,7 @@ public sealed class NativeBattleEffect209FollowingActionTests
                 Assert.Empty(current.QueuedActions);
                 Assert.Equal(source.Combatants.Select(actor => actor.CurrentHp), current.Combatants.Select(actor => actor.CurrentHp));
                 Assert.Equal(source.NativeStage!.Extended!.Stage137.Variants!.Index + 1, current.NativeStage!.Extended!.Stage137.Variants!.Index);
-                NativeBattleRestorationPresentationTests.Publish(output!, "following-action-completed", current, new BattleScenePresentation(assets, current.Definition, true).Render(battle, 320, 224).ToArray());
+                NativeBattleRestorationPresentationTests.Publish(output!, "following-action-completed", current, new BattleScenePresentation(assets, current.Definition).Render(battle, 320, 224).ToArray());
                 completed = true;
                 break;
             }

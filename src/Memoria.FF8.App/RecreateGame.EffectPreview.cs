@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
     private ushort effectPreviewExpectedEffect;
     private EffectComponentFrameMeasurements? effectComponentMeasurements;
     private long? effectComponentDrainedTimestamp;
-    private ComponentSourceAdmission? effectPreviewSourceAdmission;
+    private BattleDiagnosticComponentAdmission? effectPreviewSourceAdmission;
     private int effectComponentInactivePresentedFrames;
     private readonly EffectComponentTerminalTextureTracker effectComponentTerminalTextures = new();
 

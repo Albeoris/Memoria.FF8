@@ -170,7 +170,7 @@ public sealed class DebugRoomSettingsTests
     }
 
     [Fact]
-    public void Default_uses_current_party_hp_and_last_enemy_or_explicit_dummy()
+    public void Default_uses_current_party_hp_and_selected_enemy()
     {
         BattleDefinition source = Scenario();
         BattleSession current = new(source, BattleAtbMode.Normal);
@@ -180,10 +180,6 @@ public sealed class DebugRoomSettingsTests
         Assert.Equal("Soldier", defaults.Combatants[1].Name);
         Assert.Equal(100, defaults.Combatants[1].CurrentHp);
         Assert.Equal(9, defaults.StageId);
-        BattleDefinition dummy = BattleDebugDefaults.Create([source.Combatants[0]], null, 7);
-        Assert.Equal("Dummy", dummy.Combatants[1].Name);
-        Assert.Equal(-1, dummy.Combatants[1].ModelId);
-        _ = new BattleSession(dummy, BattleAtbMode.Normal);
     }
 
     [Fact]

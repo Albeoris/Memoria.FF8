@@ -38,6 +38,7 @@ public sealed partial class BattleSession
     public event Action<BattleDiagnosticCounterContact>? DiagnosticCounterContactPublished;
     public event Action<BattleDiagnosticCounterCallbackObservation>? DiagnosticCounterCallbackObserved;
     public event Action<BattleDiagnosticCounterCommand>? DiagnosticCounterCommandQueued;
+    private bool ObservingDiagnosticCounter => DiagnosticCounterContactPublished is not null || DiagnosticCounterCallbackObserved is not null || DiagnosticCounterCommandQueued is not null;
     private long diagnosticCounterPrimarySerial;
     private long diagnosticCounterQueueEpoch;
     private long diagnosticCounterAiSerial;
@@ -48,7 +49,6 @@ public sealed partial class BattleSession
     private readonly Dictionary<NativeBattleCommandLocation, BattleDiagnosticCounterCallback> diagnosticCounterCallbacks = [];
     private BattleDiagnosticCounterCallback? diagnosticCounterCurrentCallback;
     private (long Serial, int Stage, string Sha)? diagnosticCounterAiScope;
-    private bool ObservingDiagnosticCounter => DiagnosticCounterContactPublished is not null || DiagnosticCounterCallbackObserved is not null || DiagnosticCounterCommandQueued is not null;
 
     private static BattleDiagnosticCounterActor CaptureDiagnosticCounterActor(BattleCombatant actor) => new(actor.Id, checked((byte)actor.RequireNativeActorIndex()), actor.ModelId, actor.CurrentHp, actor.IsActive, actor.NativeCombatantFlags, actor.LastNativeAction, actor.NativePendingReaction, actor.AiVariables.ToImmutableArray()) { SavedStatuses = NativeSavedStatusBits(actor), BattleStatuses = NativeBattleStatusBits(actor) };
 

@@ -103,7 +103,7 @@ public sealed class BattleLoadClockTests
         long fieldCallbacks = world.Events.Scene.FieldCallbackClock!.BattleCallbacks!.Value;
         long timerCalls = session.ExamTimer!.ClockCalls;
         long mainLoopCalls = session.State.WorldProcess!.MainLoopCallbacks;
-        TimeSpan nextCallback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan nextCallback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
         battle.AdvanceNativeGraphicsPresentation(nextCallback);
         world.SynchronizeBattlePresentation();

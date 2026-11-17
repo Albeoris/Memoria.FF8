@@ -10,7 +10,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleRush91PresentationTests
 {
-    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void External_Rush_completes_original_resources_with_independent_live_restores()
@@ -55,9 +55,9 @@ public sealed class NativeBattleRush91PresentationTests
         NativeBattleRush91Resources resources = installed.Rush91Resources!;
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         heard.Clear();
         int sourceEvents = battle.Events.Count;
@@ -89,7 +89,7 @@ public sealed class NativeBattleRush91PresentationTests
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-before", prior, scene.Render(battle, 320, 224));
                     cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 }
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
@@ -141,7 +141,7 @@ public sealed class NativeBattleRush91PresentationTests
                     cold.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattlePrimitiveFrame removed = frame with { LastCommands = frame.LastCommands.Where(item => item.Command.Packet.Bank != "20DFAB8" && item.Command.Packet.Bank != NativeBattleFullscreenOverlay.PacketBank).ToImmutableArray() };
                     BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = removed } });
                     byte[] background = scene.Render(plain, 320, 224).ToArray();
@@ -159,12 +159,12 @@ public sealed class NativeBattleRush91PresentationTests
             Assert.Equal(1, completions);
             Assert.True(emissionSequences > 0);
             Assert.True(sawModelTim && sawPrivate && sawCommon && sawOverlay);
-            NativeBattleOriginalEffectState finished = Assert.IsType<NativeBattleOriginalEffectState>(battle.NativeGraphics!.OriginalEffect);
+            NativeBattleOriginalEffectState finished = Assert.IsType<NativeBattleOriginalEffectState>(battle.Presentation!.Graphics.OriginalEffect);
             Assert.Equal((ushort)91, finished.Binding.Effect);
             Assert.Equal(0x759370u, finished.Binding.Entry);
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(0, battle.NativeEffectMemory!.Active);
+            Assert.Equal(0, battle.Presentation!.Memory.Active);
             NativeBattleModuleSound sound = Assert.Single(battle.Events.Skip(sourceEvents), item => item.NativeModuleSound?.Sound == resources.SoundAppearance).NativeModuleSound!;
             Assert.Equal(0u, sound.Flags);
             Assert.Equal(128u, sound.RawPan ?? (uint?)sound.Pan);
@@ -177,7 +177,7 @@ public sealed class NativeBattleRush91PresentationTests
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224).ToArray());
             audio.Update(restored);
             Assert.Single(heard, item => item.Sound == resources.SoundAppearance);
             Assert.False(HasAction(battle));
@@ -231,6 +231,6 @@ public sealed class NativeBattleRush91PresentationTests
 
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0 && task.Callback == callback) ?? [];
     private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 91, Binding.Entry: 0x759370 } effect ? effect : null;
-    private static bool HasAction(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+    private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, int ChangedRgbPixels, string RgbaSha256);
 }

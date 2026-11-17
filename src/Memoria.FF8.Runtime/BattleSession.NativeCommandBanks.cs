@@ -42,43 +42,7 @@ public sealed partial class BattleSession
             : command.MagicCasts.IsDefaultOrEmpty ? [Project(command.TargetRequest)] : command.MagicCasts.Select(cast => Project(cast.Targets)).ToArray();
     }
 
-    private bool TryTakeNativeBankCommand(out BattleAttackCommand command)
-    {
-        command = null!;
-        if (nativeBattleClock?.ActionPause is > 0)
-        {
-            return false;
-        }
-        NativeBattleCommandLocation? location = nativeCommandBanks.FirstEligible(index =>
-        {
-            BattleCombatant actor = combatants.Single(candidate => candidate.NativeActorIndex == index);
-            return (NativeSavedStatusBits(actor) & 4) != 0 || (NativeBattleStatusBits(actor) & 9) != 0;
-        });
-        if (location is null)
-        {
-            return false;
-        }
-        NativeBattleCommandBank bank = nativeCommandBanks.Banks[location.Bank];
-        NativeBattleCommandPacket packet = bank.Packets[2 * location.Slot];
-        if (packet.ReadByte(1) == 255)
-        {
-            BattleCombatant actor = combatants.Single(candidate => candidate.NativeActorIndex == packet.ReadByte(0));
-            command = new(actor.Id, actor.Id, BattleTargetRequest.None, BattleAbility.EnemyAbility, 0) { NativeCallback = new(packet.ReadByte(0), packet.ReadWord(4)) };
-        }
-        else
-        {
-            command = bank.LogicalCommands[2 * location.Slot] ?? throw new NotSupportedException("Native485610 packet requires its immutable action binding.");
-            if (packet.ReadByte(0) != GetActor(command.ActorId).NativeActorIndex)
-            {
-                throw new InvalidDataException("Native485610 binding contradicts its physical actor BYTE.");
-            }
-        }
-        nativeDispatchCommandLocation = location;
-        ObserveDiagnosticCounterCallbackTaken(location, packet);
-        //485460 clears DF8 once at the selected event, not between its two485610 subcommands.
-        BeginNativeReactionBatch();
-        return true;
-    }
+
 
     private void ReleaseNativeDispatchedCommand()
     {
@@ -137,7 +101,7 @@ public sealed partial class BattleSession
 
     private bool TryTakeQueuedCommand(out BattleAttackCommand command)
     {
-        if (expandedPresentationProcess is not null && nativeShotProcesses.Count != 0)
+        if (nativeShotProcesses.Count != 0)
         {
             (string actorId, BattleNativeShotState shot) = nativeShotProcesses.Single();
             if (shot.Phase != BattleNativeShotPhase.Opening)
@@ -148,13 +112,13 @@ public sealed partial class BattleSession
         }
         while (actions.TryPeek(out BattleAttackCommand? queued))
         {
-            if (queued.ExpandedAiCallback is not null || expandedPresentationProcess is not null && (queued.NativeDuel is not null || queued.NativeRenzokuken is not null))
+            if (queued.ExpandedAiCallback is not null || queued.NativeDuel is not null || queued.NativeRenzokuken is not null)
             {
                 command = queued;
                 return true;
             }
             BattleAttackCommand? prepared = queued;
-            if (UsesExpandedRoster && RequiresExpandedCompelledReplacement(GetActor(queued.ActorId), queued))
+            if (RequiresExpandedCompelledReplacement(GetActor(queued.ActorId), queued))
             {
                 // Keep the source command in the FIFO until replacement preparation commits.
                 prepared = PrepareExpandedCompelledCommand(GetActor(queued.ActorId), queued);
@@ -166,7 +130,8 @@ public sealed partial class BattleSession
                 return true;
             }
         }
-        return TryTakeNativeBankCommand(out command);
+        command = null!;
+        return false;
     }
 
     private void RemoveNativeQueuedActorCommands(BattleCombatant actor)

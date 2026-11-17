@@ -19,7 +19,7 @@ public sealed class NativeBattleEscapeContinuationTests
         BattleSnapshot initial = Assert.IsType<BattleSnapshot>(source.Battle);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, initial.Definition, true);
+        BattleScenePresentation scene = new(assets, initial.Definition);
         BattleSession battle = Restore(initial);
         KeyboardInput keyboard = new()
         {
@@ -29,7 +29,7 @@ public sealed class NativeBattleEscapeContinuationTests
         };
         keyboard.Read(default, true);
         Directory.CreateDirectory(output!);
-        TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         Publish("before");
         BattleSession normal = Restore(initial);
         normal.SetMode(BattleAtbMode.Normal);
@@ -44,11 +44,11 @@ public sealed class NativeBattleEscapeContinuationTests
             Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
         }
         Assert.NotEqual(initialGauges, Gauges(battle));
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.NotEqual(0u, model.Flags8!.Value & 0x1000000));
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.Equal((byte)16, model.Sequence));
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), model => Assert.NotEqual(0u, model.Flags8!.Value & 0x1000000));
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), model => Assert.Equal((byte)16, model.Sequence));
         CompareNext("held");
         Advance(false);
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), model => Assert.Equal(0u, model.Flags8!.Value & 0x1000000));
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), model => Assert.Equal(0u, model.Flags8!.Value & 0x1000000));
         Assert.Equal(0, battle.Escape.HeldFrames);
         int[] releasedGauges = Gauges(battle);
         for (int frame = 0; frame < 5; frame++)
@@ -102,7 +102,7 @@ public sealed class NativeBattleEscapeContinuationTests
             direct.AdvanceNativeGraphicsPresentation(callback);
             cold.AdvanceNativeGraphicsPresentation(callback);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(scene.Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(scene.Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition).Render(cold, 320, 224).ToArray());
         }
 
         string Publish(string name)

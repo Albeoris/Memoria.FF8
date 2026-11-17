@@ -49,7 +49,7 @@ public sealed partial class BattleHudController
         return true;
     }
 
-    public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && (session.NativeGraphics?.UiServices is { } ui ? (ui.Flags942 & 0x841) != 0x40 : (nativeCommandHeldButtons & 0x100) != 0);
+    public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && PresentationUi.CommandMenuHidden;
 
     public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.SupportsPlayerLimitSelection(actor.Id) && session.GetNativeLimitLevel(actor.Id) > 0;
     private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
@@ -213,12 +213,9 @@ public sealed partial class BattleHudController
         {
             return [BattleCommandPresentation.Default(BattleAbility.Attack), BattleCommandPresentation.Default(BattleAbility.Magic), BattleCommandPresentation.Default(BattleAbility.GuardianForce)];
         }
-        IEnumerable<BattleCommandPresentation> choices = BattleCommandPresentation.Read(actor);
-        if (session.UsesExpandedRoster)
-        {
-            choices = choices.Where(choice => choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce ||
-                choice.Ability == BattleAbility.NativeCommand && session.GetNativePlayerActionChoices(actor.Id, limits: false, command: choice.Command).Count > 0);
-        }
+        IEnumerable<BattleCommandPresentation> choices = BattleCommandPresentation.Read(actor).Where(choice =>
+            choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce ||
+            choice.Ability == BattleAbility.NativeCommand && session.GetNativePlayerActionChoices(actor.Id, limits: false, command: choice.Command).Count > 0);
         BattleCommandPresentation[] commands = choices.Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
         if (nativeLimitCommandSelected && NativeLimitAvailable && commands.Length > 0)
         {

@@ -30,7 +30,7 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         Assert.Equal(JsonSerializer.Serialize(source.Battle!.Definition), JsonSerializer.Serialize(battle.Capture().Definition));
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
+        BattleScenePresentation scene = new(assets, battle.Capture().Definition);
         string output = Path.Combine(evidence!, "renzokuken-finisher-camera-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Renzokuken camera evidence: " + output);
@@ -53,19 +53,19 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
                 before = battle.Capture();
                 battle.Tick();
                 Log("tick");
-                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == 163)
+                if (battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == 163)
                 {
-                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
-                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
-                    Assert.Null(battle.NativeCamera.ControlStagingSource);
+                    Assert.NotNull(battle.Presentation!.Memory.Textures!.Animation);
+                    Assert.Equal(JsonSerializer.Serialize(battle.Presentation!.Memory.Textures.Animation), JsonSerializer.Serialize(battle.Presentation!.Camera.ControlResource));
+                    Assert.Null(battle.Presentation!.Camera.ControlStagingSource);
                     registeredCamera = true;
                 }
                 started |= battle.GetNativeRenzokuken("party-0") is not null;
-                if (battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 163, ReturnedDescriptor: > 0 })
+                if (battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 163, ReturnedDescriptor: > 0 })
                 {
-                    poses.Add(JsonSerializer.Serialize(battle.NativeCamera!.CurrentPose));
+                    poses.Add(JsonSerializer.Serialize(battle.Presentation!.Camera.CurrentPose));
                 }
-                if (!midpoint && battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 163, ReturnedDescriptor: > 0 } live && live.Pools[1].Slots[0].ReadWord(12) >= 50)
+                if (!midpoint && battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 163, ReturnedDescriptor: > 0 } live && live.Pools[1].Slots[0].ReadWord(12) >= 50)
                 {
                     Publish("midpoint");
                     BattleSnapshot saved = battle.Capture();
@@ -74,11 +74,11 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
                     battle.Tick();
                     clone.Tick();
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, saved.Definition, true).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, saved.Definition).Render(clone, 320, 224).ToArray());
                     midpoint = true;
                     Log("midpoint-next");
                 }
-                if (started && battle.GetNativeRenzokuken("party-0") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 })
+                if (started && battle.GetNativeRenzokuken("party-0") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Publish("completed");
                     File.WriteAllText(Path.Combine(evidence!, "renzokuken-finisher-completed-snapshot.txt"), Path.Combine(output, "completed.json"));

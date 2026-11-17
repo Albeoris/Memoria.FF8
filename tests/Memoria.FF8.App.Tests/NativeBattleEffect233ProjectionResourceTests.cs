@@ -88,6 +88,6 @@ public sealed class NativeBattleEffect233ProjectionResourceTests
         NativeBattleLogicalCommand[] commands = ModuleCommands(cold.PreparedPresentation!);
         Assert.NotEmpty(commands);
         Assert.All(commands, command => Assert.Equal(new Vector4(-8192, -8192, 8184, 8184), command.PilotGeometry!.ProjectionScreenBounds));
-        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224), new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224));
+        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(direct, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224));
     }
 }

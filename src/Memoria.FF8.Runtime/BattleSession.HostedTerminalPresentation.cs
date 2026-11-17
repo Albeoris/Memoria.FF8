@@ -14,13 +14,6 @@ public sealed partial class BattleSession
     private bool expandedTerminalEntered;
     private bool deferExpandedHostedTerminal;
     private BattleOutcome? deferredExpandedTerminalOutcome;
-
-    private HostedBattleTerminal? hostedTerminal;
-    private bool hostedTerminalEntered;
-    private bool hostedTerminalFadePublished;
-    private bool hostedTerminalFinished;
-
-    internal bool HostedTerminalFinished => hostedTerminalFinished;
     private bool HasPendingExpandedTerminal => expandedHostedTerminal is not null;
     private bool OwnsExpandedTerminal => expandedPresentationProcess is not null || deferExpandedHostedTerminal;
 
@@ -32,13 +25,13 @@ public sealed partial class BattleSession
             StopTurnAdvance();
             return;
         }
-        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Expanded terminal admission requires its attached presentation owner.");
-        ExpandedBattlePresentationProcess.PreparedTerminal preparation = process.PrepareTerminal(this, outcome);
+        BattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Expanded terminal admission requires its attached presentation owner.");
+        BattlePresentationProcess.PreparedTerminal preparation = process.PrepareTerminal(outcome, EscapeFlags);
         process.ValidateTerminal(preparation);
         PublishExpandedHostedTerminal(process, preparation);
     }
 
-    private void PublishExpandedHostedTerminal(ExpandedBattlePresentationProcess process, ExpandedBattlePresentationProcess.PreparedTerminal preparation)
+    private void PublishExpandedHostedTerminal(BattlePresentationProcess process, BattlePresentationProcess.PreparedTerminal preparation)
     {
         process.CommitTerminal(preparation);
         expandedHostedTerminal = preparation.Terminal;
@@ -74,70 +67,5 @@ public sealed partial class BattleSession
         }
         FinalizeBattleOutcome(receipt.Terminal.Outcome);
         expandedHostedTerminal = null;
-    }
-
-    internal NativeBattleGraphicsState PrepareHostedTerminalGraphics(HostedBattleTerminal terminal, PreparedHostedGuardianFormChange? guardianForm = null)
-    {
-        NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        if (!hostedBattlePresentation || !graphics.EntryReady || hostedFrameServices is not null || hostedTerminal is not null ||
-            HostedActiveActionToken is not null || hostedCompletionInvocation is not null || graphics.NativeOutcome?.ResultByte6E7 is > 0)
-        {
-            throw new InvalidOperationException("Hosted terminal admission requires its entered graphics owner and a drained action.");
-        }
-        if (guardianForm is not null)
-        {
-            ValidatePreparedHostedGuardianFormChange(guardianForm);
-            graphics = guardianForm.Staged.RequireNativeGraphics();
-        }
-        return BuildNativeTerminalGraphics(graphics, terminal.Outcome);
-    }
-
-    internal void CommitHostedTerminal(HostedBattleTerminal terminal, NativeBattleGraphicsState graphics)
-    {
-        hostedTerminal = terminal;
-        NativeGraphics = graphics;
-    }
-
-    internal void SetHostedEscapePresentationHeld(bool held)
-    {
-        NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        if (!hostedBattlePresentation || !graphics.EntryReady || hostedFrameServices is not null || hostedTerminal is not null)
-        {
-            throw new InvalidOperationException("Hosted escape motion requires its ready presentation admission boundary.");
-        }
-        NativeGraphics = QueueNativeDescriptor(graphics, held ? (ushort)108 : (ushort)109, 0, priority: 240);
-    }
-
-    private void ReachHostedTerminalEntry()
-    {
-        HostedBattleTerminal terminal = hostedTerminal ?? throw new InvalidDataException("Hosted47DF60 requires its admitted terminal owner.");
-        NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted47DF60 requires its ordered frame receipts.");
-        if (hostedTerminalEntered)
-        {
-            throw new InvalidDataException("Hosted47DF60 ran twice for one terminal owner.");
-        }
-        services.EmitTerminal(new NativeBattleTerminalEntered(terminal));
-        hostedTerminalEntered = true;
-    }
-
-    private void ObserveHostedTerminalDrain(NativeBattleModelLifecycleServices services)
-    {
-        if (hostedTerminal is not { } terminal || !hostedTerminalEntered || hostedTerminalFinished)
-        {
-            return;
-        }
-        NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        if (graphics.NativeOutcome?.FadeDurationB0C != 0 || !hostedTerminalFadePublished ||
-            NativeEffectMemory?.PrimitiveProcess?.ScreenFadeEB8 != 0 ||
-            nativeScriptState.Tasks.Tail != 255 ||
-            !graphics.Descriptors.Queue.IsEmpty ||
-            graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0) ||
-            graphics.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleAuxiliaryKind.OutcomeFade501D10 or NativeBattleAuxiliaryKind.MusicLoad501A70) ||
-            NativeFileIo?.ActiveCount != 0)
-        {
-            return;
-        }
-        services.EmitTerminal(new NativeBattleTerminalFinished(terminal));
-        hostedTerminalFinished = true;
     }
 }

@@ -22,7 +22,7 @@ public sealed class OmegaCombatAcceptanceTests
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
         session.SetCharacterVitals(vitals);
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory);
         BattleDefinition definition = world.CreateEncounterBattle(462);
         // An explicit diagnostic starting status; ordinary combat rules and enemy statistics are unchanged.
         definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor with { NativeStatus1 = actor.NativeStatus1 | 0x800 } : actor).ToArray() };
@@ -35,8 +35,7 @@ public sealed class OmegaCombatAcceptanceTests
             using GZipStream stream = new(File.OpenRead(resume), CompressionMode.Decompress);
             resumed = JsonSerializer.Deserialize<CombatCheckpoint>(stream) ?? throw new InvalidDataException("Empty combat checkpoint.");
         }
-        BattleSession battle = resumed is null ? GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal) : BattleSession.Restore(resumed.Battle);
-        battle.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        BattleSession battle = resumed is null ? GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, world.BattleResources) : BattleSession.Restore(resumed.Battle);
         BattleCombatant omega = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 114);
         int initialEnemyHp = resumed?.InitialEnemyHp ?? omega.CurrentHp;
         Dictionary<string, int> initialPartyHp = battle.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
@@ -71,7 +70,7 @@ public sealed class OmegaCombatAcceptanceTests
                 }
             }
         };
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { }, playMusicCommand: _ => { }, playUiSound: _ => { }, stopSoundVoice: _ => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         Stopwatch elapsed = Stopwatch.StartNew();
         long nextReport = 0;
         bool savedCycle = resumed is not null;
@@ -158,8 +157,8 @@ public sealed class OmegaCombatAcceptanceTests
 
         bool ModuleWorkCompleted()
         {
-            NativeBattleGraphicsState graphics = battle.NativeGraphics!;
-            return !battle.ObserveDiagnosticDrainBlockers().Any(blocker => blocker is "action-or-command" or "timed-input-or-mandatory-reaction" or "contact-or-descriptor") && graphics.Effects.Head is null && graphics.Effects.PublishedCount == 0 && graphics.ModuleEffects.Head is null && battle.NativeFileIo!.ActiveCount == 0 && battle.NativeEffectMemory!.ReadReturnedTask5044B0() == 0 && battle.NativeCamera!.Tasks.All(task => task is null) && battle.NativeEffectMemory.SoundPendingFlags == 0 && battle.NativeEffectMemory.SoundPublishedFlags == 0;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
+            return !battle.ObserveDiagnosticDrainBlockers().Any(blocker => blocker is "action-or-command" or "timed-input-or-mandatory-reaction" or "contact-or-descriptor") && graphics.Effects.Head is null && graphics.Effects.PublishedCount == 0 && graphics.ModuleEffects.Head is null && battle.Presentation!.NativeFileIo!.ActiveCount == 0 && battle.Presentation!.Memory.ReadReturnedTask5044B0() == 0 && battle.Presentation!.Camera.Tasks.All(task => task is null) && battle.Presentation!.Memory.SoundPendingFlags == 0 && battle.Presentation!.Memory.SoundPublishedFlags == 0;
         }
 
         string RewardOwners() => JsonSerializer.Serialize(new { session.State.CharacterVitals, session.State.Economy, session.State.AppliedBattleResultIds, session.State.PendingAchievementFacts, session.State.PendingAchievementObservations });

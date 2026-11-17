@@ -25,61 +25,69 @@ public sealed class EffectComponentPreviewTests
     }
 
     [Fact]
-    public void Original_enemy_caster_component_restores_its_exact_formation_owners_and_next_callback()
+    public void Original_enemy_component_rebinds_its_typed_action_and_preserves_the_next_callback()
     {
-        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
-        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for exact component-source preview validation.");
-        string output = Path.Combine(Path.GetTempPath(), "component-preview-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(output);
-        try
+        string directory = TestResources.GameDirectory;
+        GameSession producerSession = GameWorld.CreateColdProcess(directory);
+        producerSession.StartNewGame();
+        using GameWorld producer = new(producerSession, directory);
+        BattleSession source = PrepareOriginalEnemyComponent(producer);
+        BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, 219);
+        Assert.False(admission.ModuleLoaded);
+        Assert.Equal((byte)8, admission.Command);
+        Assert.Equal((byte)3, admission.OriginalActorIndex);
+        string hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(admission)));
+        BattleSession expected = source.ForkForContinuation();
+        string initial = JsonSerializer.Serialize(source.Capture());
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        using GameWorld world = new(session, directory);
+
+        BattleSession active = world.StartEffectPreview(new(1, 0, 219), new(source, hash));
+
+        Assert.True(world.IsEffectComponentPreview);
+        Assert.Same(active, world.Battle);
+        Assert.NotSame(source.Presentation, active.Presentation);
+        Assert.Equal(admission, GameWorld.ValidateEffectComponentSource(active, 219));
+        Assert.Throws<InvalidDataException>(() => GameWorld.ValidateEffectComponentSource(active, 220));
+        Assert.Throws<InvalidOperationException>(() => active.PublishDiagnosticEffectPreview(219));
+        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
+        active.Tick();
+        expected.Tick();
+        world.SynchronizeBattlePresentation();
+        Assert.Equal(JsonSerializer.Serialize(expected.Capture()), JsonSerializer.Serialize(active.Capture()));
+        Assert.Equal(initial, JsonSerializer.Serialize(source.Capture()));
+        Assert.Null(session.State.PendingBattleEncounter);
+        Assert.Null(world.LastBattleRewards);
+    }
+
+    internal static BattleSession PrepareOriginalEnemyComponent(GameWorld world)
+    {
+        const ushort effect = 219;
+        const ushort formation = 462;
+        BattleSession battle = world.StartDiagnosticBattle(new(formation, 4, 0x80, 0, 0)
         {
-            using GameAssets assets = new(directory!);
-            using BattleAssets battleAssets = new(directory!);
-            BattleEncounter formation = battleAssets.LoadEncounter(462);
-            BattleEnemyPlacement caster = NativeBattleEffectFixtureExporter.SelectEnemy(formation);
-            NativeBattleAiDefinition ai = battleAssets.ReadEnemyAi(caster.ModelId, caster.Level);
-            BattleNativeAction action = Assert.Single(battleAssets.NativeActions, row => row.Command == 8 && row.MagicId == 219 && ai.Abilities.Any(ability => ability.Command == row.Command && ability.Id == row.ActionId));
-            NativeEffectFixtureRequest input = new("original-enemy-component", 219, action.Command, action.ActionId, 0, 800, 240) { EncounterId = formation.Id, CasterActorIndex = 3 };
-            (_, BattleSnapshot source) = NativeBattleEffectFixtureExporter.Prepare(input, directory!, output);
-            string hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(input)));
-            EffectPreviewRequest request = new(1, 0, 219);
-            string frozen = JsonSerializer.Serialize(source);
-            GameSession session = GameWorld.CreateColdProcess(directory!);
-            session.StartNewGame();
-            using GameWorld world = new(session, directory!);
-            BattleSession active = world.StartEffectPreview(request, new(source, hash));
-            Assert.True(world.IsEffectComponentPreview);
-            Assert.Same(active, world.Battle);
-            Assert.Equal(462, active.Capture().Definition.EncounterId);
-            Assert.Equal(source.Definition.StageId, active.Capture().Definition.StageId);
-            Assert.Equal(caster.ModelId, active.Combatants.Single(actor => actor.NativeActorIndex == 3).ModelId);
-            Assert.NotEqual(request.EnemyId, caster.ModelId);
-            Assert.Equal(frozen, JsonSerializer.Serialize(active.Capture()));
-            Assert.Null(session.State.PendingBattleEncounter);
-            Assert.Null(world.LastBattleRewards);
-            Assert.Null(session.State.Battle);
-            DiagnosticPocketStationPreparationResult pocket = GameWorld.PrepareDiagnosticPocketStation(session.State.PocketStation!, new(true, false, 1, 0));
-            Assert.Throws<InvalidOperationException>(() => session.SetDiagnosticPocketStation(pocket.State));
-            Assert.Throws<InvalidDataException>(() => GameWorld.ValidateEffectComponentSource(source, active, 220));
-            Assert.Throws<InvalidOperationException>(() => active.PublishDiagnosticEffectPreview(219));
-            BattleSession direct = BattleSession.Restore(source);
-            direct.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
-            active.Tick();
-            direct.Tick();
-            world.SynchronizeBattlePresentation();
-            Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(active.Capture()));
-            Assert.Equal(frozen, JsonSerializer.Serialize(source));
-            Assert.Null(session.State.PendingBattleEncounter);
-            Assert.Null(world.LastBattleRewards);
-        }
-        finally
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([], [], true)
+        });
+        ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
+        BattleCombatant actor = battle.Combatants.Single(candidate => candidate.NativeActorIndex == 3);
+        NativeBattleAiDefinition ai = Assert.IsType<NativeBattleAiDefinition>(actor.NativeAi);
+        var selected = Assert.Single(ai.Abilities.Skip(16 * ai.LevelBand).Take(16).Select((row, slot) => (Row: row, Slot: slot))
+            .Where(entry => entry.Row.Command == 8 && world.BattleResources.NativeActions.Any(action => action.Command == entry.Row.Command && action.ActionId == entry.Row.Id && action.MagicId == effect)));
+        BattleDiagnosticEnemyAbility ability = new(actor.ModelId, actor.SceneSlot!.Value, ai.LevelBand, selected.Slot, selected.Row.Command, selected.Row.Id, selected.Row.Sequence, 201);
+        actor.Atb = BattleSession.AtbMaximum;
+        for (int callback = 0; callback < 360 && !battle.CanSubmitDiagnosticEnemyAbility(actor.Id, ability); callback++)
         {
-            foreach (string file in Directory.EnumerateFiles(output))
-            {
-                File.Delete(file);
-            }
-            Directory.Delete(output);
+            battle.Tick();
         }
+        battle.SubmitDiagnosticEnemyAbility(actor.Id, ability, effect);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        for (int callback = 0; callback < 360 && process.ActiveActionToken is null; callback++)
+        {
+            battle.Tick();
+        }
+        _ = GameWorld.ValidateEffectComponentSource(battle, effect);
+        return battle;
     }
 }

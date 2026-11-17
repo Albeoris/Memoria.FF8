@@ -8,7 +8,6 @@ internal sealed partial class RecreateGame
     private readonly PresentationTiming presentationTiming = new();
     private readonly PresentationPacer presentationPacer = new();
     private int? appliedFrameLimit;
-    private bool appliedNativeBattlePacing;
     private int appliedMsaaSamples;
     private bool battlePresentationUpdated;
     private bool CanAdvanceBattleRenderPhase => !focusPaused && !discardFocusElapsed && !updateSave.Paused && !userPaused && !dialogContext.IsBusy && !dialogInputBlocked && pendingCapture is null && battleEntryTransition is null && !capturingControls && !fieldFaulted && autoPlay?.Paused != true;
@@ -21,8 +20,7 @@ internal sealed partial class RecreateGame
 #endif
         bool menu = InFf7 ? ff7Scene!.IsMenuPresentation || saveMenu.IsOpen || crossoverSetup is not null : startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || saveMenu.IsOpen || battleDebug is not null || world?.ActiveTripleTriad is not null;
         int frameLimit = InFf7 ? PresentationTiming.FrameLimit(uiPreferences, menu, ff7Scene!.Session?.Battle is not null, ff7Scene.Session?.World is not null) : PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null, session.State.Scene == SceneKind.WorldMap);
-        bool nativeBattle = !InFf7 && ActiveBattle?.NativeGraphics is not null;
-        if (appliedFrameLimit != frameLimit || appliedNativeBattlePacing != nativeBattle)
+        if (appliedFrameLimit != frameLimit)
         {
             // Simulation has its own clocks. Every host tick must reach Draw, including under load.
             IsFixedTimeStep = false;
@@ -32,7 +30,6 @@ internal sealed partial class RecreateGame
             }
             MaxElapsedTime = PresentationTiming.MaximumElapsed;
             appliedFrameLimit = frameLimit;
-            appliedNativeBattlePacing = nativeBattle;
             presentationPacer.Reset();
         }
         bool samplesChanged = appliedMsaaSamples != uiPreferences.Graphics.MsaaSamples;
@@ -62,7 +59,7 @@ internal sealed partial class RecreateGame
         presentationTiming.RunUpdates(workBudget, () =>
         {
             gameplayClock.Configure(uiPreferences.FastForwardMultiplier, uiPreferences.BattleSpeedPercent);
-            double nativeCallbackRate = ActiveBattle?.NativeGraphics is null ? 0 : NativeBattleGraphicsPresentationClock.CallbacksPerSecond * gameplayClock.EffectiveSpeed(session.State.Scene, battle: true);
+            double nativeCallbackRate = ActiveBattle is null ? 0 : BattlePresentationTiming.CallbacksPerSecond * gameplayClock.EffectiveSpeed(session.State.Scene, battle: true);
             return PresentationTiming.UpdateStep(appliedFrameLimit ?? 60, nativeCallbackRate);
         }, step =>
         {

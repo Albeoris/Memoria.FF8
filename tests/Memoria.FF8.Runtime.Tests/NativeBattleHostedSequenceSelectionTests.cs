@@ -83,7 +83,7 @@ public sealed class NativeBattleHostedSequenceSelectionTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess());
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess());
         NativeBattleGraphicsState graphics = Graphics();
         NativeBattleVector position = new(20, 0, 40);
         NativeBattleGraphicsModel other = graphics.ActorModels.Get(OtherEnemy) with { Flags2 = 0, ModelId4 = 20, Transform = new(position, position, 0, 0, 4096) };

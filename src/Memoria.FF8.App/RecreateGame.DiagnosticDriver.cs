@@ -434,7 +434,7 @@ internal sealed partial class RecreateGame
         diagnosticProgressSequence++;
         if (options.ControlDirectory is { } control)
         {
-            NativeBattleGraphicsState? graphics = diagnosticDriverBattle?.ExpandedPresentationProcess?.Graphics ?? diagnosticDriverBattle?.NativeGraphics;
+            NativeBattleGraphicsState? graphics = diagnosticDriverBattle?.Presentation?.Graphics;
             WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution, callback, frame = diagnosticDriverBattle?.Frame, native_graphics_callback = graphics?.Callback, native_ui_pause = graphics?.UiServices?.PauseDE9, native_effect = graphics?.OriginalEffect?.RequestedEffect, returned_descriptor = graphics?.OriginalEffect?.ReturnedDescriptor, pending_contacts = graphics?.PendingContacts.Length, module_tasks = graphics?.ModuleEffects.PublishedCount, descriptor_tasks = graphics?.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.State }).ToArray(), terminal_hold_phase = diagnosticDriverBattle?.DiagnosticTerminalHold?.Phase.ToString(), drain_blockers = driver.LastDrainBlockers, loop_metrics = metrics.Latest, texture_decoding = battleScene?.TextureDecoding, presentation_pacing = diagnosticTelemetry?.PresentationPacingProgress() });
             if (diagnosticTelemetry is { Active: true } telemetry)
             {
@@ -482,7 +482,7 @@ internal sealed partial class RecreateGame
             string telemetryPath = Path.Combine(output, "telemetry-report.json");
             bool fixtureVerified = diagnosticTargetVerified && world?.DiagnosticReceipt?.Preparation.Target is not null;
             WriteDiagnosticFinalizationStage("invocation-owners-begin");
-            object? invocationOwners = diagnosticDriverBattle?.ObserveDiagnosticInvocationOwners();
+            object? invocationOwners = diagnosticDriverBattle?.ObserveDiagnosticOwners();
             WriteDiagnosticFinalizationStage("invocation-owners-completed");
             object report = new
             {

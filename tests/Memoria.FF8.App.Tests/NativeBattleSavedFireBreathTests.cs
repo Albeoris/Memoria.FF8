@@ -15,11 +15,10 @@ public sealed class NativeBattleSavedFireBreathTests
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         GameSession session = new(PlayerStateLoader.Load(input!, directory, sharedAssets: assets));
-        using GameWorld world = new(session, directory, sharedAssets: assets) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory, sharedAssets: assets);
         BattleDefinition definition = world.CreateEncounterBattle(79, activeFlags: 128);
         definition = NativeBattleComponentInputs.PrepareMusic(definition, directory, 0, 5, -1);
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
-        battle.AttachNativeEffectResourceResolver(id => assets.ReadNativeEffectCatalogForEffects([id])[id - 1]);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
         battle.ConfigureDiagnosticScheduling(true, true, "party-3");
         for (int tick = 0; tick < 1000 && !battle.NativeEntryReady; tick++)
         {
@@ -35,12 +34,11 @@ public sealed class NativeBattleSavedFireBreathTests
         Assert.True(battle.CanChoosePlayerCommand(caster.Id));
         // Isolate the reported crisis-1 command while retaining the selected save's party and resources.
         battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new(caster.Id, 1)] });
-        battle.AttachNativeEffectResourceResolver(id => assets.ReadNativeEffectCatalogForEffects([id])[id - 1]);
         battle.QueueNativePlayerCommand(caster.Id, target.Id, 15, 9);
         bool entered = false;
         bool restored = false;
         using BattleAssets battleAssets = new(directory);
-        BattleScenePresentation scene = new(battleAssets, battle.Capture().Definition, true);
+        BattleScenePresentation scene = new(battleAssets, battle.Capture().Definition);
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
         for (int display = 0; display < 2400; display++)
@@ -51,7 +49,7 @@ public sealed class NativeBattleSavedFireBreathTests
                 battle.Tick();
             }
             scene.Render(battle, 960, 720, gpu);
-            if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 230, ReturnedDescriptor: > 0 })
+            if (battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 230, ReturnedDescriptor: > 0 })
             {
                 entered = true;
                 if (!restored && display > 200)
@@ -65,7 +63,7 @@ public sealed class NativeBattleSavedFireBreathTests
                     restored = true;
                 }
             }
-            else if (entered && battle.NativeEffectMemory!.Active == 0 && battle.ActiveAction is null)
+            else if (entered && battle.Presentation!.Memory.Active == 0 && battle.ActiveAction is null)
             {
                 Assert.True(restored);
                 return;

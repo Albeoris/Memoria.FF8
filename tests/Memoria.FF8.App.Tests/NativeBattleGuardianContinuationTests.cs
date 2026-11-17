@@ -27,14 +27,14 @@ public sealed class NativeBattleGuardianContinuationTests
             battle.AdvanceNativeGraphicsPresentation(callback);
             independent.AdvanceNativeGraphicsPresentation(callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-            colors.Add($"{battle.NativeGraphics!.Callback}:{ReadOriginalModelCell(battle.NativeGraphics, 0).Color40:X8}");
+            colors.Add($"{battle.Presentation!.Graphics.Callback}:{ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Color40:X8}");
         }
         BattleSnapshot after = battle.Capture();
         Assert.Equal(snapshot.NativeGraphics.Callback + 16, after.NativeGraphics!.Callback);
         Assert.Equal(0u, after.NativeGraphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal(0, after.NativeEffectMemory!.Active);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         Assert.Equal(scene.Render(battle, 320, 224).ToArray(), scene.Render(independent, 320, 224).ToArray());
         using FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write);
         JsonSerializer.Serialize(stream, after);
@@ -53,7 +53,7 @@ public sealed class NativeBattleGuardianContinuationTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         Assert.Equal((ushort)116, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         bool sawPhase73Flash = false;
@@ -67,15 +67,15 @@ public sealed class NativeBattleGuardianContinuationTests
                 Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
                 if (phase == 73)
                 {
-                    Assert.Contains(battle.NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8);
+                    Assert.Contains(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands, command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8);
                     sawPhase73Flash = true;
                 }
                 if (phase == 212)
                 {
-                    uint streamNumber = unchecked((uint)battle.NativeEffectMemory!.SummonStream!.Number!.Value);
+                    uint streamNumber = unchecked((uint)battle.Presentation!.Memory.SummonStream!.Number!.Value);
                     Assert.Single(battle.Events.Skip(before.Events.Length), item => item.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == streamNumber);
                 }
-                if (battle.NativeEffectMemory is { Active: 0 } && battle.NativeGraphics is { OriginalEffect: { ReturnedDescriptor: 0 } } completedGraphics && !completedGraphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104))
+                if (battle.Presentation?.Memory is { Active: 0 } && battle.Presentation?.Graphics is { OriginalEffect: { ReturnedDescriptor: 0 } } completedGraphics && !completedGraphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104))
                 {
                     BattleSnapshot completed = battle.Capture();
                     BattleSession completedClone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(completed))!);

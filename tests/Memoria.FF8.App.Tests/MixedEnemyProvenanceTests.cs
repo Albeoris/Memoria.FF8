@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -65,24 +64,11 @@ public sealed class MixedEnemyProvenanceTests
         GameWorld.ValidateBattleDefinition(current, rebound);
         GameWorld.ValidateBattleDefinition(current, world.CreateEncounterBattle(164, restoredDefinition: rebound));
 
-        // This fixture renders the authored placements without starting their original AI callbacks.
-        BattleDefinition display = rebound with
-        {
-            Combatants = rebound.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null }).ToArray()
-        };
-        BattleSession battle = new(display, BattleAtbMode.TurnBased);
-        ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(new ExpandedBattleSceneFrameBuilder(assets).ReadSceneFrame(battle));
-        BattleScenePresentation scene = new(assets, display, true);
-        _ = scene.Render(battle, 640, 448);
-        var positions = (Dictionary<string, Vector3>)typeof(BattleScenePresentation).GetField("positions", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(scene)!;
-        Assert.Equal(encounter.Slots[3].Position, positions["enemy-3"]);
-        Assert.Equal(new Vector3(-12, 0, 27), positions["enemy-8"]);
-        Assert.Equal(new Vector3(0, 0, 27), positions["enemy-9"]);
-        Assert.Equal(encounter.Slots[3].NativePosition, frame.Positions["enemy-3"]);
-        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(8, sources.Count), frame.Positions["enemy-8"]);
-        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(9, sources.Count), frame.Positions["enemy-9"]);
-        Assert.Equal(frame.Projection.OffsetY!.Value / 240f, scene.Camera.VerticalCenter);
-        Assert.Equal(2 * MathF.Atan(120f / frame.Projection.FocalLength!.Value), scene.Camera.FieldOfView);
+        BattleSession battle = new(rebound, BattleAtbMode.TurnBased);
+        var positions = new BattleFormationPositions(rebound, encounter).ReadPositions(battle);
+        Assert.Equal(encounter.Slots[3].NativePosition, positions["enemy-3"]);
+        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(8, sources.Count), positions["enemy-8"]);
+        Assert.Equal(ExpandedBattleFormation.AddedEnemyPosition(9, sources.Count), positions["enemy-9"]);
     }
 
     [Fact]

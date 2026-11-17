@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (Mode != BattleAtbMode.TurnBased || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || HasGuardianForceTimeBoundary || combatants.Any(actor => actor.IsPlayer && actor.IsReady && !request.ReadyPlayerIds.Contains(actor.Id)))
+        if (Mode != BattleAtbMode.TurnBased || Outcome != BattleOutcome.Active || HasGuardianForceTimeBoundary || combatants.Any(actor => actor.IsPlayer && actor.IsReady && !request.ReadyPlayerIds.Contains(actor.Id)))
         {
             StopTurnAdvance();
             return false;

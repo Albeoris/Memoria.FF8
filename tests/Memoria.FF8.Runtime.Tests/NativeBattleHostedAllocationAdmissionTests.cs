@@ -15,13 +15,13 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
     [Fact]
     public void Prepared_load_keeps_old_alias_until_102_and_rejects_stale_publication()
     {
-        BattleSession child = Fixture();
+        BattlePresentationProcess child = Fixture();
         var load = Admission();
-        BattleSession.HostedDispatchControls controls = new([load.Load, new BattleSession.HostedDispatchControl.AllocationStatistics(), new BattleSession.HostedDispatchControl.ActivateOriginal(Slot), new BattleSession.HostedDispatchControl.AllocationGate()], []);
-        NativeBattleGraphicsState originalGraphics = child.NativeGraphics!;
+        BattlePresentationProcess.HostedDispatchControls controls = new([load.Load, new BattlePresentationProcess.HostedDispatchControl.AllocationStatistics(), new BattlePresentationProcess.HostedDispatchControl.ActivateOriginal(Slot), new BattlePresentationProcess.HostedDispatchControl.AllocationGate()], []);
+        NativeBattleGraphicsState originalGraphics = child.Graphics;
         NativeBattleActionPacketsState originalPackets = child.NativeActionPackets;
         Assert.Throws<InvalidDataException>(() => child.PrepareHostedDispatch([], controls: controls));
-        Assert.Same(originalGraphics, child.NativeGraphics);
+        Assert.Same(originalGraphics, child.Graphics);
         Assert.Same(originalPackets, child.NativeActionPackets);
 
         var prepared = child.PrepareHostedDispatch([], controls: controls, allocations: [load]);
@@ -32,9 +32,9 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         child.ValidatePreparedHostedDispatch(prepared);
         child.CommitHostedDispatch(prepared);
         Assert.Throws<InvalidOperationException>(() => child.ValidatePreparedHostedDispatch(stale));
-        int slot = child.NativeGraphics!.Descriptors.Queue[0];
-        var plan = Assert.IsType<NativeBattleDescriptorModelSubject.PlannedLoad>(child.NativeGraphics.Descriptors.Packets[slot].ModelSubject);
-        var (reboundReady, rebound) = TryRebind(child, child.NativeGraphics!, plan, slot);
+        int slot = child.Graphics.Descriptors.Queue[0];
+        var plan = Assert.IsType<NativeBattleDescriptorModelSubject.PlannedLoad>(child.Graphics.Descriptors.Packets[slot].ModelSubject);
+        var (reboundReady, rebound) = TryRebind(child, child.Graphics, plan, slot);
         Assert.True(reboundReady);
         Assert.False(rebound.ActorModels.Contains(Old));
         Assert.True(rebound.ActorModels.Contains(New));
@@ -56,24 +56,24 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
     [Fact]
     public void Recompute_prepares_new_generation_after_existing_104_and_10_without_touching_either()
     {
-        BattleSession child = Fixture();
+        BattlePresentationProcess child = Fixture();
         NativeBattleActionHeaderPreparation source = new(Ally, 1, 0, -1, 0, 0, null);
         NativeBattleContactPacket contact = new(new(Old, 0, 1, 0, 0, 0, 0), null);
         var initial = child.PrepareHostedDispatch([new(source, [contact])], dispatchAppended: true, completion: new(0x47DE70, Ally, "ally"));
         long token = child.PublishHostedAction(initial);
-        NativeBattleDescriptorState existing = child.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState existing = child.Graphics.Descriptors;
         var load = Admission();
-        BattleSession.HostedDispatchHeader nested = new(new(New, 2, 0, -1, 13, 107, null), [new(new(Ally, 0, 1, 0, 0, 3, 0), null)]);
+        BattlePresentationProcess.HostedDispatchHeader nested = new(new(New, 2, 0, -1, 13, 107, null), [new(new(Ally, 0, 1, 0, 0, 3, 0), null)]);
 
         Assert.Throws<InvalidDataException>(() => child.PrepareHostedContactReplacement(token, [contact], append: [nested]));
         var next = child.PrepareHostedContactReplacement(token, [contact], append: [nested], allocations: [load]);
-        Assert.Same(existing, child.NativeGraphics.Descriptors);
+        Assert.Same(existing, child.Graphics.Descriptors);
         Assert.Equal(Old, child.NativeActionPackets.ModelAliases.DecodeLiteral(3));
         child.PublishHostedContactReplacement(next);
-        Assert.Same(existing, child.NativeGraphics.Descriptors);
+        Assert.Same(existing, child.Graphics.Descriptors);
         Assert.Equal(new ushort[] { 104, 10 }, existing.Queue.Select(slot => existing.Packets[slot].Command));
         Assert.Equal(New, child.NativeActionPackets.ReadHeader(Assert.Single(next.AppendedHeaders)).Source);
-        Assert.False(child.NativeGraphics.ActorModels.Contains(New));
+        Assert.False(child.Graphics.ActorModels.Contains(New));
         Assert.Equal(Old, child.NativeActionPackets.ModelAliases.DecodeLiteral(3));
         Assert.Throws<InvalidOperationException>(() => child.ValidatePreparedHostedContactReplacement(next));
     }
@@ -81,12 +81,12 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
     [Fact]
     public void Rebind_waits_for_reached_model_work_but_rejects_a_later_reference_to_the_retiring_owner()
     {
-        BattleSession child = Fixture();
+        BattlePresentationProcess child = Fixture();
         var load = Admission();
-        var controls = new BattleSession.HostedDispatchControls([load.Load], []);
+        var controls = new BattlePresentationProcess.HostedDispatchControls([load.Load], []);
         var prepared = child.PrepareHostedDispatch([], controls: controls, allocations: [load]);
         child.CommitHostedDispatch(prepared);
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsState graphics = child.Graphics;
         int slot = graphics.Descriptors.Queue[0];
         var plan = Assert.IsType<NativeBattleDescriptorModelSubject.PlannedLoad>(graphics.Descriptors.Packets[slot].ModelSubject);
         NativeBattleAuxiliaryState aux = graphics.Auxiliary.AppendModelRing(NativeBattleAuxiliaryKind.ModelStatus50A000, Old, child.NativeActionPackets.ModelAliases).State;
@@ -103,7 +103,7 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         Assert.True(rebindReady);
         Assert.True(rebound.ActorModels.Contains(New));
 
-        BattleSession future = Fixture();
+        BattlePresentationProcess future = Fixture();
         var conflicting = load with { LaterOwners = ImmutableHashSet.Create<BattleModelOwner>(Old) };
         var blocked = future.PrepareHostedDispatch([], controls: controls, allocations: [conflicting]);
         future.CommitHostedDispatch(blocked);
@@ -130,8 +130,8 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
             ]
         }, BattleAtbMode.Normal);
         BattleCombatant prototype = logical.Combatants.Single(actor => actor.Id == "enemy");
-        MethodInfo allocate = typeof(BattleSession).GetMethod("AllocateNativeEnemy", Private)!;
-        typeof(BattleSession).GetField("producingExpandedAiCallback", Private)!.SetValue(logical, true);
+        MethodInfo allocate = typeof(BattlePresentationProcess).GetMethod("AllocateNativeEnemy", Private)!;
+        typeof(BattlePresentationProcess).GetField("producingExpandedAiCallback", Private)!.SetValue(logical, true);
         BattleCombatant prior = Assert.IsType<BattleCombatant>(allocate.Invoke(logical, [prototype, 0, 3, true]));
         BattleCombatant current = Assert.IsType<BattleCombatant>(allocate.Invoke(logical, [prototype, 0, 3, true]));
         Assert.Null(prior.Slot);
@@ -142,7 +142,7 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         BattleEnemyActorModel priorOwner = new(new(prior.Id));
         NativeBattleModelLifecycleServices services = new(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts>.Empty.Add(priorOwner, new(prior.Id, false, 0, 0, 0)));
         var activation = new NativeBattleModelParticipantActivated(priorOwner, prior.Id);
-        MethodInfo acknowledge = typeof(BattleSession).GetMethod("AcknowledgeHostedNativeActivation", Private)!;
+        MethodInfo acknowledge = typeof(BattlePresentationProcess).GetMethod("AcknowledgeHostedNativeActivation", Private)!;
         int initialQueued = logical.QueuedActions.Count;
 
         acknowledge.Invoke(logical, [services, activation with { OriginalSlot = Slot }]);
@@ -159,21 +159,21 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         Assert.Single(logical.QueuedActions.Skip(initialQueued));
     }
 
-    private static (bool Ready, NativeBattleGraphicsState Graphics) TryRebind(BattleSession child, NativeBattleGraphicsState graphics, NativeBattleDescriptorModelSubject.PlannedLoad plan, int slot)
+    private static (bool Ready, NativeBattleGraphicsState Graphics) TryRebind(BattlePresentationProcess child, NativeBattleGraphicsState graphics, NativeBattleDescriptorModelSubject.PlannedLoad plan, int slot)
     {
         object?[] arguments = [graphics, plan, slot, null];
-        object? ready = typeof(BattleSession).GetMethod("TryRebindHostedAllocationModel", Private)!.Invoke(child, arguments);
+        object? ready = typeof(BattlePresentationProcess).GetMethod("TryRebindHostedAllocationModel", Private)!.Invoke(child, arguments);
         return (Assert.IsType<bool>(ready), Assert.IsType<NativeBattleGraphicsState>(arguments[3]));
     }
 
-    private static BattleSession.HostedModelLoadAdmission Admission()
+    private static BattlePresentationProcess.HostedModelLoadAdmission Admission()
     {
         return new(new(New, Slot, 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty, UsesOriginalSceneResource: true);
     }
 
-    private static BattleSession Fixture()
+    private static BattlePresentationProcess Fixture()
     {
-        BattleSession child = new(new BattleDefinition
+        BattleSession logical = new(new BattleDefinition
         {
             UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
@@ -181,19 +181,17 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         BattleModelRoster roster = new([Ally, Old]);
         NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), Ally), (Slot, Old)]);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Ally ? (byte)1 : (byte)16 });
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics with { EntryReady = true });
-        typeof(BattleSession).GetField("hostedBattlePresentation", Private)!.SetValue(child, true);
-        typeof(BattleSession).GetField("nativeActionPackets", Private)!.SetValue(child, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
-        typeof(BattleSession).GetField("hostedModelRegistry", Private)!.SetValue(child, new BattleSession.HostedModelRegistry(roster, ImmutableDictionary<BattleEnemyActorModel, BattleSession.HostedModelLoadAdmission>.Empty));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(child, NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelTextureCache))!.SetValue(child, NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));
+        NativeBattleHostedTestFixture.InstallModelBindings(logical, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
+        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
+        typeof(BattlePresentationProcess).GetField("hostedModelRegistry", Private)!.SetValue(child, new BattlePresentationProcess.HostedModelRegistry(roster, ImmutableDictionary<BattleEnemyActorModel, BattlePresentationProcess.HostedModelLoadAdmission>.Empty));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(child, NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelTextureCache))!.SetValue(child, NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with
         {
             Textures = NativeBattleEffectTextureState.FromColdProcess() with { PresentationTextures = ImmutableDictionary.Create<string, NativeBattlePresentationTextureBank>(StringComparer.Ordinal) },
             PrimitiveProcess = new(null, null, null, 0, null) { TextureWindowCache = NativeBattlePcTextureWindowCache.Reset4647A0(null) }
         };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(child, memory);
-        NativeBattleHostedTestFixture.InstallModelBindings(child, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(child, memory);
         return child;
     }
 }

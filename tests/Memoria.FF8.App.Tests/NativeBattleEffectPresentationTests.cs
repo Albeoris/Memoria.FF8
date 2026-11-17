@@ -56,23 +56,23 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(Callback);
         second.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(source.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(source.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(second, 320, 224).ToArray());
+        byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(first, 320, 224).ToArray();
+        Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
         string id = "effect-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         NativeBattleRestorationPresentationTests.Publish(EvidenceDirectory(), id, first.Capture(), pixels);
-        Console.WriteLine($"Effect{source.NativeGraphics.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.NativeGraphics.Callback}, next{first.Frame}/{first.NativeGraphics.Callback}; independent JSON/pixels agree.");
+        Console.WriteLine($"Effect{source.NativeGraphics.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.NativeGraphics.Callback}, next{first.Frame}/{first.Presentation!.Graphics.Callback}; independent JSON/pixels agree.");
     }
 
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, uint entry, uint expectedSound, bool requireCasting, bool requireMorphAndFlash)
     {
         BattleSession battle = BattleSession.Restore(initial);
         Assert.True(HasDescriptor(battle));
-        BattleScenePresentation scene = new(assets, initial.Definition, true);
+        BattleScenePresentation scene = new(assets, initial.Definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         string? evidence = EvidenceDirectory();
         string id = $"effect{effect}-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
@@ -146,7 +146,7 @@ public sealed class NativeBattleEffectPresentationTests
                 {
                     clone.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, initial.Definition, true).Render(clone, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, initial.Definition).Render(clone, 320, 224));
                     restoredMidpoint = true;
                     clone = null;
                 }
@@ -177,7 +177,7 @@ public sealed class NativeBattleEffectPresentationTests
                     string json = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Serialize(after) : File.ReadAllText(Path.Combine(evidence, id + "-mid.battle.json"));
                     clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(visible, new BattleScenePresentation(assets, initial.Definition, true).Render(clone, 320, 224));
+                    Assert.Equal(visible, new BattleScenePresentation(assets, initial.Definition).Render(clone, 320, 224));
                 }
             }
             catch (Exception error)
@@ -199,10 +199,10 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal(expectedStatusTransitions, statusTransitions);
         Assert.Equal(expectedHpTransitions, hpTransitions);
         Assert.False(HasDescriptor(battle));
-        Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
-        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 1).Flags0 & 4);
-        Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
+        Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 1).Flags0 & 4);
+        Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         if (effect is 5 or 35)
         {
             Assert.True(capturedGeometry > 0);
@@ -221,12 +221,12 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal(heardBeforeRestore, heard.Count);
         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-peak", peak!, peakPixels);
         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-after", battle.Capture(), scene.Render(battle, 320, 224));
-        Console.WriteLine($"Effect{effect} peakRGB{peakRgb} at{peak!.Frame}/{peak.NativeGraphics!.Callback}, after{battle.Frame}/{battle.NativeGraphics.Callback}, status{statusTransitions}, HP{hpTransitions}, morph{morphed}, flash{flashed}; evidence{evidence ?? "disabled"}.");
+        Console.WriteLine($"Effect{effect} peakRGB{peakRgb} at{peak!.Frame}/{peak.NativeGraphics!.Callback}, after{battle.Frame}/{battle.Presentation!.Graphics.Callback}, status{statusTransitions}, HP{hpTransitions}, morph{morphed}, flash{flashed}; evidence{evidence ?? "disabled"}.");
     }
 
     private static bool HasDescriptor(BattleSession battle)
     {
-        NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
         return descriptors.Queue.Any(slot => descriptors.Packets[slot].Command == 104);
     }
 

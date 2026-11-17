@@ -11,7 +11,7 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
-        if (UsesExpandedRoster && ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.NativeCommand or BattleAbility.LimitBreak))
+        if (ability is not (BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce or BattleAbility.NativeCommand or BattleAbility.LimitBreak))
         {
             throw new NotSupportedException("This command requires a battle process outside the expanded host.");
         }
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         RequireNoPendingSlotsDeal();
         RequireNativeEntryReady();
         RequireNormalGuardianFormCommands(actorId);
-        if (UsesExpandedRoster && ExpandedTimedLimitOwnsInput)
+        if (ExpandedTimedLimitOwnsInput)
         {
             throw new InvalidOperationException("The active timed Limit owns player command input.");
         }
@@ -58,14 +58,11 @@ public sealed partial class BattleSession
             ValidateNativeActionContract(native);
             ValidateIndependentGuardianItem(actor, native);
         }
-        if (Outcome != BattleOutcome.Active || HasPendingExpandedEscape || !actor.IsReady || UsesExpandedRoster && RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(ability) || !IsValidSelectedActionTarget(actor, action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedEscape || !actor.IsReady || RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(ability) || !IsValidSelectedActionTarget(actor, action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }
-        if (UsesExpandedRoster)
-        {
             RequireExpandedAction(action);
-        }
         BattleTargetRequest request = casts.IsDefaultOrEmpty ? BuildActionTargetRequest(actor, target, action) : casts[0].Targets;
         int? reservedItemSlot = null;
         switch (ability)
@@ -80,7 +77,7 @@ public sealed partial class BattleSession
                 reservedItemSlot = ConsumeNativeItem(actionId);
                 break;
             case BattleAbility.GuardianForce:
-                if (UsesExpandedRoster && !CanSelectExpandedGuardianForce(actor.Id, actionId))
+                if (!CanSelectExpandedGuardianForce(actor.Id, actionId))
                 {
                     throw new InvalidOperationException("Summoning requires an available living junctioned GF and a caster able to charge.");
                 }
@@ -96,25 +93,13 @@ public sealed partial class BattleSession
         BattleAttackCommand queued = new(actorId, targetId, request, ability, actionId, drawCast) { MagicCasts = casts, NativeMagicCastMode = magicMode, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         queued = EnsureMagicReservation(actor, queued with { SmartAttack = pendingSmartAttack });
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
-        if (UsesExpandedRoster && ability == BattleAbility.GuardianForce)
-        {
-            QueueGuardianForce(actor, queued);
-        }
-        else if (UsesExpandedRoster)
-        {
-            actions.Enqueue(queued);
-        }
-        else if (NativeGraphics is not null)
-        {
-            EnqueueNativeInputCommand(ability == BattleAbility.GuardianForce ? queued with { NativeQueuedCommand = 3 } : queued);
-        }
-        else if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
+        if (ability == BattleAbility.GuardianForce)
         {
             QueueGuardianForce(actor, queued);
         }
         else
         {
-            EnqueueNativeInputCommand(queued);
+            actions.Enqueue(queued);
         }
         actor.Atb = 0;
         actor.IsBusy = true;
@@ -321,10 +306,6 @@ public sealed partial class BattleSession
 
     private int NextRandomByte()
     {
-        if (presentationForeignActors is not null)
-        {
-            throw new NotSupportedException("The selected presentation requires a native combat random operation that belongs to the encounter host.");
-        }
         random = random.Draw(out byte value);
         return value;
     }

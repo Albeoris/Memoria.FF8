@@ -53,14 +53,14 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         NativeBattleContactPacket first = new(valid, null);
         NativeBattleContactPacket bad = new(valid, valid with { Recipient = Unbound });
         graphics = graphics with { PendingContacts = [first, bad] };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
 
         TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => Consume(session, graphics, services));
 
         Assert.IsType<InvalidDataException>(invocation.InnerException);
         Assert.Same(existing, Assert.Single(services.ReadOrderedReceipts()));
         Assert.Empty(LegacyContacts(session));
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Presentation?.Graphics);
         Assert.Null(graphics.Effects.Head);
     }
 

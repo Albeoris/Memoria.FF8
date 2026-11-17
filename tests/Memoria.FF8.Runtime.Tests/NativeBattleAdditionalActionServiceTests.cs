@@ -25,16 +25,16 @@ public sealed class NativeBattleAdditionalActionServiceTests
         var fixture = Fixture(0x50BC20);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24CA828, 0x24CA818, 16, 1);
         NativeBattleOriginalEffectState pending = fixture.Graphics.OriginalEffect! with { ReturnedDescriptor = pool.DescriptorAddress, Pools = [pool] };
-        Set(fixture.Session, nameof(BattleSession.NativeEffectMemory), fixture.Session.NativeEffectMemory!.AssignReturnedTask(pending));
+        Set(fixture.Session, nameof(BattleSession.NativeEffectMemory), fixture.Session.Presentation!.Memory.AssignReturnedTask(pending));
         var blocked = Poll(fixture.Session, fixture.Graphics with { OriginalEffect = pending }, 3);
         Assert.False(blocked.Complete);
-        Assert.Equal(1, fixture.Session.NativeEffectMemory!.Active);
+        Assert.Equal(1, fixture.Session.Presentation!.Memory.Active);
         // Controlled post500900 poll boundary: the released descriptor clears the canonical process pointer.
-        Set(fixture.Session, nameof(BattleSession.NativeEffectMemory), fixture.Session.NativeEffectMemory with { ReturnedTaskPointer1D96AAC = 0 });
+        Set(fixture.Session, nameof(BattleSession.NativeEffectMemory), fixture.Session.Presentation?.Memory with { ReturnedTaskPointer1D96AAC = 0 });
         var done = Poll(fixture.Session, fixture.Graphics, 3);
         Assert.True(done.Complete);
         Assert.Equal(0u, done.Graphics.Flags & 0x10);
-        Assert.Equal(0, fixture.Session.NativeEffectMemory!.Active);
+        Assert.Equal(0, fixture.Session.Presentation!.Memory.Active);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
         Assert.Equal((byte)2, blocked.Phase);
         Assert.False(blocked.Complete);
         Assert.DoesNotContain(fixture.Session.Events, item => item.NativeStopAllSounds);
-        Assert.Equal(1, fixture.Session.NativeEffectMemory!.Active);
+        Assert.Equal(1, fixture.Session.Presentation!.Memory.Active);
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public sealed class NativeBattleAdditionalActionServiceTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess());
-        Set(session, nameof(BattleSession.NativeEffectMemory), session.NativeEffectMemory! with { Active = 1 });
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess());
+        Set(session, nameof(BattleSession.NativeEffectMemory), session.Presentation!.Memory with { Active = 1 });
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         BattleModelOwner source = packets.ModelAliases.DecodeLiteral(0);
         BattleModelOwner other = new BattleForeignPartyModel(new("hidden-party"));

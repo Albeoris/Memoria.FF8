@@ -157,7 +157,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             NativeStageCameraControl = stage.NativeCameraControl
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        NativeBattleModelTextureCache initial = Assert.IsType<NativeBattleModelTextureCache>(battle.NativeModelTextureCache);
+        NativeBattleModelTextureCache initial = Assert.IsType<NativeBattleModelTextureCache>(battle.Presentation?.ModelTextureCache);
         Assert.Equal((ushort)63, initial.BlockedSlots);
         Assert.All(initial.Rows, row => Assert.Equal((byte)0, row.Kind));
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
@@ -165,23 +165,23 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics);
         NativeBattleGraphicsModel enemy = ReadOriginalModelCell(graphics, 3);
         int resourceIndex = Assert.IsType<int>(enemy.TextureResourceIndex);
-        NativeBattleModelTextureCache cache = Assert.IsType<NativeBattleModelTextureCache>(battle.NativeModelTextureCache);
+        NativeBattleModelTextureCache cache = Assert.IsType<NativeBattleModelTextureCache>(battle.Presentation?.ModelTextureCache);
         NativeBattleModelTextureCacheRow row = cache.Rows[resourceIndex];
         Assert.Equal((byte)3, row.Kind);
         Assert.Equal((byte?)77, row.ModelId);
         Assert.Equal(row.TextureMask, enemy.TextureAllocationMask);
         Assert.Equal(row.Binding!.PaletteRows.ToArray(), enemy.BodyTextureSlots!.PaletteRows.ToArray());
         Assert.NotEqual((ushort)63, cache.BlockedSlots);
-        NativeBattleEffectTextureState textures = Assert.IsType<NativeBattleEffectTextureState>(battle.NativeEffectMemory!.Textures);
+        NativeBattleEffectTextureState textures = Assert.IsType<NativeBattleEffectTextureState>(battle.Presentation!.Memory.Textures);
         Assert.Contains(textures.ReadVram(), value => value != 0);
 
         BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(snapshot))!);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(snapshot), NativeBattleSnapshotJson.Serialize(restored.Capture()));
-        TimeSpan callbackDuration = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callbackDuration = BattlePresentationTiming.ElapsedForCallbacks(1);
         battle.AdvanceNativeGraphicsPresentation(callbackDuration);
         restored.AdvanceNativeGraphicsPresentation(callbackDuration);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
@@ -196,9 +196,9 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
                 NativeEffectMemory = snapshot.NativeEffectMemory! with { SoundPublishedFlags = soundFlags }
             });
             removal.AdvanceNativeGraphicsPresentation(callbackDuration);
-            Assert.Equal(cleared, ReadOriginalModelCell(removal.NativeGraphics!, 3).Flags0 == 0);
-            Assert.Equal(cleared ? (byte)0 : (byte)3, removal.NativeModelTextureCache!.Rows[resourceIndex].Kind);
-            Assert.Equal(cleared ? (ushort)63 : cache.BlockedSlots, removal.NativeModelTextureCache.BlockedSlots);
+            Assert.Equal(cleared, ReadOriginalModelCell(removal.Presentation!.Graphics, 3).Flags0 == 0);
+            Assert.Equal(cleared ? (byte)0 : (byte)3, removal.Presentation!.ModelTextureCache.Rows[resourceIndex].Kind);
+            Assert.Equal(cleared ? (ushort)63 : cache.BlockedSlots, removal.Presentation!.ModelTextureCache.BlockedSlots);
         }
     }
 }

@@ -5,16 +5,14 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AuthoredRosterActivationTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Installed_death_action_activates_the_same_original_enemy(bool attached)
+    [Fact]
+    public void Installed_death_action_activates_the_same_original_enemy()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
+        using GameWorld world = new(session, directory, sharedAssets: game);
         ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, 63, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -33,35 +31,33 @@ public sealed class AuthoredRosterActivationTests
         BattleModelOwner reserveOwner = battle.ReadPresentationModelOwner(reserve.Id);
         TickUntil(world, () =>
         {
-            NativeBattleGraphicsState graphics = battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             if (graphics.OriginalEffect is { ReturnedDescriptor: > 0, RequestedEffect: 20 })
             {
                 Assert.Equal((byte)93, graphics.ActorModels.Get(reserveOwner).ModelId4);
                 reachedEffect = true;
             }
-            return reachedEffect && !reserve.Suspended && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.ExpandedPresentationProcess?.HasActiveAction != true;
+            return reachedEffect && !reserve.Suspended && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.HasActiveAction != true;
         });
         Assert.Equal(6, reserve.NativeActorIndex);
         Assert.True(reserve.IsActive && !reserve.Hidden && !reserve.Untargetable);
         Assert.Single(battle.Events, entry => entry.Kind == "Activated" && entry.ActorId == reserve.Id);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Installed_death_callback_allocates_the_same_replacement(bool attached)
+    [Fact]
+    public void Installed_death_callback_allocates_the_same_replacement()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = !attached };
+        GameWorld world = new(session, directory, sharedAssets: game);
         try
         {
             ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, 511, allies: 3, additionalEnemies: 0);
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Assert.Equal(attached, battle.ExpandedPresentationProcess is not null);
+            Assert.NotNull(battle.Presentation);
             BattleCombatant caster = battle.Combatants.First(actor => actor.IsPlayer);
             BattleCombatant predecessor = battle.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == 121 && actor.IsActive);
             Assert.DoesNotContain(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 122 && actor.IsActive);
@@ -72,7 +68,7 @@ public sealed class AuthoredRosterActivationTests
             world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: caster.Id, TargetId: predecessor.Id) { ForcePhysical = true });
 
             TickUntil(world, () => battle.Combatants.Any(actor => actor is { IsPlayer: false, ModelId: 122, IsActive: true, IsAlive: true, Suspended: false, Untargetable: false }) &&
-                battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.ExpandedPresentationProcess?.HasActiveAction != true);
+                battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.HasActiveAction != true);
             BattleCombatant replacement = battle.Combatants.Single(actor => actor is { IsPlayer: false, ModelId: 122, IsActive: true });
             Assert.Equal(5, replacement.NativeActorIndex);
             Assert.Equal(2, replacement.SceneSlot);

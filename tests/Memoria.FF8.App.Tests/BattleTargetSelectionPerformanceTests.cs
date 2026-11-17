@@ -95,7 +95,7 @@ public sealed class BattleTargetSelectionPerformanceTests
             ],
             ActionDefinitions = Enumerable.Range(1, magicCount).Select(id => new BattleActionDefinition(BattleAbility.Magic, id, $"Magic {id}", BattleActionEffect.Damage, 1, false, Statuses: [BattleStatusKind.Sleep])).ToArray()
         }, BattleAtbMode.TurnBased);
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         return hud;

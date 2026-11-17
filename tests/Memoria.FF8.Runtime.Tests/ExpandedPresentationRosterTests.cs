@@ -86,7 +86,7 @@ public sealed class ExpandedPresentationRosterTests
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         NativeBattleRetainedActionPackets raw = packets.ExportRetained();
 
-        Assert.Null(battle.NativeGraphics);
+        Assert.Null(battle.Presentation?.Graphics);
         Assert.Equal((byte)0, raw.ActionCount);
         Assert.Equal(0, raw.ContactCount);
         Assert.Equal((byte)0, raw.UnknownCountMask);

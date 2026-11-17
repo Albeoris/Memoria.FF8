@@ -38,7 +38,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
             Assert.Equal(pose.BoneCount, NativeBattleBodyBoneMatrices.Require(model, pose).Length);
         }
         string logical = LogicalOwners(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         BattleSession battle = Restore(source);
         List<string> boundaries = [];
         HashSet<int> packetBanks = [];
@@ -119,7 +119,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame plainFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != NativeBattleChainGun190PacketArena.PacketBank).ToImmutableArray() };
                     BattleSnapshot plain = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = plainFrame } };
-                    byte[] without = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(plain), 320, 224).ToArray();
+                    byte[] without = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(plain), 320, 224).ToArray();
                     int changed = CountRgbChanges(pixels, without);
                     if (changed > 0)
                     {
@@ -186,7 +186,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
+            byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
             Assert.Equal(scene.Render(direct, 320, 224).ToArray(), pixels);
             NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
             boundaries.Add(name);

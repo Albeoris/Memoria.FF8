@@ -95,7 +95,7 @@ public sealed class NativeBattleStatusIconResourcesTests
         //DispatchTurnBasedFrame skips idle gauge time until readiness; this callback test explicitly starts with a ready player.
         Assert.True(session.Combatants.Single(actor => actor.Id == "party").IsReady);
         AssertCommonTexture(session, game.ReadNativeCommonEffectTexture());
-        NativeBattleGraphicsState before = session.NativeGraphics!;
+        NativeBattleGraphicsState before = session.Presentation!.Graphics;
         Assert.Equal(0x20u, ReadOriginalModelCell(before, 0).Flags8!.Value & 0x11E0);
         Assert.Equal(0u, before.Flags & 0x410);
         Assert.Equal(0, ReadOriginalModelCell(before, 0).Flags0 & 4);
@@ -110,7 +110,7 @@ public sealed class NativeBattleStatusIconResourcesTests
         session.AdvanceNativeGraphicsPresentation(callbackStep);
         clone.AdvanceNativeGraphicsPresentation(callbackStep);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(session.Capture()), NativeBattleSnapshotJson.Serialize(clone.Capture()));
-        NativeBattleGraphicsState after = session.NativeGraphics!;
+        NativeBattleGraphicsState after = session.Presentation!.Graphics;
         Assert.Equal(before.Callback + 1, after.Callback);
         Assert.Equal((byte?)((timer + 1) % 8), ReadOriginalModelCell(after, 0).StatusTimers[5]);
         Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], ReadOriginalModelCell(after, 0).StatusTimers[6]);
@@ -123,7 +123,7 @@ public sealed class NativeBattleStatusIconResourcesTests
 
     private static void AssertCommonTexture(BattleSession session, NativeBattleEffectInitializerAsset common)
     {
-        NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
+        NativeBattleEffectTextureState textures = session.Presentation!.Memory.Textures!;
         Assert.Equal(0, textures.Count);
         NativeBattleEffectArena vram = new(NativeBattleStorageSnapshots.Capture(textures).VramRegions);
         int offset = 8;

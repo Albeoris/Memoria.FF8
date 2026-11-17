@@ -233,7 +233,7 @@ public sealed class BattleComponentGuardianBoostTests
         int guardianCommand = 20 + Enumerable.Range(0, vitals.MenuDefinitions.CommandAbilityCommands.Length).Single(index => vitals.MenuDefinitions.CommandAbilityCommands[index] == 3);
         vitals = vitals.SetJunctionAbility(0, 0, guardianCommand, true);
         GameSession session = new(GameSession.CreateColdProcess().State with { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), InputConfiguration = assets.ReadNewGameInputConfiguration(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom(), KnownMagic = assets.ReadNewGameKnownMagic() });
-        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition original = world.CreateEncounterBattle(512);
         BattleCombatantDefinition caster = original.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == 0);
         BattleCombatantDefinition enemy = original.Combatants.First(actor => !actor.IsPlayer && actor.InitialActive);
@@ -244,6 +244,6 @@ public sealed class BattleComponentGuardianBoostTests
             BattleCombatantDefinition teammate = original.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == 1);
             definition = definition with { Combatants = [.. definition.Combatants, teammate with { InitialAtb = BattleSession.AtbMaximum }] };
         }
-        return GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
+        return GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
     }
 }

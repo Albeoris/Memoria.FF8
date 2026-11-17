@@ -31,7 +31,7 @@ public sealed class BalambEncounterStartupTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory);
         NativeWorldEncounterDefinition encounters = Assert.IsType<NativeWorldEncounterDefinition>(worldAssets.ReadRandomEncounterDefinition(24576, -29406, ground, 1));
         NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(directory).ReadBattleEntryResources();
 
@@ -44,7 +44,7 @@ public sealed class BalambEncounterStartupTests
             NativeMusicProcessState sourceBuffers = new(1, null, null, null, 0, null);
             NativeBattleMusicEntryPreparation entry = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
             definition = definition with { NativeMusicProcess = entry.MusicProcess, NativeGlobalSoundProcess = entry.SoundProcess };
-            BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal);
+            BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, world.BattleResources);
 
             Assert.Equal(formation, battle.EncounterId);
             Assert.Equal(BattleOutcome.Active, battle.Outcome);
@@ -52,11 +52,11 @@ public sealed class BalambEncounterStartupTests
             Assert.Contains(battle.Combatants, actor => actor.IsPlayer && actor.IsActive);
             Assert.Contains(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
             Assert.All(definition.Combatants.Where(actor => !actor.IsPlayer), actor => Assert.NotNull(actor.NativeAi));
-            Assert.NotNull(battle.NativeGraphics);
+            Assert.NotNull(battle.Presentation?.Graphics);
             Assert.NotNull(definition.NativeClockRules);
             Assert.False(battle.NativeEntryReady);
-            Assert.Equal(0.8f, battle.NativeEffectMemory!.PrimitiveProcess!.Depth!.BucketMix);
-            Assert.Equal((float)(1d - (double)0.8f), battle.NativeEffectMemory.PrimitiveProcess.Depth.RemainingWeight);
+            Assert.Equal(0.8f, battle.Presentation!.Memory.PrimitiveProcess!.Depth!.BucketMix);
+            Assert.Equal((float)(1d - (double)0.8f), battle.Presentation!.Memory.PrimitiveProcess.Depth.RemainingWeight);
             Assert.Equal(new NativeBattleMusicCommandState(false, null, null, null, 0x1CE075C, false), battle.NativeMusicProcess!.Commands);
             BattleSnapshot snapshot = battle.Capture();
             BattleSession restored = BattleSession.Restore(snapshot);

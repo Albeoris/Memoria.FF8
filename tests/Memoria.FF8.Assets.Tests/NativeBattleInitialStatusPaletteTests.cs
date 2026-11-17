@@ -43,19 +43,19 @@ public sealed class NativeBattleInitialStatusPaletteTests
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         }, BattleAtbMode.TurnBased);
-        for (int callback = 0; callback < 200 && (ReadOriginalModelCell(session.NativeGraphics!, 0).Flags0 & 2) == 0; callback++)
+        for (int callback = 0; callback < 200 && (ReadOriginalModelCell(session.Presentation!.Graphics, 0).Flags0 & 2) == 0; callback++)
         {
             session.Tick();
         }
 
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(session.NativeGraphics!, 0);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(session.Presentation!.Graphics, 0);
         Assert.NotEqual(0, model.Flags0 & 2);
         Assert.Equal(0x10u, model.Flags8!.Value & 0x410);
         Assert.Equal((byte?)0, model.StatusTimers[4]);
-        byte[] original = session.NativeModelCpuResources!.Palettes.Read(0, 1024);
+        byte[] original = session.Presentation!.ModelCpuResources.Palettes.Read(0, 1024);
         byte[] expected = NativeBattleStatusPalette.Transform509E00(original, model.Flags8.Value).ToArray();
         Assert.False(original.AsSpan().SequenceEqual(expected));
-        NativeBattleEffectTextureState textures = NativeBattleStorageSnapshots.Capture(session.NativeEffectMemory!.Textures!);
+        NativeBattleEffectTextureState textures = NativeBattleStorageSnapshots.Capture(session.Presentation!.Memory.Textures!);
         Assert.Equal(0, textures.Count);
         NativeBattleEffectArena vram = new(textures.VramRegions);
         Assert.Equal(expected[..512], vram.Read(224 * 2048, 512));

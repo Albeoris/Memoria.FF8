@@ -21,11 +21,11 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
         using IDisposable scope = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         for (int callback = 0; callback < 900; callback++)
         {
-            NativeBattleGraphicsState? beforeGraphics = battle.NativeGraphics;
-            NativeBattleEffectMemory? beforeMemory = battle.NativeEffectMemory;
+            NativeBattleGraphicsState? beforeGraphics = battle.Presentation?.Graphics;
+            NativeBattleEffectMemory? beforeMemory = battle.Presentation?.Memory;
             BattleComponentTextureQuiescenceObservation? observation = battle.ObserveComponentTerminalTextures(101);
-            Assert.Same(beforeGraphics, battle.NativeGraphics);
-            Assert.Same(beforeMemory, battle.NativeEffectMemory);
+            Assert.Same(beforeGraphics, battle.Presentation?.Graphics);
+            Assert.Same(beforeMemory, battle.Presentation?.Memory);
             if (observation is not null)
             {
                 Assert.True(observation.IsEligible);
@@ -68,7 +68,7 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
 
     private void ObserveFingerprint(string boundary, BattleSession battle, BattleComponentTextureQuiescenceObservation? observation)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         object[] rows = observation?.Textures.Tasks.Select(row =>
         {

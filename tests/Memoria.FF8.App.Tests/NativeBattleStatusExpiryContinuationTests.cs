@@ -66,14 +66,14 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleSession first = BattleSession.Restore(saved);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
-        long beforeCallback = first.NativeGraphics!.Callback;
+        long beforeCallback = first.Presentation!.Graphics.Callback;
         first.AdvanceNativeGraphicsPresentation(Callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(Callback, TimeSpan.Zero);
-        Assert.Equal(beforeCallback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(beforeCallback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         AssertNoStaleSleep(first.Capture(), sleepFlag);
-        byte[] pixels = new BattleScenePresentation(assets, saved.Definition, true).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, saved.Definition, true).Render(second, 320, 224).ToArray());
+        byte[] pixels = new BattleScenePresentation(assets, saved.Definition).Render(first, 320, 224).ToArray();
+        Assert.Equal(pixels, new BattleScenePresentation(assets, saved.Definition).Render(second, 320, 224).ToArray());
         NativeBattleRestorationPresentationTests.Publish(Path.GetDirectoryName(Path.GetFullPath(output!)), Path.GetFileNameWithoutExtension(output!) + "-next-callback", first.Capture(), pixels);
         Assert.Equal(SHA256.HashData(originalBytes), SHA256.HashData(File.ReadAllBytes(source!)));
     }
@@ -138,7 +138,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         restored.AdvanceNativeGraphicsPresentation(Callback, TimeSpan.Zero);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        Assert.Equal(new BattleScenePresentation(assets, original.Definition, true).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, original.Definition, true).Render(restored, 320, 224).ToArray());
+        Assert.Equal(new BattleScenePresentation(assets, original.Definition).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, original.Definition).Render(restored, 320, 224).ToArray());
         Assert.Equal(SHA256.HashData(originalBytes), SHA256.HashData(File.ReadAllBytes(source!)));
     }
 
@@ -204,7 +204,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         restored.AdvanceNativeGraphicsPresentation(Callback, TimeSpan.Zero);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(restored.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        Assert.Equal(new BattleScenePresentation(assets, original.Definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, original.Definition, true).Render(restored, 320, 224).ToArray());
+        Assert.Equal(new BattleScenePresentation(assets, original.Definition).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, original.Definition).Render(restored, 320, 224).ToArray());
         Assert.Equal(SHA256.HashData(originalBytes), SHA256.HashData(File.ReadAllBytes(source!)));
     }
     private static void AssertNoStaleSleep(BattleSnapshot snapshot, uint sleepFlag)

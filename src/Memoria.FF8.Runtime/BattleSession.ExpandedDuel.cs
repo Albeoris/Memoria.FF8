@@ -7,7 +7,7 @@ public sealed partial class BattleSession
         return callback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect or NativeLimitCallback.DuelFinisher;
     }
 
-    private bool HasQueuedExpandedTimedLimit => UsesExpandedRoster && actions.Any(command => command.NativeRenzokuken is not null || command.NativeDuel is not null);
+    private bool HasQueuedExpandedTimedLimit => actions.Any(command => command.NativeRenzokuken is not null || command.NativeDuel is not null);
 
     private static bool IsExpandedDuelTarget(BattleCombatant target)
     {
@@ -186,7 +186,7 @@ public sealed partial class BattleSession
 
     private void ReconcileExpandedDuel()
     {
-        if (!UsesExpandedRoster || nativeDuelProcesses.Count == 0)
+        if (nativeDuelProcesses.Count == 0)
         {
             return;
         }

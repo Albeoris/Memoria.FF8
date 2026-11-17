@@ -9,16 +9,6 @@ internal sealed partial class GameWorld
 {
     private bool observingBattle;
 
-    internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, BattleAtbMode mode)
-    {
-        BattleSession active = new(definition, mode);
-        if (definition.NativeGraphics is null && definition.NativeSupportRules is not null)
-        {
-            active.CompleteComponentBattleEntry();
-        }
-        return active;
-    }
-
     private void ObservePendingBattle()
     {
         if (observingBattle)
@@ -139,7 +129,7 @@ internal sealed partial class GameWorld
         {
             FieldAssets currentField = Field ?? throw new NotSupportedException("Native kind3 requires its current original field resources.");
             NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Native kind3 requires its actual retained battle process memory.");
-            registration = Events.ExecuteNativeBattleFieldResourceReload(currentField.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."), retained, active.CurrentCrtRandom);
+            registration = Events.ExecuteNativeBattleFieldResourceReload(currentField.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."), retained, result.NativeCrtRandomAfter);
             reloadedMemory = registration.Memory;
             Events.ValidateNativeBattleFieldRegistrationMemory(reloadedMemory);
             reloadedField = assets.BindNativeRegisteredTextures(currentField, Events.Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 did not publish its actual registered field resource addresses."), reloadedMemory.EffectMemory?.Textures ?? throw new NotSupportedException("Native kind3 requires its retained texture memory."), reloadedMemory.FieldTextureAnimations);
@@ -198,8 +188,7 @@ internal sealed partial class GameWorld
             return;
         }
         if (battle is { NativeResult: 1 } active &&
-            (active.Outcome == BattleOutcome.Defeat || active.Outcome == BattleOutcome.ScriptedExit && !active.CanReturnToField) &&
-            (active.UsesExpandedRoster || active.NativeGraphics?.NativeOutcome?.FadeDurationB0C == 0))
+            (active.Outcome == BattleOutcome.Defeat || active.Outcome == BattleOutcome.ScriptedExit && !active.CanReturnToField))
         {
             CompleteBattle(active);
             battle = null;

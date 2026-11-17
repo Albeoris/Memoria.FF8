@@ -78,7 +78,7 @@ public sealed class NativeBattleQuezacotlSecondaryCallerTests
                 finally
                 {
                     caller.PreparePrefix();
-                    NativeBattleLogicalOrdering accepted = BattleSession.FreezeNativeQuezacotlOrderingPublication(ordering.Freeze(), provisional ? pending : null, continuation);
+                    NativeBattleLogicalOrdering accepted = BattlePresentationProcess.FreezeNativeQuezacotlOrderingPublication(ordering.Freeze(), provisional ? pending : null, continuation);
                     caller.Complete(accepted);
                 }
             });

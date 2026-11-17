@@ -58,7 +58,7 @@ public sealed class NativeBattleStage147LifecycleTests
         {
             battle.Tick();
             restored?.Tick();
-            NativeBattleStageState state = battle.NativeStage!;
+            NativeBattleStageState state = battle.Presentation!.Stage;
             if (state.Task is null)
             {
                 continue;
@@ -71,17 +71,17 @@ public sealed class NativeBattleStage147LifecycleTests
             }
             if (intro.Subphase is >= 0 and <= 4)
             {
-                Assert.Equal((byte)2, battle.NativeGraphics!.UiServices!.Windows!.RequestedVitalsMask);
+                Assert.Equal((byte)2, battle.Presentation!.Graphics.UiServices!.Windows!.RequestedVitalsMask);
             }
             if (intro.Subphase == 2 || intro.Subphase == 5 && intro.Counter is >= 1 and <= 5)
             {
-                Assert.Equal((byte)1, battle.NativeGraphics!.Effects.PublishedCount);
+                Assert.Equal((byte)1, battle.Presentation!.Graphics.Effects.PublishedCount);
             }
             if (intro.Subphase == 3)
             {
-                Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics!, 0).Sequence);
-                Assert.Equal((byte)26, ReadOriginalModelCell(battle.NativeGraphics!, 2).Sequence);
-                Assert.Equal((short)2048, ReadOriginalModelCell(battle.NativeGraphics!, 0).Rotation14);
+                Assert.Equal((byte)26, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Sequence);
+                Assert.Equal((byte)26, ReadOriginalModelCell(battle.Presentation!.Graphics, 2).Sequence);
+                Assert.Equal((short)2048, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Rotation14);
                 sawPartySequence = true;
             }
             if (intro.Subphase == 4 && intro.Counter == 7 && !restoredDescent)
@@ -95,7 +95,7 @@ public sealed class NativeBattleStage147LifecycleTests
             {
                 foreach (int index in new[] { 0, 2 })
                 {
-                    NativeBattleModelTransform transform = ReadOriginalModelCell(battle.NativeGraphics!, index).Transform!;
+                    NativeBattleModelTransform transform = ReadOriginalModelCell(battle.Presentation!.Graphics, index).Transform!;
                     Assert.Equal(NativeBattleStage147.Descent511EF0(transform.Initial20.Z, intro.Counter), transform.Position28.Z);
                 }
             }
@@ -103,14 +103,14 @@ public sealed class NativeBattleStage147LifecycleTests
             {
                 if (enemyResource.ContainsNativeIndex505850(16))
                 {
-                    Assert.Equal((byte)16, ReadOriginalModelCell(battle.NativeGraphics!, 3).Sequence);
+                    Assert.Equal((byte)16, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Sequence);
                 }
                 else
                 {
-                    Assert.NotEqual(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).ResourceFlags44!.Value & 0x40);
+                    Assert.NotEqual(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).ResourceFlags44!.Value & 0x40);
                 }
-                Assert.Equal((byte)7, battle.NativeGraphics!.UiServices!.Windows!.RequestedVitalsMask);
-                Assert.Equal((short)0, ReadOriginalModelCell(battle.NativeGraphics!, 0).Rotation14);
+                Assert.Equal((byte)7, battle.Presentation!.Graphics.UiServices!.Windows!.RequestedVitalsMask);
+                Assert.Equal((short)0, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Rotation14);
                 sawEnemySequence = true;
             }
             if (restored is not null)
@@ -126,10 +126,10 @@ public sealed class NativeBattleStage147LifecycleTests
         Assert.True(sawPartySequence);
         Assert.True(sawEnemySequence);
         Assert.True(restoredDescent);
-        Assert.Equal((short)-1, battle.NativeStage!.Extended!.Stage147.Subphase);
+        Assert.Equal((short)-1, battle.Presentation!.Stage.Extended!.Stage147.Subphase);
         Assert.True(battle.NativeEntryReady);
-        Assert.Equal((ushort)0, battle.NativeCamera!.BlendProgress);
-        Assert.NotEmpty(battle.NativeGraphics!.PrimitiveFrame!.LastCommands);
+        Assert.Equal((ushort)0, battle.Presentation!.Camera.BlendProgress);
+        Assert.NotEmpty(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands);
         battle.Tick();
         restored!.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));

@@ -35,7 +35,7 @@ public sealed partial class BattleSession
 
     private void ValidateNativeSupportEntryOwner()
     {
-        if (nativeSupport is { } support && NativeGraphics is { } graphics && support.EntryInitialized != graphics.EntryReady)
+        if (nativeSupport is { } support && Presentation?.Graphics is { } graphics && support.EntryInitialized != graphics.EntryReady)
         {
             throw new InvalidDataException("Native support initialization differs from its original entry callback completion.");
         }

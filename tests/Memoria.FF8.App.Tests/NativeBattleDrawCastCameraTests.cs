@@ -37,7 +37,7 @@ public sealed class NativeBattleDrawCastCameraTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 7));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.Equal(94, battle.Capture().Definition.EncounterId);
-        Assert.NotNull(battle.NativeGraphics);
+        Assert.NotNull(battle.Presentation?.Graphics);
         BattleCombatant? caster = null;
         for (int callback = 0; callback < 2000; callback++)
         {
@@ -55,7 +55,7 @@ public sealed class NativeBattleDrawCastCameraTests
         byte information = resources.ReadEnemyNativeInformation246(target.ModelId);
         Assert.Equal(information, battle.Capture().Definition.Combatants.Single(actor => actor.Id == target.Id).NativeTemplate!.Information246);
         byte expected = (information & 8) != 0 ? (byte)5 : (information & 4) != 0 ? (byte)4 : unchecked((byte)(3 - information));
-        Assert.Equal(expected, Assert.Single(ReadOriginalModelCells(battle.NativeGraphics!), model => model.ModelId4 == target.ModelId + 16).SequenceByte145);
+        Assert.Equal(expected, Assert.Single(ReadOriginalModelCells(battle.Presentation!.Graphics), model => model.ModelId4 == target.ModelId + 16).SequenceByte145);
         Assert.Contains(target.NativeDrawSlots, slot => slot.Id == 1);
         string stocks = JsonSerializer.Serialize(caster.MagicStocks);
         int initialCompletions = battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id);
@@ -63,7 +63,7 @@ public sealed class NativeBattleDrawCastCameraTests
         bool fire = false;
         bool draw = false;
         BattleSession? restored = null;
-        BattleScenePresentation presentation = new(resources, battle.Capture().Definition, true);
+        BattleScenePresentation presentation = new(resources, battle.Capture().Definition);
         try
         {
             for (int callback = 0; callback < 2000; callback++)
@@ -91,7 +91,7 @@ public sealed class NativeBattleDrawCastCameraTests
                 {
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
                 }
-                fire |= battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 2 };
+                fire |= battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 2 };
                 if (battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == caster.Id) > initialCompletions)
                 {
                     break;

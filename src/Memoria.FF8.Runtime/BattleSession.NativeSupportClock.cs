@@ -18,25 +18,14 @@ public sealed partial class BattleSession
             nativeSupport = nativeSupport with { Cooldown = (ushort)(nativeSupport.Cooldown - 1) };
             return;
         }
-        byte flags = NativeSupportFlags(UsesExpandedRoster ? (byte)8 : (byte)0x18);
-        if ((flags & 8) != 0 && nativeSupport.GilgameshUsed == 0 && (!UsesExpandedRoster || HasAcquiredGuardianForce) && NextRandomByte() <= 12)
+        byte flags = NativeSupportFlags((byte)8);
+        if ((flags & 8) != 0 && nativeSupport.GilgameshUsed == 0 && (HasAcquiredGuardianForce) && NextRandomByte() <= 12)
         {
             QueueNativeAutomaticGuardian(checked((byte)(NextRandomByte() / 64 + 7)));
             nativeSupport = nativeSupport with { GilgameshUsed = 1, Cooldown = definition.NativeSupportRules!.Cooldown };
             return;
         }
-        if (UsesExpandedRoster)
-        {
             RunExpandedPeriodicAngelo();
-        }
-        else if ((flags & 0x10) == 0)
-        {
-            BattleCombatant? rinoa = combatants.Where(actor => actor.NativeActorIndex is >= 0 and < 7 && actor.ModelId == 4).OrderBy(actor => actor.NativeActorIndex).FirstOrDefault();
-            if (rinoa is not null)
-            {
-                RunNativePeriodicAngelo(rinoa);
-            }
-        }
         nativeSupport = nativeSupport with { Cooldown = definition.NativeSupportRules!.Cooldown };
     }
 

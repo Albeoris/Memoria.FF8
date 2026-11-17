@@ -32,9 +32,9 @@ public sealed class NativeBattleCinematicForeignEntityAnchorTests
         Assert.Equal(10010, result.Point.X);
         Assert.Equal(20020, result.Point.Y);
         Assert.Equal(33000, result.Point.Z);
-        Assert.Equal(new int?[] { 10010, 20020, 33000 }, battle.NativeEffectMemory!.ScriptedColorRegisters!.Mac.ToArray());
+        Assert.Equal(new int?[] { 10010, 20020, 33000 }, battle.Presentation!.Memory.ScriptedColorRegisters!.Mac.ToArray());
         Assert.Equal(33000u, result.Frame.ReadTemporaryDword(0xF8));
-        Assert.Null(battle.NativeModelCpuResources);
-        Assert.Null(battle.NativeFileStaging);
+        Assert.Null(battle.Presentation?.ModelCpuResources);
+        Assert.Null(battle.Presentation?.NativeFileStaging);
     }
 }

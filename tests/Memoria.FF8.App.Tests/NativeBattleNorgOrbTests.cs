@@ -26,7 +26,7 @@ public sealed class NativeBattleNorgOrbTests
         try
         {
             world.PrepareDiagnosticEntryBeforePresentation(request);
-            BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+            BattleAudioPresentation audio = BattleAudioTestOutput.Create();
             for (int step = 0; step < 4096; step++)
             {
                 BattleSnapshot snapshot = battle.Capture();
@@ -35,15 +35,15 @@ public sealed class NativeBattleNorgOrbTests
                 {
                     Assert.Equal(0u, orb.NativeParticipant.Variables[1]);
                     int physical = orb.NativeParticipant.ActorIndex;
-                    NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, physical);
-                    NativeBattleModelCpuResources cpu = battle.NativeModelCpuResources!;
+                    NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.Presentation!.Graphics, physical);
+                    NativeBattleModelCpuResources cpu = battle.Presentation!.ModelCpuResources;
                     NativeBattleModelCpuResourceRow row = cpu.Rows[model.TextureResourceIndex!.Value];
-                    byte[] table = NativeBattleModelEnemyHeap.Read(cpu, battle.NativeFileStaging!, row.Require(48), row.Lengths[48]);
-                    NativeBattleEffectTextureState beforeTextures = battle.NativeEffectMemory!.Textures!;
+                    byte[] table = NativeBattleModelEnemyHeap.Read(cpu, battle.Presentation!.NativeFileStaging!, row.Require(48), row.Lengths[48]);
+                    NativeBattleEffectTextureState beforeTextures = battle.Presentation!.Memory.Textures!;
                     world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: "party-0", TargetId: orb.Id, Ability: BattleAbility.Attack));
                     BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
                     restored.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
-                    BattleAudioPresentation restoredAudio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+                    BattleAudioPresentation restoredAudio = BattleAudioTestOutput.Create();
                     int resetSequence = 0;
                     for (int hit = 0; hit < 1024; hit++)
                     {
@@ -68,7 +68,7 @@ public sealed class NativeBattleNorgOrbTests
                             byte selector = resetSequence switch { 14 => 3, 15 => 4, _ => 1 };
                             int variant = resetSequence == 16 ? 0 : 6;
                             NativeBattleTextureCopy copy = NativeBattleTextureMotion.Plan50C780(table.ToImmutableArray(), model.TextureAllocationMask, selector, variant)!;
-                            NativeBattleEffectTextureState textures = battle.NativeEffectMemory!.Textures!;
+                            NativeBattleEffectTextureState textures = battle.Presentation!.Memory.Textures!;
                             for (int y = 0; y < copy.Height; y++)
                             {
                                 for (int x = 0; x < copy.Width; x++)
@@ -76,8 +76,8 @@ public sealed class NativeBattleNorgOrbTests
                                     Assert.Equal(beforeTextures.ReadVramWord(copy.SourceX + x, copy.SourceY + y), textures.ReadVramWord(copy.DestinationX + x, copy.DestinationY + y));
                                 }
                             }
-                            Assert.Equal((byte)1, ReadOriginalModelCell(battle.NativeGraphics!, physical).Sequence);
-                            Assert.Equal(1, ReadOriginalModelCell(battle.NativeGraphics!, physical).SequenceState!.Default2);
+                            Assert.Equal((byte)1, ReadOriginalModelCell(battle.Presentation!.Graphics, physical).Sequence);
+                            Assert.Equal(1, ReadOriginalModelCell(battle.Presentation!.Graphics, physical).SequenceState!.Default2);
                             Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
                             return;
                         }

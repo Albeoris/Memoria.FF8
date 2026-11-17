@@ -70,7 +70,7 @@ public sealed class BattleEntryPerformanceTests
         long startBytes = GC.GetTotalAllocatedBytes() - allocated;
         BattleSession active = world.Battle!;
         started = Stopwatch.GetTimestamp();
-        BattleScenePresentation scene = new(world.BattleResources, active.Capture().Definition, true);
+        BattleScenePresentation scene = new(world.BattleResources, active.Capture().Definition);
         double sceneMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         active.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30), TimeSpan.Zero);

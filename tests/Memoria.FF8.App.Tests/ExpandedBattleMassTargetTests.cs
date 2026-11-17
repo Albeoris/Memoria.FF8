@@ -25,7 +25,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             Assert.NotNull(enemy.NativeAi);
         });
         Assert.Contains(battle.ReadDefinition().NativeActions, action => action.Command == 8 && action.ActionId == 182 && action.Name == actionName);
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         uint? sonicSound = null;
         HashSet<string> tintedTargets = [];
         bool drewNativeOverlay = false;
@@ -36,7 +36,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             for (int frame = 0; frame < 150; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } current)
+                if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } current)
                 {
                     Assert.Equal(NativeBattleSonic139Profile.Effect, identity.RequestedEffect);
                     Assert.Equal(NativeBattleSonic139Profile.Entry, identity.Binding.Entry);

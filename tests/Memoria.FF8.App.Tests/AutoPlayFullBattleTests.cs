@@ -54,7 +54,7 @@ public sealed class AutoPlayFullBattleTests
             Assert.Null(controller.Error);
             if (world.Battle is { } battle)
             {
-                Assert.NotNull(battle.NativeGraphics);
+                Assert.NotNull(battle.Presentation?.Graphics);
                 Assert.Null(battle.DebugOutcome);
                 Assert.True(session.State.FullBattlePlaythrough);
                 if (!restored && battle.ActiveAction is not null)

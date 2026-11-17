@@ -145,7 +145,7 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Counter dispatch lacks its actual header generation.");
             }
-            NativeBattleRetainedActionPackets packets = diagnosticDriverBattle!.ObserveDiagnosticActionPackets(dispatch);
+            NativeBattleRetainedActionPackets packets = diagnosticDriverBattle!.Presentation!.ObserveDiagnosticActionPackets(dispatch);
             driver.ObserveDispatch(dispatch, null, new(dispatch.Serial, dispatch.Callback, header, generation, packets));
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)

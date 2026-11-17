@@ -39,7 +39,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(migrated)!);
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         NativeBattleRestorationPresentationTests.Publish(output, "source", source, null);
         List<object> rows = [];
@@ -172,7 +172,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(original)!);
         first.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
         second.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         NativeBattleRestorationPresentationTests.Publish(output, "source", source, null);
         BattleSnapshot before = source;

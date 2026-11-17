@@ -43,14 +43,14 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-blocked", before.Frame, Error = error.ToString() }));
                 throw;
             }
-            if (battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 291, ReturnedDescriptor: NativeBattlePandemona291Entry.MainDescriptor })
+            if (battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 291, ReturnedDescriptor: NativeBattlePandemona291Entry.MainDescriptor })
             {
                 entered = true;
                 break;
             }
         }
         Assert.True(entered);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot source = battle.Capture();
         Assert.InRange(Counter(source), (ushort)0, (ushort)1);
         Assert.Equal(0x20DFAB8u, source.NativeEffectMemory!.Pandemona291!.ModelBuffer25562F4);
@@ -58,7 +58,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession live = BattleSession.Restore(source);
         BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, "entry.battle.json")))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(independent.Capture()));
-        TimeSpan callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         while (Counter(live.Capture()) < 2)
         {
             live.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);

@@ -14,7 +14,7 @@ public sealed class NativeBattleHostedTextureDrainTests
         textures = QueueWord(textures, 0x22).EnqueueArenaReadback505E70(Rectangle, 16);
         textures = QueueWord(textures, 0x33);
 
-        NativeBattleEffectMemory drained = BattleSession.DrainNativeTextureUploads(memory with { Textures = textures }, textures, null);
+        NativeBattleEffectMemory drained = BattlePresentationProcess.DrainNativeTextureUploads(memory with { Textures = textures }, textures, null);
 
         Assert.Equal(new byte[] { 0x22, 0 }, drained.Arena!.Read(16, 2));
         Assert.Equal(0, drained.Textures!.Count);
@@ -33,7 +33,7 @@ public sealed class NativeBattleHostedTextureDrainTests
         beta = beta.EnqueueCopy505EB0(1, 0, 1, 1, 0, 0);
         global = global.WithPresentationTexture("beta", new(beta, PreparedCache())).WithPresentationTexture("alpha", new(alpha, PreparedCache()));
 
-        NativeBattleEffectMemory drained = BattleSession.DrainNativeTextureUploads(memory with { Textures = global }, global, null);
+        NativeBattleEffectMemory drained = BattlePresentationProcess.DrainNativeTextureUploads(memory with { Textures = global }, global, null);
 
         Assert.Same(memory.Arena, drained.Arena);
         Assert.Equal(new byte[] { 0x77, 0 }, drained.Textures!.ReadVram()[..2]);
@@ -50,10 +50,10 @@ public sealed class NativeBattleHostedTextureDrainTests
         NativeBattleEffectTextureState actor = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaReadback505E70(Rectangle, 16);
         global = global.WithPresentationTexture("actor", new(actor, PreparedCache()));
 
-        Assert.Throws<NotSupportedException>(() => BattleSession.DrainNativeTextureUploads(memory with { Textures = global }, global, null));
+        Assert.Throws<NotSupportedException>(() => BattlePresentationProcess.DrainNativeTextureUploads(memory with { Textures = global }, global, null));
 
         NativeBattleEffectTextureState retry = global with { PresentationTextures = null };
-        NativeBattleEffectMemory drained = BattleSession.DrainNativeTextureUploads(memory with { Textures = retry }, retry, null);
+        NativeBattleEffectMemory drained = BattlePresentationProcess.DrainNativeTextureUploads(memory with { Textures = retry }, retry, null);
         Assert.Equal(new byte[] { 0x22, 0 }, drained.Textures!.ReadVram()[..2]);
     }
 

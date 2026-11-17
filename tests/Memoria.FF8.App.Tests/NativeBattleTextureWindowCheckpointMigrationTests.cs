@@ -48,7 +48,7 @@ public sealed class NativeBattleTextureWindowCheckpointMigrationTests
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         using BattleAssets assets = new(game.GameDirectory);
-        Assert.Equal(320 * 224 * 4, new BattleScenePresentation(assets, migrated.Definition, true).Render(first, 320, 224).Length);
+        Assert.Equal(320 * 224 * 4, new BattleScenePresentation(assets, migrated.Definition).Render(first, 320, 224).Length);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);
         string boundary = NativeBattleGuardianCheckpointTests.Advance(first);
         if (graphics.OriginalEffect?.Binding.Effect != 116)

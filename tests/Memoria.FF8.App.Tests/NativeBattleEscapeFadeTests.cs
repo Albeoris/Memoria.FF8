@@ -27,7 +27,7 @@ public sealed class NativeBattleEscapeFadeTests
             ]
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, false);
+        BattleScenePresentation scene = new(assets, definition);
         battle.PublishNativeEscapeButtons(3);
         for (int frame = 0; frame < 60; frame++)
         {
@@ -57,7 +57,7 @@ public sealed class NativeBattleEscapeFadeTests
         restored.Tick();
         Assert.Equal((byte?)59, restored.ExpandedEscapeScreenFade);
         byte[] faded = scene.Render(battle, width, height).ToArray();
-        Assert.Equal(faded, new BattleScenePresentation(assets, definition, false).Render(restored, width, height).ToArray());
+        Assert.Equal(faded, new BattleScenePresentation(assets, definition).Render(restored, width, height).ToArray());
 
         var fade = NativeBattleOutcomeCallbacks.PrepareFade501D10(restored.ExpandedEscapeScreenFade!.Value, assets.ReadNativePrimitiveTables());
         var quad = Assert.Single(fade.LastCommands, command => command.Pass == 2 && command.Command.Opcode == 0x2A);

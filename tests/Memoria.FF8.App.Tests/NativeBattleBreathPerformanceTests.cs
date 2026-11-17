@@ -56,7 +56,7 @@ public sealed class NativeBattleBreathPerformanceTests
         for (int cast = 0; cast < 2; cast++)
         {
             BattleSession battle = Restore(source);
-            BattleScenePresentation scene = new(assets, source.Definition, true);
+            BattleScenePresentation scene = new(assets, source.Definition);
             bool entered = false;
             bool completed = false;
             for (int display = 0; display < 1600; display++)
@@ -69,14 +69,14 @@ public sealed class NativeBattleBreathPerformanceTests
                 start = Stopwatch.GetTimestamp();
                 scene.Render(battle, 960, 720, gpu);
                 double render = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-                NativeBattleOriginalEffectState? current = battle.NativeGraphics!.OriginalEffect;
+                NativeBattleOriginalEffectState? current = battle.Presentation!.Graphics.OriginalEffect;
                 bool live = current is { ReturnedDescriptor: > 0 };
                 entered |= live;
                 rows.Add(new(cast, display, live, update, render, bytes));
-                if (entered && !live && battle.NativeEffectMemory!.Active == 0 && current is not null && current.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)))
+                if (entered && !live && battle.Presentation!.Memory.Active == 0 && current is not null && current.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)))
                 {
                     completed = true;
-                    Assert.Equal(0, battle.NativeEffectMemory!.Active);
+                    Assert.Equal(0, battle.Presentation!.Memory.Active);
                     Assert.All(current!.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
                     break;
                 }
@@ -92,7 +92,7 @@ public sealed class NativeBattleBreathPerformanceTests
         {
             Advance(direct, display);
         }
-        Assert.True(direct.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0 });
+        Assert.True(direct.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: > 0 });
         string json = JsonSerializer.Serialize(direct.Capture());
         BattleSession restored = Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
         Advance(direct, boundary + 1);

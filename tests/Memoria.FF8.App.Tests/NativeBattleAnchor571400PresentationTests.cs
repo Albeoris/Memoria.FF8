@@ -86,7 +86,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
             NativeBattleVector first = Observe(0xF0);
             NativeBattleVector second = Observe(0xF1);
             expectedPoint = new(Average(first.X, second.X), Average(first.Y, second.Y), Average(first.Z, second.Z));
-            expectedStaging = oracle.NativeFileStaging!;
+            expectedStaging = oracle.Presentation!.NativeFileStaging!;
             Assert.True(JsonSerializer.Serialize(memoryBefore.GeometryRegisters) != JsonSerializer.Serialize(expectedMemory.GeometryRegisters) || JsonSerializer.Serialize(memoryBefore.ScriptedColorRegisters) != JsonSerializer.Serialize(expectedMemory.ScriptedColorRegisters) || JsonSerializer.Serialize(stagingBefore) != JsonSerializer.Serialize(expectedStaging), "The selected original anchor must distinguish publication from an unchanged frame.");
 
             NativeBattleVector Observe(byte selector)
@@ -138,7 +138,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
     private static NativeBattleGraphicsState Run(BattleSession session, NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleGraphicsState result = Invoke<NativeBattleGraphicsState>(session, "RunNativeMorph172", graphics, initialize);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, result);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, result);
         return result;
     }
 

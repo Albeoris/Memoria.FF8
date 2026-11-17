@@ -1,7 +1,6 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -15,8 +14,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Main_and_hosted_draws_continue_the_current_streams_in_order()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [0xC3, 17, 0xE5, 0, 1, 0xC3, 17, 0xE5, 0, 2]);
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        BattlePresentationProcess process = CreateProcess(owner, [0xC3, 17, 0xE5, 0, 1, 0xC3, 17, 0xE5, 0, 2]);
         NativeBattleRandomState battle = Assert.IsType<NativeBattleRandomState>(owner.Capture().Random);
         NativeBattleUiRandomState? ui = owner.Capture().NativeBattleUiRandom;
         NativeGlobalRandomState expectedGlobal = GlobalStart.Draw(out ushort mainFirst);
@@ -24,7 +22,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
         NativeCrtRandomState expectedCrt = CrtStart.Draw(out _);
         SetField(owner, "nativeCrtRandom", expectedCrt);
 
-        process.Advance(owner);
+        Advance(process);
 
         expectedGlobal = expectedGlobal.Draw(out ushort childFirst);
         Assert.Equal((short)childFirst, process.Camera.Variables[0]);
@@ -33,10 +31,10 @@ public sealed class NativeBattleHostedPresentationRandomTests
         Assert.Equal(mainSecond, DrawGlobal(owner));
         expectedCrt = expectedCrt.Draw(out _);
         SetField(owner, "nativeCrtRandom", expectedCrt);
-        Assert.NotEqual(owner.CurrentCrtRandom, process.CurrentCrtRandom);
+        Assert.NotEqual((NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom"), process.CurrentCrtRandom);
         Assert.Equal(2UL, process.GlobalRandomCalls);
 
-        process.Advance(owner);
+        Advance(process);
 
         expectedGlobal = expectedGlobal.Draw(out ushort childSecond);
         Assert.Equal((short)childSecond, process.Camera.Variables[0]);
@@ -49,18 +47,18 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Crt_draws_round_trip_through_the_same_session_exchange()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [2]);
+        BattlePresentationProcess process = CreateProcess(owner, [2]);
         NativeCrtRandomState expected = CrtStart;
         for (int cycle = 0; cycle < 2; cycle++)
         {
             expected = expected.Draw(out ushort mainValue);
             Assert.Equal(mainValue, DrawCrt(owner));
-            child.ImportHostedPresentationSharedState(owner);
+            TransferIntoProcess(owner, process);
             expected = expected.Draw(out ushort childValue);
-            Assert.Equal(childValue, DrawCrt(child));
-            Assert.NotEqual(expected, owner.CurrentCrtRandom);
-            child.ExportHostedPresentationSharedState(owner);
-            Assert.Equal(expected, owner.CurrentCrtRandom);
+            Assert.Equal(childValue, DrawCrt(process));
+            Assert.NotEqual(expected, (NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom"));
+            TransferIntoBattle(process, owner);
+            Assert.Equal(expected, (NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom"));
         }
     }
 
@@ -68,20 +66,19 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Before_core_sees_three_polls_and_graphics_uses_its_current_owner_facts()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [0xC3, 17, 0xE5, 0, 2]);
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
-        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize().QueuePublication(3) });
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        BattlePresentationProcess process = CreateProcess(owner, [0xC3, 17, 0xE5, 0, 2]);
+        NativeBattleGraphicsState graphics = process.Graphics;
+        SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize().QueuePublication(3) });
         NativeGlobalRandomState expected = GlobalStart.Draw(out ushort mainDraw).Draw(out ushort childDraw);
 
-        NativeBattleModelLifecycleServices services = process.Advance(owner, beforeCore: () =>
+        NativeBattleModelLifecycleServices services = Advance(process, beforeCore: () =>
         {
             Assert.Equal(3u, process.Graphics.UiServices!.Counter);
             Assert.True(process.Graphics.UiServices.Frame33);
             Assert.Equal(0, process.Graphics.Callback);
-            Assert.Null(ReadField(child, "hostedFrameServices"));
-            Assert.Throws<InvalidOperationException>(() => process.Advance(owner));
-            Assert.Throws<InvalidOperationException>(() => child.AdvanceHostedBattlePresentationFrame(owner, null));
+            Assert.Null(ReadField(process, "hostedFrameServices"));
+            Assert.Throws<InvalidOperationException>(() => Advance(process));
+            Assert.Throws<InvalidOperationException>(() => process.AdvanceHostedBattlePresentationFrame(null));
             Assert.Equal(mainDraw, DrawGlobal(owner));
             owner.Combatants[0].CurrentHp = 1;
         });
@@ -99,26 +96,25 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Failed_after_graphics_handoff_preserves_rng_and_timer_and_releases_the_frame_guards()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [1, 2]);
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
-        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
+        BattlePresentationProcess process = CreateProcess(owner, [1, 2]);
+        NativeBattleGraphicsState graphics = process.Graphics;
+        SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
         NativeExamTimerState timer = NativeExamTimerState.FromColdProcess().SetRemaining(100).Display(4, 5);
         SetProperty(owner, nameof(BattleSession.NativeExamTimer), timer);
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
         SetField(owner, "expandedPresentationProcess", process);
         InvalidOperationException injected = new("Post-graphics canonical callback failed.");
         int called = 0;
 
-        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, afterGraphics: (services, token) =>
+        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => Advance(process, afterGraphics: (services, token) =>
         {
             called++;
             Assert.Null(token);
-            Assert.Null(ReadField(child, "hostedFrameServices"));
-            Assert.NotNull(ReadField(child, "nativePreRootStack"));
+            Assert.Null(ReadField(process, "hostedFrameServices"));
+            Assert.NotNull(ReadField(process, "nativePreRootStack"));
             Assert.Equal(1, process.Graphics.Callback);
             Assert.Equal(3u, process.Graphics.UiServices!.Counter);
-            Assert.Throws<InvalidOperationException>(() => child.AdvanceHostedBattlePresentationFrame(owner, timer));
-            Assert.Throws<InvalidOperationException>(() => process.Advance(owner));
+            Assert.Throws<InvalidOperationException>(() => process.AdvanceHostedBattlePresentationFrame(timer));
+            Assert.Throws<InvalidOperationException>(() => Advance(process));
             Assert.Throws<InvalidOperationException>(() => process.AccumulateElapsed(TimeSpan.FromSeconds(1)));
             Assert.Throws<InvalidOperationException>(() => process.SetActionMenu(true));
             DrawGlobal(owner);
@@ -129,14 +125,14 @@ public sealed class NativeBattleHostedPresentationRandomTests
 
         Assert.Equal(1, called);
         Assert.Null(process.LastFrameServices);
-        Assert.Null(ReadField(child, "hostedFrameServices"));
-        Assert.Null(ReadField(child, "nativePreRootStack"));
+        Assert.Null(ReadField(process, "hostedFrameServices"));
+        Assert.Null(ReadField(process, "nativePreRootStack"));
         Assert.False((bool)ReadField(process, "canonicalHandoff")!);
         AssertStreams(owner, process, GlobalStart.Advance(1), 1, CrtStart.Draw(out _));
         Assert.True(owner.NativeExamTimer!.HasSameClock(timer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1)));
         Assert.Same(owner.NativeExamTimer, process.Timer);
 
-        process.Advance(owner);
+        Advance(process);
         Assert.Equal(2, process.Graphics.Callback);
         Assert.Equal(7u, process.Graphics.UiServices!.Counter);
         Assert.Equal(1, called);
@@ -146,14 +142,13 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Failed_before_core_preserves_main_draws_and_its_original_exception()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [2]);
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
-        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        BattlePresentationProcess process = CreateProcess(owner, [2]);
+        NativeBattleGraphicsState graphics = process.Graphics;
+        SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics with { UiServices = NativeBattleUiServices.Initialize() });
         InvalidOperationException injected = new("Main callback failed after drawing.");
         NativeBattleUiRandomState mainUi = owner.Capture().NativeBattleUiRandom!.Draw(out _);
 
-        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, beforeCore: () =>
+        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => Advance(process, beforeCore: () =>
         {
             DrawGlobal(owner);
             DrawCrt(owner);
@@ -164,11 +159,11 @@ public sealed class NativeBattleHostedPresentationRandomTests
         Assert.Equal(3u, process.Graphics.UiServices!.Counter);
         Assert.Equal(0, process.Graphics.Callback);
         Assert.Null(process.LastFrameServices);
-        Assert.Null(ReadField(child, "hostedFrameServices"));
+        Assert.Null(ReadField(process, "hostedFrameServices"));
         AssertStreams(owner, process, GlobalStart.Advance(1), 1, CrtStart.Draw(out _));
         Assert.Equal(mainUi, owner.Capture().NativeBattleUiRandom);
-        Assert.Equal(mainUi, ReadField(child, "nativeBattleUiRandom"));
-        process.Advance(owner);
+        Assert.Equal(mainUi, ReadField(process, "nativeBattleUiRandom"));
+        Advance(process);
         Assert.Equal(1, process.Graphics.Callback);
     }
 
@@ -176,21 +171,20 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Hosted_widget_draw_precedes_canonical_ui_rng_and_a_later_hook_failure_preserves_both()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [2]);
-        BattleDefinition selected = (BattleDefinition)ReadField(child, "definition")!;
-        SetField(child, "definition", selected with { LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0]) { Options978 = 1 } });
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        BattlePresentationProcess process = CreateProcess(owner, [2]);
+        BattleDefinition selected = owner.ReadDefinition() with { LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0]) { Options978 = 1 } };
+        SetField(process, "resources", new BattlePresentationResources(selected));
+        NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleUiServices ui = NativeBattleUiServices.Initialize();
         BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));
         NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(owner.ReadPresentationModelOwner("ally"), block, 1, ui, graphics.ActorModels.Roster) with { Input = new(6, 68, 2, 0, 0) };
-        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with { UiServices = ui, TriggerWidget = widget });
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics with { UiServices = ui, TriggerWidget = widget });
         NativeBattleUiRandomState childDraw = owner.Capture().NativeBattleUiRandom!.Draw(out _);
         NativeBattleUiRandomState mainDraw = childDraw.Draw(out _);
         NativeBattleRandomState? beforeBattleRandom = owner.Capture().Random;
         InvalidOperationException injected = new("The canonical hook failed after its UI draw.");
 
-        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => process.Advance(owner, beforeCore: () =>
+        Assert.Same(injected, Assert.Throws<InvalidOperationException>(() => Advance(process, beforeCore: () =>
         {
             Assert.Equal(childDraw, owner.Capture().NativeBattleUiRandom);
             Assert.Equal(3u, process.Graphics.UiServices!.Counter);
@@ -198,7 +192,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
             throw injected;
         })));
         Assert.Equal(mainDraw, owner.Capture().NativeBattleUiRandom);
-        Assert.Equal(mainDraw, ReadField(child, "nativeBattleUiRandom"));
+        Assert.Equal(mainDraw, ReadField(process, "nativeBattleUiRandom"));
         Assert.Equal(beforeBattleRandom, owner.Capture().Random);
         Assert.Null(process.LastFrameServices);
     }
@@ -207,15 +201,14 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Failed_camera_callback_exports_consumed_random_without_publishing_a_frame()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [1, 0xC3, 17]);
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
-        process.Advance(owner);
+        BattlePresentationProcess process = CreateProcess(owner, [1, 0xC3, 17]);
+        Advance(process);
         NativeBattlePreparedPresentation? beforeFrame = process.PreparedPresentation;
         NativeBattleEffectPresentationStep beforeStep = process.LastStep;
         long beforeCallback = process.Graphics.Callback;
         DrawGlobal(owner);
 
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => process.Advance(owner));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => Advance(process));
 
         Assert.Contains("camera control cursor", error.Message);
         Assert.Equal(beforeCallback + 1, process.Graphics.Callback);
@@ -232,78 +225,48 @@ public sealed class NativeBattleHostedPresentationRandomTests
     public void Reentrant_advance_cannot_overwrite_already_consumed_child_draws()
     {
         BattleSession owner = CreateLogical();
-        BattleSession child = CreateChild(owner, [2]);
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
+        BattlePresentationProcess process = CreateProcess(owner, [2]);
         NativeBattleGraphicsState graphics = process.Graphics;
-        DrawGlobal(child);
-        DrawCrt(child);
+        DrawGlobal(process);
+        DrawCrt(process);
         SetField(process, "advancing", true);
 
-        Assert.Throws<InvalidOperationException>(() => process.Advance(owner));
+        Assert.Throws<InvalidOperationException>(() => Advance(process));
 
         Assert.Same(graphics, process.Graphics);
         Assert.Equal(new NativeGlobalRandomChange(GlobalStart, GlobalStart, 0), owner.NativeGlobalRandomChange);
-        Assert.Equal(CrtStart, owner.CurrentCrtRandom);
+        Assert.Equal(CrtStart, (NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom"));
         Assert.Equal(new NativeGlobalRandomChange(GlobalStart, GlobalStart.Advance(1), 1), process.GlobalRandomChange);
         Assert.Equal(CrtStart.Draw(out _), process.CurrentCrtRandom);
         Assert.True((bool)ReadField(process, "advancing")!);
     }
 
     [Fact]
-    public void An_equal_roster_on_another_session_cannot_advance_or_import_random()
+    public void A_missing_shared_crt_stream_fails_before_importing_any_state()
     {
-        BattleSession owner = CreateLogical();
-        BattleSession other = CreateLogical();
-        BattleSession child = CreateChild(owner, [2]);
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
-        NativeBattleGraphicsState before = process.Graphics;
-        DrawGlobal(other);
-        DrawCrt(other);
-        NativeGlobalRandomChange? otherRandom = other.NativeGlobalRandomChange;
-        NativeCrtRandomState? otherCrt = other.CurrentCrtRandom;
-
-        Assert.Throws<InvalidOperationException>(() => process.Advance(other));
-
-        Assert.Same(before, process.Graphics);
-        Assert.Equal(otherRandom, other.NativeGlobalRandomChange);
-        Assert.Equal(otherCrt, other.CurrentCrtRandom);
-        AssertStreams(owner, process, GlobalStart, 0, CrtStart);
-    }
-
-    [Theory]
-    [InlineData("seed")]
-    [InlineData("crt")]
-    [InlineData("count")]
-    public void Incompatible_random_contract_fails_before_importing_any_state(string invalid)
-    {
-        BattleSession owner = CreateLogical(seed: invalid == "seed" ? new(321) : GlobalStart, crt: invalid != "crt");
-        BattleSession child = CreateChild(owner, [2]);
-        ExpandedBattlePresentationProcess process = CreateFacade(owner, child);
-        if (invalid == "count")
-        {
-            SetField(owner, "nativeGlobalRandomCalls", 2UL);
-        }
+        BattleSession owner = CreateLogical(crt: false);
+        BattlePresentationProcess process = CreateProcess(owner, [2]);
         NativeBattleGraphicsState before = process.Graphics;
         NativeGlobalRandomChange? ownerRandom = owner.NativeGlobalRandomChange;
-        NativeCrtRandomState? ownerCrt = owner.CurrentCrtRandom;
+        NativeCrtRandomState? ownerCrt = (NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom");
 
-        Assert.Throws<InvalidDataException>(() => process.Advance(owner));
+        Assert.Throws<InvalidDataException>(() => Advance(process));
 
         Assert.Same(before, process.Graphics);
         Assert.Equal(new NativeGlobalRandomChange(GlobalStart, GlobalStart, 0), process.GlobalRandomChange);
         Assert.Equal(CrtStart, process.CurrentCrtRandom);
         Assert.Equal(ownerRandom, owner.NativeGlobalRandomChange);
-        Assert.Equal(ownerCrt, owner.CurrentCrtRandom);
+        Assert.Equal(ownerCrt, (NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom"));
         Assert.False((bool)ReadField(process, "advancing")!);
     }
 
-    private static void AssertStreams(BattleSession owner, ExpandedBattlePresentationProcess process, NativeGlobalRandomState after, ulong calls, NativeCrtRandomState crt)
+    private static void AssertStreams(BattleSession owner, BattlePresentationProcess process, NativeGlobalRandomState after, ulong calls, NativeCrtRandomState crt)
     {
         NativeGlobalRandomChange expected = new(GlobalStart, after, calls);
         Assert.Equal(expected, owner.NativeGlobalRandomChange);
         Assert.Equal(expected, process.GlobalRandomChange);
         owner.NativeGlobalRandomChange!.Validate();
-        Assert.Equal(crt, owner.CurrentCrtRandom);
+        Assert.Equal(crt, (NativeCrtRandomState?)ReadField(owner, "nativeCrtRandom"));
         Assert.Equal(crt, process.CurrentCrtRandom);
     }
 
@@ -316,48 +279,61 @@ public sealed class NativeBattleHostedPresentationRandomTests
         NativeBattleUiRandom = new(789)
     }, BattleAtbMode.TurnBased);
 
-    private static BattleSession CreateChild(BattleSession owner, ImmutableArray<byte> program)
+    private static BattlePresentationProcess CreateProcess(BattleSession owner, ImmutableArray<byte> program)
     {
-        BattleSession child = CreateLogical();
-        BattleDefinition original = (BattleDefinition)ReadField(child, "definition")!;
-        SetField(child, "definition", original with { NativeStageCameraControl = program, NativeStageCameraBank = new([]) });
-        SetField(child, "hostedBattlePresentation", true);
-        FieldInfo descriptors = typeof(BattleSession).GetField("hostedEntryDescriptors", PrivateInstance)!;
-        descriptors.SetValue(child, Activator.CreateInstance(descriptors.FieldType));
+        BattleDefinition selected = owner.ReadDefinition() with
+        {
+            NativeStageCameraControl = program,
+            NativeStageCameraBank = new([]),
+            NativeCrtRandom = CrtStart,
+            NativeGlobalRandom = GlobalStart
+        };
         var (roster, aliases) = owner.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
-        SetProperty(child, nameof(BattleSession.NativeGraphics), graphics with
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(owner, graphics with
         {
             EntryLifecycle = 4,
             EntryReady = true,
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
-        });
-        SetProperty(child, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
-        SetProperty(child, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess());
-        SetProperty(child, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { ControlCursor = 0 });
-        SetProperty(child, nameof(BattleSession.NativeStage), NativeBattleStageState.FromColdProcess());
-        SetProperty(child, nameof(BattleSession.NativeMusicProcess), new NativeBattleMusicProcessState(new(1, null, null, null, null, null), 0, null).InitializeCommands501C60());
-        return child;
-    }
-
-    private static ExpandedBattlePresentationProcess CreateFacade(BattleSession owner, BattleSession child)
-    {
-        // Reuse the operative frame path without needing installed boot resources in the Runtime test project.
-        var process = (ExpandedBattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
-        SetField(process, "logicalOwner", owner);
-        SetField(process, "presentation", child);
+        }, selected);
+        SetProperty(process, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
+        SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess());
+        SetProperty(process, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { ControlCursor = 0 });
+        SetProperty(process, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
+        SetProperty(process, nameof(BattlePresentationProcess.NativeMusicProcess), new NativeBattleMusicProcessState(new(1, null, null, null, null, null), 0, null).InitializeCommands501C60());
         return process;
     }
 
-    private static ushort DrawGlobal(BattleSession session) => (ushort)typeof(BattleSession).GetMethod("NextNativeGlobalRandom", PrivateInstance)!.Invoke(session, [])!;
-
-    private static ushort DrawCrt(BattleSession session)
+    private static NativeBattleModelLifecycleServices Advance(BattlePresentationProcess process, Action? beforeCore = null, Action<NativeBattleModelLifecycleServices, long?>? afterGraphics = null)
     {
-        SetField(session, "nativeCrtRandom", session.CurrentCrtRandom!.Draw(out ushort result));
+        return process.Advance(beforeCore ?? (() => { }), afterGraphics ?? ((_, _) => { }));
+    }
+
+    private static void TransferIntoProcess(BattleSession owner, BattlePresentationProcess process)
+    {
+        object shared = typeof(BattleSession).GetMethod("ObserveBattlePresentationSharedState", PrivateInstance)!.Invoke(owner, [])!;
+        typeof(BattlePresentationProcess).GetMethod("ImportSharedState", PrivateInstance)!.Invoke(process, [shared]);
+    }
+
+    private static void TransferIntoBattle(BattlePresentationProcess process, BattleSession owner)
+    {
+        object shared = typeof(BattlePresentationProcess).GetMethod("ObserveSharedState", PrivateInstance)!.Invoke(process, [])!;
+        typeof(BattleSession).GetMethod("PublishBattlePresentationSharedState", PrivateInstance)!.Invoke(owner, [shared]);
+    }
+
+    private static ushort DrawGlobal(object owner)
+    {
+        return (ushort)owner.GetType().GetMethod("NextNativeGlobalRandom", PrivateInstance)!.Invoke(owner, [])!;
+    }
+
+    private static ushort DrawCrt(object owner)
+    {
+        NativeCrtRandomState state = (NativeCrtRandomState)ReadField(owner, "nativeCrtRandom")!;
+        SetField(owner, "nativeCrtRandom", state.Draw(out ushort result));
         return result;
     }
 
     private static object? ReadField(object owner, string name) => owner.GetType().GetField(name, PrivateInstance)!.GetValue(owner);
     private static void SetField(object owner, string name, object? value) => owner.GetType().GetField(name, PrivateInstance)!.SetValue(owner, value);
-    private static void SetProperty(BattleSession owner, string name, object value) => typeof(BattleSession).GetProperty(name)!.SetValue(owner, value);
+    private static void SetProperty(object owner, string name, object value) => owner.GetType().GetProperty(name)!.SetValue(owner, value);
 }

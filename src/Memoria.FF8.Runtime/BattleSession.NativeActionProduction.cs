@@ -98,7 +98,7 @@ public sealed partial class BattleSession
                 foreach (BattleCombatant recipient in targets)
                 {
                     bool deathCallbackSelf = recipient == actor && command.NativeAiCallbackStage == 3 && command.TargetRequest.DeathCallbackSelf == TargetActorReference(recipient);
-                    if (UsesExpandedRoster && !recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathCallbackSelf && (!allowKo || !recipient.IsPlayer))
+                    if (!recipient.IsActive || (NativeSavedStatusBits(recipient) & 1) != 0 && !deathCallbackSelf && (!allowKo || !recipient.IsPlayer))
                     {
                         aborted = true;
                         break;

@@ -69,7 +69,7 @@ public sealed class BattleMessageTests
     public void Native_message_duration_and_guardian_seconds_use_fixed_callback_units(int displayRate)
     {
         BattleSession battle = Create([1, 0, 0]);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, OriginalGraphics([]));
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
         hud.BuildView();
         Assert.Equal(15.5, hud.BattleCallbackRate);

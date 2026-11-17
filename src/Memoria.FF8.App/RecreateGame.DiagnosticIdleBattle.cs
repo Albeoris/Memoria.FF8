@@ -27,7 +27,7 @@ internal sealed partial class RecreateGame
     private void StartDiagnosticIdleBattle(DiagnosticIdleBattleDeclaration declaration)
     {
         if (battleGpu is null || !diagnosticHostPhaseTiming.Enabled || !OperatingSystem.IsWindows() ||
-            Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_VISUAL_CHANGES") == "1" || world?.Battle is not { UsesExpandedRoster: true } battle)
+            Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_VISUAL_CHANGES") == "1" || world?.Battle is not { Presentation: not null } battle)
         {
             throw new NotSupportedException("Idle pacing requires the Windows attached GPU host and pacing without the image-difference observer.");
         }
@@ -156,7 +156,7 @@ internal sealed class DiagnosticIdleBattleProbe
             }
         }
 
-        if (ready is null && firstShown is not null && firstCamera is not null && Battle.NativeEntryReady && Battle.NativeCameraTaskMask == 0 && Battle.ObserveDiagnosticDrainBlockers().Count == 0)
+        if (ready is null && firstShown is not null && firstCamera is not null && Battle.NativeEntryReady && Battle.Presentation?.Camera.Mask == 0 && Battle.ObserveDiagnosticDrainBlockers().Count == 0)
         {
             ready = new(Capture(presented, timestamp), pacing.Complete());
         }

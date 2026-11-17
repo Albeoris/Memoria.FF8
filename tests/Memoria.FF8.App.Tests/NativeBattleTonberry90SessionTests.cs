@@ -15,7 +15,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition definition = CreateDefinition(game, assets, 14, 90);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_EVIDENCE") ?? Path.GetTempPath(), "tonberry-entry-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         BattleSnapshot before = battle.Capture();
@@ -33,7 +33,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0, Binding.Effect: 90 })
+                if (battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0, Binding.Effect: 90 })
                 {
                     entered = true;
                     break;
@@ -54,7 +54,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
                 clone.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                NativeBattleTonberry90State shared = battle.NativeEffectMemory!.Tonberry90!;
+                NativeBattleTonberry90State shared = battle.Presentation!.Memory.Tonberry90!;
                 uint director = shared.DirectorAddress1547168!.Value;
                 if (shared.ReadWord(director + 0x42) == 1 && shared.ReadWord(director + 0x40) == 0)
                 {
@@ -64,7 +64,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             }
             Assert.True(booted);
             BattleSnapshot boot = battle.Capture();
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Assert.Equal(0x762DA0u, boot.NativeGraphics!.OriginalEffect!.Pools[4].Slots[0].Callback);
             Assert.Equal(0x762850u, boot.NativeGraphics.OriginalEffect.Pools[6].Slots[0].Callback);
             Assert.NotNull(boot.NativeEffectMemory!.SharedEffectView2793E58);
@@ -107,7 +107,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             BattleSnapshot retained = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!;
             BattleSession restored = BattleSession.Restore(retained);
             Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(BattleSession.Restore(retained), 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(scene.Render(BattleSession.Restore(retained), 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(restored, 320, 224).ToArray());
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-boot-and-phase-one-validated", retained.Frame, NativeCallback = retained.NativeGraphics!.Callback, CapturedGround = capturedGround, DrewActor = drewActor, Boundary = boundary }));
             Console.WriteLine($"Tonberry phase-one standalone evidence: {output}");
         }
@@ -140,7 +140,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(independent.Capture()));
         battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
         independent.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         BattleSnapshot before = snapshot;
         try
         {
@@ -165,11 +165,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 {
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
                 }
-                if (battle.NativeGraphics?.OriginalEffect is not { ReturnedDescriptor: > 0 })
+                if (battle.Presentation?.Graphics?.OriginalEffect is not { ReturnedDescriptor: > 0 })
                 {
                     BattleSnapshot completed = battle.Capture();
                     Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(independent.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(independent, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(independent, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "completed", completed, scene.Render(battle, 320, 224).ToArray());
                     File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", completed.Frame, NativeCallback = completed.NativeGraphics?.Callback }));
                     return;

@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedActionAdmissionTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly MethodInfo ObserveRemoval = typeof(BattleSession).GetMethod("ObserveHostedActionPacketRemoved", PrivateInstance)!;
+    private static readonly MethodInfo ObserveRemoval = typeof(BattlePresentationProcess).GetMethod("ObserveHostedActionPacketRemoved", PrivateInstance)!;
     private static readonly BattlePartyModelOwner Ally = new BattlePartyActorModel(new("ally"));
     private static readonly BattleEnemyModelOwner Enemy = new BattleEnemyActorModel(new("enemy"));
     private static readonly BattleEnemyModelOwner Missing = new BattleEnemyActorModel(new("missing"));
@@ -15,9 +15,9 @@ public sealed class NativeBattleHostedActionAdmissionTests
     [Fact]
     public void AdmissionQueuesOneHeaderAndRebindsItsSourceWithoutResettingProcessOwners()
     {
-        BattleSession session = Fixture();
-        NativeBattleGraphicsState before = session.NativeGraphics!;
-        NativeBattleEffectMemory? memory = session.NativeEffectMemory;
+        BattlePresentationProcess session = Fixture();
+        NativeBattleGraphicsState before = session.Graphics;
+        NativeBattleEffectMemory? memory = session.Memory;
         NativeGlobalRandomChange? rng = session.NativeGlobalRandomChange;
         NativeBattleGraphicsResource resource = Bindings(session)[Ally].Resource;
         NativeBattleContactPacket contact = Contact(Enemy);
@@ -27,7 +27,7 @@ public sealed class NativeBattleHostedActionAdmissionTests
         Assert.Equal(1L, token);
         Assert.Equal(token, session.HostedActiveActionToken);
         Assert.False(session.IsHostedActionComplete(token));
-        NativeBattleDescriptorState queue = session.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState queue = session.Graphics.Descriptors;
         NativeBattleDescriptorPacket descriptor = queue.Packets[Assert.Single(queue.Queue)];
         Assert.Equal(104, descriptor.Command);
         Assert.Equal(128, descriptor.PriorityState);
@@ -40,8 +40,8 @@ public sealed class NativeBattleHostedActionAdmissionTests
         Assert.Equal(contact, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)));
         Assert.Equal(Ally, Field("presentationSourceOwner").GetValue(session));
         Assert.Same(resource, Field("presentationSourceResource").GetValue(session));
-        Assert.Same(before.ActorModels, session.NativeGraphics.ActorModels);
-        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Same(before.ActorModels, session.Graphics.ActorModels);
+        Assert.Same(memory, session.Memory);
         Assert.Equal(rng, session.NativeGlobalRandomChange);
     }
 
@@ -53,7 +53,7 @@ public sealed class NativeBattleHostedActionAdmissionTests
     [InlineData("descriptor capacity")]
     public void InvalidAdmissionLeavesCurrentPacketsDescriptorsSourceAndRandomUntouched(string failure)
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         long previous = session.BeginHostedAction(Header, [Contact(Enemy)]);
         CompleteThroughQueue(session);
         NativeBattleActionHeaderPreparation header = Header with { Source = Enemy };
@@ -67,14 +67,14 @@ public sealed class NativeBattleHostedActionAdmissionTests
                 header = header with { Source = Missing };
                 break;
             case "stale identity":
-                NativeBattleGraphicsState graphics = session.NativeGraphics!;
+                NativeBattleGraphicsState graphics = session.Graphics;
                 SetGraphics(session, graphics with { ActorModels = graphics.ActorModels.ReplaceOwner(Enemy, new BattleEnemyActorModel(new("replaced")), graphics.ActorModels.Get(Enemy)) });
                 break;
             case "missing source resource":
                 Bindings(session).Remove(Enemy);
                 break;
             case "descriptor capacity":
-                NativeBattleGraphicsState busy = session.NativeGraphics!;
+                NativeBattleGraphicsState busy = session.Graphics;
                 NativeBattleDescriptorState descriptors = busy.Descriptors;
                 for (int index = 0; index < descriptors.Nodes.Length - 1; index++)
                 {
@@ -84,7 +84,7 @@ public sealed class NativeBattleHostedActionAdmissionTests
                 break;
         }
 
-        NativeBattleGraphicsState before = session.NativeGraphics!;
+        NativeBattleGraphicsState before = session.Graphics;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         object? source = Field("presentationSourceResource").GetValue(session);
         NativeGlobalRandomChange? rng = session.NativeGlobalRandomChange;
@@ -102,7 +102,7 @@ public sealed class NativeBattleHostedActionAdmissionTests
         {
             Assert.IsType<InvalidDataException>(error);
         }
-        Assert.Same(before, session.NativeGraphics);
+        Assert.Same(before, session.Graphics);
         Assert.Same(packets, session.NativeActionPackets);
         Assert.Same(source, Field("presentationSourceResource").GetValue(session));
         Assert.Equal(Ally, Field("presentationSourceOwner").GetValue(session));
@@ -115,8 +115,8 @@ public sealed class NativeBattleHostedActionAdmissionTests
     [Fact]
     public void AdmissionKeepsUnknownSourceModelIdWhenItsCurrentResourceIsBound()
     {
-        BattleSession session = Fixture();
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        BattlePresentationProcess session = Fixture();
+        NativeBattleGraphicsState graphics = session.Graphics;
         SetGraphics(session, graphics with { ActorModels = graphics.ActorModels.Set(Ally, graphics.ActorModels.Get(Ally) with { ModelId4 = null }) });
 
         Assert.Equal(1L, session.BeginHostedAction(Header, [Contact(Enemy)]));
@@ -128,9 +128,9 @@ public sealed class NativeBattleHostedActionAdmissionTests
     [Fact]
     public void StageVisibilityUsesTheDurableHostedStageWithoutALegacyArena()
     {
-        BattleSession session = Fixture();
-        MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeStageVisibilityOwner", PrivateInstance)!;
-        PropertyInfo stageProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeStage))!;
+        BattlePresentationProcess session = Fixture();
+        MethodInfo read = typeof(BattlePresentationProcess).GetMethod("ReadNativeStageVisibilityOwner", PrivateInstance)!;
+        PropertyInfo stageProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeStage))!;
         NativeBattleStageState stage = NativeBattleStageState.FromColdProcess();
         Field("presentationForeignActors").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         stageProperty.SetValue(session, stage);
@@ -147,30 +147,30 @@ public sealed class NativeBattleHostedActionAdmissionTests
     [Fact]
     public void AdmissionRejectsPreEntryAnActiveInvocationAndAnInFlightFrame()
     {
-        BattleSession session = Fixture(ready: false);
+        BattlePresentationProcess session = Fixture(ready: false);
         Assert.Throws<InvalidOperationException>(() => session.BeginHostedAction(Header, [Contact(Enemy)]));
 
-        SetGraphics(session, session.NativeGraphics! with { EntryReady = true });
+        SetGraphics(session, session.Graphics with { EntryReady = true });
         Field("hostedFrameServices").SetValue(session, new NativeBattleModelLifecycleServices([]));
         Assert.Throws<InvalidOperationException>(() => session.BeginHostedAction(Header, [Contact(Enemy)]));
         Field("hostedFrameServices").SetValue(session, null);
 
         long active = session.BeginHostedAction(Header, [Contact(Enemy)]);
-        NativeBattleGraphicsState admitted = session.NativeGraphics!;
+        NativeBattleGraphicsState admitted = session.Graphics;
         Assert.Equal(1L, active);
         Assert.Throws<InvalidOperationException>(() => session.BeginHostedAction(Header with { Source = Enemy }, [Contact(Ally)]));
         Assert.Equal(active, session.HostedActiveActionToken);
-        Assert.Same(admitted, session.NativeGraphics);
+        Assert.Same(admitted, session.Graphics);
     }
 
     [Fact]
     public void OnlyTheExactCompletedDescriptorRemovalCompletesTheCurrentToken()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         long old = session.BeginHostedAction(Header, [Contact(Enemy)]);
         NativeBattleDescriptorPacket stale = CompleteThroughQueue(session);
         long active = session.BeginHostedAction(Header with { Source = Enemy }, [Contact(Ally)]);
-        NativeBattleDescriptorState queue = session.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState queue = session.Graphics.Descriptors;
         int slot = Assert.Single(queue.Queue);
         NativeBattleDescriptorPacket packet = queue.Packets[slot];
         NativeBattleDescriptorPacket ready = queue.SetPacketState(slot, 255).Packets[slot];
@@ -194,7 +194,7 @@ public sealed class NativeBattleHostedActionAdmissionTests
     [Fact]
     public void InvocationTokensStayMonotonicAcrossNativeDescriptorSerialWrap()
     {
-        BattleSession session = Fixture();
+        BattlePresentationProcess session = Fixture();
         for (int ordinal = 0; ordinal <= 256; ordinal++)
         {
             long token = session.BeginHostedAction(Header, [Contact(Enemy)]);
@@ -210,9 +210,9 @@ public sealed class NativeBattleHostedActionAdmissionTests
         }
     }
 
-    private static NativeBattleDescriptorPacket CompleteThroughQueue(BattleSession session)
+    private static NativeBattleDescriptorPacket CompleteThroughQueue(BattlePresentationProcess session)
     {
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleDescriptorState queue = graphics.Descriptors;
         int slot = Assert.Single(queue.Queue);
         // Start at the executor's terminal packet state. The Assets fixture drives the real 104 callback.
@@ -226,9 +226,9 @@ public sealed class NativeBattleHostedActionAdmissionTests
         return completed;
     }
 
-    private static BattleSession Fixture(bool ready = true)
+    private static BattlePresentationProcess Fixture(bool ready = true)
     {
-        BattleSession session = new(new BattleDefinition
+        BattleSession logical = new(new BattleDefinition
         {
             UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
@@ -237,32 +237,29 @@ public sealed class NativeBattleHostedActionAdmissionTests
         BattleModelRoster roster = new([Ally, Enemy]);
         NativeBattleModelAliases aliases = new(roster, []);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Ally ? (byte)1 : (byte)16 });
-        SetGraphics(session, graphics with { EntryReady = ready });
-        Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
-        Field("hostedBattlePresentation").SetValue(session, true);
         NativeBattleGraphicsResource allyResource = new([0, 0]);
         NativeBattleGraphicsResource enemyResource = new([0, 0]);
+        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
+        BattlePresentationProcess session = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = ready }, logical.ReadDefinition() with
+        {
+            NativeGraphics = new(rules, [new("ally", 1, allyResource), new("enemy", 16, enemyResource)], [])
+        });
         Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
         {
             [Ally] = new(Ally, graphics.ActorModels.Get(Ally), allyResource),
             [Enemy] = new(Enemy, graphics.ActorModels.Get(Enemy), enemyResource)
         });
-        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        Field("definition").SetValue(session, session.ReadDefinition() with
-        {
-            NativeGraphics = new(rules, [new("ally", 1, allyResource), new("enemy", 16, enemyResource)], [])
-        });
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(session, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess());
         return session;
     }
 
     private static NativeBattleContactPacket Contact(BattleModelOwner owner) => new(new(owner, 0, 1, 0, 0, 0, 0), null);
 
-    private static void Observe(BattleSession session, int slot, NativeBattleDescriptorPacket packet) => ObserveRemoval.Invoke(session, [slot, packet]);
+    private static void Observe(BattlePresentationProcess session, int slot, NativeBattleDescriptorPacket packet) => ObserveRemoval.Invoke(session, [slot, packet]);
 
-    private static void SetGraphics(BattleSession session, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+    private static void SetGraphics(BattlePresentationProcess session, NativeBattleGraphicsState graphics) => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session, graphics);
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
 
-    private static Dictionary<BattleModelOwner, NativeBattleEffectModelBinding> Bindings(BattleSession session) => (Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>)Field("presentationNativeTargets").GetValue(session)!;
+    private static Dictionary<BattleModelOwner, NativeBattleEffectModelBinding> Bindings(BattlePresentationProcess session) => (Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>)Field("presentationNativeTargets").GetValue(session)!;
 }

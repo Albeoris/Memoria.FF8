@@ -88,7 +88,7 @@ public sealed class GameSessionLiveBattleTests
         GameState published = session.State;
         using IDisposable binding = session.BindSnapshotPreparation(state => state);
         using NativeBattleFileStagingTransaction transaction = new(NativeBattleFileStaging.Unknown());
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(battle, transaction.View);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(battle.Presentation!, transaction.View);
         Assert.Throws<InvalidOperationException>(() => session.PrepareSnapshot());
 
         session.AbandonSnapshotPreparation(binding);
@@ -104,8 +104,8 @@ public sealed class GameSessionLiveBattleTests
     public void Reading_definition_copies_catalog_metadata_without_capturing_live_effect_storage()
     {
         BattleSession battle = CreateBattle();
-        NativeBattleEffectMemory memory = battle.NativeEffectMemory!.BeginLoad(0);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
+        NativeBattleEffectMemory memory = battle.Presentation!.Memory.BeginLoad(0);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(battle.Presentation!, memory);
         long captures = memory.Arena!.Working.CaptureBytes;
 
         BattleDefinition first = battle.ReadDefinition();

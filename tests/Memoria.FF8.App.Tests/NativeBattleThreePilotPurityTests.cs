@@ -125,14 +125,14 @@ public sealed class NativeBattleThreePilotPurityTests
         {
             Assert.Contains(EffectGeometry(earlier, effect), geometry => geometry.Continuous);
         }
-        var livePools = battle.NativeGraphics?.OriginalEffect?.Pools.Select(pool => new
+        var livePools = battle.Presentation?.Graphics?.OriginalEffect?.Pools.Select(pool => new
         {
             pool.DescriptorAddress,
             pool.BankAddress,
             pool.Stride,
             pool.RequireOwner().IsArenaBound,
             pool.RequireOwner().StorageOffset,
-            IsBoundToEffectArena = battle.NativeEffectMemory?.Arena is { } arena && pool.RequireOwner().IsBoundToStorage(arena, 0x20DFAB8)
+            IsBoundToEffectArena = battle.Presentation?.Memory?.Arena is { } arena && pool.RequireOwner().IsBoundToStorage(arena, 0x20DFAB8)
         }).ToArray();
         BattleSnapshot frozen = battle.Capture();
         string frozenJson = JsonSerializer.Serialize(frozen);
@@ -147,10 +147,10 @@ public sealed class NativeBattleThreePilotPurityTests
             File.WriteAllText(Path.Combine(directoryName, "manifest.json"), JsonSerializer.Serialize(new { Effect = effect, Action = action, Guardian = guardian, Phase = "restore-roundtrip-before-render", LivePools = livePools, RuntimeSha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(typeof(BattleSession).Assembly.Location))) }));
         }
         Assert.Equal(frozenJson, restoredJson);
-        object? memoryOwner = battle.NativeEffectMemory;
-        object? graphicsOwner = battle.NativeGraphics;
-        object? cameraOwner = battle.NativeCamera;
-        object? ioOwner = battle.NativeFileIo;
+        object? memoryOwner = battle.Presentation?.Memory;
+        object? graphicsOwner = battle.Presentation?.Graphics;
+        object? cameraOwner = battle.Presentation?.Camera;
+        object? ioOwner = battle.Presentation?.NativeFileIo;
         NativeBattleActionPacketsState packetOwner = battle.NativeActionPackets;
         NativeBattlePreparedPresentation? preparedOwner = battle.PreparedPresentation;
         long? nativeCallbacks = battle.NativeHostCallbacks;
@@ -162,7 +162,7 @@ public sealed class NativeBattleThreePilotPurityTests
         control.DiagnosticEventPublished += controlEvents.Add;
         NativeBattlePrimitiveCapabilities capabilities = frozen.Definition.NativeGraphics!.PrimitiveCapabilities ?? throw new InvalidOperationException("The original fixture must select its native primitive device profile.");
         Func<int, int, bool, Albeoris.Games.FF8.Imaging.PixelImage> icons = assets.ReadNativePcUiIcons().Resolve;
-        BattleScenePresentation controlScene = new(assets, frozen.Definition, true);
+        BattleScenePresentation controlScene = new(assets, frozen.Definition);
         controlScene.Render(control, 320, 216, new Capture());
         Assert.Equal(frozenJson, JsonSerializer.Serialize(control.Capture()));
 
@@ -217,10 +217,10 @@ public sealed class NativeBattleThreePilotPurityTests
         }
         Assert.Equal(earlierGeometry, EffectGeometry(earlier, effect));
         Assert.Equal(laterGeometry, EffectGeometry(later, effect));
-        Assert.Same(memoryOwner, battle.NativeEffectMemory);
-        Assert.Same(graphicsOwner, battle.NativeGraphics);
-        Assert.Same(cameraOwner, battle.NativeCamera);
-        Assert.Same(ioOwner, battle.NativeFileIo);
+        Assert.Same(memoryOwner, battle.Presentation?.Memory);
+        Assert.Same(graphicsOwner, battle.Presentation?.Graphics);
+        Assert.Same(cameraOwner, battle.Presentation?.Camera);
+        Assert.Same(ioOwner, battle.Presentation?.NativeFileIo);
         Assert.Same(packetOwner, battle.NativeActionPackets);
         Assert.Same(preparedOwner, battle.PreparedPresentation);
         Assert.Equal(nativeCallbacks, battle.NativeHostCallbacks);
@@ -274,7 +274,7 @@ public sealed class NativeBattleThreePilotPurityTests
             else if (renderer.LastPilotFallbackCount > 0)
             {
                 bool hasEffectGeometry = EffectGeometry(later, effect).Length > 0;
-                string phase = hasEffectGeometry ? "geometry" : battle.NativeGraphics?.OriginalEffect?.Pools.Any(pool => pool.Head.HasValue) == true ? "live" : "loading";
+                string phase = hasEffectGeometry ? "geometry" : battle.Presentation?.Graphics?.OriginalEffect?.Pools.Any(pool => pool.Head.HasValue) == true ? "live" : "loading";
                 NativeBattleLogicalResolvedCommand[] missingCommands = later.Primitives.LastCommands.Where(value => value.Pass > 0 && value.Command.PilotGeometry is null && (value.Command.Opcode & 0xE0) == 0x20).Take(12).ToArray();
                 if (missingCommands.Length > 0 && Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_ARTIFACTS") is string artifacts && capturedUncovered.Add(phase))
                 {

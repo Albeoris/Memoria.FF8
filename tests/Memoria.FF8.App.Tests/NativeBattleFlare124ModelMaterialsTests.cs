@@ -21,7 +21,7 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         using GameWorld world = new(session, directory, sharedAssets: game);
         ExpandedBattleInstalledEntry.Prepare(world, session, PrepareParty, additionalEnemies: 0);
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleCombatant irvine = Assert.Single(battle.Combatants, actor => actor.Id == irvineId);
         BattleModelOwner owner = battle.ReadPresentationModelOwner(irvineId);
         Assert.False(process.Graphics.NativeBindings.TryEncodeExactActor(owner, process.Graphics.ActorModels, out _));
@@ -132,7 +132,7 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         BattleModelOwner owner = battle.ReadPresentationModelOwner(target);
         if (partyRecipient)
         {
-            NativeBattleGraphicsModel model = battle.NativeGraphics!.ActorModels.Get(owner);
+            NativeBattleGraphicsModel model = battle.Presentation!.Graphics.ActorModels.Get(owner);
             NativeBattleGraphicsResource resource = Assert.Single(definition.NativeGraphics!.Bindings, binding => binding.ActorId == target).Resource;
             Assert.True(model.ModelId4 < 16);
             Assert.Null(model.ActiveStagedResourceRow100);
@@ -157,7 +157,7 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         for (int tick = 0; tick < 600; tick++)
         {
             battle.Tick();
-            NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             NativeBattleOriginalEffectState? effect = graphics.OriginalEffect;
             selected |= effect is { Binding.Effect: 124, ReturnedDescriptor: > 0 };
             contacts = battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == Caster && item.TargetId == target);
@@ -169,9 +169,9 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
                     BattleSession independent = BattleSession.Restore(battle.Capture());
                     independent.Tick();
                     battle.Tick();
-                    Assert.Equal(battle.NativeGraphics!.Callback, independent.NativeGraphics!.Callback);
-                    Assert.Equal(battle.NativeGraphics.PrimitiveFrame!.LastCommands.Select(command => command.Command.Packet), independent.NativeGraphics.PrimitiveFrame!.LastCommands.Select(command => command.Command.Packet));
-                    Assert.Equal(battle.NativeGraphics.PrimitiveFrame.LastCommands.Select(command => command.Command.Words.ToArray()), independent.NativeGraphics.PrimitiveFrame.LastCommands.Select(command => command.Command.Words.ToArray()));
+                    Assert.Equal(battle.Presentation!.Graphics.Callback, independent.Presentation!.Graphics.Callback);
+                    Assert.Equal(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Select(command => command.Command.Packet), independent.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Select(command => command.Command.Packet));
+                    Assert.Equal(battle.Presentation!.Graphics.PrimitiveFrame.LastCommands.Select(command => command.Command.Words.ToArray()), independent.Presentation!.Graphics.PrimitiveFrame.LastCommands.Select(command => command.Command.Words.ToArray()));
                     frameCompared = true;
                 }
             }
@@ -187,8 +187,8 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         Assert.Equal(1, contacts);
         Assert.Equal(1, Stock());
         Assert.True(combatant.CurrentHp < initialHp);
-        Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal(0, battle.NativeGraphics.ActorModels.Get(owner).Flags0 & 4);
+        Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal(0, battle.Presentation!.Graphics.ActorModels.Get(owner).Flags0 & 4);
         Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == Caster);
 
         int Stock() => caster.NativeMagicInventory.Single(stock => stock.SpellId == action.ActionId).Count;

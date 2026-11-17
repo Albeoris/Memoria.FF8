@@ -19,8 +19,7 @@ public sealed class NativeBattleIfritLoadedWorldTests
         BattleDefinition definition = entry.Battle.Capture().Definition;
         // Keep this loaded-party presentation component independent of enemy turn admission.
         definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeCombatantFlags = (ushort)(actor.NativeCombatantFlags | 8) }).ToArray() };
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, session.State.GameplayPreferences);
-        battle.AttachNativeEffectResourceResolver(effect => resources.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, session.State.GameplayPreferences, resources, world.BattleResources);
         string? actorId = null;
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         output = output is null ? null : Path.Combine(output, "loaded-world-512");

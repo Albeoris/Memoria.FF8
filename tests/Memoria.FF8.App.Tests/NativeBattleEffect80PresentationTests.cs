@@ -22,7 +22,7 @@ public sealed class NativeBattleEffect80PresentationTests
         BattleSnapshot source = PrepareSource(game, assets, output);
         source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 80, output);
         BattleSession battle = Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         NativeBattleEffect80PresentationObserver observer = new();
         HashSet<string> restored = [];
         BattleSnapshot prior = source;
@@ -60,7 +60,7 @@ public sealed class NativeBattleEffect80PresentationTests
                     NativeBattlePrimitiveFrame primitive = current.NativeGraphics!.PrimitiveFrame!;
                     BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                     int changed = CountRgb(pixels, plain);
                     if (changed > changedRgb)
                     {
@@ -115,8 +115,8 @@ public sealed class NativeBattleEffect80PresentationTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, source.Definition).Render(direct, 320, 224).ToArray(), pixels);
             NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
             restored.Add(name);
         }
@@ -137,7 +137,7 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect80State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(sourceSession.NativeEffectMemory!.Effect80)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect80State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(sourceSession.Presentation!.Memory.Effect80)));
         Assert.Equal((ushort)1448, original.NativeModelCpuResources!.ScratchMaximum);
         Assert.Equal(new NativeBattleClockState(1, 0, 0), original.NativeClock);
         BattleCombatantDefinition caster = sourceSession.GetCombatantDefinition(ReadOriginalModelActorId(graphics, 4) ?? throw new InvalidDataException("Effect80 requires its actual caster allocation."));

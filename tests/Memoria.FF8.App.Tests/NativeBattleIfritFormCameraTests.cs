@@ -22,9 +22,9 @@ public sealed class NativeBattleIfritFormCameraTests
         battle.RequestGuardianForm("party", 2);
         WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
         WaitFor(() => battle.CanChoosePlayerCommand("party"));
-        NativeBattleCameraPose idle = battle.NativeCamera!.CurrentPose!;
+        NativeBattleCameraPose idle = battle.Presentation!.Camera.CurrentPose!;
         battle.QueueGuardianFormAction("party", "enemy", BattleGuardianFormAction.Attack);
-        WaitFor(() => battle.NativeGraphics!.GuardianFormPresentation!.IdleCameraRestorePending && battle.NativeCamera!.CurrentPose is { } current && (current.Eye != idle.Eye || current.Target != idle.Target));
+        WaitFor(() => battle.Presentation!.Graphics.GuardianFormPresentation!.IdleCameraRestorePending && battle.Presentation!.Camera.CurrentPose is { } current && (current.Eye != idle.Eye || current.Target != idle.Target));
         Assert.NotNull(battle.ActiveAction);
         if (restoreDuringAttack)
         {
@@ -32,7 +32,7 @@ public sealed class NativeBattleIfritFormCameraTests
             Assert.True(snapshot.NativeGraphics!.GuardianFormPresentation!.IdleCameraRestorePending);
             battle = BattleSession.Restore(snapshot);
         }
-        WaitFor(() => battle.Events.Any(item => item.Kind == "Damage" && item.ActorId == "party") && battle.ActiveAction is null && !battle.NativeGraphics!.GuardianFormPresentation!.IdleCameraRestorePending);
+        WaitFor(() => battle.Events.Any(item => item.Kind == "Damage" && item.ActorId == "party") && battle.ActiveAction is null && !battle.Presentation!.Graphics.GuardianFormPresentation!.IdleCameraRestorePending);
         AssertIdlePose();
         for (int callback = 0; callback < 5; callback++)
         {
@@ -42,12 +42,12 @@ public sealed class NativeBattleIfritFormCameraTests
 
         void AssertIdlePose()
         {
-            NativeBattleCameraPose actual = battle.NativeCamera!.CurrentPose!;
+            NativeBattleCameraPose actual = battle.Presentation!.Camera.CurrentPose!;
             Assert.Equal(idle.Eye, actual.Eye);
             Assert.Equal(idle.Target, actual.Target);
             Assert.Equal(idle.Roll, actual.Roll);
             Assert.Equal(idle.FocalLength, actual.FocalLength);
-            Assert.Equal(checked((ushort)actual.FocalLength!.Value), battle.NativeCamera.Projection!.FocalLength);
+            Assert.Equal(checked((ushort)actual.FocalLength!.Value), battle.Presentation!.Camera.Projection!.FocalLength);
         }
 
         void WaitFor(Func<bool> ready)

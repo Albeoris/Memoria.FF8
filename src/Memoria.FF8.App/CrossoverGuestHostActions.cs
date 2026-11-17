@@ -354,7 +354,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
             encounter.NextOrdinal++;
             encounter.ReprojectKits(ActorSlot);
         }
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         if (IsDrawCast(invocation.GuestAbility) && preparedDrawCast?.Ability != invocation.GuestAbility)
         {
             throw new InvalidDataException("Draw Cast requires its committed source result before presentation.");
@@ -409,7 +409,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             throw new InvalidDataException("The mixed ability advances once per native FFVII host tick.");
         }
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(current.Subticks, current.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(current.HostTick)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(current.Subticks, current.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(current.HostTick)));
         Ff7BattleGuestPhysicalHit? hit = null;
         ImmutableArray<Ff7BattleGuestPhysicalHit> groupHits = [];
         ImmutableArray<int> compositeContacts = [];

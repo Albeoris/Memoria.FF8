@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect166PresentationTests
         using GameAssets game = new(directory);
         BattleSnapshot source = PrepareSource(game, assets, output);
         BattleSession battle = Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         NativeBattleEffect166PresentationObserver observer = new();
         HashSet<string> restored = [];
         BattleSnapshot prior = source;
@@ -64,7 +64,7 @@ public sealed class NativeBattleEffect166PresentationTests
                     NativeBattlePrimitiveFrame primitive = currentGraphics.PrimitiveFrame!;
                     BattleSnapshot without = current with { NativeGraphics = currentGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                     int changed = CountRgb(pixels, plain);
                     if (changed > changedRgb)
                     {
@@ -130,8 +130,8 @@ public sealed class NativeBattleEffect166PresentationTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, source.Definition).Render(direct, 320, 224).ToArray(), pixels);
             if (name == "effect166-before-main-age-43")
             {
                 NativeBattleEffectMemory memory = snapshot.NativeEffectMemory!;
@@ -153,7 +153,7 @@ public sealed class NativeBattleEffect166PresentationTests
                 BattleSession unknownLinks = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, variant + ".battle.json")));
                 unknownLinks.Tick();
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(unknownLinks.Capture()));
-                byte[] unknownPixels = new BattleScenePresentation(assets, source.Definition, true).Render(unknownLinks, 320, 224).ToArray();
+                byte[] unknownPixels = new BattleScenePresentation(assets, source.Definition).Render(unknownLinks, 320, 224).ToArray();
                 Assert.Equal(pixels, unknownPixels);
                 NativeBattleRestorationPresentationTests.Publish(output, variant + "-next", unknownLinks.Capture(), unknownPixels);
                 restored.Add(variant);

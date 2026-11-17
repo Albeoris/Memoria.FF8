@@ -20,8 +20,8 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     public void DeferredHostBindsSparseRosterModelsGeometryAndColdContext(byte source, byte target)
     {
         NativeBattleEffectPresentationInputs inputs = Inputs(source, target, NativeBattleScriptedEffectMemory.FromColdProcess(), 256);
-        BattleSession owner = BattleSession.CreateEffectPresentation(inputs);
-        NativeBattleGraphicsState graphics = owner.NativeGraphics!;
+        BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(inputs);
+        NativeBattleGraphicsState graphics = owner.Graphics;
         Assert.False(owner.EffectPresentationInvoked);
         Assert.Equal(new BattleModelOwner[] { Caster, Target }, graphics.ActorModels.Owners);
         Assert.False(graphics.NativeBindings.TryEncodeExactActor(Caster, graphics.ActorModels, out _));
@@ -30,7 +30,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         Assert.Equal(Target, graphics.ActionContext.ResolveTarget(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(BattleModelTargets.From([Target]), graphics.ActionContext.TargetActors!.Resolve(graphics.ActorModels, graphics.NativeBindings));
         Assert.Equal(256, graphics.ActionGraphics!.FirstHeaderTargetCount);
-        NativeBattleCinematicActorContext context = owner.NativeEffectMemory!.ScriptedEffects!.PresentationActors!;
+        NativeBattleCinematicActorContext context = owner.Memory.ScriptedEffects!.PresentationActors!;
         Assert.Empty(context.ReadSavedActors());
         Assert.Null(context.FirstActor);
         Assert.Empty(context.CurrentActors);
@@ -51,10 +51,10 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         NativeBattleEffectPresentationInputs inputs = Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1);
         inputs = inputs with { NativeTargets = [inputs.NativeTargets[0] with { CanActivate = true }] };
 
-        BattleSession owner = BattleSession.CreateEffectPresentation(inputs);
+        BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(inputs);
 
-        Assert.Equal(Combat(inputs).Packets.Roster.Owners, owner.NativeModelCpuResources!.Cpu.PresentationRoster!.Owners);
-        Assert.True(owner.NativeGraphics!.ActorModels.Contains(Target));
+        Assert.Equal(Combat(inputs).Packets.Roster.Owners, owner.ModelCpuResources.Cpu.PresentationRoster!.Owners);
+        Assert.True(owner.Graphics.ActorModels.Contains(Target));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             SequenceGlobals = new(123, 456)
         };
 
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => BattleSession.CreateEffectPresentation(inputs));
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => BattlePresentationProcess.CreateEffectPresentation(inputs));
 
         Assert.Contains("Native500EA0 requires its installed stage", error.Message);
     }
@@ -115,8 +115,8 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             "too-many" => core.Write(Header + 0x17A, [7]),
             _ => core
         };
-        BattleSession owner = BattleSession.CreateEffectPresentation(Inputs(7, 24, core, 1, bindOriginalRows: true));
-        NativeBattleCinematicActorContext context = owner.NativeEffectMemory!.ScriptedEffects!.PresentationActors!;
+        BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(Inputs(7, 24, core, 1, bindOriginalRows: true));
+        NativeBattleCinematicActorContext context = owner.Memory.ScriptedEffects!.PresentationActors!;
         if (kind == "known")
         {
             Assert.Equal(new[] { SavedParty1, SavedParty2 }, context.ReadSavedActors());
@@ -138,8 +138,8 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             .CaptureCurrentContacts([Target, Caster], Caster).WithSavedActors([Caster, Target]).WithContactsProcessed(50);
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess() with { PresentationActors = retained };
         inputs = inputs with { Resources = inputs.Resources with { NativeRetainedMemory = RetainedMemory(core) } };
-        BattleSession owner = BattleSession.CreateEffectPresentation(inputs);
-        NativeBattleCinematicActorContext actual = owner.NativeEffectMemory!.ScriptedEffects!.PresentationActors!;
+        BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(inputs);
+        NativeBattleCinematicActorContext actual = owner.Memory.ScriptedEffects!.PresentationActors!;
         Assert.Equal(new BattleModelOwner[] { Target, Caster }, actual.CurrentActors);
         Assert.Equal(Target, actual.FirstActor);
         Assert.Equal(new BattleModelOwner[] { Caster, Target }, actual.ReadSavedActors());
@@ -155,7 +155,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         BattleActorModels different = new([new(Caster, new(0)), new(Other, new(0))]);
         NativeBattleCinematicActorContext context = NativeBattleCinematicActorContext.FromGraphics(different);
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess() with { PresentationActors = context };
-        Assert.Throws<InvalidDataException>(() => BattleSession.CreateEffectPresentation(Inputs(7, 24, core, 1)));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(Inputs(7, 24, core, 1)));
     }
 
     [Theory]
@@ -178,24 +178,24 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             "unbound" => inputs with { NativeTargets = [target with { Owner = new BattleEnemyActorModel(new("unbound")) }] },
             _ => inputs with { NativeTargets = [] }
         };
-        Assert.Throws<InvalidDataException>(() => BattleSession.CreateEffectPresentation(inputs));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(inputs));
     }
 
     [Fact]
     public void NativePresentationStillOmitsRosterAndCinematicContextFromJson()
     {
         NativeBattleEffectPresentationInputs inputs = Inputs(0, 3, NativeBattleScriptedEffectMemory.FromColdProcess(), 1, hosted: false);
-        BattleSession owner = BattleSession.CreateEffectPresentation(inputs);
-        Assert.Equal(7, owner.NativeGraphics!.NativeBindings.CaptureOriginalCells(owner.NativeGraphics.ActorModels).Length);
-        Assert.Equal(Caster, owner.NativeGraphics.NativeBindings.DecodeLiteral(0, owner.NativeGraphics.ActorModels));
-        Assert.DoesNotContain("\"PresentationRoster\"", NativeBattleTestSnapshots.Json(owner.NativeGraphics));
-        Assert.DoesNotContain("\"PresentationActors\"", NativeBattleTestSnapshots.Json(owner.NativeEffectMemory!.ScriptedEffects));
+        BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(inputs);
+        Assert.Equal(7, owner.Graphics.NativeBindings.CaptureOriginalCells(owner.Graphics.ActorModels).Length);
+        Assert.Equal(Caster, owner.Graphics.NativeBindings.DecodeLiteral(0, owner.Graphics.ActorModels));
+        Assert.DoesNotContain("\"PresentationRoster\"", NativeBattleTestSnapshots.Json(owner.Graphics));
+        Assert.DoesNotContain("\"PresentationActors\"", NativeBattleTestSnapshots.Json(owner.Memory.ScriptedEffects));
     }
 
     [Fact]
     public void CameraAliasReferencesReachHostedRowsWhileLiteralSevenAndEightRemainUnsupported()
     {
-        BattleSession owner = BattleSession.CreateEffectPresentation(Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1));
+        BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1));
         MethodInfo transform = typeof(BattleSession).GetMethod("TransformNativeCameraReference", BindingFlags.Instance | BindingFlags.NonPublic)!;
         NativeBattleCameraPoint Read(byte reference) => (NativeBattleCameraPoint)transform.Invoke(owner, [reference, new NativeBattleCameraPoint(0, 0, 0), 0u])!;
         Assert.Equal(new NativeBattleCameraPoint(700, 0, 107), Read(0x9F));
@@ -214,7 +214,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         };
         inputs = inputs with { Resources = inputs.Resources with { NativeGraphics = new(rules, [], []) } };
         NativeBattleForeignActor foreign = new(Target, Model(24).Transform!, new(0, 0, 0, 0), (_, _) => default) { StatusFlags = 0 };
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => BattleSession.CreateEffectPresentation(inputs with { NativeTargets = [], ForeignActors = [foreign] }));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(inputs with { NativeTargets = [], ForeignActors = [foreign] }));
         Assert.Contains("Loaded native graphics model", error.Message);
     }
 

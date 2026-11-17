@@ -25,7 +25,7 @@ public sealed class NativeBattleReadyMenuTests
             battle.Tick();
         }
         Assert.True(hud.CommandMenuHidden);
-        Assert.Equal((ushort?)0x100, battle.NativeGraphics!.UiServices!.HeldButtons16);
+        Assert.Equal((ushort?)0x100, battle.Presentation!.Graphics.UiServices!.HeldButtons16);
         hud.Navigate(MenuInput.Confirm);
         hud.CycleCommandActor();
         Assert.False(hud.SelectingTarget);
@@ -92,7 +92,7 @@ public sealed class NativeBattleReadyMenuTests
         Assert.Equal(new[] { "party-3", "party-4", "party-0" }, battle.ReadyPlayerCommandOrder.Select(actor => actor.Id));
         Assert.Equal("party-3", hud.SelectedActor!.Id);
         hud.SelectParty("party-0");
-        Assert.Equal((sbyte)0, battle.NativeGraphics!.UiServices!.Commands.SelectedActor);
+        Assert.Equal((sbyte)0, battle.Presentation!.Graphics.UiServices!.Commands.SelectedActor);
         hud.CycleCommandActor();
         Assert.Equal("party-3", hud.SelectedActor!.Id);
         hud.Navigate(MenuInput.PageLeft);
@@ -152,7 +152,7 @@ public sealed class NativeBattleReadyMenuTests
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal(retainsQueuedCommand ? 1 : 0, battle.NativeCommandBanks.CountActor(0));
-        Assert.Equal(retainsQueuedCommand, (battle.NativeGraphics!.UiServices!.ReadyMask & 1) != 0);
+        Assert.Equal(retainsQueuedCommand, (battle.Presentation!.Graphics.UiServices!.ReadyMask & 1) != 0);
         Assert.Equal((ushort)0, battle.NativePartyStatusMirrors.Saved[0]);
         Assert.Equal(savedStatus, battle.Capture().Combatants[0].NativeStatus!.Presentation.Saved);
     }

@@ -38,7 +38,7 @@ public sealed class NativeBattleGuardianLethalRestoreTests
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(settled))!);
         Assert.Equal(JsonSerializer.Serialize(settled), JsonSerializer.Serialize(restored.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, original.Definition, true);
+        BattleScenePresentation scene = new(assets, original.Definition);
         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
         Assert.Equal(pixels, scene.Render(restored, 320, 224).ToArray());
         foreach ((int hp, int atb) in new[] { (-1, target.Atb), (original.Definition.Combatants.Single(actor => actor.Id == target.Id).MaximumHp + 1, target.Atb), (0, BattleSession.AtbMaximum + 1) })

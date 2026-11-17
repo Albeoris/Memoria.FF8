@@ -30,7 +30,7 @@ public sealed class NativeScanSavedNamesTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory);
         string squall = renamed ? "Leon" : "Squall";
         world.Events.Scene.Names[0] = squall;
         world.Events.Scene.Names[16] = "Quezacotl";
@@ -44,7 +44,7 @@ public sealed class NativeScanSavedNamesTests
         ushort formation = encounters.Formations[0];
         BattleDefinition definition = world.CreateEncounterBattle(formation);
         NativeBattleMusicEntryPreparation music = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, new(1, null, null, null, 0, null), 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), new NativeMusicCatalog(directory).ReadBattleEntryResources());
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = music.MusicProcess, NativeGlobalSoundProcess = music.SoundProcess }, BattleAtbMode.Normal);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = music.MusicProcess, NativeGlobalSoundProcess = music.SoundProcess }, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, world.BattleResources);
         AssertNames(battle, squall, renamed ? "Rin" : "Rinoa", renamed ? "Lionheart" : "Griever");
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         AssertNames(restored, squall, renamed ? "Rin" : "Rinoa", renamed ? "Lionheart" : "Griever");
@@ -60,7 +60,7 @@ public sealed class NativeScanSavedNamesTests
         byte[] sourceBytes = File.ReadAllBytes(source!);
         string directory = TestResources.GameDirectory;
         GameSession session = new(GameSession.Load(source!));
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         string names = JsonSerializer.Serialize(world.Events.Scene.Names);
         Assert.False(world.Events.Scene.Names.ContainsKey(1));
@@ -83,24 +83,24 @@ public sealed class NativeScanSavedNamesTests
         restored.EnsureField();
         AssertNames(restored.Battle!, squall, "Rinoa", "Griever");
         Assert.Equal(JsonSerializer.Serialize(active.Capture()), JsonSerializer.Serialize(restored.Battle!.Capture()));
-        long callbacks = active.NativeGraphics!.Callback;
+        long callbacks = active.Presentation!.Graphics.Callback;
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         active.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         restored.Battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         world.SynchronizeBattlePresentation();
         restored.SynchronizeBattlePresentation();
-        Assert.Equal(callbacks + 1, active.NativeGraphics!.Callback);
+        Assert.Equal(callbacks + 1, active.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(active.Capture()), JsonSerializer.Serialize(restored.Battle.Capture()));
         Assert.Equal(names, JsonSerializer.Serialize(world.Events.Scene.Names));
         Assert.Equal(names, JsonSerializer.Serialize(restored.Events.Scene.Names));
         Save(world, session, evidence!, id + "-resumed");
         Assert.Equal(sourceBytes, File.ReadAllBytes(source!));
-        Console.WriteLine($"Field {world.Events.FieldId}, field frame {world.Events.Frame}, battle frame {active.Frame}, callback {active.NativeGraphics.Callback}; entry {entry}");
+        Console.WriteLine($"Field {world.Events.FieldId}, field frame {world.Events.Frame}, battle frame {active.Frame}, callback {active.Presentation!.Graphics.Callback}; entry {entry}");
     }
 
     private static void AssertNames(BattleSession battle, string squall, string rinoa, string griever)
     {
-        NativeBattleScanTextExpansionServices services = battle.CreateNativeScanTextExpansionServices();
+        NativeBattleScanTextExpansionServices services = battle.Presentation!.CreateNativeScanTextExpansionServices();
         foreach ((byte operand, string text) in new (byte, string)[] { (0x30, squall), (0x34, rinoa), (0x50, griever) })
         {
             Assert.Equal(FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes(text).Append((byte)0).ToArray(), services.ReadNameBytes!(operand).ToArray());

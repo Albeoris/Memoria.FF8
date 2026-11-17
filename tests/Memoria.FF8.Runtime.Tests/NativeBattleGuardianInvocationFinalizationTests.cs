@@ -17,7 +17,7 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
     {
         BattleSession owner = Create(effect, parameter81);
         NativeBattleActionPacketsState packets = owner.NativeActionPackets;
-        NativeBattleEffectPresentationStep result = owner.CompleteEffectPresentationInvocation();
+        NativeBattleEffectPresentationStep result = owner.Presentation!.CompleteEffectPresentationInvocation();
         Assert.Equal(publish ? 2 : 0, result.Contacts.Length);
         if (publish)
         {
@@ -30,11 +30,11 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
             Assert.Equal((byte)128, sound.Pan);
             Assert.Null(sound.Anchor);
         });
-        Assert.False(owner.HasPendingEffectPresentationEvents);
-        Assert.Equal(0, owner.NativeEffectMemory!.Active);
-        Assert.Equal(0u, owner.NativeGraphics!.Flags & 0x10u);
+        Assert.False(owner.Presentation!.HasPendingEffectPresentationEvents);
+        Assert.Equal(0, owner.Presentation!.Memory.Active);
+        Assert.Equal(0u, owner.Presentation!.Graphics.Flags & 0x10u);
         Assert.Equal(packets, owner.NativeActionPackets);
-        NativeBattleEffectPresentationStep repeated = owner.CompleteEffectPresentationInvocation();
+        NativeBattleEffectPresentationStep repeated = owner.Presentation!.CompleteEffectPresentationInvocation();
         Assert.Empty(repeated.Contacts);
         Assert.Empty(repeated.Sounds);
     }
@@ -43,39 +43,39 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
     public void Uninvoked_live_and_detached_native_processes_cannot_be_finalized()
     {
         BattleSession uninvoked = Create(203, 3);
-        SetProperty(uninvoked, nameof(BattleSession.EffectPresentationInvoked), false);
-        Assert.Throws<InvalidOperationException>(() => uninvoked.CompleteEffectPresentationInvocation());
+        SetProperty(uninvoked, nameof(BattlePresentationProcess.EffectPresentationInvoked), false);
+        Assert.Throws<InvalidOperationException>(() => uninvoked.Presentation!.CompleteEffectPresentationInvocation());
         BattleSession live = Create(203, 3);
-        SetProperty(live, nameof(BattleSession.NativeEffectMemory), live.NativeEffectMemory! with { ReturnedTaskPointer1D96AAC = 1 });
-        Assert.Throws<InvalidOperationException>(() => live.CompleteEffectPresentationInvocation());
+        SetProperty(live, nameof(BattleSession.NativeEffectMemory), live.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 1 });
+        Assert.Throws<InvalidOperationException>(() => live.Presentation!.CompleteEffectPresentationInvocation());
         BattleSession detached = Create(203, 3);
-        SetProperty(detached, nameof(BattleSession.NativeEffectMemory), detached.NativeEffectMemory! with { DetachedReturnedTask = detached.NativeGraphics!.OriginalEffect });
-        Assert.Throws<InvalidOperationException>(() => detached.CompleteEffectPresentationInvocation());
-        Assert.All(new[] { uninvoked, live, detached }, owner => Assert.False(owner.HasPendingEffectPresentationEvents));
+        SetProperty(detached, nameof(BattleSession.NativeEffectMemory), detached.Presentation!.Memory with { DetachedReturnedTask = detached.Presentation!.Graphics.OriginalEffect });
+        Assert.Throws<InvalidOperationException>(() => detached.Presentation!.CompleteEffectPresentationInvocation());
+        Assert.All(new[] { uninvoked, live, detached }, owner => Assert.False(owner.Presentation!.HasPendingEffectPresentationEvents));
     }
 
     [Fact]
     public void Outstanding_callbacks_and_unconsumed_output_block_finalization_without_publishing_contacts()
     {
         BattleSession callbacks = Create(203, 3);
-        NativeBattleGraphicsState graphics = callbacks.NativeGraphics!;
-        SetProperty(callbacks, nameof(BattleSession.NativeGraphics), graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 1, 96) });
-        Assert.Throws<InvalidOperationException>(() => callbacks.CompleteEffectPresentationInvocation());
-        Assert.False(callbacks.HasPendingEffectPresentationEvents);
+        NativeBattleGraphicsState graphics = callbacks.Presentation!.Graphics;
+        SetProperty(callbacks, nameof(BattlePresentationProcess.NativeGraphics), graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 1, 96) });
+        Assert.Throws<InvalidOperationException>(() => callbacks.Presentation!.CompleteEffectPresentationInvocation());
+        Assert.False(callbacks.Presentation!.HasPendingEffectPresentationEvents);
         BattleSession pending = Create(203, 3);
         List<NativeBattleModuleSound> sounds = (List<NativeBattleModuleSound>)Field("presentationSounds").GetValue(pending)!;
         sounds.Add(new(9, 0, null));
-        Assert.Throws<InvalidOperationException>(() => pending.CompleteEffectPresentationInvocation());
+        Assert.Throws<InvalidOperationException>(() => pending.Presentation!.CompleteEffectPresentationInvocation());
         Assert.Single(sounds);
-        Assert.Equal(1, pending.NativeEffectMemory!.Active);
+        Assert.Equal(1, pending.Presentation!.Memory.Active);
     }
 
     [Fact]
     public void Other_outer_services_cannot_reinterpret_the_module_parameter_as_guardian_completion()
     {
         BattleSession owner = Create(203, 3, 2);
-        Assert.Throws<InvalidOperationException>(() => owner.CompleteEffectPresentationInvocation());
-        Assert.False(owner.HasPendingEffectPresentationEvents);
+        Assert.Throws<InvalidOperationException>(() => owner.Presentation!.CompleteEffectPresentationInvocation());
+        Assert.False(owner.Presentation!.HasPendingEffectPresentationEvents);
     }
 
     [Theory]
@@ -84,10 +84,10 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
     public void Guardian_headers_routed_to_ordinary_casting_have_no_late_parameter81_contact_contract(ushort action)
     {
         BattleSession owner = Create(203, 3, action: action);
-        NativeBattleEffectPresentationStep result = owner.CompleteEffectPresentationInvocation();
+        NativeBattleEffectPresentationStep result = owner.Presentation!.CompleteEffectPresentationInvocation();
         Assert.Empty(result.Contacts);
         Assert.Empty(result.Sounds);
-        Assert.Equal(0, owner.NativeEffectMemory!.Active);
+        Assert.Equal(0, owner.Presentation!.Memory.Active);
     }
 
     private static BattleSession Create(ushort effect, byte parameter81, byte command = 254, ushort action = 73)
@@ -114,9 +114,9 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
         Field("presentationForeignActors").SetValue(owner, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, 1, 0), new(source, 0, BattleModelTargets.From([source, target]), new BattleActionHeaderReference(0), parameter81, 0), 0);
         graphics = graphics with { OriginalEffect = selected };
-        SetProperty(owner, nameof(BattleSession.NativeGraphics), graphics);
-        SetProperty(owner, nameof(BattleSession.NativeEffectMemory), owner.NativeEffectMemory! with { ReturnedTaskPointer1D96AAC = 0, Active = 1 });
-        SetProperty(owner, nameof(BattleSession.EffectPresentationInvoked), true);
+        SetProperty(owner, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+        SetProperty(owner, nameof(BattleSession.NativeEffectMemory), owner.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 0, Active = 1 });
+        SetProperty(owner, nameof(BattlePresentationProcess.EffectPresentationInvoked), true);
         return owner;
     }
 

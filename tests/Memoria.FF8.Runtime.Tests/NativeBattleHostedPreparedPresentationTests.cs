@@ -18,7 +18,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Set(owner, nameof(BattleSession.Frame), 17L);
         BattleCombatant alias = owner.Combatants.Single(actor => actor.Id == "enemy-4");
         alias.SetNativeDisplayName(0);
-        Set(child, nameof(BattleSession.NativeGraphics), graphics);
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         var before = owner.Combatants.Select(actor => (actor.Id, actor.Name, actor.CurrentHp, actor.Atb)).ToArray();
 
@@ -28,7 +28,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Assert.Equal(17, first.Frame);
         Assert.Equal(11, first.Callback);
         Assert.Equal(22, first.StageResourceId);
-        Assert.Same(child.NativeEffectMemory!.Textures, first.Textures);
+        Assert.Same(child.Presentation!.Memory.Textures, first.Textures);
         Assert.Empty(child.Combatants);
         Assert.Null(owner.PreparedPresentation);
         NativeBattlePreparedActor ally = Assert.Single(first.Actors, actor => actor.Id == "ally-3");
@@ -42,7 +42,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Assert.Equal(before, owner.Combatants.Select(actor => (actor.Id, actor.Name, actor.CurrentHp, actor.Atb)).ToArray());
 
         alias.SetNativeDisplayName(null);
-        Set(child, nameof(BattleSession.NativeGraphics), graphics with { Callback = 12 });
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics with { Callback = 12 });
         child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(roster));
 
         NativeBattlePreparedPresentation second = Assert.IsType<NativeBattlePreparedPresentation>(child.PreparedPresentation);
@@ -62,7 +62,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(owner, "encounterArrivals", ImmutableArray.Create(arrival));
         Field(owner, "encounterAllocation", new BattleEncounterAllocationState("batch", "enemy-0", ["enemy-4"], ["target"], BattleEncounterAllocationPhase.Loading, 0));
         graphics = graphics with { Flags = 4 };
-        Set(child, nameof(BattleSession.NativeGraphics), graphics);
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
         MethodInfo retain = typeof(BattleSession).GetMethod("RetainNativeSceneReplaySource", PrivateInstance)!;
         using IDisposable visible = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
@@ -72,7 +72,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         Field(child, "hostedFrameServices", services);
         NativeBattleGraphicsState retained = (NativeBattleGraphicsState)retain.Invoke(child, [graphics])!;
         Field(child, "hostedFrameServices", null);
-        Set(child, nameof(BattleSession.NativeGraphics), retained);
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), retained);
         child.RefreshHostedPreparedPresentation(owner, services);
 
         NativeBattlePreparedPrimitiveFrame frame = child.PreparedPresentation!.Primitives;
@@ -91,7 +91,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         enemy.SetNativeDisplayName(0);
         NativeBattleScanProcess scan = NativeBattleScanProcess.FromColdProcess();
         NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x575540), null, null) { ScanSelectedModel = Enemy };
-        (NativeBattleEffectMemory memory, uint extraTextAddress) = NativeBattlePresentationTaskStorage.ReserveByteRange(child.NativeEffectMemory!, effect, graphics.ActorModels.Roster, 24);
+        (NativeBattleEffectMemory memory, uint extraTextAddress) = NativeBattlePresentationTaskStorage.ReserveByteRange(child.Presentation!.Memory, effect, graphics.ActorModels.Roster, 24);
         scan = scan with
         {
             Text = scan.Text with { Initialized = true },
@@ -99,7 +99,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         };
         Set(child, nameof(BattleSession.NativeEffectMemory), memory with { Scan = scan });
         graphics = graphics with { OriginalEffect = effect, UiServices = NativeBattleUiServices.Initialize() };
-        Set(child, nameof(BattleSession.NativeGraphics), graphics);
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
 
         child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster));
 
@@ -119,7 +119,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         var (owner, child, graphics) = Fixture();
         BattleModelRoster roster = graphics.ActorModels.Roster;
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
-        Set(child, nameof(BattleSession.NativeGraphics), graphics);
+        Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         child.RefreshHostedPreparedPresentation(owner, services);
         NativeBattlePreparedPresentation? previous = child.PreparedPresentation;
 

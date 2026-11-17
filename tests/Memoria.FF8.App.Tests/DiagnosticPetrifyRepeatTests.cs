@@ -56,7 +56,7 @@ public sealed class DiagnosticPetrifyRepeatTests
         request.Validate();
         BattleSession battle = world.StartDiagnosticBattle(request);
         battle.DiagnosticResolution += resolutions.Add;
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         Guid lifecycle = battle.DiagnosticLifecycleId;
         battle.DiagnosticEffectDispatched += dispatch =>
         {
@@ -115,7 +115,7 @@ public sealed class DiagnosticPetrifyRepeatTests
                 Assert.All(initialParty, initial => Assert.Equal(initial.CurrentHp, after.Single(actor => actor.Id == initial.Id).CurrentHp));
                 Assert.Equal(BattleOutcome.Active, battle.Outcome);
                 Assert.Null(battle.DiagnosticTerminalHold);
-                Assert.True(battle.NativeGraphics!.NativeOutcome?.ResultByte6E7 is null or 0);
+                Assert.True(battle.Presentation!.Graphics.NativeOutcome?.ResultByte6E7 is null or 0);
                 if (cast == 1)
                 {
                     repairReceipt = battle.ApplyDiagnosticCombatRepairs(repairs, battle.NativeHostCallbacks!.Value);
@@ -153,9 +153,9 @@ public sealed class DiagnosticPetrifyRepeatTests
             {
                 battle.Tick();
                 audio.Update(battle);
-                if (observingCast > 0 && observedTargetMask is null && focal.Count >= observingCast && battle.NativeGraphics?.OriginalEffect is { RequestedEffect: 120, Parameters: { } parameters })
+                if (observingCast > 0 && observedTargetMask is null && focal.Count >= observingCast && battle.Presentation?.Graphics?.OriginalEffect is { RequestedEffect: 120, Parameters: { } parameters })
                 {
-                    NativeBattleGraphicsState graphics = battle.NativeGraphics;
+                    NativeBattleGraphicsState graphics = battle.Presentation?.Graphics;
                     Assert.True(graphics.NativeBindings.TryEncodeExactTargetMask(parameters.TargetActors, graphics.ActorModels, out ushort mask));
                     observedTargetMask = mask;
                 }

@@ -46,7 +46,7 @@ public sealed class ExpandedHostedGuardianFormTests
             for (int frame = 0; frame < 1600 && (battle.GetGuardianForm(Caster) is not null || battle.ActiveAction is not null || process.ActiveActionToken is not null); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
                 sawCinematic |= process.Graphics.OriginalEffect is { Binding.Effect: 201, ReturnedDescriptor: > 0 };
                 if (!skipped && battle.CanSkipGuardianFormFinisher)
                 {
@@ -121,7 +121,7 @@ public sealed class ExpandedHostedGuardianFormTests
             long frame = battle.Frame;
             world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             Assert.True(battle.Frame > frame);
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             Assert.Null(battle.GetGuardianForm(Caster));
             Assert.Null(process.Graphics.GuardianFormPresentation);
             Assert.Equal(humanModel, process.Graphics.ActorModels.Get(owner).ModelId4);
@@ -210,7 +210,7 @@ public sealed class ExpandedHostedGuardianFormTests
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             Assert.Equal(BattleOutcome.Active, battle.Outcome);
             Assert.Null(battle.GetGuardianForm(Caster));
             Assert.Null(process.Graphics.GuardianFormPresentation);
@@ -222,7 +222,7 @@ public sealed class ExpandedHostedGuardianFormTests
         });
     }
 
-    private static void Run(Action<GameWorld, BattleSession, ExpandedBattlePresentationProcess, BattleCombatant, BattleModelOwner> verify)
+    private static void Run(Action<GameWorld, BattleSession, BattlePresentationProcess, BattleCombatant, BattleModelOwner> verify)
     {
         string directory = TestResources.GameDirectory;
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory));
@@ -233,7 +233,7 @@ public sealed class ExpandedHostedGuardianFormTests
             ExpandedBattleInstalledEntry.Prepare(world, session, current => ExpandedBattleGuardianTests.PrepareParty(current, learnedBoost: true, guardianId: Ifrit));
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { GuardianFormsEnabled = true });
             BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-            ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
             BattleCombatant actor = Assert.Single(battle.Combatants, actor => actor.Id == Caster);
             BattleModelOwner owner = battle.ReadPresentationModelOwner(Caster);
             Assert.Equal(4, battle.Combatants.Count(value => value.IsPlayer));
@@ -256,7 +256,7 @@ public sealed class ExpandedHostedGuardianFormTests
         world.Dispose();
     }
 
-    private static void Enter(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant actor, BattleModelOwner owner, bool queueAnotherAlly = false)
+    private static void Enter(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant actor, BattleModelOwner owner, bool queueAnotherAlly = false)
     {
         Ready(world, battle, actor);
         int begin = battle.Events.Count;
@@ -271,7 +271,7 @@ public sealed class ExpandedHostedGuardianFormTests
                 world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (battle.GetGuardianForm(Caster)?.Phase == BattleGuardianFormPhase.Entering)
             {
                 sawEntering = true;
@@ -298,7 +298,7 @@ public sealed class ExpandedHostedGuardianFormTests
         Assert.Single(battle.Events.Skip(begin), entry => entry is { Kind: "ActionComplete", ActorId: Caster });
     }
 
-    private static void RunFormAction(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant actor, BattleModelOwner owner, BattleGuardianFormAction action)
+    private static void RunFormAction(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant actor, BattleModelOwner owner, BattleGuardianFormAction action)
     {
         Ready(world, battle, actor);
         BattleCombatant target = LivingEnemy(battle);
@@ -307,7 +307,7 @@ public sealed class ExpandedHostedGuardianFormTests
         for (int frame = 0; frame < 600 && !battle.Events.Skip(begin).Any(entry => entry is { Kind: "ActionComplete", ActorId: Caster }); frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             Assert.Equal((byte)77, process.Graphics.ActorModels.Get(owner).ModelId4);
         }
         Assert.Single(battle.Events.Skip(begin), entry => entry is { Kind: "ActionComplete", ActorId: Caster });
@@ -324,7 +324,7 @@ public sealed class ExpandedHostedGuardianFormTests
         return !actor.IsPlayer && actor.IsAlive && actor.IsActive && !actor.Untargetable;
     }
 
-    private static void RunHumanAttack(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant actor, BattleModelOwner owner, byte? humanModel)
+    private static void RunHumanAttack(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant actor, BattleModelOwner owner, byte? humanModel)
     {
         Ready(world, battle, actor);
         BattleCombatant target = LivingEnemy(battle);
@@ -334,7 +334,7 @@ public sealed class ExpandedHostedGuardianFormTests
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
-        Assert.Same(process, battle.ExpandedPresentationProcess);
+        Assert.Same(process, battle.Presentation);
         Assert.Equal(humanModel, process.Graphics.ActorModels.Get(owner).ModelId4);
         Assert.Contains(battle.Events.Skip(begin), entry => entry is { Kind: "EffectContact", ActorId: Caster } && entry.TargetId == target.Id);
         Assert.Single(battle.Events.Skip(begin), entry => entry is { Kind: "ActionComplete", ActorId: Caster });

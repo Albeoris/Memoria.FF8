@@ -62,7 +62,7 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
         BattleSnapshot? actorProducer = null;
         string directory = Path.GetDirectoryName(Path.GetFullPath(output!))!;
         Directory.CreateDirectory(directory);
-        for (int tick = 0; tick < 32 && first.NativeEffectMemory!.Tonberry90!.CreatureModelState is null; tick++)
+        for (int tick = 0; tick < 32 && first.Presentation!.Memory.Tonberry90!.CreatureModelState is null; tick++)
         {
             BattleSnapshot before = first.Capture();
             try
@@ -92,14 +92,14 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
         }
         Assert.NotNull(groundProducer);
         Assert.NotNull(actorProducer);
-        Assert.Equal(155L, first.NativeGraphics!.Callback);
-        Assert.NotNull(first.NativeEffectMemory!.Tonberry90!.CreatureModelState);
-        Assert.Contains(first.NativeGraphics.OriginalEffect!.Pools[3].Slots, task => task.Callback == 0x763EB0 && task.ReadDword(0x98) > 0);
-        Assert.Equal(unchecked(0x20DFAB8u + (uint)first.NativeGraphics.OriginalEffect.DrawArenaOffset!.Value), first.NativeEffectMemory.Tonberry90.ReadDword(0x259EEA8));
+        Assert.Equal(155L, first.Presentation!.Graphics.Callback);
+        Assert.NotNull(first.Presentation!.Memory.Tonberry90!.CreatureModelState);
+        Assert.Contains(first.Presentation!.Graphics.OriginalEffect!.Pools[3].Slots, task => task.Callback == 0x763EB0 && task.ReadDword(0x98) > 0);
+        Assert.Equal(unchecked(0x20DFAB8u + (uint)first.Presentation!.Graphics.OriginalEffect.DrawArenaOffset!.Value), first.Presentation!.Memory.Tonberry90.ReadDword(0x259EEA8));
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
-        Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition, true).Render(second, 320, 224).ToArray());
+        BattleScenePresentation scene = new(assets, migrated.Definition);
+        Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition).Render(second, 320, 224).ToArray());
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
         {
             JsonSerializer.Serialize(stream, migratedNode);
@@ -116,7 +116,7 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
             string prefix = Path.GetFileNameWithoutExtension(output!) + "." + name;
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            NativeBattleRestorationPresentationTests.Publish(directory, prefix, snapshot, new BattleScenePresentation(assets, migrated.Definition, true).Render(restored, 320, 224).ToArray());
+            NativeBattleRestorationPresentationTests.Publish(directory, prefix, snapshot, new BattleScenePresentation(assets, migrated.Definition).Render(restored, 320, 224).ToArray());
         }
 
         static void RequireCommonPackets(BattleSnapshot snapshot)

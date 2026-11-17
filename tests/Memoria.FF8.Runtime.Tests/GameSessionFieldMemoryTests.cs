@@ -79,7 +79,7 @@ public sealed class GameSessionFieldMemoryTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
         session.SetLiveBattle(battle);
-        battle.NativeFileStaging!.Write(Address, [33, 0, 0, 0]);
+        battle.Presentation!.NativeFileStaging!.Write(Address, [33, 0, 0, 0]);
         Assert.Equal((byte)31, handoff.FileStaging!.ReadByte(Address));
         Assert.Equal((byte)31, working.FileStaging.ReadByte(Address));
         Assert.Throws<InvalidOperationException>(() => session.ActivateNativeFieldMemory());

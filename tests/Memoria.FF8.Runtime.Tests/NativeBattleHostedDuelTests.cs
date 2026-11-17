@@ -18,17 +18,13 @@ public sealed class NativeBattleHostedDuelTests
             ]
         };
         BattleSession logical = new(definition, BattleAtbMode.TurnBased);
-        BattleSession child = new(definition, BattleAtbMode.TurnBased);
         var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0)) with { EntryReady = true, EntryLifecycle = 4 };
-        SetGraphics(child, graphics);
-        Field("hostedBattlePresentation").SetValue(child, true);
-        FieldInfo entry = Field("hostedEntryDescriptors");
-        entry.SetValue(child, Activator.CreateInstance(entry.FieldType));
+        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics);
         BattleModelOwner owner = logical.ReadPresentationModelOwner("zell");
         HostedDuelPoll poll = new(owner, "zell", 0x48E5A0);
-        BattleSession.HostedDispatchControls opening = new([new BattleSession.HostedDispatchControl.DuelReadiness(poll), new BattleSession.HostedDispatchControl.DuelSelection(poll)], []);
-        BattleSession.PreparedHostedDispatch admitted = child.PrepareHostedDispatch([], controls: opening);
+        BattlePresentationProcess.HostedDispatchControls opening = new([new BattlePresentationProcess.HostedDispatchControl.DuelReadiness(poll), new BattlePresentationProcess.HostedDispatchControl.DuelSelection(poll)], []);
+        BattlePresentationProcess.PreparedHostedDispatch admitted = child.PrepareHostedDispatch([], controls: opening);
         child.ValidatePreparedHostedDispatch(admitted);
         child.CommitHostedDispatch(admitted);
 
@@ -54,12 +50,12 @@ public sealed class NativeBattleHostedDuelTests
         Assert.True(child.HostedControlPrefixRetired);
         Assert.Equal(requeued.Serial, selection.Serial);
         NativeBattleActionPacketsState packets = child.NativeActionPackets;
-        BattleSession.HostedDispatchControls continuation = new([new BattleSession.HostedDispatchControl.ResetCounts()], []);
+        BattlePresentationProcess.HostedDispatchControls continuation = new([new BattlePresentationProcess.HostedDispatchControl.ResetCounts()], []);
         Assert.Throws<InvalidOperationException>(() => child.PrepareHostedDispatch([], controls: continuation, duelSelection: selection with { Serial = unchecked((byte)(selection.Serial + 1)) }));
         Assert.Same(selection, child.PendingHostedDuelSelection);
         Assert.Same(packets, child.NativeActionPackets);
 
-        BattleSession.PreparedHostedDispatch response = child.PrepareHostedDispatch([], controls: continuation, duelSelection: selection);
+        BattlePresentationProcess.PreparedHostedDispatch response = child.PrepareHostedDispatch([], controls: continuation, duelSelection: selection);
         child.ValidatePreparedHostedDispatch(response);
         child.CommitHostedDispatch(response);
         Assert.Null(child.PendingHostedDuelSelection);
@@ -71,7 +67,7 @@ public sealed class NativeBattleHostedDuelTests
             Field("hostedFrameServices").SetValue(child, frameServices);
             try
             {
-                var result = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("AdvanceNativeDescriptors", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(child, [child.NativeGraphics!])!;
+                var result = (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("AdvanceNativeDescriptors", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(child, [child.Graphics])!;
                 SetGraphics(child, result);
                 return frameServices;
             }
@@ -83,7 +79,7 @@ public sealed class NativeBattleHostedDuelTests
 
         NativeBattleDescriptorPacket ReadPoll()
         {
-            NativeBattleDescriptorState descriptors = child.NativeGraphics!.Descriptors;
+            NativeBattleDescriptorState descriptors = child.Graphics.Descriptors;
             NativeBattleDescriptorPacket packet = descriptors.Packets[Assert.Single(descriptors.Queue)];
             Assert.Equal((ushort)10, packet.Command);
             Assert.Equal(0x4852B0u, packet.Argument);
@@ -91,7 +87,7 @@ public sealed class NativeBattleHostedDuelTests
         }
     }
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-    private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
+    private static void SetGraphics(BattlePresentationProcess child, NativeBattleGraphicsState graphics) => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(child, graphics);
 }

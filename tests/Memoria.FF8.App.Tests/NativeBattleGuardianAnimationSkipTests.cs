@@ -96,13 +96,13 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         else
         {
             Assert.Equal(JsonSerializer.Serialize(continuation), JsonSerializer.Serialize(skipped.Capture()));
-            Assert.Null(skipped.NativeGraphics!.GuardianAnimationSkip);
-            Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(skipped.NativeGraphics.OriginalEffect!, skipped.NativeEffectMemory!));
+            Assert.Null(skipped.Presentation!.Graphics.GuardianAnimationSkip);
+            Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(skipped.Presentation!.Graphics.OriginalEffect!, skipped.Presentation!.Memory));
         }
         Assert.True(skipped.CanSkipGuardianFormFinisher);
-        Assert.Equal(effectId, skipped.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal(effectId, skipped.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
         BattleSession ordinary = RoundTrip(skipped);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         HashSet<ushort> ordinaryFlags = [];
         bool lateRequestChecked = false;
         TraceOrdinary(ordinary, 0);
@@ -114,25 +114,25 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         Assert.False(skipped.SkipGuardianFormFinisher());
         NativeBattleRestorationPresentationTests.Publish(output, "requested", skipped.Capture(), null);
         BattleSession requested = RoundTrip(skipped);
-        long beforeSkip = skipped.NativeGraphics.Callback;
+        long beforeSkip = skipped.Presentation!.Graphics.Callback;
         Stopwatch? skipTimer = output is null ? null : Stopwatch.StartNew();
         skipped.Tick();
         skipTimer?.Stop();
         requested.Tick();
         Assert.Equal(JsonSerializer.Serialize(skipped.Capture()), JsonSerializer.Serialize(requested.Capture()));
-        Assert.True(skipped.NativeGraphics.Callback > beforeSkip + 1);
+        Assert.True(skipped.Presentation!.Graphics.Callback > beforeSkip + 1);
         Assert.False(NativeBattleTargetGuardianCastTests.Released(skipped.Capture()));
-        Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(skipped.NativeGraphics.OriginalEffect!, skipped.NativeEffectMemory!));
+        Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(skipped.Presentation!.Graphics.OriginalEffect!, skipped.Presentation!.Memory));
 
         BattleSession finale = RoundTrip(skipped);
         BattleSnapshot finaleSnapshot = skipped.Capture();
         byte[] finalePixels = scene.Render(skipped, 320, 224).ToArray();
-        Assert.Equal(finalePixels, new BattleScenePresentation(assets, definition, true).Render(finale, 320, 224).ToArray());
+        Assert.Equal(finalePixels, new BattleScenePresentation(assets, definition).Render(finale, 320, 224).ToArray());
         NativeBattleRestorationPresentationTests.Publish(output, "finale", finaleSnapshot, output is null ? null : finalePixels);
-        long finaleCallback = skipped.NativeGraphics.Callback;
+        long finaleCallback = skipped.Presentation!.Graphics.Callback;
         skipped.Tick();
         finale.Tick();
-        Assert.Equal(finaleCallback + 1, skipped.NativeGraphics!.Callback);
+        Assert.Equal(finaleCallback + 1, skipped.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(skipped.Capture()), JsonSerializer.Serialize(finale.Capture()));
         List<int> finaleSamples = [];
         Complete(skipped, (battle, callbacks) =>
@@ -216,17 +216,17 @@ public sealed class NativeBattleGuardianAnimationSkipTests
 
         void TraceOrdinary(BattleSession battle, int callbacks)
         {
-            if (!lateRequestChecked && battle.CanSkipGuardianFormFinisher && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } original && NativeBattleGuardianAnimationFinale.HasReachedFinale(original, battle.NativeEffectMemory!))
+            if (!lateRequestChecked && battle.CanSkipGuardianFormFinisher && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } original && NativeBattleGuardianAnimationFinale.HasReachedFinale(original, battle.Presentation!.Memory))
             {
                 BattleSession late = RoundTrip(battle);
                 Assert.True(late.SkipGuardianFormFinisher());
                 Assert.False(late.SkipGuardianFormFinisher());
-                long callback = late.NativeGraphics!.Callback;
+                long callback = late.Presentation!.Graphics.Callback;
                 late.Tick();
-                Assert.Equal(callback + 1, late.NativeGraphics!.Callback);
+                Assert.Equal(callback + 1, late.Presentation!.Graphics.Callback);
                 lateRequestChecked = true;
             }
-            if (output is null || effectId is not (6 or 202 or 203 or 204 or 205 or 206) || battle.NativeGraphics?.OriginalEffect is not { ReturnedDescriptor: > 0 } || battle.NativeEffectMemory?.ScriptedEffects is not { } core)
+            if (output is null || effectId is not (6 or 202 or 203 or 204 or 205 or 206) || battle.Presentation?.Graphics?.OriginalEffect is not { ReturnedDescriptor: > 0 } || battle.Presentation?.Memory?.ScriptedEffects is not { } core)
             {
                 return;
             }
@@ -234,7 +234,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
             ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(core.Read(checked(header + 2), 2));
             if (ordinaryFlags.Add(flags))
             {
-                string name = "ordinary-" + battle.NativeGraphics.Callback.ToString("D5") + "-flags-" + flags.ToString("X4");
+                string name = "ordinary-" + battle.Presentation!.Graphics.Callback.ToString("D5") + "-flags-" + flags.ToString("X4");
                 byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                 if (effectId is 204 or 206)
                 {
@@ -244,7 +244,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
                 {
                     PublishFrame(output, name, pixels);
                 }
-                File.WriteAllText(Path.Combine(output, name + ".frame.json"), JsonSerializer.Serialize(new { battle.Frame, battle.NativeGraphics.Callback, HeaderFlags = flags, CallbacksSinceOrdinaryStart = callbacks }));
+                File.WriteAllText(Path.Combine(output, name + ".frame.json"), JsonSerializer.Serialize(new { battle.Frame, battle.Presentation!.Graphics.Callback, HeaderFlags = flags, CallbacksSinceOrdinaryStart = callbacks }));
             }
         }
     }
@@ -275,7 +275,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
     {
         for (int callback = 0; callback < 4096; callback++)
         {
-            if (battle.ActiveAction is null && battle.GuardianForceCasts.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } && NativeBattleTargetGuardianCastTests.Released(battle.Capture()))
+            if (battle.ActiveAction is null && battle.GuardianForceCasts.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 } && NativeBattleTargetGuardianCastTests.Released(battle.Capture()))
             {
                 return;
             }

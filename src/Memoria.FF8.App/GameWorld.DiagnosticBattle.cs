@@ -166,7 +166,7 @@ internal sealed partial class GameWorld
                     Target = request.Target is { } target ? active.ObserveDiagnosticTarget(target.ActorId) : null,
                     CommandReady = request.Driver is null || RecreateGame.DiagnosticCommandReady(active, request.Driver),
                     Actors = active.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, actor.IsReady, actor.IsBusy, actor.NativeCombatantFlags, actor.NativeAtb }).ToArray(),
-                    Owners = active.ObserveDiagnosticInvocationOwners()
+                    Owners = active.ObserveDiagnosticOwners()
                 };
                 throw new NotSupportedException("Diagnostic entry did not initialize its original owners within the declared callback budget. " + JsonSerializer.Serialize(facts));
             }

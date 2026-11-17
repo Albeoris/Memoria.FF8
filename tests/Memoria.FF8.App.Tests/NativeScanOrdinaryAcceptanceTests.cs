@@ -35,12 +35,12 @@ public sealed class NativeScanOrdinaryAcceptanceTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_SCAN_EVIDENCE") ?? Path.GetTempPath(), "scan-ordinary-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine($"Ordinary Scan action {action.Id}, effect40; evidence: {output}");
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<BattleSession> continuations = [];
         HashSet<string> boundaries = [];
         HashSet<ushort> pages = [];
         List<NativeBattleModuleSound> sounds = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: sounds.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: sounds.Add);
         bool selected = false;
         bool cameraChanged = false;
         bool description = false;
@@ -69,7 +69,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                 {
                     restored.Tick();
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(restored.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224));
                 }
                 continuations.Clear();
                 audio.Update(battle);
@@ -87,7 +87,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     }
                     NativeBattleScanProcess process = current.NativeEffectMemory!.Scan!;
                     NativeBattleScanTextFrame frame = process.Text.ReadFrame(graphics.UiServices!.Flags942);
-                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(frame, battle.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
+                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(frame, battle.Presentation!.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
                     TextCanvas canvas = new();
                     NativeScanWindowDrawing.Draw(canvas, new UiTheme(), windows, new UiRect(0, 0, 320, 224), 0, 1);
                     Assert.Equal(0, canvas.ClipDepth);
@@ -125,7 +125,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     {
                         NativeBattlePrimitiveFrame plain = primitive with { LastCommands = primitive.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = plain } });
-                        rgbChanges = RgbChanges(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition, true).Render(background, 320, 224));
+                        rgbChanges = RgbChanges(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(background, 320, 224));
                         if (rgbChanges > 0)
                         {
                             Boundary("visible-packets");
@@ -169,7 +169,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                 restored.PublishNativeScanMappedButtons(0);
                 restored.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224));
+                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224));
             }
             Save("released-next");
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Action = action.Id, Effect = 40, completed.Frame, pages, boundaries, rgbChanges, SoundCount = sounds.Count }));
@@ -208,7 +208,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
             BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(stream)!;
             BattleSession restored = BattleSession.Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition, true).Render(restored, 320, 224));
+            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(restored, 320, 224));
             continuations.Add(restored);
         }
 

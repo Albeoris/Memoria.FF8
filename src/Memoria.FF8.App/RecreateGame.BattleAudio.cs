@@ -8,12 +8,16 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeBattleAudio()
     {
+        SynchronizeBattleAudio(ActiveBattle);
+    }
+
+    private void SynchronizeBattleAudio(BattleSession? active)
+    {
         if (fieldAudio is null)
         {
             return;
         }
-        battleAudio ??= new BattleAudioPresentation(fieldAudio.PlayBattleImpact, fieldAudio.PlayBattleSequenceSound, fieldAudio.PlayBattleModuleSound, fieldAudio.StopSounds, fieldAudio.PlayBattleMusicCommand, cue => fieldAudio.PlayUiSound((GameUi.MenuSound)cue), fieldAudio.StopBattleSoundVoice);
-        BattleSession? active = ActiveBattle;
-        battleAudio.Update(active, active is not null && presentedBattle == active ? battleScene?.CollectSounds(active) : null);
+        battleAudio ??= new BattleAudioPresentation(fieldAudio.PlayBattleModuleSound, fieldAudio.StopSounds, fieldAudio.PlayBattleMusicCommand, cue => fieldAudio.PlayUiSound((GameUi.MenuSound)cue), fieldAudio.StopBattleSoundVoice);
+        battleAudio.Update(active);
     }
 }

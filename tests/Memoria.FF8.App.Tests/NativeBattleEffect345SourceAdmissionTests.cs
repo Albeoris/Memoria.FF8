@@ -77,7 +77,7 @@ public sealed class NativeBattleEffect345SourceAdmissionTests
             Assert.Equal(new byte[length], bank.Read(0, length));
             banks.Add(new { Index = index, pool.Bank, pool.Stride, pool.Capacity, Bytes = length });
         }
-        NativeBattleFileStaging staging = session.NativeFileStaging ?? throw new NotSupportedException("The source requires its current physical temporary owner.");
+        NativeBattleFileStaging staging = session.Presentation?.NativeFileStaging ?? throw new NotSupportedException("The source requires its current physical temporary owner.");
         Assert.NotEmpty(staging.LoaderZeroRanges);
         Assert.Equal(new byte[2], staging.Read(0x255FEC2, 2));
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(staging, NativeBattleTemporaryMemory.Address, NativeBattleTemporaryMemory.ReachedLength);

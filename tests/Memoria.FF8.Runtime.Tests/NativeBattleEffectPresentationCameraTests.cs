@@ -11,11 +11,11 @@ public sealed class NativeBattleEffectPresentationCameraTests
     {
         NativeBattleCameraState cold = NativeBattleCameraState.FromColdProcess();
         NativeBattleCameraProjection first = new(NativeBattleForeignModelGeometry.Identity, firstFocal, 160, 108);
-        NativeBattleCameraState host = BattleSession.BindEffectPresentationHostProjection(cold, first);
+        NativeBattleCameraState host = BattlePresentationProcess.BindEffectPresentationHostProjection(cold, first);
         Assert.Equal(unchecked((short)firstFocal), host.FocalLength);
         NativeBattleCameraProjection next = first with { FocalLength = nextFocal };
-        host = BattleSession.BindEffectPresentationHostProjection(host, next);
-        NativeBattleCameraState held = BattleSession.HoldEffectPresentationCamera(host with { FocalLength = 999, Projection = first }, host);
+        host = BattlePresentationProcess.BindEffectPresentationHostProjection(host, next);
+        NativeBattleCameraState held = BattlePresentationProcess.HoldEffectPresentationCamera(host with { FocalLength = 999, Projection = first }, host);
         NativeBattleThundaga105CaptureTransform capture = NativeBattleThundaga105CaptureGeometry.TransformCapture(new byte[8].ToImmutableArray(), new(new(-384, 0, -384), new(384, 0, 384)), held.Projection!, 128, 256, held.FocalLength!.Value);
         Assert.Same(next, held.Projection);
         Assert.Equal((int)nextFocal, capture.Matrix.Z);

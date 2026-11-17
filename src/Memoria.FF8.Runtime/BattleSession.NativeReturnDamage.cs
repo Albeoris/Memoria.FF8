@@ -15,12 +15,7 @@ public sealed partial class BattleSession
 
     private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant? source, int magnitude)
     {
-        if (UsesExpandedRoster || !recipient.IsPlayer || source?.NativeActorIndex is not (>= 3 and < 7) || magnitude == 0 || recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
-        {
             return;
-        }
-        ushort before = recipient.NativeReturnDamage ?? throw new NotSupportedException("Return Damage requires the actual accumulated participant WORD1D27BDC; migrate its unknown value explicitly.");
-        recipient.NativeReturnDamage = unchecked((ushort)(before + magnitude));
     }
 
     private static bool IsNativeReturnDamageAction(BattleNativeAction? action)

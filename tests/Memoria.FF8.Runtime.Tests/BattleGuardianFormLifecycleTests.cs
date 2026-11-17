@@ -415,7 +415,7 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
         Assert.Null(battle.GetGuardianForm("actor"));
         Assert.Null(battle.GetGuardianFormVisual("actor"));
-        Assert.Null(battle.NativeGraphics?.GuardianFormPresentation);
+        Assert.Null(battle.Presentation?.Graphics?.GuardianFormPresentation);
         Assert.Null(battle.ActiveAction);
         Assert.Empty(battle.QueuedActions);
         Assert.Equal(37, Actor(battle).CurrentHp);

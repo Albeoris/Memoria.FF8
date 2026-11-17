@@ -52,20 +52,11 @@ public sealed partial class BattleSession
     private bool ShouldRunNativePlayerDeathSupport(BattleCombatant actor, BattleCombatant? attacker)
     {
         // NG-005: Original482F10 excludes encounter317.
-        if (actor.ModelId != 4 || (UsesExpandedRoster ? attacker is not { IsPlayer: false } : attacker?.NativeActorIndex is not >= 3) || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
+        if (actor.ModelId != 4 || (attacker is not { IsPlayer: false }) || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
         {
             return false;
         }
-        if (UsesExpandedRoster)
-        {
             return (ExpandedAngeloLearned(actor) & 4) != 0 && NextRandomByte() <= 32;
-        }
-        if (NativeAngeloDisabled())
-        {
-            return false;
-        }
-        NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Native Angelo Reverse requires its actual saved learned flag.");
-        return (progress.AngeloFlags & 4) != 0 && NextRandomByte() <= 32;
     }
 
     private void RunNativePlayerDeathSupport(BattleCombatant actor)

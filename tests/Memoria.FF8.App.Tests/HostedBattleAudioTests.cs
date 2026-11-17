@@ -32,21 +32,17 @@ public sealed class HostedBattleAudioTests
         BattleCombatant actor = battle.Combatants.First(actor => actor.IsPlayer);
         BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive);
         actor.Atb = BattleSession.AtbMaximum;
-        BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
         List<NativeBattleModuleSound> sounds = [];
-        List<int> guessedImpacts = [];
-        List<BattleSequenceSoundCue> guessedSequences = [];
-        BattleAudioPresentation audio = new(guessedImpacts.Add, (_, cue) => guessedSequences.Add(cue), sounds.Add, () => { }, _ => { }, _ => { }, _ => { });
-        audio.Update(battle, presentation.CollectSounds(battle));
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(sounds.Add);
+        audio.Update(battle);
         int initialEvents = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: actor.Id, TargetId: target.Id) { ForcePhysical = true });
         for (int callback = 0; callback < 1600; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            IReadOnlyList<BattleSequenceSoundCue> cues = presentation.CollectSounds(battle);
-            audio.Update(battle, cues);
+            audio.Update(battle);
             int played = sounds.Count;
-            audio.Update(battle, cues);
+            audio.Update(battle);
             Assert.Equal(played, sounds.Count);
             if (battle.ActiveAction is null && battle.Events.Skip(initialEvents).Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == actor.Id))
             {
@@ -57,8 +53,6 @@ public sealed class HostedBattleAudioTests
         Assert.Contains(battle.Events.Skip(initialEvents), entry => entry.NativeSound is not null && entry.NativeModuleSound is not null);
         Assert.NotEmpty(sounds);
         Assert.Equal(battle.Events.Skip(initialEvents).Where(entry => entry.NativeModuleSound is not null).Select(entry => entry.NativeModuleSound!), sounds);
-        Assert.Empty(guessedImpacts);
-        Assert.Empty(guessedSequences);
     }
 
     [Fact]
@@ -89,12 +83,9 @@ public sealed class HostedBattleAudioTests
             }
 
             TestContext.Current.TestOutputHelper!.WriteLine($"Automatic guardian entry: seed={seed}, field={session.State.FieldId}, worldFrame={scene.State.Frame}.");
-            BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
             List<NativeBattleModuleSound> sounds = [];
-            List<int> guessedImpacts = [];
-            List<BattleSequenceSoundCue> guessedSequences = [];
-            BattleAudioPresentation audio = new(guessedImpacts.Add, (_, cue) => guessedSequences.Add(cue), sounds.Add, () => { }, _ => { }, _ => { }, _ => { });
-            audio.Update(battle, presentation.CollectSounds(battle));
+            BattleAudioPresentation audio = BattleAudioTestOutput.Create(sounds.Add);
+            audio.Update(battle);
             int initialEvents = battle.Events.Count;
             bool observedGuardian = false;
             for (int callback = 0; callback < 5000 && !battle.CanReturnToField; callback++)
@@ -105,10 +96,9 @@ public sealed class HostedBattleAudioTests
                     observedGuardian = true;
                     Assert.Equal<byte?>(0, action.NativeSequence);
                 }
-                IReadOnlyList<BattleSequenceSoundCue> cues = presentation.CollectSounds(battle);
-                audio.Update(battle, cues);
+                audio.Update(battle);
                 int played = sounds.Count;
-                audio.Update(battle, cues);
+                audio.Update(battle);
                 Assert.Equal(played, sounds.Count);
             }
 
@@ -117,11 +107,9 @@ public sealed class HostedBattleAudioTests
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
             Assert.NotEmpty(sounds);
             Assert.Equal(battle.Events.Skip(initialEvents).Where(entry => entry.NativeModuleSound is not null).Select(entry => entry.NativeModuleSound!), sounds);
-            Assert.Empty(guessedImpacts);
-            Assert.Empty(guessedSequences);
-            BattleAudioPresentation replacement = new(_ => Assert.Fail("Historical impact replayed."), (_, _) => Assert.Fail("Historical sequence replayed."), _ => Assert.Fail("Historical module sound replayed."));
-            replacement.Update(battle, presentation.CollectSounds(battle));
-            replacement.Update(battle, presentation.CollectSounds(battle));
+            BattleAudioPresentation replacement = BattleAudioTestOutput.Create(_ => Assert.Fail("Historical module sound replayed."));
+            replacement.Update(battle);
+            replacement.Update(battle);
             world.ApplyBattleInput(new(BattleInputKind.Return));
             Assert.Null(world.Battle);
             Assert.Equal(SceneKind.WorldMap, session.State.Scene);

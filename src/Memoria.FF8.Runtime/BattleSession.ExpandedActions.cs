@@ -103,14 +103,7 @@ public sealed partial class BattleSession
             ActiveAction = command with { RemainingFrames = command.RemainingFrames - 1 };
             return;
         }
-        if (expandedPresentationProcess is null)
-        {
-            CommitExpandedAction(command);
-        }
-        else
-        {
-            PrepareAndPublishExpandedAction(command);
-        }
+        PrepareAndPublishExpandedAction(command);
     }
 
     private void CommitExpandedAction(BattleActionPresentation command)
@@ -263,7 +256,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Hosted Guardian Force requires its original command and a current party caster.");
             }
-            _ = CreateNativeGuardianBoost(hostedHeader.Action);
+            if (nativeBattleUiRandom is null || native.KernelSection != 2 || native.KernelIndex != hostedHeader.Action - 64 || native.RawRecord.Length != 132 ||
+                FindAction(BattleAbility.GuardianForce, hostedHeader.Action - 64).NativeGuardianBoostAvailable is null)
+            {
+                throw new NotSupportedException("Native Guardian Force requires its installed Boost profile and battle UI random owner.");
+            }
         }
         BattleActionPresentation resolved = command with { NativeAction = miniMog && !failedSpecial ? native with { ActionId = (ushort)native.KernelIndex } : native };
         bool hostedContextOnly = hostedHeader is not null && ReadExpandedHostedContactDisposition(resolved, hostedHeader) == ExpandedHostedContactDisposition.ContextOnly;

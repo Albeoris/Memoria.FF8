@@ -95,13 +95,13 @@ public sealed partial class BattleSession
     {
         BattleDamageForecast physical = ForecastPhysical(actor, target);
         string physicalName = PhysicalCommand(actor) == 12 ? actor.NativeCommands.FirstOrDefault(binding => binding.Command == 12)?.Name ?? "Mug" : actor.NativeAttack?.Name ?? "Attack";
-        BattleSmartAttackPreview result = new(actor.Id, target.Id, BattleAbility.Attack, 0, physicalName, 1, forcePhysical, SmartRevision(actor, target), SmartNativeIndex(target), physical.ExpectedDamage, physical.KillProbability) { TargetSlot = UsesExpandedRoster ? target.Slot : null };
+        BattleSmartAttackPreview result = new(actor.Id, target.Id, BattleAbility.Attack, 0, physicalName, 1, forcePhysical, SmartRevision(actor, target), SmartNativeIndex(target), physical.ExpectedDamage, physical.KillProbability) { TargetSlot = target.Slot };
         if (forcePhysical || !CanSmartCast(actor, target) || PhysicalCommand(actor) == 12 && HasMugItem(target) || physical.KillProbability > 0.9)
         {
             return result;
         }
         List<BattleSmartAttackCandidate> candidates = [];
-        foreach (BattleActionDefinition action in definition.ActionDefinitions.Where(action => IsSmartSpell(action) && (!UsesExpandedRoster || SupportsExpandedAction(action))))
+        foreach (BattleActionDefinition action in definition.ActionDefinitions.Where(action => IsSmartSpell(action) && (SupportsExpandedAction(action))))
         {
             if (NativeActionReflects(target, action.NativeAction!))
             {
@@ -111,7 +111,7 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
                 {
-                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, UsesExpandedRoster ? null : source.NativeActorIndex, CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
+                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, null, CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
                 }
             }
             int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
@@ -122,10 +122,10 @@ public sealed partial class BattleSession
             }
         }
         BattleSmartAttackPreview selected = BattleSmartAttackSelector.Select(result, candidates);
-        return UsesExpandedRoster && selected.DrawSourceId is { } sourceId ? selected with { DrawSourceSlot = GetActor(sourceId).Slot } : selected;
+        return selected.DrawSourceId is { } sourceId ? selected with { DrawSourceSlot = GetActor(sourceId).Slot } : selected;
     }
 
-    private int? SmartNativeIndex(BattleCombatant actor) => UsesExpandedRoster ? null : actor.NativeActorIndex;
+    private int? SmartNativeIndex(BattleCombatant actor) => null;
 
     public static bool IsSmartSpell(BattleActionDefinition action)
     {
@@ -171,7 +171,7 @@ public sealed partial class BattleSession
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
 
-    private string SmartIndexIdentity(BattleCombatant actor) => UsesExpandedRoster ? actor.Slot?.ToString() ?? "" : actor.NativeActorIndex?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
+    private string SmartIndexIdentity(BattleCombatant actor) => actor.Slot?.ToString() ?? "";
 
     private BattleDamageForecast ForecastMagic(BattleCombatant actor, BattleCombatant target, BattleNativeAction native, int casts, BattleCombatant? drawSource = null, int drawResist = 0)
     {

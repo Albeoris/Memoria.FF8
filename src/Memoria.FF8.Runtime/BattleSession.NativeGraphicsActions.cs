@@ -8,40 +8,10 @@ public sealed partial class BattleSession
         {
             return command;
         }
-        if (NativeGraphics is not { } graphics)
-        {
             return command;
-        }
-        byte sequence = command.NativeSequence ?? 0;
-        byte nativeCommand = command.NativeQueuedCommand ?? command.NativeAction?.Command ?? throw new NotSupportedException("Native graphics dispatch requires the original queued command BYTE.");
-        if (actor.NativeActorIndex is < 3)
-        {
-            sequence = NativeBattleActionGraphics.ResolvePlayerSequence(nativeCommand, sequence, command.ActionId, definition.NativeCommandSequences);
-        }
-        if (nativeCommand is 244 or 254 && command.ActionId is 15 or 70)
-        {
-            sequence = 11;
-        }
-        if (sequence == 0)
-        {
-            throw new NotSupportedException("Native effect-only command requires its original effect-module completion producer.");
-        }
-        BattleModelOwner index = CreatePresentationModelOwner(actor);
-        if (!graphics.ActorModels.Contains(index) || !NativeGraphicsPoseResource(graphics, index).Contains(sequence) || graphics.ActionActorId is not null)
-        {
-            throw new InvalidDataException("Native graphical command lacks its loaded sequence or serialized callback owner.");
-        }
-        graphics = PrepareNativeActionGeometry(graphics, actor, command);
-        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.SelectSequence(graphics.ActorModels.Get(index), sequence);
-        NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model), ActionActorId = actor.Id, ActionCallbackReady = false };
-        return command with { NativeSequence = sequence };
     }
 
     private void CompleteNativeGraphicsAction()
     {
-        if (NativeGraphics is { } graphics)
-        {
-            NativeGraphics = graphics with { ActionActorId = null, ActionCallbackReady = false };
-        }
     }
 }

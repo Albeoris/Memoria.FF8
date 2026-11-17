@@ -18,6 +18,7 @@ public sealed partial class BattleHudController
     private readonly Func<int, string> itemName;
     private readonly Func<int, string> cardName;
     private readonly IReadOnlyDictionary<int, string>? battleNames;
+    private readonly Func<BattlePresentationUiState>? readPresentationUi;
     private readonly bool hasGuardianForceNames;
     private bool completionRequested;
     private int commandIndex;
@@ -28,7 +29,7 @@ public sealed partial class BattleHudController
     private string? selectedActorId;
     private string? selectedTargetId;
 
-    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null, Func<BattleRewardSummary?>? previewRewards = null, Func<int, string>? guardianForceName = null, Func<int, string>? itemName = null, Func<int, string>? cardName = null, IReadOnlyDictionary<int, string>? battleNames = null)
+    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null, Func<BattleRewardSummary?>? previewRewards = null, Func<int, string>? guardianForceName = null, Func<int, string>? itemName = null, Func<int, string>? cardName = null, IReadOnlyDictionary<int, string>? battleNames = null, Func<BattlePresentationUiState>? readPresentationUi = null)
     {
         this.session = session;
         this.execute = execute;
@@ -41,6 +42,7 @@ public sealed partial class BattleHudController
         this.itemName = itemName ?? (id => $"Item {id}");
         this.cardName = cardName ?? (id => $"Card {id}");
         this.battleNames = battleNames;
+        this.readPresentationUi = readPresentationUi;
         hasGuardianForceNames = guardianForceName is not null;
         view = new UiView(new BattleHudElement(this)) { Cancel = CancelTarget };
         view.Resize(960, 672);
@@ -48,6 +50,7 @@ public sealed partial class BattleHudController
     }
 
     public BattleSession Session => session;
+    internal BattlePresentationUiState PresentationUi => readPresentationUi?.Invoke() ?? (session.Presentation ?? throw new InvalidOperationException("Battle HUD requires its presentation process.")).UiState;
     public event Action<MenuSound>? SoundRequested;
     public bool SelectingTarget { get; private set; }
     private string? message;
@@ -124,10 +127,8 @@ public sealed partial class BattleHudController
         }
         return session.ActionDefinitions.Where(action => command switch
         {
-            BattleAbility.Item => action.Ability == BattleAbility.Item && (!session.UsesExpandedRoster || session.SupportsExpandedAction(action)) && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
-            BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && (session.UsesExpandedRoster
-                ? session.CanSelectExpandedGuardianForce(actor.Id, action.Id)
-                : actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id)),
+            BattleAbility.Item => action.Ability == BattleAbility.Item && session.SupportsExpandedAction(action) && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
+            BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && session.CanSelectExpandedGuardianForce(actor.Id, action.Id),
             _ => false
         }).ToArray();
     }
@@ -157,9 +158,9 @@ public sealed partial class BattleHudController
             }
             BattleActionDefinition? action = command == BattleAbility.Attack ? null : SelectedAction;
             IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
-            if (SelectingExpandedBothSides(action))
+            if (SelectingBothSides(action))
             {
-                return ExpandedBothSideTargets(action!);
+                return BothSideTargets(action!);
             }
             bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? (action?.Allies == true);
             if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)
@@ -183,17 +184,17 @@ public sealed partial class BattleHudController
         }
     }
 
-    private bool SelectingExpandedBothSides(BattleActionDefinition? action)
+    private bool SelectingBothSides(BattleActionDefinition? action)
     {
-        return session.UsesExpandedRoster && action?.NativeAction?.TargetFlags is byte flags && (flags & 0x32) == 0x20;
+        return action?.NativeAction?.TargetFlags is byte flags && (flags & 0x32) == 0x20;
     }
 
-    private BattleCombatant[] ExpandedBothSideTargets(BattleActionDefinition action)
+    private BattleCombatant[] BothSideTargets(BattleActionDefinition action)
     {
         return session.Combatants.Where(target => !target.Untargetable && (target.IsPlayer || target.IsAlive) && BattleSession.HasValidTargetLifeState(action, target)).ToArray();
     }
 
-    public bool CanChangeTargetSide => SelectingTarget && !SelectingExpandedBothSides(SelectedAction) && !CardSlotsOwnsInput && !CommandMenuHidden && SelectedTarget is { } current && SelectableTargets.Any(target => target.IsPlayer != current.IsPlayer);
+    public bool CanChangeTargetSide => SelectingTarget && !SelectingBothSides(SelectedAction) && !CardSlotsOwnsInput && !CommandMenuHidden && SelectedTarget is { } current && SelectableTargets.Any(target => target.IsPlayer != current.IsPlayer);
 
     public void ChangeTargetSide()
     {
@@ -278,7 +279,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            IReadOnlyList<BattleCombatant> targets = SelectingExpandedBothSides(SelectedAction) ? SelectableTargets : Targets;
+            IReadOnlyList<BattleCombatant> targets = SelectingBothSides(SelectedAction) ? SelectableTargets : Targets;
             BattleCombatant? selected = targets.FirstOrDefault(actor => actor.Id == selectedTargetId) ?? targets.FirstOrDefault();
             selectedTargetId = selected?.Id;
             return selected;

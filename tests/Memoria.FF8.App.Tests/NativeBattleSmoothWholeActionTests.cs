@@ -180,7 +180,7 @@ public sealed class NativeBattleSmoothWholeActionTests
                     effectFrames++;
                     // A selected binding can precede native entry and remain during casting/loading.
                     // The returned task descriptor is the native effect service's execution owner.
-                    bool currentActive = battle.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0;
+                    bool currentActive = battle.Presentation?.Graphics?.OriginalEffect?.ReturnedDescriptor is > 0;
                     if (currentActive)
                     {
                         activeEffectFrames++;

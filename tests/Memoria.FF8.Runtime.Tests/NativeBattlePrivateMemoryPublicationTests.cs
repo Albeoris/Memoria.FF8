@@ -20,7 +20,7 @@ public sealed class NativeBattlePrivateMemoryPublicationTests
         NativeBattleEffectArena original = NativeBattleStorageSnapshots.Capture(storage);
         BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
         typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
-        PropertyInfo memoryProperty = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!;
+        PropertyInfo memoryProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!;
         NativeBattleOriginalEffectState effect = new(202, 201, new(202, 1, 0), null, null);
         using (NativeBattleTaskOperation operation = new(memory, effect))
         {
@@ -30,8 +30,8 @@ public sealed class NativeBattlePrivateMemoryPublicationTests
             transaction.View.Write(offset, [7]);
             memory.Arena!.Write(0, [3]);
             NativeBattleEffectMemory registers = memory with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown() };
-            memoryProperty.SetValue(session, registers);
-            Assert.Same(registers.GeometryRegisters, session.NativeEffectMemory!.GeometryRegisters);
+            memoryProperty.SetValue(session.Presentation!, registers);
+            Assert.Same(registers.GeometryRegisters, session.Presentation!.Memory.GeometryRegisters);
             Assert.Equal((byte)7, transaction.View.ReadByte(offset));
             Assert.Equal((byte)1, storage.ReadByte(offset));
             Assert.Throws<InvalidOperationException>(() => NativeBattleEffectArenaTransaction.RequireCommittedForCapture(storage.Working));
@@ -40,11 +40,11 @@ public sealed class NativeBattlePrivateMemoryPublicationTests
             {
                 transaction.CommitCheckpoint();
                 transaction.Freeze();
-                memoryProperty.SetValue(session, registers);
+                memoryProperty.SetValue(session.Presentation!, registers);
                 Assert.Equal((byte)7, storage.ReadByte(offset));
                 transaction.BeginCheckpoint();
                 transaction.View.Write(offset, [8]);
-                memoryProperty.SetValue(session, registers);
+                memoryProperty.SetValue(session.Presentation!, registers);
                 Assert.Equal((byte)8, transaction.View.ReadByte(offset));
                 Assert.Equal((byte)7, storage.ReadByte(offset));
             }

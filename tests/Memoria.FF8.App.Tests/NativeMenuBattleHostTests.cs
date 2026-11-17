@@ -140,7 +140,7 @@ public sealed class NativeMenuBattleHostTests
             int batch = Math.Min(10, 1200 - callbacks);
             world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick, batch));
             callbacks += batch;
-            NativeBattleOriginalEffectState? effect = world.Battle!.NativeGraphics!.OriginalEffect;
+            NativeBattleOriginalEffectState? effect = world.Battle!.Presentation!.Graphics.OriginalEffect;
             completedEffect |= restoredEffect && (effect?.Binding.Effect != 107 || effect.ReturnedDescriptor == 0);
             if (!restoredEffect && effect is { Binding.Effect: 107, Pools.Length: 5 } && effect.Pools[1].Slots.Any(task => (task.Flags & 1) != 0 && task.ReadWord(12) is >= 40 and < 70))
             {

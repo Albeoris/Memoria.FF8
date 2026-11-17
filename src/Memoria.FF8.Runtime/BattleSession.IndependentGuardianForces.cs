@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Away Chocobo message requires its original saved12-byte name and decoded text projection.");
             }
-            if (UsesExpandedRoster && (pocket.Flags & 3) == 1 && pocket.AttackVariant > 3)
+            if ((pocket.Flags & 3) == 1 && pocket.AttackVariant > 3)
             {
                 throw new NotSupportedException("The expanded host requires a supported PocketStation attack variant.");
             }
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             if (item.ActionId == 31)
             {
                 _ = RequireCompleteNativeSavedBattleFlags();
-                if (UsesExpandedRoster && definition.NativeFieldBattleRules is null)
+                if (definition.NativeFieldBattleRules is null)
                 {
                     throw new NotSupportedException("Phoenix Pinion requires the current field battle prohibition byte.");
                 }
@@ -88,14 +88,7 @@ public sealed partial class BattleSession
             return command;
         }
         BattleIndependentGuardianInvocation invocation = PrepareIndependentGuardianInvocation(actor, item);
-        if (UsesExpandedRoster)
-        {
             return command with { IndependentGuardian = invocation };
-        }
-        BattleTargetRequest request = command.TargetRequest.Selection is not BattleTargetSelection.None
-            ? command.TargetRequest
-            : CreatePlayerTargetRequest(actor, byId[command.TargetId], item.TargetFlags ?? throw new InvalidDataException("GF summon item lacks its original target flags."));
-        return command with { IndependentGuardian = invocation, TargetRequest = request };
     }
 
     private BattleIndependentGuardianInvocation PrepareIndependentGuardianInvocation(BattleCombatant actor, BattleNativeAction item)
@@ -127,10 +120,6 @@ public sealed partial class BattleSession
         {
             effect = FindInstalledNativeAction(244, item.MagicId);
             level = IndependentGuardianLevel();
-            if (item.ActionId == 31 && !UsesExpandedRoster)
-            {
-                SetNativeSavedBattleFlag(4);
-            }
         }
         return new(effect, level, failure);
     }
@@ -239,7 +228,7 @@ public sealed partial class BattleSession
             return;
         }
         BattleIndependentGuardianInvocation invocation = command.IndependentGuardian ?? throw new InvalidDataException("Active GF item lacks its prepared original invocation.");
-        if (UsesExpandedRoster && (!SupportsExpandedIndependentGuardianItem(item)))
+        if ((!SupportsExpandedIndependentGuardianItem(item)))
         {
             throw new InvalidDataException("Saved expanded guardian item differs from its logical target or supported child contract.");
         }
@@ -251,7 +240,7 @@ public sealed partial class BattleSession
             NativePocketStationState pocket = definition.NativePocketStation ?? throw new InvalidDataException("Saved GF item lacks its PocketStation owner.");
             level = pocket.Level == 0 ? (byte)1 : pocket.Level;
             failure = (pocket.Flags & 1) == 0 ? 55 : (pocket.Flags & 2) != 0 ? 56 : null;
-            if (UsesExpandedRoster && failure is null && pocket.AttackVariant > 3)
+            if (failure is null && pocket.AttackVariant > 3)
             {
                 throw new InvalidDataException("Saved expanded guardian item requires a supported PocketStation attack variant.");
             }

@@ -21,13 +21,14 @@ public sealed class ExpandedBattleSceneLayoutTests
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EXPANDED_SCENE_OUTPUT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(output), "Set MEMORIA_FF8_EXPANDED_SCENE_OUTPUT for the optional scene renders.");
         string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         foreach (int formation in new[] { 7, 40, 62 })
         {
             BattleEncounter encounter = assets.LoadEncounter(formation);
             BattleDefinition definition = CreateDefinitionForEncounter(assets, partyCount, enemyCount, encounter);
-            BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-            BattleScenePresentation scene = new(assets, definition, useEncounter: true);
+            BattleSession battle = OpenScene(game, assets, definition);
+            BattleScenePresentation scene = new(assets, battle.ReadDefinition());
             const int width = 1280;
             const int height = 720;
             UiRect viewport = new(0, 0, width, height);
@@ -42,50 +43,15 @@ public sealed class ExpandedBattleSceneLayoutTests
             Directory.CreateDirectory(output!);
             bitmap.SavePng(Path.Combine(output!, $"battle-{partyCount}x{enemyCount}-stage{encounter.StageId}-{width}x{height}.png"));
 
-            Assert.Equal(0, battle.Frame);
-            if (partyCount == 3)
-            {
-                Assert.Null(battle.ExpandedPresentationProcess);
-                BattleStageCamera authored = assets.LoadStage(encounter.StageId).IntroductionCameras[encounter.PrimaryCamera & 0xF7];
-                Assert.Equal(BattleCamera.FromNative(authored), scene.Camera);
-                continue;
-            }
-            ExpandedBattleSceneFrame frame = Assert.IsType<ExpandedBattleSceneFrame>(new ExpandedBattleSceneFrameBuilder(assets).ReadSceneFrame(battle));
-            Assert.Equal(frame.Projection.OffsetY!.Value / 240f, scene.Camera.VerticalCenter);
-            Assert.Equal(frame.Projection.OffsetX!.Value / 320f, scene.Camera.HorizontalCenter);
-            Assert.Equal(2 * MathF.Atan(120f / frame.Projection.FocalLength!.Value), scene.Camera.FieldOfView);
-            BattleCombatant[] active = battle.Combatants.Where(actor => actor.IsActive && !actor.Hidden).ToArray();
-            Assert.Equal(partyCount + enemyCount, active.Length);
-            PixelBounds projection = ViewportLayout.Fit(320, 240, width, height);
-            float safeLeft = projection.X + projection.Width * 8 / 320f;
-            float safeRight = projection.X + projection.Width * 312 / 320f;
-            float safeTop = projection.Y + projection.Height * 8 / 240f;
-            float safeBottom = projection.Y + projection.Height * (partyCount <= 4 ? 516 : 408) / 672f;
-            const float tolerance = 0.01f;
-            int[] clipLengths = active.Select(actor =>
-            {
-                BattleModel body = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : assets.LoadEnemy(actor.ModelId);
-                return body.Animations[0].Frames.Count;
-            }).Distinct().ToArray();
-            float[] phases = clipLengths.SelectMany(length => new[] { length / 2f, length - 1f, length - 0.5f, length }).Append(0).Distinct().Order().ToArray();
-            float previousPhase = 0;
-            foreach (float phase in phases)
-            {
-                if (phase > previousPhase)
-                {
-                    scene.AdvancePresentation(TimeSpan.FromSeconds((phase - previousPhase) * 2 / BattleSession.FramesPerSecond));
-                    _ = scene.Render(battle, width, height);
-                    previousPhase = phase;
-                }
-                // Actor bounds are recorded for bodies; renderer does not associate weapon meshes with actor IDs.
-                foreach (BattleCombatant actor in active)
-                {
-                    UiRect bounds = Assert.IsType<UiRect>(scene.GetActorBounds(actor.Id, viewport));
-                    Assert.True(!bounds.IsEmpty && bounds.X >= safeLeft - tolerance && bounds.Right <= safeRight + tolerance && bounds.Y >= safeTop - tolerance && bounds.Bottom <= safeBottom + tolerance,
-                        $"Stage {encounter.StageId}, {partyCount}x{enemyCount}, phase {phase}, {actor.Id} ({actor.Name}): body {bounds}; safe edges ({safeLeft:F2}, {safeTop:F2})–({safeRight:F2}, {safeBottom:F2}).");
-                }
-            }
-            Assert.Equal(0, battle.Frame);
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+            Assert.Equal(encounter.StageId, process.Stage.ResourceStageId);
+            Assert.Same(process.PreparedPresentation, scene.PresentedNativeFrame);
+            Assert.Equal(partyCount, process.Graphics.ActorModels.Roster.Party.Count());
+            Assert.Equal(enemyCount, process.Graphics.ActorModels.Roster.Enemies.Count());
+            NativeBattleCameraProjection projection = Assert.IsType<NativeBattleCameraProjection>(process.Camera.Projection);
+            Assert.Equal(projection.OffsetY!.Value / 240f, scene.Camera.VerticalCenter);
+            Assert.Equal(projection.OffsetX!.Value / 320f, scene.Camera.HorizontalCenter);
+            Assert.Equal(2 * MathF.Atan(120f / projection.FocalLength!.Value), scene.Camera.FieldOfView);
         }
     }
 
@@ -97,6 +63,7 @@ public sealed class ExpandedBattleSceneLayoutTests
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EXPANDED_SCENE_OUTPUT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(output), "Set MEMORIA_FF8_EXPANDED_SCENE_OUTPUT for the optional HUD renders.");
         string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleDefinition definition = CreateDefinition(assets, 11, 14);
         for (int index = 0; index < 11; index++)
@@ -104,12 +71,12 @@ public sealed class ExpandedBattleSceneLayoutTests
             BattleCombatantDefinition actor = definition.Combatants[index];
             definition.Combatants[index] = actor with { Name = $"{actor.Name} with a deliberately long character name", MaximumHp = 99999, CurrentHp = 99999 };
         }
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = OpenScene(game, assets, definition);
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn()) { TextScale = 1.65f };
         hud.SelectParty(definition.Combatants[10].Id);
         hud.AdvancePresentation(TimeSpan.FromSeconds(6.1 / hud.BattleCallbackRate));
         UiRect viewport = new(0, 0, width, height);
-        BattleScenePresentation scene = new(assets, definition, useEncounter: true);
+        BattleScenePresentation scene = new(assets, battle.ReadDefinition());
         UiView view = hud.BuildView();
         view.Resize(width, height);
         using SKBitmap bitmap = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
@@ -119,7 +86,6 @@ public sealed class ExpandedBattleSceneLayoutTests
         Directory.CreateDirectory(output!);
         bitmap.SavePng(Path.Combine(output!, $"battle-11x14-large-hud-last-{width}x{height}.png"));
         Assert.Equal(definition.Combatants[10].Id, hud.SelectedActor?.Id);
-        Assert.Equal(0, battle.Frame);
     }
 
     [Theory]
@@ -134,10 +100,11 @@ public sealed class ExpandedBattleSceneLayoutTests
     public void InstalledArenaAndHudFrameTheActiveRoster(int partyCount, int enemyCount, int width, int height)
     {
         string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleDefinition definition = CreateDefinition(assets, partyCount, enemyCount);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, useEncounter: true);
+        BattleSession battle = OpenScene(game, assets, definition);
+        BattleScenePresentation scene = new(assets, battle.ReadDefinition());
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn());
         hud.AdvancePresentation(TimeSpan.FromSeconds(6.1 / hud.BattleCallbackRate));
         UiRect viewport = new(0, 0, width, height);
@@ -181,7 +148,18 @@ public sealed class ExpandedBattleSceneLayoutTests
             fontSize = UiTextOverflow.FitFontSize(fontSize, text.Bounds.Height, SystemTextLayout.LineHeight(fontSize, null));
             Assert.True(canvas.MeasureText(label, fontSize, float.PositiveInfinity).Width <= text.Bounds.Width, $"{label} exceeds its HUD text width at {width}x{height}.");
         }
-        Assert.Equal(0, battle.Frame);
+    }
+
+    private static BattleSession OpenScene(GameAssets game, BattleAssets assets, BattleDefinition definition)
+    {
+        BattleSession battle = InstalledBattlePractice.Create(definition, BattleAtbMode.TurnBased, game, assets);
+        battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
+        for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        return battle;
     }
 
     private static BattleDefinition CreateDefinition(BattleAssets assets, int partyCount, int enemyCount)

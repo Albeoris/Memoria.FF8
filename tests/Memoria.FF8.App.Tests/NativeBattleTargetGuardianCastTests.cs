@@ -64,7 +64,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         BattleSnapshot before = snapshot;
         try
         {
@@ -72,7 +72,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } && index == 60)
+                if (battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } && index == 60)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output!, "midpoint", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
                 }
@@ -85,7 +85,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     battle.Tick();
                     clone.Tick();
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "completed-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
                     File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
                     return;
@@ -117,17 +117,17 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-        Assert.Equal(snapshot.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(snapshot.NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
+        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_RESUME_EVIDENCE");
         if (output is not null)
         {
             NativeBattleRestorationPresentationTests.Publish(output, "guardian-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
         }
-        Console.WriteLine($"Guardian checkpoint {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.NativeGraphics.Callback}; whole JSON and RGBA agree.");
+        Console.WriteLine($"Guardian checkpoint {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
     }
 
     private static void Run(int guardian, ushort effectId, bool openingOnly = false, NativeBattleRetainedMemory? retainedMemory = null)
@@ -145,10 +145,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Directory.CreateDirectory(output);
         Console.WriteLine($"Ordinary guardian-cast evidence: {output}");
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> sounds = [];
         int stopSoundCalls = 0;
-        BattleAudioPresentation audio = new(_ => { }, playModule: sounds.Add, stopSounds: () => stopSoundCalls++);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: sounds.Add, stopSounds: () => stopSoundCalls++);
         BattleSnapshot prior = battle.Capture();
         try
         {
@@ -184,7 +184,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 {
                     clone.Tick();
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
                     clone = null;
                 }
                 produced |= current.ActiveAction?.NativeQueuedCommand == 254;
@@ -214,7 +214,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutPrivate = primitive with { LastCommands = primitive.LastCommands.Where(command => !effectPackets.Contains(command.Command.Packet)).ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = withoutPrivate } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         visibleRgbChanges = CountRgbChanges(pixels, backgroundPixels);
                         if (visibleRgbChanges > 0)
                         {
@@ -315,7 +315,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             battle.Tick();
             after.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(after.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(after, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(after, 320, 224).ToArray());
             Publish("completed-next", battle.Capture());
             if (effectId == 116)
             {
@@ -334,7 +334,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     queuedNext.Tick();
                     audio.Update(battle);
                     BattleActionPresentation? active = battle.ActiveAction;
-                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.NativeGraphics!.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{active?.NativeHeader}");
+                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.Presentation!.Graphics.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{active?.NativeHeader}");
                     if (active is { ActorId: "party", NativeQueuedCommand: 1, NativeHeader: not null })
                     {
                         nextDispatched = true;
@@ -343,7 +343,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 }
                 Assert.True(nextDispatched, "The restored completed GF cast must dispatch its next ordinary native Attack within sixteen callbacks: " + string.Join(';', nextObservations));
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(queuedNext.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(queuedNext, 320, 224).ToArray());
+                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(queuedNext, 320, 224).ToArray());
                 Assert.Equal(1, battle.Events.Count(entry => entry.Kind == "GuardianForceCharging" && entry.ActorId == "party"));
                 Assert.Equal(1, battle.Events.Count(entry => entry.Kind == "GuardianForceReady" && entry.ActorId == "party"));
                 BattleSession nextRestored = SaveAndLoad("next-command-initialized");
@@ -351,7 +351,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 battle.Tick();
                 nextRestored.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(nextRestored.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(nextRestored, 320, 224).ToArray());
+                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(nextRestored, 320, 224).ToArray());
                 Publish("next-command-after", battle.Capture());
             }
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", guardian, effectId, completed.Frame, NativeCallback = Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Callback, boundaries, visibleRgbChanges, SoundCount = sounds.Count }));
@@ -381,7 +381,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             BattleSnapshot loaded = JsonSerializer.Deserialize<BattleSnapshot>(input)!;
             BattleSession restored = BattleSession.Restore(loaded);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, loaded.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, loaded.Definition).Render(restored, 320, 224).ToArray());
             return restored;
         }
     }

@@ -31,13 +31,13 @@ public sealed class ExpandedBattleDemiTests
         Assert.False(demi.AllTargets);
         Assert.True(BattleSession.CanSelectEitherTargetSide(demi));
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
         Assert.True(battle.SupportsExpandedAction(demi));
-        Assert.Null(battle.NativeGraphics);
+        Assert.Null(battle.Presentation?.Graphics);
 
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == CasterId);
         BattleCombatant ally = battle.Combatants.Single(actor => actor.Id == AddedAllyId);
         NativeBattleModelAliases aliases = presentation.NativeActionPackets.ModelAliases;
@@ -77,7 +77,7 @@ public sealed class ExpandedBattleDemiTests
         for (int callback = 0; callback < 1800 && !CommandCompleted(battle, start); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             NativeBattleActionPacketsState packets = presentation.NativeActionPackets;
             if (expectedOccurrences is null)
             {
@@ -125,7 +125,7 @@ public sealed class ExpandedBattleDemiTests
         for (int callback = 0; callback < 1200 && !CommandCompleted(battle, nextStart); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         Assert.True(CommandCompleted(battle, nextStart), "The next ordinary attack did not complete on the same attached process.");
         Assert.Equal(nextTarget, Assert.Single(battle.Events.Skip(nextStart), item => item.Kind == "EffectContact" && item.ActorId == caster.Id).TargetId);

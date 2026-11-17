@@ -34,12 +34,12 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         Assert.True(source.NativeGlobalRandomCalls > beforeInput.NativeGlobalRandomCalls);
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(1, Assert.Single(battle.Combatants.Single(actor => actor.Id == "party").MagicStocks).Count);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         BattleSession independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!));
         battle.Tick();
         independent.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-        Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(independent, 320, 224).ToArray());
+        Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
         bool initialized = false;
         bool packets = false;
         bool restoredMid = false;
@@ -62,16 +62,16 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
                 {
                     independent.Tick();
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(independent, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                     restoredMid = true;
                 }
                 Assert.Equal(targetHp, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
                 Assert.Equal(1, Assert.Single(battle.Combatants.Single(actor => actor.Id == "party").MagicStocks).Count);
-                if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 118 } effect)
+                if (battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 118 } effect)
                 {
                     initialized = true;
-                    packets |= battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                    if (effect.ReturnedDescriptor == 0 && battle.NativeEffectMemory!.Active == 0 && !battle.NativeGraphics.Descriptors.Queue.Any(index => battle.NativeGraphics.Descriptors.Packets[index].Command == 104) && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
+                    packets |= battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                    if (effect.ReturnedDescriptor == 0 && battle.Presentation!.Memory.Active == 0 && !battle.Presentation!.Graphics.Descriptors.Queue.Any(index => battle.Presentation!.Graphics.Descriptors.Packets[index].Command == 104) && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
                     {
                         completed = true;
                         break;
@@ -86,7 +86,7 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
             battle.Tick();
             independent.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(independent, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "checked", Effect = 118, Callbacks = callbacks + 2, ContactAmount = contact.Primary.Amount6, TargetHpAfterFormula = targetHp, FinalStock = 1, OrdinaryActionComplete = true, MidAndCompletedNextCallbacks = true }, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception error)

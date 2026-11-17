@@ -90,7 +90,7 @@ public sealed class NativeAutomaticGuardianPreparationTests
         Assert.Equal(saved.Combatants[0].NativeAtb, battle.Capture().Combatants[0].NativeAtb);
         Assert.Equal(saved.Combatants[0].Atb, battle.Combatants[0].Atb);
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        NativeBattleDescriptorPacket[] ordered = battle.NativeGraphics!.Descriptors.Queue.Select(index => battle.NativeGraphics.Descriptors.Packets[index]).ToArray();
+        NativeBattleDescriptorPacket[] ordered = battle.Presentation!.Graphics.Descriptors.Queue.Select(index => battle.Presentation!.Graphics.Descriptors.Packets[index]).ToArray();
         Assert.Equal(new ushort[] { 104, 10, 10 }, ordered.Select(packet => packet.Command));
         Assert.Equal(new uint[] { 0x47DD90, 0x47DDA0 }, ordered.Skip(1).Select(packet => packet.Argument));
         Assert.DoesNotContain(ordered, packet => packet.Command == 10 && packet.Argument == 0x47DE70);

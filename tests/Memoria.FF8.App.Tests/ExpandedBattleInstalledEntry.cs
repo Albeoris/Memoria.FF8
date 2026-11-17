@@ -29,7 +29,7 @@ internal static class ExpandedBattleInstalledEntry
 
     public static void WaitForEntry(GameWorld world, BattleSession battle)
     {
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));

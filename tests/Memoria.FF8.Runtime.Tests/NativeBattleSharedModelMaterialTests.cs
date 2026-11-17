@@ -51,12 +51,12 @@ public sealed class NativeBattleSharedModelMaterialTests
     {
         var (session, graphics) = Fixture();
         graphics = Stage(session, graphics, typed: false);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
 
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => DrawShared(session, graphics, First));
 
         Assert.Contains("numeric pointer", Assert.IsType<NotSupportedException>(error.InnerException).Message);
-        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Same(memory, session.Presentation?.Memory);
         Assert.Empty(graphics.PrimitiveFrame!.Pending.Traverse(Lengths));
     }
 
@@ -64,31 +64,31 @@ public sealed class NativeBattleSharedModelMaterialTests
     public void Primary_history_uses_passed_texture_owner_and_retains_material_at_the_depth_receipt()
     {
         var (session, graphics) = Fixture(hosted: false);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory! with { Textures = Textures() };
+        NativeBattleEffectMemory memory = session.Presentation!.Memory with { Textures = Textures() };
         NativeBattleOriginalEffectState effect = Effect(324);
         graphics = graphics with { OriginalEffect = effect };
 
-        var drawn = Assert.IsType<ValueTuple<NativeBattleEffectMemory, NativeBattleFileStaging, NativeBattleGraphicsState>>(Call(session, "DrawNativePrimaryHistory76", memory, effect, session.NativeFileStaging, graphics, First, new NativeBattlePilotVisualIdentity(324, 0, 0, 0, 0)));
+        var drawn = Assert.IsType<ValueTuple<NativeBattleEffectMemory, NativeBattleFileStaging, NativeBattleGraphicsState>>(Call(session, "DrawNativePrimaryHistory76", memory, effect, session.Presentation?.NativeFileStaging, graphics, First, new NativeBattlePilotVisualIdentity(324, 0, 0, 0, 0)));
 
         NativeBattleLogicalCommand body = Assert.Single(drawn.Item3.PrimitiveFrame!.Pending.Traverse(Lengths));
         Assert.Equal("first", body.ModelTextureOwner!.RequireActorId());
         Assert.Equal(body.Packet, Assert.Single(drawn.Item3.OriginalEffect!.PresentationPackets));
         Assert.True(body.PilotGeometry!.UseSourceDepths);
-        Assert.Null(session.NativeEffectMemory!.Textures!.PresentationTextures);
+        Assert.Null(session.Presentation!.Memory.Textures!.PresentationTextures);
     }
 
     [Fact]
     public void Deformed_body_uses_passed_texture_owner_for_body_and_weapon_only()
     {
         var (session, graphics) = Fixture(hosted: false);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory! with { Textures = Textures() };
-        object drawn = Call(session, "DrawNativeDeformedBody", memory, Effect(317), new NativeCrtRandomState(1), session.NativeFileStaging, graphics, Second, (short)0, NativeBattleEffectNodeMemory.ArenaAddress + Coefficients, 8, null);
+        NativeBattleEffectMemory memory = session.Presentation!.Memory with { Textures = Textures() };
+        object drawn = Call(session, "DrawNativeDeformedBody", memory, Effect(317), new NativeCrtRandomState(1), session.Presentation?.NativeFileStaging, graphics, Second, (short)0, NativeBattleEffectNodeMemory.ArenaAddress + Coefficients, 8, null);
         NativeBattleGraphicsState result = (NativeBattleGraphicsState)drawn.GetType().GetProperty("Graphics")!.GetValue(drawn)!;
         ImmutableArray<NativeBattleLogicalCommand> commands = result.PrimitiveFrame!.Pending.Traverse(Lengths);
 
         Assert.Equal(new[] { 0x82u, 0x83u }, Pages(commands, "second"));
         Assert.All(commands.Where(command => command.Opcode != 0x24), command => Assert.Null(command.ModelTextureOwner));
-        Assert.Null(session.NativeEffectMemory!.Textures!.PresentationTextures);
+        Assert.Null(session.Presentation!.Memory.Textures!.PresentationTextures);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class NativeBattleSharedModelMaterialTests
     {
         var (session, graphics) = Fixture();
         NativeBattleOriginalEffectState effect = Effect(89);
-        NativeBattleRinoa89Frame frame = new(session.NativeEffectMemory!, effect, session.NativeFileStaging!, new(1));
+        NativeBattleRinoa89Frame frame = new(session.Presentation!.Memory, effect, session.Presentation!.NativeFileStaging!, new(1));
         NativeBattleRinoa89CaptureStep begun = NativeBattleRinoa89Capture.Begin6FBEE0(frame, graphics.PrimitiveFrame!.Pending);
         Set(session, nameof(BattleSession.NativeEffectMemory), begun.Frame.Memory);
         SetField(session, "nativeCrtRandom", new NativeCrtRandomState(1));
@@ -104,7 +104,7 @@ public sealed class NativeBattleSharedModelMaterialTests
 
         graphics = DrawShared(session, graphics, Second, NativeBattleRinoa89Capture.TableAddress);
 
-        NativeBattleEffectArena arena = session.NativeEffectMemory!.Arena!;
+        NativeBattleEffectArena arena = session.Presentation!.Memory.Arena!;
         uint root = NativeBattleRinoa89Capture.TableAddress + (17 + (1000 >> 4)) * 4u;
         ImmutableArray<NativeBattleLogicalCommand> commands = graphics.PrimitiveFrame!.Pending.Traverse(Lengths, (reference, count) => (byte[])Call(session, "ReadNativePhysicalPrimitive", reference, count), initialOrderingAddress: root, readAddressedRoot: address =>
         {
@@ -112,7 +112,7 @@ public sealed class NativeBattleSharedModelMaterialTests
             return new(arena.ReadUInt32(NativeBattleRinoa89Capture.TableOffset + offset), offset / 4);
         });
         Assert.Equal(new[] { 0x82u, 0x83u }, Pages(commands, "second"));
-        NativeBattlePrimitiveProcess process = session.NativeEffectMemory!.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess process = session.Presentation!.Memory.PrimitiveProcess!;
         foreach (NativeBattleLogicalCommand command in commands.Where(command => command.Opcode == 0x24))
         {
             bool[] known = process.ReadCommonPacketSnapshot(command.Packet.ByteOffset, 32).Known;
@@ -148,7 +148,7 @@ public sealed class NativeBattleSharedModelMaterialTests
         }
         Set(session, nameof(BattleSession.NativeModelCpuResources), cpu with { Cpu = cpu.Cpu.WithBank(0, bank) });
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess()).Write(0x1D969A8, new byte[4]));
-        Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = Projection, FocalLength = 1000 });
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = Projection, FocalLength = 1000 });
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model(0))]);
         return (session, graphics with { ActorModels = graphics.ActorModels.Add(Second, Model(7)), PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
     }
@@ -172,7 +172,7 @@ public sealed class NativeBattleSharedModelMaterialTests
     private static NativeBattleGraphicsState Stage(BattleSession session, NativeBattleGraphicsState graphics, bool typed)
     {
         uint source = StagedRow + 0x200;
-        NativeBattleFileStaging staging = session.NativeFileStaging!;
+        NativeBattleFileStaging staging = session.Presentation!.NativeFileStaging!;
         byte[] geometry = Geometry(0x82);
         staging = staging.Write(source, geometry).Write(StagedRow + 0x300, Pose.Skeleton.AsSpan()).Write(StagedRow + 0x400, Pose.Animations.AsSpan()).Write(StagedRow + 0x500, [0, 0]);
         staging = staging.WriteResourcePointer(StagedRow, new(null, StagedRow + 0x300, Pose.Skeleton.Length))

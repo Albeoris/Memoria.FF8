@@ -12,23 +12,18 @@ public sealed partial class AttachedEncounterMagicTests
     public void Compiled_normal_magic_publishes_one_native_header_group(bool doubleActive, int casts)
     {
         string directory = TestResources.GameDirectory;
-        BattleRun original = Run(directory, attached: false, doubleActive, casts);
-        BattleRun hosted = Run(directory, attached: true, doubleActive, casts);
-        Assert.Equal(original.Headers, hosted.Headers);
-        Assert.Equal(original.Damage, hosted.Damage);
-        Assert.Equal(original.Random, hosted.Random);
+        BattleRun observed = Run(directory, doubleActive, casts);
+        Assert.Equal(casts, observed.Damage.Length);
+        Assert.NotEmpty(observed.Headers);
     }
 
     [Fact]
     public void Installed_Edea_compiled_turn_publishes_the_original_opening_taunt_before_its_spell()
     {
         string directory = TestResources.GameDirectory;
-        BattleRun original = Run(directory, attached: false, doubleActive: false, casts: 1, nativeTaunt: true);
-        BattleRun hosted = Run(directory, attached: true, doubleActive: false, casts: 1, nativeTaunt: true);
-        Assert.Equal(original.Opening, hosted.Opening);
-        Assert.Equal(original.Headers, hosted.Headers);
-        Assert.Equal(original.Damage, hosted.Damage);
-        Assert.Equal(original.Random, hosted.Random);
+        BattleRun observed = Run(directory, doubleActive: false, casts: 1, nativeTaunt: true);
+        Assert.NotNull(observed.Opening);
+        Assert.Single(observed.Damage);
     }
 
     [Theory]
@@ -36,10 +31,9 @@ public sealed partial class AttachedEncounterMagicTests
     [InlineData(true)]
     public void Installed_Edea_reaches_its_own_terminal_after_party_incapacity(bool petrified)
     {
-        RunTerminal(attached: false);
-        RunTerminal(attached: true);
+        RunTerminal();
 
-        void RunTerminal(bool attached)
+        void RunTerminal()
         {
             string directory = TestResources.GameDirectory;
             using GameAssets game = new(directory);
@@ -47,7 +41,7 @@ public sealed partial class AttachedEncounterMagicTests
             NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
             GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
             session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-            using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, resource)) { UsePhysicalBattlePresentation = !attached };
+            using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, resource));
             ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -71,7 +65,7 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.Null(world.Battle);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.NotNull(battle.ExpandedPresentationProcess);
+        Assert.NotNull(battle.Presentation);
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         Assert.Equal(new ScriptedBattleOwner(request.FieldId, request.ObjectId, request.ScriptId, request.Operation, request.Flags, request.ProgramHash), occurrence.ScriptedOwner);
 
@@ -117,7 +111,7 @@ public sealed partial class AttachedEncounterMagicTests
         bool sawTerminal = false;
         TickUntil(world, () =>
         {
-            NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+            NativeBattleActionPacketsState packets = battle.Presentation!.ActionPackets;
             sawTerminal |= packets.PublishedHeaders().Any(entry => entry.Slot is { Command: 8, Action: 207, Sequence: 15 } && entry.Slot.Source == source);
             return battle.Outcome != BattleOutcome.Active;
         });
@@ -127,13 +121,11 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.True(battle.EncounterPolicies.TerminalReached);
         Assert.True(battle.EncounterPolicies.CleanedUp);
         Assert.Equal(petrified ? initialHp : new int[party.Length], party.Select(actor => actor.CurrentHp).ToArray());
-        TickUntil(world, () => battle.CanReturnToField && (battle.ExpandedPresentationProcess?.TerminalFinished ?? true));
+        TickUntil(world, () => battle.CanReturnToField && (battle.Presentation?.TerminalFinished ?? true));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Installed_Edea_summon_loads_the_full_batch_and_releases_a_defeated_copy(bool attached)
+    [Fact]
+    public void Installed_Edea_summon_loads_the_full_batch_and_releases_a_defeated_copy()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
@@ -141,7 +133,7 @@ public sealed partial class AttachedEncounterMagicTests
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindSummonPolicy(definition, resource)) { UsePhysicalBattlePresentation = !attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindSummonPolicy(definition, resource));
         ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
@@ -159,13 +151,13 @@ public sealed partial class AttachedEncounterMagicTests
         bool fullArrival = false;
         TickUntil(world, () =>
         {
-            NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+            NativeBattleActionPacketsState packets = battle.Presentation!.ActionPackets;
             originalControl |= packets.PublishedHeaders().Any(entry => entry.Slot is { Command: 0, Action: 9, Sequence: 11, Effect: 0 } && entry.Slot.Source == battle.ReadPresentationModelOwner(caster.Id));
             if (battle.EncounterAllocation is not { } batch)
             {
                 return false;
             }
-            NativeBattleGraphicsState graphics = battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             foreach (string id in batch.ActorIds)
             {
                 BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == id);
@@ -231,28 +223,28 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.False(defeated.IsActive);
         Assert.True(battle.Combatants.Single(actor => actor.Id == livingId).IsActive);
         Assert.Equal(0, ReadGraphics().ActorModels.Get(defeatedOwner).Flags0 & 3);
-        NativeBattleModelTextureCache cache = battle.ExpandedPresentationProcess?.ModelTextureCache ?? battle.NativeModelTextureCache!;
+        NativeBattleModelTextureCache cache = battle.Presentation!.ModelTextureCache;
         Assert.Equal((byte)0, cache.Rows[defeatedRow].Kind);
         Assert.Equal((byte)3, cache.Rows[livingRow].Kind);
         Assert.Equal(before.EnemyCursor - reclaimed, ReadCpu().EnemyCursor);
         Assert.Single(battle.Events.Skip(attackStart), entry => entry.Kind == "NativeModelRemoved" && entry.ActorId == defeatedId);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
 
-        NativeBattleGraphicsState ReadGraphics() => battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
-        NativeBattleModelCpuResources ReadCpu() => battle.ExpandedPresentationProcess?.ModelCpuResources ?? battle.NativeModelCpuResources!;
+        NativeBattleGraphicsState ReadGraphics() => battle.Presentation!.Graphics;
+        NativeBattleModelCpuResources ReadCpu() => battle.Presentation!.ModelCpuResources;
     }
 
     private sealed record BattleRun((byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts, byte Repeats)[] Headers,
         (string? Target, int Amount)[] Damage, byte[] Random, EncounterNativeEventState? Opening);
 
-    private static BattleRun Run(string directory, bool attached, bool doubleActive, int casts, bool nativeTaunt = false)
+    private static BattleRun Run(string directory, bool doubleActive, int casts, bool nativeTaunt = false)
     {
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         NativeBattleGraphicsResource? tauntResource = nativeTaunt ? assets.ReadEnemyNativeGraphicsResource(88) : null;
         GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
-        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, tauntResource)) { UsePhysicalBattlePresentation = !attached };
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) => BindFirePolicy(definition, tauntResource));
         ExpandedBattleInstalledEntry.Prepare(world, session, current =>
         {
             if (nativeTaunt)
@@ -287,7 +279,7 @@ public sealed partial class AttachedEncounterMagicTests
         BattleModelOwner source = battle.ReadPresentationModelOwner(caster.Id);
         TickUntil(world, () =>
         {
-            NativeBattleGraphicsState graphics = battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             if (nativeTaunt && battle.Events.Skip(start).Any(entry => entry.Kind == "NativeText" && entry.ActorId == caster.Id))
             {
                 tauntCallback ??= graphics.Callback;
@@ -296,18 +288,18 @@ public sealed partial class AttachedEncounterMagicTests
             {
                 spellCallback ??= graphics.Callback;
             }
-            NativeBattleActionPacketsState packets = battle.ExpandedPresentationProcess?.ActionPackets ?? battle.NativeActionPackets;
+            NativeBattleActionPacketsState packets = battle.Presentation!.ActionPackets;
             NativeBattleActionHeaderSlot[] current = packets.PublishedHeaders().Where(entry => entry.Slot.Source == source && entry.Slot.Command == 2).Select(entry => entry.Slot).ToArray();
             if (current.Length == casts)
             {
                 headers = current;
             }
-            if (current.Length != 0 && battle.ExpandedPresentationProcess?.ActiveActionToken is long token)
+            if (current.Length != 0 && battle.Presentation?.ActiveActionToken is long token)
             {
                 tokens.Add(token);
             }
             return headers.Length == casts && battle.Events.Skip(start).Count(entry => entry.Kind == "Damage" && entry.ActorId == caster.Id) >= casts &&
-                battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.ExpandedPresentationProcess?.HasActiveAction != true;
+                battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.HasActiveAction != true;
         });
         Assert.Equal(casts - 1, headers[0].ReadRepeatModeMinusOne());
         Assert.All(headers, header => Assert.Equal(1, header.ReadContactCount()));
@@ -315,11 +307,8 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.Empty(caster.MagicStocks);
         var damage = battle.Events.Skip(start).Where(entry => entry.Kind == "Damage" && entry.ActorId == caster.Id).Select(entry => (entry.TargetId, entry.Amount)).ToArray();
         Assert.Equal(casts, damage.Length);
-        if (attached)
-        {
-            Assert.Single(tokens);
-            Assert.Equal(casts, battle.Events.Skip(start).Count(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id));
-        }
+        Assert.Single(tokens);
+        Assert.Equal(casts, battle.Events.Skip(start).Count(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id));
         EncounterNativeEventState? opening = null;
         if (tauntResource is not null)
         {

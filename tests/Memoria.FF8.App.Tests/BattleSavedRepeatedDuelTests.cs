@@ -16,7 +16,7 @@ public sealed class BattleSavedRepeatedDuelTests
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant actor = battle.Combatants.Single(candidate => candidate.IsPlayer && candidate.NativeLimit?.Command == 11);
-        TimeSpan elapsed = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan elapsed = BattlePresentationTiming.ElapsedForCallbacks(1);
         int invocations = battle.GetNativeDuel(actor.Id) is null ? 0 : 1;
         int completed = 0;
         bool acceptedMove = false;

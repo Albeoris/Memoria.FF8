@@ -26,7 +26,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     private float streamVolume = 127;
     private int musicPreference = 100;
     private int soundPreference = 100;
-    private int battleVoice;
     private double soundSpeed = 1;
     internal TimeProvider SoundTimeProvider { get; init; } = TimeProvider.System;
 
@@ -333,22 +332,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         TryOutput(() => PlayMusic(96, 0, 127, -1));
     }
 
-    public void PlayBattleImpact(int actorId)
-    {
-        TryOutput(() =>
-        {
-            // Native504290 selects slot1 for actor0 and slot0 for other actors;501640 reads B8A418.
-            uint effect = Catalog.BattleActorSound(actorId, actorId == 0 ? 1 : 0);
-            if (effect == 0)
-            {
-                return;
-            }
-            // TODO(TD-009): Centered maximum-gain contact at scaffold damage timing; native sequence/camera spatialization remains deferred.
-            // The negative voice is device-only and cannot collide with native field voices0..31 or create a VM receipt.
-            PlayPresentationSound(effect, -1);
-        });
-    }
-
     public void PlayUiSound(GameUi.MenuSound cue)
     {
         TryOutput(() =>
@@ -359,27 +342,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             }
             // Native4C0A30/4C0A80 use menu1 for cursor motion;4AD8D0 uses2/3 for confirm/cancel.
             PlayPresentationSound(Catalog.MenuSound((int)cue), -2);
-        });
-    }
-
-    public void PlayBattleSequenceSound(BattleCombatant actor, BattleSequenceSoundCue cue)
-    {
-        TryOutput(() =>
-        {
-            if (actor.ModelId < 0)
-            {
-                return;
-            }
-            int actorId = actor.IsPlayer ? actor.ModelId : checked(actor.ModelId + 16);
-            uint effect = cue.ActorSound ? Catalog.BattleActorSound(actorId, cue.SoundId) : checked((uint)cue.SoundId);
-            if (effect == 0)
-            {
-                return;
-            }
-            // TODO(TD-009): Preserve the cue's sound identity; scheduling/spatialization still use presentation tuning.
-            // A bounded device-only voice pool lets swing and impact tails overlap without owning field VM voices.
-            int voice = -10 - battleVoice++ % 16;
-            PlayPresentationSound(effect, voice);
         });
     }
 

@@ -14,18 +14,18 @@ internal sealed partial class RecreateGame
         BattleSession active = diagnosticDriverBattle!;
         DiagnosticDuelCycleDriver cycle = diagnosticDriver.DuelCycle ?? throw new InvalidDataException("Duel dispatched without its real command11 admission.");
         cycle.Observe(ObserveDiagnosticDuel(active), false);
-        NativeBattleRetainedActionPackets packets = dispatch.ActionId is 65530 or 65532 ? active.ObserveDiagnosticDuelClosingPackets(dispatch) : active.ObserveDiagnosticActionPackets(dispatch);
-        BattleDiagnosticEffectInvocation invocation = active.ObserveDiagnosticEffectInvocation(dispatch);
+        NativeBattleRetainedActionPackets packets = dispatch.ActionId is 65530 or 65532 ? active.ObserveDiagnosticDuelClosingPackets(dispatch) : active.Presentation!.ObserveDiagnosticActionPackets(dispatch);
+        BattleDiagnosticEffectInvocation invocation = active.Presentation!.ObserveDiagnosticEffectInvocation(dispatch);
         NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
         diagnosticDriver.ObserveDuelDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
         {
-            AttachedPresentation = active.UsesExpandedRoster,
+            AttachedPresentation = active.Presentation is not null,
             Parameter80 = invocation.Parameter80,
             Parameter82 = invocation.Parameter82,
             HeaderEffect = (ushort)(header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8),
             RetainedEffect = invocation.ExecutedEffect,
             Duel = active.ObserveDiagnosticDuelState(diagnosticDriverRecipe.Input.ActorId!),
-            HostedTargets = dispatch is { NativeCommand: 239, ActionId: >= 6 and <= 9 } && active.UsesExpandedRoster ? active.ObserveDiagnosticHostedDuelTargets(dispatch) : null
+            HostedTargets = dispatch is { NativeCommand: 239, ActionId: >= 6 and <= 9 } ? active.ObserveDiagnosticHostedDuelTargets(dispatch) : null
         });
     }
 

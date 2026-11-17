@@ -43,13 +43,13 @@ public sealed class NativeBattleDoomtrainMatrixMigrationTests
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             Assert.Equal(snapshot.Frame + 1, first.Frame);
-            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
+            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
-            Assert.False(first.NativeEffectMemory!.Doomtrain191!.BaseMatrix.Known[18]);
-            Assert.False(first.NativeEffectMemory!.Doomtrain191!.BaseMatrix.Known[19]);
-            Assert.Equal(snapshot.NativeEffectMemory!.Doomtrain191!.BaseMatrix.Bytes, first.NativeEffectMemory.Doomtrain191.BaseMatrix.Bytes);
+            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
+            Assert.False(first.Presentation!.Memory.Doomtrain191!.BaseMatrix.Known[18]);
+            Assert.False(first.Presentation!.Memory.Doomtrain191!.BaseMatrix.Known[19]);
+            Assert.Equal(snapshot.NativeEffectMemory!.Doomtrain191!.BaseMatrix.Bytes, first.Presentation!.Memory.Doomtrain191.BaseMatrix.Bytes);
             using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
             {
                 JsonSerializer.Serialize(stream, migrated);

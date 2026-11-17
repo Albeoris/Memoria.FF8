@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     public bool SupportsPlayerLimitSelection(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        return actor.NativeLimit is { } limit && (!UsesExpandedRoster || limit.Command is 5 or 11 or 14 or 15 or 16 ||
+        return actor.NativeLimit is { } limit && (limit.Command is 5 or 11 or 14 or 15 or 16 ||
             HasExpandedCombine(actor) || HasExpandedAngelWing(actor) || actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
     }
 

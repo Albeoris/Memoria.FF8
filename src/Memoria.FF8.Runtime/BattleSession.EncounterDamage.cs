@@ -158,12 +158,9 @@ public sealed partial class BattleSession
         {
             hosted.AddRange(extra);
         }
-        else if (NativeGraphics is not null)
+        else if (extra.Count != 0)
         {
-            foreach (NativeBattleContactPacket packet in extra)
-            {
-                QueueNativeContactPacket(packet);
-            }
+            throw new InvalidOperationException("Routed encounter contacts require the active action's presentation transaction.");
         }
         FlushEncounterCounterCommands();
         return true;
@@ -320,12 +317,6 @@ public sealed partial class BattleSession
                 {
                     encounterHitTransaction?.ExtraContacts.Add((extra.Count, routedContact));
                     extra.Add(BuildNativeContactPacket(routedContact));
-                }
-                else if (NativeGraphics is not null)
-                {
-                    (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
-                    NativeBattleContactHalf half = NativeBattleContactHalf.FromScratch(CreatePresentationModelOwner(recipient), recipient.IsAlive ? (byte)0 : (byte)3, recipient.IsAlive ? (byte)0 : (byte)8, 0, saved, receipt.AssignedDamage, battle);
-                    extra.Add(new(half, null));
                 }
             }
         }

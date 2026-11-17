@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 namespace Memoria.FF8.Runtime;
 
 public sealed record EncounterPatchLayer(string PackageId, string PayloadPath, EncounterPatchDocument Document);
-public sealed record EncounterPatchBaseline(string Encounter, string SourceProfile, ImmutableArray<string> Actors, int ActiveActorCapacity = 4);
+public sealed record EncounterPatchBaseline(string Encounter, string SourceProfile, ImmutableArray<string> Actors, int ActiveActorCapacity = ExpandedBattleFormation.MaximumEnemies);
 public sealed record EncounterPatchOrigin(string PackageId, string PayloadPath, string DocumentId, string OperationId, string Target, string Property);
 public sealed record EncounterPatchOutcome(EncounterPatchOrigin Origin, string Status);
 public sealed record EncounterPatchPolicy(string Id, ImmutableArray<EncounterPatchRule> Rules);
@@ -38,7 +38,7 @@ public static class EncounterPatchComposer
     public static EncounterPatchComposition Compose(EncounterPatchBaseline baseline, IEnumerable<EncounterPatchLayer> contributions)
     {
         EncounterPatchDocument.Identity(baseline.Encounter, "baseline.encounter");
-        EncounterPatchDocument.Require(!string.IsNullOrWhiteSpace(baseline.SourceProfile) && !baseline.Actors.IsDefaultOrEmpty && baseline.Actors.Distinct(StringComparer.Ordinal).Count() == baseline.Actors.Length && baseline.ActiveActorCapacity is >= 1 and <= 4 && baseline.Actors.Length <= baseline.ActiveActorCapacity, "Invalid selected encounter baseline/profile/capacity.");
+        EncounterPatchDocument.Require(!string.IsNullOrWhiteSpace(baseline.SourceProfile) && !baseline.Actors.IsDefaultOrEmpty && baseline.Actors.Distinct(StringComparer.Ordinal).Count() == baseline.Actors.Length && baseline.ActiveActorCapacity is >= 1 and <= ExpandedBattleFormation.MaximumEnemies && baseline.Actors.Length <= baseline.ActiveActorCapacity, "Invalid selected encounter baseline/profile/capacity.");
         foreach (string actor in baseline.Actors)
         {
             EncounterPatchDocument.Identity(actor, "baseline.actor");
@@ -57,7 +57,7 @@ public static class EncounterPatchComposer
                 layer.Document.Validate();
                 EncounterPatchDocument.Require(layer.Document.Encounter == baseline.Encounter, "Document encounter does not match selected baseline.");
                 EncounterPatchDocument.Require(layer.Document.SourceProfile is null || layer.Document.SourceProfile == baseline.SourceProfile, $"Expected source profile '{layer.Document.SourceProfile}', observed '{baseline.SourceProfile}'. Select a compatible package/profile.");
-                EncounterPatchDocument.Require(layer.Document.RequiredActorCapacity is null || layer.Document.RequiredActorCapacity <= baseline.ActiveActorCapacity, "Required actor capacity exceeds selected native profile.");
+                EncounterPatchDocument.Require(layer.Document.RequiredActorCapacity is null || layer.Document.RequiredActorCapacity <= baseline.ActiveActorCapacity, "Required actor capacity exceeds the selected battle roster.");
                 EncounterPatchDocument.Require(documents.TryAdd(layer.Document.DocumentId, layer), "Duplicate document identity: " + layer.Document.DocumentId);
             }
             catch (InvalidDataException error)
@@ -355,7 +355,7 @@ public static class EncounterPatchComposer
             HashSet<string> actors = new(baseline.Actors.Concat(templates.Keys), StringComparer.Ordinal);
             if (actors.Count > baseline.ActiveActorCapacity)
             {
-                throw EffectiveFailure(templates.Keys.Last(), $"Encounter requires {actors.Count} live actors; selected profile supports {baseline.ActiveActorCapacity}. Reduce reserved templates or disable the incompatible package; no actors were evicted.");
+                throw EffectiveFailure(templates.Keys.Last(), $"Encounter requires {actors.Count} live actors; the battle roster supports {baseline.ActiveActorCapacity}. Reduce reserved templates or disable the incompatible package; no actors were evicted.");
             }
             foreach ((string key, EncounterPatchOperation template) in templates)
             {

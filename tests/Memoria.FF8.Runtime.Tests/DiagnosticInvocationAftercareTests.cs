@@ -44,7 +44,7 @@ public sealed class DiagnosticInvocationAftercareTests
         BattleSession session = Fixture(true, true, standaloneVictory: true, victoryHold: victoryHold);
         List<BattleDiagnosticInvocationRelease> releases = [];
         session.DiagnosticInvocationReleased += releases.Add;
-        byte[] programme = System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(session.NativeGraphics!.Auxiliary.Slots[0].Program!.Source)!;
+        byte[] programme = System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(session.Presentation!.Graphics.Auxiliary.Slots[0].Program!.Source)!;
         if (!terminal)
         {
             programme[0] = 254;
@@ -150,7 +150,7 @@ public sealed class DiagnosticInvocationAftercareTests
         DispatchChild(observed);
         Assert.Empty(observed.NativeCommandBanks.BoundCommands);
         Assert.Null(observed.LastDiagnosticInvocationAftercare);
-        NativeBattleDescriptorPacket child = observed.NativeGraphics!.Descriptors.Packets[Assert.Single(observed.NativeGraphics.Descriptors.Queue)];
+        NativeBattleDescriptorPacket child = observed.Presentation!.Graphics.Descriptors.Packets[Assert.Single(observed.Presentation!.Graphics.Descriptors.Queue)];
         Assert.Equal((ushort)10, child.Command);
         Assert.Equal(0x47DDA0u, child.Argument);
         CompleteChild(plain);
@@ -245,8 +245,8 @@ public sealed class DiagnosticInvocationAftercareTests
         }
         if (fault == "active-texture")
         {
-            NativeBattleGraphicsState graphics = session.NativeGraphics!;
-            Set(session, nameof(BattleSession.NativeGraphics), graphics with { ActorModels = graphics.ActorModels.Set(new BattlePartyActorModel(new("party")), ReadOriginalModelCell(graphics, 0) with { Sequence = 12 }) });
+            NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
+            Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics with { ActorModels = graphics.ActorModels.Set(new BattlePartyActorModel(new("party")), ReadOriginalModelCell(graphics, 0) with { Sequence = 12 }) });
         }
         Call(session, "QueueNativeReaction", session.Combatants[0], fault == "wrong-stage" ? 3 : 2);
         Pump(session);
@@ -296,21 +296,21 @@ public sealed class DiagnosticInvocationAftercareTests
         {
             if (fault == "no-removal-witness")
             {
-                NativeBattleGraphicsState graphics = session.NativeGraphics!;
+                NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
                 NativeBattleGraphicsState current = graphics;
                 NativeBattleDescriptorState final = graphics.Descriptors.Advance((state, _) =>
                 {
                     current = (NativeBattleGraphicsState)Call(session, "RunNativeDescriptorActionCallback", current with { Descriptors = state }, 0x47DDA0u)!;
                     return new(current.Descriptors, 15);
                 }, (_, _) => throw new InvalidOperationException("Unexpected child descriptor task."));
-                Set(session, nameof(BattleSession.NativeGraphics), current with { Descriptors = final });
+                Set(session, nameof(BattlePresentationProcess.NativeGraphics), current with { Descriptors = final });
             }
             else
             {
                 Pump(session);
             }
         }
-        NativeBattleGraphicsState post = session.NativeGraphics!;
+        NativeBattleGraphicsState post = session.Presentation!.Graphics;
         if (fault == "packet-reuse")
         {
             NativeBattleDescriptorState descriptors = post.Descriptors;
@@ -357,7 +357,7 @@ public sealed class DiagnosticInvocationAftercareTests
             Assert.NotNull(banks.FirstEligible(_ => false));
             Field("nativeCommandBanks").SetValue(session, banks);
         }
-        Set(session, nameof(BattleSession.NativeGraphics), post with { Callback = post.Callback + (fault == "graphics" ? 2 : 1) });
+        Set(session, nameof(BattlePresentationProcess.NativeGraphics), post with { Callback = post.Callback + (fault == "graphics" ? 2 : 1) });
         Call(session, "ObserveDiagnosticInvocationAftercareFrameEnd");
         Assert.Null(session.LastDiagnosticInvocationAftercare);
         Assert.Equal(before, NativeBattleTestSnapshots.Json(main));
@@ -467,7 +467,7 @@ public sealed class DiagnosticInvocationAftercareTests
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
         Set(session, nameof(BattleSession.ActiveAction), new BattleActionPresentation("party", "party", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, action) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = new(effect) });
-        Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.Initialize());
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.Initialize());
         Set(session, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, SoundPublishedFlags = 0 });
         Set(session, nameof(BattleSession.NativeHostCallbacks), 20L);
@@ -484,7 +484,7 @@ public sealed class DiagnosticInvocationAftercareTests
             ActionActorId = "party",
             OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0)
         };
-        Set(session, nameof(BattleSession.NativeGraphics), graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DDA0).State });
+        Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, 0x47DDA0).State });
         if (observe)
         {
             session.DiagnosticEffectDispatched += _ =>
@@ -522,12 +522,12 @@ public sealed class DiagnosticInvocationAftercareTests
 
     private static void Pump(BattleSession session)
     {
-        Set(session, nameof(BattleSession.NativeGraphics), Call(session, "AdvanceNativeDescriptors", session.NativeGraphics!));
+        Set(session, nameof(BattlePresentationProcess.NativeGraphics), Call(session, "AdvanceNativeDescriptors", session.Presentation!.Graphics));
     }
 
     private static void EndFrame(BattleSession session)
     {
-        Set(session, nameof(BattleSession.NativeGraphics), session.NativeGraphics! with { Callback = session.NativeGraphics.Callback + 1 });
+        Set(session, nameof(BattlePresentationProcess.NativeGraphics), session.Presentation!.Graphics with { Callback = session.Presentation!.Graphics.Callback + 1 });
         Call(session, "ObserveDiagnosticInvocationGraphicsFrameEnd");
     }
 

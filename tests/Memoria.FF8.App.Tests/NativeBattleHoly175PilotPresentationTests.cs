@@ -16,7 +16,7 @@ public sealed class NativeBattleHoly175PilotPresentationTests
         using GameWorld world = new(session, directory!);
         BattleSession active = world.StartEffectPreview(new(1, 0) { AbilityId = 14, CommandId = 2 });
         active.PublishDiagnosticAbilityPreview(2, 14);
-        TimeSpan callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
         NativeBattlePrimitiveCapabilities capabilities = active.Capture().Definition.NativeGraphics!.PrimitiveCapabilities!;
@@ -28,7 +28,7 @@ public sealed class NativeBattleHoly175PilotPresentationTests
         {
             active.AdvanceNativeGraphicsPresentation(callback);
             NativeBattlePreparedPresentation earlier = active.PreparedPresentation!;
-            if (earlier.PilotEffect != 175 || active.NativeGraphics?.OriginalEffect is not { Binding.Effect: 175, ReturnedDescriptor: > 0 })
+            if (earlier.PilotEffect != 175 || active.Presentation?.Graphics?.OriginalEffect is not { Binding.Effect: 175, ReturnedDescriptor: > 0 })
             {
                 continue;
             }

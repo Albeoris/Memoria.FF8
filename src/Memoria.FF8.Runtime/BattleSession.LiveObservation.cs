@@ -97,8 +97,8 @@ public sealed partial class BattleSession
     private BattleLiveMaximumHp ObserveMaximumHitPoints(BattleCombatant actor)
     {
         bool maximum = actor.IsActive && !actor.Suspended && actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null && actor.MaximumHp == 9999;
-        bool admittedAlly = actor.Slot is { Side: BattleSide.Allies } slot && (UsesExpandedRoster || slot.Position < NativeBattleSlots.AllyCount);
-        int recordCount = UsesExpandedRoster ? definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount : NativeCharacterVitals.ExtendedRecordCount;
+        bool admittedAlly = actor.Slot is { Side: BattleSide.Allies } slot;
+        int recordCount = definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount;
         return BattleLiveObservation.MaximumHp(actor.Id, actor.MagicRecordId, maximum, admittedAlly, recordCount);
     }
 
@@ -106,5 +106,4 @@ public sealed partial class BattleSession
     public ushort EntryFlags => definition.NativeFlags;
     public int? EntryStageId => definition.StageId;
     public long? EntryClockCalls => definition.NativeExamTimerAtEntry?.ClockCalls;
-    public NativeCrtRandomState? CurrentCrtRandom => nativeCrtRandom;
 }

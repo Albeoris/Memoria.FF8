@@ -22,44 +22,20 @@ public sealed record BattleComponentHeldScreenBlendObservation(ushort Effect, lo
 {
     [JsonIgnore]
     public bool IsEligible => ScreenBlend is not null && Owners is not null && NativeActive == 0 && CanonicalReturnedTask == 0 && PhysicalCommandBanksEmpty && PhysicalResidentCount == 1 && Head == ScreenBlend.Slot && Tail == ScreenBlend.Slot && ScreenBlend.IsHeld && ResidentFingerprint == ScreenBlend.Fingerprint && !RawBlockers.IsDefault && RawBlockers.Length == 1 && RawBlockers[0] == "effect-or-auxiliary-task" && Owners.AuxiliaryHead && BattleComponentOwnerClosure.AreNonAuxiliaryOwnersReleased(Owners);
+
 }
 
 public sealed record BattleComponentHeldScreenBlendCertificate(string CompletionKind, bool Completed, bool Drained, bool ResidentTasksRemain, bool HeldRenderWorkRemains, ushort Effect, string SourceSha256, BattleDiagnosticEffectDispatch? NativeDispatch, BattleComponentAdmissionIdentity? NativeAdmission, BattleComponentHeldScreenBlendObservation First, BattleComponentHeldScreenBlendObservation Last, long FirstPresentedFrame, long LastPresentedFrame, long TailPresentedFrames, long NativeCallbacksAdvanced);
 
 public sealed partial class BattleSession
 {
-    /// <summary>Observe the original resident constant screen blend; neither release it nor stop its native rectangle publication.</summary>
     public BattleComponentHeldScreenBlendObservation? ObserveComponentHeldScreenBlend(ushort expectedEffect)
     {
-        if (expandedPresentationProcess is { } hosted)
-        {
-            return ObserveDiagnosticDrainBlockers() is ["effect-or-auxiliary-task"] ? hosted.ObserveComponentHeldScreenBlend(expectedEffect) : null;
-        }
-        if (NativeGraphics is not { OriginalEffect: { ReturnedDescriptor: 0 } selected } graphics || selected.RequestedEffect != expectedEffect || selected.Binding.Effect != expectedEffect || NativeEffectMemory is not { Active: 0 } memory)
+        if (Presentation is not { } process || ObserveDiagnosticDrainBlockers() is not ["effect-or-auxiliary-task"])
         {
             return null;
         }
-        nativeActionPackets.Validate();
-        NativeBattleAuxiliaryState auxiliary = graphics.Auxiliary;
-        auxiliary.Validate();
-        int[] active = Enumerable.Range(0, auxiliary.Slots.Length).Where(slot => (auxiliary.Slots[slot].Flags & 1) != 0).ToArray();
-        if (active.Length != 1 || auxiliary.Head != active[0] || auxiliary.Tail != active[0])
-        {
-            return null;
-        }
-        int index = active[0];
-        NativeBattleAuxiliaryTask task = auxiliary.Slots[index];
-        if (task.Kind != NativeBattleAuxiliaryKind.ScreenBlend501E80)
-        {
-            return null;
-        }
-        // The blend reads only the timing and color lanes. A reused slot can still retain another callback's operand program.
-        BattleComponentHeldScreenBlendTask held = new(index, task.Flags, task.State, task.Next, task.Kind, task.UnknownByteMask, false, task.Payload);
-        if (!held.IsHeld)
-        {
-            return null;
-        }
-        BattleComponentHeldScreenBlendObservation observation = new(expectedEffect, graphics.Callback, 0, checked((uint)memory.ReadReturnedTask5044B0()), CaptureDiagnosticInvocationOwnerState(graphics), DiagnosticPhysicalCommandBanksMatch(null), active.Length, auxiliary.Head, auxiliary.Tail, held, held.Fingerprint, ObserveDiagnosticDrainBlockers().ToImmutableArray());
-        return observation.IsEligible ? observation : null;
+        return process.ObserveComponentHeldScreenBlend(expectedEffect, CaptureDiagnosticInvocationOwnerState(process.Graphics),
+            DiagnosticPhysicalCommandBanksMatch(null), ["effect-or-auxiliary-task"]);
     }
 }

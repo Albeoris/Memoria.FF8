@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -33,23 +34,13 @@ public sealed partial class BattleSession
         BattleModelOwner owner = RequirePresentationModelOwner(roster, actor);
         if (nativeShotProcesses.Count == 1 && nativeShotProcesses.TryGetValue(actor.Id, out BattleNativeShotState? state) && state.ActionId == invocation.Command.NativeAction?.ActionId)
         {
-            return new(owner, actor.Id, token, callback, state.Phase);
+            return new(owner, actor.Id, token, callback, state.Phase, state);
         }
         if (nativeShotProcesses.Count == 0 && !CanNativeBattleActorAct(actor))
         {
             return new(owner, actor.Id, token, callback, null);
         }
         return null;
-    }
-
-    private void EmitExpandedHostedShotReadiness(uint callback)
-    {
-        NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Hosted Shot readiness requires current frame facts.");
-        if (services.Shot is not { } shot || shot.Callback != callback)
-        {
-            throw new InvalidDataException("Native Shot readiness requires its single current hosted widget owner.");
-        }
-        services.Emit(new NativeBattleShotReadinessReached(shot));
     }
 
     private void ApplyExpandedHostedShotReadiness(NativeBattleModelLifecycleServices services, NativeBattleShotReadinessReached receipt, long? actionToken)
@@ -73,9 +64,56 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Shot readiness does not match its current widget phase.");
         }
-        if (state.Phase != BattleNativeShotPhase.Ending)
+    }
+
+    private NativeBattleShotWidgetFacts? ReadNativeShotWidgetFacts()
+    {
+        if (nativeShotProcesses.Count != 1)
         {
-            nativeShotProcesses[actor.Id] = state with { Phase = BattleNativeShotPhase.Ready };
+            return null;
+        }
+        (string actorId, BattleNativeShotState state) = nativeShotProcesses.Single();
+        return new(CreatePresentationModelOwner(GetActor(actorId)), actorId, state);
+    }
+
+    private void ApplyNativeShotWidgetUpdate(NativeBattleShotWidgetUpdated update)
+    {
+        NativeBattleShotWidgetFacts facts = update.Facts;
+        NativeBattleShotWidgetStep step = update.Step;
+        if (!nativeShotProcesses.TryGetValue(facts.ActorId, out BattleNativeShotState? live) ||
+            live != facts.State || CreatePresentationModelOwner(GetActor(facts.ActorId)) != facts.Owner)
+        {
+            throw new InvalidDataException("Shot window service lost its current logical input owner.");
+        }
+        BattleCombatant actor = GetActor(facts.ActorId);
+        BattleAttackCommand? queued = null;
+        byte ammunition = live.RemainingAmmo;
+        if (step.Fired || step.QueueClosingCommand)
+        {
+            ushort command = step.Fired ? (ushort)237 : (ushort)238;
+            BattleNativeAction action = FindInstalledNativeAction((byte)command, live.ActionId);
+            ValidateNativeActionContract(action);
+            queued = PrepareExpandedShot(actor, ReadExpandedShotTarget(live), action, step.Fired ? NativeLimitCallback.ShotEffect : NativeLimitCallback.ShotEnding);
+            if (step.Fired)
+            {
+                _ = ConsumeNativeItem(live.ActionId + 101);
+                ammunition = checked((byte)(ammunition - 1));
+            }
+        }
+        BattleNativeShotPhase phase = step.Widget.Phase >= 8 ? BattleNativeShotPhase.Ending
+            : step.Fired ? BattleNativeShotPhase.AwaitingEffect : step.Ready ? BattleNativeShotPhase.Ready : live.Phase;
+        BattleTimedInputUiPhase ui = step.Unregistered ? BattleTimedInputUiPhase.Closed
+            : step.Widget.Visible && phase != BattleNativeShotPhase.Ending ? BattleTimedInputUiPhase.Active
+            : phase == BattleNativeShotPhase.Ending ? BattleTimedInputUiPhase.Closing : BattleTimedInputUiPhase.Opening;
+        nativeShotProcesses[facts.ActorId] = live with { Widget = step.Widget, RemainingTimer = step.Widget.RemainingTimer, RemainingAmmo = ammunition, FireRequested = live.FireRequested && !step.Fired && phase != BattleNativeShotPhase.Ending, Phase = phase, Ui = new(ui) };
+        if (queued is not null)
+        {
+            PublishExpandedShot(actor, queued);
+        }
+        if (step.Unregistered && live.ClosingCommandCompleted)
+        {
+            nativeShotProcesses.Remove(facts.ActorId);
+            nativeLimitLevels.Remove(facts.ActorId);
         }
     }
 }

@@ -109,29 +109,29 @@ public sealed class NativeBattleModelGroupMaterialTests
                 clone = Advance(clone);
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             }
-            NativeBattleLogicalPacket[] actual = battle.NativeGraphics!.PrimitiveFrame!.Pending.Packets.Where(packet => packet.Reference.ByteOffset >= cursor).OrderBy(packet => packet.Reference.ByteOffset).ToArray();
+            NativeBattleLogicalPacket[] actual = battle.Presentation!.Graphics.PrimitiveFrame!.Pending.Packets.Where(packet => packet.Reference.ByteOffset >= cursor).OrderBy(packet => packet.Reference.ByteOffset).ToArray();
             Assert.Equal(expected.Length, actual.Length);
             for (int packet = 0; packet < expected.Length; packet++)
             {
                 Assert.Equal(expected[packet].Words.Skip(1), actual[packet].Words.Skip(1));
             }
             emitted += actual.Length;
-            Assert.Equal(callback < 14, (battle.NativeGraphics.Auxiliary.Slots[slot].Flags & 1) != 0);
-            Assert.Equal((byte)(callback + 1), battle.NativeGraphics.Auxiliary.Slots[slot].Payload[7]);
+            Assert.Equal(callback < 14, (battle.Presentation!.Graphics.Auxiliary.Slots[slot].Flags & 1) != 0);
+            Assert.Equal((byte)(callback + 1), battle.Presentation!.Graphics.Auxiliary.Slots[slot].Payload[7]);
         }
         Assert.True(emitted > 0);
     }
 
     private static BattleSession Advance(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = Invoke<NativeBattleGraphicsState>(battle, "AdvanceNativeAuxiliary", battle.NativeGraphics!);
+        NativeBattleGraphicsState graphics = Invoke<NativeBattleGraphicsState>(battle, "AdvanceNativeAuxiliary", battle.Presentation!.Graphics);
         PublishGraphics(battle, graphics);
         return battle;
     }
 
     private static void PublishGraphics(BattleSession battle, NativeBattleGraphicsState graphics)
     {
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);
     }
 
     private static BattleSession Restore(BattleSnapshot snapshot)

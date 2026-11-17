@@ -14,11 +14,11 @@ public sealed class NativeBattlePreparedPresentationTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        NativeBattleEffectMemory memory = battle.NativeEffectMemory!.BeginLoad(0);
+        NativeBattleEffectMemory memory = battle.Presentation!.Memory.BeginLoad(0);
         NativeBattlePcUiFrame firstUi = new([], [], [1], 640, 480);
         memory = memory with { Textures = memory.Textures!.Upload45BD30(0, 0, 1, 1, [11, 0]), UiImmediateFrame = firstUi };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(battle.Presentation!, memory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, OriginalGraphics([]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
         battle.RefreshPreparedPresentation();
         NativeBattlePreparedPresentation first = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
         long captures = memory.Arena!.Working.CaptureBytes;
@@ -26,7 +26,7 @@ public sealed class NativeBattlePreparedPresentationTests
         NativeBattlePcUiFrame secondUi = new([], [], [2], 640, 480);
         memory = memory with { Textures = memory.Textures.Upload45BD30(0, 0, 1, 1, [12, 0]), UiImmediateFrame = secondUi };
         memory.Arena.WriteUInt32(16, 123);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(battle.Presentation!, memory);
         battle.RefreshPreparedPresentation();
         NativeBattlePreparedPresentation second = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
 

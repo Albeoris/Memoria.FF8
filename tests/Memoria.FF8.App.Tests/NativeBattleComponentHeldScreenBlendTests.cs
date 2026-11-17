@@ -22,11 +22,11 @@ public sealed class NativeBattleComponentHeldScreenBlendTests(ITestOutputHelper 
         using IDisposable scope = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         for (int callback = 0; callback < 1400; callback++)
         {
-            NativeBattleGraphicsState? beforeGraphics = battle.NativeGraphics;
-            NativeBattleEffectMemory? beforeMemory = battle.NativeEffectMemory;
-            BattleComponentHeldScreenBlendObservation? observation = battle.ObserveComponentHeldScreenBlend(effect);
-            Assert.Same(beforeGraphics, battle.NativeGraphics);
-            Assert.Same(beforeMemory, battle.NativeEffectMemory);
+            NativeBattleGraphicsState? beforeGraphics = battle.Presentation?.Graphics;
+            NativeBattleEffectMemory? beforeMemory = battle.Presentation?.Memory;
+            BattleComponentHeldScreenBlendObservation? observation = battle.Presentation!.ObserveComponentHeldScreenBlend(effect);
+            Assert.Same(beforeGraphics, battle.Presentation?.Graphics);
+            Assert.Same(beforeMemory, battle.Presentation?.Memory);
             if (observation is not null)
             {
                 Assert.True(observation.IsEligible);
@@ -43,13 +43,13 @@ public sealed class NativeBattleComponentHeldScreenBlendTests(ITestOutputHelper 
                 {
                     direct.Tick();
                     cold.Tick();
-                    BattleComponentHeldScreenBlendObservation next = Assert.IsType<BattleComponentHeldScreenBlendObservation>(direct.ObserveComponentHeldScreenBlend(effect));
+                    BattleComponentHeldScreenBlendObservation next = Assert.IsType<BattleComponentHeldScreenBlendObservation>(direct.Presentation!.ObserveComponentHeldScreenBlend(effect));
                     Assert.Equal(observation.ResidentFingerprint, next.ResidentFingerprint);
                     Assert.True(next.GraphicsCallback > observation.GraphicsCallback);
                     BattleSnapshot state = direct.Capture();
                     Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(auxiliary, JsonSerializer.Serialize(state.NativeGraphics!.Auxiliary));
-                    Assert.Equal(state.NativeEffectMemory!.Textures!.ReadVram(), cold.NativeEffectMemory!.Textures!.ReadVram());
+                    Assert.Equal(state.NativeEffectMemory!.Textures!.ReadVram(), cold.Presentation!.Memory.Textures!.ReadVram());
                     Assert.Equal(new[] { "effect-or-auxiliary-task" }, direct.ObserveDiagnosticDrainBlockers());
                 }
                 Assert.Equal(frozen, JsonSerializer.Serialize(terminal));

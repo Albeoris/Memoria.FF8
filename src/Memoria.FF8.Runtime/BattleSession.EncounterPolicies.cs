@@ -18,14 +18,20 @@ public sealed partial class BattleSession
         }
         if (role.StartsWith("scene-", StringComparison.Ordinal))
         {
-            return combatants.SingleOrDefault(actor => !actor.IsPlayer && actor.SceneSlot?.ToString(System.Globalization.CultureInfo.InvariantCulture) == role[6..] && !nativeAllocations.Any(allocation => allocation.Id == actor.Id))?.Id;
+            return enemies.LastOrDefault(actor => actor.IsActive && actor.SceneSlot?.ToString(System.Globalization.CultureInfo.InvariantCulture) == role[6..] &&
+                !nativeAllocations.Any(allocation => allocation.Id == actor.Id && allocation.EncounterBatchId is not null))?.Id;
         }
-        return nativeAllocations.SingleOrDefault(allocation => allocation.EncounterRole == role)?.Id ?? (byId.ContainsKey(role) ? role : null);
+        return nativeAllocations.LastOrDefault(allocation => allocation.EncounterRole == role && GetActor(allocation.Id).IsActive)?.Id ?? (byId.ContainsKey(role) ? role : null);
     }
 
     private string EncounterRoleOf(string actorId)
     {
-        return definition.EncounterMod?.OriginalActorId == actorId ? "original" : nativeAllocations.SingleOrDefault(allocation => allocation.Id == actorId)?.EncounterRole ?? actorId;
+        if (definition.EncounterMod?.OriginalActorId == actorId)
+        {
+            return "original";
+        }
+        return nativeAllocations.SingleOrDefault(allocation => allocation.Id == actorId)?.EncounterRole ??
+            (byId.GetValueOrDefault(actorId) is { IsPlayer: false, SceneSlot: int scene } ? $"scene-{scene}" : actorId);
     }
 
     private string? EncounterPolicyOf(BattleCombatant actor)
@@ -45,7 +51,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<EncounterPolicyActor> EncounterPolicyCandidates()
     {
-        return combatants.Where(actor => UsesExpandedRoster ? actor.Slot is not null : actor.NativeActorIndex is >= 0 and < 7).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
+        return combatants.Where(actor => actor.Slot is not null).Select(actor => new EncounterPolicyActor(actor.Id, EncounterRoleOf(actor.Id), actor.IsPlayer, actor.IsAlive, actor.IsActive, (NativeBattleStatusBits(actor) & 0x80) != 0, !actor.Untargetable, NativeBattleStatusBits(actor), NativeSavedStatusBits(actor))).ToImmutableArray();
     }
 
     private int NextEncounterRandomIndex(int count)
@@ -96,32 +102,24 @@ public sealed partial class BattleSession
         }
         if (decision.Kind == EncounterCompiledActionKind.SummonGroup)
         {
-            if (encounterPolicies.PendingSummon is not null || encounterAllocation is not null)
+            if (encounterPolicies.PendingSummon is not null || encounterAllocation is { Phase: not BattleEncounterAllocationPhase.Complete })
             {
                 throw new InvalidDataException("A summon policy attempted to repeat an already admitted encounter allocation.");
             }
-            if (Enumerable.Range(3, 4).Count(index => !combatants.Any(candidate => candidate.NativeActorIndex == index && candidate.IsActive)) < decision.Spawns.Length)
+            if (ReadFreeEncounterRosterSlots(decision.Spawns.Length).Length != decision.Spawns.Length)
             {
                 throw new InvalidDataException("The authored summon exceeds the available simultaneous enemy capacity.");
             }
-            if (decision.Spawns.Any(spawn => mod.Templates[spawn.Template].InheritFrom != EncounterRoleOf(actor.Id)))
+            foreach (EncounterCompiledSpawn spawn in decision.Spawns)
             {
-                throw new InvalidDataException("An atomic summon batch requires every template to inherit from its acting source allocation.");
+                _ = ReadEncounterCopySource(actor, spawn.Template);
             }
             BattleNativeAction control = CreateEncounterSummonControl();
             BattleAttackCommand command = new(actor.Id, actor.Id, SelectBattleTarget(actor), BattleAbility.EnemyAbility, 9) { NativeAiCallbackStage = 1, NativeQueuedCommand = 0, NativeSequence = mod.CastingSequence, NativeAction = control };
             QueueEncounterNativeEvents(actor, decision.OwnTurn);
             BattleEncounterPolicyState admitted = encounterPolicies with { PendingSummon = decision, Cursors = encounterPolicies.Cursors.SetItem(actor.Id, cursor.Admit()) };
-            if (producingExpandedAiCallback)
-            {
-                encounterPolicies = admitted;
-                ProduceExpandedAiCallbackCommand(command);
-            }
-            else
-            {
-                EnqueueNativePacket(actor, command, "Summon");
-                encounterPolicies = admitted;
-            }
+            encounterPolicies = admitted;
+            ProduceExpandedAiCallbackCommand(command);
         }
         else
         {
@@ -152,13 +150,11 @@ public sealed partial class BattleSession
         EncounterCompiledSpell spell = decision.Spell ?? throw new InvalidDataException("An admitted cast lacks its compiled native spell.");
         BattleTargetSelection SelectTargets(IEnumerable<string> ids)
         {
-            return UsesExpandedRoster
-                ? new BattleTargetSelection.Explicit(ids.Select(id => TargetActorReference(GetActor(id))))
-                : NativeBattleTargetRequestAdapter.SelectOriginalSlots(ids.Select(id => NativeBattleSlots.Decode(GetActor(id).RequireNativeActorIndex())));
+            return new BattleTargetSelection.Explicit(ids.Select(id => TargetActorReference(GetActor(id))));
         }
         BattleTargetRequest Request(BattleTargetSelection selection)
         {
-            return new(selection, UsesExpandedRoster ? BattleTargetEligibility.Living : BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
+            return new(selection, BattleTargetEligibility.Living, false, BattleTargetReplacement.UseCurrentBattlePolicy);
         }
 
         BattleTargetSelection firstSelection = SelectTargets(decision.TargetIds);
@@ -219,7 +215,7 @@ public sealed partial class BattleSession
                 selections.Add(SelectTargets(next.TargetIds));
                 targets = targets.Concat(next.TargetIds).Distinct(StringComparer.Ordinal).ToImmutableArray();
             }
-            repeats = UsesExpandedRoster && selections.Count == 1 ? [] : selections.ToImmutable();
+            repeats = selections.Count == 1 ? [] : selections.ToImmutable();
         }
         BattleAttackCommand command = new(actor.Id, targets[0], Request(firstSelection), BattleAbility.Magic, spell.NativeAction.ActionId)
         {
@@ -230,45 +226,14 @@ public sealed partial class BattleSession
             MagicCasts = repeats.Select(selection => new BattleMagicCastInvocation(Request(selection), selection,
                 selection is BattleTargetSelection.Explicit { Actors: [var first, ..] } ? first : TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
         };
-        if (UsesExpandedRoster)
-        {
-            if (producingExpandedAiCallback)
-            {
-                ProduceExpandedAiCallbackCommand(command);
-            }
-            else
-            {
-                actor.Atb = 0;
-                actor.IsBusy = true;
-                actions.Enqueue(command);
-            }
-            return targets;
-        }
-
-        NativeBattleActionProductionContext? previous = nativeProductionContext;
-        BattleActionHeaderReference firstHeader = nativeActionPackets.NextHeader;
-        if (repeats.Length > 1)
-        {
-            nativeProductionContext = new(0, 1, false, 0x47DE70);
-        }
-        try
-        {
-            EnqueueNativePacket(actor, command, spell.CanonicalName);
-            if (repeats.Length > 1)
-            {
-                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, checked((byte)nativeActionPackets.PublishedHeaders().Count(entry => entry.Reference.Ordinal >= firstHeader.Ordinal && entry.Slot.Command == 2)));
-            }
-        }
-        finally
-        {
-            nativeProductionContext = previous;
-        }
+        ProduceExpandedAiCallbackCommand(command);
         return targets;
     }
 
     private void CompleteEncounterPolicyPresentation(BattleActionPresentation action)
     {
-        if (encounterPolicies?.PendingSummon is not { } summon || definition.EncounterMod is not { } mod || action.ActorId != mod.OriginalActorId || action.NativeQueuedCommand != 0 || action.ActionId != 9 || encounterAllocation is not null)
+        if (encounterPolicies?.PendingSummon is not { } summon || EncounterPolicyOf(GetActor(action.ActorId)) != summon.PolicyId ||
+            action.NativeQueuedCommand != 0 || action.ActionId != 9 || encounterAllocation is { Phase: not BattleEncounterAllocationPhase.Complete })
         {
             return;
         }
@@ -282,7 +247,7 @@ public sealed partial class BattleSession
 
     private BattleNativeAction ValidateEncounterSummonControl(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, BattleTargetRequest request)
     {
-        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || actor.NativeActorIndex is null || request.Selection is not BattleTargetSelection.Explicit selection || selection.Actors.Length != 1 || selection.Actors[0] != TargetActorReference(actor))
+        if (definition.EncounterMod is not { } mod || EncounterPolicyOf(actor) is not string policy || !mod.Policies[policy].Rules.Any(rule => rule.Action.Kind == EncounterCompiledActionKind.SummonGroup) || actor.Id != targetId || ability != BattleAbility.EnemyAbility || actionId != 9 || request.Selection is not BattleTargetSelection.Explicit selection || selection.Actors.Length != 1 || selection.Actors[0] != TargetActorReference(actor))
         {
             throw new InvalidDataException("Saved encounter presentation control requires its declared SummonGroup policy and exact self target.");
         }
@@ -325,51 +290,35 @@ public sealed partial class BattleSession
         ValidateEncounterNativeTerminalWitness(state);
     }
 
-    internal void AdvanceHostedEncounterPolicySpawn(BattleSession presentation)
-    {
-        presentation.NativeGraphics = AdvanceEncounterPolicySpawn(presentation.RequireNativeGraphics(), presentation);
-        encounterArrivals = presentation.encounterArrivals;
-    }
-
-    private NativeBattleGraphicsState AdvanceEncounterPolicySpawn(NativeBattleGraphicsState graphics, BattleSession presentation)
+    private void AdvanceHostedEncounterPolicySpawn(BattlePresentationProcess process)
     {
         if (encounterPolicies?.PendingSummon is not { } summon || definition.EncounterMod is not { } mod || encounterAllocation is not { } batch)
         {
-            return graphics;
+            return;
         }
         if (batch.Phase == BattleEncounterAllocationPhase.Ready)
         {
             List<EncounterArrivalTrack> tracks = [];
-            NativeBattleModelTransform original = graphics.ActorModels.Get(CreatePresentationModelOwner(GetActor(batch.SourceActorId))).Transform ?? throw new InvalidDataException("Encounter arrival requires the source actor's native placement.");
+            List<NativeBattleVector> offsets = [];
+            BattleModelOwner anchor = CreatePresentationModelOwner(GetActor(batch.SourceActorId));
             for (int index = 0; index < batch.ActorIds.Length; index++)
             {
                 EncounterCompiledSpawn spawn = summon.Spawns[index];
                 EncounterCompiledTemplate template = mod.Templates[spawn.Template];
                 EncounterCompiledPresentation arrival = mod.Presentations[template.Arrival];
                 EncounterCompiledPlacement placement = mod.Placements[spawn.Anchor];
-                BattleModelOwner physical = CreatePresentationModelOwner(GetActor(batch.ActorIds[index]));
-                NativeBattleVector Offset(NativeBattleVector value)
-                {
-                    return new(checked((short)(value.X + (int)MathF.Round(placement.X))), checked((short)(value.Y + (int)MathF.Round(placement.Y))), checked((short)(value.Z + (int)MathF.Round(placement.Z))));
-                }
-                NativeBattleGraphicsModel model = graphics.ActorModels.Get(physical);
-                NativeBattleModelTransform transform = model.Transform ?? throw new InvalidDataException("Encounter arrival requires the copy's initialized native transform.");
-                graphics = graphics with { ActorModels = graphics.ActorModels.Set(physical, model with { Transform = transform with { Initial20 = Offset(original.Initial20), Position28 = Offset(original.Position28) } }) };
-                tracks.Add(new(batch.ActorIds[index], byte.Parse(arrival.Clip, System.Globalization.CultureInfo.InvariantCulture), checked((byte)arrival.StartFrame), checked((byte)arrival.EndFrame), graphics.Callback, OpacityFrom: (float)arrival.OpacityFrom, OpacityTo: (float)arrival.OpacityTo));
+                offsets.Add(new(checked((short)MathF.Round(placement.X)), checked((short)MathF.Round(placement.Y)), checked((short)MathF.Round(placement.Z))));
+                tracks.Add(new(batch.ActorIds[index], byte.Parse(arrival.Clip, System.Globalization.CultureInfo.InvariantCulture), checked((byte)arrival.StartFrame), checked((byte)arrival.EndFrame), process.Graphics.Callback, OpacityFrom: (float)arrival.OpacityFrom, OpacityTo: (float)arrival.OpacityTo));
             }
-            presentation.NativeGraphics = graphics;
-            presentation.StartEncounterArrival(tracks);
-            BeginEncounterAllocationArrival(presentation);
-            return presentation.NativeGraphics!;
+            process.StartEncounterArrival(tracks, anchor, offsets);
+            BeginEncounterAllocationArrival(process);
         }
-        if (batch.Phase == BattleEncounterAllocationPhase.Arriving && batch.ActorIds.All(presentation.EncounterArrivalComplete))
+        if (batch.Phase == BattleEncounterAllocationPhase.Arriving && batch.ActorIds.All(process.EncounterArrivalComplete))
         {
-            presentation.NativeGraphics = graphics;
             CompleteEncounterAllocationArrival();
             encounterPolicies = encounterPolicies with { PendingSummon = null };
-            return presentation.NativeGraphics!;
         }
-        return graphics;
+        encounterArrivals = process.CaptureEncounterArrivals();
     }
 
     private void CleanupEncounterPoliciesAtTerminal()
@@ -400,12 +349,6 @@ public sealed partial class BattleSession
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;
             actor.Atb = 0;
-            BattleModelOwner owner = CreatePresentationModelOwner(actor);
-            if (NativeGraphics is { } graphics && graphics.ActorModels.Contains(owner))
-            {
-                NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
-                NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
-            }
         }
         RemoveEncounterQueuedActions(retiring);
         encounterPolicies = state with { CleanedUp = true, PendingSummon = null };

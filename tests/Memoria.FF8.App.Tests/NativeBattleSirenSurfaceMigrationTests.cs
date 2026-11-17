@@ -71,16 +71,16 @@ public sealed class NativeBattleSirenSurfaceMigrationTests
                 second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
                 Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             }
-            NativeBattleModulePoolTask surface = Assert.Single(first.NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x73C1A0);
+            NativeBattleModulePoolTask surface = Assert.Single(first.Presentation!.Graphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x73C1A0);
             Assert.Equal((byte)1, surface.ReadByte(0x29));
             Assert.Equal(1, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(surface.Payload.AsSpan().Slice(0x94 - 12 + 4)));
             Assert.Equal((ushort)4, surface.ReadWord(0x8C));
             Assert.Equal((ushort)122, surface.ReadWord(0x90));
-            Assert.Contains(first.NativeEffectMemory!.Siren95!.Read(0x258E8A0, 0x188), value => value != 0);
-            Assert.Equal((short)0x600, first.NativeStage!.Groups[0].ColorDepth);
+            Assert.Contains(first.Presentation!.Memory.Siren95!.Read(0x258E8A0, 0x188), value => value != 0);
+            Assert.Equal((short)0x600, first.Presentation!.Stage.Groups[0].ColorDepth);
             using BattleAssets assets = new(game.GameDirectory);
-            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
             using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
             {
                 JsonSerializer.Serialize(stream, migrated);

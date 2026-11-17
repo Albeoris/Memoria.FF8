@@ -47,48 +47,33 @@ public sealed class NativeBattleControl110ResourcesTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         var (logical, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, expanded ? 4 : 3, expanded ? 5 : 4, 4, expanded);
-        BattleSession runner;
-        BattleSession? logicalOwner = null;
-        if (expanded)
+        BattleSession owner = new(logical, BattleAtbMode.TurnBased);
+        owner.AttachPresentation(new(selected));
+        BattlePresentationProcess runner = Assert.IsType<BattlePresentationProcess>(owner.Presentation);
+        for (int callback = 0; callback < 1200 && !runner.EntryReady; callback++)
         {
-            BattleSession owner = new(logical, BattleAtbMode.TurnBased);
-            logicalOwner = owner;
-            ExpandedBattlePresentationProcess process = new(owner, selected);
-            for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
-            {
-                process.Advance(owner);
-            }
-            Assert.True(process.EntryReady);
-            runner = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", PrivateInstance)!.GetValue(process));
+            owner.Tick();
         }
-        else
-        {
-            runner = new(selected, BattleAtbMode.TurnBased);
-            for (int callback = 0; callback < 1200 && !runner.NativeEntryReady; callback++)
-            {
-                runner.Tick();
-            }
-            Assert.True(runner.NativeEntryReady);
-        }
+        Assert.True(runner.EntryReady);
 
         NativeBattleGraphicsState graphics = runner.NativeGraphics!;
         BattleActorModels models = graphics.ActorModels;
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(models);
-        BattleModelOwner source = models.Owners.First(owner => owner.Side == BattleSide.Enemies);
-        BattleModelOwner[] allies = models.Owners.Where(owner => owner.Side == BattleSide.Allies).ToArray();
+        BattleModelOwner source = models.Owners.First(actor => actor.Side == BattleSide.Enemies);
+        BattleModelOwner[] allies = models.Owners.Where(actor => actor.Side == BattleSide.Allies).ToArray();
         BattleModelOwner[] recipients = Enumerable.Range(0, count).Select(index => allies[index % allies.Length]).ToArray();
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(models.Roster, runner.NativeActionPackets.ExportRetained(), aliases);
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(models.Roster, runner.ActionPackets.ExportRetained(), aliases);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(source, 8, 4, 0, 30, 110, null));
         foreach (BattleModelOwner recipient in recipients)
         {
             (packets, _) = packets.AppendContact(new(new(recipient, 1, 0, 0, 0, 0, 0), null));
         }
         (packets, _) = packets.Publish(count);
-        typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(runner, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", PrivateInstance)!.SetValue(runner, packets);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([110])[109];
         var effect = new NativeBattleOriginalEffectState(110, 112, binding, new(source, 0, BattleModelTargets.From(recipients), header, 0, 0), 0);
-        MethodInfo enter = typeof(BattleSession).GetMethod("EnterNativeControl110", PrivateInstance)!;
-        MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeControl110", PrivateInstance)!;
+        MethodInfo enter = typeof(BattlePresentationProcess).GetMethod("EnterNativeControl110", PrivateInstance)!;
+        MethodInfo advance = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeControl110", PrivateInstance)!;
         SetMemory(runner.NativeEffectMemory! with { Arena = NativeBattleEffectArena.Clear() });
         graphics = Assert.IsType<NativeBattleGraphicsState>(enter.Invoke(runner, [graphics with { OriginalEffect = effect }]));
 
@@ -97,21 +82,15 @@ public sealed class NativeBattleControl110ResourcesTests
         bool hosted = false;
         for (int callback = 0; callback < 160 && graphics.OriginalEffect!.ReturnedDescriptor != 0; callback++)
         {
-            FieldInfo hostedServices = typeof(BattleSession).GetField("hostedFrameServices", PrivateInstance)!;
-            if (logicalOwner is not null)
-            {
-                hostedServices.SetValue(runner, logicalOwner.CaptureModelLifecycleServices(models.Roster));
-            }
+            FieldInfo hostedServices = typeof(BattlePresentationProcess).GetField("hostedFrameServices", PrivateInstance)!;
+            hostedServices.SetValue(runner, owner.CaptureModelLifecycleServices(models.Roster));
             try
             {
                 graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(runner, [graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() }]));
             }
             finally
             {
-                if (logicalOwner is not null)
-                {
-                    hostedServices.SetValue(runner, null);
-                }
+                hostedServices.SetValue(runner, null);
             }
             if (graphics.OriginalEffect!.Pools.Length != 6)
             {
@@ -120,7 +99,7 @@ public sealed class NativeBattleControl110ResourcesTests
             NativeBattleEffectTaskPool targetPool = graphics.OriginalEffect.Pools[1];
             NativeBattleModulePoolTask director = graphics.OriginalEffect.Pools[5].Slots[0];
             int directorAge = director.ReadWord(12) - 1;
-            Assert.Equal(expanded ? Math.Max(2, count) : 2, targetPool.Slots.Length);
+            Assert.Equal(Math.Max(2, count), targetPool.Slots.Length);
             hosted |= NativeBattlePresentationTaskStorage.IsHostedBank(targetPool.BankAddress, 44, targetPool.Slots.Length);
             for (int? slot = targetPool.Head; slot is int index; slot = targetPool.Slots[index].Next)
             {
@@ -129,7 +108,7 @@ public sealed class NativeBattleControl110ResourcesTests
                 BattleModelOwner recipient = task.ReadExecutionReference<BattleExecutionReference.Model>(28, 4).Owner;
                 births.TryAdd(ordinal, (directorAge, recipient));
             }
-            if (expanded && count > 2 && !copied && directorAge >= 24)
+            if (count > 2 && !copied && directorAge >= 24)
             {
                 var frozen = NativeBattleStorageSnapshots.Capture(new ControlContinuation(graphics, runner.NativeEffectMemory!));
                 ControlContinuation restored = NativeBattleStorageSnapshots.Restore(frozen);
@@ -139,15 +118,10 @@ public sealed class NativeBattleControl110ResourcesTests
                 copied = true;
             }
         }
-        int reached = expanded ? count : 2;
-        Assert.Equal(Enumerable.Range(0, reached), births.Keys);
-        Assert.Equal(recipients.Take(reached), births.Values.Select(value => value.Owner));
+        Assert.Equal(Enumerable.Range(0, count), births.Keys);
+        Assert.Equal(recipients, births.Values.Select(value => value.Owner));
         Assert.Equal((0, recipients[0]), births[0]);
-        if (!expanded)
-        {
-            Assert.Equal(count == 2 ? 45 : 35, births[1].Frame);
-        }
-        else if (count > 2)
+        if (count > 2)
         {
             Assert.True(hosted);
             Assert.True(copied);
@@ -161,7 +135,7 @@ public sealed class NativeBattleControl110ResourcesTests
 
         void SetMemory(NativeBattleEffectMemory memory)
         {
-            typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(runner, memory);
+            typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(runner, memory);
         }
     }
 

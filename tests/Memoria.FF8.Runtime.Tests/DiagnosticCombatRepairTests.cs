@@ -298,7 +298,7 @@ public sealed class DiagnosticCombatRepairTests
         BattleModelRoster roster = new([owner]);
         NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), owner)]);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new NativeBattleGraphicsModel(0), BattleContactTaskStorageContract.OriginalArena);
-        Property(nameof(BattleSession.NativeGraphics)).SetValue(session, graphics);
+        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(session, graphics);
         return session;
     }
 

@@ -18,7 +18,7 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
         using BattleAssets assets = new(directory!);
         BattleSnapshot input = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(source!))!;
         BattleSession battle = Restore(input);
-        BattleScenePresentation scene = new(assets, input.Definition, true);
+        BattleScenePresentation scene = new(assets, input.Definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_RINOA_PHYSICAL_EVIDENCE") ?? Path.GetTempPath(), "rinoa-physical-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Physical attack evidence: " + output);
@@ -42,11 +42,11 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                NativeBattleModuleState modules = battle.NativeGraphics!.ModuleEffects;
+                NativeBattleModuleState modules = battle.Presentation!.Graphics.ModuleEffects;
                 root |= modules.Slots.Any(task => task.Callback == 0x56F9C0 && (task.Flags & 1) != 0);
                 projectile |= modules.Slots.Any(task => task.Callback == 0x56FE10 && (task.Flags & 1) != 0);
                 sparks |= modules.Slots.Any(task => task.Callback == 0x56FCD0 && (task.Flags & 1) != 0);
-                ribbon |= battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Opcode == 0x3A);
+                ribbon |= battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Opcode == 0x3A);
                 NativeBattleModuleTask? flying = modules.Slots.FirstOrDefault(task => task.Callback == 0x56FE10 && (task.Flags & 1) != 0 && BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan()) >= 15);
                 if (!restoredFlight && flying is not null)
                 {
@@ -60,7 +60,7 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
                     Assert.True(ribbon);
                     Assert.True(restoredFlight);
                     Assert.True(battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp < initialHp);
-                    Assert.Equal(ReadOriginalModelCell(input.NativeGraphics!, 0).Flags0 & 0x200, ReadOriginalModelCell(battle.NativeGraphics, 0).Flags0 & 0x200);
+                    Assert.Equal(ReadOriginalModelCell(input.NativeGraphics!, 0).Flags0 & 0x200, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags0 & 0x200);
                     CompareNext("completed");
                     for (int wait = 0; wait < 400 && !battle.CanChoosePlayerCommand("party"); wait++)
                     {
@@ -74,8 +74,8 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
                     {
                         before = battle.Capture();
                         battle.Tick();
-                        repeatStarted |= battle.NativeGraphics!.ModuleEffects.Slots.Any(task => task.Callback == 0x56F9C0 && (task.Flags & 1) != 0);
-                        if (repeatStarted && battle.NativeGraphics.ModuleEffects.Head is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0)
+                        repeatStarted |= battle.Presentation!.Graphics.ModuleEffects.Slots.Any(task => task.Callback == 0x56F9C0 && (task.Flags & 1) != 0);
+                        if (repeatStarted && battle.Presentation!.Graphics.ModuleEffects.Head is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0)
                         {
                             CompareNext("repeat-completed");
                             repeatCompleted = true;
@@ -83,7 +83,7 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
                         }
                     }
                     Assert.True(repeatCompleted);
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, Callback = battle.NativeGraphics.Callback, root, projectile, sparks, ribbon, restoredFlight }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", battle.Frame, Callback = battle.Presentation!.Graphics.Callback, root, projectile, sparks, ribbon, restoredFlight }));
                     return;
                 }
             }
@@ -110,7 +110,7 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
             battle.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, input.Definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, input.Definition).Render(clone, 320, 224).ToArray());
             Save(name + "-next");
         }
     }

@@ -7,7 +7,7 @@ public sealed class NativeBattleEffect174ModelMemoryTests
     public void Rotation_word_does_not_overwrite_adjacent_angles_or_padding()
     {
         NativeBattleGraphicsModel model = Model();
-        NativeBattleGraphicsModel result = BattleSession.ApplyNativeEffect174ModelBytes(model, new(OriginalOwner(0), 12, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)-321)), 2));
+        NativeBattleGraphicsModel result = BattlePresentationProcess.ApplyNativeEffect174ModelBytes(model, new(OriginalOwner(0), 12, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)-321)), 2));
         Assert.Equal((short)-321, result.Rotation12);
         Assert.Equal(model.Rotation14, result.Rotation14);
         Assert.Equal(model.Rotation16, result.Rotation16);
@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect174ModelMemoryTests
     {
         NativeBattleGraphicsModel model = Model();
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)-11)).Write(2, BitConverter.GetBytes((short)22)).Write(4, BitConverter.GetBytes((short)-33)).Write(6, BitConverter.GetBytes((short)-77));
-        NativeBattleGraphicsModel result = BattleSession.ApplyNativeEffect174ModelBytes(model, new(OriginalOwner(0), 28, source, length));
+        NativeBattleGraphicsModel result = BattlePresentationProcess.ApplyNativeEffect174ModelBytes(model, new(OriginalOwner(0), 28, source, length));
         Assert.Equal(new NativeBattleVector(-11, 22, -33), result.Transform!.Position28);
         Assert.Equal(expectedW, result.Transform.Vertical34);
         Assert.Equal(model.Transform!.Scale38, result.Transform.Scale38);
@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect174ModelMemoryTests
     public void Full_angle_restore_preserves_unknown_padding_without_reading_it()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)-10)).Write(2, BitConverter.GetBytes((short)20)).Write(4, BitConverter.GetBytes((short)-30)).MarkUnknown(6, 2);
-        NativeBattleGraphicsModel result = BattleSession.ApplyNativeEffect174ModelBytes(Model(), new(OriginalOwner(0), 12, source, 8));
+        NativeBattleGraphicsModel result = BattlePresentationProcess.ApplyNativeEffect174ModelBytes(Model(), new(OriginalOwner(0), 12, source, 8));
         Assert.Equal((short)-10, result.Rotation12);
         Assert.Equal((short)20, result.Rotation14);
         Assert.Equal((short)-30, result.Rotation16);

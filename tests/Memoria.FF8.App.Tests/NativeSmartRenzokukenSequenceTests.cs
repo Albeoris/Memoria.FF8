@@ -47,7 +47,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
             }
             Assert.True(crisis > 0, "Select an available Limit through the same native refresh used by the command menu.");
             phase = "renzokuken";
-            uint?[] shadows = ReadOriginalModelCells(battle.NativeGraphics!).Select(model => model.Color44).ToArray();
+            uint?[] shadows = ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => model.Color44).ToArray();
             Assert.Contains(shadows, color => color is not null);
             battle.QueueNativePlayerCommand("party-0", target, 5, 0);
             Save("renzokuken-queued");
@@ -55,7 +55,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
             bool released = false;
             for (int count = 0; count < 4096; count++)
             {
-                if (successfulTriggers && battle.NativeRenzokukenTriggerWindowOpen && battle.NativeGraphics?.TriggerWidget is { } widget && triggeredContacts.Add(widget.Input.ContactIndex))
+                if (successfulTriggers && battle.NativeRenzokukenTriggerWindowOpen && battle.Presentation?.Graphics?.TriggerWidget is { } widget && triggeredContacts.Add(widget.Input.ContactIndex))
                 {
                     Assert.True(battle.TriggerNativeRenzokuken());
                     triggerCount++;
@@ -74,7 +74,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
                 {
                     Tick();
                 }
-                Assert.Equal(shadows, ReadOriginalModelCells(battle.NativeGraphics!).Select(model => model.Color44).ToArray());
+                Assert.Equal(shadows, ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => model.Color44).ToArray());
                 if (!started && battle.GetNativeRenzokuken("party-0") is not null)
                 {
                     started = true;
@@ -113,7 +113,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
             current.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         }
 
-        bool Released() => battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 };
+        bool Released() => battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 };
 
         void Tick()
         {
@@ -156,7 +156,7 @@ public sealed class NativeSmartRenzokukenSequenceTests
                     Assert.Equal(choice.TargetId, actual.TargetId);
                     actualChoice = true;
                 }
-                if (!spellInitialized && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == spellEffect)
+                if (!spellInitialized && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == spellEffect)
                 {
                     spellInitialized = true;
                     Save(name + "-spell-initialized");

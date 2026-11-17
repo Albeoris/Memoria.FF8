@@ -20,10 +20,6 @@ public sealed partial class BattleSession
 
     internal NativeBattleActionHeaderPreparation BuildExpandedActionHeaderPreparation(BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed = false)
     {
-        if (!UsesExpandedRoster)
-        {
-            throw new InvalidOperationException("Expanded action header preparation requires an expanded roster.");
-        }
         BattleCombatant actor = GetActor(command.ActorId);
         BattleModelOwner owner = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);
         if (command.NativeGraphic is { } graphic)
@@ -241,7 +237,7 @@ public sealed partial class BattleSession
 
     private void CompleteNativeComponentPacketPresentation(BattleActionPresentation command)
     {
-        if (NativeGraphics is null && ReferenceEquals(ActiveAction, command) && command.NativeHeader is not null && !actions.Any(queued => queued.NativeHeader is not null))
+        if (ReferenceEquals(ActiveAction, command) && command.NativeHeader is not null && !actions.Any(queued => queued.NativeHeader is not null))
         {
             //TODO(TD-009): Graphicsless components admit48D1F0 at their declared presentation completion instead of descriptor10.
             nativeActionScratch = nativeActionScratch with { ComponentCompletion = nativeActionScratch.ComponentCompletion ?? 0x47DDA0 };

@@ -382,6 +382,11 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    [JsonIgnore]
+    internal BattlePresentationSnapshot? PresentationContinuation { get; init; }
+    [JsonIgnore]
+    internal BattleSession.BattleLogicalContinuation? LogicalContinuation { get; init; }
+
     public BattleScanKnowledge ScanKnowledge { get; init; } = new();
     public BattleEncounterAllocationState? EncounterAllocation { get; init; }
     public BattleEncounterPolicyState? EncounterPolicies { get; init; }

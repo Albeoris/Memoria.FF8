@@ -57,7 +57,7 @@ public sealed class NativeBattleStageGeometryTests
 
     private static void SetStage(BattleSession battle, NativeBattleStageState state)
     {
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeStage))!.SetValue(battle, state);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeStage))!.SetValue(battle.Presentation!, state);
     }
 
     private static ImmutableArray<NativeBattleRawMesh> Geometry(BattleSession battle)

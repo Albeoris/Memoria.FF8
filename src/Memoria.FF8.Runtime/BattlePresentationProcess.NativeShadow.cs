@@ -1,0 +1,68 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattlePresentationProcess
+{
+    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16, uint? privateOrderingAddress = null, bool pilotScreenSpace = false, bool pilotContinuous = true, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
+    {
+        if (this.resources.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 0x20) != 0)
+        {
+            return graphics;
+        }
+        NativeBattleHostedModelPackets? hosted = ordinaryModel && privateOrderingAddress is null && callerPilotIdentity is null ? hostedModelPackets : null;
+        if (ordinaryModel)
+        {
+            ushort flags2 = model.Flags2 ?? throw new NotSupportedException("Native502D40 shadow requires modelWORD2.");
+            uint color = model.Color44 ?? throw new NotSupportedException("Native502D40 shadow requires modelDWORD44.");
+            if ((flags2 & 0x20) != 0 || color == 0x32000000)
+            {
+                return graphics;
+            }
+            NativeBattlePrimitiveProcess process = NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native502D40 shadow requires its actual packet bank/cursor.");
+            if (hosted is null && process.NativeRemaining500820() <= 0xF0)
+            {
+                return graphics;
+            }
+        }
+        NativeBattleGraphicsDefinition definition = this.resources.NativeGraphics ?? throw new NotSupportedException("Native5088A0 requires its actual graphics definition.");
+        bool gouraud = (definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native5088A0 requires its selected primitive-device capability profile; explicitly migrate the named snapshot.")).GouraudAlpha;
+        NativeBattleEffectLocalBounds bounds = model.GeometryBounds52 ?? throw new NotSupportedException("Native5088A0 requires its retained5086F0 model bounds.");
+        NativeBattleShadowSource source = definition.Rules.ShadowSource ?? throw new NotSupportedException("Native5088A0 requires its authenticated matrix/vector seeds.");
+        NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, bounds, projection.View ?? throw new NotSupportedException("Native5088A0 requires its prior published camera matrix."), source, gouraud);
+        NativeBattleModuleProjectedVertex[] vertices = shape.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shape.CameraMatrix, vertex, projection)).ToArray();
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5088A0 requires its retained packet memory.");
+        NativeBattlePrimitiveProcess packets = memory.PrimitiveProcess ?? throw new NotSupportedException("Native5088A0 requires its actual common packet cursor.");
+        NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5088A0 requires its initialized OT.");
+        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, depthShift);
+        if ((callerPilotIdentity ?? NativePilotModelIdentity(0x5088A0, owner)) is { } identity)
+        {
+            System.Numerics.Vector3 World(int corner) => pilotScreenSpace ? new(unchecked((short)vertices[corner].Screen), unchecked((short)(vertices[corner].Screen >> 16)), vertices[corner].Depth) : NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, shape.Vertices[corner]), projection);
+            int Depth(int corner) => 4 * (vertices[corner].Depth >> 2) - 300;
+            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = callerPilotIdentity.HasValue ? unchecked(identity.Primitive * 397 + index - 1) : index - 1 }, World(0), World(index), World(index + 1), default, 3, pilotContinuous) { ScreenSpace = pilotScreenSpace, DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0), UseSourceDepths = pilotScreenSpace || identity.Effect is 274 or 276 } } } : attempt).ToImmutableArray() };
+        }
+        string actorId = ReadGraphicsPresentationId(owner);
+        batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PresentationActorId = actorId } } : attempt).ToImmutableArray() };
+        if (hosted is not null)
+        {
+            NativeBattleLogicalOrdering ordering = hosted.Append(packets, frame.Pending, batch);
+            return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
+        }
+        if (privateOrderingAddress is uint table)
+        {
+            NativeBattleRinoa89Frame capture = new(memory, graphics.OriginalEffect ?? throw new NotSupportedException("Native private shadow capture requires its actual effect owner."), NativeFileStaging ?? throw new NotSupportedException("Native private shadow capture requires its actual staging owner."), nativeCrtRandom ?? throw new NotSupportedException("Native private capture requires its actual CRT owner."));
+            NativeBattleRinoa89CaptureStep captured = NativeBattleRinoa89Capture.AppendCommon(capture, frame.Pending, batch, table);
+            NativeEffectMemory = captured.Frame.Memory;
+            return graphics with { PrimitiveFrame = frame with { Pending = captured.Ordering } };
+        }
+        NativeBattleOriginalEffectState? selected = graphics.OriginalEffect;
+        if (callerPilotIdentity is { Effect: 276 } && selected is { Binding.Effect: 276 })
+        {
+            selected = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, packets.PacketBank!, packets.PacketBuffer, packets.ByteCursor!.Value, batch) };
+            graphics = graphics with { OriginalEffect = selected };
+        }
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(packets, frame.Pending, batch);
+        NativeEffectMemory = memory with { PrimitiveProcess = written.Process };
+        return graphics with { PrimitiveFrame = frame with { Pending = written.Ordering } };
+    }
+}

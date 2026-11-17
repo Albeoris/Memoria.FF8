@@ -43,7 +43,7 @@ public sealed class NativeRenzokukenDrawSequenceTests
             phase = "renzokuken";
             for (; renzokukenCallbacks < 4096; renzokukenCallbacks++)
             {
-                if (successfulTriggers && battle.NativeRenzokukenTriggerWindowOpen && battle.NativeGraphics?.TriggerWidget is { } widget && triggeredContacts.Add(widget.Input.ContactIndex))
+                if (successfulTriggers && battle.NativeRenzokukenTriggerWindowOpen && battle.Presentation?.Graphics?.TriggerWidget is { } widget && triggeredContacts.Add(widget.Input.ContactIndex))
                 {
                     Assert.True(battle.TriggerNativeRenzokuken());
                     triggerCount++;
@@ -80,7 +80,7 @@ public sealed class NativeRenzokukenDrawSequenceTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                initialized |= battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 };
+                initialized |= battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 };
                 if (initialized && Released())
                 {
                     released = true;
@@ -100,7 +100,7 @@ public sealed class NativeRenzokukenDrawSequenceTests
             throw;
         }
 
-        bool Released() => battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 };
+        bool Released() => battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 };
 
         void Publish(string name)
         {

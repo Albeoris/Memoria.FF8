@@ -18,7 +18,7 @@ public sealed class BattleSavedDuelPerformanceTests
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant actor = battle.Combatants.Single(candidate => candidate.IsPlayer && candidate.NativeLimit?.Command == 11);
         BattleCombatant target = battle.Combatants.First(candidate => !candidate.IsPlayer && candidate.IsAlive && candidate.IsActive);
-        TimeSpan elapsed = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan elapsed = BattlePresentationTiming.ElapsedForCallbacks(1);
         List<object> samples = [];
         int moves = 0;
         bool invoked = battle.GetNativeDuel(actor.Id) is not null;
@@ -75,7 +75,7 @@ public sealed class BattleSavedDuelPerformanceTests
             world.SynchronizeBattlePresentation();
             double synchronize = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             long synchronizeBytes = GC.GetAllocatedBytesForCurrentThread() - allocation;
-            NativeBattlePrimitiveFrame? primitiveFrame = battle.NativeGraphics?.PrimitiveFrame;
+            NativeBattlePrimitiveFrame? primitiveFrame = battle.Presentation?.Graphics?.PrimitiveFrame;
             samples.Add(new { Callback = callback, battle.Frame, Phase = battle.GetNativeDuel(actor.Id)?.Phase.ToString(), Moves = moves, Update = update, UpdateBytes = updateBytes, Synchronize = synchronize, SynchronizeBytes = synchronizeBytes, Commands = primitiveFrame?.LastCommands.Length ?? 0, ModuleDraws = primitiveFrame?.LastCommands.Where(command => command.Command.ModuleDraw.HasValue).Select(command => command.Command.ModuleDraw).Distinct().Count() ?? 0, PendingPackets = primitiveFrame?.Pending.Packets.Length ?? 0 });
             battle.AdvanceNativeDuelPresentation(elapsed, 0);
             if (moves == 1 && ++firstMoveCallbacks == 16)

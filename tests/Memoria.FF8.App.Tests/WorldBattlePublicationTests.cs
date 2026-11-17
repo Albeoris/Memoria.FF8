@@ -47,7 +47,7 @@ public sealed class WorldBattlePublicationTests
         }
     }
 
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void Fresh_world_battle_entry_selects_native_depth_mix_and_restores_the_next_callback()
@@ -60,11 +60,11 @@ public sealed class WorldBattlePublicationTests
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 0));
-        NativeBattlePrimitiveDepthState depth = world.Battle!.NativeEffectMemory!.PrimitiveProcess!.Depth!;
+        NativeBattlePrimitiveDepthState depth = world.Battle!.Presentation!.Memory.PrimitiveProcess!.Depth!;
         Assert.Equal(0.8f, depth.BucketMix);
         Assert.Equal((float)(1d - (double)0.8f), depth.RemainingWeight);
         Advance(world);
-        Assert.Equal(depth, world.Battle.NativeGraphics!.PrimitiveFrame!.LastDepthState);
+        Assert.Equal(depth, world.Battle.Presentation!.Graphics.PrimitiveFrame!.LastDepthState);
         string directory = Path.Combine(Path.GetTempPath(), "Memoria-world-battle-entry-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
@@ -73,7 +73,7 @@ public sealed class WorldBattlePublicationTests
             session.Save(path, compact: true);
             GameSession restoredSession = new(GameSession.Load(path));
             using GameWorld restored = Restore(restoredSession);
-            Assert.Equal(depth, restored.Battle!.NativeEffectMemory!.PrimitiveProcess!.Depth);
+            Assert.Equal(depth, restored.Battle!.Presentation!.Memory.PrimitiveProcess!.Depth);
             Advance(world);
             Advance(restored);
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle.Capture())));
@@ -105,7 +105,7 @@ public sealed class WorldBattlePublicationTests
         }
         Assert.Contains(battle.Events, item => item.Kind == "Windup" && item.ActorId == actor.Id);
         Assert.True(battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == actor.Id) > completed);
-        Assert.Equal(0.8f, battle.NativeGraphics!.PrimitiveFrame!.LastDepthState!.BucketMix);
+        Assert.Equal(0.8f, battle.Presentation!.Graphics.PrimitiveFrame!.LastDepthState!.BucketMix);
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
         using GameWorld restored = Restore(new GameSession(saved));
 

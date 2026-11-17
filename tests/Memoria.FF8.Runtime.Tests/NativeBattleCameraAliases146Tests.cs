@@ -99,8 +99,8 @@ public sealed class NativeBattleCameraAliases146Tests
     private static NativeBattleCameraPoint Transform(NativeBattleGraphicsState graphics, NativeBattleCameraAliases aliases, byte reference)
     {
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { CameraAliases = aliases });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess() with { CameraAliases = aliases });
         MethodInfo method = typeof(BattleSession).GetMethod("TransformNativeCameraReference", BindingFlags.NonPublic | BindingFlags.Instance)!;
         return (NativeBattleCameraPoint)method.Invoke(session, [reference, new NativeBattleCameraPoint(1, 2, 3), 0u])!;
     }

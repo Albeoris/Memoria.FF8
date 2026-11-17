@@ -13,6 +13,7 @@ internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDef
 internal sealed partial class RecreateGame
 {
     private BattleAssets? presentationBattleAssets;
+    private GameAssets? practiceBattleGameAssets;
     private BattleDebugCatalog? presentationBattleCatalog;
     private BattleSession? debugBattle;
     private BattleHudController? battleHud;
@@ -23,7 +24,6 @@ internal sealed partial class RecreateGame
     private BattleDebugController? battleDebug;
     private BattleScenePresentation? battleScene;
     private Texture2D? battleTexture;
-    private double battleSeconds;
     private bool previousBattleMouse;
     private bool slotsInputReleasePending;
     private bool SlotsModalBlocksGameplay => ActiveBattle is { } active && (active.PendingSlotsDeal is not null || ReferenceEquals(active, presentedBattle) && (battleHud?.CardSlotsOwnsInput == true || slotsInputReleasePending));
@@ -109,7 +109,6 @@ internal sealed partial class RecreateGame
                     world!.SynchronizeBattlePresentation();
                 }
                 presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
-                battleScene!.AdvancePresentation(elapsed);
                 SynchronizeBattleAudio();
             }
             battlePresentationUpdated = true;
@@ -135,7 +134,7 @@ internal sealed partial class RecreateGame
         }
         slotsOwned |= SlotsModalBlocksGameplay;
         bool skipInput = !slotsOwned && !duelOwned && keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
-        bool boostInput = !slotsOwned && !duelOwned && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && (active.NativeGraphics?.UiServices is { } boostUi ? (boostUi.Flags942 & 1) != 0 : (keyboard.HeldFieldButtons & 0x100) != 0);
+        bool boostInput = !slotsOwned && !duelOwned && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && battleHud.PresentationUi.GuardianBoostOwnsInput;
         if (boostInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
@@ -155,11 +154,11 @@ internal sealed partial class RecreateGame
             world.SynchronizeBattlePresentation();
             if (world.Battle is null)
             {
+                SynchronizeBattleAudio(active);
+                SynchronizeBattleAudio();
                 return true;
             }
         }
-        active.AdvanceComponentGuardianBoostPresentation(elapsed, slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
-        battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
         ObserveScanAuthoringDialogues(active);
         if (ActiveBattle is null || battleHud is null)
@@ -223,16 +222,6 @@ internal sealed partial class RecreateGame
             active.PublishNativeEscapeButtons(0);
             active.PublishNativeScanMappedButtons(0);
         }
-        if (!options.ControlStep && active.Outcome == BattleOutcome.Active)
-        {
-            battleSeconds += elapsed.TotalSeconds;
-            int frames = Math.Min(30000, (int)(battleSeconds * BattleSession.FramesPerSecond));
-            if (frames > 0)
-            {
-                battleSeconds -= frames / (double)BattleSession.FramesPerSecond;
-                ApplyBattleCommand(new BattleInput(BattleInputKind.Tick, frames));
-            }
-        }
         return true;
     }
 
@@ -287,7 +276,7 @@ internal sealed partial class RecreateGame
         {
             DisposeBattleTextures();
             presentedBattle = active;
-            battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.ReadDefinition(), debugBattle is null);
+            battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.ReadDefinition());
             battleGuardianForceLearning.Clear();
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null && world?.IsDiagnosticBattle != true && world?.IsEffectComponentPreview != true ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
@@ -302,7 +291,6 @@ internal sealed partial class RecreateGame
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleHud.SlotsSoundRequested += cue => fieldAudio?.PlayTripleTriadSound(cue);
             battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingPrompt;
-            battleSeconds = 0;
             slotsInputReleasePending = false;
         }
         battleHud!.OriginalCompatibleLayout = OriginalTextLayout;
@@ -318,7 +306,7 @@ internal sealed partial class RecreateGame
 
     private void ObserveScanAuthoringDialogues(BattleSession active)
     {
-        object? owner = active.NativeGraphics?.OriginalEffect?.Pools.FirstOrDefault();
+        object? owner = active.Presentation?.Graphics.OriginalEffect?.Pools.FirstOrDefault();
         if (!ReferenceEquals(authoringScanOwner, owner))
         {
             authoringScanOwner = owner;
@@ -412,7 +400,12 @@ internal sealed partial class RecreateGame
         }
         if (debugBattle is null)
         {
+            BattleSession? active = ActiveBattle;
             int dispatched = world!.ApplyBattleInput(input);
+            if (active is not null && !ReferenceEquals(active, ActiveBattle))
+            {
+                SynchronizeBattleAudio(active);
+            }
             SynchronizeBattleAudio();
             return dispatched;
         }
@@ -486,7 +479,7 @@ internal sealed partial class RecreateGame
         return presentationBattleCatalog = new BattleDebugCatalog
         {
             Players = resources.PlayerCharacterIds.Select(id => new BattleCombatantDefinition { Id = $"player-{id}", Name = LiveMenuData.CharacterName(session.State, checked((byte)id), events?.Scene.Names, liveMenuCatalog), IsPlayer = true, ModelId = id, MaximumHp = 1000, CurrentHp = 1000, Speed = 100, Attack = 80, Defense = 20 }).ToArray(),
-            Enemies = [BattleDebugDefaults.Dummy, .. resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 })],
+            Enemies = resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 }).ToArray(),
             Weapons = resources.WeaponDefinitions.Select(weapon => new BattleDebugEquipment(weapon.Id, weapon.Name, weapon.CharacterId)).ToArray(),
             Equipment = Enumerable.Range(0, 16).Select(id => new BattleDebugEquipment(id, liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}")).ToArray(),
             StageIds = resources.StageIds.ToArray(),
@@ -516,7 +509,7 @@ internal sealed partial class RecreateGame
         battleDebugReturnFixture = gameMenus?.IsFixtureContext == true;
         BattleDebugCatalog catalog = ReadBattleDebugCatalog();
         BattleDefinition? activeEncounter = world?.Battle?.ReadDefinition();
-        BattleCombatantDefinition? lastEnemy = activeEncounter?.Combatants.FirstOrDefault(actor => !actor.IsPlayer);
+        BattleCombatantDefinition? lastEnemy = activeEncounter?.Combatants.FirstOrDefault(actor => !actor.IsPlayer && actor.InitialActive && !actor.InitialHidden && !actor.InitialUntargetable && !actor.InitialSuspended);
         int stageId = activeEncounter?.StageId ?? catalog.StageIds.First();
         if (lastEnemy is null && events?.Scene.NativeBattleCompletions?.LastOrDefault(completion => !completion.Suppressed) is { } completion)
         {
@@ -543,7 +536,7 @@ internal sealed partial class RecreateGame
         }
         BattleActionDefinition[] actions = BattlePartyProjection.CreateActions(currentVitals, PresentationBattleResources.ActionDefinitions);
         BattleStock[] items = currentEconomy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
-        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle, actions, items);
+        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy ?? catalog.Enemies.First(), stageId, world?.Battle, actions, items);
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
         battleDebug = new BattleDebugController(initial, catalog, ReadCurrentUiPreferences().AtbMode, StartDebugBattle, CloseBattleDebug, battleDebugPresets);
         battleDebug.LocalizeText = LocalizeUiText;
@@ -580,11 +573,10 @@ internal sealed partial class RecreateGame
             GuardianFormsEnabled = ReadCurrentUiPreferences().GuardianFormsEnabled,
             GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
         };
-        BattleSession next = new(definition, mode);
+        practiceBattleGameAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost?.Resources, modelOverrides: resourceHost);
+        BattleSession next = InstalledBattlePractice.Create(definition, mode, practiceBattleGameAssets, PresentationBattleResources);
         next.SetDifficulty(ReadCurrentUiPreferences().Difficulty);
         next.SetGunbladeMode(ReadCurrentUiPreferences().GunbladeMode);
-        _ = PresentationBattleResources.LoadStage(definition.StageId ?? throw new ArgumentException("A debug battle needs a stage ID."));
-        _ = new BattleScenePresentation(PresentationBattleResources, definition, false);
         debugBattle = next;
         battleDebug = null;
         gameMenus?.Close();
@@ -655,7 +647,7 @@ internal sealed partial class RecreateGame
             {
                 windows = new LocalizationBattlePresentation(resourceHost.Resources).Scan(scan, windows);
             }
-            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, windows, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), presentation.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
+            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, windows, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), BattlePresentationTiming.ElapsedForCallbacks(presentation.Callback).TotalSeconds, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
         }
         if (!SlotsModalBlocksGameplay && active.NativeExamTimer is { DisplayEnabled: true } timer)
         {
@@ -677,7 +669,7 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticInvocationOwners() : null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
     }
 
     private object DispatchBattleControl(ControlRequest request)
@@ -752,7 +744,6 @@ internal sealed partial class RecreateGame
         battleHud = null;
         presentedBattle = null;
         slotsInputReleasePending = false;
-        battleSeconds = 0;
         DisposeBattleTextures();
     }
 
@@ -760,6 +751,7 @@ internal sealed partial class RecreateGame
     {
         ClearBattlePresentation(synchronizeAudio: false);
         battleAudio = null;
+        practiceBattleGameAssets?.Dispose();
         presentationBattleAssets?.Dispose();
     }
 }

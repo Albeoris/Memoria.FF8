@@ -12,7 +12,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
     [Fact]
     public void Original_encounter63_Tornado_preserves_target_sequences_and_cold_next()
     {
-        Run(output, 146, "Tornado", battle => battle.NativeEffectMemory?.Tornado146 is not null && battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 146, ReturnedDescriptor: > 0 } effect && effect.Pools.Any(pool => pool.BankAddress == 0x2493760 && pool.Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == 0x6171F0 && task.ReadWord(12) >= 24)));
+        Run(output, 146, "Tornado", battle => battle.Presentation?.Memory?.Tornado146 is not null && battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 146, ReturnedDescriptor: > 0 } effect && effect.Pools.Any(pool => pool.BankAddress == 0x2493760 && pool.Slots.Any(task => (task.Flags & 1) != 0 && task.Callback == 0x6171F0 && task.ReadWord(12) >= 24)));
     }
 
     internal static void Run(ITestOutputHelper output, ushort effectId, string spellName, Func<BattleSession, bool> atMidEffect)
@@ -32,9 +32,9 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         DiagnosticBattlePreparation preparation = new([new(0, true)], [new(4, 4, [new(action.ActionId, 5)], [0]) { MagicCommand = new(0, 20) }, new(0, 0, [], []), new(3, 3, [], [])], false) { CombatParty = [4, 0, 3] };
         DiagnosticBattleRequest request = new(63, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, Fixture = preparation, InstantGuardianForceCharge = false, PrepareEntryBeforePresentation = true };
         BattleSession battle = world.StartDiagnosticBattle(request);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         BattleSession? cold = null;
-        BattleAudioPresentation coldAudio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation coldAudio = BattleAudioTestOutput.Create();
         List<BattleDiagnosticEffectDispatch> directDispatches = [];
         List<BattleDiagnosticEffectDispatch> coldDispatches = [];
         battle.DiagnosticEffectDispatched += directDispatches.Add;
@@ -92,7 +92,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
                         cold = Restore(midEffect);
                         restoredMidEffect = true;
                         compareNext = true;
-                        output.WriteLine(JsonSerializer.Serialize(new { Boundary = "mid-effect-cold-next", Spell = spellName, Effect = effectId, Cast = cast, Callback = battle.NativeGraphics!.Callback, Models = Inventory(battle, definition) }));
+                        output.WriteLine(JsonSerializer.Serialize(new { Boundary = "mid-effect-cold-next", Spell = spellName, Effect = effectId, Cast = cast, Callback = battle.Presentation!.Graphics.Callback, Models = Inventory(battle, definition) }));
                     }
                     if (directDispatches.Count(dispatch => dispatch.ExecutedEffect == effectId) == cast && battle.ObserveDiagnosticDrainBlockers().Count == 0 && cold.ObserveDiagnosticDrainBlockers().Count == 0)
                     {
@@ -133,8 +133,8 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         void AssertMissingResponses(string actorId, byte nativeModel, ushort count, int animations)
         {
             NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
-            int physical = FindOriginalModelSlot(battle.NativeGraphics!, actorId);
-            Assert.Equal(nativeModel, ReadOriginalModelCell(battle.NativeGraphics!, physical).ModelId4);
+            int physical = FindOriginalModelSlot(battle.Presentation!.Graphics, actorId);
+            Assert.Equal(nativeModel, ReadOriginalModelCell(battle.Presentation!.Graphics, physical).ModelId4);
             Assert.Equal(count, BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan()));
             Assert.Equal(animations, resource.AnimationFrames.Length);
             Assert.False(resource.Contains(4));
@@ -147,7 +147,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
     private static void AssertRawNativeDrain(BattleSession battle, ushort effectId)
     {
         Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         NativeBattleOriginalEffectState effect = Assert.IsType<NativeBattleOriginalEffectState>(graphics.OriginalEffect);
         Assert.Equal(effectId, effect.Binding.Effect);
         Assert.Equal(0u, effect.ReturnedDescriptor);
@@ -157,7 +157,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
             Assert.Null(pool.Tail);
             Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1));
         });
-        Assert.Equal(0, battle.NativeEffectMemory!.Active);
+        Assert.Equal(0, battle.Presentation!.Memory.Active);
         Assert.Empty(graphics.Requests);
         Assert.Empty(graphics.PendingContacts);
         Assert.Empty(graphics.Descriptors.Queue);
@@ -169,7 +169,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
 
     private static object[] Inventory(BattleSession battle, BattleDefinition definition)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         return ReadOriginalModelCells(graphics).Select((model, slot) => (model, slot)).Where(entry => ReadOriginalModelActorId(graphics, entry.slot) is not null).Select(entry =>
         {
             var (model, slot) = entry;

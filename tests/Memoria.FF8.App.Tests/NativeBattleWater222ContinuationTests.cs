@@ -21,8 +21,8 @@ public sealed class NativeBattleWater222ContinuationTests
         int callbacks = Environment.GetEnvironmentVariable("MEMORIA_FF8_WATER222_RESUME_CALLBACKS") is { } text ? int.Parse(text) : 1;
         Assert.InRange(callbacks, 1, 256);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, saved.Definition, true);
-        BattleScenePresentation independent = new(assets, saved.Definition, true);
+        BattleScenePresentation scene = new(assets, saved.Definition);
+        BattleScenePresentation independent = new(assets, saved.Definition);
         for (int index = 0; index < callbacks; index++)
         {
             TimeSpan tick = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
@@ -31,7 +31,7 @@ public sealed class NativeBattleWater222ContinuationTests
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             Assert.Equal(scene.Render(first, 320, 224).ToArray(), independent.Render(second, 320, 224).ToArray());
         }
-        Assert.Equal(0u, first.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal(0u, first.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         NativeBattleRestorationPresentationTests.Publish(output, "continued", first.Capture(), scene.Render(first, 320, 224));
     }
 }

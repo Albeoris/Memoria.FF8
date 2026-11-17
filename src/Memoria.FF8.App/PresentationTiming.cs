@@ -111,7 +111,7 @@ internal sealed class PresentationTiming
     private double CurrentPresentationPhase()
     {
         double elapsed = presentationRunning ? Math.Max(0, presentationClock.GetElapsedTime(presentationAnchor).TotalSeconds) : 0;
-        return Math.Clamp(presentationPhase + elapsed * NativeBattleGraphicsPresentationClock.CallbacksPerSecond * presentationSpeed, 0, 1);
+        return Math.Clamp(presentationPhase + elapsed * BattlePresentationTiming.CallbacksPerSecond * presentationSpeed, 0, 1);
     }
 
     private void ResetPresentationSource()

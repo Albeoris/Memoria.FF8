@@ -46,7 +46,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
         Assert.True(battle.Combatants.Single(actor => actor.Id == caster.Id).IsReady);
         Assert.Equal(2, Stock(source));
         int scansBefore = battle.Events.Count(entry => entry.Kind == "Scan");
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<BattleSession> continuations = [];
         HashSet<string> boundaries = [];
         HashSet<ushort> pages = [];
@@ -82,7 +82,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                 {
                     restored.Tick();
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(restored.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224));
                 }
                 continuations.Clear();
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
@@ -137,7 +137,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                     {
                         Boundary("page-" + result.ReadWord(0x6C));
                     }
-                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(process.Text.ReadFrame(graphics.UiServices!.Flags942), battle.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
+                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(process.Text.ReadFrame(graphics.UiServices!.Flags942), battle.Presentation!.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
                     if (windows.Any(window => window.Index == 1 && window.Lines.Any(line => line.Line.Runs.Any(run => run.Text.Length > 0))))
                     {
                         resultText = true;
@@ -175,7 +175,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                 restored.PublishNativeScanMappedButtons(0);
                 restored.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224));
+                Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224));
             }
             NativeBattleRestorationPresentationTests.Publish(output, "released-next", battle.Capture(), scene.Render(battle, 320, 224));
             Assert.Equal(originalBytes, File.ReadAllBytes(sourcePath!));
@@ -210,7 +210,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
             NativeBattlePrimitiveFrame removed = primitive with { LastCommands = primitive.LastCommands.Where(command => !packets.Contains(command.Command.Packet)).ToImmutableArray() };
             BattleSession background = BattleSession.Restore(snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = removed } });
             byte[] normal = scene.Render(battle, 320, 224);
-            byte[] comparison = new BattleScenePresentation(assets, source.Definition, true).Render(background, 320, 224);
+            byte[] comparison = new BattleScenePresentation(assets, source.Definition).Render(background, 320, 224);
             return Enumerable.Range(0, normal.Length / 4).Count(pixel => !normal.AsSpan(pixel * 4, 3).SequenceEqual(comparison.AsSpan(pixel * 4, 3)));
         }
 
@@ -226,7 +226,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
             BattleSnapshot disk = JsonSerializer.Deserialize<BattleSnapshot>(stream)!;
             BattleSession restored = BattleSession.Restore(disk);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224));
+            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224));
             continuations.Add(restored);
         }
     }

@@ -53,7 +53,7 @@ public sealed class DiagnosticGuardianForceChargeTests
         Method("DispatchGuardianForceCasts").Invoke(battle, null);
         Assert.Equal((ushort)0, Assert.Single(battle.GuardianForceCasts).RemainingTicks);
         Assert.Equal(0, battle.Frame);
-        Assert.Equal(0, battle.NativeGraphics!.Callback);
+        Assert.Equal(0, battle.Presentation!.Graphics.Callback);
         Assert.Equal(0, battle.DiagnosticRestoreCount);
         Assert.Equal(0, battle.DiagnosticResetCount);
     }
@@ -97,7 +97,7 @@ public sealed class DiagnosticGuardianForceChargeTests
         {
             battle.ConfigureDiagnosticScheduling(false, enabled);
         }
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, OriginalGraphics([]) with { EntryReady = true });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, OriginalGraphics([]) with { EntryReady = true });
         return battle;
     }
 
@@ -109,7 +109,7 @@ public sealed class DiagnosticGuardianForceChargeTests
 
     private static void ReleaseCommandAdmission(BattleSession battle)
     {
-        Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.NativeGraphics!, 0x47DDA0u]);
+        Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.Presentation!.Graphics, 0x47DDA0u]);
     }
 
     private static MethodInfo Method(string name)

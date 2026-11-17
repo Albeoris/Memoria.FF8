@@ -52,7 +52,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
         BattleSession session = Session(NativeBattleModelCpuResources.Unknown());
         uint hole = NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode(1));
         NativeBattleFileStaging staging = NativeBattleFileStaging.FromColdProcess().Write(hole, [0xB3]);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(session, staging);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(session.Presentation!, staging);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, Aliases(roster), _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null));
 
         Assert.Equal((byte)0xB3, Read(session, graphics, hole));
@@ -103,7 +103,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
             ]
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         return session;
     }
 

@@ -41,7 +41,7 @@ public sealed class ArchivedBattleSnapshotTests
             Economy = assets.ReadNewGameEconomy(),
             GlobalRandom = assets.ReadNewGameGlobalRandom()
         });
-        using GameWorld world = new(component, game) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(component, game);
         // The supplied-party statistics fixture does not claim raw graphical entry or music initialization.
         BattleDefinition definition = world.CreateEncounterBattle(29, nativeSeed: 7) with { NativeGraphics = null, NativeClockRules = null };
         Assert.Equal(29, definition.EncounterId);

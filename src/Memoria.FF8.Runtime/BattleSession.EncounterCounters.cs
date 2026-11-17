@@ -18,7 +18,7 @@ public sealed partial class BattleSession
             return;
         }
         RunNativeAi(actor, 4);
-        if (death && UsesExpandedRoster)
+        if (death)
         {
             MarkExpandedDeathContactMirror(actor, nativeContactWorking?.CommittingSecondary == true);
         }
@@ -65,12 +65,8 @@ public sealed partial class BattleSession
                 }
                 finally
                 {
-                    if (invocation.Death && !UsesExpandedRoster)
-                    {
-                        invocation.Actor.NativeStatus0 &= 0xFFFE;
-                    }
                 }
-                if (invocation.Death && UsesExpandedRoster)
+                if (invocation.Death)
                 {
                     MarkExpandedDeathContactMirror(invocation.Actor, invocation.Secondary);
                 }

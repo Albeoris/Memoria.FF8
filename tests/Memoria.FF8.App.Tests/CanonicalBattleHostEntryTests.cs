@@ -18,7 +18,7 @@ public sealed class CanonicalBattleHostEntryTests
         ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, allies), formation, allies, donors);
 
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleDefinition definition = battle.ReadDefinition();
         Assert.True(definition.UsesOriginalEnemySlots);
         Assert.Equal(Enumerable.Range(0, allies).Select(row => $"party-{row}"), battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
@@ -33,32 +33,26 @@ public sealed class CanonicalBattleHostEntryTests
     [Theory]
     [InlineData(754)]
     [InlineData(756)]
-    public void Installed_dormant_only_formation_retains_the_physical_entry_and_victory_result(ushort formation)
+    public void Installed_dormant_only_formation_publishes_the_original_entry_and_victory_result(ushort formation)
     {
         string directory = TestResources.GameDirectory;
-        var physical = Run(usePhysical: true);
-        var canonical = Run(usePhysical: false);
-
-        Assert.Equal(physical.Advantage, canonical.Advantage);
-        Assert.Equal(physical.Random.Lane, canonical.Random.Lane);
-        Assert.Equal(physical.Random.Indexes.ToArray(), canonical.Random.Indexes.ToArray());
-        Assert.Equal(physical.Result, canonical.Result);
+        var current = Run();
         if (formation == 754)
         {
-            var legacy = Run(usePhysical: false, missingCameraActor: true);
-            Assert.Equal(canonical.Result, legacy.Result);
-            Assert.Equal(canonical.Random.Indexes.ToArray(), legacy.Random.Indexes.ToArray());
+            var legacy = Run(missingCameraActor: true);
+            Assert.Equal(current.Result, legacy.Result);
+            Assert.Equal(current.Random.Indexes.ToArray(), legacy.Random.Indexes.ToArray());
         }
 
-        (int? Advantage, NativeBattleRandomState Random, byte? Result) Run(bool usePhysical, bool missingCameraActor = false)
+        (NativeBattleRandomState Random, byte? Result) Run(bool missingCameraActor = false)
         {
             using GameAssets game = new(directory);
             GameSession session = PrepareSession(directory, game, missingCameraActor);
-            using GameWorld world = new(session, directory, sharedAssets: game) { UsePhysicalBattlePresentation = usePhysical };
+            using GameWorld world = new(session, directory, sharedAssets: game);
             ExpandedBattleInstalledEntry.Prepare(world, session, current => PrepareParty(current, 3), formation, allies: 3, additionalEnemies: 0);
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: ExpandedBattleInstalledEntry.Seed));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Assert.Equal(usePhysical, battle.ExpandedPresentationProcess is null);
+            Assert.NotNull(battle.Presentation);
             Assert.Equal(BattleOutcome.Active, battle.Outcome);
             Assert.False(battle.NativeEntryReady);
             byte? expectedCameraActor = missingCameraActor ? null : (byte)0;
@@ -70,13 +64,13 @@ public sealed class CanonicalBattleHostEntryTests
                 Assert.Null(actor.Slot);
             });
             Assert.Empty(battle.ReadBattlePresentationRoster().Enemies);
-            var observed = (battle.NativeEntryAdvantage, battle.Capture().Random!);
+            NativeBattleRandomState entryRandom = battle.Capture().Random!;
 
             byte? graphicsResult = null;
             for (int callback = 0; callback < 1200 && !battle.CanReturnToField; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                NativeBattleGraphicsState graphics = (battle.ExpandedPresentationProcess?.Graphics ?? battle.NativeGraphics)!;
+                NativeBattleGraphicsState graphics = (battle.Presentation!.Graphics)!;
                 if (graphics.NativeOutcome?.ResultByte6E7 is > 0 and var published)
                 {
                     graphicsResult = published;
@@ -86,17 +80,14 @@ public sealed class CanonicalBattleHostEntryTests
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
             byte? result = battle.NativeResult;
             Assert.Equal<byte?>(4, result);
-            if (!usePhysical)
-            {
-                Assert.Equal(result, graphicsResult);
-            }
+            Assert.Equal(result, graphicsResult);
             world.ApplyBattleInput(new(BattleInputKind.Return));
             Assert.Null(world.Battle);
             Assert.Null(session.State.PendingBattleEncounter);
             Assert.Null(session.State.RandomEncounters?.Pending);
             Assert.Equal(SceneKind.Field, session.State.Scene);
             Assert.Equal(expectedCameraActor, session.State.NativeBattleMemory!.VictoryCameraActorSlot);
-            return (observed.NativeEntryAdvantage, observed.Item2, result);
+            return (entryRandom, result);
         }
     }
 

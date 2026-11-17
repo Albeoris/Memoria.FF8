@@ -10,7 +10,7 @@ public sealed partial class BattleSession
     {
         //487DF0 reads the previous queued target, which can name an original slot with a newer allocation.
         BattlePreviousTarget? previous = actor.PreviousAiTarget;
-        if (UsesExpandedRoster && previous is null)
+        if (previous is null)
         {
             actor.NativeDrawnSpell = 255;
             return;
@@ -37,15 +37,12 @@ public sealed partial class BattleSession
         }
         NativeMagicStock selected = inventory[slot];
         actor.NativeDrawnSpell = selected.SpellId;
-        if (UsesExpandedRoster)
-        {
             // The original E11..E13 owner is global. A new successful Draw replaces its pending result.
             pendingEnemyDraw = new(actor.Id, selected.SpellId, reportStock ? selected.Count : (byte)1);
             if (hostedOperationsAtStart is int start)
             {
                 BindPreparedHostedEnemyDraw(actor, sourceReference, start);
             }
-        }
         BattleNativeAction spell = FindInstalledNativeAction(2, selected.SpellId);
         string spellName = spell.Name ?? throw new InvalidDataException("Native AI Draw requires the installed spell name.");
         string separator = NativeBattleGlobalText(11);
@@ -99,7 +96,7 @@ public sealed partial class BattleSession
 
     private void RestoreExpandedEnemyDraw(BattlePendingEnemyDraw? saved)
     {
-        if (saved is not null && (!UsesExpandedRoster || !byId.TryGetValue(saved.ActorId, out BattleCombatant? actor) || actor.IsPlayer || actor.NativeAi is null || saved.SpellId is 0 or >= 64 || saved.Quantity is 0 or > 100))
+        if (saved is not null && (!byId.TryGetValue(saved.ActorId, out BattleCombatant? actor) || actor.IsPlayer || actor.NativeAi is null || saved.SpellId is 0 or >= 64 || saved.Quantity is 0 or > 100))
         {
             throw new InvalidDataException("Battle snapshot has an invalid deferred enemy Draw result.");
         }
@@ -108,28 +105,8 @@ public sealed partial class BattleSession
 
     private void CastNativeAiDrawnSpell(BattleCombatant actor)
     {
-        if (UsesExpandedRoster)
-        {
             CastExpandedEnemyDrawnSpell(actor);
             return;
-        }
-        byte spell = actor.NativeDrawnSpell ?? throw new NotSupportedException("Native AI Draw-cast requires an executed drawn-spell byte.");
-        if (spell == 0)
-        {
-            return;
-        }
-        BattleNativeAction action = FindInstalledNativeAction(2, spell);
-        byte flags = action.TargetFlags ?? throw new InvalidDataException("Native drawn spell lacks its kernel target flags.");
-        AiTargetSelection selected = (flags & 0x30) switch
-        {
-            0 => SelectAiGroup((flags & 0x40) != 0 ? BattleTargetSide.Allies : BattleTargetSide.Enemies),
-            0x10 => PickAiSide((flags & 0x40) != 0 ? BattleSide.Allies : BattleSide.Enemies),
-            0x20 => SelectAiGroup(BattleTargetSide.Both),
-            _ => SelectOriginalAiTargets(new(NativeBattleTargetRequestAdapter.CaptureMagicPreflight(spell)))
-        };
-        BattleTargetRequest request = ApplyOriginalAiTargetFlags(selected, flags);
-        BattlePreviousTarget previous = NativeBattleTargetRequestAdapter.CapturePrevious(request.OriginalProjection!, request.AllowsKnockedOutAllies);
-        QueueNativeCommand(actor, 2, spell, 11, new(request, previous));
     }
 
     private void CastExpandedEnemyDrawnSpell(BattleCombatant actor)

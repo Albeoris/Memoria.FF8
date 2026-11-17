@@ -83,10 +83,6 @@ public sealed partial class BattleSession
             byte lane = nativeActionScratch.EventLane ?? throw new NotSupportedException("Native483400 requires its current event batch BYTE B0E.");
             if (lane == 0)
             {
-                if (NativeGraphics is { } graphics)
-                {
-                    NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DD90);
-                }
             }
         }
         //483400 bypasses4847F0: keep ATB and Defend/Charged, and do not run the compelled player-input selector.

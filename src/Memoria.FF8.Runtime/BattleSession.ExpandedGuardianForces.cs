@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, guardianForceId);
-        return UsesExpandedRoster && actor.IsPlayer && actor.EquipmentIds.Contains(guardianForceId) && action.Available &&
+        return actor.IsPlayer && actor.EquipmentIds.Contains(guardianForceId) && action.Available &&
             SupportsExpandedAction(action) && actor.GuardianForceCompatibility is { Count: 16 } && definition.NativeBattleSpeed is not null &&
             CanNativeBattleActorAct(actor) && (actor.NativeStatus0 & 0x35) == 0 && (actor.NativeStatus1 & 0x14000) == 0 &&
             guardianForces.GetValueOrDefault(guardianForceId) is { Acquired: true, HitPoints: > 0 } &&

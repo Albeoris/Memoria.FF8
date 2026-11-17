@@ -201,7 +201,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (UsesExpandedRoster && command.MagicCasts.Length > 1)
+        if (command.MagicCasts.Length > 1)
         {
             return GetAvailableMagicCasts(actor.Id, command.ActionId, reservation.ActionId) > 0 && (NativeSavedStatusBits(actor) & 0x10) == 0 && actor.Abilities.Contains(BattleAbility.Magic);
         }

@@ -129,9 +129,9 @@ public sealed class NativeBattleWaterRepeatAbortTests
             direct.Tick();
             cold.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            BattleScenePresentation scene = new(assets, definition, true);
+            BattleScenePresentation scene = new(assets, definition);
             byte[] pixels = scene.Render(direct, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(cold, 320, 224).ToArray());
             Save(name + "-next", cold.Capture());
             if (output is not null)
             {

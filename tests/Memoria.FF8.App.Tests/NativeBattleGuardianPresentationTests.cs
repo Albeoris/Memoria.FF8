@@ -106,7 +106,7 @@ public sealed class NativeBattleGuardianPresentationTests
         NativeBattleAtbState[] animationGauges = sourceFromFile.Combatants.Select(actor => actor.NativeAtb!).ToArray();
         uint initialUiCounter = sourceFromFile.NativeGraphics!.UiServices!.Counter;
         long initialGraphicsCallback = sourceFromFile.NativeGraphics.Callback;
-        TimeSpan frame = TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / NativeBattleGraphicsPresentationClock.CallbacksPerSecond));
+        TimeSpan frame = TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond));
         bool selected = false;
         bool restoredBeforeEntry = false;
         bool sawEntry = false;
@@ -121,7 +121,7 @@ public sealed class NativeBattleGuardianPresentationTests
         int streamCountBeforeClone = 0;
         for (int callback = 0; callback < 512; callback++)
         {
-            if (!restoredBeforeEntry && battle.NativeGraphics!.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2))
+            if (!restoredBeforeEntry && battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2))
             {
                 BattleSnapshot pending = battle.Capture();
                 BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(pending))!);
@@ -192,13 +192,13 @@ public sealed class NativeBattleGuardianPresentationTests
                 streamClone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(afterStep))!);
                 Assert.Equal(JsonSerializer.Serialize(afterStep), JsonSerializer.Serialize(streamClone.Capture()));
             }
-            selected |= battle.NativeGraphics!.ActionGraphics?.Callback == 0x50B2A0;
-            sawEntry |= battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor == 0x2521748;
-            sawGeometry |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8") == true;
-            sawNativeFlash |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8 && command.Command.Flags20 == 1) == true;
+            selected |= battle.Presentation!.Graphics.ActionGraphics?.Callback == 0x50B2A0;
+            sawEntry |= battle.Presentation!.Graphics.OriginalEffect?.ReturnedDescriptor == 0x2521748;
+            sawGeometry |= battle.Presentation!.Graphics.PrimitiveFrame?.LastCommands.Any(command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8") == true;
+            sawNativeFlash |= battle.Presentation!.Graphics.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8 && command.Command.Flags20 == 1) == true;
         }
-        NativeBattleGraphicsModel finalCaster = ReadOriginalModelCell(battle.NativeGraphics!, 0);
-        string diagnostic = $"callback={Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).Callback}; actionPhase={Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.NativeCamera?.Mask}; descriptor={Assert.IsType<NativeBattleGraphicsState>(battle.NativeGraphics).OriginalEffect?.ReturnedDescriptor:X}; verifiedPrefix={prefixSnapshot is not null}";
+        NativeBattleGraphicsModel finalCaster = ReadOriginalModelCell(battle.Presentation!.Graphics, 0);
+        string diagnostic = $"callback={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Callback}; actionPhase={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.Presentation?.Camera?.Mask}; descriptor={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).OriginalEffect?.ReturnedDescriptor:X}; verifiedPrefix={prefixSnapshot is not null}";
         if (prefixSnapshot is not null && Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_BOUNDARY_OUTPUT") is { Length: > 0 } boundaryOutput)
         {
             PublishStandalone(boundaryOutput, prefixSnapshot);
@@ -211,30 +211,30 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(sawEntry, diagnostic);
         Assert.True(sawGeometry);
         Assert.True(sawNativeFlash);
-        Assert.True(battle.NativeGraphics!.UiServices!.Counter > initialUiCounter);
-        Assert.True(battle.NativeGraphics.Callback > initialGraphicsCallback);
-        Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0x2521748u, battle.NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
-        Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
-        ushort prefixPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
+        Assert.True(battle.Presentation!.Graphics.UiServices!.Counter > initialUiCounter);
+        Assert.True(battle.Presentation!.Graphics.Callback > initialGraphicsCallback);
+        Assert.Equal((ushort)116, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
+        Assert.Equal(0x2521748u, battle.Presentation!.Graphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Contains(battle.Presentation!.Graphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
+        Assert.Equal((byte?)0, battle.Presentation!.Memory.GuardianCasterBank);
+        ushort prefixPhase = battle.Presentation!.Graphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
         Assert.Equal((ushort)319, prefixPhase);
         //6C3A42..4D selects6574D0(rig=child+28h,2) at238;509440 stores thatBYTE at rig+6Ch=child+94h.
-        Assert.Equal((byte)2, battle.NativeEffectMemory!.Arena!.Read(0x94, 1)[0]);
-        Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics, 3).Flags0 & 4);
+        Assert.Equal((byte)2, battle.Presentation!.Memory.Arena!.Read(0x94, 1)[0]);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 3).Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240039, Flags: 1, Pan: 128 });
-        Assert.Equal(0, battle.NativeEffectMemory.QuezacotlTargetY1774);
-        Assert.Equal(26, NativeBattleQuezacotlWorkspace.ReadExecutable(battle.NativeEffectMemory).Frame);
-        NativeBattleQuezacotlResources streamResources = battle.NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
+        Assert.Equal(0, battle.Presentation!.Memory.QuezacotlTargetY1774);
+        Assert.Equal(26, NativeBattleQuezacotlWorkspace.ReadExecutable(battle.Presentation?.Memory).Frame);
+        NativeBattleQuezacotlResources streamResources = battle.Presentation!.Graphics.OriginalEffect.Binding.NativeQuezacotlResources!;
         uint playedStream = StreamNumber(510);
         uint loadedStream = StreamNumber(524);
         Assert.Equal(690118u, playedStream);
         Assert.Equal(690120u, loadedStream);
-        Assert.Equal(loadedStream, unchecked((uint)battle.NativeEffectMemory.SummonStream!.Number!.Value));
-        Assert.Equal(0x2108954u, battle.NativeEffectMemory.SummonStream.SourceAddress);
+        Assert.Equal(loadedStream, unchecked((uint)battle.Presentation!.Memory.SummonStream!.Number!.Value));
+        Assert.Equal(0x2108954u, battle.Presentation!.Memory.SummonStream.SourceAddress);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == playedStream);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == loadedStream);
         Assert.Equal(new ushort[] { 69, 212, 318 }, streamPlays.Keys.Order().ToArray());

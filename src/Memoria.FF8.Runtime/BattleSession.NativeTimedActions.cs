@@ -136,11 +136,6 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = previous;
         }
-        if (NativeGraphics is not null)
-        {
-            //485460 publishes the final event callback after both485610 subcommands and their104/finisher descriptors.
-            QueueNativeActionClockCompletion(0x47DE70);
-        }
     }
 
     private static BattleNativeAction NativeRenzokukenInitialAction(BattleCombatant actor, ushort magicId, ushort actionId)
@@ -205,10 +200,6 @@ public sealed partial class BattleSession
 
     private void CompleteNativeTimedAction()
     {
-        if (NativeGraphics is not null)
-        {
-            throw new InvalidOperationException("Raw native Renzokuken completes only through its final event descriptor.");
-        }
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidOperationException("Native timed completion requires its active command.");
         if (nativeActionCommitDepth != 1)
         {
@@ -217,8 +208,6 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(timed.Command.ActorId);
         CompleteNativeTimedActionOwners(actor, timed.Command);
         nativeTimedAction = null;
-        if (UsesExpandedRoster)
-        {
             nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false };
             CompleteNativeActionStatuses(actor);
             nativeActionCommitDepth = 0;
@@ -227,33 +216,11 @@ public sealed partial class BattleSession
             RefreshNativeKnownMagicStocks();
             RefreshNativeEnemyDrawSlots();
             return;
-        }
-        nativeActionCommitDepth = 0;
-        QueueNativeActionClockCompletion(0x47DE70);
-        RefreshNativeKnownMagicStocks();
-        RefreshNativeEnemyDrawSlots();
     }
 
     private void ReleaseNativeRawRenzokukenActionOwners(uint callback)
     {
-        if (callback != 0x47DE70 || NativeGraphics is null || nativeTimedAction is not { Command.NativeRenzokuken: not null } timed)
-        {
             return;
-        }
-        BattleCombatant actor = GetActor(timed.Command.ActorId);
-        BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken final descriptor lacks its input process.");
-        if (nativeActionCommitDepth != 1 || timed.Contacts != RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length || NativeGraphics.PendingTrigger is { } pending && pending.Actor == CreatePresentationModelOwner(actor))
-        {
-            throw new InvalidDataException("Native Renzokuken final descriptor reached an unfinished contact transaction.");
-        }
-        CompleteNativeTimedActionOwners(actor, timed.Command);
-        nativeTimedAction = null;
-        nativeActionCommitDepth = 0;
-        nativeRenzokukenProcesses.Remove(actor.Id);
-        nativeLimitLevels.Remove(actor.Id);
-        actor.IsBusy = actions.Any(command => command.ActorId == actor.Id);
-        RefreshNativeKnownMagicStocks();
-        RefreshNativeEnemyDrawSlots();
     }
 
     private void CompleteNativeTimedActionOwners(BattleCombatant actor, BattleActionPresentation command)
@@ -298,7 +265,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved native timed command lacks its canonical actor, contact or reaction owners.");
         }
-        if (UsesExpandedRoster && (saved.Command is not { NativeHeader: null, NativeAction: null, TargetRequest.Selection: BattleTargetSelection.Explicit { Actors.Length: 1 }, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
+        if ((saved.Command is not { NativeHeader: null, NativeAction: null, TargetRequest.Selection: BattleTargetSelection.Explicit { Actors.Length: 1 }, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
         {
             throw new InvalidDataException("Saved expanded Renzokuken lacks its logical command5 transaction.");
         }

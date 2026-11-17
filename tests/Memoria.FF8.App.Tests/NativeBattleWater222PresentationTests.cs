@@ -80,9 +80,9 @@ public sealed class NativeBattleWater222PresentationTests
         }, new JsonSerializerOptions { WriteIndented = true }));
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         heard.Clear();
         HashSet<string> required = ["initialized", "expanded-slots", "mesh-morph", "rectangles", "particles", "scroll", "actor-override", "io-pending"];
@@ -166,7 +166,7 @@ public sealed class NativeBattleWater222PresentationTests
                     cold.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, pixels);
                     boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     required.Remove(name!);
@@ -183,18 +183,18 @@ public sealed class NativeBattleWater222PresentationTests
             Assert.All(new byte[] { 2, 5, 6, 0x15, 0x26 }, kind => Assert.Contains(kind, drawKinds));
             Assert.Empty(required);
             Assert.NotEmpty(heard);
-            NativeBattleOriginalEffectState finished = Assert.IsType<NativeBattleOriginalEffectState>(battle.NativeGraphics!.OriginalEffect);
+            NativeBattleOriginalEffectState finished = Assert.IsType<NativeBattleOriginalEffectState>(battle.Presentation!.Graphics.OriginalEffect);
             Assert.Equal((ushort)222, finished.Binding.Effect);
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(0, battle.NativeEffectMemory!.Active);
-            Assert.Equal((byte)0, battle.NativeEffectMemory.ScriptedEffects!.Read(0x2798219, 1)[0]);
+            Assert.Equal(0, battle.Presentation!.Memory.Active);
+            Assert.Equal((byte)0, battle.Presentation!.Memory.ScriptedEffects!.Read(0x2798219, 1)[0]);
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
             BattleSession completedCold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             completedCold.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(completedCold.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(completedCold, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(completedCold, 320, 224).ToArray());
             Assert.False(HasAction(battle));
             Assert.Equal(SourceSha256, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))));
             Report("checked", null);
@@ -277,7 +277,7 @@ public sealed class NativeBattleWater222PresentationTests
         }
         throw new InvalidDataException("Water evidence requires its bounded terminated draw-order owner.");
     }
-    private static bool HasAction(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(index => battle.NativeGraphics.Descriptors.Packets[index].Command == 104);
+    private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(index => battle.Presentation!.Graphics.Descriptors.Packets[index].Command == 104);
     private static NativeBattleOriginalEffectState? Effect(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 222 } effect ? effect : null;
     private static uint Dword(NativeBattleScriptedEffectMemory core, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
     private static ushort Word(NativeBattleScriptedEffectMemory core, uint address) => BinaryPrimitives.ReadUInt16LittleEndian(core.Read(address, 2));

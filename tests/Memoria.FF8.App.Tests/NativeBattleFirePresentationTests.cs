@@ -82,9 +82,9 @@ public sealed class NativeBattleFirePresentationTests
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_EVIDENCE");
         string evidenceId = (casting ? "fire-casting-" : "fire-service-") + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
@@ -94,7 +94,7 @@ public sealed class NativeBattleFirePresentationTests
         bool sawSprites = false;
         bool sawPixelDifference = false;
         bool checkedNextFrame = false;
-        NativeBattleCameraPose? initialCamera = battle.NativeCamera?.CurrentPose;
+        NativeBattleCameraPose? initialCamera = battle.Presentation?.Camera?.CurrentPose;
         bool cameraProgramCompleted = false;
         bool sawCastingLoadWait = false;
         bool sawCastingReady = false;
@@ -105,11 +105,11 @@ public sealed class NativeBattleFirePresentationTests
         byte[]? peakPlain = null;
         for (int callback = 0; callback < 360 && HasActionDescriptor(battle); callback++)
         {
-            bool castingCompletionPending = casting && battle.NativeGraphics!.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 7);
+            bool castingCompletionPending = casting && battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 7);
             battle.AdvanceNativeGraphicsPresentation(Callback);
             if (castingCompletionPending && !HasActionDescriptor(battle))
             {
-                NativeBattleGraphicsModel actor = ReadOriginalModelCell(battle.NativeGraphics!, 0);
+                NativeBattleGraphicsModel actor = ReadOriginalModelCell(battle.Presentation!.Graphics, 0);
                 //50A9A0 sets WORD44 bit200 before504290; original sequence11 XOR-clears it and selects pose22 in the same callback.
                 Assert.Equal((byte)11, actor.Sequence);
                 Assert.Equal((ushort)0x54, actor.SequenceState!.Offset46);
@@ -119,10 +119,10 @@ public sealed class NativeBattleFirePresentationTests
             }
             audio.Update(battle);
             audio.Update(battle);
-            selected |= battle.NativeGraphics!.ActionGraphics?.Callback == (casting ? 0x50A9A0 : 0x50B190);
-            cameraProgramCompleted |= battle.NativeCamera is { ControlCursor: null, ControlResource.Source.Identity: "FF8_EN:DED5FC" };
-            sawCastingLoadWait |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 3);
-            sawCastingReady |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 4) && (ReadOriginalModelCell(battle.NativeGraphics, 0).ResourceFlags44 & 0x20) != 0;
+            selected |= battle.Presentation!.Graphics.ActionGraphics?.Callback == (casting ? 0x50A9A0 : 0x50B190);
+            cameraProgramCompleted |= battle.Presentation?.Camera is { ControlCursor: null, ControlResource.Source.Identity: "FF8_EN:DED5FC" };
+            sawCastingLoadWait |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 3);
+            sawCastingReady |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 4) && (ReadOriginalModelCell(battle.Presentation?.Graphics, 0).ResourceFlags44 & 0x20) != 0;
             if (restored is not null)
             {
                 restored.AdvanceNativeGraphicsPresentation(Callback);
@@ -130,11 +130,11 @@ public sealed class NativeBattleFirePresentationTests
                 if (!checkedNextFrame)
                 {
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition, true).Render(restored, 320, 224));
+                    Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(restored, 320, 224));
                     checkedNextFrame = true;
                 }
             }
-            if (!battle.NativeGraphics.ModuleDraws.Any(draw => draw.Kind == NativeBattleModuleDrawKind.Sprite))
+            if (!battle.Presentation!.Graphics.ModuleDraws.Any(draw => draw.Kind == NativeBattleModuleDrawKind.Sprite))
             {
                 continue;
             }
@@ -177,7 +177,7 @@ public sealed class NativeBattleFirePresentationTests
             sawPixelDifference = true;
             string json = JsonSerializer.Serialize(snapshot);
             restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-            Assert.Equal(visible, new BattleScenePresentation(assets, definition, true).Render(restored, 320, 224));
+            Assert.Equal(visible, new BattleScenePresentation(assets, definition).Render(restored, 320, 224));
             Assert.Equal(json, JsonSerializer.Serialize(battle.Capture()));
             PublishEvidence(evidence, evidenceId + "-mid", battle, visible);
             PublishPixels(evidence, evidenceId + "-mid-without-sprites", plain);
@@ -197,9 +197,9 @@ public sealed class NativeBattleFirePresentationTests
         if (!casting)
         {
             //50B190 sets selectorFFFF. DED5FC computes0-selector; its <=0 branch is false and opcode02 retains the prior pose.
-            Assert.Equal((short)-1, battle.NativeCamera!.Variables[0]);
-            Assert.Equal((short)-1, battle.NativeCamera.Scratch[0]);
-            Assert.Equal(initialCamera, battle.NativeCamera.CurrentPose);
+            Assert.Equal((short)-1, battle.Presentation!.Camera.Variables[0]);
+            Assert.Equal((short)-1, battle.Presentation!.Camera.Scratch[0]);
+            Assert.Equal(initialCamera, battle.Presentation!.Camera.CurrentPose);
         }
         else
         {
@@ -208,8 +208,8 @@ public sealed class NativeBattleFirePresentationTests
             Assert.True(sawCastingCompletionConsumed, "Original sequence11 did not consume the50A9A0 completion signal in its native model callback.");
         }
         Assert.False(HasActionDescriptor(battle), "Original Fire104 descriptor did not finish within360 callbacks.");
-        Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
-        Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
+        Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
         Assert.Equal(before.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(before.Random, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");
@@ -236,7 +236,7 @@ public sealed class NativeBattleFirePresentationTests
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_SNAPSHOT_EVIDENCE");
@@ -248,7 +248,7 @@ public sealed class NativeBattleFirePresentationTests
 
     private static bool HasActionDescriptor(BattleSession battle)
     {
-        NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
         return descriptors.Queue.Any(slot => descriptors.Packets[slot].Command == 104);
     }
 
@@ -257,10 +257,10 @@ public sealed class NativeBattleFirePresentationTests
         //A controlled pending IO row isolates the outer scheduler from effect/model requests; the live battle stays unchanged.
         NativeBattleFileIoState pending = NativeBattleFileIoState.FromColdProcess().Queue482610(40960, 0x508470, null);
         BattleSession probe = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1 });
-        long callback = probe.NativeGraphics!.Callback;
+        long callback = probe.Presentation!.Graphics.Callback;
         probe.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(probe));
-        Assert.Equal(callback + 1, probe.NativeGraphics.Callback);
-        Assert.Equal((short)1, probe.NativeFileIo!.Rows[0].Countdown);
+        Assert.Equal(callback + 1, probe.Presentation!.Graphics.Callback);
+        Assert.Equal((short)1, probe.Presentation!.NativeFileIo!.Rows[0].Countdown);
         Assert.Equal(-1, probe.NativeEffectIoResult);
         string mid = JsonSerializer.Serialize(probe.Capture());
         probe.Tick();
@@ -273,25 +273,25 @@ public sealed class NativeBattleFirePresentationTests
             Assert.Equal(JsonSerializer.Serialize(probe.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(step == 0 ? -1 : 40960, probe.NativeEffectIoResult);
         }
-        Assert.Equal(callback + 3, probe.NativeGraphics.Callback);
-        Assert.Equal((short)0, probe.NativeFileIo.ActiveCount);
-        Assert.Equal((short)-1, probe.NativeFileIo.Rows[0].Countdown);
+        Assert.Equal(callback + 3, probe.Presentation!.Graphics.Callback);
+        Assert.Equal((short)0, probe.Presentation!.NativeFileIo.ActiveCount);
+        Assert.Equal((short)-1, probe.Presentation!.NativeFileIo.Rows[0].Countdown);
         NativeBattleGraphicsState graphics = entry.NativeGraphics!;
         NativeBattleUiServices services = graphics.UiServices!;
         BattleSession paused = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1, NativeGraphics = graphics with { UiServices = services with { Flags942 = (ushort)(services.Flags942 | 2), PauseDE9 = true } } });
         paused.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(paused));
-        Assert.Equal(callback, paused.NativeGraphics!.Callback);
-        Assert.Equal((short)2, paused.NativeFileIo!.Rows[0].Countdown);
+        Assert.Equal(callback, paused.Presentation!.Graphics.Callback);
+        Assert.Equal((short)2, paused.Presentation!.NativeFileIo!.Rows[0].Countdown);
         Assert.Equal(-1, paused.NativeEffectIoResult);
         BattleSession old = BattleSession.Restore(entry with { NativeFileIo = null });
         Assert.Throws<NotSupportedException>(() => old.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(old)));
-        Assert.Null(old.NativeFileIo);
-        Assert.Equal(entry.NativeGraphics!.Callback, old.NativeGraphics!.Callback);
+        Assert.Null(old.Presentation?.NativeFileIo);
+        Assert.Equal(entry.NativeGraphics!.Callback, old.Presentation!.Graphics.Callback);
     }
 
     private static TimeSpan NextGraphicsCallback(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         //31/2 callbacks per second: admit exactly the next boundary from the retained rational remainder.
         long remainingUnits = 2 * (TimeSpan.TicksPerSecond - graphics.PresentationSubticks) - (graphics.PresentationHalfSubtick ? 1 : 0);
         return TimeSpan.FromTicks((remainingUnits + 30) / 31);

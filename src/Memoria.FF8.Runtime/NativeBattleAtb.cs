@@ -65,27 +65,14 @@ public sealed partial class BattleCombatant
 
 public sealed partial class BattleSession
 {
-    private bool HasNativeUiServiceClock => nativeBattleClock is not null && NativeGraphics?.UiServices is not null;
+    private bool HasNativeUiServiceClock => false;
     private NativeBattleUiServices? expandedTurnClockObservation;
     private NativeBattleUiServices? ExpandedClockUi => expandedPresentationProcess?.Graphics.UiServices ?? expandedTurnClockObservation;
-    private NativeBattleUiServices? BattleClockUi => NativeGraphics?.UiServices ?? ExpandedClockUi;
+    private NativeBattleUiServices? BattleClockUi => ExpandedClockUi;
     private bool HasPolledNativeBattleClock => HasNativeUiServiceClock || nativeBattleClock is not null && (expandedPresentationProcess is not null || expandedTurnClockObservation is not null);
-    private bool HasGraphicsClockOwner => NativeGraphics is not null || expandedPresentationProcess is not null || expandedTurnClockObservation is not null;
+    private bool HasGraphicsClockOwner => expandedPresentationProcess is not null || expandedTurnClockObservation is not null;
 
-    private void AdvanceNativeUiAtbService()
-    {
-        if (diagnosticEffectPreview)
-        {
-            return;
-        }
-        if (nativeBattleClock is null)
-        {
-            // TODO(TD-009): Graphics-only components do not own kernel ATB inputs.
-            return;
-        }
-        NativeBattleUiServices ui = NativeGraphics?.UiServices ?? throw new InvalidDataException("Native4A84E0 lacks its initialized UI services.");
-        AdvanceNativeUiAtbService(ui, ui.ReadyMask != 0);
-    }
+
 
     internal void AdvanceExpandedUiAtbService(NativeBattleUiServices ui)
     {
@@ -119,7 +106,7 @@ public sealed partial class BattleSession
         ObserveNativeUnknownStackCallback(0x4842B0, "admitted ATB update");
         foreach (BattleCombatant actor in combatants.ToArray())
         {
-            AdvanceNativeAtbParticipant(actor, nativeUiBecameReady);
+            AdvanceNativeAtbParticipant(actor, null);
         }
         DispatchGuardianForceCasts();
     }

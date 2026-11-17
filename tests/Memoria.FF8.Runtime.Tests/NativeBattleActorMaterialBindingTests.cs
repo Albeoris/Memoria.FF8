@@ -77,7 +77,7 @@ public sealed class NativeBattleActorMaterialBindingTests
         var (session, graphics) = Fixture(includeSecond: false);
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Draw(session, graphics, Second, shared: false));
         Assert.IsType<InvalidDataException>(error.InnerException);
-        Assert.Equal(0, session.NativeEffectMemory!.PrimitiveProcess!.ByteCursor);
+        Assert.Equal(0, session.Presentation!.Memory.PrimitiveProcess!.ByteCursor);
         Assert.Empty(Commands(graphics));
     }
 
@@ -124,7 +124,7 @@ public sealed class NativeBattleActorMaterialBindingTests
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
         Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
-        Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model())]) with
         {
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()

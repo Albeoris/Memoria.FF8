@@ -121,7 +121,7 @@ public sealed class NativeBattleEffect210FollowingActionTests
                 Assert.True(currentCompanion.NativeParticipant!.Suspended);
                 Assert.True(currentCompanion.NativeParticipant.Untargetable);
                 ColdNext("following-action-completed", current);
-                NativeBattleRestorationPresentationTests.Publish(output!, "following-action-completed-visible", current, new BattleScenePresentation(assets, current.Definition, true).Render(battle, 320, 224).ToArray());
+                NativeBattleRestorationPresentationTests.Publish(output!, "following-action-completed-visible", current, new BattleScenePresentation(assets, current.Definition).Render(battle, 320, 224).ToArray());
                 completed = true;
                 break;
             }
@@ -193,8 +193,8 @@ public sealed class NativeBattleEffect210FollowingActionTests
             cold.Tick();
             direct.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(direct, 320, 224).ToArray(), pixels);
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
         }
     }

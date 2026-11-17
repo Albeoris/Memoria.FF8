@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -25,7 +26,7 @@ public sealed partial class BattleSession
         StageExpandedHostedControl(new HostedDispatchControl.Complete(new(callback, owner, command.ActorId, capturedBeforeAi)));
     }
 
-    private ExpandedHostedPrefix PrepareExpandedHostedPrefix(ExpandedBattlePresentationProcess process,
+    private ExpandedHostedPrefix PrepareExpandedHostedPrefix(BattlePresentationProcess process,
         PreparedHostedCompletionAck? acknowledgment = null, bool acknowledgeOnly = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null,
         HostedRenzokukenFinisherReplacement? renzokukenFinisher = null, PreparedHostedGuardianFormChange? guardianForm = null)
     {
@@ -121,7 +122,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("A hosted event lost its attached process.");
+        BattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("A hosted event lost its attached process.");
         if (process.PendingRenzokukenFinisher is not null)
         {
             return;

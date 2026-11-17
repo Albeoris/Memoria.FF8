@@ -38,7 +38,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
         BattleCombatantDefinition[] actors = [actor, enemy];
         BattleDefinition definition = source with { Combatants = actors, NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([160, 163]) };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "rough-divide-163-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Rough Divide evidence: " + output);
@@ -68,7 +68,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (!initial && graphics.OriginalEffect is { Binding.Effect: 160, ReturnedDescriptor: > 0 })
                 {
                     Assert.True(battle.Capture().NativeEffectMemory!.Renzokuken160!.InitialControl);
@@ -92,18 +92,18 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                         midpoint = true;
                     }
                 }
-                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 })
+                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Assert.True(initial);
                     Assert.Equal(0, battle.Combatants.Single(actor => !actor.IsPlayer).CurrentHp);
-                    Assert.Equal((byte)3, ReadOriginalModelCell(battle.NativeGraphics!, 3).Sequence);
-                    Assert.Equal((byte)6, ReadOriginalModelCell(battle.NativeGraphics, 3).Kind5);
+                    Assert.Equal((byte)3, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Sequence);
+                    Assert.Equal((byte)6, ReadOriginalModelCell(battle.Presentation?.Graphics, 3).Kind5);
                     CompareNext("death-removal");
-                    for (int removalCallback = 0; removalCallback < 128 && (ReadOriginalModelCell(battle.NativeGraphics, 3).Flags0 & 2) != 0; removalCallback++)
+                    for (int removalCallback = 0; removalCallback < 128 && (ReadOriginalModelCell(battle.Presentation?.Graphics, 3).Flags0 & 2) != 0; removalCallback++)
                     {
                         battle.Tick();
                     }
-                    Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).Flags0 & 2);
+                    Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 2);
                     Assert.True(midpoint);
                     Assert.Equal(4 + finisher.HitCount, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     int initialDamage = battle.Events.Where(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy").Take(4).Sum(entry => entry.Amount);
@@ -111,7 +111,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
                     CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", weapon, finisherIndex, battle.Frame, NativeCallback = battle.NativeGraphics.Callback, initial, selected, midpoint, hitPoints }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", weapon, finisherIndex, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, initial, selected, midpoint, hitPoints }));
                     return;
                 }
             }
@@ -139,7 +139,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
             battle.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");
         }
     }

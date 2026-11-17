@@ -94,7 +94,7 @@ public sealed class NativeBattleHostedActionServicesTests
         InstallHeader(session, graphics, EarlyAlly, 1);
         BattleModelTargets targets = Targets(EarlyEnemy, LateEnemy);
         NativeBattleGraphicsState prepared = PrepareHeader(session, graphics, Context(EarlyAlly, targets));
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleCameraAliases aliases = memory.CameraAliases!;
         NativeBattleActionGeometryGlobals globals = memory.ActionGeometryGlobals!;
 
@@ -164,13 +164,13 @@ public sealed class NativeBattleHostedActionServicesTests
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(EarlyAlly, Model(7, loaded: true)) };
         List<BattleModelOwner> reads = [];
         InstallForeignBones(session, graphics, reads, EarlyAlly);
-        NativeBattleEffectMemory before = session.NativeEffectMemory!;
+        NativeBattleEffectMemory before = session.Presentation!.Memory;
         AssertInvalid(() => PrepareTyped(session, graphics, EarlyAlly, Targets(Missing), Targets(LateEnemy)));
         AssertInvalid(() => PrepareTyped(session, graphics, EarlyAlly, Targets(EarlyAlly), Targets(Missing)));
         AssertInvalid(() => PrepareTyped(session, graphics, Missing, Targets(EarlyAlly), Targets(LateEnemy)));
         AssertInvalid(() => PrepareTyped(session, graphics with { ActorModels = graphics.ActorModels.Remove(LateEnemy) }, EarlyAlly, Targets(EarlyAlly), Targets(LateEnemy)));
                 Assert.Empty(reads);
-        Assert.Same(before, session.NativeEffectMemory);
+        Assert.Same(before, session.Presentation?.Memory);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public sealed class NativeBattleHostedActionServicesTests
         {
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess());
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess());
         return session;
     }
 

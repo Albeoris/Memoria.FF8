@@ -94,7 +94,7 @@ public sealed class BattleDrawLayoutTests
         BattleDefinition definition = Create(1, []).Session.Capture().Definition;
         definition.Combatants[1] = definition.Combatants[1] with { NativeDrawSlots = [new(65, 0), new(0, 0), new(0, 0), new(0, 0)] };
         definition = definition with { GuardianForces = [new(1, 100, 1000, false)] };
-        BattleHudController hud = new(new(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(new(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.TargetModelBounds = _ => new UiRect(400, 200, 100, 100);
         hud.Choose(0);
         UiView view = hud.BuildView();
@@ -116,7 +116,7 @@ public sealed class BattleDrawLayoutTests
     {
         BattleDefinition definition = Create(1, []).Session.Capture().Definition;
         definition.Combatants[0] = definition.Combatants[0] with { MagicStocks = [new(1, 100)] };
-        BattleHudController hud = new(new(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(new(definition, BattleAtbMode.TurnBased), (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Choose(0);
         Assert.True(hud.DrawCast);
         UiView view = hud.BuildView();

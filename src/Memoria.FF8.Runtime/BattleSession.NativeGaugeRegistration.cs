@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 
     private void PublishNativeFullGaugeRegistration(BattleCombatant actor)
     {
-        NativeBattleUiServices? ui = NativeGraphics?.UiServices;
+        NativeBattleUiServices? ui = ((NativeBattleGraphicsState?)null)?.UiServices;
         bool attachedEnemy = HasAttachedOriginalGaugeRegistration && !actor.IsPlayer && actor.NativeAi is not null;
         if ((ui is null && !attachedEnemy) || actor.NativeActorIndex is null || actor.NativeAtb is not { } gauge)
         {
@@ -30,12 +30,12 @@ public sealed partial class BattleSession
             case NativeBattleGaugeRegistrationKind.None:
                 return;
             case NativeBattleGaugeRegistrationKind.Menu:
-                NativeGraphics = NativeGraphics! with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.RequireNativeActorIndex()), 0x11) } };
+                ;
                 break;
             case NativeBattleGaugeRegistrationKind.ForcedCommand:
                 ObserveNativeUnknownStackCallback(0x483EB0, "forced full-gauge command");
                 //483EB0's non-script branch invokes485030 before486E00 and484D20.
-                NativeGraphics = NativeGraphics! with { UiServices = ui with { Commands = ui.Commands.Enqueue(checked((byte)actor.RequireNativeActorIndex()), 0x12) } };
+                ;
                 BattleTargetSelection selection = ChooseOriginalRandomActionTarget(BattleSide.Enemies);
                 if (selection is not NativeBattleTargetRequestAdapter.DeferredOperands original ||
                     ReadOriginalSelectedActor(original, activeOnly: false) is not { } target)

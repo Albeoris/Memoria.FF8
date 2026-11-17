@@ -24,9 +24,9 @@ public sealed class NativeGlobalRandomTests
             Combatants = [new() { Id = "player", Name = "Player", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
 
-        Assert.Null(battle.NativeGraphics);
+        Assert.Null(battle.Presentation?.Graphics);
         Assert.Equal((byte)0, battle.NativeEntryAdvantage);
-        NativeBattleCameraState camera = Assert.IsType<NativeBattleCameraState>(battle.NativeCamera);
+        NativeBattleCameraState camera = Assert.IsType<NativeBattleCameraState>(battle.Presentation?.Camera);
         if (expanded)
         {
             Assert.Equal(new NativeGlobalRandomChange(before, before, 0), battle.NativeGlobalRandomChange);

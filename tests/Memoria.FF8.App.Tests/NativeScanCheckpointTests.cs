@@ -21,18 +21,18 @@ public sealed class NativeScanCheckpointTests
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-        Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         AssertReleased(first.Capture());
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224);
-        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224));
+        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224);
+        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224));
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_SCAN_CHECKPOINT_EVIDENCE");
         if (output is not null)
         {
             NativeBattleRestorationPresentationTests.Publish(output, "scan-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
         }
-        Console.WriteLine($"Released Scan {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.NativeGraphics.Callback}; whole JSON and RGBA agree.");
+        Console.WriteLine($"Released Scan {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
 
         BattleSnapshot Read() => JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
     }

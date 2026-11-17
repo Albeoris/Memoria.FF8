@@ -113,7 +113,7 @@ internal sealed partial class CrossoverGuestHostActions
         CrossoverGunbladeHostPlacement placement = new(Ff7BattlePosition.FromVector(source.Position), source.Yaw);
         (_, short yaw, _, int distance) = placement.ResolveContact(target.Placement, target.CollisionRadius);
         CrossoverNativeRenzokukenProgramState program = limitProgram.Begin(visual.Model, target.Slot, ReadPresentationOwner(ActorSlot), ReadPresentationOwner(target.Slot), plan.Variant, plan.Finisher is not null, distance, yaw, encounter.CrtRandom, options, limitUiRandom);
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(HostTime(invocation.StartedAt)));
         CrossoverNativeLimitCamera camera = CrossoverNativeLimitCamera.Capture(program.Model, limitResource.PoseSource!, placement, target.Placement.Position, host.GuestEffectTargetAnchor(target.Slot));
         limit = new(invocation, invocation.StartedAt, clock.Subticks, clock.HalfSubtick, placement, plan, program) { Camera = camera, FinisherTargets = plan.Finisher is byte selected ? AbilityTargetMask(SelectedFinisherAction(selected), target.Slot) : (ushort)0 };
         limitSelection = next;
@@ -125,7 +125,7 @@ internal sealed partial class CrossoverGuestHostActions
         {
             throw new InvalidDataException("Guest Renzokuken advances once per native FFVII host tick.");
         }
-        NativeBattleGraphicsPresentationStep clock = NativeBattleGraphicsPresentationClock.Advance(current.Subticks, current.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(current.HostTick)));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(current.Subticks, current.HalfSubtick, TimeSpan.FromTicks(HostTime(hostTick) - HostTime(current.HostTick)));
         Ff7BattleGuestPhysicalHit? hit = null;
         int? presented = null;
         byte? targetCue = null;

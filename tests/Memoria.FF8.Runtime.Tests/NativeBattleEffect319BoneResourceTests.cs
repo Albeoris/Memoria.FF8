@@ -231,7 +231,7 @@ public sealed class NativeBattleEffect319BoneResourceTests
             SetCpu();
         }
 
-        private void SetCpu() => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, Cpu);
+        private void SetCpu() => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, Cpu);
 
         internal void RestoreFrame()
         {

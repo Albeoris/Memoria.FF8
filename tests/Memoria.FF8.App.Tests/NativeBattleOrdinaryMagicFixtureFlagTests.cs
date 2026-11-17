@@ -74,7 +74,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         Assert.Equal(frozen, JsonSerializer.Serialize(queued));
         BattleCombatant nextEnemy = direct.Combatants.Single(actor => actor.Id == initialEnemy.Id);
         Assert.Equal(originalFlags, nextEnemy.NativeCombatantFlags & originalFlags);
-        return new { enemyDefinition.ModelId, physicalSlot = 3, originalFlags, entryFlags, fullGaugeRegistration = registration.Kind.ToString(), beforeInput = beforeInput.NativeGraphics!.Callback, produced = queued.NativeGraphics.Callback, next = direct.NativeGraphics!.Callback, action.Command, action.ActionId, contacts = header.ReadContactCount(), stockBefore = 2, stockAfter = 1, coldNextEqual = true };
+        return new { enemyDefinition.ModelId, physicalSlot = 3, originalFlags, entryFlags, fullGaugeRegistration = registration.Kind.ToString(), beforeInput = beforeInput.NativeGraphics!.Callback, produced = queued.NativeGraphics.Callback, next = direct.Presentation!.Graphics.Callback, action.Command, action.ActionId, contacts = header.ReadContactCount(), stockBefore = 2, stockAfter = 1, coldNextEqual = true };
     }
 
     internal static void DeleteFixtureSnapshots(string fixture, NativeEffectFixtureExportResult exported)

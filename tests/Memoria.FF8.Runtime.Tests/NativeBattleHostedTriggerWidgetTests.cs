@@ -112,7 +112,7 @@ public sealed class NativeBattleHostedTriggerWidgetTests
         Assert.IsType<InvalidDataException>(identity.InnerException);
         TargetInvocationException wrongSide = Assert.Throws<TargetInvocationException>(() => Prepare(owner, graphics with { ActorModels = graphics.ActorModels.ReplaceOwner(Enemy, new BattlePartyActorModel(new("enemy")), graphics.ActorModels.Get(Enemy)) }, Enemy, cue));
         Assert.IsType<InvalidDataException>(wrongSide.InnerException);
-        Assert.Null(owner.NativeGraphics);
+        Assert.Null(owner.Presentation?.Graphics);
         Assert.Null(graphics.TriggerWidget);
     }
 

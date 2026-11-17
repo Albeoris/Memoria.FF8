@@ -29,7 +29,7 @@ public sealed class NativeBattleRegenCallbackTests
             Assert.Equal(gauge.Display, session.Combatants[0].Atb);
             Assert.Equal(550, session.Combatants[0].CurrentHp);
             Method("PublishNativePresentedContact").Invoke(session, [primary]);
-            Method("RunNativeDescriptorActionCallback").Invoke(session, [session.NativeGraphics!, 0x47DDA0u]);
+            Method("RunNativeDescriptorActionCallback").Invoke(session, [session.Presentation!.Graphics, 0x47DDA0u]);
             Assert.Equal(gauge, session.Combatants[0].NativeAtb);
             Assert.Equal(gauge.Display, session.Combatants[0].Atb);
             Assert.Equal(0u, session.Capture().NativeClock!.ActionPause);
@@ -92,7 +92,7 @@ public sealed class NativeBattleRegenCallbackTests
         Assert.DoesNotContain(battle.QueuedActions, command => command.NativeCallback is not null);
         Assert.Single(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
 
-        Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.NativeGraphics!, 0x47DDA0u]);
+        Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.Presentation!.Graphics, 0x47DDA0u]);
         Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
         Assert.Empty(battle.QueuedActions);
         Assert.Equal(expected, battle.Combatants[0].CurrentHp);
@@ -161,7 +161,7 @@ public sealed class NativeBattleRegenCallbackTests
         // Attach this contact-consumer fixture only after that valid boundary.
         int hp = battle.Combatants[0].CurrentHp;
         Field("nativePartyPresentation").SetValue(battle, new NativeBattlePartyPresentation([new(checked((ushort)hp), 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, Graphics(battle));
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, Graphics(battle));
         TakeAndDispatch(battle);
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)0, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);

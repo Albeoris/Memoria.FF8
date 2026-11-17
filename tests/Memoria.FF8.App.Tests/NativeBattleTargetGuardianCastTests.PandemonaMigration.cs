@@ -142,7 +142,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, startingName)))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(live.Capture()));
         Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(independent.Capture()));
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         for (int index = 0; index < callbacks; index++)
         {

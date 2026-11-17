@@ -17,15 +17,13 @@ public sealed class NativeBattleHostedRenzokukenTests
                 new() { Id = "target", Name = "Target" }
             ]
         };
-        BattleSession child = new(definition, BattleAtbMode.TurnBased);
-        var (roster, aliases) = child.ReadBattlePresentationPacketBindings();
-        BattlePartyModelOwner caster = Assert.IsAssignableFrom<BattlePartyModelOwner>(child.ReadPresentationModelOwner("squall"));
-        BattleModelOwner target = child.ReadPresentationModelOwner("target");
+        BattleSession logical = new(definition, BattleAtbMode.TurnBased);
+        var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
+        BattlePartyModelOwner caster = Assert.IsAssignableFrom<BattlePartyModelOwner>(logical.ReadPresentationModelOwner("squall"));
+        BattleModelOwner target = logical.ReadPresentationModelOwner("target");
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0) { ModelId4 = 0 }) with { EntryReady = true, EntryLifecycle = 4 };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
-        Field("hostedBattlePresentation").SetValue(child, true);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        Field("definition").SetValue(child, definition with { NativeGraphics = new(rules, [new("squall", 0, new([0, 0]))], []) });
+        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics, definition with { NativeGraphics = new(rules, [new("squall", 0, new([0, 0]))], []) });
         NativeBattleContactPacket contact = new(new(target, 0, 1, 0, 0, 0, 0), null);
         (NativeBattleActionPacketsState packets, BattleActionHeaderReference initial) = child.NativeActionPackets.Prepare(new(caster, 5, 21, -1, 65534, 160, null));
         packets = packets.AppendContacts([contact]).Publish(1).State.WritePlayerRepeatMode(initial, 1);
@@ -37,16 +35,16 @@ public sealed class NativeBattleHostedRenzokukenTests
         NativeBattleRenzokukenFinisherReached receipt = new(owner, finisher, 1, 2);
         Field("pendingHostedRenzokukenFinisher").SetValue(child, receipt);
         NativeBattleContactPacket[] replacements = Enumerable.Range(1, 3).Select(amount => contact with { Primary = contact.Primary with { Amount6 = checked((ushort)amount) } }).ToArray();
-        var update = new BattleSession.HostedRenzokukenFinisherReplacement(receipt, packets, packets.ReadHeader(finisher).FirstContact, replacements.ToImmutableArray(), []);
+        var update = new BattlePresentationProcess.HostedRenzokukenFinisherReplacement(receipt, packets, packets.ReadHeader(finisher).FirstContact, replacements.ToImmutableArray(), []);
 
         Assert.Throws<InvalidOperationException>(() => child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update with { Receipt = receipt with { Serial = 3 } }));
         Assert.Throws<InvalidDataException>(() => child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update with { Contacts = [contact] }));
         Assert.Throws<InvalidDataException>(() => child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update with { FirstContact = update.FirstContact.Advance(1) }));
         Assert.Same(receipt, child.PendingHostedRenzokukenFinisher);
         Assert.Same(packets, child.NativeActionPackets);
-        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+        Assert.Empty(child.Graphics.Descriptors.Queue);
 
-        BattleSession.PreparedHostedDispatch prepared = child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update);
+        BattlePresentationProcess.PreparedHostedDispatch prepared = child.PrepareHostedDispatch([], finisher, renzokukenFinisher: update);
         Assert.Same(receipt, child.PendingHostedRenzokukenFinisher);
         child.ValidatePreparedHostedDispatch(prepared);
         child.CommitHostedDispatch(prepared);
@@ -59,5 +57,5 @@ public sealed class NativeBattleHostedRenzokukenTests
         Assert.Throws<InvalidOperationException>(() => child.ValidatePreparedHostedDispatch(prepared));
     }
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
 }

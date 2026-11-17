@@ -39,7 +39,7 @@ public sealed class NativeFieldBattleReturnPresentationTests
         session.SetRandomEncounters(encounters with { Pending = request });
         world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, NativeSeed: 0));
         Assert.NotNull(world.Battle);
-        Assert.NotNull(world.Battle.NativeGraphics);
+        Assert.NotNull(world.Battle.Presentation?.Graphics);
         Assert.Equal(fieldFrame, world.Events.Frame);
         world.ApplyBattleInput(new BattleInput(BattleInputKind.InstantVictory));
         int callbacks = 0;

@@ -19,8 +19,6 @@ public sealed partial class BattleSession
 
     private void DispatchNativeCompelledActors()
     {
-        if (UsesExpandedRoster)
-        {
             if (!ExpandedTimedLimitOwnsInput)
             {
                 DispatchExpandedAngelWingActors();
@@ -34,17 +32,6 @@ public sealed partial class BattleSession
                 }
             }
             return;
-        }
-        if (HasNativeUiServiceClock)
-        {
-            //483EB0 already queued the original command at full-gauge registration, preserving its gauge until completion.
-            return;
-        }
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsReady && RequiresNativeCompelledCommand(actor)))
-        {
-            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.NativeActorIndex is >= 3 and < 7) ?? actor;
-            EnqueueAttack(actor, target);
-        }
     }
 
     private BattleAttackCommand PrepareNativeQueuedCommand(BattleCombatant actor, BattleAttackCommand original)

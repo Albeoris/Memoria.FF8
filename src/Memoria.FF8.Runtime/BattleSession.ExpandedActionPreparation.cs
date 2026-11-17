@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -53,7 +54,7 @@ public sealed partial class BattleSession
 
     private void PrepareAndPublishExpandedAction(BattleActionPresentation command)
     {
-        ExpandedBattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Action preparation requires its attached presentation process.");
+        BattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Action preparation requires its attached presentation process.");
         BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CaptureState());
         IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
@@ -61,7 +62,7 @@ public sealed partial class BattleSession
         PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, command, process);
     }
 
-    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, ExpandedBattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null)
+    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, BattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null)
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;

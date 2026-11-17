@@ -28,7 +28,7 @@ public sealed class NativeBattleDiablos325ThirteenShapesContinuationTests
         using BattleAssets assets = new(directory!);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(migrated)!);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         NativeCrtRandomState expectedRandom = source.NativeCrtRandom!;
         List<object> rows = [];

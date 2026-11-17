@@ -35,7 +35,7 @@ public sealed class NativeBattleEffect290SourceAdmissionTests
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new NotSupportedException("The source requires its current skeleton.");
         Assert.Equal(28, pose.BoneCount);
         NativeBattleEffect290Resources resources = game.ReadNativeEffect290Resources();
-        NativeBattleFileStaging staging = session.NativeFileStaging!;
+        NativeBattleFileStaging staging = session.Presentation!.NativeFileStaging!;
         NativeBattleEffect290State state = memory.Effect290 ?? throw new NotSupportedException("The source requires its retained script owners.");
         (state, staging) = state.BindSources(staging, resources);
         uint script = NativeBattleEffect290Resources.ScriptRanges[0].Address;
@@ -79,7 +79,7 @@ public sealed class NativeBattleEffect290SourceAdmissionTests
         NativeBattleEffect298PosePreparation prepared = NativeBattleEffect298Pose.Prepare662C00(model, pose, offsets, NativeBattleEffectArena.Clear().MarkUnknown(0, 96));
         NativeBattleGraphicsModel composedModel = NativeBattleBodyBoneMatrices.Compose5095B0(prepared.Model, model.GeometryWorldMatrix ?? throw new NotSupportedException("The source requires its current world matrix."));
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(composedModel, pose);
-        NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
+        NativeBattleModelCpuResources cpu = session.Presentation!.ModelCpuResources;
         Assert.Null(model.ActiveStagedResourceRow100);
         NativeBattleModelCpuResourceRow row = cpu.Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("The source requires its current resource row.")];
         NativeBattleModelCpuReference geometry = row.Require(16);

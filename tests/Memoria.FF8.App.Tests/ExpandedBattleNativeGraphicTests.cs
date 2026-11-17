@@ -28,8 +28,8 @@ public sealed class ExpandedBattleNativeGraphicTests
 
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         ExpandedBattleEntryAdmissionTests.ReachReady(world, battle);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant attacker = battle.Combatants.Single(actor => actor.Id == "party-3");
         BattleCombatant trigger = battle.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == (effectId == 110 ? 74 : 101));
@@ -218,7 +218,7 @@ public sealed class ExpandedBattleNativeGraphicTests
         void Advance()
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
     }
 }

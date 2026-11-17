@@ -40,7 +40,7 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
             cpu = cpu with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank), Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, selected)) };
         }
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(session, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         NativeBattlePoseSource source = new((logical ? resource : guest).ToImmutableArray(), [1]);
         NativeBattleGraphicsModel model = new(3) { ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [NativeBattleCuragaMatrices.Identity8DD770()]), SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, new BattlePartyActorModel(new("party")), model)]);
@@ -52,10 +52,10 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
         graphics = (NativeBattleGraphicsState)arguments[0]!;
         Assert.Equal((short)0, (short?)read.Invoke(session, [graphics, frame, 0, 0]));
         NativeBattleResourcePointer opposite = new(new(0, logical ? 4 : far) { Layout = layout, ResourceOnly = !logical }, null, 64);
-        byte[] unchanged = NativeBattleModelResourceView.Open(session.NativeModelCpuResources!, frame.Staging!, opposite, 64).Read(50, 2);
+        byte[] unchanged = NativeBattleModelResourceView.Open(session.Presentation!.ModelCpuResources, frame.Staging!, opposite, 64).Read(50, 2);
         Assert.Equal(BitConverter.GetBytes((ushort)(logical ? 0x1111 : 0x2222)), unchanged);
-        Assert.NotSame(bank, session.NativeModelCpuResources!.GetResourceBank(selected));
-        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.NativeModelCpuResources));
+        Assert.NotSame(bank, session.Presentation!.ModelCpuResources.GetResourceBank(selected));
+        NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.Presentation?.ModelCpuResources));
         Assert.Equal(new byte[2], NativeBattleModelResourceView.Open(restored, frame.Staging!, new NativeBattleResourcePointer(selected, null, 64), 64).Read(50, 2));
     }
 

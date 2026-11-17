@@ -15,7 +15,7 @@ public sealed class PresentationTimingTests
     {
         PresentationTiming timing = new();
         ManualTimeProvider costClock = new();
-        Memoria.FF8.Runtime.NativeBattleGraphicsPresentationStep native = new(0, 0, false);
+        Memoria.FF8.Runtime.BattlePresentationCallbackStep native = new(0, 0, false);
         long callbacks = 0;
         long previous = 0;
         for (int display = 1; display <= 252; display++)
@@ -25,16 +25,16 @@ public sealed class PresentationTimingTests
             long timestamp = (long)display * TimeSpan.TicksPerSecond / 120;
             timing.Accumulate(TimeSpan.FromTicks(timestamp - previous));
             previous = timestamp;
-            timing.RunUpdates(TimeSpan.FromSeconds(1d / (cap == 0 ? 120 : cap)), () => PresentationTiming.UpdateStep(cap, Memoria.FF8.Runtime.NativeBattleGraphicsPresentationClock.CallbacksPerSecond), step =>
+            timing.RunUpdates(TimeSpan.FromSeconds(1d / (cap == 0 ? 120 : cap)), () => PresentationTiming.UpdateStep(cap, Memoria.FF8.Runtime.BattlePresentationTiming.CallbacksPerSecond), step =>
             {
-                native = Memoria.FF8.Runtime.NativeBattleGraphicsPresentationClock.Advance(native.Subticks, native.HalfSubtick, step);
+                native = Memoria.FF8.Runtime.BattlePresentationTiming.Advance(native.Subticks, native.HalfSubtick, step);
                 callbacks += native.Callbacks;
                 return true;
             }, costClock);
         }
-        var expected = Memoria.FF8.Runtime.NativeBattleGraphicsPresentationClock.Advance(0, false, timing.SimulationTotal);
+        var expected = Memoria.FF8.Runtime.BattlePresentationTiming.Advance(0, false, timing.SimulationTotal);
         Assert.Equal(32, callbacks);
-        Assert.Equal(expected, new Memoria.FF8.Runtime.NativeBattleGraphicsPresentationStep(callbacks, native.Subticks, native.HalfSubtick));
+        Assert.Equal(expected, new Memoria.FF8.Runtime.BattlePresentationCallbackStep(callbacks, native.Subticks, native.HalfSubtick));
         Assert.Equal(PresentationTiming.SimulationStep * 126, timing.SimulationTotal);
     }
 
@@ -133,7 +133,7 @@ public sealed class PresentationTimingTests
         TimeSpan outlierCost = TimeSpan.FromMilliseconds(50);
         TimeSpan lightCost = TimeSpan.FromMilliseconds(0.5);
         TimeSpan drawCost = TimeSpan.FromMilliseconds(2.653);
-        NativeBattleGraphicsPresentationStep native = new(0, 0, false);
+        BattlePresentationCallbackStep native = new(0, 0, false);
         List<long> nativeCallbackTimes = [];
         long nativeCallbacks = 0;
         int updates = 0;
@@ -167,7 +167,7 @@ public sealed class PresentationTimingTests
                 Assert.True(clock.GetElapsedTime(started) < step);
                 updates++;
                 Assert.Equal(step * updates, timing.SimulationTotal);
-                native = NativeBattleGraphicsPresentationClock.Advance(native.Subticks, native.HalfSubtick, elapsedStep);
+                native = BattlePresentationTiming.Advance(native.Subticks, native.HalfSubtick, elapsedStep);
                 Assert.InRange(native.Callbacks, 0, 1);
                 // One occasional expensive update and seven cheap updates average
                 // 6.6875ms. With this draw cost, sixty updates/second are affordable.
@@ -189,7 +189,7 @@ public sealed class PresentationTimingTests
         Assert.True(draws > 0);
         Assert.True(maximumDebt < PresentationTiming.MaximumElapsed);
         Assert.InRange(TimeSpan.FromTicks(previousSample) - timing.SimulationTotal, TimeSpan.Zero, step * 2);
-        NativeBattleGraphicsPresentationStep expected = NativeBattleGraphicsPresentationClock.Advance(0, false, timing.SimulationTotal);
+        BattlePresentationCallbackStep expected = BattlePresentationTiming.Advance(0, false, timing.SimulationTotal);
         Assert.Equal(expected.Callbacks, nativeCallbacks);
         Assert.Equal(expected.Subticks, native.Subticks);
         Assert.Equal(expected.HalfSubtick, native.HalfSubtick);

@@ -43,11 +43,11 @@ public sealed class NativeBattleTonberryWorkspaceMigrationTests
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
-        Assert.Throws<NotSupportedException>(() => first.NativeEffectMemory!.Tonberry90!.Read(workAddress, 1));
+        Assert.Throws<NotSupportedException>(() => first.Presentation!.Memory.Tonberry90!.Read(workAddress, 1));
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
-        Assert.Equal(scene.Render(BattleSession.Restore(before), 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray());
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
+        Assert.Equal(scene.Render(BattleSession.Restore(before), 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray());
         string directory = Path.GetDirectoryName(Path.GetFullPath(output!))!;
         Directory.CreateDirectory(directory);
         try
@@ -55,12 +55,12 @@ public sealed class NativeBattleTonberryWorkspaceMigrationTests
             first.Tick();
             second.Tick();
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            Assert.Equal(308L, first.NativeGraphics!.Callback);
-            Assert.Equal(tim, first.NativeEffectMemory!.Arena!.Read(0xC000, tim.Length));
-            Assert.Equal(workBytes, first.NativeEffectMemory.Tonberry90!.Read(workAddress, workBytes).Length);
-            Assert.Equal(0, first.NativeEffectMemory.Textures!.Count);
+            Assert.Equal(308L, first.Presentation!.Graphics.Callback);
+            Assert.Equal(tim, first.Presentation!.Memory.Arena!.Read(0xC000, tim.Length));
+            Assert.Equal(workBytes, first.Presentation!.Memory.Tonberry90!.Read(workAddress, workBytes).Length);
+            Assert.Equal(0, first.Presentation!.Memory.Textures!.Count);
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
             using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
             {
                 JsonSerializer.Serialize(stream, migrated);

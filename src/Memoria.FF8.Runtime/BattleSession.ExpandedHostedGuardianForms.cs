@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -26,7 +27,7 @@ public sealed partial class BattleSession
         return new(owner, form.Phase, hasAction, finishing);
     }
 
-    private void BeginExpandedHostedGuardianFormEntry(ExpandedBattlePresentationProcess process, BattleCombatant actor, BattleGuardianForceCast cast)
+    private void BeginExpandedHostedGuardianFormEntry(BattlePresentationProcess process, BattleCombatant actor, BattleGuardianForceCast cast)
     {
         if (GetGuardianForm(actor.Id) is not { Phase: BattleGuardianFormPhase.Charging } form ||
             cast.Command.GuardianFormInvocation is not { Mode: GuardianFormInvocationMode.EntryOnly } invocation || invocation.Id != form.InvocationId ||
@@ -53,7 +54,7 @@ public sealed partial class BattleSession
         stagedExpandedHostedGuardianForm = new(GuardianFormVisualOwner(actor, form.InvocationId, form.GuardianForceId), Entering: false, CaptureExpandedHostedGuardianFormFacts());
     }
 
-    private void ReturnExpandedHostedGuardianForm(ExpandedBattlePresentationProcess process, BattleCombatant actor, bool terminal)
+    private void ReturnExpandedHostedGuardianForm(BattlePresentationProcess process, BattleCombatant actor, bool terminal)
     {
         BattleSnapshot before = Capture();
         BattleSession candidate = CreateExpandedHostedFormCandidate(before);
@@ -62,7 +63,7 @@ public sealed partial class BattleSession
         PublishExpandedHostedFormCandidate(process, before, candidate, visual);
     }
 
-    private void ApplyExpandedHostedGuardianFormLanding(ExpandedBattlePresentationProcess process, NativeBattleGuardianFormLanded receipt)
+    private void ApplyExpandedHostedGuardianFormLanding(BattlePresentationProcess process, NativeBattleGuardianFormLanded receipt)
     {
         HostedGuardianFormVisualOwner owner = receipt.Form;
         NativeBattleGuardianFormPresentation visual = RequireHostedGuardianFormVisualOwner(process.Graphics, owner);
@@ -116,14 +117,14 @@ public sealed partial class BattleSession
         return candidate;
     }
 
-    private static PreparedHostedGuardianFormChange? PrepareStagedHostedGuardianForm(ExpandedBattlePresentationProcess? process, BattleSession candidate)
+    private static PreparedHostedGuardianFormChange? PrepareStagedHostedGuardianForm(BattlePresentationProcess? process, BattleSession candidate)
     {
         return candidate.stagedExpandedHostedGuardianForm is { } form
             ? (process ?? throw new InvalidOperationException("A staged GF form transition lost its hosted presentation process.")).PrepareGuardianFormChange(form)
             : null;
     }
 
-    private void PublishExpandedHostedFormCandidate(ExpandedBattlePresentationProcess process, BattleSnapshot before, BattleSession candidate, PreparedHostedGuardianFormChange? visual)
+    private void PublishExpandedHostedFormCandidate(BattlePresentationProcess process, BattleSnapshot before, BattleSession candidate, PreparedHostedGuardianFormChange? visual)
     {
         PreparedActionPublication publication = new(this, candidate, CreateExpandedHostedFormCandidate(before));
         if (visual is not null)
@@ -145,7 +146,7 @@ public sealed partial class BattleSession
         {
             foreach (string message in visual.StopSounds)
             {
-                PublishNativeStopAllSounds(message);
+                events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, message) { NativeStopAllSounds = true });
             }
         }
     }

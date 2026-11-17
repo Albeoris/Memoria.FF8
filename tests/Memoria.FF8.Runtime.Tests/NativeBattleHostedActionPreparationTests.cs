@@ -13,23 +13,23 @@ public sealed class NativeBattleHostedActionPreparationTests
     [Fact]
     public void PreparationLeavesLiveOwnersUntouchedAndPublishesTheSameAdmissionAsBegin()
     {
-        BattleSession session = Fixture();
-        BattleSession direct = Fixture();
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        BattlePresentationProcess session = Fixture();
+        BattlePresentationProcess direct = Fixture();
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
-        NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
-        NativeBattleModelTextureCache cache = session.NativeModelTextureCache!;
+        NativeBattleEffectMemory memory = session.Memory;
+        NativeBattleModelCpuResources cpu = session.ModelCpuResources;
+        NativeBattleModelTextureCache cache = session.ModelTextureCache;
         NativeGlobalRandomChange? random = session.NativeGlobalRandomChange;
 
-        BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact, Contact]);
+        BattlePresentationProcess.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact, Contact]);
         session.ValidatePreparedHostedAction(prepared);
 
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         Assert.Same(packets, session.NativeActionPackets);
-        Assert.Same(memory, session.NativeEffectMemory);
-        Assert.Same(cpu, session.NativeModelCpuResources);
-        Assert.Same(cache, session.NativeModelTextureCache);
+        Assert.Same(memory, session.Memory);
+        Assert.Same(cpu, session.ModelCpuResources);
+        Assert.Same(cache, session.ModelTextureCache);
         Assert.Equal(random, session.NativeGlobalRandomChange);
         Assert.Null(session.HostedActiveActionToken);
         Assert.Null(Field("presentationSourceResource").GetValue(session));
@@ -37,35 +37,35 @@ public sealed class NativeBattleHostedActionPreparationTests
         long token = session.PublishHostedAction(prepared);
         Assert.Equal(direct.BeginHostedAction(Header, [Contact, Contact]), token);
         Assert.Equal(NativeBattleTestSnapshots.Json(direct.NativeActionPackets.ExportRetained()), NativeBattleTestSnapshots.Json(session.NativeActionPackets.ExportRetained()));
-        Assert.Equal(NativeBattleTestSnapshots.Json(direct.NativeGraphics!.Descriptors), NativeBattleTestSnapshots.Json(session.NativeGraphics!.Descriptors));
-        Assert.Same(graphics.ActorModels, session.NativeGraphics.ActorModels);
-        Assert.Same(memory, session.NativeEffectMemory);
-        Assert.Same(cpu, session.NativeModelCpuResources);
-        Assert.Same(cache, session.NativeModelTextureCache);
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct.Graphics.Descriptors), NativeBattleTestSnapshots.Json(session.Graphics.Descriptors));
+        Assert.Same(graphics.ActorModels, session.Graphics.ActorModels);
+        Assert.Same(memory, session.Memory);
+        Assert.Same(cpu, session.ModelCpuResources);
+        Assert.Same(cache, session.ModelTextureCache);
         Assert.Equal(random, session.NativeGlobalRandomChange);
     }
 
     [Fact]
     public void CompetingPreparationsAreSingleUseAndOwnerBound()
     {
-        BattleSession session = Fixture();
-        BattleSession other = Fixture();
-        BattleSession.PreparedHostedDispatch first = session.PrepareHostedAction(Header, [Contact]);
-        BattleSession.PreparedHostedDispatch second = session.PrepareHostedAction(Header, [Contact, Contact]);
-        NativeBattleGraphicsState otherGraphics = other.NativeGraphics!;
+        BattlePresentationProcess session = Fixture();
+        BattlePresentationProcess other = Fixture();
+        BattlePresentationProcess.PreparedHostedDispatch first = session.PrepareHostedAction(Header, [Contact]);
+        BattlePresentationProcess.PreparedHostedDispatch second = session.PrepareHostedAction(Header, [Contact, Contact]);
+        NativeBattleGraphicsState otherGraphics = other.Graphics;
         NativeBattleActionPacketsState otherPackets = other.NativeActionPackets;
 
         Assert.Throws<InvalidOperationException>(() => other.PublishHostedAction(first));
-        Assert.Same(otherGraphics, other.NativeGraphics);
+        Assert.Same(otherGraphics, other.Graphics);
         Assert.Same(otherPackets, other.NativeActionPackets);
         Assert.Null(other.HostedActiveActionToken);
 
         Assert.Equal(1L, session.PublishHostedAction(second));
-        NativeBattleGraphicsState admitted = session.NativeGraphics!;
+        NativeBattleGraphicsState admitted = session.Graphics;
         NativeBattleActionPacketsState admittedPackets = session.NativeActionPackets;
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedAction(first));
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedAction(second));
-        Assert.Same(admitted, session.NativeGraphics);
+        Assert.Same(admitted, session.Graphics);
         Assert.Same(admittedPackets, session.NativeActionPackets);
         Assert.Equal(2, admittedPackets.ContactCount);
         Assert.Equal(1L, session.HostedActiveActionToken);
@@ -74,16 +74,15 @@ public sealed class NativeBattleHostedActionPreparationTests
     [Fact]
     public void FailedFrameAfterItsFirstWriteInvalidatesPreparationEvenWithSameGraphicsReference()
     {
-        BattleSession session = Fixture();
-        BattleSession logical = new(Definition(), BattleAtbMode.TurnBased);
-        BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        BattlePresentationProcess session = Fixture();
+        BattlePresentationProcess.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         // Missing I/O fails after valid canonical facts and the start of frame mutation, before graphics changes.
         Assert.Null(session.NativeFileIo);
-        NotSupportedException failure = Assert.Throws<NotSupportedException>(() => session.AdvanceHostedBattlePresentationFrame(logical, null));
+        NotSupportedException failure = Assert.Throws<NotSupportedException>(() => session.AdvanceHostedBattlePresentationFrame(null));
         Assert.Contains("482590", failure.Message);
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         Assert.Throws<InvalidOperationException>(() => session.ValidatePreparedHostedAction(prepared));
         Assert.Throws<InvalidOperationException>(() => session.PublishHostedAction(prepared));
         Assert.Same(packets, session.NativeActionPackets);
@@ -93,19 +92,17 @@ public sealed class NativeBattleHostedActionPreparationTests
     }
 
     [Fact]
-    public void FrameValidationRejectionAndLateInvalidPreparationKeepTheEarlierPreparationValid()
+    public void LateInvalidPreparationKeepsTheEarlierPreparationValid()
     {
-        BattleSession session = Fixture();
-        BattleSession conflicting = new(Definition("other"), BattleAtbMode.TurnBased);
-        BattleSession.PreparedHostedDispatch first = session.PrepareHostedAction(Header, [Contact]);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        BattlePresentationProcess session = Fixture();
+        BattlePresentationProcess.PreparedHostedDispatch first = session.PrepareHostedAction(Header, [Contact]);
+        NativeBattleGraphicsState graphics = session.Graphics;
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         NativeGlobalRandomChange? random = session.NativeGlobalRandomChange;
 
-        Assert.Throws<InvalidDataException>(() => session.AdvanceHostedBattlePresentationFrame(conflicting, null));
         NativeBattleContactPacket late = Contact with { Primary = Contact.Primary with { Recipient = new BattleEnemyActorModel(new("unbound")) } };
         Assert.Throws<InvalidDataException>(() => session.PrepareHostedAction(Header, [Contact, late]));
-        Assert.Same(graphics, session.NativeGraphics);
+        Assert.Same(graphics, session.Graphics);
         Assert.Same(packets, session.NativeActionPackets);
         Assert.Equal(random, session.NativeGlobalRandomChange);
         Assert.Equal(1L, session.PublishHostedAction(first));
@@ -114,18 +111,17 @@ public sealed class NativeBattleHostedActionPreparationTests
     [Fact]
     public void Before_core_can_replace_stale_admission_but_graphics_services_block_admission()
     {
-        BattleSession session = Fixture();
-        BattleSession logical = new(Definition(), BattleAtbMode.TurnBased);
-        BattleSession.PreparedHostedDispatch stale = session.PrepareHostedAction(Header, [Contact]);
+        BattlePresentationProcess session = Fixture();
+        BattlePresentationProcess.PreparedHostedDispatch stale = session.PrepareHostedAction(Header, [Contact]);
         bool ran = false;
 
-        NotSupportedException missingIo = Assert.Throws<NotSupportedException>(() => session.AdvanceHostedBattlePresentationFrame(logical, null, () =>
+        NotSupportedException missingIo = Assert.Throws<NotSupportedException>(() => session.AdvanceHostedBattlePresentationFrame(null, () =>
         {
             ran = true;
             Assert.Throws<InvalidOperationException>(() => session.ValidatePreparedHostedAction(stale));
-            BattleSession.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
-            BattleModelRoster roster = session.NativeGraphics!.ActorModels.Roster;
-            Field("hostedFrameServices").SetValue(session, logical.CaptureModelLifecycleServices(roster));
+            BattlePresentationProcess.PreparedHostedDispatch prepared = session.PrepareHostedAction(Header, [Contact]);
+            BattleModelRoster roster = session.Graphics.ActorModels.Roster;
+            Field("hostedFrameServices").SetValue(session, NativeBattleHostedTestFixture.ReadModelServices(session, roster));
             try
             {
                 Assert.Throws<InvalidOperationException>(() => session.PrepareHostedAction(Header, [Contact]));
@@ -151,21 +147,20 @@ public sealed class NativeBattleHostedActionPreparationTests
         NativeGlobalRandom = new(123)
     };
 
-    private static BattleSession Fixture()
+    private static BattlePresentationProcess Fixture()
     {
-        BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
-        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
+        BattleSession logical = new(Definition(), BattleAtbMode.TurnBased);
+        var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Source ? (byte)1 : (byte)16 });
-        Set(session, nameof(BattleSession.NativeGraphics), graphics with { EntryReady = true });
-        Field("hostedBattlePresentation").SetValue(session, true);
-        NativeBattleHostedTestFixture.InstallModelBindings(session, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
-        Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess() });
-        Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
-        Set(session, nameof(BattleSession.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));
+        NativeBattleHostedTestFixture.InstallModelBindings(logical, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
+        BattlePresentationProcess session = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
+        Set(session, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess() });
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
+        Set(session, nameof(BattlePresentationProcess.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));
         return session;
     }
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+    private static void Set(BattlePresentationProcess session, string property, object value) => typeof(BattlePresentationProcess).GetProperty(property)!.SetValue(session, value);
 }

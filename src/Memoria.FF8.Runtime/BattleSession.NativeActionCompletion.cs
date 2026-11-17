@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private void TryCompleteNativeComponentCommand(string? eventActorId = null, byte? eventActorIndex = null)
     {
-        if (NativeGraphics is null && nativeTimedAction is null && ActiveAction?.NativeHeader is null && nativeActionScratch.ComponentCompletion is uint callback)
+        if (nativeTimedAction is null && ActiveAction?.NativeHeader is null && nativeActionScratch.ComponentCompletion is uint callback)
         {
             BattleAttackCommand[] queuedPresentations = eventActorId is not null && eventActorIndex is byte actorIndex ? CaptureNativeComponentEventPresentations(eventActorId, actorIndex) : [];
             if (eventActorId is not null && eventActorIndex.HasValue && GetActor(eventActorId).NativeActorIndex == eventActorIndex)

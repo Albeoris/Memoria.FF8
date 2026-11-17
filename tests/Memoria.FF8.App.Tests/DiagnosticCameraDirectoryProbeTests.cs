@@ -25,7 +25,7 @@ public sealed class DiagnosticCameraDirectoryProbeTests
         session.StartNewGame();
         using GameWorld world = new(session, directory!);
         BattleSession battle = world.StartDiagnosticBattle(request);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         battle.DiagnosticEffectDispatched += dispatches.Add;
         string stage = "entry";
@@ -94,8 +94,8 @@ public sealed class DiagnosticCameraDirectoryProbeTests
 
         object Observe()
         {
-            NativeBattleGraphicsState? graphics = battle.NativeGraphics;
-            NativeBattleCameraState? camera = battle.NativeCamera;
+            NativeBattleGraphicsState? graphics = battle.Presentation?.Graphics;
+            NativeBattleCameraState? camera = battle.Presentation?.Camera;
             NativeBattleEffectAnimationRegisters? resource = camera?.ControlResource;
             int? selector = graphics?.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) is BattleModelOwner target ? graphics.ActorModels.Get(target).SequenceByte145 : null;
             object? track = null;

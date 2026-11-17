@@ -17,9 +17,9 @@ public sealed class NativeBattleEffectParticipantResourceTests
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
         typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("source", 0, resource)], []));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileIo))!.SetValue(battle, NativeBattleFileIoState.FromColdProcess());
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(battle, NativeBattleFileStaging.FromColdProcess());
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, NativeBattleEffectMemory.FromColdProcess());
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileIo))!.SetValue(battle.Presentation!, NativeBattleFileIoState.FromColdProcess());
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(battle.Presentation!, NativeBattleFileStaging.FromColdProcess());
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(battle.Presentation!, NativeBattleEffectMemory.FromColdProcess());
         NativeBattleSequenceState sequence = new() { Default2 = 14 };
         NativeBattleGraphicsModel source = new(3) { ModelId4 = 0, FileSelector128 = 0, FileSelector129 = 0, Flags2 = 4, SequenceState = sequence, LinkedTransform = new(default, default) };
         BattleModelOwner owner = battle.NativeActionPackets.ModelAliases.DecodeLiteral(0);
@@ -33,16 +33,16 @@ public sealed class NativeBattleEffectParticipantResourceTests
         Assert.Equal(loaded.ActiveResourceRow100, loaded.OriginalResourceRow104);
         Assert.NotNull(loaded.ActiveResourceRow100);
         Assert.NotNull(loaded.LinkedTextureResourceIndex);
-        NativeBattleModelCpuResources cpu = battle.NativeModelCpuResources!;
+        NativeBattleModelCpuResources cpu = battle.Presentation!.ModelCpuResources;
         cpu.Validate();
         Assert.True(cpu.Cpu.Banks[0].HasResourceStorage);
-        Assert.Equal(body.Bytes.AsSpan(body.Section(0), 64).ToArray(), NativeBattleModelResourceView.Open(cpu, battle.NativeFileStaging!, cpu.Rows[loaded.ActiveResourceRow100!.Value].Require(12), 64).Read(0, 64));
-        Assert.Equal((short?)0, battle.NativeFileIo!.ActiveCount);
+        Assert.Equal(body.Bytes.AsSpan(body.Section(0), 64).ToArray(), NativeBattleModelResourceView.Open(cpu, battle.Presentation!.NativeFileStaging!, cpu.Rows[loaded.ActiveResourceRow100!.Value].Require(12), 64).Read(0, 64));
+        Assert.Equal((short?)0, battle.Presentation!.NativeFileIo!.ActiveCount);
 
         uint directory = NativeBattleFileStaging.Address + 0x40000;
         uint row = directory + 0x100;
         ImmutableArray<byte> animation = body.Bytes.Slice(body.Section(2), body.Section(3) - body.Section(2));
-        NativeBattleFileStaging staging = battle.NativeFileStaging!.Write(directory, ActorDat(animation));
+        NativeBattleFileStaging staging = battle.Presentation!.NativeFileStaging!.Write(directory, ActorDat(animation));
         NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, cpu, loaded, row, directory);
         BoundSource restored = NativeBattleTestSnapshots.RestoreJson<BoundSource>(NativeBattleTestSnapshots.Json(new BoundSource(cpu, bound.Staging, bound.Model)));
         NativeBattleGraphicsResource resolved = NativeBattleVictoryResources.Resolve(restored.Staging, restored.Cpu, restored.Model, resource);

@@ -20,7 +20,7 @@ public sealed partial class NativeBattleRinoa89CastTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = BattleSession.Restore(snapshot);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
         BattleSnapshot before = snapshot;
@@ -28,7 +28,7 @@ public sealed partial class NativeBattleRinoa89CastTests
         {
             for (int callback = 0; callback < 512; callback++)
             {
-                NativeBattleModulePoolTask? body = battle.NativeGraphics!.OriginalEffect!.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleRinoa89Controller.Body)?.Slots[0];
+                NativeBattleModulePoolTask? body = battle.Presentation!.Graphics.OriginalEffect!.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleRinoa89Controller.Body)?.Slots[0];
                 if (body is not null && (body.Flags & 1) != 0 && body.ReadWord(12) >= phase)
                 {
                     BattleSnapshot selected = battle.Capture();
@@ -40,7 +40,7 @@ public sealed partial class NativeBattleRinoa89CastTests
                     battle.Tick();
                     independent.Tick();
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(independent, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(independent, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
                     File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = body.ReadWord(12), selected.Frame, selected.NativeGraphics!.Callback }));
                     return;

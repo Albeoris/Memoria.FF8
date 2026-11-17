@@ -50,17 +50,13 @@ public sealed partial class BattleSession
 
     private bool HasEncounterNativeTerminalBinding(EncounterCompiledDefinition mod, BattleCombatant original)
     {
-        if (!UsesExpandedRoster)
-        {
-            return FindNativeOriginalGraphicsBinding(original.Id) is not null;
-        }
         EncounterBindingResult binding = EncounterBindingResolver.Resolve(mod.Encounter, definition, new(mod.SourceProfile));
         return binding.OriginalActorId == original.Id && original.NativeActorIndex is >= NativeBattleSlots.AllyCount and < NativeBattleSlots.Count;
     }
 
     private bool HasPendingExpandedEncounterNativeTerminal()
     {
-        if (!UsesExpandedRoster || encounterPolicies is not { TerminalStarted: true, TerminalReached: false } ||
+        if (encounterPolicies is not { TerminalStarted: true, TerminalReached: false } ||
             definition.EncounterMod is not { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } mod)
         {
             return false;

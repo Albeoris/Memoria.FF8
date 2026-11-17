@@ -14,7 +14,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         EffectPreviewRequest request = effectPreview!;
-        BattleComponentAdmissionIdentity? admission = effectPreviewSourceAdmission is { } source ? new(source.Effect, source.Command, source.Action, source.Actor, source.HeaderIndex, source.Callback) : null;
+        BattleComponentAdmissionIdentity? admission = effectPreviewSourceAdmission is { OriginalActorIndex: byte actor } source ? new(source.Effect, source.Command, source.Action, actor, source.HeaderIndex, source.Callback) : null;
         BattleComponentTerminalTextureCertificate certificate = effectComponentTerminalTextures.Certificate(effectPreviewExpectedEffect, effectComponentSource!.Sha256, effectPreviewDispatch, admission);
         BattleComponentTerminalTextureCertificateValidation.Validate(certificate, effectPreviewExpectedEffect, effectComponentSource!.Sha256);
         EffectComponentFrameReport measurements = effectComponentMeasurements!.Complete(effectComponentTerminalTextures.BoundaryTimestamp);

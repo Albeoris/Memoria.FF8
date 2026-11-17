@@ -68,7 +68,7 @@ public sealed class NativeBattleEffect320PresentationTests
     {
         source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 320, output);
         BattleSession battle = Restore(source, game);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         HashSet<string> restored = [];
         HashSet<uint> callbacksSeen = [];
         HashSet<int> packetBanks = [];
@@ -156,7 +156,7 @@ public sealed class NativeBattleEffect320PresentationTests
                         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame;
                         BattleSnapshot without = current with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         int changed = CountRgb(pixels, plain);
                         if (changed > maximumRgb)
                         {
@@ -247,8 +247,8 @@ public sealed class NativeBattleEffect320PresentationTests
         cold.Tick();
         direct.Tick();
         Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray();
-        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray();
+        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(direct, 320, 224).ToArray(), pixels);
         NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
     }
 

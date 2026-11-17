@@ -22,7 +22,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         using GameWorld world = new(session, directory);
         ExpandedBattleInstalledEntry.Prepare(world, session, current => ExpandedBattleEntryAdmissionTests.SelectFourAllies(world, current));
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int frame = 0; frame < 900 && (!process.EntryReady || battle.QueuedActions.Count != 0 || battle.ActiveAction is not null); frame++)
         {
             foreach (BattleCombatant actor in battle.Combatants)
@@ -45,7 +45,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         HashSet<long> observed = [];
         for (int frame = 0; frame < 1800 && casts.Count <= recipients.Length; frame++)
         {
-            if (battle.ExpandedPresentationProcess is { ActiveActionToken: long token, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live && observed.Add(token))
+            if (battle.Presentation is { ActiveActionToken: long token, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live && observed.Add(token))
             {
                 BattleActionPresentation command = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
                 Assert.Equal((byte)246, command.NativeQueuedCommand);
@@ -55,14 +55,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.False(battle.Combatants.Single(actor => actor.Id == command.ActorId).IsAlive);
                 casts.Add(command.ActorId);
             }
-            if (casts.Count == recipients.Length && battle.ExpandedPresentationProcess?.ActiveActionToken is null)
+            if (casts.Count == recipients.Length && battle.Presentation?.ActiveActionToken is null)
             {
                 break;
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.Equal(recipients, casts);
-        Assert.Null(battle.ExpandedPresentationProcess?.ActiveActionToken);
+        Assert.Null(battle.Presentation?.ActiveActionToken);
         BattleEvent[] events = battle.Events.Skip(before).ToArray();
         foreach (string recipient in recipients)
         {

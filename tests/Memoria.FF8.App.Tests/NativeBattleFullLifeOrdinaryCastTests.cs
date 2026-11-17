@@ -75,9 +75,9 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
         Directory.CreateDirectory(output);
         Console.WriteLine($"Full-life ordinary-cast standalone evidence: {output}");
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         BattleSnapshot prior = battle.Capture();
         try
         {
@@ -118,7 +118,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 {
                     clone.Tick();
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
                     clone = null;
                 }
                 NativeBattleActionPacketsState actionPackets = current.NativeActionPackets ?? throw new InvalidDataException("The ordinary Full-life cast lost its action packet owner.");
@@ -153,7 +153,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                     BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(current with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
-                    byte[] plain = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     changedRgbPixels = CountRgbChanges(visible, plain);
                     if (changedRgbPixels > 0)
                     {
@@ -202,7 +202,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             battle.Tick();
             after.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(after.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(after, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(after, 320, 224).ToArray());
             Publish("completed-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", RevivedHitPoints = revived.CurrentHp, changedRgbPixels, healingTransitions, completed.Frame, Callback = Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Callback }));
         }
@@ -221,7 +221,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Publish(name, snapshot, pixels);
             BattleSession restored = BattleSession.Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(restored, 320, 224).ToArray());
             return restored;
         }
 

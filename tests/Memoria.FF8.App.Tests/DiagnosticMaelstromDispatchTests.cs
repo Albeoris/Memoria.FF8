@@ -32,7 +32,7 @@ public sealed class DiagnosticMaelstromDispatchTests
         session.StartNewGame();
         using GameWorld world = new(session, directory!);
         BattleSession battle = world.StartDiagnosticBattle(request);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         world.PrepareDiagnosticEntryBeforePresentation(request);
         for (int frame = 0; frame < 6; frame++)
         {
@@ -50,7 +50,7 @@ public sealed class DiagnosticMaelstromDispatchTests
         }
         if (!dispatched)
         {
-            NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+            NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleGraphicsResource resource = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "party-0").Resource;
             NativeBattleGraphicsModel party = ReadOriginalModelCell(graphics, 0);

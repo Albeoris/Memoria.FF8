@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         {
             repair.Validate();
         }
-        if (Outcome != BattleOutcome.Active || HasPendingNativeOutcome)
+        if (Outcome != BattleOutcome.Active || (HasPendingExpandedTerminal || HasPendingExpandedEscape))
         {
             throw new NotSupportedException("Diagnostic repairs cannot reverse a terminal or pending native battle outcome.");
         }
@@ -161,14 +161,7 @@ public sealed partial class BattleSession
         NativeBattlePartyPresentedVital presented = RequireDiagnosticRepairPresentedRow(actor);
         int difference = actor.CurrentHp - presented.HitPoints;
         NativeBattleContactHalf contact = new(CreatePresentationModelOwner(actor), 0, 0, difference >= 0 ? (byte)1 : (byte)0, NativeSavedStatusBits(actor), checked((ushort)Math.Abs(difference)), NativeBattleStatusBits(actor));
-        if (UsesExpandedRoster)
-        {
-            PublishExpandedReadyContact(ReadBattlePresentationRoster(), contact, actor.Id);
-        }
-        else
-        {
-            PublishNativePresentedContact(RequireNativeGraphics(), contact);
-        }
+        PublishExpandedReadyContact(ReadBattlePresentationRoster(), contact, actor.Id);
         if (actor.CurrentHp != repair.HitPoints || RequireDiagnosticRepairPresentedRow(actor).HitPoints != repair.HitPoints)
         {
             throw new InvalidOperationException("Diagnostic repair did not produce its exact declared HP in the combat and presentation owners.");

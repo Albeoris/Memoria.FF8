@@ -18,7 +18,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         BattleCombatant reserve = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 77);
         Assert.True(reserve.IsActive && reserve.Hidden && reserve.Suspended && reserve.Untargetable);
         Assert.Contains((ushort)335, battle.GetCombatantDefinition(reserve.Id).NativeRenzokukenMagicIds);
-        BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition(), true);
+        BattleScenePresentation scene = new(world.BattleResources, battle.ReadDefinition());
         Assert.True(AdvanceAuthoredModelActivation(world, battle, out var presentation, scene));
         Assert.True(presentation.Descriptor);
         Assert.True(presentation.Overlay);
@@ -56,7 +56,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         for (int callback = 0; callback < 720; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } effect)
+            if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } effect)
             {
                 Assert.Equal((ushort)20, effect.Graphics.OriginalEffect!.Binding.Effect);
                 Assert.Equal((byte)93, effect.Graphics.ActorModels.Get(new BattleEnemyActorModel(new(reserve.Id))).ModelId4);
@@ -69,7 +69,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                     presentation.RenderedTint = true;
                 }
             }
-            if (invocation && !reserve.Suspended && battle.ExpandedPresentationProcess?.ActiveActionToken is null)
+            if (invocation && !reserve.Suspended && battle.Presentation?.ActiveActionToken is null)
             {
                 return true;
             }

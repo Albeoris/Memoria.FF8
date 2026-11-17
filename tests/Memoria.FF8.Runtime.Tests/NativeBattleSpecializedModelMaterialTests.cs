@@ -50,16 +50,16 @@ public sealed class NativeBattleSpecializedModelMaterialTests
     public void Missing_declared_actor_bank_fails_before_body_or_shadow_publication(string method)
     {
         var (session, graphics, row) = Fixture("missing", shared: true);
-        NativeBattleEffectMemory memory = session.NativeEffectMemory!;
-        string stagingBefore = NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(session.NativeFileStaging!));
+        NativeBattleEffectMemory memory = session.Presentation!.Memory;
+        string stagingBefore = NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(session.Presentation!.NativeFileStaging!));
 
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Draw(method, session, graphics, row));
 
         Assert.IsType<InvalidDataException>(error.InnerException);
         Assert.Contains("no bound presentation texture bank", error.InnerException!.Message);
-        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Same(memory, session.Presentation?.Memory);
         Assert.Equal(0, memory.PrimitiveProcess!.ByteCursor);
-        string stagingAfter = NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(session.NativeFileStaging!));
+        string stagingAfter = NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(session.Presentation!.NativeFileStaging!));
         Assert.True(string.Equals(stagingBefore, stagingAfter, StringComparison.Ordinal), "Missing material rejection changed detached staging bytes or knownness.");
         Assert.Empty(Commands(graphics));
     }
@@ -70,7 +70,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
     public void Effect_frame_supplies_the_material_even_when_session_memory_has_no_map(string method)
     {
         var (session, graphics, row) = Fixture("hosted", shared: false);
-        NativeBattleEffectMemory frameMemory = session.NativeEffectMemory!;
+        NativeBattleEffectMemory frameMemory = session.Presentation!.Memory;
         Set(session, nameof(BattleSession.NativeEffectMemory), frameMemory with { Textures = NativeBattleEffectTextureState.FromColdProcess() });
 
         graphics = Draw(method, session, graphics, row, frameMemory);
@@ -115,7 +115,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
         Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
-        Set(session, nameof(BattleSession.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
 
         NativeBattleGraphicsState graphics = row == 0
             ? OriginalGraphics([(0, selected, Model(row))])
@@ -149,7 +149,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
 
     private static NativeBattleGraphicsState Draw(string method, BattleSession session, NativeBattleGraphicsState graphics, int row, NativeBattleEffectMemory? frameMemory = null)
     {
-        NativeBattleEffectMemory memory = frameMemory ?? session.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = frameMemory ?? session.Presentation!.Memory;
         if (method == Group)
         {
             graphics = (NativeBattleGraphicsState)Invoke(Group, session, graphics, session.ReadPresentationModelOwner("selected"), (byte)0, (byte)15, 0x808080u, null);

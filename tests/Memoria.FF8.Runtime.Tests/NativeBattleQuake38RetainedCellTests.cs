@@ -87,7 +87,7 @@ public sealed class NativeBattleQuake38RetainedCellTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleQuake38State state = memory.Quake38!;
         state.SetWord(0x278C8E8, 8192).SetWord(0x278C8E6, 8192);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, memory);
         typeof(BattleSession).GetField("nativeCrtRandom", PrivateInstance)!.SetValue(session, new NativeCrtRandomState(1));
         NativeBattleGraphicsModel[] cells = Enumerable.Range(0, 7).Select(index => new NativeBattleGraphicsModel(index switch { 0 => 0x1020, 1 => 0x1000, 3 => 0x20, _ => 0 }) { Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(default, new(0, 1, 0), 0, 0, 4096) }).ToArray();
         NativeBattleModelBoundary boundary = new(cells);

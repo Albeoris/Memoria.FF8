@@ -372,7 +372,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         int before = battle.Events.Count;
         hud.Attack();
         Assert.True(caster.IsBusy);
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         NativeBattleQuake38Resources? quakeResources = null;
         bool observedBinding = false;
         bool hasOverlay = false;
@@ -380,7 +380,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         for (int frame = 0; frame < 2048 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
+            if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
             {
                 presentation ??= live;
                 Assert.Same(presentation, live);
@@ -398,7 +398,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         }
 
         Assert.False(caster.IsBusy);
-        Assert.Null(battle.ExpandedPresentationProcess?.ActiveActionToken);
+        Assert.Null(battle.Presentation?.ActiveActionToken);
         Assert.Equal(InitialStock - 1, Stock());
         BattleEvent[] castEvents = battle.Events.Skip(before).Where(entry => entry.ActorId == caster.Id).ToArray();
         Assert.Single(castEvents, entry => entry.Kind == "Windup" && entry.Ability == action.Ability);
@@ -483,14 +483,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         using GameWorld world = StartBattle(directory, field, 79);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         string[] allies = battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).Order().ToArray();
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         for (int turn = 0; turn < 24; turn++)
         {
             world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
             for (int frame = 0; frame < 30; frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live && identity.RequestedEffect == effect.Effect)
+                if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live && identity.RequestedEffect == effect.Effect)
                 {
                     presentation ??= live;
                     Assert.Same(presentation, live);
@@ -530,11 +530,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         int countBefore = caster.MagicStocks.FirstOrDefault(stock => stock.Id == fire.Id)?.Count ?? 0;
         int before = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = source.Id, Ability = BattleAbility.Draw, ActionId = fire.Id });
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            presentation ??= battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live ? live : null;
+            presentation ??= battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live ? live : null;
         }
 
         Assert.False(caster.IsBusy);

@@ -15,32 +15,32 @@ public sealed class NativeBattleEffectPresentationFileIoTests
         NativeBattleEffectTextureState incoming = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattleEffectHeapAllocation tim = Tim();
         BattleSession owner = Create(incoming, tim, firstAdvance);
-        NativeBattleCameraProjection projection = owner.NativeCamera!.Projection!;
-        NativeBattleGraphicsModel source = ReadOriginalModelCell(owner.NativeGraphics!, 0);
+        NativeBattleCameraProjection projection = owner.Presentation!.Camera.Projection!;
+        NativeBattleGraphicsModel source = ReadOriginalModelCell(owner.Presentation!.Graphics, 0);
         Assert.Equal(0, incoming.Count);
         Assert.Equal(0, incoming.ReadVramWord(33, 16));
-        Assert.Equal((short)1, owner.NativeFileIo!.ActiveCount);
+        Assert.Equal((short)1, owner.Presentation!.NativeFileIo!.ActiveCount);
 
-        NativeBattleEffectPresentationStep step = owner.AdvanceEffectPresentation(source, new(7), projection, [], incoming);
+        NativeBattleEffectPresentationStep step = owner.Presentation!.AdvanceEffectPresentation(source, new(7), projection, [], incoming);
 
         Assert.Empty(step.Contacts);
         Assert.Empty(step.Sounds);
-        NativeBattleEffectTextureState completed = owner.NativeEffectMemory!.Textures!;
+        NativeBattleEffectTextureState completed = owner.Presentation!.Memory.Textures!;
         Assert.Equal((ushort)31, completed.ReadVramWord(33, 16));
         Assert.Equal((ushort)0x3210, completed.ReadVramWord(64, 256));
         Assert.Equal(0, completed.Count);
         Assert.Equal(0x100, completed.Slots[0]!.ArenaOffset);
-        Assert.Equal((short)0, owner.NativeFileIo!.ActiveCount);
-        Assert.All(owner.NativeFileIo.Rows, row => Assert.Equal(0u, row.SchedulerCallback));
-        Assert.Equal((byte)1, owner.NativeEffectMemory.Arena!.Read(4, 1)[0]);
+        Assert.Equal((short)0, owner.Presentation!.NativeFileIo!.ActiveCount);
+        Assert.All(owner.Presentation!.NativeFileIo.Rows, row => Assert.Equal(0u, row.SchedulerCallback));
+        Assert.Equal((byte)1, owner.Presentation!.Memory.Arena!.Read(4, 1)[0]);
         object publication = completed.VramPublicationIdentity;
 
-        owner.AdvanceEffectPresentation(source, new(7), projection, [], completed);
+        owner.Presentation!.AdvanceEffectPresentation(source, new(7), projection, [], completed);
 
-        Assert.Same(publication, owner.NativeEffectMemory!.Textures!.VramPublicationIdentity);
-        Assert.Equal(0, owner.NativeEffectMemory.Textures.Count);
-        Assert.Equal((byte)1, owner.NativeEffectMemory.Arena!.Read(4, 1)[0]);
-        Assert.Equal((short)0, owner.NativeFileIo!.ActiveCount);
+        Assert.Same(publication, owner.Presentation!.Memory.Textures!.VramPublicationIdentity);
+        Assert.Equal(0, owner.Presentation!.Memory.Textures.Count);
+        Assert.Equal((byte)1, owner.Presentation!.Memory.Arena!.Read(4, 1)[0]);
+        Assert.Equal((short)0, owner.Presentation!.NativeFileIo!.ActiveCount);
     }
 
     private static BattleSession Create(NativeBattleEffectTextureState incoming, NativeBattleEffectHeapAllocation tim, bool firstAdvance)
@@ -56,7 +56,7 @@ public sealed class NativeBattleEffectPresentationFileIoTests
                 new() { Id = "target", Name = "Target" }
             ]
         }, BattleAtbMode.TurnBased);
-        NativeBattleEffectMemory memory = owner.NativeEffectMemory! with
+        NativeBattleEffectMemory memory = owner.Presentation!.Memory with
         {
             Arena = NativeBattleEffectArena.Clear().Write(0x100, tim.Data.AsSpan()),
             Textures = incoming,
@@ -71,15 +71,15 @@ public sealed class NativeBattleEffectPresentationFileIoTests
         SetProperty(owner, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(tim.Data.Length, queued.Request!.CompletionCallback, null));
         SetProperty(owner, nameof(BattleSession.NativeStage), NativeBattleStageState.FromColdProcess());
         NativeBattleCameraProjection projection = new(NativeBattleForeignModelGeometry.Identity, 216, 160, 108);
-        NativeBattleCameraState camera = BattleSession.BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), projection);
-        SetProperty(owner, nameof(BattleSession.NativeCamera), camera);
+        NativeBattleCameraState camera = BattlePresentationProcess.BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), projection);
+        SetProperty(owner, nameof(BattlePresentationProcess.NativeCamera), camera);
         SetField(owner, "presentationHostCamera", camera);
         SetField(owner, "presentationForeignActors", new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         SetField(owner, "presentationFirstAdvance", firstAdvance);
         BattleModelOwner source = new BattlePartyActorModel(new("source"));
         SetField(owner, "presentationSourceOwner", source);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, new(0))]) with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        SetProperty(owner, nameof(BattleSession.NativeGraphics), graphics);
+        SetProperty(owner, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         return owner;
     }
 

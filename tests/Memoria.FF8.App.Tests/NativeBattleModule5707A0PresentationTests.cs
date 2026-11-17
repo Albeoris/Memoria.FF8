@@ -60,11 +60,11 @@ public sealed class NativeBattleModule5707A0PresentationTests
         };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, directory, 0, 5, -1);
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        for (int frame = 0; frame < 100 && !session.NativeGraphics!.EntryReady; frame++)
+        for (int frame = 0; frame < 100 && !session.Presentation!.Graphics.EntryReady; frame++)
         {
             session.Tick();
         }
-        Assert.True(session.NativeGraphics!.EntryReady);
+        Assert.True(session.Presentation!.Graphics.EntryReady);
         BattleSnapshot original = session.Capture();
         int actor = FindOriginalModelSlot(original.NativeGraphics!, "enemy-1");
         Assert.Equal(4, actor);
@@ -83,7 +83,7 @@ public sealed class NativeBattleModule5707A0PresentationTests
         List<object> receipts = [];
         int commands = 0;
         int callbacks = 0;
-        while (session.NativeGraphics!.ModuleEffects.Head is not null)
+        while (session.Presentation!.Graphics.ModuleEffects.Head is not null)
         {
             Assert.True(callbacks < 12, "The selected original module did not retire within its four-phase component lifecycle.");
             BattleSnapshot before = session.Capture();
@@ -108,8 +108,8 @@ public sealed class NativeBattleModule5707A0PresentationTests
         BattleSnapshot completed = session.Capture();
         session = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(completed))!);
         session.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Null(session.NativeGraphics!.ModuleEffects.Head);
-        Assert.DoesNotContain(session.NativeGraphics.ModuleDraws, draw => draw.Kind.ToString() == "Impact570860");
+        Assert.Null(session.Presentation!.Graphics.ModuleEffects.Head);
+        Assert.DoesNotContain(session.Presentation!.Graphics.ModuleDraws, draw => draw.Kind.ToString() == "Impact570860");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MODULE5707A0_EVIDENCE");
         if (output is not null)
         {
@@ -121,5 +121,5 @@ public sealed class NativeBattleModule5707A0PresentationTests
         }
     }
 
-    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 }

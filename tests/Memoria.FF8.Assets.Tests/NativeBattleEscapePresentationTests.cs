@@ -48,39 +48,39 @@ public sealed class NativeBattleEscapePresentationTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateReady(game, assets);
-        for (int callback = 0; callback < 120 && (ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Any(actor => actor.Sequence != 1) || !battle.NativeGraphics!.Descriptors.Queue.IsEmpty); callback++)
+        for (int callback = 0; callback < 120 && (ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3).Any(actor => actor.Sequence != 1) || !battle.Presentation!.Graphics.Descriptors.Queue.IsEmpty); callback++)
         {
             battle.Tick();
         }
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), actor => Assert.Equal((byte?)1, actor.Sequence));
-        Assert.Empty(battle.NativeGraphics!.Descriptors.Queue);
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), actor => Assert.Equal((byte?)1, actor.Sequence));
+        Assert.Empty(battle.Presentation!.Graphics.Descriptors.Queue);
         BattleSnapshot ready = battle.Capture();
         battle = BattleSession.Restore(ready with { NativeScriptState = ready.NativeScriptState with { EscapeDisabled = escapeDisabled } });
         Assert.Equal(escapeDisabled, battle.EscapeDisabled);
-        byte?[] standing = ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Select(actor => actor.Sequence).ToArray();
+        byte?[] standing = ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3).Select(actor => actor.Sequence).ToArray();
 
         battle.PublishNativeEscapeButtons(3);
         Assert.False(battle.Escape.PresentationHeld);
         battle.Tick();
         Assert.True(battle.Escape.PresentationHeld);
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), actor => Assert.Equal(0x1000000u, actor.Flags8!.Value & 0x1000000u));
-        for (int callback = 0; callback < 30 && ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Any(actor => actor.Sequence != 16); callback++)
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), actor => Assert.Equal(0x1000000u, actor.Flags8!.Value & 0x1000000u));
+        for (int callback = 0; callback < 30 && ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3).Any(actor => actor.Sequence != 16); callback++)
         {
             battle.Tick();
         }
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), actor => Assert.Equal((byte?)16, actor.Sequence));
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), actor => Assert.Equal((byte?)16, actor.Sequence));
 
         BattleSession restored = RoundTrip(battle);
         Assert.True(restored.Escape.PresentationHeld);
-        Assert.NotNull(battle.NativeGraphics);
-        int frame = ReadOriginalModelCell(battle.NativeGraphics, 0).SequenceFrame;
+        Assert.NotNull(battle.Presentation?.Graphics);
+        int frame = ReadOriginalModelCell(battle.Presentation?.Graphics, 0).SequenceFrame;
         bool advanced = false;
         for (int callback = 0; callback < 8; callback++)
         {
             battle.PublishNativeEscapeButtons(3);
             battle.Tick();
             restored.Tick();
-            advanced |= ReadOriginalModelCell(battle.NativeGraphics, 0).SequenceFrame != frame;
+            advanced |= ReadOriginalModelCell(battle.Presentation?.Graphics, 0).SequenceFrame != frame;
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
         Assert.True(advanced);
@@ -93,14 +93,14 @@ public sealed class NativeBattleEscapePresentationTests
         battle.Tick();
         restored.Tick();
         Assert.False(battle.Escape.PresentationHeld);
-        Assert.All(ReadOriginalModelCells(battle.NativeGraphics!).Take(3), actor => Assert.Equal(0u, actor.Flags8!.Value & 0x1000000u));
+        Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3), actor => Assert.Equal(0u, actor.Flags8!.Value & 0x1000000u));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        for (int callback = 0; callback < 30 && ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Where((actor, index) => actor.Sequence != standing[index]).Any(); callback++)
+        for (int callback = 0; callback < 30 && ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3).Where((actor, index) => actor.Sequence != standing[index]).Any(); callback++)
         {
             battle.Tick();
             restored.Tick();
         }
-        Assert.Equal(standing, ReadOriginalModelCells(battle.NativeGraphics!).Take(3).Select(actor => actor.Sequence).ToArray());
+        Assert.Equal(standing, ReadOriginalModelCells(battle.Presentation!.Graphics).Take(3).Select(actor => actor.Sequence).ToArray());
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -135,16 +135,16 @@ public sealed class NativeBattleEscapePresentationTests
         {
             battle.Tick();
             restored.Tick();
-            if (battle.NativeGraphics is { NativeOutcome.FadeDurationB0C: byte remaining, PrimitiveFrame.LastCommands: var commands } &&
+            if (battle.Presentation?.Graphics is { NativeOutcome.FadeDurationB0C: byte remaining, PrimitiveFrame.LastCommands: var commands } &&
                 commands.Any(command => command.Pass == 2 && command.Command.Opcode == 0x2A && command.Command.ScreenCoverage == NativeBattleScreenCoverage.Full))
             {
-                fadeFrames.Add((remaining, battle.NativeEffectMemory!.PrimitiveProcess!.ScreenFadeEB8!.Value));
+                fadeFrames.Add((remaining, battle.Presentation!.Memory.PrimitiveProcess!.ScreenFadeEB8!.Value));
             }
         }
         Assert.Equal(Enumerable.Range(0, 14).Select(elapsed => ((byte)(13 - elapsed), (byte)(128 + (-128 * ((elapsed << 12) / 13) >> 12)))), fadeFrames);
         Assert.Equal(BattleOutcome.Escaped, battle.Outcome);
         Assert.True(battle.CanReturnToField);
-        Assert.Equal((byte?)0, battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C);
+        Assert.Equal((byte?)0, battle.Presentation!.Graphics.NativeOutcome!.FadeDurationB0C);
         Assert.Equal((byte?)2, battle.NativeResult);
         Assert.Contains(battle.Events, item => item.Kind == "NativeText" && item.Message == definition.NativeGlobalMessages[1]);
         Assert.Single(battle.Events, item => item.Kind == "Outcome");

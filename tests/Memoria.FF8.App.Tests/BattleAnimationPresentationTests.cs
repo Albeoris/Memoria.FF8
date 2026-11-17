@@ -1,44 +1,11 @@
 using System.Numerics;
 using System.Text.Json;
 using Memoria.FF8.Assets;
-using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleAnimationPresentationTests
 {
-    [Theory]
-    [InlineData(BattleAbility.EnemyAbility)]
-    [InlineData(BattleAbility.Attack)]
-    [InlineData(BattleAbility.Magic)]
-    public void Explicit_zero_sequence_keeps_the_carrier_idle_and_silent(BattleAbility ability)
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0 };
-        BattleSession initial = new(new BattleDefinition { Combatants = [definition, new() { Id = "enemy", Name = "Enemy", ModelId = -1 }] }, BattleAtbMode.Normal);
-        BattleSession session = BattleSession.Restore(initial.Capture() with { Events = [new(0, "Windup", "party", "enemy", 0, string.Empty, ability) { NativeSequence = 0 }] });
-        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition);
-
-        Assert.Equal(new BattleAnimationSample(0, 0, Vector3.Zero, Loop: true), animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ));
-        Assert.Empty(animation.CollectSounds(session));
-    }
-
-    [Theory]
-    [InlineData(null, 33)]
-    [InlineData(17, 31)]
-    public void Missing_sequence_uses_command_selection_and_positive_sequence_keeps_its_exact_track(int? nativeSequence, int expectedAnimation)
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0 };
-        BattleSession initial = new(new BattleDefinition { Combatants = [definition, new() { Id = "enemy", Name = "Enemy", ModelId = -1 }] }, BattleAtbMode.Normal);
-        BattleSession session = BattleSession.Restore(initial.Capture() with { Events = [new(0, "Windup", "party", "enemy", 0, string.Empty) { NativeSequence = (byte?)nativeSequence }] });
-        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition);
-
-        Assert.Equal(expectedAnimation, animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ).Animation);
-    }
-
     [Fact]
     public void Native_weapon_sequences_select_real_physical_attack_hit_KO_and_victory_clips()
     {
@@ -113,58 +80,6 @@ public sealed class BattleAnimationPresentationTests
     }
 
     [Fact]
-    public void Attack_changes_skeleton_without_mutating_or_replaying_the_session()
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, Attack = 80 };
-        BattleSession session = new(new BattleDefinition { StageId = 0, Combatants = [definition, new() { Id = "dummy", Name = "Dummy", ModelId = -1, MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }] }, BattleAtbMode.Normal);
-        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition) { Melee = true };
-        BattleAnimationSample idle = animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ * 20);
-        session.QueueAttack("party", "dummy");
-        session.Tick();
-        BattleAnimationSample attack = animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ * 20);
-        Assert.NotEqual(idle.Animation, attack.Animation);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames; frame++)
-        {
-            session.Tick();
-        }
-        string before = JsonSerializer.Serialize(session.Capture());
-        IReadOnlyList<BattleSequenceSoundCue> cues = animation.CollectSounds(session);
-        Assert.Empty(cues);
-        Assert.True(assets.LoadPlayerSequences(0, 0, model).Read(13).HasUnresolvedBranches);
-        Assert.Equal(cues, animation.CollectSounds(session));
-        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
-    }
-
-    [Fact]
-    public void Branchless_native_KO_sounds_become_due_while_paused_with_stable_unique_keys()
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleCombatantDefinition party = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, Attack = 80, InitialAtb = BattleSession.AtbMaximum };
-        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Bite Bug", ModelId = 1, MaximumHp = 1, CurrentHp = 1, Speed = 1 };
-        BattleSession session = new(new BattleDefinition { Combatants = [party, enemy] }, BattleAtbMode.Normal);
-        BattleModel model = assets.LoadEnemy(1);
-        BattleAnimationPresentation animation = new(model, model.Sequences, enemy) { AttackSequence = assets.ReadEnemyAttackSequence(1) };
-        session.QueueAttack("party", "enemy");
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
-        {
-            session.Tick();
-        }
-        Assert.Equal(BattleOutcome.Victory, session.Outcome);
-        Assert.Empty(animation.CollectSounds(session));
-        animation.Advance(TimeSpan.FromSeconds(3));
-        string before = JsonSerializer.Serialize(session.Capture());
-        IReadOnlyList<BattleSequenceSoundCue> cues = animation.CollectSounds(session);
-        Assert.Equal(3, cues.Count);
-        Assert.Equal(cues.Count, cues.Select(cue => (cue.ActorId, cue.ActionFrame, cue.CueIndex)).Distinct().Count());
-        Assert.Equal(cues, animation.CollectSounds(session));
-        Assert.Contains(cues, cue => cue.ActorSound && cue.SoundId == 1 && cue.Attribute == 1024);
-        Assert.Contains(cues, cue => !cue.ActorSound && cue.SoundId == 13 && cue.Attribute == 2048);
-        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
-    }
-
-    [Fact]
     public void Sequence_sound_operands_do_not_become_pose_commands_and_uncertain_branches_are_silent()
     {
         BattleSequenceSet sequences = new([1, 0, 4, 0, 0xB8, 3, 2, 0x20, 0xB5, 6, 0, 0xA0, 7, 0xA1, 8, 0xA2]);
@@ -178,84 +93,6 @@ public sealed class BattleAnimationPresentationTests
         Assert.Empty(branched.Sounds);
         Assert.Throws<InvalidDataException>(() => new BattleSequenceSet([1, 0, 4, 0, 0xB5, 1]).Read(1));
         Assert.Throws<NotSupportedException>(() => new BattleSequenceSet([1, 0, 4, 0, 0xF4, 0]).Read(1));
-    }
-
-    [Fact]
-    public void KO_and_victory_complete_on_the_presentation_clock_while_results_pause_combat()
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition party = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, InitialAtb = BattleSession.AtbMaximum, Attack = 100, MaximumHp = 100, CurrentHp = 100, NativeDeathCount = 0 };
-        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Dummy", ModelId = -1, MaximumHp = 1, CurrentHp = 1, Speed = 1 };
-        BattleSession victory = new(new BattleDefinition { Combatants = [party, enemy] }, BattleAtbMode.Normal);
-        BattleAnimationPresentation winner = new(model, assets.LoadPlayerSequences(0, 0, model), party);
-        victory.QueueAttack("party", "enemy");
-        for (int count = 0; count <= BattleSession.AttackWindupFrames; count++)
-        {
-            victory.Tick();
-        }
-        Assert.Equal(BattleOutcome.Victory, victory.Outcome);
-        long frozenFrame = victory.Frame;
-        winner.Sample(victory, victory.Combatants[0], Vector3.Zero, Vector3.UnitZ);
-        winner.Advance(TimeSpan.FromSeconds(3));
-        BattleAnimationSample win = winner.Sample(victory, victory.Combatants[0], Vector3.Zero, Vector3.UnitZ);
-        Assert.Equal(31, win.Animation);
-        Assert.False(win.Loop);
-        Assert.Equal(frozenFrame, victory.Frame);
-
-        BattleSession defeat = new(new BattleDefinition { Combatants = [party with { CurrentHp = 1, InitialAtb = 0 }, enemy with { MaximumHp = 1000, CurrentHp = 1000, Attack = 255, InitialAtb = BattleSession.AtbMaximum }] }, BattleAtbMode.Normal);
-        BattleAnimationPresentation loser = new(model, assets.LoadPlayerSequences(0, 0, model), party);
-        while (defeat.Outcome == BattleOutcome.Active)
-        {
-            defeat.Tick();
-        }
-        loser.Sample(defeat, defeat.Combatants[0], Vector3.Zero, Vector3.UnitZ);
-        loser.Advance(TimeSpan.FromSeconds(3));
-        BattleAnimationSample ko = loser.Sample(defeat, defeat.Combatants[0], Vector3.Zero, Vector3.UnitZ);
-        Assert.Equal(13, ko.Animation);
-        Assert.Equal(model.Animations[13].Frames.Count - 1, ko.Frame);
-        Assert.False(ko.Loop);
-    }
-
-    [Fact]
-    public void Melee_approach_does_not_apply_the_animation_horizontal_root_travel_twice()
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, InitialAtb = BattleSession.AtbMaximum };
-        BattleSession session = new(new BattleDefinition { Combatants = [definition, new() { Id = "dummy", Name = "Dummy", ModelId = -1, Speed = 1 }] }, BattleAtbMode.Normal);
-        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition) { Melee = true };
-        Vector3 rest = model.Animations[0].Frames[0].Translation;
-        session.QueueAttack("party", "dummy");
-        for (int count = 0; count < BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames; count++)
-        {
-            session.Tick();
-            BattleAnimationSample sample = animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ * 20);
-            int current = (int)sample.Frame;
-            int next = Math.Min(current + 1, model.Animations[sample.Animation].Frames.Count - 1);
-            Vector3 root = Vector3.Lerp(model.Animations[sample.Animation].Frames[current].Translation, model.Animations[sample.Animation].Frames[next].Translation, sample.Frame - current);
-            Vector3 relativeRoot = new Vector3(root.X - rest.X, 0, rest.Z - root.Z) * model.Scale + sample.Offset;
-            Assert.InRange(relativeRoot.Z, -0.0001f, 14.0001f);
-            Assert.InRange(relativeRoot.X, -0.0001f, 0.0001f);
-            Assert.Equal(0, sample.Offset.Y);
-        }
-    }
-
-    [Fact]
-    public void Settled_KO_is_visible_above_the_arena_instead_of_below_the_standing_foot_anchor()
-    {
-        using BattleAssets assets = InstalledAssets();
-        BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, CurrentHp = 0, NativeStatus0 = 1 };
-        BattleSession session = new(new BattleDefinition { Combatants = [definition, new() { Id = "dummy", Name = "Dummy", ModelId = -1 }] }, BattleAtbMode.Normal);
-        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition);
-        BattleAnimationSample sample = animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ);
-        float standingOffset = model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
-        float ground = animation.GroundOffset(sample, false, standingOffset);
-        Vector3[] vertices = model.Pose(sample.Animation, sample.Frame, false).SelectMany(mesh => mesh).Select(vertex => vertex - Vector3.UnitY * ground).ToArray();
-        Assert.InRange(vertices.Min(vertex => vertex.Y), -0.0001f, 0.0001f);
-        Assert.True(vertices.Max(vertex => vertex.Y) > 1);
-        Assert.True(ground < standingOffset);
     }
 
     private static BattleAssets InstalledAssets()

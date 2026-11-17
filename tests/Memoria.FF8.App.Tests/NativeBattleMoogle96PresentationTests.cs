@@ -11,7 +11,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleMoogle96PresentationTests
 {
-    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+    private static readonly TimeSpan Callback = BattlePresentationTiming.ElapsedForCallbacks(1);
 
     [Fact]
     public void EquippedMiniMogRunsMoogleDanceToCompletionAndRestoresDuringTheEffect()
@@ -48,11 +48,11 @@ public sealed class NativeBattleMoogle96PresentationTests
         {
             battle.Tick();
             restored?.Tick();
-            if (restored is null && battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 96, ReturnedDescriptor: > 0 })
+            if (restored is null && battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 96, ReturnedDescriptor: > 0 })
             {
                 restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
             }
-            if (restored is not null && battle.ActiveAction is null && battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 })
+            if (restored is not null && battle.ActiveAction is null && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 })
             {
                 completed = true;
                 break;
@@ -104,9 +104,9 @@ public sealed class NativeBattleMoogle96PresentationTests
         uint transition = source.NativeStage!.ModelColors!.Color40;
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         List<NativeBattleModuleSound> heard = [];
-        BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(battle);
         heard.Clear();
         int sourceEvents = battle.Events.Count;
@@ -152,7 +152,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
                     cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 }
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
@@ -260,7 +260,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                     cold.AdvanceNativeGraphicsPresentation(Callback);
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                    Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name! + "-after", current, pixels);
                     boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(name!);
@@ -288,27 +288,27 @@ public sealed class NativeBattleMoogle96PresentationTests
             Assert.False(battle.Capture().NativeVibrationProcess!.IsPlaying(vibrationHandle.GetValueOrDefault()));
             Assert.Equal(127, battle.Capture().NativeGlobalSoundProcess!.MusicPlayback!.ReadGain(0));
             Assert.Equal((ushort)107, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
-            Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
-            Assert.Equal(source.NativeStage!.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.NativeStage.Groups.Select(group => group.Flags).ToArray());
+            Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
+            Assert.Equal(source.NativeStage!.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.Flags).ToArray());
             for (int actor = 3; actor < 7; actor++)
             {
                 if ((ReadOriginalModelCell(graphics, actor).Flags0 & 2) == 0)
                 {
                     continue;
                 }
-                NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.NativeGraphics!, actor);
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.Presentation!.Graphics, actor);
                 Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, model.Flags0 & 4);
                 Assert.Equal(0, model.Flags0 & 0x7800);
                 Assert.Equal(transition & 0xFFFFFFu, model.Color40);
                 Assert.Equal((byte)0, model.Alpha7);
                 Assert.Equal(ReadOriginalModelCell(graphics, actor).Color44, model.Color44);
             }
-            NativeBattleOriginalEffectState finished = battle.NativeGraphics!.OriginalEffect!;
+            NativeBattleOriginalEffectState finished = battle.Presentation!.Graphics.OriginalEffect!;
             Assert.Equal((ushort)96, finished.Binding.Effect);
             Assert.Equal(0x731DE0u, finished.Binding.Entry);
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(0, battle.NativeEffectMemory!.Active);
+            Assert.Equal(0, battle.Presentation!.Memory.Active);
             uint[] sounds = [resources.SoundAppearance, resources.SoundLater];
             NativeBattleModuleSound[] emitted = battle.Events.Skip(sourceEvents).Where(item => item.NativeModuleSound is { } sound && sounds.Contains(sound.Sound)).Select(item => item.NativeModuleSound!).ToArray();
             Assert.Equal(sounds, emitted.Select(item => item.Sound).ToArray());
@@ -325,7 +325,7 @@ public sealed class NativeBattleMoogle96PresentationTests
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224).ToArray());
             audio.Update(restored);
             Assert.Equal(2, heard.Count(sound => sounds.Contains(sound.Sound)));
             Assert.False(HasAction(battle));
@@ -415,6 +415,6 @@ public sealed class NativeBattleMoogle96PresentationTests
     private static short Word(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset));
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0 && task.Callback == callback) ?? [];
     private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 96, Binding.Entry: 0x731DE0 } effect ? effect : null;
-    private static bool HasAction(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+    private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, string RgbaSha256);
 }

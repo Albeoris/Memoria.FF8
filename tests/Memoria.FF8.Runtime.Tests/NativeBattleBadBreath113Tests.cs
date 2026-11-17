@@ -85,8 +85,8 @@ public sealed class NativeBattleBadBreath113Tests
         Field("presentationNativeTargets").SetValue(session, roster.Owners.ToDictionary(owner => owner, owner => new NativeBattleEffectModelBinding(owner, model, body)));
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeCrtRandom").SetValue(session, new NativeCrtRandomState(17));
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() });
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeCamera))!.SetValue(session, NativeBattleCameraState.FromColdProcess() with { Projection = new(view, 100, 160, 108) });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.FromColdProcess() with { Projection = new(view, 100, 160, 108) });
         var applied = (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session)!;
         MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeBadBreath113", BindingFlags.Instance | BindingFlags.NonPublic)!;
         List<(int Age, BattleModelOwner Owner)> births = [];

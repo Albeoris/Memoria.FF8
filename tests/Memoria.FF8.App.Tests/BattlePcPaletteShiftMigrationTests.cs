@@ -49,7 +49,7 @@ public sealed class BattlePcPaletteShiftMigrationTests
         }
         Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input!))));
         Assert.Equal(12, restored.Frame);
-        Assert.Equal(92, restored.NativeGraphics!.Callback);
+        Assert.Equal(92, restored.Presentation!.Graphics.Callback);
         Console.WriteLine($"Migrated standalone snapshot: {Path.GetFullPath(output!)}; SHA256={Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}; exact changes: three AlternatePaletteShift absent->0; frame12/callback92 unchanged; typed load/capture passed.");
     }
 
@@ -76,7 +76,7 @@ public sealed class BattlePcPaletteShiftMigrationTests
         first.AdvanceNativeGraphicsPresentation(callback);
         independent.AdvanceNativeGraphicsPresentation(callback);
         Assert.Equal(13, first.Frame);
-        Assert.Equal(93, first.NativeGraphics!.Callback);
+        Assert.Equal(93, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(independent.Capture()));
         Assert.Equal(source, File.ReadAllBytes(input!));
         Console.WriteLine("Independent cloned battle frame12->13/native callback92->93 continuation passed; published standalone frame12/callback92 bytes remained unchanged.");

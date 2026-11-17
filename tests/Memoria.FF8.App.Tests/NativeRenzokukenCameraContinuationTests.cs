@@ -23,7 +23,7 @@ public sealed class NativeRenzokukenCameraContinuationTests
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         Assert.Equal(JsonSerializer.Serialize(source.Battle!.Definition), JsonSerializer.Serialize(battle.Capture().Definition));
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
+        BattleScenePresentation scene = new(assets, battle.Capture().Definition);
         string output = Path.Combine(evidence!, "renzokuken-camera-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Renzokuken camera evidence: " + output);
@@ -46,16 +46,16 @@ public sealed class NativeRenzokukenCameraContinuationTests
                 before = battle.Capture();
                 battle.Tick();
                 Log("tick");
-                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && battle.GetNativeRenzokuken("party-0")?.MagicId == effect.Binding.Effect)
+                if (battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && battle.GetNativeRenzokuken("party-0")?.MagicId == effect.Binding.Effect)
                 {
-                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
-                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
-                    Assert.Null(battle.NativeCamera.ControlStagingSource);
+                    Assert.NotNull(battle.Presentation!.Memory.Textures!.Animation);
+                    Assert.Equal(JsonSerializer.Serialize(battle.Presentation!.Memory.Textures.Animation), JsonSerializer.Serialize(battle.Presentation!.Camera.ControlResource));
+                    Assert.Null(battle.Presentation!.Camera.ControlStagingSource);
                     registeredCamera = true;
                 }
                 started |= battle.GetNativeRenzokuken("party-0") is not null;
                 poses.Add(JsonSerializer.Serialize(battle.Capture().NativeCamera!.CurrentPose));
-                if (!midpoint && battle.NativeGraphics?.TriggerWidget?.Input.ContactIndex > 0)
+                if (!midpoint && battle.Presentation?.Graphics?.TriggerWidget?.Input.ContactIndex > 0)
                 {
                     Publish("midpoint");
                     BattleSnapshot saved = battle.Capture();
@@ -64,11 +64,11 @@ public sealed class NativeRenzokukenCameraContinuationTests
                     battle.Tick();
                     clone.Tick();
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, saved.Definition, true).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, saved.Definition).Render(clone, 320, 224).ToArray());
                     midpoint = true;
                     Log("midpoint-next");
                 }
-                if (started && battle.GetNativeRenzokuken("party-0") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 })
+                if (started && battle.GetNativeRenzokuken("party-0") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Publish("completed");
                     File.WriteAllText(Path.Combine(evidence!, "renzokuken-completed-snapshot.txt"), Path.Combine(output, "completed.json"));

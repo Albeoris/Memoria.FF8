@@ -27,8 +27,8 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
         {
             Assert.NotNull(cycle);
             cycle.Observe(Observation(), false);
-            NativeBattleRetainedActionPackets packets = dispatch.ActionId == 65532 ? battle.ObserveDiagnosticDuelClosingPackets(dispatch) : battle.ObserveDiagnosticActionPackets(dispatch);
-            BattleDiagnosticEffectInvocation invocation = battle.ObserveDiagnosticEffectInvocation(dispatch);
+            NativeBattleRetainedActionPackets packets = dispatch.ActionId == 65532 ? battle.ObserveDiagnosticDuelClosingPackets(dispatch) : battle.Presentation!.ObserveDiagnosticActionPackets(dispatch);
+            BattleDiagnosticEffectInvocation invocation = battle.Presentation!.ObserveDiagnosticEffectInvocation(dispatch);
             NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
             cycle.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
             {

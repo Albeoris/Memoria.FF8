@@ -45,15 +45,15 @@ public sealed class NativeBattleGuardianPaddingMigrationTests
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        Assert.Equal((ushort)87, first.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        Assert.Equal(227L, first.NativeGraphics.Callback);
+        Assert.Equal((ushort)87, first.Presentation!.Graphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal(227L, first.Presentation!.Graphics.Callback);
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
         {
             JsonSerializer.Serialize(stream, migrated);
         }
         Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(source!)));
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(output!))!).Capture()));
-        Console.WriteLine($"GF11 padding migration preserves frame146/callback226; actual callback reaches frame{first.Frame}/callback{first.NativeGraphics.Callback}, phase87. Source{Convert.ToHexString(hash)}; output{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}.");
+        Console.WriteLine($"GF11 padding migration preserves frame146/callback226; actual callback reaches frame{first.Frame}/callback{first.Presentation!.Graphics.Callback}, phase87. Source{Convert.ToHexString(hash)}; output{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}.");
 
         NativeBattleCameraState Fill(NativeBattleCameraState camera)
         {

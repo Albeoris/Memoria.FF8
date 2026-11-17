@@ -17,16 +17,15 @@ public sealed class BattleFramePerformanceTests
         GameSession session = new(GameSession.Load(source!));
         using GameWorld world = BattleHostLoopPerformanceTests.RestorePerformanceWorld(session);
         BattleSession battle = world.Battle!;
-        BattleScenePresentation scene = new(world.BattleResources, battle.Capture().Definition, true);
+        BattleScenePresentation scene = new(world.BattleResources, battle.Capture().Definition);
         long initialFrame = battle.Frame;
-        long initialCallback = battle.NativeGraphics!.Callback;
+        long initialCallback = battle.NativeHostCallbacks!.Value;
         GameplayClock gameplayClock = new();
         if (speed == 3)
         {
             gameplayClock.ToggleSpeed();
         }
-        TimeSpan elapsed = gameplayClock.Advance(TimeSpan.FromSeconds(1d / 60), session.State.Scene);
-        double clock = 0;
+        TimeSpan elapsed = gameplayClock.Advance(PresentationTiming.SimulationStep, session.State.Scene, battle: true);
         double updateMilliseconds = 0;
         double renderMilliseconds = 0;
         long started = Stopwatch.GetTimestamp();
@@ -41,25 +40,14 @@ public sealed class BattleFramePerformanceTests
             long updateStarted = Stopwatch.GetTimestamp();
             battle.AdvanceNativeGraphicsPresentation(elapsed);
             world.SynchronizeBattlePresentation();
-            scene.AdvancePresentation(elapsed);
-            clock += elapsed.TotalSeconds;
-            int frames = (int)(clock * BattleSession.FramesPerSecond);
-            if (frames > 0)
-            {
-                clock -= frames / (double)BattleSession.FramesPerSecond;
-                world.ApplyBattleInput(new(BattleInputKind.Tick, frames));
-            }
             updateMilliseconds += Stopwatch.GetElapsedTime(updateStarted).TotalMilliseconds;
             long renderStarted = Stopwatch.GetTimestamp();
             scene.Render(battle, 960, 720);
             renderMilliseconds += Stopwatch.GetElapsedTime(renderStarted).TotalMilliseconds;
         }
         double totalMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        if (battle.Mode != BattleAtbMode.TurnBased)
-        {
-            Assert.InRange(battle.Frame - initialFrame, 90 * speed - 1, 90 * speed);
-        }
-        Assert.InRange(battle.NativeGraphics.Callback - initialCallback, 90 * speed - 1, 90 * speed);
+        long expected = BattlePresentationTiming.Advance(0, false, elapsed * 180).Callbacks;
+        Assert.InRange(battle.NativeHostCallbacks!.Value - initialCallback, expected, expected + 1);
         session.SetLiveBattle(battle);
         session.SetEventState(world.Events.Capture());
         GameState saved = session.State;
@@ -67,17 +55,15 @@ public sealed class BattleFramePerformanceTests
         string id = "performance-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-after", saved);
         using GameWorld restored = BattleHostLoopPerformanceTests.RestorePerformanceWorld(new GameSession(saved));
-        long savedCallback = battle.NativeGraphics.Callback;
-        battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1d / 30));
-        restored.Battle!.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1d / 30));
+        long savedCallback = battle.Presentation!.Graphics.Callback;
+        battle.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
+        restored.Battle!.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
         world.SynchronizeBattlePresentation();
         restored.SynchronizeBattlePresentation();
-        world.ApplyBattleInput(new(BattleInputKind.Tick));
-        restored.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.True(battle.NativeGraphics.Callback > savedCallback);
+        Assert.True(battle.Presentation!.Graphics.Callback > savedCallback);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Battle!.Capture()));
-        Assert.Equal(scene.Render(battle, 960, 720), new BattleScenePresentation(restored.BattleResources, restored.Battle.Capture().Definition, true).Render(restored.Battle, 960, 720));
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-measurement", new { Speed = speed, WarmupDisplayFrames = 60, DisplayFrames = 120, Width = 960, Height = 720, TotalMilliseconds = totalMilliseconds, UpdateMilliseconds = updateMilliseconds, RenderMilliseconds = renderMilliseconds, InitialFrame = initialFrame, SavedFrame = saved.Battle!.Frame, SavedCallback = saved.Battle.NativeGraphics!.Callback, ValidatedNextFrame = battle.Frame, ValidatedNextCallback = battle.NativeGraphics.Callback, Sha256 = Convert.ToHexString(SHA256.HashData(scene.Render(battle, 960, 720))) });
+        Assert.Equal(scene.Render(battle, 960, 720), new BattleScenePresentation(restored.BattleResources, restored.Battle.Capture().Definition).Render(restored.Battle, 960, 720));
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-measurement", new { Speed = speed, WarmupDisplayFrames = 60, DisplayFrames = 120, Width = 960, Height = 720, TotalMilliseconds = totalMilliseconds, UpdateMilliseconds = updateMilliseconds, RenderMilliseconds = renderMilliseconds, InitialFrame = initialFrame, SavedFrame = saved.Battle!.Frame, SavedCallback = saved.Battle.NativeGraphics!.Callback, ValidatedNextFrame = battle.Frame, ValidatedNextCallback = battle.Presentation!.Graphics.Callback, Sha256 = Convert.ToHexString(SHA256.HashData(scene.Render(battle, 960, 720))) });
     }
 
     [Fact]
@@ -95,16 +81,14 @@ public sealed class BattleFramePerformanceTests
         accelerated.ApplyBattleInput(attack);
         ordinary.ApplyBattleInput(attack);
         int completed = battle.Events.Count(item => item.Kind == "ActionComplete" && item.ActorId == target.Id);
-        TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         int groups = 0;
         do
         {
             battle.AdvanceNativeGraphicsPresentation(callback * 3);
-            accelerated.ApplyBattleInput(new(BattleInputKind.Tick, 3));
             for (int frame = 0; frame < 3; frame++)
             {
                 ordinary.Battle!.AdvanceNativeGraphicsPresentation(callback);
-                ordinary.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             groups++;
         }
@@ -121,8 +105,6 @@ public sealed class BattleFramePerformanceTests
         using GameWorld restored = NativeBattleProductionEffectAdmissionTests.RestoreWorld(new GameSession(saved), TestResources.GameDirectory);
         restored.Battle!.AdvanceNativeGraphicsPresentation(callback);
         battle.AdvanceNativeGraphicsPresentation(callback);
-        restored.ApplyBattleInput(new(BattleInputKind.Tick));
-        accelerated.ApplyBattleInput(new(BattleInputKind.Tick));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Battle.Capture()));
     }
 }

@@ -40,10 +40,10 @@ public sealed class NativeBattleGilgamesh329AttributionTests
         Assert.Contains(matches, match => match.Start >= 0 && match.BodyPrimitives > 0 && match.MismatchOffset is null);
         Assert.NotEmpty(owned);
         BattleSession selected = BattleSession.Restore(current);
-        byte[] pixels = new BattleScenePresentation(assets, current.Definition, true).Render(selected, 320, 224).ToArray();
+        byte[] pixels = new BattleScenePresentation(assets, current.Definition).Render(selected, 320, 224).ToArray();
         NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
-        byte[] plain = new BattleScenePresentation(assets, current.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+        byte[] plain = new BattleScenePresentation(assets, current.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
         int changed = 0;
         Assert.Equal(pixels.Length, plain.Length);
         for (int offset = 0; offset < pixels.Length; offset += 4)

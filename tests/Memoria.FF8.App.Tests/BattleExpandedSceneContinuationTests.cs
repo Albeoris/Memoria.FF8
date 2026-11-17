@@ -18,18 +18,18 @@ public sealed class BattleExpandedSceneContinuationTests
         world.EnsureField();
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         using BattleAssets assets = new(TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EXPANDED_SCENE_OUTPUT");
         bool extended = false;
         bool packedDifference = false;
-        long firstCallback = battle.NativeGraphics!.Callback;
+        long firstCallback = battle.Presentation!.Graphics.Callback;
         for (int callback = 0; callback < 180; callback++)
         {
             battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1));
             world.SynchronizeBattlePresentation();
-            foreach (NativeBattleLogicalCommand command in battle.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Opcode is 0x24 or 0x2C && command.Packet.Bank is "off_B6D070" or "off_B6D094"))
+            foreach (NativeBattleLogicalCommand command in battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Opcode is 0x24 or 0x2C && command.Packet.Bank is "off_B6D070" or "off_B6D094"))
             {
-                Assert.True(command.ProjectedCoordinates.HasValue, $"Callback {battle.NativeGraphics.Callback} lost full scene coordinates.");
+                Assert.True(command.ProjectedCoordinates.HasValue, $"Callback {battle.Presentation!.Graphics.Callback} lost full scene coordinates.");
                 var points = command.ProjectedCoordinates!.Value;
                 Assert.Equal(command.Opcode == 0x2C ? 4 : 3, points.Length);
                 Assert.True(Winding(points[0], points[1], points[2]) < 0);
@@ -40,14 +40,14 @@ public sealed class BattleExpandedSceneContinuationTests
                 Directory.CreateDirectory(output);
                 byte[] pixels = scene.Render(battle, 1280, 720);
                 using var bitmap = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 1280, 720);
-                bitmap.Save(Path.Combine(output, $"callback-{battle.NativeGraphics.Callback}.png"));
+                bitmap.Save(Path.Combine(output, $"callback-{battle.Presentation!.Graphics.Callback}.png"));
             }
             if (output is not null && !packedDifference)
             {
-                NativeBattlePrimitiveFrame frame = battle.NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = battle.Presentation!.Graphics.PrimitiveFrame!;
                 NativeBattlePrimitiveFrame packed = frame with { LastCommands = frame.LastCommands.Select(item => item with { Command = item.Command with { ProjectedCoordinates = null } }).ToImmutableArray() };
                 BattleRenderer raster = new(640, 360, ViewportLayout.Fit(320, 240, 640, 360));
-                var memory = battle.NativeEffectMemory!;
+                var memory = battle.Presentation!.Memory;
                 byte[] fullPixels = raster.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: source.Definition.NativeGraphics!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache).ToArray();
                 byte[] packedPixels = raster.RenderNativePrimitiveFrame(packed, memory.Textures, capabilities: source.Definition.NativeGraphics.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess.TextureWindowCache);
                 if (!fullPixels.SequenceEqual(packedPixels))
@@ -57,22 +57,22 @@ public sealed class BattleExpandedSceneContinuationTests
                     using var packedImage = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(packedPixels, 640, 360);
                     fullImage.Save(Path.Combine(output, "full-coordinate-frame.png"));
                     packedImage.Save(Path.Combine(output, "packed-coordinate-frame.png"));
-                    Console.WriteLine($"Wrapped packet raster differs at callback {battle.NativeGraphics.Callback}.");
+                    Console.WriteLine($"Wrapped packet raster differs at callback {battle.Presentation!.Graphics.Callback}.");
                 }
             }
         }
         Assert.True(extended, "The supplied component must exercise projected coordinates outside signed WORD range.");
-        Assert.True(battle.NativeGraphics!.Callback >= firstCallback + 180);
+        Assert.True(battle.Presentation!.Graphics.Callback >= firstCallback + 180);
         string checkpointPath = output is null ? TestResources.ArtifactFile("expanded-scene-standalone.json") : Path.Combine(output, "continued-standalone.json");
         world.CaptureBattleState();
         session.Save(checkpointPath, compact: true);
         BattleSession restored = BattleSession.Restore(GameSession.Load(checkpointPath).Battle!);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1));
         restored.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1));
-        Assert.Equal(battle.NativeGraphics.Callback, restored.NativeGraphics!.Callback);
-        Assert.Equal(JsonSerializer.Serialize(battle.NativeGraphics.PrimitiveFrame!.LastCommands), JsonSerializer.Serialize(restored.NativeGraphics.PrimitiveFrame!.LastCommands));
-        Assert.Equal(scene.Render(battle, 1280, 720), new BattleScenePresentation(assets, source.Definition, true).Render(restored, 1280, 720));
-        Console.WriteLine($"Expanded scene frame {battle.Frame}, callbacks {firstCallback}..{battle.NativeGraphics.Callback}, standalone {checkpointPath}.");
+        Assert.Equal(battle.Presentation!.Graphics.Callback, restored.Presentation!.Graphics.Callback);
+        Assert.Equal(JsonSerializer.Serialize(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands), JsonSerializer.Serialize(restored.Presentation!.Graphics.PrimitiveFrame!.LastCommands));
+        Assert.Equal(scene.Render(battle, 1280, 720), new BattleScenePresentation(assets, source.Definition).Render(restored, 1280, 720));
+        Console.WriteLine($"Expanded scene frame {battle.Frame}, callbacks {firstCallback}..{battle.Presentation!.Graphics.Callback}, standalone {checkpointPath}.");
     }
 
     private static long Winding(BattleSceneScreenPoint a, BattleSceneScreenPoint b, BattleSceneScreenPoint c)

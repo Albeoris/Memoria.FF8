@@ -155,21 +155,21 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         }, BattleAtbMode.TurnBased);
         NativeBattleOriginalEffectState pending = completed with { ReturnedDescriptor = null };
         NativeBattleEffectMemory idleMemory = NativeBattleEffectMemory.FromColdProcess().InitializeReturnedTask500870();
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, idleMemory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, idleMemory);
         MethodInfo invoke = typeof(BattleSession).GetMethod("InvokeNativeOriginalEffect", instance, [typeof(NativeBattleGraphicsState), typeof(bool)])!;
         TargetInvocationException pendingError = Assert.Throws<TargetInvocationException>(() => invoke.Invoke(session, [graphics with { OriginalEffect = pending }, true]));
         Assert.Contains("bound source", Assert.IsType<InvalidDataException>(pendingError.InnerException).Message);
-        Assert.Same(idleMemory, session.NativeEffectMemory);
+        Assert.Same(idleMemory, session.Presentation?.Memory);
 
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x123000, 0x123100, 16, 1);
         NativeBattleOriginalEffectState active = completed with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress };
         NativeBattleEffectMemory memory = idleMemory.AssignReturnedTask(active) with { DetachedReturnedTask = detached ? active : null };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, memory);
         graphics = graphics with { OriginalEffect = detached ? effect : active };
         MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", instance)!;
         TargetInvocationException activeError = Assert.Throws<TargetInvocationException>(() => advance.Invoke(session, [graphics]));
         Assert.Contains("bound source", Assert.IsType<InvalidDataException>(activeError.InnerException).Message);
-        Assert.Same(memory, session.NativeEffectMemory);
+        Assert.Same(memory, session.Presentation?.Memory);
     }
 
     private static NativeBattleGraphicsState Graphics(int additionalCount)

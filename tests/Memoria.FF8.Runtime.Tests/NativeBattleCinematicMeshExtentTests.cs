@@ -25,7 +25,7 @@ public sealed class NativeBattleCinematicMeshExtentTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
         frame = frame with { Arena = frame.Arena.Write(0x1080, [0x34, 0x12, 0xFF, 0xFF]) };
-        Assert.Equal(0x84, BattleSession.MeasureNativeCinematicMeshExtent(frame, Shape, _ => throw new InvalidOperationException()));
+        Assert.Equal(0x84, BattlePresentationProcess.MeasureNativeCinematicMeshExtent(frame, Shape, _ => throw new InvalidOperationException()));
     }
 
     [Fact]
@@ -63,10 +63,10 @@ public sealed class NativeBattleCinematicMeshExtentTests
         NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Equal(Measure(frame), Measure(restored));
         frame = frame with { Arena = frame.Arena.Write(0x109C, [0, 0, 0xFF, 0xFF]) };
-        Assert.Equal(0xA0, BattleSession.MeasureNativeCinematicMeshExtent(frame, Shape, type => type == 8 ? (byte)24 : throw new InvalidOperationException()));
+        Assert.Equal(0xA0, BattlePresentationProcess.MeasureNativeCinematicMeshExtent(frame, Shape, type => type == 8 ? (byte)24 : throw new InvalidOperationException()));
     }
 
-    private static int Measure(NativeBattleWaterExecutionFrame frame) => BattleSession.MeasureNativeCinematicMeshExtent(frame, Shape, type => type == 8 ? (byte)20 : throw new InvalidOperationException());
+    private static int Measure(NativeBattleWaterExecutionFrame frame) => BattlePresentationProcess.MeasureNativeCinematicMeshExtent(frame, Shape, type => type == 8 ? (byte)20 : throw new InvalidOperationException());
 
     private static NativeBattleWaterExecutionFrame Fixture()
     {

@@ -14,7 +14,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
         using GameAssets assets = new(directory);
-        using GameWorld world = new(new GameSession(PrepareField(directory)), directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(new GameSession(PrepareField(directory)), directory);
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 29);
         BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
@@ -80,7 +80,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
     private static void RunInstalledTowerEffect(string directory, GameState field, GameAssets assets, ushort requestedEffect)
     {
-        using GameWorld world = new(new GameSession(field), directory, expandedBattleAllyCount: 11, sharedAssets: assets) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(new GameSession(field), directory, expandedBattleAllyCount: 11, sharedAssets: assets);
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 29);
         Assert.False(battle.UsesExpandedRoster);
@@ -132,7 +132,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             for (int callback = 0; callback < 1200; callback++)
             {
                 battle.Tick();
-                if (battle.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == effectId)
+                if (battle.Presentation?.Graphics?.OriginalEffect is { } effect && effect.Binding.Effect == effectId)
                 {
                     invoked |= effect.ReturnedDescriptor is > 0;
                     if (invoked && effect.ReturnedDescriptor == 0)
@@ -153,7 +153,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
         using GameAssets assets = new(directory);
         GameSession session = new(PrepareField(directory));
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 164);
         BattleCombatant owner = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
@@ -166,7 +166,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         for (int callback = 0; callback < 1200; callback++)
         {
             battle.Tick();
-            if (battle.NativeGraphics?.OriginalEffect is not { Binding.Effect: 248 } effect)
+            if (battle.Presentation?.Graphics?.OriginalEffect is not { Binding.Effect: 248 } effect)
             {
                 continue;
             }
@@ -189,8 +189,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
     {
         BattleDefinition definition = world.CreateEncounterBattle(formation);
         NativeBattleMusicEntryPreparation music = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, new(1, null, null, null, 0, null), 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), new NativeMusicCatalog(TestResources.GameDirectory).ReadBattleEntryResources());
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = music.MusicProcess, NativeGlobalSoundProcess = music.SoundProcess }, BattleAtbMode.TurnBased);
-        battle.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = music.MusicProcess, NativeGlobalSoundProcess = music.SoundProcess }, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
         for (int callback = 0; callback < 480 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

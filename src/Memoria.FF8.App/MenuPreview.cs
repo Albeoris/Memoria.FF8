@@ -179,7 +179,10 @@ internal static class MenuPreview
         {
             MenuData fixture = MenuDemoData.Create();
             BattleCombatantDefinition[] party = fixture.Characters.Where(character => character.InParty).Select((character, index) => new BattleCombatantDefinition { Id = $"party-{index}", Name = character.Name, IsPlayer = true, CurrentHp = character.CurrentHp!.Value, MaximumHp = character.MaximumHp!.Value }).ToArray();
-            BattleDebugController editor = new(BattleDebugDefaults.Create(party, null, 0), new BattleDebugCatalog { Players = party, Enemies = [BattleDebugDefaults.Dummy] }, BattleAtbMode.Normal, (_, _) => { }, () => { });
+            using BattleAssets battleAssets = new(gameDirectory);
+            int modelId = battleAssets.EnemyModelIds.First();
+            BattleCombatantDefinition enemy = new() { Id = "enemy-0", Name = battleAssets.ReadEnemyName(modelId), ModelId = modelId };
+            BattleDebugController editor = new(BattleDebugDefaults.Create(party, enemy, 0), new BattleDebugCatalog { Players = party, Enemies = [enemy] }, BattleAtbMode.Normal, (_, _) => { }, () => { });
             if (expanded)
             {
                 int row = editor.Rows.Select((entry, index) => (entry, index)).Single(pair => pair.entry.Label == "Enemy 1").index;

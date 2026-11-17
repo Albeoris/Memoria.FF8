@@ -32,7 +32,7 @@ public sealed class NativeBattleFatedCircle162CastTests
         BattleCombatantDefinition[] actors = [actor, source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) }];
         BattleDefinition definition = source with { Combatants = actors, NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([160, 162]) };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "fated-circle-162-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Fated Circle evidence: " + output);
@@ -64,7 +64,7 @@ public sealed class NativeBattleFatedCircle162CastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (!initial && graphics.OriginalEffect is { Binding.Effect: 160, ReturnedDescriptor: > 0 })
                 {
                     Assert.True(battle.Capture().NativeEffectMemory!.Renzokuken160!.InitialControl);
@@ -76,10 +76,10 @@ public sealed class NativeBattleFatedCircle162CastTests
                 if (active)
                 {
                     selected = true;
-                    Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
-                    Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));
-                    Assert.Null(battle.NativeCamera.ControlStagingSource);
-                    finisherCameraPoses.Add(JsonSerializer.Serialize(battle.NativeCamera.CurrentPose));
+                    Assert.NotNull(battle.Presentation!.Memory.Textures!.Animation);
+                    Assert.Equal(JsonSerializer.Serialize(battle.Presentation!.Memory.Textures.Animation), JsonSerializer.Serialize(battle.Presentation!.Camera.ControlResource));
+                    Assert.Null(battle.Presentation!.Camera.ControlStagingSource);
+                    finisherCameraPoses.Add(JsonSerializer.Serialize(battle.Presentation!.Camera.CurrentPose));
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
@@ -87,7 +87,7 @@ public sealed class NativeBattleFatedCircle162CastTests
                         NativeBattleGraphicsState backgroundGraphics = backgroundSnapshot.NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame!.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(backgroundSnapshot with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
                     if (!midpoint && graphics.OriginalEffect!.Pools[1].Slots[0].ReadWord(12) >= 80)
@@ -96,7 +96,7 @@ public sealed class NativeBattleFatedCircle162CastTests
                         midpoint = true;
                     }
                 }
-                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 })
+                if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Assert.True(initial);
                     Assert.True(drawn);
@@ -106,7 +106,7 @@ public sealed class NativeBattleFatedCircle162CastTests
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
                     CompareNext("completed");
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", weapon, finisherIndex, battle.Frame, NativeCallback = battle.NativeGraphics.Callback, initial, selected, drawn, midpoint, DistinctFinisherCameraPoses = finisherCameraPoses.Count }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", weapon, finisherIndex, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, initial, selected, drawn, midpoint, DistinctFinisherCameraPoses = finisherCameraPoses.Count }));
                     return;
                 }
             }
@@ -134,7 +134,7 @@ public sealed class NativeBattleFatedCircle162CastTests
             battle.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");
         }
     }

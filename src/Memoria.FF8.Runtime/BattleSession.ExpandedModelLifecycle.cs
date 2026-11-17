@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private BattleCombatant RequireEmittingHostedActor(NativeBattleModelLifecycleServices services, NativeBattleModelLifecycleReceipt receipt)
     {
-        if (!UsesExpandedRoster || !services.Facts.TryGetValue(receipt.Owner, out NativeBattleModelActorFacts? facts) ||
+        if (!services.Facts.TryGetValue(receipt.Owner, out NativeBattleModelActorFacts? facts) ||
             !StringComparer.Ordinal.Equals(facts.ActorId, receipt.ActorId) || !byId.TryGetValue(receipt.ActorId, out BattleCombatant? actor) ||
             CreatePresentationModelOwner(actor) != receipt.Owner)
         {
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant RequireExpandedLifecycleActor(BattleModelRoster roster, NativeBattleModelLifecycleReceipt receipt)
     {
-        if (!UsesExpandedRoster || !roster.Contains(receipt.Owner) || !StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(receipt.Owner), receipt.ActorId) ||
+        if (!roster.Contains(receipt.Owner) || !StringComparer.Ordinal.Equals(RequireCanonicalGraphicsActorId(receipt.Owner), receipt.ActorId) ||
             !byId.TryGetValue(receipt.ActorId, out BattleCombatant? actor) || actor.Slot is null || RequirePresentationModelOwner(roster, actor) != receipt.Owner)
         {
             throw new InvalidDataException("Expanded model lifecycle receipt does not belong to its current allocated actor.");

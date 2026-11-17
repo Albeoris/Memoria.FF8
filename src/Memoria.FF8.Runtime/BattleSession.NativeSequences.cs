@@ -9,10 +9,6 @@ public sealed partial class BattleSession
 
     private int NativeActionWindupFrames(BattleCombatant actor, byte? sequence)
     {
-        if (NativeGraphics is not null)
-        {
-            return 1;
-        }
         NativeBattleSequenceTrack? track = NativeControlTrack(actor, sequence);
         return track is null ? AttackWindupFrames : Math.Max(1, track.CompletionFrame);
     }
@@ -42,14 +38,6 @@ public sealed partial class BattleSession
 
     private void ValidateNativeSequenceProgress(BattleCombatant actor, BattleActionPresentation action)
     {
-        if (NativeGraphics is { } graphics)
-        {
-            if (action.NativeSequenceFrame is not null || action.NativeHeader is null && (graphics.ActionActorId != actor.Id || action.Phase == BattleActionPhase.Recovery && !graphics.ActionCallbackReady))
-            {
-                throw new InvalidDataException("Native active action contradicts its raw graphical callback owner.");
-            }
-            return;
-        }
         NativeBattleSequenceTrack? track = NativeControlTrack(actor, action.NativeSequence);
         if (track is null)
         {
@@ -67,10 +55,6 @@ public sealed partial class BattleSession
 
     private void PublishNativeSequenceMessages(BattleCombatant actor, byte? sequence, int frame)
     {
-        if (NativeGraphics is not null)
-        {
-            return;
-        }
         NativeBattleSequenceTrack? track = NativeControlTrack(actor, sequence);
         if (track is null)
         {

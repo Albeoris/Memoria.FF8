@@ -170,7 +170,7 @@ public sealed class GpuTriangleRendererTests
         string before = JsonSerializer.Serialize(battle.Capture());
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
-        BattleScenePresentation scene = new(world.BattleResources, battle.Capture().Definition, true);
+        BattleScenePresentation scene = new(world.BattleResources, battle.Capture().Definition);
         byte[] software = scene.Render(battle, 960, 720).ToArray();
         scene.Render(battle, 960, 720, gpu);
         Color[] hardware = GpuTestDevice.Read(gpu.Target);
@@ -218,7 +218,7 @@ public sealed class GpuTriangleRendererTests
             scene.Render(battle, 960, 720, gpu);
         }
         double submissionMilliseconds = timer.Elapsed.TotalMilliseconds / 60;
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "gpu-render-comparison", new { Adapter = device.Device.Adapter.Description, Width = 960, Height = 720, MeanMaximumChannelError = error / (double)hardware.Length, LargeDifferencePixels = largeDifferences, Pixels = hardware.Length, SubmissionMilliseconds = submissionMilliseconds, battle.Frame, NativeCallback = battle.NativeGraphics?.Callback });
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "gpu-render-comparison", new { Adapter = device.Device.Adapter.Description, Width = 960, Height = 720, MeanMaximumChannelError = error / (double)hardware.Length, LargeDifferencePixels = largeDifferences, Pixels = hardware.Length, SubmissionMilliseconds = submissionMilliseconds, battle.Frame, NativeCallback = battle.Presentation?.Graphics?.Callback });
         Assert.InRange(error / (double)hardware.Length, 0, 2);
         Assert.InRange(largeDifferences / (double)hardware.Length, 0, 0.02);
         using GameWorld restored = NativeBattleProductionEffectAdmissionTests.RestoreWorld(new GameSession(session.State), TestResources.GameDirectory);

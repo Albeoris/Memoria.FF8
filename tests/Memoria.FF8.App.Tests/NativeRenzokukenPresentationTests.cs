@@ -38,7 +38,7 @@ public sealed class NativeRenzokukenPresentationTests
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("squall", 1)] });
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         byte[] before = scene.Render(battle, 640, 448).ToArray();
         battle.QueueNativePlayerCommand("squall", "ifrit", 5, 0);
         battle.Tick();
@@ -52,8 +52,8 @@ public sealed class NativeRenzokukenPresentationTests
         Assert.Equal(frame, battle.Frame);
         Assert.Equal(checkpoint, JsonSerializer.Serialize(battle.Capture()));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(checkpoint)!);
-        BattleScenePresentation freshOriginal = new(assets, battle.Capture().Definition, true);
-        BattleScenePresentation restoredScene = new(assets, restored.Capture().Definition, true);
+        BattleScenePresentation freshOriginal = new(assets, battle.Capture().Definition);
+        BattleScenePresentation restoredScene = new(assets, restored.Capture().Definition);
         Assert.Equal(freshOriginal.Render(battle, 640, 448), restoredScene.Render(restored, 640, 448));
         for (int callback = 0; callback < 5000 && restored.GetNativeRenzokuken("squall") is not null; callback++)
         {

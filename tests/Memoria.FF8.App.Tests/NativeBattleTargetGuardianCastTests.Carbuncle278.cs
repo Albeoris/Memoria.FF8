@@ -43,7 +43,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-blocked", before.Frame, Error = entryError.ToString() }));
                 throw;
             }
-            if (battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 278, ReturnedDescriptor: NativeBattleCarbuncle278Entry.MainDescriptor })
+            if (battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 278, ReturnedDescriptor: NativeBattleCarbuncle278Entry.MainDescriptor })
             {
                 entered = true;
                 break;
@@ -54,12 +54,12 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         ushort initialCounter = Counter(source);
         Assert.InRange(initialCounter, (ushort)0, (ushort)1);
         Assert.NotEqual(0u, source.NativeEffectMemory!.Carbuncle278!.ModelBuffer81F8);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
-        TimeSpan callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         HashSet<ushort> publishedCounters = [];
         while (Counter(first.Capture()) < 88)
         {
@@ -67,8 +67,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             BattleSnapshot current = first.Capture();
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, definition, true).Render(first, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
+            byte[] pixels = new BattleScenePresentation(assets, definition).Render(first, 320, 224).ToArray();
+            Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(second, 320, 224).ToArray());
             ushort counter = Counter(current);
             if ((counter is 2 or 3 or 4 or 10 or 18 or 28 or 38 or 48 or 68 or 88) && publishedCounters.Add(counter))
             {

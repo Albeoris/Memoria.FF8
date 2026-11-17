@@ -43,7 +43,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-blocked", before.Frame, Error = entryError.ToString() }));
                 throw;
             }
-            if (battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 325, ReturnedDescriptor: NativeBattleDiablos325Entry.MainDescriptor })
+            if (battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 325, ReturnedDescriptor: NativeBattleDiablos325Entry.MainDescriptor })
             {
                 entered = true;
                 break;
@@ -54,12 +54,12 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         ushort initialCounter = Counter(source);
         Assert.InRange(initialCounter, (ushort)0, (ushort)1);
         Assert.NotEqual(0u, source.NativeEffectMemory!.Diablos325!.ModelBuffer5208);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
-        TimeSpan callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         while (Counter(first.Capture()) < 248)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);

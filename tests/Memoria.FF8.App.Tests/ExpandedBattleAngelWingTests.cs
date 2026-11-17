@@ -74,8 +74,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(expected, queued?.Ability ?? current?.Ability);
         Assert.Equal(castsSpell, queued?.FreeNativeMagic ?? current?.FreeNativeMagic);
         string snapshot = JsonSerializer.Serialize(captured);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!);
-        GameWorld.AttachExpandedEffects(restored, game, assets);
+        BattleSession restored = battle.ForkForContinuation();
         Assert.Equal(snapshot, JsonSerializer.Serialize(restored.Capture()));
         for (int frame = 0; frame < 300 && caster.IsBusy; frame++)
         {

@@ -199,7 +199,7 @@ public sealed record EncounterPatchDocument
         Identity(DocumentId, "documentId");
         Identity(Encounter, "encounter");
         Require(!Operations.IsDefaultOrEmpty && Operations.Length <= 1024, "operations must contain 1–1024 entries.");
-        Require(RequiredActorCapacity is null or >= 1 and <= 4, "requiredActorCapacity must be between 1 and 4.");
+        Require(RequiredActorCapacity is null or >= 1 and <= ExpandedBattleFormation.MaximumEnemies, "requiredActorCapacity exceeds the supported enemy roster.");
         Require(!Placements.IsDefault && Placements.Length <= 16, "placements must be a bounded array.");
         HashSet<string> ids = new(StringComparer.Ordinal);
         foreach (EncounterPatchPlacement placement in Placements)
@@ -479,7 +479,7 @@ public sealed record EncounterPatchDocument
         Require(!action.Spells.IsDefault && !action.Actors.IsDefault && action.SpellWeights is not null, "Action arrays/weights cannot be null/default.");
         if (action.Kind == "SummonGroup")
         {
-            Require(action.CasterPresentation == "nativeCast" && action.Simultaneous == true && action.Atomic == true && action.Actors.Length is >= 1 and <= 3 && action.Spell is null && action.Spells.IsEmpty && action.SpellWeights.IsEmpty && action.Target.ValueKind == JsonValueKind.Undefined && action.TargetPolicy is null && action.Selection is null && action.Casts.ValueKind == JsonValueKind.Undefined && action.ReflectionPolicy is null, "SummonGroup requires an atomic simultaneous native cast and 1–3 templates.");
+            Require(action.CasterPresentation == "nativeCast" && action.Simultaneous == true && action.Atomic == true && action.Actors.Length is >= 1 and <= ExpandedBattleFormation.MaximumEnemies && action.Spell is null && action.Spells.IsEmpty && action.SpellWeights.IsEmpty && action.Target.ValueKind == JsonValueKind.Undefined && action.TargetPolicy is null && action.Selection is null && action.Casts.ValueKind == JsonValueKind.Undefined && action.ReflectionPolicy is null, "SummonGroup requires an atomic simultaneous native cast and 1–3 templates.");
             foreach (EncounterPatchSpawn spawn in action.Actors)
             {
                 Require(spawn is not null, "Null spawn.");

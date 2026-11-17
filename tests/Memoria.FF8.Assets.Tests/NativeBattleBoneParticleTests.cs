@@ -25,7 +25,7 @@ public sealed class NativeBattleBoneParticleTests
         graphics = graphics with { Bindings = graphics.Bindings.SetItem(graphics.Bindings.IndexOf(binding), binding with { Resource = binding.Resource with { SequenceSection = program.ToImmutableArray() } }) };
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
         BattleSession battle = new(new() { StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), LimitProgress = game.ReadNewGameLimitProgress(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeMusicProcess = musicEntry.MusicProcess, NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, NativeGraphics = graphics, NativeModuleResources = game.ReadNativeBattleModuleResources(), Combatants = actors }, BattleAtbMode.TurnBased);
-        for (int callback = 0; callback < 300 && !battle.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830); callback++)
+        for (int callback = 0; callback < 300 && !battle.Presentation!.Graphics.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830); callback++)
         {
             battle.Tick();
         }
@@ -38,8 +38,8 @@ public sealed class NativeBattleBoneParticleTests
         battle.Tick();
         restored.Tick();
         Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
-        Assert.DoesNotContain(battle.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830);
-        NativeBattleModuleDraw draw = Assert.Single(battle.NativeGraphics.ModuleDraws, draw => draw.Kind == NativeBattleModuleDrawKind.Sprite);
+        Assert.DoesNotContain(battle.Presentation!.Graphics.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830);
+        NativeBattleModuleDraw draw = Assert.Single(battle.Presentation!.Graphics.ModuleDraws, draw => draw.Kind == NativeBattleModuleDrawKind.Sprite);
         Assert.Equal((short)0, draw.Anchor!.Y);
         Assert.Equal((uint)3, draw.PackedParameters & 255);
         Assert.DoesNotContain(battle.Events, entry => entry.NativeModuleSound is { Sound: 2 or 3 });

@@ -42,8 +42,8 @@ public sealed class ExpandedBattleHostTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.True(battle.UsesExpandedRoster);
-        Assert.Null(battle.NativeGraphics);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        Assert.Null(battle.Presentation?.Graphics);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleDefinition definition = battle.ReadDefinition();
         NativeBattleClockRules rules = world.BattleResources.ReadNativeClockRules();
         byte configuredSpeed = (session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte)!.Value;
@@ -228,7 +228,7 @@ public sealed class ExpandedBattleHostTests
         string lastEnemy = enemies[^1].Id;
         Assert.Equal(allyCount, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(new byte[] { 0, 1, 2 }, session.State.CharacterVitals!.CombatParty);
-        BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition(), true);
+        BattleScenePresentation presentation = new(world.BattleResources, battle.ReadDefinition());
         string casterId = $"party-{casterRow}";
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterId);
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
@@ -353,7 +353,7 @@ public sealed class ExpandedBattleHostTests
                 for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                 {
                     world.ApplyBattleInput(new(BattleInputKind.Tick));
-                    stockPresentation ??= battle.ExpandedPresentationProcess?.Graphics.OriginalEffect is { RequestedEffect: 15, ReturnedDescriptor: > 0 } stockEffect ? stockEffect : null;
+                    stockPresentation ??= battle.Presentation?.Graphics.OriginalEffect is { RequestedEffect: 15, ReturnedDescriptor: > 0 } stockEffect ? stockEffect : null;
                 }
                 Assert.False(caster.IsBusy);
                 BattleEvent drawResult = Assert.Single(battle.Events.Skip(beforeDraw), entry => entry.Kind == "Draw" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
@@ -361,7 +361,7 @@ public sealed class ExpandedBattleHostTests
                 {
                     Assert.NotNull(stockPresentation);
                     Assert.Equal((ushort)15, stockPresentation.RequestedEffect);
-                    Assert.Null(battle.ExpandedPresentationProcess!.ActiveActionToken);
+                    Assert.Null(battle.Presentation!.ActiveActionToken);
                     Assert.Single(battle.Events.Skip(beforeDraw), entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == drawSource.Id);
                 }
                 if (enemyCount == 11)
@@ -379,24 +379,13 @@ public sealed class ExpandedBattleHostTests
                     world.ApplyBattleInput(new(BattleInputKind.Action) { ActorId = caster.Id, TargetId = drawSource.Id, Ability = BattleAbility.Draw, ActionId = spell.Id, DrawCast = true, DrawCastTargetId = recipient.Id });
                     BattleSnapshot windup = battle.Capture();
                     bool presented = false;
-                    int impacts = 0;
                     for (int frame = 0; frame < 512 && caster.IsBusy; frame++)
                     {
                         world.ApplyBattleInput(new(BattleInputKind.Tick));
-                        presented |= battle.ExpandedPresentationProcess is { ActiveActionToken: not null };
-                        BattleImpactCue[] cues = BattleImpactPresentation.Collect(battle).Where(cue => cue.Event.Frame >= windup.Frame && cue.Event.ActorId == caster.Id).ToArray();
-                        Assert.All(cues, cue =>
-                        {
-                            Assert.Equal(BattleAbility.Draw, cue.Event.Ability);
-                            Assert.Equal(recipient.Id, cue.Event.TargetId);
-                            Assert.True(cue.Event.DeferredImpact);
-                            Assert.Contains(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == recipient.Id && entry.Frame == cue.Event.Frame);
-                        });
-                        impacts = Math.Max(impacts, cues.Length);
+                        presented |= battle.Presentation is { ActiveActionToken: not null };
                     }
                     Assert.False(caster.IsBusy);
                     Assert.True(presented);
-                    Assert.Equal(1, impacts);
                     Assert.Equal(stockBefore, caster.MagicStocks.FirstOrDefault(stock => stock.Id == spell.Id)?.Count ?? 0);
                     Assert.Single(battle.Events, entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.TargetId == recipient.Id && entry.Frame >= windup.Frame);
                 }
@@ -444,7 +433,7 @@ public sealed class ExpandedBattleHostTests
             {
                 using GpuTestDevice device = new();
                 using GpuTriangleRenderer gpu = new(device.Device);
-                BattleScenePresentation gpuPresentation = new(world.BattleResources, active.ReadDefinition(), true);
+                BattleScenePresentation gpuPresentation = new(world.BattleResources, active.ReadDefinition());
                 foreach ((int width, int height) in new[] { (640, 448), (1280, 720), (1920, 1080) })
                 {
                     _ = gpuPresentation.Render(active, width, height, gpu);
@@ -488,7 +477,7 @@ public sealed class ExpandedBattleHostTests
             for (int i = 0; i < 2048 && caster.IsBusy; i++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                if (!rendered && battle.ExpandedPresentationProcess?.PreparedPresentation?.Primitives is { LastCommands.IsEmpty: false })
+                if (!rendered && battle.Presentation?.PreparedPresentation?.Primitives is { LastCommands.IsEmpty: false })
                 {
                     byte[] pixels = presentation.Render(battle, 320, 240).ToArray();
                     Assert.Contains(pixels.Where((_, index) => index % 4 != 3), pixel => pixel != 0);

@@ -64,7 +64,7 @@ public sealed class NativeBattleDuelProtocolTests
     {
         BattleSession session = Fixture();
         States(session).Add("party", new(0, Target(), 400, 279, BattleNativeDuelPhase.Ready));
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Invoke(session, "RunNativeDuelSelection4852B0", session.NativeGraphics!));
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Invoke(session, "RunNativeDuelSelection4852B0", session.Presentation!.Graphics));
         Assert.IsType<NotSupportedException>(error.InnerException);
         Assert.DoesNotContain("Selection1D28DEF", JsonSerializer.Serialize(States(session)["party"]));
     }
@@ -159,7 +159,7 @@ public sealed class NativeBattleDuelProtocolTests
         BattleNativeDuelState state = new(0, Target(), 400, 279, phase) { Selection1D28DEF = selection };
         MethodInfo method = typeof(BattleSession).GetMethod("ValidateNativeDuelSelectionDescriptors", BindingFlags.Static | BindingFlags.NonPublic)!;
         Assert.NotNull(method);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [state, graphics])).InnerException);
         graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, callback).State };
         method.Invoke(null, [state, graphics]);
@@ -171,7 +171,7 @@ public sealed class NativeBattleDuelProtocolTests
     {
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleGraphicsState graphics = OriginalGraphics([]);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
         return session;
     }
 

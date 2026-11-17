@@ -19,9 +19,9 @@ public sealed partial class AttachedEncounterMagicTests
         ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", PrivateInstance)!.GetValue(process));
+        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", PrivateInstance)!.GetValue(process));
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == battle.ReadDefinition().EncounterMod!.OriginalActorId);
         BattleCombatant readyParty = battle.Combatants.First(actor => actor.IsPlayer);
         foreach (BattleCombatant actor in battle.Combatants)
@@ -35,9 +35,9 @@ public sealed partial class AttachedEncounterMagicTests
         NativeBattleModelCpuResources originalCpu = process.ModelCpuResources;
         NativeBattleModelTextureCache originalCache = process.ModelTextureCache;
         string[] originalTextureOwners = process.Memory.Textures!.PresentationTextures!.Keys.Order().ToArray();
-        NativeBattleFileIoState originalFileIo = presentation.NativeFileIo!;
+        NativeBattleFileIoState originalFileIo = presentation.Presentation!.NativeFileIo!;
         int? originalIoResult = presentation.NativeEffectIoResult;
-        (byte[] Data, bool[] Known) originalStaging = presentation.NativeFileStaging!.ReadSnapshot(NativeBattleFileStaging.Address, 64);
+        (byte[] Data, bool[] Known) originalStaging = presentation.Presentation!.NativeFileStaging!.ReadSnapshot(NativeBattleFileStaging.Address, 64);
         NativeBattleAllocationControl? originalAllocationControl = battle.NativeScriptState.AllocationControl;
         caster.Atb = BattleSession.AtbMaximum;
 
@@ -56,12 +56,12 @@ public sealed partial class AttachedEncounterMagicTests
             Assert.False(actor.IsActive);
             Assert.True(actor.Hidden && actor.Untargetable && actor.Suspended);
         });
-        NativeBattleFileIoState io = presentation.NativeFileIo!;
+        NativeBattleFileIoState io = presentation.Presentation!.NativeFileIo!;
         int slot = Assert.Single(Enumerable.Range(0, io.Rows.Length), index => io.Rows[index] is { SchedulerCallback: 0x482870, CompletionCallback: 0x508470 });
         Assert.True(io.Rows[slot].FileResult > 0);
         Assert.Equal(-1, presentation.NativeEffectIoResult);
         NativeBattleFileIoState failedRead = io with { Rows = io.Rows.SetItem(slot, io.Rows[slot] with { FileResult = -2, Countdown = 0 }) };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileIo))!.SetValue(presentation, failedRead);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileIo))!.SetValue(presentation.Presentation!, failedRead);
         NativeBattleRandomState randomBefore = Assert.IsType<NativeBattleRandomState>(typeof(BattleSession).GetField("random", PrivateInstance)!.GetValue(battle));
         NativeGlobalRandomChange? globalBefore = process.GlobalRandomChange;
         NativeCrtRandomState? crtBefore = process.CurrentCrtRandom;
@@ -95,10 +95,10 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.Equal(originalCpu.NextEnemyResourceId, process.ModelCpuResources.NextEnemyResourceId);
         Assert.Equal(originalCpu.Rows.ToArray(), process.ModelCpuResources.Rows.ToArray());
         Assert.Equal(originalCache.Rows.ToArray(), process.ModelTextureCache.Rows.ToArray());
-        Assert.Equal(originalFileIo.Rows.ToArray(), presentation.NativeFileIo!.Rows.ToArray());
-        Assert.Equal(originalFileIo.ActiveCount, presentation.NativeFileIo.ActiveCount);
+        Assert.Equal(originalFileIo.Rows.ToArray(), presentation.Presentation!.NativeFileIo!.Rows.ToArray());
+        Assert.Equal(originalFileIo.ActiveCount, presentation.Presentation!.NativeFileIo.ActiveCount);
         Assert.Equal(originalIoResult, presentation.NativeEffectIoResult);
-        (byte[] Data, bool[] Known) restoredStaging = presentation.NativeFileStaging!.ReadSnapshot(NativeBattleFileStaging.Address, 64);
+        (byte[] Data, bool[] Known) restoredStaging = presentation.Presentation!.NativeFileStaging!.ReadSnapshot(NativeBattleFileStaging.Address, 64);
         Assert.Equal(originalStaging.Data, restoredStaging.Data);
         Assert.Equal(originalStaging.Known, restoredStaging.Known);
         Assert.Null(presentation.NativeModelLoader!.Task);

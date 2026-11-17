@@ -21,12 +21,12 @@ public sealed class NativeBattleEnemyMicroMissiles284VertexIngressTests
             arena.MarkUnknown(ScratchOffset + (unknown == 8 ? 6 : unknown), unknown == 8 ? 2 : 1);
         }
         var expected = DetachedPoint(arena, ScratchOffset);
-        var actual = BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0);
+        var actual = BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0);
         Assert.Equal(expected, actual);
         Assert.Equal(new NativeBattleVector(short.MinValue, short.MaxValue, -2), actual.Vertex);
         Assert.Equal(unknown == -1 ? (short?)-1234 : null, actual.W);
         NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena));
-        Assert.Equal(actual, BattleSession.ReadNativeEnemyMicroMissiles284Vertex(restored, Mesh(), Scratch, 0));
+        Assert.Equal(actual, BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(restored, Mesh(), Scratch, 0));
     }
 
     [Theory]
@@ -36,24 +36,24 @@ public sealed class NativeBattleEnemyMicroMissiles284VertexIngressTests
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(ScratchOffset, Point(1, 2, 3, 4)).MarkUnknown(ScratchOffset + unknown, 1);
         Assert.Throws<NotSupportedException>(() => DetachedPoint(arena, ScratchOffset));
-        Assert.Throws<NotSupportedException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0));
+        Assert.Throws<NotSupportedException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0));
     }
 
     [Fact]
     public void Immutable_shapes_require_no_live_arena_and_preserve_selected_row_and_W()
     {
         NativeBattleStaticMeshResource mesh = Mesh();
-        var first = BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 12, 8);
-        var second = BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 28, 0);
+        var first = BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 12, 8);
+        var second = BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 28, 0);
         Assert.Equal(new NativeBattleVector(400, -500, 6000), first.Vertex);
         Assert.Equal((short?)2222, first.W);
         Assert.Equal(new NativeBattleVector(100, 400, 5000), second.Vertex);
         Assert.Equal((short?)3333, second.W);
-        Assert.Throws<InvalidDataException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 13, 0));
-        Assert.Throws<InvalidDataException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 44, 0));
-        Assert.Throws<InvalidDataException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 12, 1));
-        Assert.Throws<InvalidDataException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 12, 16));
-        Assert.Throws<NotSupportedException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, Scratch, 0));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 13, 0));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 44, 0));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 12, 1));
+        Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, mesh.Address + 12, 16));
+        Assert.Throws<NotSupportedException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(null, mesh, Scratch, 0));
     }
 
     [Fact]
@@ -62,12 +62,12 @@ public sealed class NativeBattleEnemyMicroMissiles284VertexIngressTests
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(ScratchOffset, Point(1, 2, 3, 4));
         using NativeBattleEffectArenaTransaction transaction = NativeBattleEffectArenaTransaction.CreatePrivateChild(arena);
         transaction.View.Write(ScratchOffset, Point(-10, -20, -30, -40)).MarkUnknown(ScratchOffset + 7, 1);
-        var actual = BattleSession.ReadNativeEnemyMicroMissiles284Vertex(transaction.View, Mesh(), Scratch, 0);
+        var actual = BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(transaction.View, Mesh(), Scratch, 0);
         Assert.Equal(new NativeBattleVector(-10, -20, -30), actual.Vertex);
         Assert.Null(actual.W);
-        Assert.Equal((new NativeBattleVector(1, 2, 3), (short?)4), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0));
+        Assert.Equal((new NativeBattleVector(1, 2, 3), (short?)4), BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0));
         transaction.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => BattleSession.ReadNativeEnemyMicroMissiles284Vertex(transaction.View, Mesh(), Scratch, 0));
+        Assert.Throws<ObjectDisposedException>(() => BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(transaction.View, Mesh(), Scratch, 0));
     }
 
     [Theory]
@@ -87,8 +87,8 @@ public sealed class NativeBattleEnemyMicroMissiles284VertexIngressTests
         Assert.Same(effect, actual.Effect);
         Assert.Same(frame.State, actual.State);
         Assert.Equal(frame.Random, actual.Random);
-        Assert.Equal(new NativeBattleVector(checked((short)ax), checked((short)ay), checked((short)az)), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0).Vertex);
-        Assert.Equal(new NativeBattleVector(checked((short)bx), checked((short)by), checked((short)bz)), BattleSession.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 8).Vertex);
+        Assert.Equal(new NativeBattleVector(checked((short)ax), checked((short)ay), checked((short)az)), BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 0).Vertex);
+        Assert.Equal(new NativeBattleVector(checked((short)bx), checked((short)by), checked((short)bz)), BattlePresentationProcess.ReadNativeEnemyMicroMissiles284Vertex(arena, Mesh(), Scratch, 8).Vertex);
         Assert.Equal(firstW.Data, arena.ReadSnapshot(ScratchOffset + 6, 2).Data);
         Assert.Equal(firstW.Known, arena.ReadSnapshot(ScratchOffset + 6, 2).Known);
         Assert.Equal(secondW.Data, arena.ReadSnapshot(ScratchOffset + 14, 2).Data);

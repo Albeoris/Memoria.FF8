@@ -40,7 +40,7 @@ public sealed class BattleVisibleAreaSmokeTests
             BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(destination, "queued-action104.battle.json"));
             BattleSession battle = BattleSession.Restore(source);
             battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
-            BattleScenePresentation scene = new(assets, source.Definition, true);
+            BattleScenePresentation scene = new(assets, source.Definition);
             bool entered = false;
             bool restored = false;
             bool captureRendered = false;
@@ -50,7 +50,7 @@ public sealed class BattleVisibleAreaSmokeTests
             for (callbacks = 0; callbacks < 4096; callbacks++)
             {
                 battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
-                NativeBattleOriginalEffectState? current = battle.NativeGraphics!.OriginalEffect;
+                NativeBattleOriginalEffectState? current = battle.Presentation!.Graphics.OriginalEffect;
                 if (current?.Binding.Effect == effect && current.ReturnedDescriptor != 0)
                 {
                     entered = true;
@@ -81,7 +81,7 @@ public sealed class BattleVisibleAreaSmokeTests
                         }
                     }
                 }
-                NativeBattleDescriptorState descriptors = battle.NativeGraphics.Descriptors;
+                NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
                 if (entered && !descriptors.Queue.Any(slot => descriptors.Packets[slot].Command == 104))
                 {
                     break;

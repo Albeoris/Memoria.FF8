@@ -91,7 +91,7 @@ public sealed partial class BattleSession
                     return 0;
                 }
                 damage = native.AttackType == 32 ? -native.Power * target.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
-                if ((native.AttackFlags & 3) == 2 && (UsesExpandedRoster ? actor.IsPlayer : actor.NativeActorIndex is < 3))
+                if ((native.AttackFlags & 3) == 2 && (actor.IsPlayer))
                 {
                     uint passives = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
                     if ((passives & 2) != 0)

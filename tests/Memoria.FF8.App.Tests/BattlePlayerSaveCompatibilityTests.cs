@@ -56,7 +56,7 @@ public sealed class BattlePlayerSaveCompatibilityTests(ITestOutputHelper output)
 
         // An independent combat component from the selected original formation and the saved character rows.
         BattleSession battle = world.PrepareBattleEntry(115, 0, 41, BattleAtbMode.TurnBased).Battle;
-        Assert.NotNull(battle.ExpandedPresentationProcess);
+        Assert.NotNull(battle.Presentation);
         Assert.Equal(new[] { "party-4", "party-0", "party-5" }, battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party-4");
         BattleCombatant enemy = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
@@ -92,7 +92,7 @@ public sealed class BattlePlayerSaveCompatibilityTests(ITestOutputHelper output)
                 Assert.Equal(new BattleEnemyActorModel(new(enemy.Id)), contact.Recipient);
                 Assert.Equal((ushort)0, contact.Amount6);
             }
-            visible |= battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 };
+            visible |= battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 };
         }
         Assert.True(draw is not null, JsonSerializer.Serialize(new { battle.Frame, battle.Outcome, battle.ActiveAction, battle.QueuedActions, RecentEvents = battle.Events.TakeLast(12) }));
         Assert.False(draw.Failed);
@@ -149,21 +149,9 @@ public sealed class BattlePlayerSaveCompatibilityTests(ITestOutputHelper output)
         foreach (ushort formation in formations)
         {
             BattleSession battle = world.PrepareBattleEntry(formation, 0, 41, BattleAtbMode.TurnBased).Battle;
-            Assert.Equal(expanded, battle.UsesExpandedRoster);
+            Assert.NotNull(battle.Presentation);
             Assert.Equal(party.Select(row => $"party-{row}"), battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
-            BattleSnapshot initial = battle.Capture();
-            if (expanded)
-            {
-                // Attaching the expanded process initializes music before its first callback.
-                // Start the independent attachment with the original selected entry receipt.
-                initial = initial with { NativeMusicProcess = initial.Definition.NativeMusicProcess };
-            }
-            BattleSession restored = BattleSession.Restore(initial);
-            restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            if (expanded)
-            {
-                GameWorld.AttachExpandedEffects(restored, assets, world.BattleResources);
-            }
+            BattleSession restored = battle.ForkForContinuation();
             for (int callback = 0; callback < 512 && !battle.NativeEntryReady; callback++)
             {
                 battle.Tick();

@@ -84,14 +84,14 @@ public sealed class NativeBattleOriginalEffectTests
         string json = NativeBattleTestSnapshots.Json(battle.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
         Assert.Equal(json, NativeBattleTestSnapshots.Json(restored.Capture()));
-        Assert.Equal(new byte[] { 4, 5 }, restored.NativeEffectMemory!.Arena!.Read(0, 2));
+        Assert.Equal(new byte[] { 4, 5 }, restored.Presentation!.Memory.Arena!.Read(0, 2));
         GameSession process = GameSession.CreateColdProcess();
         process.SetBattle(restored.Capture());
         process.SetBattle(null);
         BattleSession next = new(definition with { NativeRetainedMemory = process.State.NativeBattleMemory }, BattleAtbMode.Normal);
-        Assert.Equal(2, next.NativeEffectMemory!.Cursor);
-        Assert.Equal(5, next.NativeEffectMemory.SelectedIndex);
-        Assert.Null(new BattleSession(definition with { NativeRetainedMemory = null }, BattleAtbMode.Normal).NativeEffectMemory);
+        Assert.Equal(2, next.Presentation!.Memory.Cursor);
+        Assert.Equal(5, next.Presentation!.Memory.SelectedIndex);
+        Assert.Null(new BattleSession(definition with { NativeRetainedMemory = null }, BattleAtbMode.Normal).Presentation?.Memory);
         Assert.Null(NativeBattleEffectMemory.FromColdProcess().Arena);
     }
 }

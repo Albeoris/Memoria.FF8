@@ -32,7 +32,7 @@ public sealed class ExpandedHostedRenzokukenTests
             Driver = new(command, 141) { ExpectedNativeCommand = 5, ExpectedNativeAction = 65533, LimitSelection = new(1, 1, 256) }
         };
         BattleSession battle = world.StartDiagnosticBattle(request);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         List<HostedRenzokukenContact> impacts = [];
         bool widgetStillClosingAfterEffect = false;
         int eventStart = battle.Events.Count;
@@ -202,7 +202,7 @@ public sealed class ExpandedHostedRenzokukenTests
             for (int tick = 0; tick < CallbackBudget; tick++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
                 NativeBattleGraphicsModel targetGraphics = process.Graphics.ActorModels.Get(recipient);
                 boundSource |= process.Graphics.ActorModels.Get(source) is { ResourceRenzokukenTargetBank: null } actor && actor.ResourceMagicId == magic;
                 if (targetGraphics.ResourceMagicId == magic)
@@ -272,7 +272,7 @@ public sealed class ExpandedHostedRenzokukenTests
             {
                 BattleCombatant next = battle.Combatants.First(IsAvailableEnemy);
                 AttackAndDrain(world, battle, process, caster, next);
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
             }
 
             void VerifyRestoredModel(BattleModelOwner owner, int? original)
@@ -324,7 +324,7 @@ public sealed class ExpandedHostedRenzokukenTests
             for (int callback = 0; callback < CallbackBudget; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
                 if (openingHeader is null && process.ActionPackets.ActiveHeader is { } active)
                 {
                     NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(active);
@@ -461,7 +461,7 @@ public sealed class ExpandedHostedRenzokukenTests
                     world.ApplyBattleInput(new(BattleInputKind.Tick));
                 }
                 Assert.Single(battle.Events.Skip(start), entry => entry is { Kind: "ActionComplete", ActorId: Squall });
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
             }
             else
             {
@@ -542,7 +542,7 @@ public sealed class ExpandedHostedRenzokukenTests
         throw new InvalidDataException($"The installed weapon {caster.WeaponId} did not select resource {requiredMagic?.ToString() ?? "any"} with finisher {requiredFinisher?.ToString() ?? "none"} within {CrisisSelectionBudget} native Limit selections.");
     }
 
-    private static void AssertFinisher(BattleSession battle, ExpandedBattlePresentationProcess process, List<NativeBattlePresentationReceipt> ordered,
+    private static void AssertFinisher(BattleSession battle, BattlePresentationProcess process, List<NativeBattlePresentationReceipt> ordered,
         NativeBattlePresentationContactReceived lastTrigger, byte? expectedFinisher, BattleModelOwner target, HashSet<BattleModelOwner> livingEnemies)
     {
         NativeBattleRenzokukenFinisherReached[] reached = ordered.OfType<NativeBattleRenzokukenFinisherReached>().ToArray();
@@ -573,7 +573,7 @@ public sealed class ExpandedHostedRenzokukenTests
         Assert.All(delivered, receipt => Assert.Equal(expected.Single(packet => packet.Occurrence == receipt.Packet.Occurrence).Primary.Recipient, receipt.Packet.Primary.Recipient));
     }
 
-    private static void VerifyApproachingAttack(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleCombatant target)
+    private static void VerifyApproachingAttack(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant caster, BattleCombatant target)
     {
         BattleModelOwner source = battle.ReadPresentationModelOwner(caster.Id);
         BattleModelOwner recipient = battle.ReadPresentationModelOwner(target.Id);
@@ -600,7 +600,7 @@ public sealed class ExpandedHostedRenzokukenTests
             if (battle.Events.Skip(begin).Any(entry => entry is { Kind: "ActionComplete", ActorId: Squall }) && !HasDisplacement(model) && distance == before)
             {
                 Assert.True(reached);
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
                 return;
             }
         }
@@ -612,7 +612,7 @@ public sealed class ExpandedHostedRenzokukenTests
         return model.SequenceState is { Header36: not 0 } or { Header38: not 0 } or { Header40: not 0 };
     }
 
-    private static double DistanceTo(ExpandedBattlePresentationProcess process, BattleModelOwner source, BattleModelOwner recipient)
+    private static double DistanceTo(BattlePresentationProcess process, BattleModelOwner source, BattleModelOwner recipient)
     {
         NativeBattleActionMatrix matrix = Assert.IsType<NativeBattleActionMatrix>(process.Graphics.ActorModels.Get(source).GeometryWorldMatrix);
         NativeBattleVector destination = process.Graphics.ActorModels.Get(recipient).Transform!.Position28;
@@ -654,12 +654,12 @@ public sealed class ExpandedHostedRenzokukenTests
 
     private static bool IsAvailableEnemy(BattleCombatant actor) => actor is { IsPlayer: false, IsActive: true, IsAlive: true, Untargetable: false };
 
-    private static bool IsIdle(BattleSession battle, ExpandedBattlePresentationProcess process)
+    private static bool IsIdle(BattleSession battle, BattlePresentationProcess process)
     {
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && process.ActiveActionToken is null && process.IsControlPrefixRetired;
     }
 
-    private static void VerifyDefeatContinuation(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleCombatant attacker, int initialEvent)
+    private static void VerifyDefeatContinuation(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant caster, BattleCombatant attacker, int initialEvent)
     {
         Assert.Equal("native-allocation-10", attacker.Id);
         BattleEvent damage = Assert.Single(battle.Events.Skip(initialEvent), entry => entry.Kind == "Damage" && entry.ActorId == attacker.Id && entry.TargetId == caster.Id);
@@ -671,7 +671,7 @@ public sealed class ExpandedHostedRenzokukenTests
         bool sawFade = false;
         for (int callback = 0; callback < CallbackBudget && world.Battle is not null; callback++)
         {
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             sawFade |= process.Graphics.NativeOutcome?.FadeDurationB0C is > 0 and < 255;
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
@@ -690,7 +690,7 @@ public sealed class ExpandedHostedRenzokukenTests
         Assert.Empty(rewards.Cards);
     }
 
-    private static void AttackAndDrain(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, BattleCombatant target)
+    private static void AttackAndDrain(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant caster, BattleCombatant target)
     {
         caster.Atb = BattleSession.AtbMaximum;
         int first = battle.Events.Count;
@@ -703,7 +703,7 @@ public sealed class ExpandedHostedRenzokukenTests
         Assert.Single(battle.Events.Skip(first), entry => entry is { Kind: "ActionComplete", ActorId: Squall });
     }
 
-    private static BattleCombatant SelectSpecialTarget(GameWorld world, BattleSession battle, ExpandedBattlePresentationProcess process, BattleCombatant caster, ushort formation, int targetModel)
+    private static BattleCombatant SelectSpecialTarget(GameWorld world, BattleSession battle, BattlePresentationProcess process, BattleCombatant caster, ushort formation, int targetModel)
     {
         if (formation == 63)
         {
@@ -728,7 +728,7 @@ public sealed class ExpandedHostedRenzokukenTests
             process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(actor.Id), out _));
     }
 
-    private static void RunWorld(bool automatic, byte seed, Action<GameWorld, BattleSession, ExpandedBattlePresentationProcess, BattleCombatant, BattleCombatant> run, byte? finisher = null,
+    private static void RunWorld(bool automatic, byte seed, Action<GameWorld, BattleSession, BattlePresentationProcess, BattleCombatant, BattleCombatant> run, byte? finisher = null,
         ushort formation = ExpandedBattleInstalledEntry.Formation, int? targetModel = null, bool startInCrisis = true)
     {
         string directory = TestResources.GameDirectory;
@@ -771,7 +771,7 @@ public sealed class ExpandedHostedRenzokukenTests
             world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { LimitOncePerTurn = false });
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: seed));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
             for (int frame = 0; frame < CallbackBudget && (!process.EntryReady || process.ActiveActionToken is not null || battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || !startInCrisis && battle.ObserveDiagnosticDrainBlockers().Count != 0); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));

@@ -51,12 +51,12 @@ public sealed class NativeBattleGuardianFourthFlashMigrationTests
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
         Assert.Equal(255L, first.Frame);
-        Assert.Equal(368L, first.NativeGraphics!.Callback);
-        Assert.Equal((ushort)228, first.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal(368L, first.Presentation!.Graphics.Callback);
+        Assert.Equal((ushort)228, first.Presentation!.Graphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(BattleSession.Restore(first.Capture()).Capture()));
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
+        BattleScenePresentation scene = new(assets, migrated.Definition);
         byte[] pixels = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
         Assert.Equal(320 * 224 * 4, pixels.Length);

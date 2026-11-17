@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -20,7 +21,7 @@ public sealed partial class BattleSession
             BattleSide side = receipt.Reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies;
             BattleCombatant redirected;
             BattleTargetRequest request;
-            if (!UsesExpandedRoster || originalParticipantSlotsInitialized && Roster(side).All(actor => !actor.IsActive || HasNativeRosterSlot(actor)))
+            if (originalParticipantSlotsInitialized && Roster(side).All(actor => !actor.IsActive || HasNativeRosterSlot(actor)))
             {
                 if (ChooseOriginalRandomActionTarget(side) is not NativeBattleTargetRequestAdapter.DeferredOperands selected ||
                     NativeBattleTargetRequestAdapter.ReadAuthoredTargets(selected, ReadOriginalTargetOccupant).SingleOrDefault() is not { } reference)

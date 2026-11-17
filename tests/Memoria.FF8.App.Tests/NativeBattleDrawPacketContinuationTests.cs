@@ -35,8 +35,8 @@ public sealed class NativeBattleDrawPacketContinuationTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                initialized |= battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 15 };
-                if (initialized && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 })
+                initialized |= battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 15 };
+                if (initialized && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Publish("completed");
                     return;

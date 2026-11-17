@@ -1,3 +1,4 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
@@ -85,6 +86,7 @@ public static class BattleDiagnosticReflectionLineage
 
 public sealed partial class BattleSession
 {
+
     private sealed record PendingDiagnosticReflection(int SourceHeader, long SourceGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, BattleNativeAction Source, BattleNativeAction Reflected, ushort TargetMask)
     {
         internal List<BattleDiagnosticReflectionTargetResolution>? Resolutions { get; set; }
@@ -97,6 +99,28 @@ public sealed partial class BattleSession
     private PendingDiagnosticReflection? diagnosticReflectionProduction;
     private long diagnosticHeaderGeneration;
 
+    private static int? OriginalDiagnosticHeaderIndex(BattleActionHeaderReference? header)
+    {
+        return header is { } reference && reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? reference.Ordinal : null;
+    }
+
+    private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
+    {
+        if ((DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter) || OriginalDiagnosticHeaderIndex(reference) is not int header)
+        {
+            return;
+        }
+        diagnosticHeaderGenerations ??= [];
+        diagnosticHeaderGenerations[header] = ++diagnosticHeaderGeneration;
+        diagnosticHeaderDispatches?.Remove(header);
+        diagnosticReflectedHeaders?.Remove(header);
+        if (diagnosticReflectionProduction is { } proof && nativeActionPackets.ReadHeader(reference).Command == 247)
+        {
+            diagnosticReflectedHeaders ??= [];
+            diagnosticReflectedHeaders[header] = proof;
+        }
+    }
+
     private void ResetDiagnosticReflectionHeaders(bool retainHostedPending = false)
     {
         diagnosticCounterContacts.Clear();
@@ -106,11 +130,11 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (retainHostedPending && hostedDiagnosticOwner is { } owner)
+        if (retainHostedPending)
         {
             foreach (int header in diagnosticHeaderGenerations.Keys.ToArray())
             {
-                if (!owner.OwnsPendingDiagnosticHostedHeader(header))
+                if (!OwnsPendingDiagnosticHostedHeader(header))
                 {
                     diagnosticHeaderGenerations.Remove(header);
                 }
@@ -137,35 +161,6 @@ public sealed partial class BattleSession
             }
         }
         return false;
-    }
-
-    private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
-    {
-        if (DiagnosticEffectDispatched is null && hostedDiagnosticOwner?.DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter)
-        {
-            if (diagnosticHeaderGenerations is not null)
-            {
-                diagnosticHeaderGenerations = null;
-                diagnosticHeaderDispatches = null;
-                diagnosticReflectedHeaders = null;
-                diagnosticReflectedCommands = null;
-                diagnosticReflectionProduction = null;
-            }
-            return;
-        }
-        if (OriginalDiagnosticHeaderIndex(reference) is not int header)
-        {
-            return;
-        }
-        diagnosticHeaderGenerations ??= [];
-        diagnosticHeaderGenerations[header] = ++diagnosticHeaderGeneration;
-        diagnosticHeaderDispatches?.Remove(header);
-        diagnosticReflectedHeaders?.Remove(header);
-        if (diagnosticReflectionProduction is { } proof && nativeActionPackets.ReadHeader(reference).Command == 247)
-        {
-            diagnosticReflectedHeaders ??= [];
-            diagnosticReflectedHeaders[header] = proof;
-        }
     }
 
     private PendingDiagnosticReflection? PrepareDiagnosticReflection(BattleActionHeaderReference reference, BattleCombatant actor, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction source, BattleNativeAction reflected, BattleTargetRequest targets)
@@ -220,11 +215,10 @@ public sealed partial class BattleSession
 
     private BattleDiagnosticEffectDispatch CompleteDiagnosticReflection(BattleDiagnosticEffectDispatch dispatch)
     {
-        if (dispatch.NativeHeaderIndex is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
+        if (dispatch.NativeHeaderIndex is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation) || generation != dispatch.NativeHeaderGeneration)
         {
             return RejectDiagnosticReflection(dispatch, "CHILD_HEADER_GENERATION_MISSING");
         }
-        dispatch = dispatch with { NativeHeaderGeneration = generation };
         if (dispatch.NativeCommand == 247)
         {
             if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))

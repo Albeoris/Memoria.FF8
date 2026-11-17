@@ -67,7 +67,7 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
                 earlierFaces = [];
                 continue;
             }
-            Face[] laterFaces = Faces(later, battle.NativeEffectMemory!.Arena!);
+            Face[] laterFaces = Faces(later, battle.Presentation!.Memory.Arena!);
             if (later.Primitives.SceneReplaySources is { } pool)
             {
                 sourcePoolFrames++;
@@ -184,8 +184,8 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
         direct.RefreshPreparedPresentation();
         cold.RefreshPreparedPresentation();
         Assert.Equal(CommandHash(direct.PreparedPresentation!), CommandHash(cold.PreparedPresentation!));
-        Face[] directFaces = Faces(direct.PreparedPresentation!, direct.NativeEffectMemory!.Arena!).Where(face => face.Kind == "grid25").ToArray();
-        Face[] coldFaces = Faces(cold.PreparedPresentation!, cold.NativeEffectMemory!.Arena!).Where(face => face.Kind == "grid25").ToArray();
+        Face[] directFaces = Faces(direct.PreparedPresentation!, direct.Presentation!.Memory.Arena!).Where(face => face.Kind == "grid25").ToArray();
+        Face[] coldFaces = Faces(cold.PreparedPresentation!, cold.Presentation!.Memory.Arena!).Where(face => face.Kind == "grid25").ToArray();
         Assert.NotEmpty(directFaces);
         Assert.Equal(directFaces.Length, coldFaces.Length);
         for (int index = 0; index < directFaces.Length; index++)

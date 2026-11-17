@@ -28,7 +28,7 @@ internal sealed partial class BattleScenePresentation
         {
             throw new NotSupportedException("Animated stage pages require their retained presentation clock epoch; explicitly migrate this snapshot or load the original stage resource.");
         }
-        TimeSpan animationClock = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(animationCallback);
+        TimeSpan animationClock = BattlePresentationTiming.ElapsedForCallbacks(animationCallback);
         result.AddRange(stageReplacements.Select(replacement => replacement.Animation is { } animation ? replacement with { Image = animation.At(animationClock) } : replacement));
         foreach (NativeBattlePreparedActor actor in prepared.Actors)
         {

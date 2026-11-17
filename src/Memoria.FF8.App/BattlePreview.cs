@@ -93,20 +93,29 @@ internal static class BattlePreview
         {
             throw new InvalidDataException("Battle preview text scale requires 100, 125 or 150.");
         }
-        BattleSession session = new(scenario.Definition, scenario.Mode);
+        using GameAssets game = new(gameDirectory);
+        using BattleAssets assets = new(gameDirectory);
+        BattleSession session = InstalledBattlePractice.Create(scenario.Definition, scenario.Mode, game, assets, scenario.UseEncounter);
         PixelBounds sceneProjection = ViewportLayout.Fit(320, 240, width, height);
         using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(width, height, sceneProjection.X, sceneProjection.Y, sceneProjection.Width, sceneProjection.Height));
+        for (int frame = 0; frame < 3600 && !session.NativeEntryReady; frame++)
+        {
+            session.AdvanceNativeGraphicsPresentation(PresentationTiming.SimulationStep);
+        }
+        if (!session.NativeEntryReady)
+        {
+            throw new InvalidOperationException("Battle preview did not reach the installed scene's entry boundary.");
+        }
         if (advanceTurn)
         {
             session.AdvanceTurn();
         }
         for (int frame = 0; frame < frames; frame++)
         {
-            session.Tick();
+            session.AdvanceNativeGraphicsPresentation(PresentationTiming.SimulationStep);
         }
         BattleDefinition definition = session.ReadDefinition();
-        using BattleAssets assets = new(gameDirectory);
-        BattleScenePresentation scene = new(assets, definition, scenario.UseEncounter);
+        BattleScenePresentation scene = new(assets, definition);
         using SKBitmap output = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(output, gameDirectory))
         {

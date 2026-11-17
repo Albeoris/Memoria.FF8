@@ -72,11 +72,11 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(action.Command, queued.NativeQueuedCommand);
         Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
 
-        ExpandedBattlePresentationProcess? presentation = null;
+        BattlePresentationProcess? presentation = null;
         for (int frame = 0; frame < 1000 && caster.IsBusy; frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
+            if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect.ReturnedDescriptor: > 0 } live)
             {
                 presentation ??= live;
                 Assert.Same(presentation, live);

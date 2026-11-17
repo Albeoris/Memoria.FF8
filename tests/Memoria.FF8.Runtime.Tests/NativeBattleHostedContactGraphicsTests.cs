@@ -88,7 +88,7 @@ public sealed class NativeBattleHostedContactGraphicsTests
             // An immediate party petrify would need the real status palette owner.
             ActorModels = graphics.ActorModels.Set(FourthAlly, graphics.ActorModels.Get(FourthAlly) with { ResourceFlags44 = 0x40 })
         };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(session, graphics);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
         var models = graphics.ActorModels;
         var effects = graphics.Effects;
 
@@ -96,11 +96,11 @@ public sealed class NativeBattleHostedContactGraphicsTests
 
         Assert.IsType<InvalidDataException>(invocation.InnerException);
         Assert.Empty(Contacts(session));
-        Assert.Same(graphics, session.NativeGraphics);
-        Assert.Equal(models, session.NativeGraphics!.ActorModels);
-        Assert.Same(effects, session.NativeGraphics.Effects);
-        Assert.Equal(0x10000000u, session.NativeGraphics.Flags);
-        Assert.Equal(new[] { first, last }, session.NativeGraphics.PendingContacts);
+        Assert.Same(graphics, session.Presentation?.Graphics);
+        Assert.Equal(models, session.Presentation!.Graphics.ActorModels);
+        Assert.Same(effects, session.Presentation!.Graphics.Effects);
+        Assert.Equal(0x10000000u, session.Presentation!.Graphics.Flags);
+        Assert.Equal(new[] { first, last }, session.Presentation!.Graphics.PendingContacts);
     }
 
     [Theory]

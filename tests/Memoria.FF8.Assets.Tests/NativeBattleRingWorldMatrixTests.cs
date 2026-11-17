@@ -60,7 +60,7 @@ public sealed class NativeBattleRingWorldMatrixTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         var bodyEntry = Assert.Single(graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 2) != 0 && entry.State.ModelId4 == 102);
         var swordEntry = Assert.Single(graphics.ActorModels.Entries, entry => (entry.State.Flags0 & 2) != 0 && entry.State.ModelId4 == 98);
         BattleModelOwner bodyOwner = bodyEntry.Owner;
@@ -85,7 +85,7 @@ public sealed class NativeBattleRingWorldMatrixTests
         {
             battle.Tick();
             restored.Tick();
-            graphics = battle.NativeGraphics!;
+            graphics = battle.Presentation!.Graphics;
             body = graphics.ActorModels.Get(bodyOwner);
             sword = graphics.ActorModels.Get(swordOwner);
             Assert.Equal((short)512, body.SequenceState!.Header40);
@@ -94,7 +94,7 @@ public sealed class NativeBattleRingWorldMatrixTests
             Assert.NotNull(sword.GeometryWorldMatrix);
             Assert.NotEqual(previousZ, body.GeometryWorldMatrix.Z);
             AssertMatrix(body.GeometryWorldMatrix, sword.GeometryWorldMatrix);
-            NativeBattleGraphicsState restoredGraphics = Assert.IsType<NativeBattleGraphicsState>(restored.NativeGraphics);
+            NativeBattleGraphicsState restoredGraphics = Assert.IsType<NativeBattleGraphicsState>(restored.Presentation?.Graphics);
             Assert.Equal(graphics.Callback, restoredGraphics.Callback);
             Assert.Equal(swordOwner, restoredGraphics.ActorModels.Get(bodyOwner).ReadLinkedModel());
             Assert.Equal(bodyOwner, restoredGraphics.ActorModels.Get(swordOwner).ReadLinkedModel());

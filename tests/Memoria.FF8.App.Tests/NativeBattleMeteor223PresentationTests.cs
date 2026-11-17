@@ -94,7 +94,7 @@ public sealed class NativeBattleMeteor223PresentationTests
             NativeBattleEffectTask[] expectedTexts = contacts.Select(contact => Assert.Single(ExpectedOriginalDamageText(contact.Primary, contact.Primary.Amount6).Slots, task => (task.Flags0 & 1) != 0)).ToArray();
             battle = BattleSession.Restore(source);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-            BattleScenePresentation scene = new(assets, source.Definition, true);
+            BattleScenePresentation scene = new(assets, source.Definition);
             DiskNext("produced", source, false);
             bool initialized = false;
             bool midpoint = false;
@@ -193,12 +193,12 @@ public sealed class NativeBattleMeteor223PresentationTests
                 NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, scene.Render(live, 320, 224));
                 BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-                Assert.Equal(scene.Render(live, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                Assert.Equal(scene.Render(live, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 live.Tick();
                 cold.Tick();
                 Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 byte[] pixels = scene.Render(live, 320, 224).ToArray();
-                Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 NativeBattleRestorationPresentationTests.Publish(output, name + "-after", live.Capture(), pixels);
                 restored.Add(name);
             }

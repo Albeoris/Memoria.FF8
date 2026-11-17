@@ -43,8 +43,8 @@ public sealed class BattleDamageFeedbackTests
         Directory.CreateDirectory(evidence!);
         BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(source!)) ?? throw new InvalidDataException("The standalone battle is empty."));
         using BattleAssets assets = new(TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
-        TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        BattleScenePresentation scene = new(assets, battle.Capture().Definition);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         string? magic = Environment.GetEnvironmentVariable("MEMORIA_FF8_DAMAGE_FEEDBACK_MAGIC");
         bool captured = false;
         for (int tick = 0; tick < 300 && !captured; tick++)
@@ -62,7 +62,7 @@ public sealed class BattleDamageFeedbackTests
                 }
             }
             battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-            if (battle.NativeGraphics!.Effects.TextDraws.IsEmpty)
+            if (battle.Presentation!.Graphics.Effects.TextDraws.IsEmpty)
             {
                 continue;
             }
@@ -78,7 +78,7 @@ public sealed class BattleDamageFeedbackTests
                 scene.DrawEffects(battle, canvas, viewport);
             }
             output.SavePng(Path.Combine(evidence!, "hit.png"));
-            File.WriteAllText(Path.Combine(evidence!, "hit-text.json"), JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, battle.NativeGraphics.Effects.TextDraws }));
+            File.WriteAllText(Path.Combine(evidence!, "hit-text.json"), JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, battle.Presentation!.Graphics.Effects.TextDraws }));
             battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             restored.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -86,12 +86,12 @@ public sealed class BattleDamageFeedbackTests
             captured = true;
         }
         Assert.True(captured, "The bounded continuation must publish actual native contact text.");
-        for (int tick = 0; tick < 180 && (battle.ActiveAction is not null || battle.NativeGraphics!.Effects.PublishedCount != 0); tick++)
+        for (int tick = 0; tick < 180 && (battle.ActiveAction is not null || battle.Presentation!.Graphics.Effects.PublishedCount != 0); tick++)
         {
             battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         }
         Assert.Null(battle.ActiveAction);
-        Assert.Equal(0, battle.NativeGraphics!.Effects.PublishedCount);
+        Assert.Equal(0, battle.Presentation!.Graphics.Effects.PublishedCount);
         string completed = Path.Combine(evidence!, "completed-standalone.battle.json");
         File.WriteAllText(completed, JsonSerializer.Serialize(battle.Capture()));
         BattleSession completedRestore = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(completed))!);

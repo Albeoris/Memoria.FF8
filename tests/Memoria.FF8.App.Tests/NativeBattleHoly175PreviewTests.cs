@@ -16,10 +16,10 @@ public sealed class NativeBattleHoly175PreviewTests
         using GameWorld world = new(session, directory!);
         BattleSession active = world.StartEffectPreview(new(1, 0) { AbilityId = 14, CommandId = 2 });
         using BattleAssets assets = new(directory!);
-        BattleScenePresentation scene = new(assets, active.Capture().Definition, true);
+        BattleScenePresentation scene = new(assets, active.Capture().Definition);
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_HOLY175_OUTPUT");
         active.PublishDiagnosticAbilityPreview(2, 14);
-        TimeSpan callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         bool captureRestored = false;
         bool flareRestored = false;
         bool entered = false;
@@ -59,7 +59,7 @@ public sealed class NativeBattleHoly175PreviewTests
                 Assert.Equal(JsonSerializer.Serialize(continued.NativeEffectMemory), JsonSerializer.Serialize(restoredNext.NativeEffectMemory));
                 Assert.Equal(JsonSerializer.Serialize(continued.NativeCamera), JsonSerializer.Serialize(restoredNext.NativeCamera));
                 Assert.Equal(JsonSerializer.Serialize(continued.NativeStage), JsonSerializer.Serialize(restoredNext.NativeStage));
-                Assert.Equal(scene.Render(active, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray());
+                Assert.Equal(scene.Render(active, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray());
                 captureRestored |= capturing;
                 flareRestored |= flare;
             }

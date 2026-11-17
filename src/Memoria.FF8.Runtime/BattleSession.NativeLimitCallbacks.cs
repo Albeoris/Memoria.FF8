@@ -31,9 +31,9 @@ public sealed partial class BattleSession
         bool owned = value switch
         {
             NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect or NativeLimitCallback.ShotEnding => nativeShotProcesses.TryGetValue(actorId, out BattleNativeShotState? shot) &&
-                (!UsesExpandedRoster || ReadExpandedShotTarget(shot) == targetId && action?.ActionId == shot.ActionId && action.Command == (value == NativeLimitCallback.ShotOpening ? 14 : value == NativeLimitCallback.ShotEffect ? 237 : 238)),
+                (ReadExpandedShotTarget(shot) == targetId && action?.ActionId == shot.ActionId && action.Command == (value == NativeLimitCallback.ShotOpening ? 14 : value == NativeLimitCallback.ShotEffect ? 237 : 238)),
             NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect or NativeLimitCallback.DuelFinisher => nativeDuelProcesses.TryGetValue(actorId, out BattleNativeDuelState? duel) &&
-                (!UsesExpandedRoster || ValidateExpandedDuelCallback(actorId, duel, value, targetId, action)),
+                (ValidateExpandedDuelCallback(actorId, duel, value, targetId, action)),
             _ => false
         };
         if (!owned)

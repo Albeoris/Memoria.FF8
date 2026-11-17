@@ -110,7 +110,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         Directory.CreateDirectory(output!);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot prior = battle.Capture();
         bool selected = false;
         bool restoredLive = false;
@@ -187,7 +187,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                     BattleSnapshot withoutEffect = current with { NativeGraphics = graphics with { PrimitiveFrame = withoutFrame } };
-                    byte[] plain = new BattleScenePresentation(assets, definition, true).Render(BattleSession.Restore(withoutEffect), 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(withoutEffect), 320, 224).ToArray();
                     int changedRgb = CountRgbChanges(rendered, plain);
                     visibleSamples++;
                     if (changedRgb > peakChangedRgb)
@@ -293,7 +293,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
 
         void Publish(string name, BattleSnapshot snapshot, bool render)
         {
-            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, render ? new BattleScenePresentation(assets, definition, true).Render(BattleSession.Restore(snapshot), 320, 224).ToArray() : null);
+            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, render ? new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(snapshot), 320, 224).ToArray() : null);
         }
 
         BattleSession Load(string name)
@@ -316,7 +316,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             first.Tick();
             second.Tick();
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-            Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
+            Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(second, 320, 224).ToArray());
             Publish(name + "-next", first.Capture(), true);
             return Load(name);
         }

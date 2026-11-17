@@ -113,13 +113,13 @@ public sealed class DiagnosticEffectPreviewOwnersTests
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         Set(battle, nameof(BattleSession.NativeEffectMemory), memory);
-        Set(battle, nameof(BattleSession.NativeCamera), NativeBattleCameraState.Initialize());
+        Set(battle, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.Initialize());
         Set(battle, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         NativeBattleGraphicsState graphics = OriginalUnboundGraphics(_ => new(3), graphicsFlags) with
         {
             OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0) { Pools = pools.IsDefault ? [] : pools }
         };
-        Set(battle, nameof(BattleSession.NativeGraphics), graphics);
+        Set(battle, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         return battle;
     }
 

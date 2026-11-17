@@ -16,11 +16,6 @@ public sealed partial class BattleSession
             nativeCommandBanks = nativeCommandBanks.WriteProjectedCommand(location, 1, checked((byte)actor.RequireNativeActorIndex()), 250, index, 0, ushort.MaxValue, ProjectNativeCommandTargets(packet)).BindCommand(location, 1, packet);
         }
         uint callback = index == 3 ? 0x48F350u : 0x48F3F0u;
-        if (NativeGraphics is { } graphics)
-        {
-            //485610 queues the formula callback after command5's104 and before command250's104.
-            NativeGraphics = QueueNativeDescriptor(graphics, 10, callback);
-        }
         NativeBattleActionProductionContext? previous = nativeProductionContext;
         nativeProductionContext = new(0, 1, false, 0x47DE70);
         try
@@ -32,11 +27,8 @@ public sealed partial class BattleSession
         {
             nativeProductionContext = previous;
         }
-        if (NativeGraphics is null)
-        {
             //TODO(TD-009): Components without descriptors admit the same scheduled finisher callback before their UI projection starts.
             CompleteNativeRenzokukenFinisherCallback(callback);
-        }
     }
 
     private void CompleteNativeRenzokukenFinisherCallback(uint callback)
@@ -78,14 +70,4 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleGraphicsState RunNativeRenzokukenFinisherCallback(NativeBattleGraphicsState graphics, uint callback)
-    {
-        if (hostedBattlePresentation)
-        {
-            return RunExpandedHostedRenzokukenFinisher(graphics, callback);
-        }
-        NativeGraphics = graphics;
-        CompleteNativeRenzokukenFinisherCallback(callback);
-        return RequireNativeGraphics();
-    }
 }

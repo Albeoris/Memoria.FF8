@@ -1,10 +1,11 @@
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void PublishExpandedHostedRecompute(ExpandedBattlePresentationProcess process, BattleModelRoster roster, long token, ExpandedHostedInvocation invocation, Func<BattleSession, ExpandedHostedInvocation> resolve, NativeBattleTriggerReceipt? trigger = null, HostedGuardianBoostRequest? guardian = null)
+    private void PublishExpandedHostedRecompute(BattlePresentationProcess process, BattleModelRoster roster, long token, ExpandedHostedInvocation invocation, Func<BattleSession, ExpandedHostedInvocation> resolve, NativeBattleTriggerReceipt? trigger = null, HostedGuardianBoostRequest? guardian = null)
     {
         if (expandedHostedEvent is not { LogicallyComplete: false } hostedEvent || expandedOperationCursor.Current is not int current || !ReferenceEquals(CurrentExpandedHostedInvocation, invocation) || invocation.HeaderReference is null)
         {

@@ -64,7 +64,7 @@ public sealed class NativeBattleQuake38PresentationTests
         Assert.NotEqual(0, originalGround.Flags & 1);
         Assert.Contains(source.Definition.NativeStageSource!.Geometry!.Value, mesh => mesh.StageGroup == 1 && mesh.Polygons.Length != 0);
         BattleSession battle = BattleSession.Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition, true);
+        BattleScenePresentation scene = new(assets, source.Definition);
         HashSet<string> pending = ["initialized", "ripple"];
         HashSet<short> groundStates = [];
         HashSet<uint> particles = [];
@@ -172,7 +172,7 @@ public sealed class NativeBattleQuake38PresentationTests
             Assert.Equal(1, completions);
             Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == installed.Quake38Resources!.RumbleSound);
             Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == installed.Quake38Resources!.QuakeSound);
-            NativeBattleQuake38State final = battle.NativeEffectMemory!.Quake38!;
+            NativeBattleQuake38State final = battle.Presentation!.Memory.Quake38!;
             Assert.Equal(7, final.Word(0x279299E));
             Assert.Equal(originalGround.Flags & 2, battle.Capture().NativeStage!.Groups[1].Flags & 2);
             Assert.Equal(0, final.Word(0x279299C));
@@ -206,12 +206,12 @@ public sealed class NativeBattleQuake38PresentationTests
             NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, scene.Render(running, 320, 224));
             BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(scene.Render(running, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(scene.Render(running, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             running.Tick();
             cold.Tick();
             Assert.Equal(JsonSerializer.Serialize(running.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = scene.Render(running, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output, name + "-after", running.Capture(), pixels);
         }
     }

@@ -116,7 +116,7 @@ public sealed partial class BattleSession
 
     private void ValidateNativeSlotsPreflight(BattleNativeSlotsRoll roll, BattleNativeAction action)
     {
-        bool needsPreflight = !UsesExpandedRoster && (action.TargetFlags!.Value & 0x30) == 0x10;
+        bool needsPreflight = false;
         if (needsPreflight != (roll.PreflightSelection is NativeBattleTargetRequestAdapter.DeferredOperands) ||
             !needsPreflight && roll.PreflightSelection is not null)
         {

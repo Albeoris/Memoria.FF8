@@ -35,13 +35,13 @@ public sealed class NativeBattleGuardianGeometryCheckpointTests
         Assert.True(after.NativeGraphics.OriginalEffect.DrawArenaOffset > expectedStart);
         Assert.Throws<NotSupportedException>(() => after.NativeEffectMemory!.Arena!.Read(expectedStart, 3));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, after.Definition, true).Render(battle, 320, 224).ToArray();
+        byte[] pixels = new BattleScenePresentation(assets, after.Definition).Render(battle, 320, 224).ToArray();
         Assert.Equal(320 * 224 * 4, pixels.Length);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
-        Assert.Equal(pixels, new BattleScenePresentation(assets, after.Definition, true).Render(restored, 320, 224));
+        Assert.Equal(pixels, new BattleScenePresentation(assets, after.Definition).Render(restored, 320, 224));
         NativeBattlePrimitiveFrame controlFrame = after.NativeGraphics.PrimitiveFrame with { LastCommands = after.NativeGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
         BattleSession control = BattleSession.Restore(after with { NativeGraphics = after.NativeGraphics with { PrimitiveFrame = controlFrame } });
-        byte[] controlPixels = new BattleScenePresentation(assets, after.Definition, true).Render(control, 320, 224);
+        byte[] controlPixels = new BattleScenePresentation(assets, after.Definition).Render(control, 320, 224);
         int differentPixels = Enumerable.Range(0, 320 * 224).Count(index => pixels[4 * index] != controlPixels[4 * index] || pixels[4 * index + 1] != controlPixels[4 * index + 1] || pixels[4 * index + 2] != controlPixels[4 * index + 2]);
         Assert.True(differentPixels > 0, "Actual GF geometry must change RGB pixels relative to removing only its same-frame packets.");
         Console.WriteLine($"Actual GF geometry changes{differentPixels} RGB pixels relative to removing only its same-frame packets.");

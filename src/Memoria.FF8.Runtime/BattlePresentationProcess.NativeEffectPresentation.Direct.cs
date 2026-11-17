@@ -1,0 +1,95 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattlePresentationProcess
+{
+    internal bool ReadEffectPresentationNativeBusy()
+    {
+        return NativeOriginalEffectBusy(NativeGraphics ?? throw new InvalidOperationException("The presentation has no current graphics owner."));
+    }
+
+    internal bool ReadEffectPresentationServiceComplete()
+    {
+        if (!EffectPresentationInvoked)
+        {
+            return false;
+        }
+        if (presentationSelectedModulePhase is not null)
+        {
+            return presentationSelectedModuleComplete;
+        }
+        NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidOperationException("The presentation has no current graphics owner.");
+        NativeBattleEffectParameters parameters = graphics.OriginalEffect?.Parameters ?? throw new InvalidDataException("The current presentation service lost its parameter owner.");
+        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(parameters.Header);
+        uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
+        ushort action = header.Action;
+        if (callback == 0x50A9A0 && action == 65534)
+        {
+            return NativeOriginalEffectDescriptorReleased(graphics);
+        }
+        if (callback == 0x50A9A0 && header.Command is 11 or 14)
+        {
+            return parameters.Parameter81 == 1;
+        }
+        if (callback == 0x50BDC0 && action is not (0xFFFC or 0xFFFA) || callback == 0x50BEE0 && header.Command == 0xED)
+        {
+            return parameters.Parameter81 == 1 && NativeCameraTaskMask == 0;
+        }
+        return !NativeOriginalEffectBusy(graphics);
+    }
+
+    internal void ReinvokeEffectPresentationDirect(NativeBattleActionPacketsState packets, NativeBattleGraphicsModel source, NativeCrtRandomState randomState, NativeBattleEffectTextureState textures, NativeBattleEffectParameters parameters, ImmutableArray<NativeBattleForeignActor> foreignActors)
+    {
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        BattleModelOwner sourceOwner = parameters.Source;
+        if (presentationForeignActors is null || !EffectPresentationInvoked || sourceOwner != presentationSourceOwner ||
+            !HasOriginalPresentationSourceSlot(graphics, sourceOwner) || !packets.ModelAliases.TryEncodeExact(sourceOwner, out byte operand) || operand != 0)
+        {
+            throw new InvalidOperationException("A direct presentation phase requires its invoked retained presentation owner and original source alias.");
+        }
+        if (HasPendingEffectPresentationEvents || !ReadEffectPresentationServiceComplete())
+        {
+            throw new InvalidOperationException("A direct presentation phase waits for the previous native service and consumed output.");
+        }
+        packets.Validate();
+        NativeBattleActionHeaderSlot header = packets.ReadHeader(parameters.Header);
+        uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
+        if (callback is not (0x50BDC0 or 0x50BEE0))
+        {
+            throw new NotSupportedException("The selected source header does not use a native retained direct service.");
+        }
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its process owner.");
+        NativeBattleOriginalEffectState selected = memory.RequireDirectEntry21DFEC4(graphics.OriginalEffect);
+        NativeBattleGraphicsModel loaded = graphics.ActorModels.Get(sourceOwner);
+        source = source with { ActiveResourceRow100 = loaded.ActiveResourceRow100, OriginalResourceRow104 = loaded.OriginalResourceRow104, TextureResourceIndex = loaded.TextureResourceIndex, LinkedTextureResourceIndex = loaded.LinkedTextureResourceIndex, BodyTextureSlots = loaded.BodyTextureSlots, LinkedTextureSlots = loaded.LinkedTextureSlots, TextureAllocationMask = loaded.TextureAllocationMask };
+        Dictionary<BattleModelOwner, NativeBattleForeignActor> previousForeignActors = presentationForeignActors;
+        if (!foreignActors.IsDefault)
+        {
+            presentationForeignActors = foreignActors.ToDictionary(actor => actor.Owner);
+        }
+        nativeActionPackets = packets.ActivateHeader(parameters.Header);
+        presentationInvocationHeader = parameters.Header;
+        nativeCrtRandom = randomState;
+        NativeEffectMemory = memory with { Textures = textures };
+        NativeGraphics = graphics with { ActorModels = BindPresentationForeignModels(graphics.ActorModels.Set(sourceOwner, source), previousForeignActors) };
+        InitializeEffectPresentationServices(new NativeBattleEffectInvocation.Combat(nativeActionPackets, parameters));
+        graphics = NativeGraphics!;
+        NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("The direct presentation phase lost its normalized source service.");
+        if (context.Callback != callback || context.ResolveActor(graphics) != parameters.Source || !context.ResolveTargets(graphics).Equals(parameters.TargetActors))
+        {
+            throw new InvalidDataException("The direct presentation parameters contradict their physical source header.");
+        }
+        if (callback == 0x50BDC0)
+        {
+            graphics = PublishNativeOriginalEffectTitle(graphics, context);
+        }
+        memory = (NativeEffectMemory ?? throw new InvalidDataException("The direct presentation phase lost its initialized process owner.")).SetDirectParameters(callback, header.Command, header.Action, unchecked((byte)header.Effect));
+        NativeEffectMemory = memory;
+        graphics = graphics with { OriginalEffect = selected with { Parameters = (parameters with { Parameter80 = memory.Parameter80, Parameter81 = 0, Parameter82 = memory.Parameter82, Parameter83 = 0 }).CaptureOriginalWindow(graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) } };
+        uint? returnedDescriptor = selected.ReturnedDescriptor;
+        graphics = InvokeNativeOriginalEffect(graphics, assignReturnedTask: false);
+        NativeGraphics = graphics with { Flags = graphics.Flags | 0x10, OriginalEffect = graphics.OriginalEffect! with { ReturnedDescriptor = returnedDescriptor } };
+        presentationInvocationCompleted = false;
+    }
+}

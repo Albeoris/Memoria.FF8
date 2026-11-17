@@ -16,22 +16,22 @@ public sealed class NativeBattleHostedGuardianBoostTests
     public void NativeWidgetPublishesOneRequestThatSurvivesUnregistration(bool learned, ushort percent, byte expected)
     {
         (BattleSession child, long token) = Create(learned);
-        Assert.Equal(learned, child.HostedGuardianBoost!.Enabled);
+        Assert.Equal(learned, child.Presentation!.HostedGuardianBoost!.Enabled);
         Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(Caster, out _));
-        SetWidget(child, child.HostedGuardianBoost! with { Phase = 4, Remaining = 1, Window = 1, WindowRemaining = 10, Percent = percent });
+        SetWidget(child, child.Presentation!.HostedGuardianBoost! with { Phase = 4, Remaining = 1, Window = 1, WindowRemaining = 10, Percent = percent });
         NativeBattleActionPacketsState original = child.NativeActionPackets;
 
         Poll(child, postCore: true);
-        BattleSession.HostedGuardianBoostRequest request = Assert.IsType<BattleSession.HostedGuardianBoostRequest>(child.PendingHostedGuardianBoost);
+        BattlePresentationProcess.HostedGuardianBoostRequest request = Assert.IsType<BattlePresentationProcess.HostedGuardianBoostRequest>(child.Presentation!.PendingHostedGuardianBoost);
         Assert.Equal(token, request.Token);
         Assert.Equal(Header, request.Header);
         Assert.Equal(Caster, request.Caster);
         Assert.Equal(expected, request.Percent);
-        Assert.Equal((byte)6, child.HostedGuardianBoost!.Phase);
+        Assert.Equal((byte)6, child.Presentation!.HostedGuardianBoost!.Phase);
         Assert.Same(original, child.NativeActionPackets);
         Poll(child, publish: false);
-        Assert.Null(child.HostedGuardianBoost);
-        Assert.Same(request, child.PendingHostedGuardianBoost);
+        Assert.Null(child.Presentation!.HostedGuardianBoost);
+        Assert.Same(request, child.Presentation!.PendingHostedGuardianBoost);
         Assert.Same(original, child.NativeActionPackets);
     }
 
@@ -39,32 +39,32 @@ public sealed class NativeBattleHostedGuardianBoostTests
     public void HostedPollAppliesSelectBeforePublishingNewMappedButtonsAndHonorsPause()
     {
         (BattleSession child, _) = Create();
-        SetWidget(child, child.HostedGuardianBoost! with { Phase = 4, Remaining = 10, Window = 1, WindowRemaining = 10, InputGrace = 4 });
-        child.SetHostedGuardianBoostMappedButtons(0x180);
-        Assert.True(child.PressHostedGuardianBoost());
-        Assert.False(child.PressHostedGuardianBoost());
+        SetWidget(child, child.Presentation!.HostedGuardianBoost! with { Phase = 4, Remaining = 10, Window = 1, WindowRemaining = 10, InputGrace = 4 });
+        child.Presentation!.SetHostedGuardianBoostMappedButtons(0x180);
+        Assert.True(child.Presentation!.PressHostedGuardianBoost());
+        Assert.False(child.Presentation!.PressHostedGuardianBoost());
         Poll(child);
-        Assert.Equal((ushort)0x180, child.NativeGraphics!.UiServices!.HeldButtons16);
-        Assert.Equal(0, child.NativeGraphics.UiServices.Flags942 & 1);
-        Assert.Equal((ushort)0, child.HostedGuardianBoost!.Percent);
+        Assert.Equal((ushort)0x180, child.Presentation!.Graphics.UiServices!.HeldButtons16);
+        Assert.Equal(0, child.Presentation!.Graphics.UiServices.Flags942 & 1);
+        Assert.Equal((ushort)0, child.Presentation!.HostedGuardianBoost!.Percent);
 
-        Assert.True(child.PressHostedGuardianBoost());
+        Assert.True(child.Presentation!.PressHostedGuardianBoost());
         Poll(child);
-        Assert.Equal(1, child.NativeGraphics!.UiServices!.Flags942 & 1);
-        Assert.Equal((ushort)76, child.HostedGuardianBoost!.Percent);
+        Assert.Equal(1, child.Presentation!.Graphics.UiServices!.Flags942 & 1);
+        Assert.Equal((ushort)76, child.Presentation!.HostedGuardianBoost!.Percent);
 
-        child.SetHostedGuardianBoostMappedButtons(0);
-        Assert.True(child.PressHostedGuardianBoost());
-        NativeBattleGuardianBoost pressed = child.HostedGuardianBoost!;
+        child.Presentation!.SetHostedGuardianBoostMappedButtons(0);
+        Assert.True(child.Presentation!.PressHostedGuardianBoost());
+        NativeBattleGuardianBoost pressed = child.Presentation!.HostedGuardianBoost!;
         Poll(child, paused: true);
-        Assert.Same(pressed, child.HostedGuardianBoost);
-        Assert.Equal((ushort)0, child.NativeGraphics!.UiServices!.HeldButtons16);
-        Assert.Equal(1, child.NativeGraphics.UiServices.Flags942 & 1);
+        Assert.Same(pressed, child.Presentation!.HostedGuardianBoost);
+        Assert.Equal((ushort)0, child.Presentation!.Graphics.UiServices!.HeldButtons16);
+        Assert.Equal(1, child.Presentation!.Graphics.UiServices.Flags942 & 1);
         Poll(child, postCore: true);
-        Assert.Equal(0, child.NativeGraphics!.UiServices!.Flags942 & 1);
-        Assert.Equal((ushort)76, child.HostedGuardianBoost!.Percent);
-        Assert.False(child.HostedGuardianBoost.PendingPress);
-        Assert.Null(child.PendingHostedGuardianBoost);
+        Assert.Equal(0, child.Presentation!.Graphics.UiServices!.Flags942 & 1);
+        Assert.Equal((ushort)76, child.Presentation!.HostedGuardianBoost!.Percent);
+        Assert.False(child.Presentation!.HostedGuardianBoost.PendingPress);
+        Assert.Null(child.Presentation!.PendingHostedGuardianBoost);
     }
 
     [Fact]
@@ -72,28 +72,28 @@ public sealed class NativeBattleHostedGuardianBoostTests
     {
         (BattleSession child, long token) = Create();
         (BattleSession other, _) = Create();
-        SetWidget(child, child.HostedGuardianBoost! with { Phase = 5 });
+        SetWidget(child, child.Presentation!.HostedGuardianBoost! with { Phase = 5 });
         Poll(child, publish: false);
-        BattleSession.HostedGuardianBoostRequest request = child.PendingHostedGuardianBoost!;
+        BattlePresentationProcess.HostedGuardianBoostRequest request = child.Presentation!.PendingHostedGuardianBoost!;
         NativeBattleActionPacketsState original = child.NativeActionPackets;
 
-        Assert.Throws<InvalidOperationException>(() => child.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request with { }));
-        Assert.Throws<InvalidOperationException>(() => other.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request));
-        Assert.Throws<InvalidDataException>(() => child.PrepareHostedContactReplacement(token, [], acknowledgeGuardian: request));
-        BattleSession.PreparedHostedContactReplacement stale = child.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
+        Assert.Throws<InvalidOperationException>(() => child.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request with { }));
+        Assert.Throws<InvalidOperationException>(() => other.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request));
+        Assert.Throws<InvalidDataException>(() => child.Presentation!.PrepareHostedContactReplacement(token, [], acknowledgeGuardian: request));
+        BattlePresentationProcess.PreparedHostedContactReplacement stale = child.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
         Poll(child, publish: false);
-        Assert.Throws<InvalidOperationException>(() => child.PublishHostedContactReplacement(stale));
+        Assert.Throws<InvalidOperationException>(() => child.Presentation!.PublishHostedContactReplacement(stale));
         Assert.Same(original, child.NativeActionPackets);
-        Assert.Same(request, child.PendingHostedGuardianBoost);
+        Assert.Same(request, child.Presentation!.PendingHostedGuardianBoost);
 
-        BattleSession.PreparedHostedContactReplacement ready = child.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
-        child.ValidatePreparedHostedContactReplacement(ready);
-        child.PublishHostedContactReplacement(ready);
-        Assert.Null(child.PendingHostedGuardianBoost);
+        BattlePresentationProcess.PreparedHostedContactReplacement ready = child.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
+        child.Presentation!.ValidatePreparedHostedContactReplacement(ready);
+        child.Presentation!.PublishHostedContactReplacement(ready);
+        Assert.Null(child.Presentation!.PendingHostedGuardianBoost);
         Assert.Equal((ushort)4, child.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.Same(original.ReadHeader(Header), child.NativeActionPackets.ReadHeader(Header));
-        Assert.Equal(token, child.HostedActiveActionToken);
-        Assert.Throws<InvalidOperationException>(() => child.PublishHostedContactReplacement(ready));
+        Assert.Equal(token, child.Presentation!.HostedActiveActionToken);
+        Assert.Throws<InvalidOperationException>(() => child.Presentation!.PublishHostedContactReplacement(ready));
     }
 
     private static (BattleSession Child, long Token) Create(bool learned = true)
@@ -114,9 +114,9 @@ public sealed class NativeBattleHostedGuardianBoostTests
         Field("nativeActionPackets").SetValue(child, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
         Field("hostedBattlePresentation").SetValue(child, true);
         NativeBattleHostedTestFixture.InstallModelBindings(child, new NativeBattleGraphicsBinding("fourth", 1, new([0, 0])));
-        long token = child.BeginHostedAction(new(Caster, 254, 1, -1, 64, 116, null), [Contact(0)]);
+        long token = child.Presentation!.BeginHostedAction(new(Caster, 254, 1, -1, 64, 116, null), [Contact(0)]);
         Field("nativeActionPackets").SetValue(child, child.NativeActionPackets.ActivateHeader(Header));
-        NativeBattleGraphicsState registered = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("RegisterNativeGuardianBoost", PrivateInstance)!.Invoke(child, [child.NativeGraphics!, (ushort)64])!;
+        NativeBattleGraphicsState registered = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("RegisterNativeGuardianBoost", PrivateInstance)!.Invoke(child, [child.Presentation!.Graphics, (ushort)64])!;
         SetGraphics(child, registered);
         return (child, token);
     }
@@ -125,7 +125,7 @@ public sealed class NativeBattleHostedGuardianBoostTests
 
     private static void Poll(BattleSession child, bool publish = true, bool paused = false, bool postCore = false)
     {
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
         NativeBattleUiServices ui = graphics.UiServices! with { PauseDE9 = paused };
         SetGraphics(child, graphics with { UiServices = publish ? ui.QueuePublication(1) : ui });
         typeof(BattleSession).GetMethod("AdvanceHostedUiPublication", PrivateInstance)!.Invoke(child, [null, postCore]);
@@ -133,5 +133,5 @@ public sealed class NativeBattleHostedGuardianBoostTests
 
     private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
     private static void SetWidget(BattleSession child, NativeBattleGuardianBoost widget) => Field("nativeGuardianBoost").SetValue(child, widget);
-    private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
+    private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(child.Presentation!, graphics);
 }

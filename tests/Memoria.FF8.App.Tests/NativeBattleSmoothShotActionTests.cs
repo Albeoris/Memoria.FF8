@@ -208,7 +208,7 @@ public sealed class NativeBattleSmoothShotActionTests
                 previousActive = false;
                 return;
             }
-            bool active = battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } original && original.Binding.Effect == effect;
+            bool active = battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } original && original.Binding.Effect == effect;
             bool consecutive = previous is not null && previous.Callback + 1 == current.Callback && previous.PilotGeneration == current.PilotGeneration;
             if (consecutive && previous is not null)
             {

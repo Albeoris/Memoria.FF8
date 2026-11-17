@@ -42,7 +42,7 @@ public sealed class DiagnosticTargetPreparationTests
             Assert.Equal(4, target.PhysicalIndex);
             Assert.True(target.Alive);
             Assert.True(target.StatisticsReady);
-            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.NativeGraphics);
+            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.Presentation?.Graphics);
             Assert.DoesNotContain(ReadOriginalModelCells(graphics), model => model.ModelId4 == 140);
             Assert.Equal((byte?)139, ReadOriginalModelCell(graphics, 3).ModelId4);
             Assert.Equal((byte?)138, ReadOriginalModelCell(graphics, 4).ModelId4);
@@ -73,7 +73,7 @@ public sealed class DiagnosticTargetPreparationTests
         {
             for (int callback = 0; callback < 3000; callback++)
             {
-                observedEffect80 |= active.NativeGraphics?.OriginalEffect?.Binding.Effect == 80;
+                observedEffect80 |= active.Presentation?.Graphics?.OriginalEffect?.Binding.Effect == 80;
                 active.Tick();
                 if (!ReferenceEquals(initial, active.NativePartyStatusMirrors))
                 {
@@ -135,7 +135,7 @@ public sealed class DiagnosticTargetPreparationTests
             }
         }
         DiagnosticTargetReceipt? verified = world.VerifyDiagnosticTarget();
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.Presentation?.Graphics);
         object observation = new
         {
             Scope = "Bounded ordinary native startup; no focal effect or graphical-host acceptance.",
@@ -149,7 +149,7 @@ public sealed class DiagnosticTargetPreparationTests
             ActiveAction = active.ActiveAction is { } action ? new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.Phase, action.NativeSequence } : null,
             QueuedActions = active.QueuedActions.Select(action => new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.NativeSequence, action.NativeCallback }).ToArray(),
             EventTail = active.Events.TakeLast(12).ToArray(),
-            Camera = active.NativeCamera is { } camera ? new { camera.Mask, camera.Mode, camera.ForceCamera, camera.CurrentPose } : null,
+            Camera = active.Presentation?.Camera is { } camera ? new { camera.Mask, camera.Mode, camera.ForceCamera, camera.CurrentPose } : null,
             Graphics = new
             {
                 graphics.Callback,

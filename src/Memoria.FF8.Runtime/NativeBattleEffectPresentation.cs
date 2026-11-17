@@ -83,13 +83,13 @@ public sealed record NativeBattleEffectPresentationStep(ImmutableArray<NativeBat
 /// <summary>Runs the current native effect dispatcher without owning combat, inventory, rewards or host time.</summary>
 public sealed class NativeBattleEffectPresentation : IDisposable
 {
-    private readonly BattleSession owner;
+    private readonly BattlePresentationProcess owner;
     private readonly NativeBattleCameraProjection projection;
     private readonly ImmutableArray<NativeBattleForeignActor> actors;
 
     public NativeBattleEffectPresentation(NativeBattleEffectPresentationInputs inputs)
     {
-        owner = BattleSession.CreateEffectPresentation(inputs);
+        owner = BattlePresentationProcess.CreateEffectPresentation(inputs);
         projection = inputs.Projection;
         actors = inputs.ForeignActors;
         InitialHostCameraPose = inputs.HostCameraPose;

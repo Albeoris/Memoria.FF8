@@ -19,7 +19,7 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(Enemy), 0), initRequest.ExpandedAiCallback);
         Assert.Equal(10000, actor.CurrentHp);
         Assert.Equal(0u, logical.Capture().NativeAiVariables![0]);
-        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+        Assert.Empty(child.Presentation!.Graphics.Descriptors.Queue);
 
         Dispatch(logical);
 
@@ -29,7 +29,7 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal(initRequest.ExpandedAiCallback, logical.ActiveAction!.ExpandedAiCallback);
         Assert.Equal(new ushort[] { 100, 101 }, child.NativeActionPackets.PublishedHeaders().Select(header => header.Slot.Action));
         Assert.Equal(2, child.NativeActionPackets.ContactCount);
-        Assert.Equal((ushort)104, child.NativeGraphics.Descriptors.Packets[Assert.Single(child.NativeGraphics.Descriptors.Queue)].Command);
+        Assert.Equal((ushort)104, child.Presentation!.Graphics.Descriptors.Packets[Assert.Single(child.Presentation!.Graphics.Descriptors.Queue)].Command);
         Assert.NotNull(process.ActiveActionToken);
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(logical.Capture()));
     }
@@ -106,7 +106,7 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal(request, logical.ActiveAction!.ExpandedAiCallback);
         Assert.True(Actor(logical, Enemy).IsBusy);
         Assert.NotNull(process.ActiveActionToken);
-        NativeBattleDescriptorState descriptors = child.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = child.Presentation!.Graphics.Descriptors;
         Assert.Collection(descriptors.Queue.Select(slot => descriptors.Packets[slot]),
             action => Assert.Equal((ushort)104, action.Command),
             completion =>
@@ -158,7 +158,7 @@ public sealed class ExpandedAiCallbackEventTests
         var (logical, child, process) = Fixture(program);
         Dispatch(logical);
         Assert.DoesNotContain(logical.Events, item => item.Kind == "NativeText");
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
         Assert.Equal(new ushort[] { 8, 10 }, graphics.Descriptors.Queue.Select(slot => graphics.Descriptors.Packets[slot].Command));
         NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
 
@@ -184,7 +184,7 @@ public sealed class ExpandedAiCallbackEventTests
     public void Hosted_text_receipts_keep_plain_and_composed_messages_in_order_and_omit_zero_duration()
     {
         var (logical, child, _) = Fixture(Program());
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
         BattleEvent plain = new(0, "NativeText", null, null, 8, "plain") { NativeMessageMode = 3 };
         BattleEvent composed = new(0, "NativeText", Enemy, null, 16, "Kweh is away.") { NativeMessageMode = 3 };
         var controls = graphics.Descriptors.EnqueueMessage(plain, 128, 86).State
@@ -208,7 +208,7 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Equal(new[] { plain.Message, composed.Message }, texts.Select(text => text.Message.Message));
         Assert.Equal(new[] { 8, 16 }, texts.Select(text => text.Message.Amount));
         Assert.All(texts, text => Assert.Null(text.Message.NativeTextIdentity));
-        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+        Assert.Empty(child.Presentation!.Graphics.Descriptors.Queue);
         Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
         Assert.Equal(new[] { plain.Message, composed.Message }, logical.Events.Where(item => item.Kind == "NativeText").Select(item => item.Message));
     }
@@ -247,7 +247,7 @@ public sealed class ExpandedAiCallbackEventTests
         Invoke(logical, "ReconcileExpandedShot");
         Assert.Empty(shots);
 
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
         BattleModelRoster roster = graphics.ActorModels.Roster;
         HostedShotFrameOwner cancelled = Assert.IsType<HostedShotFrameOwner>(Invoke(logical, "CaptureExpandedHostedShotOwner", roster));
         Assert.Equal(new HostedShotFrameOwner(owner, actor.Id, token, callback, null), cancelled);
@@ -264,7 +264,7 @@ public sealed class ExpandedAiCallbackEventTests
             Field(child, "hostedFrameServices").SetValue(child, null);
         }
         NativeBattleShotReadinessReached receipt = Assert.IsType<NativeBattleShotReadinessReached>(Assert.Single(services.ReadOrderedReceipts()));
-        Assert.Empty(child.NativeGraphics!.Descriptors.Queue);
+        Assert.Empty(child.Presentation!.Graphics.Descriptors.Queue);
         BattleSnapshot before = logical.Capture();
         int events = logical.Events.Count;
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Invoke(logical, "ApplyExpandedHostedShotReadiness", services, receipt, token + 1)).InnerException);
@@ -298,7 +298,7 @@ public sealed class ExpandedAiCallbackEventTests
             NativeLimitCallback = NativeLimitCallback.ShotEnding
         };
         NativeBattleActionPacketsState packets = child.NativeActionPackets;
-        NativeBattleDescriptorState descriptors = child.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = child.Presentation!.Graphics.Descriptors;
         int start = logical.Events.Count;
         Invoke(logical, "StartExpandedAction", actor, close);
 
@@ -307,7 +307,7 @@ public sealed class ExpandedAiCallbackEventTests
         Assert.Null(logical.ActiveAction);
         Assert.Null(process.ActiveActionToken);
         Assert.Same(packets, child.NativeActionPackets);
-        Assert.Same(descriptors, child.NativeGraphics!.Descriptors);
+        Assert.Same(descriptors, child.Presentation!.Graphics.Descriptors);
         Assert.Equal(new NativeItemStock(101, 1), stock[0]);
         Assert.Single(logical.Events.Skip(start), entry => entry.Kind == "ActionComplete" && entry.ActorId == actor.Id);
     }
@@ -322,14 +322,14 @@ public sealed class ExpandedAiCallbackEventTests
         var (logical, child, process) = Fixture(Program(init: init), actions: [FixedHit(100)]);
         BattleSnapshot before = logical.Capture();
         BattleAttackCommand head = Assert.Single(logical.QueuedActions);
-        NativeBattleGraphicsState graphics = child.NativeGraphics!;
+        NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
         NativeBattleActionPacketsState packets = child.NativeActionPackets;
 
         TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Dispatch(logical));
 
         Assert.IsType<NotSupportedException>(failure.InnerException);
         Assert.Same(head, Assert.Single(logical.QueuedActions));
-        Assert.Same(graphics, child.NativeGraphics);
+        Assert.Same(graphics, child.Presentation?.Graphics);
         Assert.Same(packets, child.NativeActionPackets);
         Assert.Null(process.ActiveActionToken);
         Assert.Null(logical.ActiveAction);
@@ -359,7 +359,7 @@ public sealed class ExpandedAiCallbackEventTests
         };
     }
 
-    private static (BattleSession Logical, BattleSession Child, ExpandedBattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null, EncounterCompiledDefinition? encounter = null)
+    private static (BattleSession Logical, BattleSession Child, BattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null, EncounterCompiledDefinition? encounter = null)
     {
         BattleDefinition definition = new()
         {
@@ -395,24 +395,24 @@ public sealed class ExpandedAiCallbackEventTests
             (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, modelData with { ModelId = binding.ModelId }, row, null, false);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, graphics.ActorModels.Get(owner) with { ActiveResourceRow100 = row, OriginalResourceRow104 = row }) };
         }
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelCpuResources))!.SetValue(child, cpu);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeModelTextureCache))!.SetValue(child, cache);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(child, staging);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(child.Presentation!, cpu);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelTextureCache))!.SetValue(child.Presentation!, cache);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(child.Presentation!, staging);
         SetGraphics(child, graphics with { EntryReady = true, EntryLifecycle = 4 });
         Field(child, "hostedBattlePresentation").SetValue(child, true);
         FieldInfo entry = Field(child, "hostedEntryDescriptors");
         entry.SetValue(child, Activator.CreateInstance(entry.FieldType));
-        var process = (ExpandedBattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(ExpandedBattlePresentationProcess));
+        var process = (BattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
         Field(process, "logicalOwner").SetValue(process, logical);
         Field(process, "presentation").SetValue(process, child);
         Field(logical, "expandedPresentationProcess").SetValue(logical, process);
         return (logical, child, process);
     }
 
-    private static void CompleteEmpty(BattleSession logical, BattleSession child, ExpandedBattlePresentationProcess process, uint callback)
+    private static void CompleteEmpty(BattleSession logical, BattleSession child, BattlePresentationProcess process, uint callback)
     {
         Assert.Null(process.ActiveActionToken);
-        var graphics = child.NativeGraphics!;
+        var graphics = child.Presentation!.Graphics;
         NativeBattleDescriptorPacket packet = graphics.Descriptors.Packets[Assert.Single(graphics.Descriptors.Queue)];
         Assert.Equal((ushort)10, packet.Command);
         Assert.Equal(callback, packet.Argument);
@@ -443,7 +443,7 @@ public sealed class ExpandedAiCallbackEventTests
 
     private static FieldInfo Field(object owner, string name) => owner.GetType().GetField(name, PrivateInstance)!;
 
-    private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(child, graphics);
+    private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(child.Presentation!, graphics);
 
     private static void SetHostedOperationIndex(BattleSession battle, BindingFlags flags, int index)
     {

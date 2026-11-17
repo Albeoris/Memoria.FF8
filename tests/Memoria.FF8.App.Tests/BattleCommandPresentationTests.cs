@@ -19,7 +19,7 @@ public sealed class BattleCommandPresentationTests
         using InMemoryResourceSource source = new(new("test", GameDataEdition.Classic, [], "en"));
         ResourceService resources = new(source);
         List<BattleInput> submitted = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: submitted.Add);
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: submitted.Add, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.ConfigureLocalization(new(resources));
         hud.Attack();
         BattleSmartAttackPreview preview = hud.TargetActionPreview!;
@@ -70,7 +70,7 @@ public sealed class BattleCommandPresentationTests
         {
             BattleNativeCommandBinding binding = assets.ReadNativeCommand(command);
             BattleSession battle = CreateBattle([binding], assets.NativeActions.ToArray(), nativeAttack: NativeAction(1, "Attack"));
-            BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+            BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
             hud.ConfigureLocalization(presentation);
             string before = JsonSerializer.Serialize(battle.Capture());
             Assert.Equal(binding.Name, Assert.Single(hud.ChoiceLabels));
@@ -95,7 +95,7 @@ public sealed class BattleCommandPresentationTests
         BattleNativeCommandBinding down = assets.ReadNativeCommand(33);
         BattleNativeCommandBinding up = assets.ReadNativeCommand(34);
         BattleSession combined = CreateBattle([assets.ReadNativeCommand(1), down, assets.ReadNativeCommand(2), up], assets.NativeActions.ToArray());
-        BattleHudController combinedHud = new(combined, (_, _) => { }, () => { }, () => { });
+        BattleHudController combinedHud = new(combined, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         Assert.Equal(new[] { assets.ReadNativeCommand(1).Name, down.Name, assets.ReadNativeCommand(2).Name, up.Name }, combinedHud.ChoiceLabels);
         foreach (int row in new[] { 1, 3 })
         {
@@ -115,7 +115,7 @@ public sealed class BattleCommandPresentationTests
     {
         BattleSession battle = CreateBattle([new(1, "Attack", 0x40, 0), new(33, "LV Down", 0x40, 0), new(2, "Magic", 0x40, 0), new(34, "LV Up", 0x40, 0)]);
         List<BattleInput> submitted = [];
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: submitted.Add);
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: submitted.Add, readPresentationUi: BattleHudTestPresentation.Visible);
 
         Assert.Equal(new[] { "Attack", "LV Down", "Magic", "LV Up" }, hud.ChoiceLabels);
         Assert.Equal(new[] { BattleAbility.Attack, BattleAbility.NativeCommand, BattleAbility.Magic, BattleAbility.NativeCommand }, hud.Commands);
@@ -142,7 +142,7 @@ public sealed class BattleCommandPresentationTests
         BattleSession original = CreateBattle([new(12, "Mug", 0x40, 0), new(33, "LV Down", 0x40, 0), new(2, "Magic", 0x40, 0), new(34, "LV Up", 0x40, 0)]);
         BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(original.Capture()))!);
         string before = JsonSerializer.Serialize(battle.Capture());
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
 
         Assert.Equal(new[] { "Mug", "LV Down", "Magic", "LV Up" }, hud.ChoiceLabels);
         Assert.Equal(new[] { 12, 33, 2, 34 }, BattleCommandPresentation.Read(battle.Combatants[0]).Select(command => command.Command));
@@ -166,7 +166,7 @@ public sealed class BattleCommandPresentationTests
         ResourceService resources = new(source);
         LocalizationBattlePresentation presentation = new(resources);
         BattleSession battle = CreateBattle([new(command, name, 0x40, 0)]);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.ConfigureLocalization(presentation);
         string before = JsonSerializer.Serialize(battle.Capture());
         string key = LocalizationSourceExporter.IndexedKey("en", "kernel_battlecommands_name", command);

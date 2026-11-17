@@ -16,14 +16,14 @@ public sealed class NativeBattleAngelWing84CastTests
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR")!);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = BattleSession.Restore(snapshot);
-        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        BattleScenePresentation scene = new(assets, snapshot.Definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE")!, "angel-phases-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Angel Wing phase evidence: " + output);
         HashSet<ushort> seen = [];
         for (int tick = 0; tick < 512; tick++)
         {
-            ushort phase = battle.NativeEffectMemory!.AngelWing84!.Scene!.Word(64);
+            ushort phase = battle.Presentation!.Memory.AngelWing84!.Scene!.Word(64);
             if (phase is 2 or 3 or 4 && seen.Add(phase))
             {
                 string name = "scene-" + phase;
@@ -32,7 +32,7 @@ public sealed class NativeBattleAngelWing84CastTests
                 battle.Tick();
                 clone.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(clone, 320, 224).ToArray());
+                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224).ToArray());
                 NativeBattleRestorationPresentationTests.Publish(output, name + "-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
             }
             if (Released(battle))
@@ -61,7 +61,7 @@ public sealed class NativeBattleAngelWing84CastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot before = battle.Capture();
         bool selected = false;
         bool drawn = false;
@@ -85,7 +85,7 @@ public sealed class NativeBattleAngelWing84CastTests
             {
                 before = battle.Capture();
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 NativeBattleReachedCaptureAssertions.Moving(84, battle.Capture(), graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8"));
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
@@ -98,7 +98,7 @@ public sealed class NativeBattleAngelWing84CastTests
                         NativeBattleGraphicsState backgroundGraphics = backgroundSource.NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(backgroundSource with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
                     if (!midpoint && callback >= 60)
@@ -111,11 +111,11 @@ public sealed class NativeBattleAngelWing84CastTests
                 {
                     Assert.True(drawn);
                     Assert.True(midpoint);
-                    Assert.Equal((ushort)84, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
+                    Assert.Equal((ushort)84, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
                     Publish("completed-before-host-mode", battle);
                     battle.SetMode(BattleAtbMode.Normal);
                     CompareNext("completed", battle);
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, selected, drawn, midpoint }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, selected, drawn, midpoint }));
                     return;
                 }
             }
@@ -143,14 +143,14 @@ public sealed class NativeBattleAngelWing84CastTests
             current.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(current.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next", current);
         }
     }
 
     private static bool Released(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 

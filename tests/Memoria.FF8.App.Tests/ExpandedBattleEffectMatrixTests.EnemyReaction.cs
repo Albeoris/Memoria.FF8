@@ -118,7 +118,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             Assert.Contains(battle.QueuedActions, command => command.ActorId == attacker.Id && command.TargetId == enemy.Id && command.Ability == BattleAbility.Attack);
 
             BattleActionPresentation? reaction = null;
-            ExpandedBattlePresentationProcess? presentation = null;
+            BattlePresentationProcess? presentation = null;
             HashSet<string>? recipientsAtContact = null;
             int reactionEventStart = 0;
             for (int frame = 0; frame < 320 && battle.Outcome == BattleOutcome.Active; frame++)
@@ -158,7 +158,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
                 if (reaction is not null)
                 {
-                    if (battle.ExpandedPresentationProcess is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live)
+                    if (battle.Presentation is { ActiveActionToken: not null, Graphics.OriginalEffect: { ReturnedDescriptor: > 0 } identity } live)
                     {
                         presentation ??= live;
                         Assert.Same(presentation, live);

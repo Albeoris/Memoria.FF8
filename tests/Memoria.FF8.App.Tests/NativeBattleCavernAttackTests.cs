@@ -17,15 +17,14 @@ public sealed class NativeBattleCavernAttackTests
         BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         using GameAssets game = new(TestResources.GameDirectory);
-        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        long callback = battle.NativeGraphics!.Callback;
+        long callback = battle.Presentation!.Graphics.Callback;
         battle.Tick();
         restored.Tick();
-        Assert.True(battle.NativeGraphics.Callback > callback);
+        Assert.True(battle.Presentation!.Graphics.Callback > callback);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         using BattleAssets assets = new(TestResources.GameDirectory);
-        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition, true).Render(restored, 320, 224));
+        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(restored, 320, 224));
         GameSession session = new(state);
         session.SetLiveBattle(battle);
         string id = "cavern-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
@@ -71,7 +70,8 @@ public sealed class NativeBattleCavernAttackTests
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory()
         });
-        using GameWorld world = new(session, directory) { UsePhysicalBattlePresentation = true };
+        using GameAssets game = new(directory);
+        using GameWorld world = new(session, directory);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-formations", encounters.Formations.Distinct().Select(id => new { Formation = id, Enemies = world.BattleResources.LoadEncounter(id).Enemies.Select(enemy => new { enemy.ModelId, Name = world.BattleResources.ReadEnemyName(enemy.ModelId) }).ToArray() }).ToArray());
         Assert.Contains(formation, encounters.Formations);
@@ -80,7 +80,7 @@ public sealed class NativeBattleCavernAttackTests
         NativeMusicProcessState buffers = new(1, null, null, null, 0, null);
         NativeBattleMusicEntryPreparation entry = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, buffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
         definition = definition with { NativeMusicProcess = entry.MusicProcess, NativeGlobalSoundProcess = entry.SoundProcess };
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, game, world.BattleResources);
         session.SetLiveBattle(battle);
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-initial", session.State);
         int largestPacketEnd = 0;
@@ -94,7 +94,6 @@ public sealed class NativeBattleCavernAttackTests
             }
             Assert.True(battle.NativeEntryReady);
             battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-            battle.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             BattleCombatant actor = battle.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == character);
             for (int turn = 0; turn < 16 && !actor.IsReady; turn++)
             {
@@ -113,7 +112,7 @@ public sealed class NativeBattleCavernAttackTests
                 completed = battle.Events.Any(item => item.Kind == "ActionComplete" && item.ActorId == actor.Id);
             }
             Assert.True(completed, $"Player Attack did not complete in encounter {formation}.");
-            BattleScenePresentation scene = new(world.BattleResources, definition, true);
+            BattleScenePresentation scene = new(world.BattleResources, definition);
             Assert.NotEmpty(scene.Render(battle, 320, 224));
             BattleSnapshot after = battle.Capture();
             session.SetLiveBattle(battle);
@@ -123,11 +122,11 @@ public sealed class NativeBattleCavernAttackTests
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(world.BattleResources, definition, true).Render(restored, 320, 224));
+            Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(world.BattleResources, definition).Render(restored, 320, 224));
             string beforePresentation = JsonSerializer.Serialize(battle.Capture());
             foreach ((int width, int height) in new[] { (640, 480), (1280, 720), (800, 1200) })
             {
-                Assert.Equal(scene.Render(battle, width, height), new BattleScenePresentation(world.BattleResources, definition, true).Render(restored, width, height));
+                Assert.Equal(scene.Render(battle, width, height), new BattleScenePresentation(world.BattleResources, definition).Render(restored, width, height));
             }
             Assert.Equal(beforePresentation, JsonSerializer.Serialize(battle.Capture()));
             Console.WriteLine($"Expanded scene formation {formation}, actor {character}: packet end {largestPacketEnd}, proxies {largestProxyCount}.");
@@ -136,14 +135,14 @@ public sealed class NativeBattleCavernAttackTests
         {
             session.SetLiveBattle(battle);
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-failure-state", session.State);
-            NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-failure", new { Error = exception.ToString(), battle.Frame, Callback = battle.NativeGraphics?.Callback });
+            NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-failure", new { Error = exception.ToString(), battle.Frame, Callback = battle.Presentation?.Graphics?.Callback });
             throw;
         }
 
         void AuditSceneCapacity()
         {
-            NativeBattlePrimitiveFrame frame = battle.NativeGraphics!.PrimitiveFrame!;
-            NativeBattlePrimitiveProcess process = battle.NativeEffectMemory!.PrimitiveProcess!;
+            NativeBattlePrimitiveFrame frame = battle.Presentation!.Graphics.PrimitiveFrame!;
+            NativeBattlePrimitiveProcess process = battle.Presentation!.Memory.PrimitiveProcess!;
             int proxyCount = frame.LastCommands.Select(item => item.Command.Packet).Distinct().Count();
             largestProxyCount = Math.Max(largestProxyCount, proxyCount);
             Assert.True(proxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity);

@@ -133,7 +133,7 @@ public sealed class NativeBattleAquaPresentationTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() };
                         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutFrame } };
-                        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         visibleChangedRgb = CountRgbChanges(pixels, plain);
                         if (visibleChangedRgb > 0)
                         {
@@ -188,7 +188,7 @@ public sealed class NativeBattleAquaPresentationTests
                 cold.Tick();
                 direct.Tick();
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-                byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
+                byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
                 Assert.Equal(scene.Render(direct, 320, 224).ToArray(), pixels);
                 NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
                 restoredBoundaries.Add(name);

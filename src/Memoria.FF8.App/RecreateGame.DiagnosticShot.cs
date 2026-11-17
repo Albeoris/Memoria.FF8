@@ -43,8 +43,8 @@ internal sealed partial class RecreateGame
                 throw new InvalidDataException("Shot packet observation is bounded to its three owned dispatches per execution.");
             }
             BattleSession active = diagnosticDriverBattle!;
-            NativeBattleRetainedActionPackets packets = active.ObserveDiagnosticActionPackets(dispatch);
-            BattleDiagnosticHostedShotPackets? hosted = active.UsesExpandedRoster && dispatch.NativeTargetMask is null ? active.ObserveDiagnosticHostedShotPackets(dispatch) : null;
+            NativeBattleRetainedActionPackets packets = active.Presentation!.ObserveDiagnosticActionPackets(dispatch);
+            BattleDiagnosticHostedShotPackets? hosted = dispatch.NativeTargetMask is null ? active.ObserveDiagnosticHostedShotPackets(dispatch) : null;
             driver.ObserveDispatch(dispatch, new DiagnosticShotDispatchPackets(dispatch.Serial, dispatch.Callback, header, generation, packets) { Hosted = hosted });
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)

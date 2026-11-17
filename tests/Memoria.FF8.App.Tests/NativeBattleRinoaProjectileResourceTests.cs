@@ -37,7 +37,7 @@ public sealed class NativeBattleRinoaProjectileResourceTests
             for (int callback = 0; callback < 600; callback++)
             {
                 battle.Tick();
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 NativeBattleModuleState modules = graphics.ModuleEffects;
                 root |= modules.Slots.Any(task => task.Callback == 0x56F9C0 && (task.Flags & 1) != 0);
                 projectile |= modules.Slots.Any(task => task.Callback == 0x56FE10 && (task.Flags & 1) != 0);
@@ -72,7 +72,7 @@ public sealed class NativeBattleRinoaProjectileResourceTests
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-            Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(restored, 320, 224).ToArray());
+            Assert.Equal(new BattleScenePresentation(assets, definition).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(restored, 320, 224).ToArray());
         }
     }
 
@@ -102,7 +102,7 @@ public sealed class NativeBattleRinoaProjectileResourceTests
         NativeBattleGraphicsState Draw(BattleSnapshot source, NativeBattleGraphicsState input)
         {
             BattleSession isolated = BattleSession.Restore(source);
-            input = input with { PrimitiveFrame = isolated.NativeGraphics!.PrimitiveFrame };
+            input = input with { PrimitiveFrame = isolated.Presentation!.Graphics.PrimitiveFrame };
             MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeRinoaPhysicalHit", BindingFlags.Instance | BindingFlags.NonPublic)!;
             var result = ((NativeBattleGraphicsState Graphics, NativeBattleModuleCallback Callback))advance.Invoke(isolated, [input, input.ModuleEffects, slot, new NativeBattleModuleInputs(0)])!;
             return result.Graphics;

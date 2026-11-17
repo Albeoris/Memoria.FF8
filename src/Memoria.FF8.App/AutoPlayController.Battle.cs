@@ -1,4 +1,4 @@
-using Memoria.FF8.Runtime;
+﻿using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -73,10 +73,11 @@ internal sealed partial class AutoPlayController
 
     internal static BattleInput PlanBattleInput(BattleSession active)
     {
-        bool canChoose = !active.CanReturnToField && active.Outcome == BattleOutcome.Active && active.NativeEntryReady && active.NativeGraphics?.UiServices?.PauseDE9 != true;
+        bool paused = active.Presentation?.UiState.Paused != false;
+        bool canChoose = !active.CanReturnToField && active.Outcome == BattleOutcome.Active && active.NativeEntryReady && !paused;
         BattleCombatant[] actors = canChoose ? active.ReadyPlayerCommandOrder.ToArray() : [];
         BattleCombatant[] targets = canChoose ? active.Combatants.ToArray() : [];
-        AutoPlayBattleDecision decision = AutoPlayBattlePolicy.Choose(active.CanReturnToField, active.Outcome == BattleOutcome.Active, active.Outcome.ToString(), active.NativeEntryReady, active.NativeGraphics?.UiServices?.PauseDE9 == true,
+        AutoPlayBattleDecision decision = AutoPlayBattlePolicy.Choose(active.CanReturnToField, active.Outcome == BattleOutcome.Active, active.Outcome.ToString(), active.NativeEntryReady, paused,
             actors.Select(actor => new AutoPlayBattleActor(active.CanChoosePlayerCommand(actor.Id), actor.IsReady, actor.CanAct, actor.IsBusy, actor.Abilities.Contains(BattleAbility.Attack))).ToArray(),
             targets.Select(target => new AutoPlayBattleTarget(!target.IsPlayer, target.IsActive, target.IsAlive, target.Untargetable)).ToArray());
         return decision.Kind switch

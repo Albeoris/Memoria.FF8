@@ -179,7 +179,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() };
                         BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutFrame } };
-                        byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         int changedRgb = CountRgbChanges(pixels, plain);
                         if (capturePeak && changedRgb > peakChangedRgb)
                         {
@@ -264,7 +264,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                     NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), effectId);
                 }
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-                byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
+                byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
                 Assert.Equal(scene.Render(direct, 320, 224).ToArray(), pixels);
                 NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
                 restoredBoundaries.Add(name);
@@ -345,7 +345,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
 
         void CompareNext(string name, BattleSnapshot snapshot)
         {
-            byte[] originalPixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(Restore(snapshot), 320, 224).ToArray();
+            byte[] originalPixels = new BattleScenePresentation(assets, snapshot.Definition).Render(Restore(snapshot), 320, 224).ToArray();
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, originalPixels);
             BattleSession direct = Restore(snapshot);
             BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
@@ -353,8 +353,8 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             direct.Tick();
             cold.Tick();
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
+            byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray();
+            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(direct, 320, 224).ToArray(), pixels);
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-next", cold.Capture(), pixels);
         }
     }

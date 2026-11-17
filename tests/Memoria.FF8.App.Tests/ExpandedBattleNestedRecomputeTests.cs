@@ -49,12 +49,10 @@ public sealed class ExpandedBattleNestedRecomputeTests
         BattleCombatantDefinition selected = definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive && actor.NativeAi is not null && (!guardian || actor.Id == "enemy-8"))
             .OrderByDescending(actor => actor.CurrentHp).ThenByDescending(actor => actor.Spirit).First();
         BattleCombatantDefinition[] actors = definition.Combatants.Select(actor => actor.Id == selected.Id ? WithDemiCounter(actor) : actor).ToArray();
-        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased });
-        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        GameWorld.AttachExpandedEffects(battle, game, world.BattleResources);
+        BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased }, game, world.BattleResources);
         world.PublishPreparedBattleEntry(entry with { Battle = battle });
 
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
@@ -127,7 +125,7 @@ public sealed class ExpandedBattleNestedRecomputeTests
             uint beforeTickFlags = counter.NativeCombatantFlags;
             int? beforeTickHits = counter.NativeRemainingHits;
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
             if (guardian && outerToken.HasValue && recompute is null && ReadField<NativeBattleActionScratch>(battle, "nativeActionScratch") is { GuardianFormulaE1E: true } scratch)
             {
                 recompute = $"boost={scratch.GuardianBoostPercent} lane={scratch.EventLane} E00={scratch.DeferredEffectsE00} hp={beforeTickHp}->{counter.CurrentHp} flags={beforeTickFlags:X}->{counter.NativeCombatantFlags:X} BD9={beforeTickHits}->{counter.NativeRemainingHits}";
@@ -147,9 +145,9 @@ public sealed class ExpandedBattleNestedRecomputeTests
 
             if (process.ActiveActionToken is long token && admitted.Add(token))
             {
-                BattleSession.HostedPresentationInvocation invocation = ReadField<BattleSession.HostedPresentationInvocation>(child, "hostedPresentationInvocation");
+                BattlePresentationProcess.HostedPresentationInvocation invocation = ReadField<BattlePresentationProcess.HostedPresentationInvocation>(child, "hostedPresentationInvocation");
                 NativeBattleActionHeaderSlot header = child.NativeActionPackets.ReadHeader(invocation.Header);
-                Assert.Equal((ushort)104, child.NativeGraphics!.Descriptors.Packets[invocation.DescriptorSlot].Command);
+                Assert.Equal((ushort)104, child.Presentation!.Graphics.Descriptors.Packets[invocation.DescriptorSlot].Command);
                 if (outerToken is null && header.Source == source && (guardian ? header.Command == 254 : header.Command is 1 or 12))
                 {
                     outerToken = token;
@@ -197,7 +195,7 @@ public sealed class ExpandedBattleNestedRecomputeTests
         for (int callback = 0; callback < 1200 && !CommandDrained(battle, process, next, demiTarget.Id); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            Assert.Same(process, battle.ExpandedPresentationProcess);
+            Assert.Same(process, battle.Presentation);
         }
         Assert.True(CommandDrained(battle, process, next, demiTarget.Id), "The follow-up Attack and any native counter did not drain.");
         Assert.Equal(nextTarget.Id, Assert.Single(battle.Events.Skip(next), item => item.Kind == "EffectContact" && item.ActorId == demiTarget.Id).TargetId);
@@ -213,7 +211,7 @@ public sealed class ExpandedBattleNestedRecomputeTests
         return actor with { NativeAi = ai with { Scripts = scripts } };
     }
 
-    private static bool CommandDrained(BattleSession battle, ExpandedBattlePresentationProcess process, int start, string actorId)
+    private static bool CommandDrained(BattleSession battle, BattlePresentationProcess process, int start, string actorId)
     {
         return battle.ActiveAction is null && process.ActiveActionToken is null && process.PendingCompletion is null &&
             battle.Events.Skip(start).Any(item => item.Kind == "ActionComplete" && item.ActorId == actorId);

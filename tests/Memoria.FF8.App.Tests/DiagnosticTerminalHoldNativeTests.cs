@@ -46,7 +46,7 @@ public sealed class DiagnosticTerminalHoldNativeTests
         session.StartNewGame();
         using GameWorld world = new(session, directory!);
         BattleSession battle = world.StartDiagnosticBattle(request);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         List<BattleDiagnosticEffectDispatch> focal = [];
         List<BattleEvent> completions = [];
         List<object> boundaries = [];
@@ -94,9 +94,9 @@ public sealed class DiagnosticTerminalHoldNativeTests
                 Assert.Equal((ushort)expectedEffect, focal[^1].ExecutedEffect);
                 if (!hold)
                 {
-                    WaitUntil(() => battle.Outcome == BattleOutcome.Defeat && battle.NativeGraphics?.NativeOutcome?.FadeDurationB0C == 0, "natural defeat and completed fade");
+                    WaitUntil(() => battle.Outcome == BattleOutcome.Defeat && battle.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C == 0, "natural defeat and completed fade");
                     Assert.Null(battle.DiagnosticTerminalHold);
-                    Assert.Equal((byte?)1, battle.NativeGraphics!.NativeOutcome!.ResultByte6E7);
+                    Assert.Equal((byte?)1, battle.Presentation!.Graphics.NativeOutcome!.ResultByte6E7);
                     Assert.Empty(battle.DiagnosticTerminalHoldReceipts);
                     Assert.Single(completions);
                     Record("natural-defeat");
@@ -104,7 +104,7 @@ public sealed class DiagnosticTerminalHoldNativeTests
                 }
                 WaitUntil(() => battle.DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held && completions.Count >= cast && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.ObserveDiagnosticDrainBlockers().Count == 0, "held terminal full native drain");
                 Assert.Equal(BattleOutcome.Active, battle.Outcome);
-                Assert.True(battle.NativeGraphics!.NativeOutcome?.ResultByte6E7 is null or 0);
+                Assert.True(battle.Presentation!.Graphics.NativeOutcome?.ResultByte6E7 is null or 0);
                 BattleDiagnosticCombatant party = Assert.Single(battle.ObserveDiagnosticCombatants(), actor => actor.Id == repair.ActorId);
                 if (expectedEffect == 109)
                 {
@@ -130,8 +130,8 @@ public sealed class DiagnosticTerminalHoldNativeTests
                 {
                     battle.ReleaseDiagnosticTerminalHold(battle.NativeHostCallbacks!.Value);
                     Assert.Equal(new[] { "held", "rearmed", "held", "released" }, battle.DiagnosticTerminalHoldReceipts.Select(receipt => receipt.Kind).ToArray());
-                    WaitUntil(() => battle.Outcome == BattleOutcome.Defeat && battle.NativeGraphics?.NativeOutcome?.FadeDurationB0C == 0, "released natural defeat and completed fade");
-                    Assert.Equal((byte?)1, battle.NativeGraphics!.NativeOutcome!.ResultByte6E7);
+                    WaitUntil(() => battle.Outcome == BattleOutcome.Defeat && battle.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C == 0, "released natural defeat and completed fade");
+                    Assert.Equal((byte?)1, battle.Presentation!.Graphics.NativeOutcome!.ResultByte6E7);
                     Record("released-defeat");
                 }
                 Assert.Equal(lifecycle, battle.DiagnosticLifecycleId);
@@ -236,7 +236,7 @@ public sealed class DiagnosticTerminalHoldNativeTests
         session.StartNewGame();
         using GameWorld world = new(session, directory!);
         BattleSession battle = world.StartDiagnosticBattle(request);
-        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        BattleAudioPresentation audio = BattleAudioTestOutput.Create();
         List<BattleDiagnosticEffectDispatch> focal = [];
         List<BattleEvent> completions = [];
         List<object> observations = [];
@@ -326,7 +326,7 @@ public sealed class DiagnosticTerminalHoldNativeTests
             Assert.Equal(0, observed.NativeIndex);
             Assert.Equal(BattleOutcome.Active, battle.Outcome);
             Assert.Equal(BattleDiagnosticTerminalHoldPhase.Held, battle.DiagnosticTerminalHold!.Phase);
-            Assert.True(battle.NativeGraphics!.NativeOutcome?.ResultByte6E7 is null or 0);
+            Assert.True(battle.Presentation!.Graphics.NativeOutcome?.ResultByte6E7 is null or 0);
             Assert.Contains("timed-input-or-mandatory-reaction", battle.ObserveDiagnosticDrainBlockers());
             return new { boundary, battle.Frame, battle.NativeHostCallbacks, control, order, pending, party = observed, blockers = battle.ObserveDiagnosticDrainBlockers().ToArray() };
         }

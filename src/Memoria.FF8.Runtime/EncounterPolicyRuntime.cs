@@ -61,7 +61,7 @@ public sealed record EncounterCompiledDefinition(
     ImmutableDictionary<string, EncounterCompiledEventGate> EventGates,
     ImmutableDictionary<string, EncounterCompiledPlacement> Placements,
     ImmutableDictionary<string, double> ActorProperties,
-    EncounterNativeEventResources? NativeEvents = null)
+    EncounterNativeEventBinding? NativeEvents = null)
 {
     public EncounterCompiledCamera? Camera { get; init; }
     public ImmutableArray<EncounterPatchOrigin> Origins { get; init; } = [];

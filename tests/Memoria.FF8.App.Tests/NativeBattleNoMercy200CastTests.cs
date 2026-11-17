@@ -26,7 +26,7 @@ public sealed class NativeBattleNoMercy200CastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition, true);
+        BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot before = battle.Capture();
         bool selected = false;
         bool drawn = false;
@@ -55,7 +55,7 @@ public sealed class NativeBattleNoMercy200CastTests
                 {
                     capturedFrames++;
                 }
-                NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
                 {
@@ -67,7 +67,7 @@ public sealed class NativeBattleNoMercy200CastTests
                         NativeBattleGraphicsState renderGraphics = renderSource.NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = renderGraphics.PrimitiveFrame! with { LastCommands = renderGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
                         BattleSession background = BattleSession.Restore(renderSource with { NativeGraphics = renderGraphics with { PrimitiveFrame = withoutEffect } });
-                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
+                        byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
                     if (!midpoint && callback >= 60)
@@ -83,7 +83,7 @@ public sealed class NativeBattleNoMercy200CastTests
                     Assert.True(capturedFrames > 1);
                     Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
                     CompareNext("completed", battle);
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, selected, drawn, midpoint }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback, selected, drawn, midpoint }));
                     return;
                 }
             }
@@ -113,14 +113,14 @@ public sealed class NativeBattleNoMercy200CastTests
             _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(current.Capture(), 200);
             _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(clone.Capture(), 200);
             Assert.Equal(JsonSerializer.Serialize(current.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
+            Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Publish(name + "-next", current);
         }
     }
 
     private static bool Released(BattleSession battle)
     {
-        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 

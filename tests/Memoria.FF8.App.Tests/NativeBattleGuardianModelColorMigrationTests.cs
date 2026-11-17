@@ -65,9 +65,9 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(BattleSession.Restore(after).Capture()));
         using BattleAssets assets = new(game.GameDirectory);
-        BattleScenePresentation scene = new(assets, migrated.Definition, true);
+        BattleScenePresentation scene = new(assets, migrated.Definition);
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
-        for (int index = 0; index < 128 && first.NativeEffectMemory!.Active != 0; index++)
+        for (int index = 0; index < 128 && first.Presentation!.Memory.Active != 0; index++)
         {
             first.AdvanceNativeGraphicsPresentation(callback);
             second.AdvanceNativeGraphicsPresentation(callback);

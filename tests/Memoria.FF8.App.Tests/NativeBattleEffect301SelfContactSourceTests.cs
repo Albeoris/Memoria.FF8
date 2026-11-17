@@ -81,8 +81,8 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             Assert.Equal("2B42F29F6048B9B6304B866835D42B34A2D0A72D892DCA00B29FB39A2E2F2F47", actual.NativeAiScriptSha256, ignoreCase: true);
             Assert.Single(coldDispatches, dispatch => dispatch.ExecutedEffect == 301);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            Assert.Equal(0x103CFB8u, direct.NativeEffectMemory!.Effect301!.ReadDword(NativeBattleEffect301State.ScriptPointerAddress));
-            Assert.False(direct.NativeEffectMemory.Effect301.ScriptSourcePending);
+            Assert.Equal(0x103CFB8u, direct.Presentation!.Memory.Effect301!.ReadDword(NativeBattleEffect301State.ScriptPointerAddress));
+            Assert.False(direct.Presentation!.Memory.Effect301.ScriptSourcePending);
             Assert.Equal(frozen, JsonSerializer.Serialize(source));
         }
         finally

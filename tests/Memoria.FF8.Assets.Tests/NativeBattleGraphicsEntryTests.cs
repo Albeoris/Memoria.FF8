@@ -30,7 +30,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.True(battle.NativeEntryReady);
         AssertOwnedEnemyResources(battle);
         AssertOwnedEnemyResources(restored);
-        Assert.Equal(0, battle.NativeCameraTaskMask);
+        Assert.Equal(0, battle.Presentation!.NativeCameraTaskMask);
         Assert.Equal(0, battle.Frame);
     }
 
@@ -45,21 +45,21 @@ public sealed class NativeBattleGraphicsEntryTests
             Assert.Throws<InvalidOperationException>(() => battle.QueueAttack("party-0", "enemy"));
             Assert.Equal(0ul, battle.Capture().NativeGlobalRandomCalls);
             battle.Tick();
-            Assert.False(battle.NativeGraphics!.EntryReady);
+            Assert.False(battle.Presentation!.Graphics.EntryReady);
             Assert.Equal(0, battle.Frame);
             string saved = JsonSerializer.Serialize(battle.Capture());
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
             Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
-            for (int callback = 0; callback < 200 && !battle.NativeGraphics.EntryReady; callback++)
+            for (int callback = 0; callback < 200 && !battle.Presentation!.Graphics.EntryReady; callback++)
             {
                 battle.Tick();
                 restored.Tick();
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
             }
-            Assert.True(battle.NativeGraphics.EntryReady);
+            Assert.True(battle.Presentation!.Graphics.EntryReady);
             Assert.True(battle.Capture().NativeGlobalRandomCalls >= 13);
-            Assert.Equal((byte)255, battle.NativeGraphics.EntryBarrierCompletion);
-            Assert.All(ReadOriginalModelCells(battle.NativeGraphics).Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
+            Assert.Equal((byte)255, battle.Presentation!.Graphics.EntryBarrierCompletion);
+            Assert.All(ReadOriginalModelCells(battle.Presentation?.Graphics).Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
             Assert.Equal(0, battle.Frame);
         }
     }
@@ -114,7 +114,7 @@ public sealed class NativeBattleGraphicsEntryTests
         battle = BattleSession.Restore(snapshot with { Combatants = actors });
         battle.SetMode(BattleAtbMode.TurnBased);
         long beforeFrame = battle.Frame;
-        long beforeGraphics = battle.NativeGraphics!.Callback;
+        long beforeGraphics = battle.Presentation!.Graphics.Callback;
         battle.Tick();
         Assert.Equal(12000, battle.Combatants[0].NativeAtb!.Current);
         Assert.All(battle.Combatants.Skip(1), actor => Assert.Equal(186, actor.NativeAtb!.Current));
@@ -128,7 +128,7 @@ public sealed class NativeBattleGraphicsEntryTests
             restored.Tick();
         }
         Assert.Equal(readyFrame, battle.Frame);
-        Assert.Equal(beforeGraphics + 5, battle.NativeGraphics.Callback);
+        Assert.Equal(beforeGraphics + 5, battle.Presentation!.Graphics.Callback);
         Assert.All(battle.Combatants.Skip(1), actor => Assert.Equal(186, actor.NativeAtb!.Current));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
@@ -147,14 +147,14 @@ public sealed class NativeBattleGraphicsEntryTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        Assert.Equal(0u, battle.NativeGraphics!.UiServices!.ReadyMask);
-        Assert.Equal(3, battle.NativeGraphics.UiServices.Commands.Queue.Length);
+        Assert.Equal(0u, battle.Presentation!.Graphics.UiServices!.ReadyMask);
+        Assert.Equal(3, battle.Presentation!.Graphics.UiServices.Commands.Queue.Length);
         battle.Tick();
-        Assert.Equal(7u, battle.NativeGraphics.UiServices.ReadyMask);
-        Assert.Empty(battle.NativeGraphics.UiServices.Commands.Queue);
-        Assert.Equal((sbyte)4, battle.NativeGraphics.UiServices.Menu957);
+        Assert.Equal(7u, battle.Presentation!.Graphics.UiServices.ReadyMask);
+        Assert.Empty(battle.Presentation!.Graphics.UiServices.Commands.Queue);
+        Assert.Equal((sbyte)4, battle.Presentation!.Graphics.UiServices.Menu957);
         battle.OpenNativeActionMenu();
-        Assert.False(battle.NativeGraphics.UiServices.AllowsAtb(1));
+        Assert.False(battle.Presentation!.Graphics.UiServices.AllowsAtb(1));
         int gauge = battle.Combatants[3].NativeAtb!.Current;
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         battle.Tick();
@@ -163,7 +163,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         battle.CloseNativeActionMenu();
         battle.Tick();
-        Assert.True(battle.NativeGraphics.UiServices.AllowsAtb(1));
+        Assert.True(battle.Presentation!.Graphics.UiServices.AllowsAtb(1));
         if (mode == BattleAtbMode.Normal)
         {
             Assert.True(battle.Combatants[3].NativeAtb!.Current > gauge);
@@ -185,13 +185,13 @@ public sealed class NativeBattleGraphicsEntryTests
         BattleDefinition seed = Create(game, assets, 61, ready: false).Capture().Definition;
         BattleDefinition definition = seed with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Combatants.Select((actor, index) => actor with { Speed = index == 0 ? 100 : actor.IsPlayer ? 10 : 1 }).ToArray() };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        TimeSpan frame = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan frame = BattlePresentationTiming.ElapsedForCallbacks(1);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        long before = battle.NativeGraphics!.Callback;
+        long before = battle.Presentation!.Graphics.Callback;
 
         if (presentationDriven)
         {
@@ -204,7 +204,7 @@ public sealed class NativeBattleGraphicsEntryTests
 
         Assert.True(battle.Combatants[0].IsReady);
         Assert.False(battle.Combatants[1].IsReady);
-        Assert.Equal(before + 1, battle.NativeGraphics!.Callback);
+        Assert.Equal(before + 1, battle.Presentation!.Graphics.Callback);
         long waitingFrame = battle.Frame;
         int waitingGauge = battle.Combatants[1].NativeAtb!.Current;
         if (presentationDriven)
@@ -253,19 +253,19 @@ public sealed class NativeBattleGraphicsEntryTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 61);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
-        Assert.Equal(0, battle.NativeGraphics!.Callback);
-        Assert.Equal(7_750_000, battle.NativeGraphics.PresentationSubticks);
+        Assert.Equal(0, battle.Presentation!.Graphics.Callback);
+        Assert.Equal(7_750_000, battle.Presentation!.Graphics.PresentationSubticks);
         battle.Tick();
-        Assert.Equal(0, battle.NativeGraphics.Callback);
+        Assert.Equal(0, battle.Presentation!.Graphics.Callback);
         BattleSnapshot saved = battle.Capture();
         BattleSession headless = BattleSession.Restore(saved);
         headless.Tick();
-        Assert.Equal(1, headless.NativeGraphics!.Callback);
+        Assert.Equal(1, headless.Presentation!.Graphics.Callback);
         BattleSession hosted = BattleSession.Restore(saved);
         hosted.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
-        Assert.Equal(1, hosted.NativeGraphics!.Callback);
+        Assert.Equal(1, hosted.Presentation!.Graphics.Callback);
         hosted.Tick();
-        Assert.Equal(1, hosted.NativeGraphics.Callback);
+        Assert.Equal(1, hosted.Presentation!.Graphics.Callback);
         Assert.Equal(0, hosted.Frame);
     }
 
@@ -298,7 +298,7 @@ public sealed class NativeBattleGraphicsEntryTests
             battle.Tick();
             restored.Tick();
         }
-        Assert.True(battle.NativeGraphics!.ActionCallbackReady);
+        Assert.True(battle.Presentation!.Graphics.ActionCallbackReady);
         Assert.Equal((ushort)9, Assert.Single(battle.Capture().NativeScriptState.WaitCounters));
         //AA admits contact; the factual header remains in windup until its final descriptor10 completes.
         Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction!.Phase);
@@ -308,13 +308,13 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
         Assert.Equal(beforeText.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        for (int callback = 0; callback < 100 && (battle.ActiveAction is not null || battle.NativeGraphics.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104)); callback++)
+        for (int callback = 0; callback < 100 && (battle.ActiveAction is not null || battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104)); callback++)
         {
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
-        Assert.DoesNotContain(battle.NativeGraphics.Descriptors.Queue, slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+        Assert.DoesNotContain(battle.Presentation!.Graphics.Descriptors.Queue, slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
         Assert.Null(battle.ActiveAction);
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "ActionComplete") + 1, battle.Events.Count(item => item.Kind == "ActionComplete"));
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
@@ -331,20 +331,20 @@ public sealed class NativeBattleGraphicsEntryTests
         BattleSnapshot saved = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path)) ?? throw new InvalidDataException("Standalone graphics component is empty.");
         BattleSession battle = BattleSession.Restore(saved);
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(battle.Capture()));
-        long callback = battle.NativeGraphics!.Callback;
+        long callback = battle.Presentation!.Graphics.Callback;
         int texts = battle.Events.Count(item => item.Kind == "NativeText");
         battle.Tick();
-        Assert.Equal(callback + 1, battle.NativeGraphics.Callback);
+        Assert.Equal(callback + 1, battle.Presentation!.Graphics.Callback);
         Assert.Equal(texts, battle.Events.Count(item => item.Kind == "NativeText"));
     }
 
     internal static void AssertOwnedEnemyResources(BattleSession session)
     {
-        NativeBattleModelCpuResources cpu = session.NativeModelCpuResources!;
+        NativeBattleModelCpuResources cpu = session.Presentation!.ModelCpuResources;
         Assert.NotNull(cpu);
         Assert.NotNull(cpu.EnemyResources);
         Assert.NotEmpty(cpu.EnemyResources);
-        NativeBattleGraphicsState graphics = session.NativeGraphics!;
+        NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
         foreach (NativeBattleGraphicsBinding binding in session.Capture().Definition.NativeGraphics!.Bindings.Where(binding => binding.ModelId >= 16))
         {
             BattleModelOwner modelOwner = session.ReadPresentationModelOwner(binding.ActorId);
@@ -358,7 +358,7 @@ public sealed class NativeBattleGraphicsEntryTests
                 Assert.Null(reference.TryPhysicalAddress());
                 Assert.Throws<NotSupportedException>(() => reference.SharedAddress);
             }
-            NativeBattleGraphicsResource resolved = NativeBattleEnemyResourceView.Resolve(cpu, session.NativeFileStaging!, rowIndex, binding.Resource);
+            NativeBattleGraphicsResource resolved = NativeBattleEnemyResourceView.Resolve(cpu, session.Presentation!.NativeFileStaging!, rowIndex, binding.Resource);
             Assert.NotNull(resolved.PoseSource);
             Assert.True(resolved.PoseSource.BoneCount > 0);
             Assert.NotEmpty(resolved.Geometry!.Value);

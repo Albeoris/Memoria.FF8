@@ -113,7 +113,7 @@ public sealed class NativeBattleZombiePresentationTests
             contactObserver = "Native506690 publishes the installed saved-status projection to model Flags8 once at target54; actor status presentation is already produced";
             battle = BattleSession.Restore(source);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
-            BattleScenePresentation scene = new(assets, source.Definition, true);
+            BattleScenePresentation scene = new(assets, source.Definition);
             ColdNext("produced", source, scene, false);
             for (; ticks < item.MaximumTicks; ticks++)
             {
@@ -234,7 +234,7 @@ public sealed class NativeBattleZombiePresentationTests
             Assert.Equal(installed.ZombieResources!.Sound, heard.Sound);
             Assert.True(peakChangedPixels > 0, "Physical additive quad packets must contribute visible RGB pixels.");
             Assert.True(peakOverlayPixels > 0, "The actual target body overlay packets must contribute visible RGB pixels separately from mist.");
-            Assert.Equal(0, ReadOriginalModelCell(battle.NativeGraphics!, 3).Flags0 & 8);
+            Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 8);
             NativeBattleOriginalEffectState finished = Selected(battle.Capture())!;
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
@@ -278,12 +278,12 @@ public sealed class NativeBattleZombiePresentationTests
                 NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, presentation.Render(running, 320, 224));
                 BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-                Assert.Equal(presentation.Render(running, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                Assert.Equal(presentation.Render(running, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 running.Tick();
                 cold.Tick();
                 Assert.Equal(JsonSerializer.Serialize(running.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 byte[] pixels = presentation.Render(running, 320, 224).ToArray();
-                Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
+                Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 NativeBattleRestorationPresentationTests.Publish(output, name + "-after", running.Capture(), pixels);
                 restoredBoundaries.Add(name);
             }
@@ -300,7 +300,7 @@ public sealed class NativeBattleZombiePresentationTests
 
         void Report(string status, string? blocker)
         {
-            object result = new { Status = status, FirstBlocker = blocker, item.Id, item.Effect, action.Command, action.ActionId, KernelSection = action.KernelSection, KernelIndex = action.KernelIndex, Entry = installed.Entry, InputScenario = inputScenario, SourceSnapshotSha256 = sourceSha256, Ticks = ticks, NativeCallbackDelta = battle?.NativeGraphics?.Callback - sourceCallback, DiagnosticMaximumTicks = item.MaximumTicks, ProcessTimeoutSeconds = item.ProcessTimeoutSeconds, ProcessTimeoutOwner = "External launcher must enforce this case's process deadline", Completions = completions, ContactObserver = contactObserver, StatusPresentationTransitions = statusTransitions, Target54ContactCrossings = contactAgeCrossings, GraphicsStatusTransitions = graphicsStatusTransitions, PeakChangedPixels = peakChangedPixels, PeakOverlayPixels = peakOverlayPixels, ContactSequenceObservableTransitions = contactSequenceTransitions, RestoredBoundaries = restoredBoundaries, ObservedPrivatePackets = observedPrivatePackets, ObservedAdditivePackets = observedAdditivePackets, InstalledSavedStatusMask = action.Statuses0, InstalledBattleStatusMask = action.Statuses1, OriginalSound = installed.ZombieResources?.Sound, GraphicsScope = "Physical module packet RGB contribution and exact RGBA next-Tick equality at produced, live and completed boundaries", FormulaProducer = exported?.Scenario, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), ManifestSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest!))), Pending = new[] { "Story-route continuation", "Whole-entry native differential comparison", "Other spell targets and stocks" } };
+            object result = new { Status = status, FirstBlocker = blocker, item.Id, item.Effect, action.Command, action.ActionId, KernelSection = action.KernelSection, KernelIndex = action.KernelIndex, Entry = installed.Entry, InputScenario = inputScenario, SourceSnapshotSha256 = sourceSha256, Ticks = ticks, NativeCallbackDelta = battle?.Presentation?.Graphics?.Callback - sourceCallback, DiagnosticMaximumTicks = item.MaximumTicks, ProcessTimeoutSeconds = item.ProcessTimeoutSeconds, ProcessTimeoutOwner = "External launcher must enforce this case's process deadline", Completions = completions, ContactObserver = contactObserver, StatusPresentationTransitions = statusTransitions, Target54ContactCrossings = contactAgeCrossings, GraphicsStatusTransitions = graphicsStatusTransitions, PeakChangedPixels = peakChangedPixels, PeakOverlayPixels = peakOverlayPixels, ContactSequenceObservableTransitions = contactSequenceTransitions, RestoredBoundaries = restoredBoundaries, ObservedPrivatePackets = observedPrivatePackets, ObservedAdditivePackets = observedAdditivePackets, InstalledSavedStatusMask = action.Statuses0, InstalledBattleStatusMask = action.Statuses1, OriginalSound = installed.ZombieResources?.Sound, GraphicsScope = "Physical module packet RGB contribution and exact RGBA next-Tick equality at produced, live and completed boundaries", FormulaProducer = exported?.Scenario, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), ManifestSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest!))), Pending = new[] { "Story-route continuation", "Whole-entry native differential comparison", "Other spell targets and stocks" } };
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         }
 

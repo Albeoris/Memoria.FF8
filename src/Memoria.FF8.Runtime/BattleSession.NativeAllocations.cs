@@ -6,12 +6,12 @@ public sealed record NativeBattleEnemyAllocation(string Id, int SceneSlot, int G
     public BattleCombatantDefinition? ResolvedDefinition { get; init; }
     public string? EncounterBatchId { get; init; }
     public string? EncounterRole { get; init; }
+    public string? InheritedFromActorId { get; init; }
     public EncounterAllocationRetirement? Retirement { get; init; }
 }
 
 public sealed partial class BattleSession
 {
-    private readonly List<NativeBattleEnemyAllocation> nativeAllocations = [];
 
     private NativeBattleEnemyAllocation CloneNativeAllocation(NativeBattleEnemyAllocation allocation)
     {
@@ -23,18 +23,17 @@ public sealed partial class BattleSession
         return nativeAllocations.Select(CloneNativeAllocation).ToArray();
     }
 
-    public BattleCombatantDefinition GetCombatantDefinition(string id)
-    {
-        return CloneDefinition(definition with { Combatants = [GetActor(id).SourceDefinition] }).Combatants[0];
-    }
-
     private BattleCombatant AllocateNativeEnemy(BattleCombatant caller, int sceneSlot, int requestedIndex, bool activate)
     {
-        if (UsesExpandedRoster && !UsesOriginalEnemySlots)
+        if (!UsesOriginalEnemySlots)
         {
             throw new NotSupportedException("Expanded AI cannot allocate original enemy slots on this roster.");
         }
         RequireNoPendingEncounterAllocation();
+        if (!producingExpandedAiCallback)
+        {
+            throw new InvalidOperationException("Native enemy allocation requires its typed AI callback transaction.");
+        }
         if ((uint)sceneSlot >= NativeBattleSlots.FormationSlotCount)
         {
             throw new InvalidDataException("Native enemy allocation requires an original formation prototype.");
@@ -53,50 +52,21 @@ public sealed partial class BattleSession
         StopTurnAdvance();
         BattleRosterSlot slot = NativeBattleSlots.Decode(physicalIndex);
         BattleCombatant? previous = FindAllocatedNativeActor(physicalIndex);
-        if (previous is not null)
-        {
-            if (previous.IsActive)
-            {
-                ReleaseNativeParticipant(previous);
-            }
-            previous.BindRosterSlot(null);
-        }
         int generation = checked(nativeAllocations.Count + 1);
         NativeBattleEnemyAllocation allocation = new($"native-allocation-{generation}", sceneSlot, generation);
-        BattleCombatant spawned = CreateNativeAllocation(allocation);
-        nativeAllocations.Add(allocation);
-        spawned.BindRosterSlot(slot);
+        NativeBattleModelSlot original = NativeBattleModelSlot.Decode(checked((byte)physicalIndex));
+        BattleRosterAllocation admitted = ApplyRosterMutation(new(TargetActorReference(caller), [new(allocation, slot, original, ReplaceOccupant: true)])).Allocations.Single();
+        BattleCombatant spawned = GetActor(admitted.Actor.ActorId);
         spawned.NativeReturnDamage = 0;
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
         RecordLastNativeAllocation(spawned);
         Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
-        if (NativeGraphics is not null || producingExpandedAiCallback)
-        {
-            spawned.NativeCombatantFlags = 0;
-            spawned.NativeStatus0 = (ushort)((previous is null ? 0 : NativeSavedStatusBits(previous)) | 1);
-            spawned.NativeAllocationPendingStatistics = true;
-            nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)sceneSlot), true, true) };
-            SetNativeBattleClockActive(false);
-            if (producingExpandedAiCallback)
-            {
-                StageHostedNativeAllocation((BattleEnemyActorModel)CreatePresentationModelOwner(spawned), NativeBattleModelSlot.Decode(checked((byte)physicalIndex)), sceneSlot, spawned.ModelId, activate);
-                return spawned;
-            }
-            NativeBattleGraphicsState graphics = QueueNativePlannedModelDescriptor(NativeGraphics!, 102, spawned, checked((ushort)(spawned.ModelId + 16)));
-            graphics = QueueNativeDescriptor(graphics, 113, 0x48AD10);
-            if (activate)
-            {
-                graphics = QueueNativeDescriptor(graphics, 113, 0x487670, checked((ushort)physicalIndex));
-            }
-            NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x4876B0);
-            return spawned;
-        }
-        // TODO(TD-009): Components without a native graphics owner materialize102/113 at this explicit boundary.
-        InitializeNativeAllocatedStatistics(spawned);
-        if (activate)
-        {
-            ActivateNativeParticipant(spawned);
-        }
+        spawned.NativeCombatantFlags = 0;
+        spawned.NativeStatus0 = (ushort)((previous is null ? 0 : NativeSavedStatusBits(previous)) | 1);
+        spawned.NativeAllocationPendingStatistics = true;
+        nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)sceneSlot), true, true) };
+        SetNativeBattleClockActive(false);
+        StageHostedNativeAllocation(admitted.Model, admitted.Slot, admitted.OriginalSlot, sceneSlot, spawned.ModelId, activate);
         return spawned;
     }
 
@@ -110,19 +80,12 @@ public sealed partial class BattleSession
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         spawned.NativePendingReaction = new(0, 0);
-        if (UsesExpandedRoster)
-        {
             spawned.LastNativeAction = new(0, null, null, null, null, null);
-        }
-        else
-        {
-            nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.RequireNativeActorIndex());
-        }
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
         byte[] partyLevels = allies.Where(candidate => candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray();
-        int level = UsesExpandedRoster ? NativeBattleEnemyLevelRules.ResolveExpanded(template.SceneLevel, partyLevels, firstRoll, secondRoll) : NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, partyLevels, firstRoll, secondRoll);
+        int level = NativeBattleEnemyLevelRules.ResolveExpanded(template.SceneLevel, partyLevels, firstRoll, secondRoll);
         spawned.BindNativeLevel(level);
         spawned.ResetNativeStatusAllocation();
         ResetNativeDrawAllocation(spawned);
@@ -174,9 +137,9 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native allocation list contains an empty owner.");
             }
-            if (allocation.Retirement is { } retirement && (allocation.EncounterBatchId is null || retirement.PhysicalIndex is < 3 or > 6))
+            if (allocation.Retirement is { } retirement && (allocation.EncounterBatchId is null || retirement.Slot.Side != BattleSide.Enemies || retirement.Slot.Position >= ExpandedBattleFormation.MaximumEnemies || retirement.OriginalIndex != NativeBattleSlots.TryEncode(retirement.Slot)))
             {
-                throw new InvalidDataException("Encounter retirement requires its allocation generation and an enemy physical slot.");
+                throw new InvalidDataException("Encounter retirement requires its allocation generation and an enemy roster position.");
             }
             NativeBattleEnemyAllocation owned = CloneNativeAllocation(allocation);
             CreateNativeAllocation(owned);
@@ -191,7 +154,13 @@ public sealed partial class BattleSession
         actor.Untargetable = true;
         actor.NativeStatus0 |= 1;
         actor.IsActive = false;
-        // TODO(TD-009): Graphics105 completes the release; scaffold presentation commits it at the same dispatch boundary.
         Log("NativeModelRemoved", actor.Id, actor.Id, 0, $"{actor.Name} allocation released.");
+    }
+
+    private readonly List<NativeBattleEnemyAllocation> nativeAllocations = [];
+
+    public BattleCombatantDefinition GetCombatantDefinition(string id)
+    {
+        return CloneDefinition(definition with { Combatants = [GetActor(id).SourceDefinition] }).Combatants[0];
     }
 }

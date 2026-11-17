@@ -22,7 +22,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         BattleAtbMode mode = battle.Mode;
         TimeSpan elapsed = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond + 1);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero);
-        bool activeSummon = battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 };
+        bool activeSummon = battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 };
         for (int frame = 0; !activeSummon && frame < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0))); frame++)
         {
             battle.AdvanceNativeGraphicsPresentation(elapsed);
@@ -54,10 +54,10 @@ public sealed class NativeBattleExecutionStackMigrationTests
                 {
                     world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
                 }
-                if (battle.NativeGraphics!.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 })
+                if (battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 })
                 {
                     materialized = true;
-                    if (!restored && battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
+                    if (!restored && battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         string mid = Path.Combine(evidence!, "desktop-midcast.json");
                         session.SetEventState(world.Events.Capture());
@@ -75,12 +75,12 @@ public sealed class NativeBattleExecutionStackMigrationTests
                         restored = true;
                     }
                 }
-                if (materialized && battle.NativeGraphics.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: 0 } && battle.NativeEffectMemory!.Active == 0 && battle.Capture().GuardianForceCasts.Length == 0 && battle.Events.Count(item => item.Kind == "ActionComplete") > completed)
+                if (materialized && battle.Presentation!.Graphics.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: 0 } && battle.Presentation!.Memory.Active == 0 && battle.Capture().GuardianForceCasts.Length == 0 && battle.Events.Count(item => item.Kind == "ActionComplete") > completed)
                 {
                     Assert.True(restored);
                     session.SetEventState(world.Events.Capture());
                     session.Save(Path.Combine(evidence!, "desktop-after-summon.json"), compact: true);
-                    NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-proof", new { Source = source, Mode = mode, Frame = battle.Frame, Callback = battle.NativeGraphics.Callback, Materialized = materialized, IndependentRestore = restored, ActionCompleted = true });
+                    NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-proof", new { Source = source, Mode = mode, Frame = battle.Frame, Callback = battle.Presentation!.Graphics.Callback, Materialized = materialized, IndependentRestore = restored, ActionCompleted = true });
                     return;
                 }
             }
@@ -88,7 +88,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         }
         catch (Exception exception)
         {
-            NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-failure", new { Error = exception.ToString(), Frame = battle.Frame, Callback = battle.NativeGraphics!.Callback });
+            NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-failure", new { Error = exception.ToString(), Frame = battle.Frame, Callback = battle.Presentation!.Graphics.Callback });
             throw;
         }
     }
@@ -142,7 +142,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         Assert.NotEqual(quickPath, saves.GetPath(0));
         Assert.True(File.Exists(quickPath));
         Assert.Equal(profile, saves.Load(0).Battle!.NativeEffectMemory!.ExecutionStack);
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "selected-stack-quick-roundtrip-proof", new { Source = source, QuickPath = quickPath, NextQuickPath = saves.GetPath(0), Profile = profile, Frame = world.Battle.Frame, Callback = world.Battle.NativeGraphics!.Callback });
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "selected-stack-quick-roundtrip-proof", new { Source = source, QuickPath = quickPath, NextQuickPath = saves.GetPath(0), Profile = profile, Frame = world.Battle.Frame, Callback = world.Battle.Presentation!.Graphics.Callback });
     }
 
     [Fact]
@@ -198,18 +198,18 @@ public sealed class NativeBattleExecutionStackMigrationTests
         using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
         BattleSnapshot originalBattle = GameSession.Load(sourcePath!).Battle!;
         BattleSession originalSession = BattleSession.Restore(originalBattle);
-        Assert.Equal(new BattleScenePresentation(world.BattleResources, originalBattle.Definition, true).Render(originalSession, 320, 224).ToArray(), NativeBattleProductionEffectAdmissionTests.RenderBattle(world));
+        Assert.Equal(new BattleScenePresentation(world.BattleResources, originalBattle.Definition).Render(originalSession, 320, 224).ToArray(), NativeBattleProductionEffectAdmissionTests.RenderBattle(world));
         GameSession independent = new(GameSession.Load(migratedPath));
         using GameWorld clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
-        long beforeCallback = world.Battle!.NativeGraphics!.Callback;
+        long beforeCallback = world.Battle!.Presentation!.Graphics.Callback;
         world.ApplyBattleInput(new(BattleInputKind.Tick));
         clone.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.True(world.Battle.NativeGraphics!.Callback > beforeCallback);
+        Assert.True(world.Battle.Presentation!.Graphics.Callback > beforeCallback);
         session.SetEventState(world.Events.Capture());
         independent.SetEventState(clone.Events.Capture());
         Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(independent.State));
         Assert.Equal(NativeBattleProductionEffectAdmissionTests.RenderBattle(world), NativeBattleProductionEffectAdmissionTests.RenderBattle(clone));
-        Assert.Equal(profile, world.Battle.NativeEffectMemory!.ExecutionStack);
+        Assert.Equal(profile, world.Battle.Presentation!.Memory.ExecutionStack);
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-checked-next", session.State);
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-proof", new
         {

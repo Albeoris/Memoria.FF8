@@ -99,8 +99,8 @@ public sealed class NativeBattleEffectResourceResolverTests
         session.AttachNativeEffectResourceResolver(effect => Catalog()[effect - 1] with { InitializerAsset = new("fixture.tim", [0xA7]) });
         NativeBattleGraphicsState admitted = (NativeBattleGraphicsState)begin.Invoke(session, [graphics, (ushort)144, false])!;
         Assert.Equal((ushort)144, admitted.OriginalEffect!.Binding.Effect);
-        Assert.Equal(143, session.NativeEffectMemory!.SelectedIndex);
-        Assert.Equal(new byte[] { 0xA7 }, session.NativeEffectMemory.Arena!.Read(0, 1));
+        Assert.Equal(143, session.Presentation!.Memory.SelectedIndex);
+        Assert.Equal(new byte[] { 0xA7 }, session.Presentation!.Memory.Arena!.Read(0, 1));
     }
 
     [Fact]

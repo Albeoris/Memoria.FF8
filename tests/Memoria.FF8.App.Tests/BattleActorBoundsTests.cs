@@ -68,27 +68,6 @@ public sealed class BattleActorBoundsTests
         Assert.Equal("target", Assert.Single(ordering.Packets).PresentationActorId);
     }
 
-    [Fact]
-    public void Component_bounds_follow_posed_body_transform_and_exclude_unlabelled_weapons()
-    {
-        BattleModel model = BattleDebugModels.CreateDummy();
-        BattleCamera camera = new(Vector3.Zero, -Vector3.UnitZ, 1, 0.45f);
-        BattleRenderer renderer = new(320, 240);
-        BattleActorDraw body = new(model, new(10, 0, -100), AttackOffset: new(5, 3, 0), GroundOffset: 2) { ActorId = "target" };
-        BattleActorDraw weapon = body with { ActorId = null, Position = new(1000, 0, -100) };
-        renderer.Render(new BattleStage(0, [], []), [body, weapon], camera);
-        Assert.True(renderer.TryGetActorBounds("target", out Vector4 bounds));
-        List<Vector2> expected = [];
-        foreach (Vector3 vertex in model.Pose(0, 0).SelectMany(mesh => mesh))
-        {
-            Assert.True(renderer.TryProject(vertex + new Vector3(15, 1, -100), out Vector2 screen));
-            expected.Add(screen);
-        }
-        Assert.Equal(new Vector4(expected.Min(point => point.X), expected.Min(point => point.Y), expected.Max(point => point.X), expected.Max(point => point.Y)), bounds);
-        renderer.Render(new BattleStage(0, [], []), [weapon], camera);
-        Assert.False(renderer.TryGetActorBounds("target", out _));
-    }
-
     private static NativeBattlePrimitiveTables Tables()
     {
         byte[] lengths = new byte[256];

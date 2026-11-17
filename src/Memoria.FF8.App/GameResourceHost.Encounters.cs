@@ -8,7 +8,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameResourceHost
 {
-    private sealed record PreparedEncounterPolicy(EncounterPatchComposition Composition, EncounterNativeEventResources NativeEvents);
+    private sealed record PreparedEncounterPolicy(EncounterPatchComposition Composition, EncounterNativeEventBinding NativeEvents);
 
     private ImmutableDictionary<int, PreparedEncounterPolicy> preparedEncounterPolicies = ImmutableDictionary<int, PreparedEncounterPolicy>.Empty;
 
@@ -51,8 +51,8 @@ internal sealed partial class GameResourceHost
                     EncounterBindingResult binding = EncounterBindingResolver.Resolve(group.Key, definition, new("Classic"));
                     ImmutableArray<string> baselineActors = actors.Where(actor => actor.InitialActive).Select(actor => actor.Id == binding.OriginalActorId ? "original" : "scene-" + actor.SceneSlot).ToImmutableArray();
                     EncounterPatchComposition composition = EncounterPatchComposer.Compose(new(group.Key, "Classic", baselineActors), group);
-                    int model = actors.Single(actor => actor.Id == binding.OriginalActorId).ModelId;
-                    EncounterNativeEventResources nativeEvents = EncounterNativeEventResourceReader.Bind(assets.ReadEnemyNativeGraphicsResource(model));
+                    BattleCombatantDefinition original = actors.Single(actor => actor.Id == binding.OriginalActorId);
+                    EncounterNativeEventBinding nativeEvents = EncounterNativeEventBinding.Bind(binding, original, assets.ReadEnemyNativeGraphicsResource(original.ModelId));
                     EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = nativeEvents };
                     _ = ApplyCompiledEncounterDefinition(definition, binding, compiled);
                     ValidateEncounterPresentationAssets(assets, definition, binding, composition);

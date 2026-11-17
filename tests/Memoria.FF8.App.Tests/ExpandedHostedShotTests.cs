@@ -32,7 +32,7 @@ public sealed class ExpandedHostedShotTests
             Driver = new(command, 192) { ExpectedNativeCommand = 237, ExpectedNativeAction = 1, LimitSelection = new(1, 4, 256) }
         };
         BattleSession battle = world.StartDiagnosticBattle(request);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         List<BattleDiagnosticEffectDispatch> shotDispatches = [];
         battle.DiagnosticEffectDispatched += dispatch =>
         {
@@ -133,8 +133,8 @@ public sealed class ExpandedHostedShotTests
     private static void RunShot(GameWorld world, int ammo, byte stock, string close)
     {
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
-        ExpandedBattlePresentationProcess process = Assert.IsType<ExpandedBattlePresentationProcess>(battle.ExpandedPresentationProcess);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(ExpandedBattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant irvine = Assert.Single(battle.Combatants, actor => actor.Id == IrvineId);
         BattleModelOwner source = battle.ReadPresentationModelOwner(IrvineId);
         Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(source, out _));
@@ -240,7 +240,7 @@ public sealed class ExpandedHostedShotTests
             for (int frame = 0; frame < CallbackBudget && !completed(); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.ExpandedPresentationProcess);
+                Assert.Same(process, battle.Presentation);
                 foreach (var header in child.NativeActionPackets.PublishedHeaders().Where(header => header.Slot.Source == source && header.Slot.Command is 14 or 237 or 238))
                 {
                     if (!contacts.ContainsKey(header.Slot.Command))
@@ -255,7 +255,7 @@ public sealed class ExpandedHostedShotTests
             }
             if (!completed())
             {
-                NativeBattleGraphicsState graphics = child.NativeGraphics!;
+                NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
                 string queue = string.Join(", ", graphics.Descriptors.Queue.Select(slot => $"{graphics.Descriptors.Packets[slot].Command}/{graphics.Descriptors.Packets[slot].PriorityState:X2}"));
                 string logical = battle.ActiveAction is { } action ? $"{action.Ability}/{action.Phase}/{action.NativeLimitCallback}" : "none";
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(source);

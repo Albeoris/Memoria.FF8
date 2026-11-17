@@ -55,7 +55,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
             current = queued;
             Assert.Equal(JsonSerializer.Serialize(originalBinding), JsonSerializer.Serialize(queued.Definition.NativeEffectCatalog[effectId - 1]));
             battle = Restore(queued, game);
-            BattleScenePresentation scene = new(assets, queued.Definition, true);
+            BattleScenePresentation scene = new(assets, queued.Definition);
             Dictionary<string, int> hitPoints = queued.Combatants.ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
             ColdNext("queued", queued);
             // A diagnostic guard bounds a failed continuation; it does not prescribe the native effect duration.
@@ -164,7 +164,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
                 BattleSession cold = Restore(serialized, freshGame);
                 BattleSession direct = Restore(snapshot, game);
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-                BattleScenePresentation freshScene = new(freshAssets, snapshot.Definition, true);
+                BattleScenePresentation freshScene = new(freshAssets, snapshot.Definition);
                 Assert.Equal(pixels, freshScene.Render(cold, 320, 224).ToArray());
                 cold.Tick();
                 direct.Tick();

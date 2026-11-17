@@ -23,7 +23,7 @@ public sealed class BattleComponentMigrationTests
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom() });
-        using GameWorld world = new(session, assets.GameDirectory) { UsePhysicalBattlePresentation = true };
+        using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition installed = world.CreateEncounterBattle(512);
         //This declared component was constructed from the authentic New Game template, not a user's historical save.
         installed = installed with { NativeKnownMagic = assets.ReadNewGameKnownMagic() };

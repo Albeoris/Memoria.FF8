@@ -37,7 +37,7 @@ public sealed class NativeBattleGaugeRegistrationPresentationTests
         };
         BattleSession first = Restore(source);
         BattleSession second = Restore(source);
-        TimeSpan callbackStep = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        TimeSpan callbackStep = BattlePresentationTiming.ElapsedForCallbacks(1);
         first.AdvanceNativeGraphicsPresentation(callbackStep);
         second.AdvanceNativeGraphicsPresentation(callbackStep);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));

@@ -107,7 +107,7 @@ public sealed class NativeBattleVictoryContinuationTests
         {
             for (int callback = 0; callback < 2000 && battle.Outcome == BattleOutcome.Active; callback++)
             {
-                if (battle.NativeGraphics?.NativeOutcome?.ResultByte6E7 != 4 && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
+                if (battle.Presentation?.Graphics?.NativeOutcome?.ResultByte6E7 != 4 && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
                 {
                     BattleCombatant? actor = battle.Combatants.FirstOrDefault(actor => actor.IsPlayer && actor.IsReady && !actor.IsBusy && actor.IsAlive);
                     BattleCombatant? target = battle.Combatants.FirstOrDefault(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive);
@@ -117,8 +117,8 @@ public sealed class NativeBattleVictoryContinuationTests
                     }
                 }
                 battle.Tick();
-                sawVictoryTask |= battle.NativeGraphics!.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Victory503040);
-                if (battle.NativeGraphics.NativeOutcome?.ResultByte6E7 == 4)
+                sawVictoryTask |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Victory503040);
+                if (battle.Presentation!.Graphics.NativeOutcome?.ResultByte6E7 == 4)
                 {
                     string hp = JsonSerializer.Serialize(battle.Combatants.Select(actor => new { actor.Id, actor.CurrentHp }));
                     if (!sawAdmission)
@@ -136,7 +136,7 @@ public sealed class NativeBattleVictoryContinuationTests
             Assert.True(sawAdmission);
             Assert.True(sawVictoryTask);
             Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-            Assert.Equal((byte?)0, battle.NativeGraphics!.NativeOutcome!.FadeDurationB0C);
+            Assert.Equal((byte?)0, battle.Presentation!.Graphics.NativeOutcome!.FadeDurationB0C);
             Assert.Single(battle.Events, item => item.Kind == "Outcome");
             session.SetLiveBattle(battle);
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, prefix + "-after", session.State);
@@ -149,7 +149,7 @@ public sealed class NativeBattleVictoryContinuationTests
         {
             session.SetLiveBattle(battle);
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, prefix + "-failure-state", session.State);
-            NativeBattleProductionEffectAdmissionTests.Publish(evidence, prefix + "-failure", new { Error = exception.ToString(), battle.Frame, Callback = battle.NativeGraphics?.Callback });
+            NativeBattleProductionEffectAdmissionTests.Publish(evidence, prefix + "-failure", new { Error = exception.ToString(), battle.Frame, Callback = battle.Presentation?.Graphics?.Callback });
             throw;
         }
     }

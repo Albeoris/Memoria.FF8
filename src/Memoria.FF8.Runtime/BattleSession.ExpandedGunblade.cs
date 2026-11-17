@@ -2,9 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal ushort? HostedTriggerOptions => definition.LimitProgress?.Options978;
 
-    private bool CanTriggerExpandedGunblade(ExpandedBattlePresentationProcess process)
+    private bool CanTriggerExpandedGunblade(BattlePresentationProcess process)
     {
         if (expandedHostedEvent?.Renzokuken is not null)
         {
@@ -17,30 +16,9 @@ public sealed partial class BattleSession
             CanPressNativeTriggerWidget(widget, process.TriggerOptions);
     }
 
-    internal void PressHostedGunblade(long token, BattleModelOwner actor, NativeBattleTriggerWidget widget)
-    {
-        if (!hostedBattlePresentation || hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation ||
-            invocation.Token != token || NativeGraphics is not { } graphics ||
-            actor is not BattlePartyModelOwner || !graphics.ActorModels.Contains(actor) || graphics.PendingTrigger is not null ||
-            !ReferenceEquals(graphics.TriggerWidget, widget) || widget.Actor != actor ||
-            !CanPressNativeTriggerWidget(widget, definition.LimitProgress?.Options978))
-        {
-            throw new InvalidOperationException("Gunblade input requires its active hosted widget.");
-        }
-        NativeBattleActionHeaderSlot header = nativeActionPackets.ReadHeader(invocation.Header);
-        bool reached = widget.SourceMagicId is ushort resource
-            ? header is { Command: 5 } && header.Effect == resource
-            : header.Command is 1 or 12 or 28;
-        if (header.Source != actor || !reached)
-        {
-            throw new InvalidDataException("Gunblade input does not belong to the active hosted header.");
-        }
-        NativeGraphics = graphics with { TriggerWidget = widget with { PendingTrigger = true } };
-    }
-
     private void AcknowledgeExpandedGunbladeRegistration(NativeBattleModelTriggerRegistered receipt, long? actionToken)
     {
-        ExpandedBattlePresentationProcess process = expandedPresentationProcess!;
+        BattlePresentationProcess process = expandedPresentationProcess!;
         if (receipt.Widget.SourceMagicId is not null && expandedHostedEvent?.Renzokuken is not null)
         {
             AcknowledgeExpandedHostedRenzokukenRegistration(process, receipt, actionToken);
@@ -59,10 +37,9 @@ public sealed partial class BattleSession
             // TODO(TD-009): Hosted limit widgets require their own logical registration owner.
             throw new NotSupportedException("Hosted trigger registration requires the current ordinary Gunblade invocation.");
         }
-        nativeGuardianBoost = null;
     }
 
-    private void DispatchExpandedGunbladeTrigger(ExpandedBattlePresentationProcess process)
+    private void DispatchExpandedGunbladeTrigger(BattlePresentationProcess process)
     {
         if (process.PendingTrigger is not { } receipt)
         {

@@ -12,7 +12,7 @@ public sealed class NativeBattleGraphicsPresentationClockTests
     [InlineData(144)]
     public void Display_rate_does_not_change_native_time_or_train_pulses(int displayRate)
     {
-        NativeBattleGraphicsPresentationStep clock = new(0, 0, false);
+        BattlePresentationCallbackStep clock = new(0, 0, false);
         NativeBattleStageSpecializedState stage = NativeBattleStageSpecializedState.FromColdProcess();
         long previous = 0;
         long callbacks = 0;
@@ -20,7 +20,7 @@ public sealed class NativeBattleGraphicsPresentationClockTests
         for (int frame = 1; frame <= displayRate * 10; frame++)
         {
             long timestamp = (long)frame * TimeSpan.TicksPerSecond / displayRate;
-            clock = NativeBattleGraphicsPresentationClock.Advance(clock.Subticks, clock.HalfSubtick, TimeSpan.FromTicks(timestamp - previous));
+            clock = BattlePresentationTiming.Advance(clock.Subticks, clock.HalfSubtick, TimeSpan.FromTicks(timestamp - previous));
             previous = timestamp;
             callbacks += clock.Callbacks;
             for (long index = 0; index < clock.Callbacks; index++)
@@ -40,17 +40,17 @@ public sealed class NativeBattleGraphicsPresentationClockTests
     [Fact]
     public void Callback_duration_conversion_uses_the_same_fixed_rate()
     {
-        Assert.Equal(TimeSpan.FromSeconds(2), NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(31));
-        Assert.Equal(TimeSpan.FromTicks(645_161), NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1));
-        Assert.Equal(TimeSpan.Zero, NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(-1));
+        Assert.Equal(TimeSpan.FromSeconds(2), BattlePresentationTiming.ElapsedForCallbacks(31));
+        Assert.Equal(TimeSpan.FromTicks(645_162), BattlePresentationTiming.ElapsedForCallbacks(1));
+        Assert.Equal(TimeSpan.Zero, BattlePresentationTiming.ElapsedForCallbacks(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BattlePresentationTiming.ElapsedForCallbacks(-1));
     }
 
     [Fact]
     public void Ordinary_battle_admits_31_callbacks_in_two_seconds()
     {
-        Assert.Equal(new NativeBattleGraphicsPresentationStep(31, 0, false), NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromSeconds(2)));
-        Assert.Equal(new NativeBattleGraphicsPresentationStep(15, 5_000_000, false), NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromSeconds(1)));
+        Assert.Equal(new BattlePresentationCallbackStep(31, 0, false), BattlePresentationTiming.Advance(0, false, TimeSpan.FromSeconds(2)));
+        Assert.Equal(new BattlePresentationCallbackStep(15, 5_000_000, false), BattlePresentationTiming.Advance(0, false, TimeSpan.FromSeconds(1)));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class NativeBattleGraphicsPresentationClockTests
         long callbacks = 0;
         for (int index = 0; index < 1000; index++)
         {
-            NativeBattleGraphicsPresentationStep step = NativeBattleGraphicsPresentationClock.Advance(graphics.PresentationSubticks, graphics.PresentationHalfSubtick, TimeSpan.FromTicks(333_333));
+            BattlePresentationCallbackStep step = BattlePresentationTiming.Advance(graphics.PresentationSubticks, graphics.PresentationHalfSubtick, TimeSpan.FromTicks(333_333));
             callbacks += step.Callbacks;
             graphics = graphics with { PresentationSubticks = step.Subticks, PresentationHalfSubtick = step.HalfSubtick };
             if (index == 500)
@@ -69,14 +69,14 @@ public sealed class NativeBattleGraphicsPresentationClockTests
                 graphics = JsonSerializer.Deserialize<NativeBattleGraphicsState>(JsonSerializer.Serialize(graphics))!;
             }
         }
-        Assert.Equal(new NativeBattleGraphicsPresentationStep(callbacks, graphics.PresentationSubticks, graphics.PresentationHalfSubtick), NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromTicks(333_333_000)));
+        Assert.Equal(new BattlePresentationCallbackStep(callbacks, graphics.PresentationSubticks, graphics.PresentationHalfSubtick), BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(333_333_000)));
     }
 
     [Fact]
     public void Train_pulses_retain_one_pixel_amplitude_at_native_callback_rate()
     {
         NativeBattleStageSpecializedState stage = NativeBattleStageSpecializedState.FromColdProcess();
-        long callbacks = NativeBattleGraphicsPresentationClock.Advance(0, false, TimeSpan.FromSeconds(2)).Callbacks;
+        long callbacks = BattlePresentationTiming.Advance(0, false, TimeSpan.FromSeconds(2)).Callbacks;
         int pulses = 0;
         for (int index = 0; index < callbacks; index++)
         {
