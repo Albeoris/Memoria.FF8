@@ -29,7 +29,8 @@ internal static class AutoPlayWorldModeNavigationTests
         Check(before == JsonSerializer.Serialize(session.Capture()), "Mode route or landing advice changed authoritative VM, process, RNG or input.");
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The native mode route unexpectedly requested a choice."));
         string nativeBeforeGoal = JsonSerializer.Serialize(session.Capture() with { AutoPlay = null });
-        policy.SetDestinationField(target.FieldEntries.Select(entry => entry.Destination!.Field).Distinct().Single());
+        var riderEntry = world.ReadAutoPlayMeshEntryForModel(target, guide.RiderModel);
+        policy.SetDestinationField(riderEntry.Transitions.Where(transition => transition.Selector is not null).Select(transition => world.ResolveFieldEntry(transition.Selector!.Value).Map).Distinct().Single());
         Check(nativeBeforeGoal == JsonSerializer.Serialize(session.Capture() with { AutoPlay = null }), "Selecting a planning destination changed native gameplay facts.");
         policy.State.FrontierProgressKey = null;
         policy.State.FrontierIdleSteps = 0;
@@ -38,6 +39,10 @@ internal static class AutoPlayWorldModeNavigationTests
         Ff7WorldEntity initial = world.CaptureAutoPlayMovementState().Player;
         var initialLanding = world.PreviewAutoPlaySurfaceLanding();
         bool initialLandingConnected = initialLanding.Ground is not null && guide.RiderReachableFaces.Contains(initialLanding.Ground);
+        if (initialLandingConnected)
+        {
+            Check(world.ReadAutoPlayControlFrontiers().Any(control => control.RiderModel == guide.RiderModel), "An enabled native landing lost its exit control because a previous control reason was retained.");
+        }
         controller.Advance(1);
         Check(controller.Error is null && policy.State.Active is { WorldModeGoal: not null }, $"The shared planner did not select the directed native vehicle/rider approach: {controller.Error}");
         Ff7AutoPlayWorldModeGoal selected = policy.State.Active!.WorldModeGoal!;

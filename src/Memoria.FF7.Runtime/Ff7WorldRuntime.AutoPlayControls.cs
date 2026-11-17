@@ -10,7 +10,7 @@ public sealed partial class Ff7WorldRuntime
     /// <summary>Observes an intrinsic native control action. Landing and the subsequent ownership change remain native input effects.</summary>
     public Ff7AutoPlayWorldControlObservation[] ReadAutoPlayControlFrontiers()
     {
-        if (faulted || !initialized || mainState != 1 || controlLock != 0 || pendingWorldBattle is not null || dialogue is { Completed: false } || fieldDeparture is not null || vehicle is { DismountPhase: > 0 } or { FlightState: not 0 } || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? transport) || !CanStartSurfaceVehicleDismount(transport))
+        if (faulted || !initialized || mainState != 1 || pendingWorldBattle is not null || dialogue is { Completed: false } || fieldDeparture is not null || vehicle is { DismountPhase: > 0 } or { FlightState: not 0 } || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? transport) || !CanStartSurfaceVehicleDismount(transport))
         {
             return [];
         }
