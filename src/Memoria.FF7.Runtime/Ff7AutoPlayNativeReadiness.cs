@@ -35,9 +35,9 @@ internal sealed class Ff7AutoPlayNativeReadiness
         {
             FieldEntitySnapshot target = vm.Entities[targetId];
             int currentPc = target.ProgramCounter;
-            if (target.WaitCounter > 0 && currentPc >= 0 && currentPc + 5 < script.Length && script[currentPc] == 0x24 && script[currentPc + 3] == 0x03 && script[currentPc + 4] < vm.Entities.Length)
+            if (target.WaitCounter > 0 && currentPc >= 0 && currentPc + 2 < script.Length && script[currentPc] == 0x24)
             {
-                // A running finite countdown immediately precedes an authored synchronous request.
+                // The executing WAIT owns a finite countdown, regardless of the following opcode.
                 work.Add(targetId);
             }
             for (int priority = 0; priority < target.SyncStates.Length; priority++)
@@ -87,7 +87,8 @@ internal sealed class Ff7AutoPlayNativeReadiness
             Entities = work.Order().Select(entity => new { Entity = entity, State = vm.Entities[entity] }),
             Actors = process.Actors.Where(actor => work.Contains(actor.Entity)).Select(actor => new { actor.Entity, actor.X4096, actor.Y4096, actor.Z4096, actor.Triangle, actor.Direction, actor.Animation, actor.AnimationFrame16, actor.AnimationFinished, actor.TurnStep, actor.Offset, actor.Ladder, actor.Jump }),
             Motions = process.Motions.Where(motion => work.Contains(motion.Entity)).Select(motion => new { motion.Entity, motion.TargetX, motion.TargetY, motion.Completed }),
-            Requests = (vm.PendingRequests ?? []).Where(request => work.Contains(request.Entity)).Select(request => new { request.Entity, request.Priority, request.ProgramCounter, request.Command })
+            Requests = (vm.PendingRequests ?? []).Where(request => work.Contains(request.Entity)).Select(request => new { request.Entity, request.Priority, request.ProgramCounter, request.Command }),
+            Dialogues = process.Dialogues.Where(dialogue => (vm.PendingRequests ?? []).Any(request => request.Id == dialogue.RequestId && work.Contains(request.Entity)))
         });
         totalObservations++;
         if (!observations.Add(fingerprint))

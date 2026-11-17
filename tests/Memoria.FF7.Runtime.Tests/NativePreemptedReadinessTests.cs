@@ -36,7 +36,8 @@ internal static class NativePreemptedReadinessTests
         Check(before == JsonSerializer.Serialize(new { vm, process }), "Readiness inspection changed native execution facts.");
         FieldVmSnapshot countdown = vm with { Entities = [owner with { WaitCounter = 90 }, child with { SyncStates = new FieldSyncState[8] }] };
         Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 3, 1, 0x60 }, []), "An existing countdown could not reach its next synchronous native request.");
-        Check(!new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 0, 0, 0 }, []), "An unrelated ambient wait authenticated future synchronous work.");
+        Check(new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0x24, 90, 0, 0xF8, 47, 0xF9 }, []), "A finite countdown depended on the identity of its following opcode.");
+        Check(!new Ff7AutoPlayNativeReadiness().ShouldWait(1, "source", countdown, process, new byte[] { 0, 90, 0, 0, 0, 0 }, []), "A stale counter without an executing WAIT authenticated finite work.");
         CheckOriginal();
     }
 

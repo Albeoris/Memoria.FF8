@@ -10,6 +10,7 @@ internal static class NativeAutoPlayReadinessTests
     {
         CheckFiniteRequest();
         CheckStagnation();
+        CheckTimedMessageClose();
         CheckOriginal();
     }
 
@@ -55,6 +56,44 @@ internal static class NativeAutoPlayReadinessTests
         {
             Ff7FieldProcess process = new() { Actors = [new() { Slot = 0, Entity = 1, Model = 0, X4096 = cycle, AnimationFrame16 = cycle }] };
             Check(moving.ShouldWait(1, "component", vm, process, new byte[] { 3, 1, 0x40, 0 }, []), "Observable owned native movement was confused with a stalled request.");
+        }
+    }
+
+    private static void CheckTimedMessageClose()
+    {
+        FieldVmSnapshot vm = Snapshot();
+        FieldEntitySnapshot timer = new(6, 6, 145, new int[8], new FieldSyncState[8], Enumerable.Repeat(-1, 8).ToArray());
+        vm = vm with { Entities = [.. vm.Entities, timer], PendingRequests = [new(1, 1, 2, 3, new FieldDialogueCommand(0, 198))] };
+        Ff7FieldProcess process = new() { Dialogues = [new(1, 0, 198, null, null, 0, AwaitingInput: true)] };
+        byte[] script = [3, 1, 0x40, 0, 0, 0, 0x24, 145, 0, 0x54, 0, 0];
+        Ff7AutoPlayNativeReadiness readiness = new();
+        for (ushort remaining = 145; remaining > 0; remaining--)
+        {
+            FieldEntitySnapshot[] entities = vm.Entities.ToArray();
+            entities[2] = timer with { WaitCounter = remaining };
+            Check(readiness.ShouldWait(1, "timed-message", vm with { Entities = entities }, process, script, []), "The authored message-close countdown was mistaken for a stalled synchronous message.");
+        }
+        bool waiting = true;
+        Ff7AutoPlayNativeReadiness stalled = new();
+        for (int cycle = 0; cycle <= Ff7AutoPlayNativeReadiness.RepeatedObservationLimit; cycle++)
+        {
+            waiting = stalled.ShouldWait(1, "stalled-timer", vm, process, script, []);
+        }
+        Check(!waiting, "An unchanged message-close timer bypassed the stagnation bound.");
+        Ff7AutoPlayNativeReadiness ambient = new();
+        waiting = true;
+        for (int cycle = 0; cycle < 256 && waiting; cycle++)
+        {
+            FieldEntitySnapshot[] entities = vm.Entities.ToArray();
+            entities[2] = timer with { WaitCounter = (ushort)(10 - cycle % 10) };
+            waiting = ambient.ShouldWait(1, "ambient-loop", vm with { Entities = entities }, process, script, []);
+        }
+        Check(!waiting, "A repeating ambient countdown masked an exhausted frontier indefinitely.");
+        Ff7AutoPlayNativeReadiness closing = new();
+        for (int height = 145; height > 0; height--)
+        {
+            Ff7Dialogue dialogue = process.Dialogues[0] with { Presentation = new(7, 147, height) };
+            Check(closing.ShouldWait(1, "closing-message", vm with { Entities = vm.Entities[..2] }, process with { Dialogues = [dialogue] }, script, []), "Native owned window-closing progress was omitted from readiness.");
         }
     }
 
