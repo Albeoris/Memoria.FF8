@@ -2,88 +2,100 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleLogicalOrdering
 {
-    // Packet insertion and rollback mutate this private index; range walks do not allocate snapshots.
+    // Packet insertion and rollback mutate this private index; slot handles never leave a range walk.
     private sealed class PacketRangeIndex
     {
-        public sealed class Node((int Offset, int Index) key, Node? parent)
+        public const int NoSlot = -1;
+
+        private struct Node((int Offset, int Index) key, int parent)
         {
             public (int Offset, int Index) Key = key;
-            public Node? Parent = parent;
-            public Node? Left;
-            public Node? Right;
+            public int Parent = parent;
+            public int Left = NoSlot;
+            public int Right = NoSlot;
             public int Height = 1;
         }
 
-        private Node? root;
+        private readonly OrderingPages<Node> nodes = new();
+        private int root = NoSlot;
+        private int freeHead = NoSlot;
 
-        public Node? FirstAtOrAfter((int Offset, int Index) key)
+        public (int Offset, int Index) ReadKey(int slot) => nodes.Slot(slot).Key;
+
+        public int FirstAtOrAfter((int Offset, int Index) key)
         {
-            Node? current = root;
-            Node? first = null;
-            while (current is not null)
+            int current = root;
+            int first = NoSlot;
+            while (current != NoSlot)
             {
-                if (current.Key.CompareTo(key) >= 0)
+                ref readonly Node node = ref nodes.Slot(current);
+                if (node.Key.CompareTo(key) >= 0)
                 {
                     first = current;
-                    current = current.Left;
+                    current = node.Left;
                 }
                 else
                 {
-                    current = current.Right;
+                    current = node.Right;
                 }
             }
             return first;
         }
 
-        public Node? Next(Node current)
+        public int Next(int current)
         {
-            if (current.Right is { } right)
+            int right = nodes.Slot(current).Right;
+            if (right != NoSlot)
             {
                 current = right;
-                while (current.Left is { } left)
+                for (int left = nodes.Slot(current).Left; left != NoSlot; left = nodes.Slot(current).Left)
                 {
                     current = left;
                 }
                 return current;
             }
-            while (current.Parent is { } parent)
+            int parent = nodes.Slot(current).Parent;
+            while (parent != NoSlot)
             {
-                if (ReferenceEquals(parent.Left, current))
+                ref readonly Node ancestor = ref nodes.Slot(parent);
+                if (ancestor.Left == current)
                 {
                     return parent;
                 }
                 current = parent;
+                parent = ancestor.Parent;
             }
-            return null;
+            return NoSlot;
         }
 
         public bool Add((int Offset, int Index) key)
         {
-            Node? current = root;
-            Node? parent = null;
+            int current = root;
+            int parent = NoSlot;
             int comparison = 0;
-            while (current is not null)
+            while (current != NoSlot)
             {
-                comparison = key.CompareTo(current.Key);
+                ref readonly Node node = ref nodes.Slot(current);
+                comparison = key.CompareTo(node.Key);
                 if (comparison == 0)
                 {
                     return false;
                 }
                 parent = current;
-                current = comparison < 0 ? current.Left : current.Right;
+                current = comparison < 0 ? node.Left : node.Right;
             }
-            Node added = new(key, parent);
-            if (parent is null)
+            int added = Allocate(new(key, parent));
+            if (parent == NoSlot)
             {
                 root = added;
             }
             else if (comparison < 0)
             {
-                parent.Left = added;
+                nodes.Slot(parent).Left = added;
             }
             else
             {
-                parent.Right = added;
+                nodes.Slot(parent).Right = added;
             }
             BalanceFrom(parent);
             return true;
@@ -91,33 +103,55 @@ public sealed partial record NativeBattleLogicalOrdering
 
         public bool Remove((int Offset, int Index) key)
         {
-            Node? current = FirstAtOrAfter(key);
-            if (current is null || current.Key != key)
+            int current = FirstAtOrAfter(key);
+            if (current == NoSlot || ReadKey(current) != key)
             {
                 return false;
             }
-            if (current.Left is not null && current.Right is not null)
+            ref Node node = ref nodes.Slot(current);
+            if (node.Left != NoSlot && node.Right != NoSlot)
             {
-                Node successor = Next(current)!;
-                current.Key = successor.Key;
+                int successor = Next(current);
+                node.Key = ReadKey(successor);
                 current = successor;
+                node = ref nodes.Slot(current);
             }
-            Node? parent = current.Parent;
-            Replace(current, current.Left ?? current.Right);
+            int parent = node.Parent;
+            Replace(current, node.Left != NoSlot ? node.Left : node.Right);
+            // A released row reuses its parent field for the free list until the next allocation.
+            node.Parent = freeHead;
+            freeHead = current;
             BalanceFrom(parent);
             return true;
         }
 
-        private void BalanceFrom(Node? current)
+        private int Allocate(in Node node)
         {
-            while (current is not null)
+            if (freeHead == NoSlot)
+            {
+                int appended = nodes.Count;
+                nodes.Add(node);
+                return appended;
+            }
+            int reused = freeHead;
+            ref Node slot = ref nodes.Slot(reused);
+            freeHead = slot.Parent;
+            slot = node;
+            return reused;
+        }
+
+        private void BalanceFrom(int current)
+        {
+            while (current != NoSlot)
             {
                 UpdateHeight(current);
-                int balance = Height(current.Left) - Height(current.Right);
+                ref readonly Node node = ref nodes.Slot(current);
+                int balance = Height(node.Left) - Height(node.Right);
                 if (balance > 1)
                 {
-                    Node left = current.Left!;
-                    if (Height(left.Left) < Height(left.Right))
+                    int left = node.Left;
+                    ref readonly Node child = ref nodes.Slot(left);
+                    if (Height(child.Left) < Height(child.Right))
                     {
                         RotateLeft(left);
                     }
@@ -125,74 +159,84 @@ public sealed partial record NativeBattleLogicalOrdering
                 }
                 else if (balance < -1)
                 {
-                    Node right = current.Right!;
-                    if (Height(right.Right) < Height(right.Left))
+                    int right = node.Right;
+                    ref readonly Node child = ref nodes.Slot(right);
+                    if (Height(child.Right) < Height(child.Left))
                     {
                         RotateRight(right);
                     }
                     current = RotateLeft(current);
                 }
-                current = current.Parent;
+                current = nodes.Slot(current).Parent;
             }
         }
 
-        private Node RotateLeft(Node current)
+        private int RotateLeft(int current)
         {
-            Node next = current.Right!;
-            current.Right = next.Left;
-            if (current.Right is { } moved)
+            ref Node node = ref nodes.Slot(current);
+            int next = node.Right;
+            ref Node replacement = ref nodes.Slot(next);
+            node.Right = replacement.Left;
+            if (node.Right != NoSlot)
             {
-                moved.Parent = current;
+                nodes.Slot(node.Right).Parent = current;
             }
             Replace(current, next);
-            next.Left = current;
-            current.Parent = next;
+            replacement.Left = current;
+            node.Parent = next;
             UpdateHeight(current);
             UpdateHeight(next);
             return next;
         }
 
-        private Node RotateRight(Node current)
+        private int RotateRight(int current)
         {
-            Node next = current.Left!;
-            current.Left = next.Right;
-            if (current.Left is { } moved)
+            ref Node node = ref nodes.Slot(current);
+            int next = node.Left;
+            ref Node replacement = ref nodes.Slot(next);
+            node.Left = replacement.Right;
+            if (node.Left != NoSlot)
             {
-                moved.Parent = current;
+                nodes.Slot(node.Left).Parent = current;
             }
             Replace(current, next);
-            next.Right = current;
-            current.Parent = next;
+            replacement.Right = current;
+            node.Parent = next;
             UpdateHeight(current);
             UpdateHeight(next);
             return next;
         }
 
-        private void Replace(Node current, Node? replacement)
+        private void Replace(int current, int replacement)
         {
-            Node? parent = current.Parent;
-            if (parent is null)
+            int parent = nodes.Slot(current).Parent;
+            if (parent == NoSlot)
             {
                 root = replacement;
             }
-            else if (ReferenceEquals(parent.Left, current))
-            {
-                parent.Left = replacement;
-            }
             else
             {
-                parent.Right = replacement;
+                ref Node ancestor = ref nodes.Slot(parent);
+                if (ancestor.Left == current)
+                {
+                    ancestor.Left = replacement;
+                }
+                else
+                {
+                    ancestor.Right = replacement;
+                }
             }
-            if (replacement is not null)
+            if (replacement != NoSlot)
             {
-                replacement.Parent = parent;
+                nodes.Slot(replacement).Parent = parent;
             }
         }
 
-        private static int Height(Node? node) => node?.Height ?? 0;
+        private int Height(int slot) => slot == NoSlot ? 0 : nodes.Slot(slot).Height;
 
-        private static void UpdateHeight(Node node)
+        private void UpdateHeight(int slot)
         {
+            ref Node node = ref nodes.Slot(slot);
             node.Height = Math.Max(Height(node.Left), Height(node.Right)) + 1;
         }
     }

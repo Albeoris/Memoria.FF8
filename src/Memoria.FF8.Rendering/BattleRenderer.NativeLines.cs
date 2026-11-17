@@ -24,7 +24,8 @@ public sealed partial class BattleRenderer
         depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, depths, projected);
         int blendMode = drawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
         NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.");
-        NativeBattlePilotPrimitiveSample pilot = PreparePilotPrimitiveSample(command, drawMode, depthState, perspective);
+        NativeBattlePilotPrimitiveSample pilot = PreparePilotPrimitiveSample(command, depthState, perspective);
+        NativeBattlePrimitiveViewportProjector viewport = default;
         PrimitiveVertex a = Vertex(command, pilot, 0, projected[0]);
         PrimitiveVertex b = Vertex(command, pilot, 1, projected[1]);
         int blend = semi ? blendMode : -1;
@@ -56,11 +57,18 @@ public sealed partial class BattleRenderer
             int colorIndex = gouraud ? corner * 2 : 0;
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
             NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.WordSpan[colorIndex], semi, blendMode);
-            Vector2 position = NativePrimitivePosition(command.WordSpan[coordinateIndex], command.Flags20, drawMode);
-            if (TrySamplePilotCorner(pilot, corner, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            uint coordinate = command.WordSpan[coordinateIndex];
+            if (!viewport.IsPrepared)
             {
-                position = sampled;
+                viewport = new(ProjectionBounds, command.Flags20, drawMode);
+            }
+            if (TrySamplePilotCorner(pilot, viewport, corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            {
                 depth = sampledDepth;
+            }
+            else
+            {
+                position = viewport.Project(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)));
             }
             return new(position.X, position.Y, depth.Depth, depth.ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
         }
@@ -77,30 +85,6 @@ public sealed partial class BattleRenderer
         }
 
         static TriangleVertex Convert(PrimitiveVertex vertex) => new(new(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new(vertex.Color / 255f, vertex.Alpha / 255f));
-    }
-
-    private Vector2 NativePrimitivePosition(uint coordinate, uint flags, NativeBattlePrimitiveDrawMode mode)
-    {
-        return NativePrimitivePosition(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)), flags, mode);
-    }
-
-    private Vector2 NativePrimitivePosition(int signedX, int signedY, uint flags, NativeBattlePrimitiveDrawMode mode)
-    {
-        if (mode.NormalViewport is not null || mode.ViewportInputs is not null)
-        {
-            NativeSoftwareNormalViewportDerived viewport = mode.NormalViewport ?? throw new NotSupportedException("Native primitive viewport requires its retained derived outputs.");
-            NativeSoftwareViewportInputs inputs = mode.ViewportInputs ?? throw new NotSupportedException("Native primitive viewport requires its actual input dimensions.");
-            if (inputs.Width <= 0 || inputs.Height <= 0)
-            {
-                throw new InvalidDataException("Native primitive viewport requires positive dimensions.");
-            }
-            bool full = (flags & 1) != 0;
-            float nativeX = (float)((double)signedX * (full ? viewport.ScaleX : viewport.LowCoordinateScaleX) + viewport.NormalOffsetX);
-            float nativeY = (float)((double)signedY * (full ? viewport.ScaleY : viewport.LowCoordinateScaleY) + viewport.NormalOffsetY);
-            return new(ProjectionBounds.X + (float)(((double)nativeX + 0.5) * ProjectionBounds.Width / inputs.Width), ProjectionBounds.Y + (float)(((double)nativeY + 0.5) * ProjectionBounds.Height / inputs.Height));
-        }
-        float unit = (flags & 1) != 0 ? 1 : 0.125f;
-        return new(ProjectionBounds.X + signedX * unit * ProjectionBounds.Width / 320, ProjectionBounds.Y + signedY * unit * ProjectionBounds.Height / 216);
     }
 
     private void RasterNativeLine(NativeRasterTriangle line, int stripeTop, int stripeBottom)

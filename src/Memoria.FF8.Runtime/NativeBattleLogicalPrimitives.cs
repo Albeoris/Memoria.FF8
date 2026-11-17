@@ -723,9 +723,13 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             bool changed = false;
             int minimum = Math.Max(0, reference.ByteOffset - maximumPacketBytes + 1);
             int maximum = checked(reference.ByteOffset + length - 1);
-            for (PacketRangeIndex.Node? node = ranges.FirstAtOrAfter((minimum, int.MinValue)); node is not null && node.Key.Offset <= maximum; node = ranges.Next(node))
+            for (int slot = ranges.FirstAtOrAfter((minimum, int.MinValue)); slot != PacketRangeIndex.NoSlot; slot = ranges.Next(slot))
             {
-                int index = node.Key.Index;
+                (int offset, int index) = ranges.ReadKey(slot);
+                if (offset > maximum)
+                {
+                    break;
+                }
                 PacketSlot packet = Packets[index];
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
                 if ((!packet.ReadsPhysicalBytes(drawGeneration) || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null || packet.ModelTextureOwner is { Invalidated: false } || !packet.Pilot.IsEmpty || packet.PresentationActorId is not null || packet.ScreenCoverage is not null || packet.SceneCapture is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)

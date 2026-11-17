@@ -295,7 +295,8 @@ public sealed partial class BattleRenderer
                     ? ResolveNativePrimitiveTexture(frame, command, drawMode, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, drawMode, capabilities, colorState);
             }
-            NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, drawMode, state, perspective);
+            NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, state, perspective);
+            NativeBattlePrimitiveViewportProjector viewport = default;
             PrimitiveVertex At(in NativeBattleLogicalCommandView command, in NativeBattlePilotPrimitiveSample pilot, int corner, NativeBattlePrimitiveDepthVertex selectedDepth, ReadOnlySpan<uint> words, ReadOnlySpan<BattleSceneScreenPoint> points)
             {
                 int coordinateWord = 1 + corner * stride;
@@ -320,19 +321,22 @@ public sealed partial class BattleRenderer
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                     coordinates *= prefixUvScale;
                 }
-                Vector2 position = !points.IsEmpty
-                    ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, drawMode)
-                    : NativePrimitivePosition(coordinate, command.Flags20, drawMode);
-                if (TrySamplePilotCorner(pilot, corner, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
+                BattleSceneScreenPoint point = !points.IsEmpty ? points[corner] : new(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)));
+                if (!viewport.IsPrepared)
                 {
-                    position = sampledPosition;
+                    viewport = new(ProjectionBounds, command.Flags20, drawMode);
+                }
+                if (TrySamplePilotCorner(pilot, viewport, corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex sampledDepth))
+                {
                     selectedDepth = sampledDepth;
+                }
+                else
+                {
+                    position = viewport.Project(point.X, point.Y);
                 }
                 if (command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image)
                 {
-                    position = !points.IsEmpty
-                        ? NativeSceneCaptureImagePosition(points[corner].X, points[corner].Y, command.Flags20)
-                        : NativeSceneCaptureImagePosition(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)), command.Flags20);
+                    position = NativeSceneCaptureImagePosition(point.X, point.Y, command.Flags20);
                 }
                 if (coverage is not null)
                 {
@@ -828,15 +832,22 @@ public sealed partial class BattleRenderer
         int y = unchecked((short)(command.WordSpan[1] >> 16));
         int width = point ? (command.Flags20 & 1) != 0 ? 1 : 8 : (ushort)command.WordSpan[2];
         int height = point ? width : (ushort)(command.WordSpan[2] >> 16);
-        NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, drawMode, frame.LastDepthState!, perspective);
+        NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, frame.LastDepthState!, perspective);
+        NativeBattlePrimitiveViewportProjector viewport = default;
         PrimitiveVertex At(in NativeBattleLogicalCommandView command, in NativeBattlePilotPrimitiveSample pilot, int px, int py, int corner)
         {
-            Vector2 position = NativePrimitivePosition(px, py, command.Flags20, drawMode);
-            NativeBattlePrimitiveDepthVertex depth = vertices[0];
-            if (TrySamplePilotCorner(pilot, corner, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            if (!viewport.IsPrepared)
             {
-                position = sampled;
+                viewport = new(ProjectionBounds, command.Flags20, drawMode);
+            }
+            NativeBattlePrimitiveDepthVertex depth = vertices[0];
+            if (TrySamplePilotCorner(pilot, viewport, corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            {
                 depth = sampledDepth;
+            }
+            else
+            {
+                position = viewport.Project(px, py);
             }
             if (command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image)
             {

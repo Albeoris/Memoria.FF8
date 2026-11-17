@@ -94,6 +94,25 @@ public sealed class NativeBattleNormalViewportRenderingTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
+    public void Normal_viewport_keeps_full_projected_integer_precision_before_floating_point_projection(bool full)
+    {
+        Capture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        ushort flags = full ? (ushort)1 : (ushort)0;
+        NativeBattlePrimitiveDrawMode mode = new(0) { NormalViewport = new(1, 1, 1, 1, 0, -16_777_216, 0), ViewportInputs = new(320, 216, 0, 0) };
+        NativeBattleLogicalResolvedCommand resolved = Command(0x20, flags, mode);
+        NativeBattleLogicalCommand command = resolved.Command.ToCommand() with { ProjectedCoordinates = [new(16_777_217, 4), new(16_777_237, 4), new(16_777_217, 20)] };
+
+        renderer.RenderNativePrimitiveFrame(Frame(resolved with { Command = command }), null);
+
+        Vector2 position = Assert.Single(capture.Triangles).A.Position;
+        Assert.Equal(BitConverter.SingleToInt32Bits(1.5f), BitConverter.SingleToInt32Bits(position.X));
+        Assert.Equal(BitConverter.SingleToInt32Bits(4.5f), BitConverter.SingleToInt32Bits(position.Y));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
     public void Partial_viewport_metadata_fails_instead_of_silently_using_default_coordinates(bool derivedOnly)
     {
         NativeBattlePrimitiveDrawMode mode = derivedOnly ? new(0) { NormalViewport = new(1, 1, 0.125f, 0.125f, 0, -0.5f, -0.5f) } : new(0) { ViewportInputs = new(320, 216, 0, 0) };

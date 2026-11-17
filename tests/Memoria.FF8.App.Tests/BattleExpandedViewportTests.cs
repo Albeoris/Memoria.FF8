@@ -14,25 +14,36 @@ public sealed class BattleExpandedViewportTests
     [InlineData(480, 240)]
     [InlineData(840, 240)]
     [InlineData(320, 400)]
-    public void Live_scene_uses_the_fitted_projection_for_its_classic_stage(int width, int height)
+    public void Installed_stage_zero_keeps_the_same_native_triangles_in_the_fitted_projection(int width, int height)
     {
         string directory = TestResources.GameDirectory;
-        Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
-        using BattleAssets assets = new(directory);
-        BattleDefinition definition = new()
+        using GameAssets game = new(directory);
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        session.SetCharacterVitals(game.ReadNewGameCharacterVitals().AcquireGuardianForce(0).RebuildParty().Rest());
+        using GameWorld world = new(session, directory, sharedAssets: game);
+        BattleSession battle = world.StartDiagnosticBattle(new(48, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1 });
+        for (int callback = 0; callback < 1024 && !battle.NativeEntryReady; callback++)
         {
-            StageId = 0,
-            Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0 }, new() { Id = "enemy", Name = "Opponent", ModelId = 1 }]
-        };
-        BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleScenePresentation scene = new(assets, definition);
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        NativeBattlePreparedPresentation prepared = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
+        Assert.Equal(0, prepared.StageResourceId);
+        Assert.NotEmpty(prepared.Primitives.LastCommands);
+        BattleScenePresentation scene = new(world.BattleResources, battle.Capture().Definition);
+        CaptureBackend native = new();
+        scene.Render(battle, 320, 240, native);
         CaptureBackend actual = new();
-        scene.Render(session, width, height, actual);
-        CaptureBackend expected = new();
-        BattleRenderer renderer = new(width, height, ViewportLayout.Fit(320, 240, width, height)) { TriangleRenderer = expected };
-        renderer.Render(assets.LoadStage(0), [], scene.Camera);
-        Assert.NotEmpty(expected.Triangles);
-        Assert.Equal(expected.Triangles, actual.Triangles.Take(expected.Triangles.Count));
+        scene.Render(battle, width, height, actual);
+
+        Assert.Same(prepared, scene.PresentedNativeFrame);
+        Assert.NotEmpty(native.Triangles);
+        PixelBounds bounds = ViewportLayout.Fit(320, 240, width, height);
+        Vector2 offset = new(bounds.X, bounds.Y);
+        Assert.Equal(native.Triangles.Select(triangle => (Shift(triangle.A), Shift(triangle.B), Shift(triangle.C))), actual.Triangles);
+
+        TriangleVertex Shift(TriangleVertex vertex) => vertex with { Position = vertex.Position + offset };
     }
 
     [Theory]

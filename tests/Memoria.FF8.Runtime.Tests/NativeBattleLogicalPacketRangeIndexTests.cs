@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -121,6 +122,86 @@ public sealed class NativeBattleLogicalPacketRangeIndexTests
         }
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 64 * 1024, $"Warm range queries allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void Range_row_removal_and_reinsertion_reuse_page_capacity_and_keep_duplicate_offset_order()
+    {
+        const int count = 1024;
+        const int noSlot = -1;
+        Type type = typeof(NativeBattleLogicalOrdering).GetNestedType("PacketRangeIndex", BindingFlags.NonPublic)!;
+        object index = Activator.CreateInstance(type, nonPublic: true)!;
+        Func<(int Offset, int Index), bool> add = Bind<Func<(int Offset, int Index), bool>>("Add");
+        Func<(int Offset, int Index), bool> remove = Bind<Func<(int Offset, int Index), bool>>("Remove");
+        Func<(int Offset, int Index), int> first = Bind<Func<(int Offset, int Index), int>>("FirstAtOrAfter");
+        Func<int, int> next = Bind<Func<int, int>>("Next");
+        Func<int, (int Offset, int Index)> key = Bind<Func<int, (int Offset, int Index)>>("ReadKey");
+        bool correct = add((0, 0)) && remove((0, 0));
+
+        long beforeGrowth = GC.GetAllocatedBytesForCurrentThread();
+        correct &= Fill();
+        long growthBytes = GC.GetAllocatedBytesForCurrentThread() - beforeGrowth;
+        correct &= VerifyWalk();
+        correct &= !add((0, 0));
+        correct &= Drain();
+
+        long beforeReuse = GC.GetAllocatedBytesForCurrentThread();
+        for (int cycle = 0; cycle < 16; cycle++)
+        {
+            correct &= Fill();
+            correct &= VerifyWalk();
+            correct &= Drain();
+        }
+        long reuseBytes = GC.GetAllocatedBytesForCurrentThread() - beforeReuse;
+
+        Assert.True(correct);
+        Assert.InRange(growthBytes, 1, count * 32L + 4096);
+        Assert.Equal(0L, reuseBytes);
+
+        T Bind<T>(string name) where T : Delegate
+        {
+            return type.GetMethod(name)!.CreateDelegate<T>(index);
+        }
+
+        bool Fill()
+        {
+            for (int position = 0; position < count; position++)
+            {
+                int row = 17 * position % count;
+                if (!add((row / 2, row)))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        bool VerifyWalk()
+        {
+            int slot = first((0, int.MinValue));
+            for (int row = 0; row < count; row++)
+            {
+                if (slot == noSlot || key(slot) != (row / 2, row))
+                {
+                    return false;
+                }
+                slot = next(slot);
+            }
+            return slot == noSlot && key(first((9, int.MaxValue))) == (10, 20);
+        }
+
+        bool Drain()
+        {
+            for (int position = count - 1; position >= 0; position--)
+            {
+                int row = 39 * position % count;
+                if (!remove((row / 2, row)))
+                {
+                    return false;
+                }
+            }
+            return first((0, int.MinValue)) == noSlot && !remove((0, 0));
+        }
     }
 
     private static ImmutableArray<NativeBattleLogicalPacket> Invalidate(ImmutableArray<NativeBattleLogicalPacket> packets, NativeBattlePrimitiveReference reference, int length)

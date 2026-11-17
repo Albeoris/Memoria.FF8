@@ -149,6 +149,28 @@ public sealed class BattlePilotPresentationTests
     }
 
     [Theory]
+    [InlineData(false, "Native primitive viewport requires positive dimensions.")]
+    [InlineData(true, "Expanded polygon coordinates require one point per original corner.")]
+    public void Compatible_motion_validates_native_coordinates_and_viewport_before_sample_depth(bool shortPoints, string expectedError)
+    {
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new Capture() };
+        NativeBattlePreparedPresentation first = Frame(1, 0);
+        NativeBattlePreparedPresentation second = Frame(2, 20);
+        NativeBattleLogicalResolvedCommand resolved = first.Primitives.LastCommands[0];
+        NativeBattleLogicalCommand command = resolved.Command.ToCommand() with
+        {
+            PilotGeometry = resolved.Command.PilotGeometry! with { UseSourceDepths = true },
+            ProjectedCoordinates = shortPoints ? [new(0, 0)] : [new(0, 0), new(8, 0), new(0, 8)]
+        };
+        NativeBattlePrimitiveDrawMode invalidViewport = resolved.DrawMode with { NormalViewport = new(1, 1, 0.125f, 0.125f, 0, 0, 0), ViewportInputs = new(0, 216, 0, 0) };
+        first = first with { Primitives = first.Primitives with { LastCommands = [resolved with { Command = command, DrawMode = invalidViewport }] } };
+        Assert.True(renderer.CanSampleNativePilotInterval(first, second));
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => renderer.RenderNativePilotPrimitiveFrame(first, second, 0.5f));
+        Assert.Equal(expectedError, error.Message);
+    }
+
+    [Theory]
     [InlineData((ushort)2)]
     [InlineData((ushort)3)]
     [InlineData((ushort)144)]

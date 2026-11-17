@@ -26,6 +26,7 @@ public sealed partial class BattleRenderer
         int mode = drawMode.BlendMode ?? throw new NotSupportedException("Native sprite diffuse color requires its executed ABR.");
         NativeBattlePrimitiveColor diffuse = colorState.Textured(command.WordSpan[0], semi, mode, false);
         PixelImage texture = ResolveNativePrimitiveTexture(frame, command, drawMode, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, new TexturePrimitiveSample(corners[0].TextureU, corners[0].TextureV));
+        NativeBattlePrimitiveViewportProjector viewportProjector = default;
         Submit(command, 0, semi ? mode : -1);
         if (!semi)
         {
@@ -51,7 +52,11 @@ public sealed partial class BattleRenderer
             PrimitiveVertex At(in NativeBattleLogicalCommandView command, int index)
             {
                 NativeBattleSprite64Corner corner = corners[index];
-                Vector2 position = NativePrimitivePosition(unchecked(corner.X + offset), unchecked(corner.Y + offset), command.Flags20, drawMode);
+                if (!viewportProjector.IsPrepared)
+                {
+                    viewportProjector = new(ProjectionBounds, command.Flags20, drawMode);
+                }
+                Vector2 position = viewportProjector.Project(unchecked(corner.X + offset), unchecked(corner.Y + offset));
                 return new(position.X, position.Y, projected[index].Depth, projected[index].ReciprocalW, new(corner.TextureU, corner.TextureV), diffuse.Rgb, 127);
             }
         }

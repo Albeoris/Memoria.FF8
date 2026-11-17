@@ -265,9 +265,9 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private readonly record struct NativeBattlePilotPrimitiveSample(bool IsActive, NativeBattlePilotGeometryReference Earlier, NativeBattlePilotCornerSampler Corners, NativeBattlePrimitiveDrawMode Mode, ushort Flags, float? BucketDepth, bool Perspective, float VertexWeight, float BucketMix, float CoordinateScale, bool ScreenSpace, ushort? FocalOverride);
+    private readonly record struct NativeBattlePilotPrimitiveSample(bool IsActive, NativeBattlePilotGeometryReference Earlier, NativeBattlePilotCornerSampler Corners, ushort Flags, float? BucketDepth, bool Perspective, float VertexWeight, float BucketMix, float CoordinateScale, bool ScreenSpace, ushort? FocalOverride);
 
-    private NativeBattlePilotPrimitiveSample PreparePilotPrimitiveSample(in NativeBattleLogicalCommandView command, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective)
+    private NativeBattlePilotPrimitiveSample PreparePilotPrimitiveSample(in NativeBattleLogicalCommandView command, NativeBattlePrimitiveDepthState depthState, bool perspective)
     {
         if (activePilotInterval is not { } interval || command.Pilot is not { IsEmpty: false } earlier)
         {
@@ -281,10 +281,10 @@ public sealed partial class BattleRenderer
         float coordinateScale = (flags & 1) != 0 ? 0.125f : 1;
         float step = Math.Max((float)(0.9985 / (2 * NativeBattlePrimitiveOrdering.BattleTableLength)), 1f / 65536);
         float? bucketDepth = command.OrderingBucket is int bucket ? bucket * step : null;
-        return new(true, earlier, corners, mode, flags, bucketDepth, perspective, vertexWeight, depthState.BucketMix, coordinateScale, earlier.ScreenSpace, earlier.FocalLengthOverride);
+        return new(true, earlier, corners, flags, bucketDepth, perspective, vertexWeight, depthState.BucketMix, coordinateScale, earlier.ScreenSpace, earlier.FocalLengthOverride);
     }
 
-    private bool TrySamplePilotCorner(in NativeBattlePilotPrimitiveSample sample, int corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
+    private bool TrySamplePilotCorner(in NativeBattlePilotPrimitiveSample sample, in NativeBattlePrimitiveViewportProjector viewport, int corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
     {
         position = default;
         depthVertex = default;
@@ -312,7 +312,7 @@ public sealed partial class BattleRenderer
             projected.X += offset.X;
             projected.Y += offset.Y;
         }
-        position = SampledNativePrimitivePosition(projected.X * sample.CoordinateScale, projected.Y * sample.CoordinateScale, sample.Flags, sample.Mode);
+        position = viewport.Project(projected.X * sample.CoordinateScale, projected.Y * sample.CoordinateScale);
         float bucketDepth = sample.BucketDepth ?? throw new InvalidDataException("Compatible battle motion requires the authored ordering bucket.");
         float depth;
         float reciprocalW = 1;
@@ -328,24 +328,5 @@ public sealed partial class BattleRenderer
         }
         depthVertex = new(depth, reciprocalW);
         return true;
-    }
-
-    private Vector2 SampledNativePrimitivePosition(float x, float y, uint flags, NativeBattlePrimitiveDrawMode mode)
-    {
-        if (mode.NormalViewport is not null || mode.ViewportInputs is not null)
-        {
-            NativeSoftwareNormalViewportDerived viewport = mode.NormalViewport ?? throw new NotSupportedException("Compatible primitive viewport requires its retained derived outputs.");
-            NativeSoftwareViewportInputs inputs = mode.ViewportInputs ?? throw new NotSupportedException("Compatible primitive viewport requires its actual input dimensions.");
-            if (inputs.Width <= 0 || inputs.Height <= 0)
-            {
-                throw new InvalidDataException("Compatible primitive viewport requires positive dimensions.");
-            }
-            bool full = (flags & 1) != 0;
-            float nativeX = (float)((double)x * (full ? viewport.ScaleX : viewport.LowCoordinateScaleX) + viewport.NormalOffsetX);
-            float nativeY = (float)((double)y * (full ? viewport.ScaleY : viewport.LowCoordinateScaleY) + viewport.NormalOffsetY);
-            return new(ProjectionBounds.X + (float)(((double)nativeX + 0.5) * ProjectionBounds.Width / inputs.Width), ProjectionBounds.Y + (float)(((double)nativeY + 0.5) * ProjectionBounds.Height / inputs.Height));
-        }
-        float unit = (flags & 1) != 0 ? 1 : 0.125f;
-        return new(ProjectionBounds.X + x * unit * ProjectionBounds.Width / 320, ProjectionBounds.Y + y * unit * ProjectionBounds.Height / 216);
     }
 }
