@@ -181,7 +181,7 @@ public sealed class Ff7NativeMovement
         // NG-087: The original laboratory clears the movement rejection flags for physical slot 1.
         bool nativeCollisionException = map == 263 && actor.Slot == 1;
         bool moved = nativeCollisionException || headCorrection == 0 && leftCorrection == 0 && rightCorrection == 0 && !headContact && !leftContact && !rightContact && finalCorrection == 0;
-        Ff7Actor result = actor with { Direction = moveDirection, Triangle = finalTriangle };
+        Ff7Actor result = actor with { Direction = (actor.MovementFacingDisabled ?? 0) == 0 ? moveDirection : actor.Direction, Triangle = finalTriangle };
         if (moved)
         {
             result = result with { X4096 = candidateX, Y4096 = candidateY, Z4096 = unchecked(candidateZ << 12) };

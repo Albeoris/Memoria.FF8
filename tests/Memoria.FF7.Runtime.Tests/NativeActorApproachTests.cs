@@ -8,6 +8,40 @@ using Memoria.FF7.Runtime;
 
 internal static class NativeActorApproachTests
 {
+    public static void RunMovementFacing()
+    {
+        foreach (byte flag in new byte[] { 0, 1, 2, 255 })
+        {
+            Ff7FieldHost host = Build(new() { Actors = [Actor(7, 0, 10) with { Direction = 64 }] });
+            FieldHostRequest move = new(1800, 7, 2, 16, new FieldActorMove(10, 300));
+            Equal(false, host.Execute(move).Completed);
+            FieldHostRequest facing = new(1801, 7, 2, 22, new FieldActorProperty(FieldActorPropertyKind.MovementFacingDisabled, flag));
+            Equal(true, host.Execute(facing).Completed);
+            Equal(flag, host.GetActor(7).MovementFacingDisabled!.Value);
+            Ff7FieldHost cold = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+            host.AdvanceActors();
+            cold.AdvanceActors();
+            Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            Equal(true, host.GetActor(7).Y4096 > 10 * 4096);
+            Equal(flag == 0 ? 128 : 64, host.GetActor(7).Direction);
+            Equal(false, host.Execute(move).Completed);
+            Equal((byte)0, host.GetActor(7).MovementFacingDisabled!.Value);
+            host.AdvanceActors();
+            Equal(128, host.GetActor(7).Direction);
+        }
+        Ff7FieldHost legacy = Build(new() { Actors = [Actor(7, 0, 10) with { Direction = 64 }], Motions = [new(1802, 7, 10, 300, false, false)] });
+        legacy.AdvanceActors();
+        Equal(64, legacy.GetActor(7).Direction);
+        Equal((byte)1, legacy.GetActor(7).MovementFacingDisabled!.Value);
+        legacy.Execute(new(1803, 7, 2, 22, new FieldActorProperty(FieldActorPropertyKind.MovementFacingDisabled, 0)));
+        legacy.AdvanceActors();
+        Equal(128, legacy.GetActor(7).Direction);
+        Ff7FieldHost completed = Build(new() { Actors = [Actor(7, 0, 10) with { Direction = 64, MovementFacingDisabled = 255 }] });
+        Equal(true, completed.Execute(new(1804, 7, 2, 22, new FieldActorMove(10, 10, Turn: false, Animated: false))).Completed);
+        Equal((byte)0, completed.GetActor(7).MovementFacingDisabled!.Value);
+        Equal(64, completed.GetActor(7).Direction);
+    }
+
     public static void Run()
     {
         Ff7FieldHost fixture = Build(new() { Actors = [Actor(7, 0, 10), Actor(1, 1, 300)] });

@@ -481,6 +481,13 @@ if (args.Contains("--window-defaults-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--movement-facing-only", StringComparer.Ordinal))
+{
+    NativeActorApproachTests.RunMovementFacing();
+    Console.WriteLine("PASS native actor movement facing and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--movement-animation-only", StringComparer.Ordinal))
 {
     NativeMovementAnimationTests.Run();
@@ -919,6 +926,7 @@ var tests = new (string Name, Action Run)[]
     ("native all-character recovery and cold continuation", NativePartyRecoveryTests.RunAll),
     ("native wait-free window size and cold continuation", NativeProcessTests.RunWindowSizeWhenFree),
     ("native dynamic actor approach and cold continuation", NativeActorApproachTests.Run),
+    ("native actor movement facing and cold continuation", NativeActorApproachTests.RunMovementFacing),
     ("native camera shake and cold continuation", NativeCameraShakeTests.Run),
     ("native player entry movement and cold continuation", NativePlayerEntryTests.Run),
     ("native player slot selection and cold continuation", NativePlayerSelectionTests.Run),

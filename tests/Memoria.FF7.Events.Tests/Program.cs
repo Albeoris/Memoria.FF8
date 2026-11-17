@@ -171,6 +171,13 @@ if (args.Contains("--line-slip-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--movement-facing-only", StringComparer.Ordinal))
+{
+    ExtendedTests.MovementFacingOperandsAndContinuation();
+    Console.WriteLine("PASS native movement facing operands and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--palette-only", StringComparer.Ordinal))
 {
     ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation();
@@ -274,6 +281,7 @@ var tests = new (string Name, Action Run)[]
     ("native music lock and player target operands", ExtendedTests.MusicLockAndControlTarget),
     ("reached opening host operand widths and selectors", ExtendedTests.OpeningHostOperands),
     ("native palette range multiply operands and continuation", ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation),
+    ("native movement facing operands and continuation", ExtendedTests.MovementFacingOperandsAndContinuation),
     ("native byte multiply operands and continuation", ExtendedTests.ByteMultiplyOperandsAndContinuation),
     ("native item packed operands and same-cycle continuation", ExtendedTests.ItemOperandsAndContinuation),
     ("native fixed animation movement operands and continuation", ExtendedTests.FixedAnimationMoveOperandsAndContinuation),

@@ -15,13 +15,13 @@ public sealed partial class Ff7FieldHost
         {
             return MoveToActor(request, movement, targetEntity);
         }
-        Ff7Actor actor = GetActor(request.Entity);
+        Ff7Actor actor = GetActor(request.Entity) with { MovementFacingDisabled = movement.Turn ? (byte)0 : (byte)1 };
         if (movement.Animated)
         {
             actor = SelectMovementAnimation(actor);
         }
         bool complete = actor.X4096 == movement.X * 4096 && actor.Y4096 == movement.Y * 4096;
-        actor = actor with { AnimationStatus = complete ? 0 : 1 };
+        actor = actor with { AnimationStatus = complete ? 0 : 1, MovementFacingDisabled = complete ? (byte)0 : actor.MovementFacingDisabled };
         SetActor(request.Entity, _ => actor);
         if (!complete && !Process.Motions.Any(motion => motion.RequestId == request.Id))
         {
@@ -32,7 +32,8 @@ public sealed partial class Ff7FieldHost
 
     private FieldHostReply MoveToActor(FieldHostRequest request, FieldActorMove movement, int targetEntity)
     {
-        Ff7Actor actor = GetActor(request.Entity);
+        Ff7Actor actor = GetActor(request.Entity) with { MovementFacingDisabled = 0 };
+        SetActor(request.Entity, _ => actor);
         Ff7Actor target = GetActor(targetEntity);
         Ff7Motion? motion = Process.Motions.SingleOrDefault(item => item.RequestId == request.Id);
         if (motion is { Completed: true })

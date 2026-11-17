@@ -483,6 +483,8 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldPaletteCommand(opcode == 0xDF ? FieldPaletteOperation.Multiply : FieldPaletteOperation.Add, B(id, 4), B(id, 5), R8(id, 6, 10) + 1, R8(id, 4, 9), R8(id, 3, 8), R8(id, 2, 7), First: R8(id, 1, 6)), 11);
             case 0xDC:
                 return Host(id, new FieldMovementAnimationCommand(B(id, 1), B(id, 3)), 4);
+            case 0xDB:
+                return ActorProperty(id, FieldActorPropertyKind.MovementFacingDisabled, B(id, 1), 2);
             case 0xDD:
                 return ActorProperty(id, FieldActorPropertyKind.StopAnimation, 0, 1);
             case 0xDA:

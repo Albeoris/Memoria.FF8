@@ -15,6 +15,8 @@ public sealed record Ff7Actor
     public int Z4096 { get; init; }
     public int Triangle { get; init; }
     public int Direction { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? MovementFacingDisabled { get; init; }
     public int OffsetX { get; init; }
     public int OffsetY { get; init; }
     public int OffsetZ { get; init; }

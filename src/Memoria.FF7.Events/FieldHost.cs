@@ -105,7 +105,8 @@ public enum FieldActorPropertyKind
     PartyCharacter,
     OffsetWait,
     TurnWait,
-    AutomaticBlinkDisabled
+    AutomaticBlinkDisabled,
+    MovementFacingDisabled
 }
 public sealed record FieldActorProperty(FieldActorPropertyKind Property, int Value) : FieldCommand;
 public enum FieldWindowOperation

@@ -349,10 +349,11 @@ public sealed partial class Ff7FieldHost : IFieldHost
             }
             Ff7NativeMovement movement = Movement ?? throw new NotSupportedException("FFVII scripted movement requires its native fixed-point stepping contract.");
             Ff7Actor actor = GetActor(motion.Entity);
+            actor = actor with { MovementFacingDisabled = actor.MovementFacingDisabled ?? (motion.Turn ? (byte)0 : (byte)1) };
             Ff7NativeMoveResult moved = motion.EntityTarget is Ff7EntityMotionTarget target
                 ? movement.StepToActor(actor, target.X4096, target.Y4096, target.Radius, Process.Actors, Process.BlockedTriangles, Process.PlayerLocked)
                 : movement.Step(actor, checked((short)motion.TargetX), checked((short)motion.TargetY), Process.Actors, Process.BlockedTriangles, Process.PlayerLocked);
-            SetActor(actor.Entity, current => moved.Actor with { Direction = motion.Turn ? moved.Actor.Direction : current.Direction });
+            SetActor(actor.Entity, _ => moved.Actor);
             if (moved.Arrived)
             {
                 Process = motion.EntityTarget is null
@@ -548,6 +549,7 @@ public sealed partial class Ff7FieldHost : IFieldHost
         {
             FieldActorPropertyKind.Visible => actor with { Visible = property.Value == 1 },
             FieldActorPropertyKind.AutomaticBlinkDisabled => actor with { AutomaticBlinkDisabled = property.Value == 1 },
+            FieldActorPropertyKind.MovementFacingDisabled => actor with { MovementFacingDisabled = checked((byte)property.Value) },
             FieldActorPropertyKind.Direction => actor with { Direction = property.Value & 255, TurnMode = 0, TurnStep = 0 },
             FieldActorPropertyKind.MoveSpeed => actor with { MoveSpeed = property.Value },
             FieldActorPropertyKind.AnimationSpeed => actor with { BaseAnimationSpeed = property.Value, AnimationSpeed = property.Value },

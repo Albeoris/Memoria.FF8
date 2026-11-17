@@ -3,6 +3,36 @@ using Memoria.FF7.Events;
 
 internal static class ExtendedTests
 {
+    public static void MovementFacingOperandsAndContinuation()
+    {
+        foreach (byte value in new byte[] { 0, 1, 2, 255 })
+        {
+            byte[] code = Code(0xA1, 0, 0, 0xDB, value, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
+            RecordingHost host = new() { Complete = true };
+            FieldMachine vm = New(code, host);
+            vm.Initialize();
+            host.Requests.Clear();
+            host.Complete = false;
+            vm.AdvanceTick();
+            FieldVmSnapshot saved = vm.Capture();
+            FieldHostRequest pending = saved.PendingRequests!.Single();
+            Check(new FieldActorProperty(FieldActorPropertyKind.MovementFacingDisabled, value), pending.Command);
+            Check(19, saved.Entities[0].ProgramCounter);
+            RecordingHost coldHost = new() { Complete = true };
+            FieldMachine cold = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(saved))!, coldHost);
+            cold.AdvanceTick();
+            Check(pending.Id, coldHost.Requests.Single().Id);
+            Check((byte)99, cold.Variables.ReadByte(FieldBank.MapByte, 20));
+            Check(26, cold.Capture().Entities[0].ProgramCounter);
+        }
+        RecordingHost absentHost = new() { Complete = true };
+        FieldMachine absent = New(Code(0, 0xDB, 255, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0), absentHost);
+        absent.Initialize();
+        absent.AdvanceTick();
+        Check(0, absentHost.Requests.Count);
+        Check((byte)99, absent.Variables.ReadByte(FieldBank.MapByte, 20));
+    }
+
     public static void ByteMultiplyOperandsAndContinuation()
     {
         foreach (var (left, right, expected) in new[] { (255, 255, 1), (200, 2, 144), (128, 2, 0), (0, 255, 0), (5, 10, 50) })
