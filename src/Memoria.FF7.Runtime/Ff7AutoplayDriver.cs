@@ -165,14 +165,34 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 return new(direction.X, direction.Y, Run: run);
             }
         }
+        Vector3 position = Position3D(player);
+        int distance = Ff7Session.DistanceToSegment(gateway.A, gateway.B, new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12), out Vector3 nearest);
+        if (distance >= 0 && distance < unchecked(player.CollisionRadius * player.CollisionRadius))
+        {
+            return Approach(ReadGatewayCrossingTarget(gateway, position, nearest, player.CollisionRadius), player.Triangle, run);
+        }
         var contacts = DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, gateway);
         if (contacts.Count == 0)
         {
             throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII gateway has no reachable native floor contact.");
         }
-        Vector3 position = Position3D(player);
         var selected = contacts.OrderBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).First();
         return Approach(selected.Point, selected.Triangle, run);
+    }
+
+    internal static Vector3 ReadGatewayCrossingTarget(PcFieldGateway gateway, Vector3 position, Vector3 nearest, int collisionRadius)
+    {
+        Vector2 edge = new(gateway.B.X - gateway.A.X, gateway.B.Y - gateway.A.Y);
+        if (edge.LengthSquared() == 0)
+        {
+            throw new NotSupportedException("A zero-length native gateway cannot supply a crossing direction.");
+        }
+        Vector2 normal = Vector2.Normalize(new(-edge.Y, edge.X));
+        if (Vector2.Dot(new(position.X - nearest.X, position.Y - nearest.Y), normal) > 0)
+        {
+            normal = -normal;
+        }
+        return nearest + new Vector3(normal * collisionRadius, 0);
     }
 
     internal static IReadOnlyList<(Vector3 Point, int Triangle)> DiscoverGatewayContacts(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway)

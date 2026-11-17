@@ -27,6 +27,13 @@ internal static class AutoPlayGatewayTopologyTests
         Check(Ff7AutoplayDriver.HasGatewayTopologyPath(mesh, [0], player, spanning, out int spanningTarget) && spanningTarget is 0 or 1, "A long gateway whose midpoint belongs to another component lost its reachable segment contact.");
         Check(!Ff7AutoplayDriver.HasGatewayTopologyPath(mesh, [0], player, spanning with { A = spanning.A + new Vector3(0, 0, 100), B = spanning.B + new Vector3(0, 0, 100) }, out _), "A gateway on another native floor acquired an invented contact.");
 
+        Vector3 nearContact = new(30, 15, 0);
+        Ff7Actor crossingSource = player with { X4096 = 30 * 4096, Y4096 = 15 * 4096, CollisionRadius = 10 };
+        Vector3 crossingGoal = Ff7AutoplayDriver.ReadGatewayCrossingTarget(local, nearContact, new(30, 20, 0), crossingSource.CollisionRadius);
+        Check(crossingGoal.Y > 20 && Ff7Session.Side(local.A, local.B, nearContact) * Ff7Session.Side(local.A, local.B, crossingGoal) < 0, "An in-range floor contact remained a proximity goal instead of crossing the native segment.");
+        Ff7Actor crossingDestination = crossingSource with { X4096 = (int)(crossingGoal.X * 4096), Y4096 = (int)(crossingGoal.Y * 4096) };
+        Check(Ff7Session.CrossesGateway(local, crossingSource, crossingDestination), "Crossing guidance did not preserve native initial-radius and sign-cross admission.");
+        Check(!Ff7Session.CrossesGateway(local, crossingSource with { Y4096 = 0 }, crossingDestination), "Crossing guidance expanded the native initial contact radius.");
         Ff7AutoPlayState state = new();
         AutoPlayEvent gateway = new("gateway:0", AutoPlayEventKind.Transition, ConditionSignature: "native-entry");
         string sourceKey = Ff7AutoplayDriver.ReadNavigationKey("field", mesh, [0], 0);
@@ -60,6 +67,7 @@ internal static class AutoPlayGatewayTopologyTests
         Check(JsonSerializer.Serialize(cold.Coverage) == coverage, "Topology observation changed executed entries, routes or native event coverage.");
         Check(JsonSerializer.Deserialize<Ff7AutoPlayState>("{}")!.GatewayTopology.Count == 0, "An older state requires newly introduced observation metadata.");
         OriginalSegmentContact();
+        OriginalGatewayCrossing();
     }
 
     private static void OriginalSegmentContact()
@@ -94,6 +102,32 @@ internal static class AutoPlayGatewayTopologyTests
         Check(planner.PlanNavigation(navigation.Key, readAvailability: availability)?.Event.Id == target.Id, "The shared planner did not select the original reachable gateway.");
         Check(JsonSerializer.Serialize(session.Capture()) == before && bytes.SequenceEqual(File.ReadAllBytes(path)), "Gateway contact planning changed native execution, RNG, progress or the source fixture.");
         Console.WriteLine($"PASS original full gateway segment and native approach {action.Horizontal},{action.Vertical}; shared topology selection and source purity.");
+    }
+
+    private static void OriginalGatewayCrossing()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_GATEWAY_CROSSING_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original gateway crossing: configure original resources and MEMORIA_FF7_GATEWAY_CROSSING_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
+        int sourceMap = session.MapId;
+        int destinationMap = session.Field.Triggers.Gateways[0].DestinationField;
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded gateway continuation unexpectedly requested a choice checkpoint."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        for (int callback = 0; callback < 256 && controller.Running && session.MapId == sourceMap && session.Battle is null && session.World is null; callback++)
+        {
+            controller.Advance(1);
+        }
+        Check(controller.Error is null && session.MapId == destinationMap, $"The normal native gateway continuation did not reach its authored destination after {controller.Steps} callbacks: {controller.Error}; {policy.Status}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded normal gateway continuation changed its standalone source.");
+        Console.WriteLine($"PASS original normal gateway crossing to {destinationMap} after {controller.Steps} callbacks; source unchanged.");
     }
 
     private static void Check(bool condition, string message)
