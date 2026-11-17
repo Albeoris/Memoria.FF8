@@ -13,10 +13,11 @@ public sealed class TitleSceneRenderer : IDisposable
     private readonly SpriteBatch spriteBatch;
     private readonly Texture2D whitePixel;
     private readonly Effect effect;
+    private readonly TitleSceneStyle style;
     private RenderTarget2D? surface;
     private bool disposed;
 
-    public TitleSceneRenderer(GraphicsDevice graphicsDevice)
+    public TitleSceneRenderer(GraphicsDevice graphicsDevice, TitleSceneStyle style = TitleSceneStyle.FinalFantasyVIII)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
         if (graphicsDevice.GraphicsProfile != GraphicsProfile.HiDef)
@@ -25,7 +26,14 @@ public sealed class TitleSceneRenderer : IDisposable
         }
 
         this.graphicsDevice = graphicsDevice;
-        using var stream = typeof(TitleSceneRenderer).Assembly.GetManifestResourceStream("Memoria.FF8.TitleScene.TitleScene.mgfxo") ?? throw new InvalidOperationException("The embedded title scene effect is missing.");
+        if (!Enum.IsDefined(style))
+        {
+            throw new ArgumentOutOfRangeException(nameof(style));
+        }
+
+        this.style = style;
+        string resource = style == TitleSceneStyle.FinalFantasyVII ? "MeteorScene" : "TitleScene";
+        using var stream = typeof(TitleSceneRenderer).Assembly.GetManifestResourceStream($"Memoria.FF8.TitleScene.{resource}.mgfxo") ?? throw new InvalidOperationException("The embedded title scene effect is missing.");
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         effect = new Effect(graphicsDevice, buffer.ToArray());
@@ -61,10 +69,13 @@ public sealed class TitleSceneRenderer : IDisposable
 
         try
         {
-            effect.Parameters["Time"].SetValue((float)TitleSceneAnimation.MotionSeconds(seconds));
-            effect.Parameters["LightIntensity"].SetValue(TitleSceneAnimation.LightIntensity(seconds));
-            effect.Parameters["VortexRotation"].SetValue(TitleSceneAnimation.VortexRotation(seconds));
-            effect.Parameters["VortexTravel"].SetValue(TitleSceneAnimation.VortexTravel(seconds));
+            effect.Parameters["Time"].SetValue((float)(style == TitleSceneStyle.FinalFantasyVII ? seconds : TitleSceneAnimation.MotionSeconds(seconds)));
+            if (style == TitleSceneStyle.FinalFantasyVIII)
+            {
+                effect.Parameters["LightIntensity"].SetValue(TitleSceneAnimation.LightIntensity(seconds));
+                effect.Parameters["VortexRotation"].SetValue(TitleSceneAnimation.VortexRotation(seconds));
+                effect.Parameters["VortexTravel"].SetValue(TitleSceneAnimation.VortexTravel(seconds));
+            }
             effect.Parameters["Aspect"].SetValue((float)bounds.Width / bounds.Height);
             effect.Parameters["InverseHeight"].SetValue(1.0f / bounds.Height);
             graphicsDevice.SetRenderTarget(surface);

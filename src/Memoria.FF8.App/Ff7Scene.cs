@@ -6,6 +6,7 @@ using Memoria.FF8.GameUi;
 using Memoria.FF8.Media;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.TitleScene;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -31,7 +32,9 @@ internal sealed partial class Ff7Scene : IDisposable
     private IFf7ActorAppearance? appearance;
     private readonly Ff7FontRenderer font;
     private readonly Texture2D pixel;
-    private readonly Texture2D titleArtwork;
+    private TitleSceneRenderer? titleBackground;
+    private TitleArtworkRenderer? titleArtwork;
+    private double titleSeconds;
     private readonly GpuTriangleRenderer triangles;
     private CombinedSessionSave envelope;
     private Ff7FieldRenderer? renderer;
@@ -57,8 +60,6 @@ internal sealed partial class Ff7Scene : IDisposable
         font = new Ff7FontRenderer(device, Ff7FontResources.Load(installation));
         pixel = new Texture2D(device, 1, 1);
         pixel.SetData(new[] { Color.White });
-        Ff7MenuResources menu = Ff7MenuResources.Load(installation);
-        titleArtwork = CreateTexture(menu.GetRequiredTexture("buster.tex"));
         triangles = new GpuTriangleRenderer(device);
     }
 
@@ -171,6 +172,10 @@ internal sealed partial class Ff7Scene : IDisposable
             {
                 movieSkipGesture.Reset();
                 return;
+            }
+            if (IsTitle)
+            {
+                titleSeconds += gameTime.ElapsedGameTime.TotalSeconds;
             }
             noticeWindow.Advance(gameTime.ElapsedGameTime);
             PumpEnemyIntegration();
@@ -311,6 +316,13 @@ internal sealed partial class Ff7Scene : IDisposable
             return;
         }
         Rectangle windowBounds = bounds;
+        if (IsTitle)
+        {
+            titleBackground ??= GraphicsHostReadiness.Initialize(() => new TitleSceneRenderer(device, TitleSceneStyle.FinalFantasyVII));
+            titleArtwork ??= GraphicsHostReadiness.Initialize(() => new TitleArtworkRenderer(device, TitleSceneStyle.FinalFantasyVII));
+            titleBackground.Draw(windowBounds, titleSeconds);
+            titleArtwork.Draw(windowBounds, titleSeconds);
+        }
         Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         bounds = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
         Rectangle sceneBounds = bounds;
@@ -344,7 +356,7 @@ internal sealed partial class Ff7Scene : IDisposable
         {
             if (Session is null)
             {
-                DrawTitle(batch, bounds);
+                DrawTitle(batch, bounds, windowBounds);
             }
             else
             {
@@ -645,13 +657,9 @@ internal sealed partial class Ff7Scene : IDisposable
         }
     }
 
-    private void DrawTitle(SpriteBatch batch, Rectangle bounds)
+    private void DrawTitle(SpriteBatch batch, Rectangle bounds, Rectangle windowBounds)
     {
-        float artworkScale = Math.Min(160f / titleArtwork.Width, 144f / titleArtwork.Height);
-        int artworkWidth = Math.Max(1, (int)(titleArtwork.Width * artworkScale));
-        int artworkHeight = Math.Max(1, (int)(titleArtwork.Height * artworkScale));
-        Rectangle image = Logical(new Rectangle((320 - artworkWidth) / 2, 20 + (144 - artworkHeight) / 2, artworkWidth, artworkHeight), bounds);
-        batch.Draw(titleArtwork, image, Color.White);
+        bounds.Y = windowBounds.Y + (int)Math.Round(windowBounds.Height * 0.725 - bounds.Height * 174d / 240d);
         DrawPlain(batch, "New Game", 122, 174, bounds);
         DrawPlain(batch, "Continue", 122, 194, bounds);
         if (CanResumeMixedOrigin)
@@ -796,7 +804,8 @@ internal sealed partial class Ff7Scene : IDisposable
         highwayGaugeTexture?.Dispose();
         highwayPortraitTexture?.Dispose();
         triangles.Dispose();
-        titleArtwork.Dispose();
+        titleBackground?.Dispose();
+        titleArtwork?.Dispose();
         numberWindowAtlas?.Dispose();
         pixel.Dispose();
         font.Dispose();

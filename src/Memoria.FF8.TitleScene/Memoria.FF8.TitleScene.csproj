@@ -13,6 +13,9 @@
     <EmbeddedResource Include="Shaders/TitleScene.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
     <EmbeddedResource Include="Shaders/TitleScene.dx12.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'" />
     <EmbeddedResource Include="Shaders/TitleScene.vulkan.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
+    <EmbeddedResource Include="Shaders/MeteorScene.mgfxo" LogicalName="Memoria.FF8.TitleScene.MeteorScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
+    <EmbeddedResource Include="Shaders/MeteorScene.dx12.mgfxo" LogicalName="Memoria.FF8.TitleScene.MeteorScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'" />
+    <EmbeddedResource Include="Shaders/MeteorScene.vulkan.mgfxo" LogicalName="Memoria.FF8.TitleScene.MeteorScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
     <EmbeddedResource Include="Artwork/SilverCrest.contours.json" LogicalName="Memoria.FF8.TitleScene.SilverCrest.contours.json" />
   </ItemGroup>
 </Project>

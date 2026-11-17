@@ -21,8 +21,8 @@ public sealed partial class TitleArtworkRenderer : IDisposable
     private const float DesignHeight = 900f;
     private readonly GraphicsDevice graphicsDevice;
     private readonly BasicEffect effect;
-    private readonly VertexBuffer metalBuffer;
-    private readonly VertexBuffer glintBuffer;
+    private readonly VertexBuffer? metalBuffer;
+    private readonly VertexBuffer? glintBuffer;
     private readonly VertexBuffer wordmarkBuffer;
     private readonly VertexBuffer wordmarkGlintBuffer;
     private readonly VertexBuffer[] sheenBuffers;
@@ -33,8 +33,13 @@ public sealed partial class TitleArtworkRenderer : IDisposable
     private readonly int wordmarkGlintPrimitiveCount;
     private bool disposed;
 
-    public TitleArtworkRenderer(GraphicsDevice graphicsDevice)
+    public TitleArtworkRenderer(GraphicsDevice graphicsDevice, TitleSceneStyle style = TitleSceneStyle.FinalFantasyVIII)
     {
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        if (!Enum.IsDefined(style))
+        {
+            throw new ArgumentOutOfRangeException(nameof(style), style, "Unknown title scene style.");
+        }
         this.graphicsDevice = graphicsDevice;
         effect = new BasicEffect(graphicsDevice)
         {
@@ -45,19 +50,27 @@ public sealed partial class TitleArtworkRenderer : IDisposable
 
         List<VertexPositionColor> metal = [];
         List<VertexPositionColor> glints = [];
-        using Geometry crest = BuildCrest(metal, glints);
-        metalBuffer = CreateBuffer(metal);
-        glintBuffer = CreateBuffer(glints);
-        metalPrimitiveCount = metal.Count / 3;
-        glintPrimitiveCount = glints.Count / 3;
+        if (style == TitleSceneStyle.FinalFantasyVIII)
+        {
+            using Geometry crest = BuildCrest(metal, glints);
+            metalBuffer = CreateBuffer(metal);
+            glintBuffer = CreateBuffer(glints);
+            metalPrimitiveCount = metal.Count / 3;
+            glintPrimitiveCount = glints.Count / 3;
+            (sheenBuffers, sheenPrimitiveCounts) = BuildSheen(crest);
+        }
+        else
+        {
+            sheenBuffers = [];
+            sheenPrimitiveCounts = [];
+        }
         metal.Clear();
         glints.Clear();
-        BuildWordmark(metal, glints);
+        BuildWordmark(metal, glints, style);
         wordmarkBuffer = CreateBuffer(metal);
         wordmarkGlintBuffer = CreateBuffer(glints);
         wordmarkPrimitiveCount = metal.Count / 3;
         wordmarkGlintPrimitiveCount = glints.Count / 3;
-        (sheenBuffers, sheenPrimitiveCounts) = BuildSheen(crest);
     }
 
     public void Draw(Rectangle bounds, double seconds)
@@ -128,8 +141,8 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         }
 
         disposed = true;
-        metalBuffer.Dispose();
-        glintBuffer.Dispose();
+        metalBuffer?.Dispose();
+        glintBuffer?.Dispose();
         wordmarkBuffer.Dispose();
         wordmarkGlintBuffer.Dispose();
         foreach (VertexBuffer buffer in sheenBuffers)
@@ -147,8 +160,13 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         return buffer;
     }
 
-    private void DrawBuffer(VertexBuffer buffer, int primitiveCount)
+    private void DrawBuffer(VertexBuffer? buffer, int primitiveCount)
     {
+        if (buffer is null || primitiveCount == 0)
+        {
+            return;
+        }
+
         graphicsDevice.SetVertexBuffer(buffer);
         foreach (EffectPass pass in effect.CurrentTechnique.Passes)
         {
@@ -200,19 +218,21 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         return (buffers.ToArray(), primitiveCounts.ToArray());
     }
 
-    private static void BuildWordmark(List<VertexPositionColor> metal, List<VertexPositionColor> glints)
+    private static void BuildWordmark(List<VertexPositionColor> metal, List<VertexPositionColor> glints, TitleSceneStyle style)
     {
         using SKTypeface typeface = SKTypeface.FromFamilyName("Times New Roman");
         using SKFont font = new(typeface, 120);
         using Geometry capital = font.GetTextPath("H");
         SKRect capBounds = capital.Bounds;
-        double scale = 50.0 / capBounds.Height;
+        float capHeight = style == TitleSceneStyle.FinalFantasyVII ? 90f : 50f;
+        double scale = (double)capHeight / capBounds.Height;
+        double horizontalScale = style == TitleSceneStyle.FinalFantasyVII ? scale * 0.65 : scale;
         List<(Geometry Outline, double GapWeight)> glyphs = [];
         double naturalWidth = 0;
         double gapWeight = 0;
         bool wordSpace = false;
         int wordIndex = 0;
-        foreach (char character in "FINAL FANTASY VIII")
+        foreach (char character in style == TitleSceneStyle.FinalFantasyVII ? "FINAL FANTASY VII" : "FINAL FANTASY VIII")
         {
             if (character == ' ')
             {
@@ -224,7 +244,7 @@ public sealed partial class TitleArtworkRenderer : IDisposable
             Geometry glyph = font.GetTextPath(character.ToString());
             double precedingGap = glyphs.Count == 0 ? 0 : wordSpace ? 2.4 : wordIndex == 2 ? 0.2 : 1.0;
             glyphs.Add((glyph, precedingGap));
-            naturalWidth += glyph.Bounds.Width * scale;
+            naturalWidth += glyph.Bounds.Width * horizontalScale;
             gapWeight += precedingGap;
             wordSpace = false;
         }
@@ -236,10 +256,10 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         {
             cursor += tracking * precedingGap;
             SKRect glyphBounds = glyph.Bounds;
-            glyph.Transform(new SKMatrix((float)scale, 0, (float)(cursor - glyphBounds.Left * scale), 0, (float)scale, (float)(469 - capBounds.Top * scale), 0, 0, 1));
+            glyph.Transform(new SKMatrix((float)horizontalScale, 0, (float)(cursor - glyphBounds.Left * horizontalScale), 0, (float)scale, (float)(469 - capBounds.Top * scale), 0, 0, 1));
             outline.AddPath(glyph);
             glyph.Dispose();
-            cursor += glyphBounds.Width * scale;
+            cursor += glyphBounds.Width * horizontalScale;
         }
         using Geometry shadow = new(outline);
         shadow.Transform(SKMatrix.CreateTranslation(0, 2.2f));
@@ -249,11 +269,11 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         AddGeometry(metal, outlineStroke, point => Silver(point, 0.77f));
         AddGeometry(metal, outline, point =>
         {
-            float position = Math.Clamp(((float)point.Y - 469f) / 50f, 0f, 1f);
+            float position = Math.Clamp(((float)point.Y - 469f) / capHeight, 0f, 1f);
             float brightness = 0.98f - position * 0.23f + MathF.Exp(-MathF.Pow((position - 0.51f) * 19f, 2f)) * 0.11f;
             return new Color(brightness, Math.Min(1f, brightness + 0.015f), Math.Min(1f, brightness + 0.025f));
         });
-        AddStroke(glints, "M 128,530 L 1472,530", 0.55, new Color(188, 207, 224, 95));
+        AddStroke(glints, style == TitleSceneStyle.FinalFantasyVII ? "M 128,568 L 1472,568" : "M 128,530 L 1472,530", 0.55, new Color(188, 207, 224, 95));
     }
 
     private static void AddStroke(List<VertexPositionColor> vertices, string path, double width, Color color)

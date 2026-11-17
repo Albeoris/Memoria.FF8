@@ -9,7 +9,8 @@ $compilerVersion = '3.8.5.1'
 $sources = @(
     'src/Memoria.FF8.App/Shaders/Triangles.fx',
     'src/Memoria.FF8.App/Shaders/FrameDifference.fx',
-    'src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx'
+    'src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx',
+    'src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx'
 )
 $profiles = @(
     @{ Name = 'DirectX_11'; Suffix = '.mgfxo'; Id = 1; Defines = '' },
@@ -91,7 +92,7 @@ try
                 Assert-EffectProfile $output $profile.Id
             }
         }
-        Write-Host 'Validated all nine shader artifacts, source/output hashes, compiler pin and backend profiles.'
+        Write-Host 'Validated all shader artifacts, source/output hashes, compiler pin and backend profiles.'
     }
     else
     {
@@ -134,7 +135,7 @@ try
         }
         $json = ($manifest | ConvertTo-Json -Depth 6) + "`n"
         [IO.File]::WriteAllText($manifestPath, $json.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
-        Write-Host 'Generated all nine shader artifacts and tools/shader-manifest.json.'
+        Write-Host 'Generated all shader artifacts and tools/shader-manifest.json.'
     }
 }
 finally

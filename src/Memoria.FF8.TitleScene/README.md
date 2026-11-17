@@ -1,5 +1,31 @@
 # Title scene
 
+For FFVII, construct both `TitleSceneRenderer` and `TitleArtworkRenderer` with `TitleSceneStyle.FinalFantasyVII`. The default remains the FFVIII scene described below. Both styles share the existing host-owned menus and presentation clock.
+
+## FFVII meteor
+
+`Shaders/MeteorScene.fx` separates the fixed object-space solid (`MeteorDistance`), its stone material, combustion, ablation sparks and Lifestream sheets. The rock is a ray-marched three-dimensional implicit model with surface normals, irregular relief, faceted stone and sparse hot fissures. Fire wraps the leading edge and streams toward the upper right. The planet is never drawn. The composition has no destination, impact, scene transition, camera travel or finite animation clip: the fire and lower streams continuously advect through stationary envelopes. Nothing advances gameplay or changes the save format.
+
+The fire moves faster than the low foreground streams. All animation uses host-supplied presentation time; repeating a time reproduces the background. Work is bounded by the existing HDR surface cap and fixed ray/field sample counts. A reduced composition scale keeps the solid inside narrow viewports. The foreground uses triangulated font outlines for `FINAL FANTASY VII`; it does not load the original sword artwork.
+
+[Artwork/Meteor.obj](Artwork/Meteor.obj) is the reusable closed object-space mesh: 4,514 vertices, 9,024 triangles, outward normals, long axis X, incoming face -X, camera on -Z. It contains geometry and normals; the procedural material and fire remain separate in the shader. Rebuild it with the configured Python command from the product root:
+
+```powershell
+python tools/Export-MeteorModel.py
+```
+
+The standard-library exporter samples the same solid equations and validates closed topology, winding, nondegenerate triangles and surface error. It uses double precision; GPU floating-point noise can vary slightly by backend. Regenerate the OBJ after changing the solid equations. Optional `--output`, `--longitudes` and `--latitudes` select an output and mesh density.
+
+The resource-free preview accepts `--ff7` in addition to its existing capture/sequence/benchmark options:
+
+```powershell
+dotnet run --project tools/Memoria.FF8.TitleScene.Preview -c Release -f net10.0-windows -- --ff7 --resolution 1920x1080 --time 4 --output meteor-title.png
+```
+
+Rebuild all three compiled shader profiles and the manifest with `tools/Update-Shaders.ps1` after editing HLSL. Ordinary builds use the embedded effects and need no compiler, model exporter, OBJ loader or game artwork.
+
+## FFVIII fabric
+
 `TitleSceneRenderer` is a shared MonoGame library for the isolated DX11 and Vulkan hosts' animated title backdrop: turbulent crimson fabric and filaments, shaded storm clouds, a pearl upper light and a sunset reflected in water on the right. It uses procedural GPU fields and no raster artwork, content pipeline, game assets, random simulation, or wall clock. The host owns the foreground crest, wordmark and menu. The graphics device must use `GraphicsProfile.HiDef`; the constructor checks before allocating resources.
 
 ```csharp
@@ -46,4 +72,4 @@ pwsh ./tools/Update-Shaders.ps1
 pwsh ./tools/Update-Shaders.ps1 -Check
 ```
 
-The tool manifest pins `dotnet-mgfxc` to **3.8.5.1**, matching the centrally versioned MonoGame packages. Commit the readable `.fx`, both rebuilt `.mgfxo` profiles and the shader manifest together. See [artifact validation](../../docs/developers/shaders.md). The runtime only needs this assembly and its selected MonoGame dependency.
+The tool manifest pins `dotnet-mgfxc` to **3.8.5.1**, matching the centrally versioned MonoGame packages. Commit the readable `.fx`, all three rebuilt `.mgfxo` profiles and the shader manifest together. See [artifact validation](../../docs/developers/shaders.md). The runtime only needs this assembly and its selected MonoGame dependency.

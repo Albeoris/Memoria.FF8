@@ -53,6 +53,7 @@ internal static class Program
 internal sealed record PreviewOptions(int Width, int Height, double Time, string Output, bool Benchmark, bool BackgroundOnly)
 {
     public bool CrestOnly { get; init; }
+    public TitleSceneStyle Style { get; init; } = TitleSceneStyle.FinalFantasyVIII;
     public int SequenceFrames { get; init; }
     public double SequenceStep { get; init; } = 0.25;
 
@@ -73,6 +74,9 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
 
             switch (argument)
             {
+                case "--ff7":
+                    options = options with { Style = TitleSceneStyle.FinalFantasyVII };
+                    break;
                 case "--crest":
                     options = options with { CrestOnly = true };
                     break;
@@ -118,7 +122,7 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
                     options = options with { SequenceStep = step };
                     break;
                 default:
-                    throw new ArgumentException($"Unknown argument: {argument}. Options: --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
+                    throw new ArgumentException($"Unknown argument: {argument}. Options: --ff7 --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
             }
         }
         return options;
@@ -158,10 +162,10 @@ internal sealed class PreviewGame : Game
     protected override void LoadContent()
     {
         long initializationStarted = Stopwatch.GetTimestamp();
-        scene = new TitleSceneRenderer(GraphicsDevice);
+        scene = new TitleSceneRenderer(GraphicsDevice, options.Style);
         if (!options.BackgroundOnly)
         {
-            artwork = new TitleArtworkRenderer(GraphicsDevice);
+            artwork = new TitleArtworkRenderer(GraphicsDevice, options.Style);
         }
         pixels = new Color[GraphicsDevice.PresentationParameters.BackBufferWidth * GraphicsDevice.PresentationParameters.BackBufferHeight];
         initializationMilliseconds = Stopwatch.GetElapsedTime(initializationStarted).TotalMilliseconds;
@@ -222,6 +226,7 @@ internal sealed class PreviewGame : Game
             var report = new
             {
                 Scene = "Title",
+                Style = options.Style.ToString(),
                 Field = (int?)null,
                 Frame = 0,
                 AnimationSeconds = options.Time,
@@ -243,9 +248,9 @@ internal sealed class PreviewGame : Game
                 MaximumRepeatRgbDifference = maximumRepeatDifference,
                 RepeatRgbTolerance = repeatTolerance,
                 RepeatAlphaMatches = alphaMatches,
-                LightIntensity = TitleSceneAnimation.LightIntensity(options.Time),
-                VortexRotationRadians = TitleSceneAnimation.VortexRotation(options.Time),
-                VortexLogTravel = TitleSceneAnimation.VortexTravel(options.Time),
+                LightIntensity = options.Style == TitleSceneStyle.FinalFantasyVIII ? (double?)TitleSceneAnimation.LightIntensity(options.Time) : null,
+                VortexRotationRadians = options.Style == TitleSceneStyle.FinalFantasyVIII ? (double?)TitleSceneAnimation.VortexRotation(options.Time) : null,
+                VortexLogTravel = options.Style == TitleSceneStyle.FinalFantasyVIII ? (double?)TitleSceneAnimation.VortexTravel(options.Time) : null,
                 options.SequenceFrames,
                 options.SequenceStep,
                 Output = options.Output

@@ -230,7 +230,7 @@ static class GraphicsPayload
         PayloadImages.Validate(directory, rid);
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         JsonElement root = manifest.RootElement;
-        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("sourceNormalization").GetString() != "utf8-lf" || root.GetProperty("compiler").GetProperty("package").GetString() != "dotnet-mgfxc" || root.GetProperty("compiler").GetProperty("version").GetString() != "3.8.5.1" || root.GetProperty("effects").GetArrayLength() != 9)
+        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("sourceNormalization").GetString() != "utf8-lf" || root.GetProperty("compiler").GetProperty("package").GetString() != "dotnet-mgfxc" || root.GetProperty("compiler").GetProperty("version").GetString() != "3.8.5.1" || root.GetProperty("effects").GetArrayLength() != 12)
         {
             throw new InvalidDataException("Shader manifest schema, compiler or complete variant inventory is invalid.");
         }
@@ -238,7 +238,8 @@ static class GraphicsPayload
         [
             ("Memoria.FF8.dll", "Memoria.FF8.Shaders.Triangles.mgfxo", "src/Memoria.FF8.App/Shaders/Triangles.fx"),
             ("Memoria.FF8.dll", "Memoria.FF8.Shaders.FrameDifference.mgfxo", "src/Memoria.FF8.App/Shaders/FrameDifference.fx"),
-            ("Memoria.FF8.TitleScene.dll", "Memoria.FF8.TitleScene.TitleScene.mgfxo", "src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx")
+            ("Memoria.FF8.TitleScene.dll", "Memoria.FF8.TitleScene.TitleScene.mgfxo", "src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx"),
+            ("Memoria.FF8.TitleScene.dll", "Memoria.FF8.TitleScene.MeteorScene.mgfxo", "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx")
         ];
         foreach (var shader in shaders)
         {
@@ -275,7 +276,7 @@ static class GraphicsPayload
                 }
             }
         }
-        Console.WriteLine($"Graphics payload verified: {backend}, isolated MonoGame family, {rid} native ABI, three embedded shader profiles and manifest hashes.");
+        Console.WriteLine($"Graphics payload verified: {backend}, isolated MonoGame family, {rid} native ABI, four embedded effects and complete three-profile manifest hashes.");
     }
 
     private static bool IsHash(string value)

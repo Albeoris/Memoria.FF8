@@ -64,7 +64,7 @@ try
                     throw "Shader did not reproduce from a separate source directory: $($entry.output)."
                 }
             }
-            Write-Host 'PASS: All nine payloads reproduce byte-for-byte from a separate source directory'
+            Write-Host 'PASS: All payloads reproduce byte-for-byte from a separate source directory'
         }
         finally
         {
