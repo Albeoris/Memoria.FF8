@@ -64,7 +64,41 @@ internal static class AutoPlayFieldDestinationGoalTests
         Ff7AutoPlayPolicy.RetainDestinationGoal(state, next, observation.NavigationKey, entrance.ConditionFingerprint);
         Check(state.NavigationGoal is null, "Ordinary exploration must retain its existing local-step goal clearing behavior.");
         CheckConsumedEntranceIntent(observation, entrance, optional);
+        CheckPossibleDestinationGoals(observation, entrance, optional);
         Console.WriteLine("PASS generic field destination resolution, priority, retention, restoration, native guards and unchanged consumption history");
+    }
+
+    private static void CheckPossibleDestinationGoals(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget entrance, Ff7AutoPlayTarget optional)
+    {
+        Ff7AutoPlayTarget multiple = entrance with { DestinationField = null, PossibleDestinationFields = [200, 300] };
+        Check(multiple.SpatialDestinations is null && optional.PossibleDestinationFields.Length == 0, "Ordinary possible destinations must default empty and must not populate spatial ownership/completion metadata.");
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent[] events = [new(optional.Id, AutoPlayEventKind.Transition, Order: 0, ConditionSignature: optional.ConditionFingerprint), new(multiple.Id, AutoPlayEventKind.Transition, Order: 1, ConditionSignature: multiple.ConditionFingerprint)];
+        planner.Observe(new(observation.VisitId, "native"), events);
+        planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, events);
+        Ff7AutoPlayObservation current = observation with { Events = [optional, multiple] };
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, current);
+        Check(state.NavigationGoal is null && planner.PlanNavigation(current.NavigationKey)?.Event.Id == optional.Id, "Multi-destination analysis must leave ordinary exploration order unchanged without a requested destination.");
+        state.DestinationField = 300;
+        string before = JsonSerializer.Serialize(state.Coverage);
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, current);
+        AutoPlayPlanStep next = planner.PlanNavigation(current.NavigationKey, preferredGoal: state.NavigationGoal)!;
+        Check(next.Event.Id == multiple.Id && state.NavigationGoal?.Conditions == multiple.ConditionFingerprint, "A completely analyzed ordinary multi-destination entrance must become the requested exact-condition goal ahead of optional exploration.");
+        Ff7AutoPlayPolicy.RetainDestinationGoal(state, next, current.NavigationKey, multiple.ConditionFingerprint);
+        Check(state.NavigationGoal?.EventId == multiple.Id && JsonSerializer.Serialize(state.Coverage) == before, "Multi-destination goal retention must preserve existing native coverage and consumption.");
+        Check(planner.PlanNavigation(current.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == multiple.Id, [], "blocked"))?.Event.Id == optional.Id, "Possible destinations must not override native physical admission.");
+        state.NavigationGoal = null;
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, current with { Events = [multiple with { AnalysisComplete = false }] });
+        Check(state.NavigationGoal is null, "Incomplete multi-destination analysis must establish no destination goal.");
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, current with { Events = [multiple with { ChangesField = false }] });
+        Check(state.NavigationGoal is null, "Goal-only possible destinations must not grant a nontransition field-change capability.");
+        state.DestinationField = 400;
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, current);
+        Check(state.NavigationGoal is null, "A requested field absent from all analyzed destinations must establish no local goal.");
+        state.DestinationField = 200;
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, current with { Events = [multiple, optional] });
+        Check(state.NavigationGoal?.EventId == optional.Id && optional.DestinationField == 200, "An exact single destination must retain its shortcut and precedence over an analyzed alternative.");
     }
 
     private static void CheckConsumedEntranceIntent(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget entrance, Ff7AutoPlayTarget optional)
@@ -109,10 +143,17 @@ internal static class AutoPlayFieldDestinationGoalTests
             controller.Advance(1);
         }
         Ff7AutoPlayActiveEvent active = policy.State.Active ?? throw new InvalidOperationException($"No native destination was selected: {controller.Error ?? policy.Status}");
-        Check(controller.Error is null && active.DestinationField == destination, "The native planner must select the requested field entrance.");
+        Ff7AutoPlayTarget selected = new Ff7AutoPlayDiscovery(session).FindTarget(active.EventId) ?? throw new InvalidOperationException("The selected native entrance was absent from discovery.");
+        Check(controller.Error is null && selected.AnalysisComplete && (selected.DestinationField == destination || selected.PossibleDestinationFields.Contains(destination) || selected.SpatialDestinations?.Contains(destination) == true), "The native planner must select an entrance whose complete native analysis includes the requested field.");
+        Check(active.SpatialDestinations is null || selected.SpatialDestinations is not null, "Ordinary goal metadata must not create spatial transition ownership or completion evidence.");
+        if (selected.Entity >= 0 && selected.Script >= 0)
+        {
+            int[] analyzed = session.Machine.AnalyzeScript(selected.Entity, selected.Script).DestinationFields;
+            Check(selected.PossibleDestinationFields.SequenceEqual(analyzed) && selected.DestinationField == (analyzed.Length == 1 ? analyzed[0] : (int?)null), "Ordinary discovery must preserve every analyzed destination while retaining the exact single-destination shortcut.");
+        }
         Check(policy.State.NavigationGoal is { } goal && goal.EventId == active.EventId && goal.Conditions == active.ConditionFingerprint, "Native local selection must preserve the exact destination goal and entry condition.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Native destination selection must leave the standalone fixture unchanged.");
-        Console.WriteLine($"PASS original field destination selection and retained native goal: {active.EventId}; source unchanged");
+        Console.WriteLine($"PASS original field destination selection and retained native goal: {active.EventId}; possible destinations=[{string.Join(',', selected.PossibleDestinationFields)}]; source unchanged");
     }
 
     private static void Check(bool condition, string message)

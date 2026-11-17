@@ -21,7 +21,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
-        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.SpatialDestinations?.Contains(destination) == true)).ToArray();
+        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.PossibleDestinationFields.Contains(destination) || target.SpatialDestinations?.Contains(destination) == true)).ToArray();
         Ff7AutoPlayTarget? selected = candidates.FirstOrDefault(target => state.NavigationGoal is { } retained && retained.NavigationKey == observation.NavigationKey && retained.EventId == target.Id)
             ?? candidates.FirstOrDefault(target => target.DestinationField == destination)
             ?? candidates.FirstOrDefault();
