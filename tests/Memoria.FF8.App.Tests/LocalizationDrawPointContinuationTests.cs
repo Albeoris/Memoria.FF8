@@ -48,7 +48,17 @@ public sealed class LocalizationDrawPointContinuationTests
         Assert.Equal(-1, native.MessageId);
         world.Events.Scene.DialogueWindows.TryGetValue(native.Channel, out DialogueWindow? window);
         JsonElement before = world.Events.Capture();
-        Assert.Same(native, Invoke<DialogueState>(host, "LocalizedDialogue", native));
+        DialogueState display = Invoke<DialogueState>(host, "LocalizedDialogue", native);
+        if (world.Events.Scene.DrawPointInteraction!.Message == 4)
+        {
+            int magic = world.Events.Scene.DrawPointInteraction.PointByte & 63;
+            Assert.Contains(world.Events.ReadNativeDrawPointCatalog!().MagicNames[magic], display.Text);
+            Assert.Equal(native with { Text = display.Text }, display);
+        }
+        else
+        {
+            Assert.Same(native, display);
+        }
         Assert.Same(window, Invoke<DialogueWindow?>(host, "LocalizedWindow", native, window));
         Assert.Equal(native.InitialChoice ?? 0, Invoke<int>(host, "LocalizedChoiceLine", native, native.InitialChoice ?? 0));
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));

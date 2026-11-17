@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Events;
 using Memoria.FF8.Resources.Localization;
@@ -59,6 +60,43 @@ public sealed class LocalizationGeneratedDrawPointTests
         Assert.Same(native, presentation.Project(native));
         Assert.Equal(-1, native.MessageId);
         Assert.Contains("{Var 55}", native.Text);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void SelectionShowsCurrentMagicWithoutChangingChoiceRowsOrNativeState(bool shared, bool translated, bool canDraw)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeDrawPointCatalog catalog = assets.ReadNativeDrawPointCatalog();
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().RebuildParty();
+        int[] party = vitals.CombatParty.Where(row => row != 255).Select(row => (int)vitals.Records[row].CharacterId).ToArray();
+        string before = JsonSerializer.Serialize(vitals);
+        for (int magic = 1; magic < catalog.MagicNames.Length; magic++)
+        {
+            NativeDrawPointCatalog visual = catalog with { MagicNames = catalog.MagicNames.SetItem(magic, "Localized magic " + magic) };
+            NativeDrawPointInteraction interaction = Interaction(catalog) with { Message = 4, PointByte = (byte)magic, SharedSelection = shared, EligibleCombatSlots = canDraw ? (byte)7 : (byte)0 };
+            string original = shared ? catalog.FormatSharedSelection(canDraw) : catalog.FormatSelection(party, vitals, magic, interaction.EligibleCombatSlots);
+            DialogueState native = new(6, -1, original, 0, 0, FirstChoice: 1, LastChoice: shared ? 2 : party.Length + 1, InitialChoice: 2, CancelChoice: 1);
+            string key = LocalizationSourceExporter.IndexedKey("en", "drawpoints_world", 4);
+            LocalizationCatalog localization = translated ? new(new Dictionary<string, LocalizationValue> { [key] = new("Translated " + catalog.Message(4), "selected", "project") }) : LocalizationCatalog.Empty;
+            RecreateGame.GeneratedAuthoringDialogue presentation = RecreateGame.CreateGeneratedDrawPointPresentation(interaction, visual, vitals, party, "en", localization.ResolveText);
+            DialogueState display = presentation.Project(native);
+            string[] lines = display.Text.Split("{Line}");
+            Assert.Equal((translated ? "Translated " : "") + original.Split("{Line}")[0] + " (Localized magic " + magic + ")", lines[0]);
+            Assert.Equal(original.Split("{Line}").Skip(1), lines.Skip(1));
+            Assert.Equal(native with { Text = display.Text }, display);
+            Assert.Equal(original, native.Text);
+            Assert.Equal(display.Text, presentation.Binding.Text);
+            Assert.Equal(display.Text, presentation.FormatTemplate(presentation.Binding.Template));
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(vitals));
     }
 
     [Fact]

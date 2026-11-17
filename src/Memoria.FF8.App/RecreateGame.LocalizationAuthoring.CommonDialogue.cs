@@ -39,7 +39,7 @@ internal sealed partial class RecreateGame
         int magic = interaction.PointByte & 63;
         NativeDrawPointCatalog visualNames = catalog;
         bool dynamicContribution = false;
-        if (catalog.Message(interaction.Message).Contains("{Name 32}", StringComparison.Ordinal))
+        if (interaction.Message == 4 || catalog.Message(interaction.Message).Contains("{Name 32}", StringComparison.Ordinal))
         {
             string magicKey = LocalizationSourceExporter.IndexedKey(resourceHost.Resources.Source.Language, LocalizationSourceExporter.KernelTable("MagicSpells", "Name"), magic);
             string name = resourceHost.Resources.ResolveText(magicKey, catalog.MagicNames[magic]).Text;
@@ -49,7 +49,7 @@ internal sealed partial class RecreateGame
         presentation = CreateGeneratedDrawPointPresentation(interaction, visualNames, session.CharacterVitals, owner.Scene.Party.ToArray(), resourceHost.Resources.Source.Language, resourceHost.Resources.ResolveText, owner.MessageVariables?.At(7));
         presentation = presentation with
         {
-            DynamicContribution = dynamicContribution,
+            DynamicContribution = dynamicContribution || presentation.DynamicContribution,
             Binding = presentation.Binding with
             {
                 Names = new Dictionary<int, string>(owner.Scene.Names),
@@ -95,9 +95,14 @@ internal sealed partial class RecreateGame
             string template = string.IsNullOrEmpty(candidate) ? source : candidate;
             ValidateGeneratedDrawPointTemplate(interaction.Message, source, template, key);
             NativeDrawPointCatalog visual = catalog with { CommonMessages = catalog.CommonMessages.SetItem(interaction.Message, template), NoEligibleMessage = interaction.Message == 7 ? template : catalog.NoEligibleMessage };
-            return interaction.Message == 4
-                ? visual.FormatSelection(frozenParty, frozenVitals!, magic, interaction.EligibleCombatSlots)
-                : visual.FormatMessage(interaction.Message, magic, character, quantity);
+            if (interaction.Message != 4)
+            {
+                return visual.FormatMessage(interaction.Message, magic, character, quantity);
+            }
+            bool canDraw = Enumerable.Range(0, frozenVitals!.CombatParty.Length).Any(slot => (interaction.EligibleCombatSlots & (1 << slot)) != 0 && frozenVitals.CombatParty[slot] != 255 && frozenParty.TakeWhile(identity => identity != 255).Contains(frozenVitals.Records[frozenVitals.CombatParty[slot]].CharacterId) && frozenVitals.GetMagicCapacity(frozenVitals.CombatParty[slot], magic) == 0);
+            string selection = interaction.SharedSelection ? visual.FormatSharedSelection(canDraw) : visual.FormatSelection(frozenParty, frozenVitals, magic, interaction.EligibleCombatSlots);
+            int headerEnd = selection.IndexOf("{Line}", StringComparison.Ordinal);
+            return selection.Insert(headerEnd, " (" + visual.MagicNames[magic] + ")");
         }
         string formatted = Format(resolved.Binding.Template);
         LocalizationTextBinding binding = resolved.Binding with
@@ -112,7 +117,7 @@ internal sealed partial class RecreateGame
             ResourceFingerprint = catalog.MessageHash(interaction.Message),
             Arguments = [magic, catalog.MagicNames[magic], character, quantity]
         };
-        return new(binding, Format);
+        return new(binding, Format) { DynamicContribution = interaction.Message == 4 };
     }
 
     internal static void ValidateGeneratedDrawPointTemplate(int message, string source, string target, string key)
