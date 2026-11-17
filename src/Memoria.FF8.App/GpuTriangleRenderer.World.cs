@@ -93,6 +93,7 @@ public sealed partial class GpuTriangleRenderer
         }
         finally
         {
+            ClearTextureBindings();
             ReleaseTransientTexture();
             if (transient)
             {

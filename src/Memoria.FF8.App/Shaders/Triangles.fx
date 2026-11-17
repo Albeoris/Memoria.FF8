@@ -16,6 +16,13 @@ float4 FogParameters; // start, end, unused, unused
 float3 FogColor;
 float4 ClipRectangle;
 float2 TextureSize;
+float2 TextureSize1;
+float2 TextureSize2;
+float2 TextureSize3;
+float2 TextureSize4;
+float2 TextureSize5;
+float2 TextureSize6;
+float2 TextureSize7;
 float DepthScale;
 bool CentroidTextureSampling;
 float4x4 WorldView;
@@ -27,16 +34,89 @@ float4 WorldFf7Bridge; // native rotation's Y axis, enabled
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture : register(t0);
 #else
-texture SourceTexture;
+texture SourceTexture : register(t0);
 #endif
-#if VULKAN || DIRECTX12
 sampler TextureSampler : register(s0) = sampler_state
-#else
-sampler TextureSampler = sampler_state
-#endif
 { Texture = <SourceTexture>; };
-struct VSInput { float3 WorldPosition : TEXCOORD5; float3 WorldNormal : TEXCOORD6; float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
-struct VSOutput { float3 WorldPosition : TEXCOORD5; float3 WorldNormal : TEXCOORD6; float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; centroid float3 TextureUv : TEXCOORD4; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture1 : register(t1);
+#else
+texture SourceTexture1 : register(t1);
+#endif
+sampler TextureSampler1 : register(s1) = sampler_state
+{ Texture = <SourceTexture1>; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture2 : register(t2);
+#else
+texture SourceTexture2 : register(t2);
+#endif
+sampler TextureSampler2 : register(s2) = sampler_state
+{ Texture = <SourceTexture2>; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture3 : register(t3);
+#else
+texture SourceTexture3 : register(t3);
+#endif
+sampler TextureSampler3 : register(s3) = sampler_state
+{ Texture = <SourceTexture3>; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture4 : register(t4);
+#else
+texture SourceTexture4 : register(t4);
+#endif
+sampler TextureSampler4 : register(s4) = sampler_state
+{ Texture = <SourceTexture4>; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture5 : register(t5);
+#else
+texture SourceTexture5 : register(t5);
+#endif
+sampler TextureSampler5 : register(s5) = sampler_state
+{ Texture = <SourceTexture5>; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture6 : register(t6);
+#else
+texture SourceTexture6 : register(t6);
+#endif
+sampler TextureSampler6 : register(s6) = sampler_state
+{ Texture = <SourceTexture6>; };
+#if VULKAN || DIRECTX12
+Texture2D SourceTexture7 : register(t7);
+#else
+texture SourceTexture7 : register(t7);
+#endif
+sampler TextureSampler7 : register(s7) = sampler_state
+{ Texture = <SourceTexture7>; };
+float2 SelectedTextureSize(float slot)
+{
+    switch ((int)slot)
+    {
+        case 1: return TextureSize1;
+        case 2: return TextureSize2;
+        case 3: return TextureSize3;
+        case 4: return TextureSize4;
+        case 5: return TextureSize5;
+        case 6: return TextureSize6;
+        case 7: return TextureSize7;
+        default: return TextureSize;
+    }
+}
+float4 SampleSourceTexture(float slot, float2 uv)
+{
+    switch ((int)slot)
+    {
+        case 1: return SAMPLE_TEXTURE(SourceTexture1, TextureSampler1, uv);
+        case 2: return SAMPLE_TEXTURE(SourceTexture2, TextureSampler2, uv);
+        case 3: return SAMPLE_TEXTURE(SourceTexture3, TextureSampler3, uv);
+        case 4: return SAMPLE_TEXTURE(SourceTexture4, TextureSampler4, uv);
+        case 5: return SAMPLE_TEXTURE(SourceTexture5, TextureSampler5, uv);
+        case 6: return SAMPLE_TEXTURE(SourceTexture6, TextureSampler6, uv);
+        case 7: return SAMPLE_TEXTURE(SourceTexture7, TextureSampler7, uv);
+        default: return SAMPLE_TEXTURE(SourceTexture, TextureSampler, uv);
+    }
+}
+struct VSInput { float3 WorldPosition : TEXCOORD5; float3 WorldNormal : TEXCOORD6; float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; float TextureSlot : TEXCOORD7; };
+struct VSOutput { float3 WorldPosition : TEXCOORD5; float3 WorldNormal : TEXCOORD6; float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; centroid float3 TextureUv : TEXCOORD4; nointerpolation float TextureSlot : TEXCOORD7; };
 VSOutput VertexMain(VSInput input)
 {
     VSOutput output = (VSOutput)0;
@@ -49,6 +129,7 @@ VSOutput VertexMain(VSInput input)
     output.Depth = input.Position.z;
     output.TextureScreenRectangle = input.TextureScreenRectangle;
     output.TextureTexelRectangle = input.TextureTexelRectangle;
+    output.TextureSlot = input.TextureSlot;
     return output;
 }
 struct WorldVSInput
@@ -68,6 +149,7 @@ VSOutput Ff7WorldProjection(float3 camera, float2 uv, float4 color)
     ff7.Depth = camera.z;
     ff7.TextureScreenRectangle = 0;
     ff7.TextureTexelRectangle = 0;
+    ff7.TextureSlot = 0;
     return ff7;
 }
 VSOutput WorldVertexMain(WorldVSInput input)
@@ -121,6 +203,7 @@ VSOutput WorldVertexMain(WorldVSInput input)
     output.Depth = cameraZ;
     output.TextureScreenRectangle = 0;
     output.TextureTexelRectangle = 0;
+    output.TextureSlot = 0;
     return output;
 }
 struct Ff7UnderwaterVSInput
@@ -187,11 +270,11 @@ float4 FieldLightCone[8];
 float4x4 FieldShadowMatrix;
 float4 FieldShadowParameters; // available, ground opacity, PCF radius in UV units, texel size
 #if VULKAN || DIRECTX12
-Texture2D FieldShadowTexture : register(t1);
-sampler FieldShadowSampler : register(s1) = sampler_state
+Texture2D FieldShadowTexture : register(t8);
+sampler FieldShadowSampler : register(s8) = sampler_state
 #else
-texture FieldShadowTexture;
-sampler FieldShadowSampler = sampler_state
+texture FieldShadowTexture : register(t8);
+sampler FieldShadowSampler : register(s8) = sampler_state
 #endif
 { Texture = <FieldShadowTexture>; };
 float3 FieldLinear(float3 color)
@@ -293,11 +376,13 @@ float4 FieldShade(float4 albedo, VSOutput input)
 struct FieldShadowInput
 {
     float3 WorldPosition : TEXCOORD5;
+    float TextureSlot : TEXCOORD7;
     float4 Color : COLOR0;
     float3 Uv : TEXCOORD0;
 };
 struct FieldShadowOutput
 {
+    nointerpolation float TextureSlot : TEXCOORD7;
     float4 Position : SV_POSITION;
     float2 Uv : TEXCOORD0;
     float Level : TEXCOORD1;
@@ -306,6 +391,7 @@ struct FieldShadowOutput
 FieldShadowOutput FieldShadowVertex(FieldShadowInput input)
 {
     FieldShadowOutput output;
+    output.TextureSlot = input.TextureSlot;
     output.Position = mul(float4(input.WorldPosition, 1), FieldShadowMatrix);
     output.Uv = input.Uv.xy;
     output.Level = input.Color.a;
@@ -314,7 +400,7 @@ FieldShadowOutput FieldShadowVertex(FieldShadowInput input)
 }
 float4 FieldShadowPixel(FieldShadowOutput input) : SV_TARGET0
 {
-    float4 texel = SAMPLE_TEXTURE(SourceTexture, TextureSampler, input.Uv);
+    float4 texel = SampleSourceTexture(input.TextureSlot, input.Uv);
     clip(texel.a - AlphaParameters.x);
     return float4(1 / input.Depth, input.Level, 0, 1);
 }
@@ -335,6 +421,7 @@ PSOutput PixelMainCore(VSOutput input, bool fieldLighting)
         // Keep model texture/alpha samples inside it; Uv remains centered for depth and fog.
         float3 textureUv = CentroidTextureSampling ? input.TextureUv : input.Uv;
         float2 interpolatedUv = textureUv.xy / textureUv.z;
+        float2 textureSize = SelectedTextureSize(input.TextureSlot);
         float2 uv = interpolatedUv;
         if (input.TextureScreenRectangle.z > 0)
         {
@@ -342,19 +429,19 @@ PSOutput PixelMainCore(VSOutput input, bool fieldLighting)
             // Interpolated atlas UVs lose precision at source pixel boundaries.
             float2 local = (input.Position.xy - input.TextureScreenRectangle.xy) / input.TextureScreenRectangle.zw;
             float2 pixel = clamp(floor(local * input.TextureTexelRectangle.zw), 0, input.TextureTexelRectangle.zw - 1);
-            uv = (input.TextureTexelRectangle.xy + pixel + 0.5) / TextureSize;
+            uv = (input.TextureTexelRectangle.xy + pixel + 0.5) / textureSize;
         }
-        float4 texel = SAMPLE_TEXTURE(SourceTexture, TextureSampler, uv);
+        float4 texel = SampleSourceTexture(input.TextureSlot, uv);
         if (FogParameters.w > 0)
         {
             // Integer source UVs are smooth RGB texel centers; texel above retains point-sampled cutout coverage.
-            float2 texelPosition = clamp(interpolatedUv * TextureSize, 0, TextureSize - 1);
+            float2 texelPosition = clamp(interpolatedUv * textureSize, 0, textureSize - 1);
             float2 origin = floor(texelPosition);
             float2 weight = frac(texelPosition);
-            float4 c00 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(0.5, 0.5)) / TextureSize);
-            float4 c10 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(1.5, 0.5)) / TextureSize);
-            float4 c01 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(0.5, 1.5)) / TextureSize);
-            float4 c11 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(1.5, 1.5)) / TextureSize);
+            float4 c00 = SampleSourceTexture(input.TextureSlot, (origin + float2(0.5, 0.5)) / textureSize);
+            float4 c10 = SampleSourceTexture(input.TextureSlot, (origin + float2(1.5, 0.5)) / textureSize);
+            float4 c01 = SampleSourceTexture(input.TextureSlot, (origin + float2(0.5, 1.5)) / textureSize);
+            float4 c11 = SampleSourceTexture(input.TextureSlot, (origin + float2(1.5, 1.5)) / textureSize);
             float4 weights = float4((1-weight.x)*(1-weight.y), weight.x*(1-weight.y), (1-weight.x)*weight.y, weight.x*weight.y);
             weights *= float4(c00.a, c10.a, c01.a, c11.a);
             float total = dot(weights, float4(1,1,1,1));

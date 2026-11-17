@@ -185,7 +185,10 @@ public sealed class GpuTriangleTextureCacheTests
     {
         PixelImage image = Image(255, 0, 0);
         Frame(renderer, new TriangleMaterial(image) { DynamicTexture = true });
-        Texture2D texture = Assert.IsType<Texture2D>(device.Device.Textures[0]);
+        object recent = typeof(GpuTriangleRenderer).GetField("recentTextures", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
+        object last = recent.GetType().GetProperty("Last")!.GetValue(recent)!;
+        object entry = last.GetType().GetProperty("Value")!.GetValue(last)!;
+        Texture2D texture = Assert.IsType<Texture2D>(entry.GetType().GetProperty("Texture")!.GetValue(entry));
         GC.KeepAlive(image);
         return (new(image), texture);
     }

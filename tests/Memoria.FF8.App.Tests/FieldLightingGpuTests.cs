@@ -9,6 +9,59 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class FieldLightingGpuTests
 {
+    [Fact]
+    public void Multiple_field_textures_and_shadow_alpha_keep_the_selected_slot_and_restore_sampler_eight()
+    {
+        using GpuTestDevice device = new();
+        using Microsoft.Xna.Framework.Graphics.Texture2D callerTexture = new(device.Device, 1, 1);
+        device.Device.Textures[8] = callerTexture;
+        device.Device.SamplerStates[8] = Microsoft.Xna.Framework.Graphics.SamplerState.LinearWrap;
+        using GpuTriangleRenderer renderer = new(device.Device);
+        PixelImage opaque = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
+        PixelImage transparent = new(1, 1, [new Rgba32(255, 255, 255, 0)]);
+        PixelImage red = new(1, 1, [new Rgba32(255, 0, 0, 255)]);
+        PixelImage blue = new(1, 1, [new Rgba32(0, 0, 255, 255)]);
+        FieldSpotLight lamp = Lamp();
+        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp], PrimaryLightId = lamp.Id, GroundShadow = new() { Opacity = 1, Softness = 0 } };
+        TriangleVertex Caster(float x, float y) => new(Vector2.Zero, 0, 1, Vector2.Zero, Vector4.One) { WorldPosition = new(x, y, 5) };
+        FieldShadowTriangle left = new(Caster(-3, -1), Caster(-1, -1), Caster(-3, 1), new(opaque));
+        FieldShadowTriangle right = new(Caster(1, -1), Caster(3, -1), Caster(1, 1), new(transparent));
+        Color[] Render(bool forceBoundary)
+        {
+            renderer.Begin(64, 64, Vector4.One);
+            renderer.SetFieldLighting(scene);
+            Assert.True(renderer.PrepareFieldShadow([left, right], out string? reason), reason);
+            TriangleMaterial ground = new(null, TriangleBlend.Alpha, DepthWrite: false) { FieldLighting = FieldLightingPass.GroundShadow };
+            DrawPlane(renderer, 0, 64, 0, ground);
+            Assert.True(renderer.TryCaptureArgb(out _));
+            Assert.Same(Microsoft.Xna.Framework.Graphics.SamplerState.PointClamp, device.Device.SamplerStates[8]);
+            Assert.NotSame(callerTexture, device.Device.Textures[8]);
+            TriangleMaterial model = new(red) { FieldLighting = FieldLightingPass.Model, DepthWrite = false };
+            void DrawStrip(float start, float end, TriangleMaterial material)
+            {
+                TriangleVertex Vertex(float x, float y) => new(new Vector2(x, y), 0.25f, 1, Vector2.Zero, Vector4.One) { WorldPosition = new((x - 32) / 4, (y - 32) / 4, 0), WorldNormal = Vector3.UnitZ };
+                renderer.Draw(Vertex(start, 0), Vertex(end, 0), Vertex(start, 64), material);
+                renderer.Draw(Vertex(end, 0), Vertex(end, 64), Vertex(start, 64), material);
+            }
+            DrawStrip(0, 8, model);
+            if (forceBoundary)
+            {
+                Assert.True(renderer.TryCaptureArgb(out _));
+            }
+            DrawStrip(56, 64, model with { Texture = blue });
+            renderer.End();
+            Assert.Same(callerTexture, device.Device.Textures[8]);
+            Assert.Same(Microsoft.Xna.Framework.Graphics.SamplerState.LinearWrap, device.Device.SamplerStates[8]);
+            return GpuTestDevice.Read(renderer.Target);
+        }
+        Color[] batched = Render(false);
+        Assert.Equal(batched, Render(true));
+        Assert.True(batched[32 * 64 + 4].R > 0);
+        Assert.True(batched[32 * 64 + 60].B > 0);
+        Assert.True(batched[28 * 64 + 12].R < 255);
+        Assert.Equal(Color.White, batched[28 * 64 + 44]);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(2)]

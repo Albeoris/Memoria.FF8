@@ -67,7 +67,7 @@ public sealed partial class GpuTriangleRenderer
         effect.Parameters["FieldLightingPass"].SetValue(0f);
         effect.Parameters["FieldLightingPreview"].SetValue(new Vector2(PreviewGrayFieldMaterial ? 1f : 0f, PreviewWrappedFieldDiffuse ? 0.3f : 0f));
         effect.Parameters["FieldShadowTexture"].SetValue((Texture2D?)null);
-        device.Textures[1] = null;
+        device.Textures[FieldShadowTextureSlot] = null;
     }
 
     public bool PrepareFieldShadow(IReadOnlyList<FieldShadowTriangle> casters, out string? reason)
@@ -96,7 +96,7 @@ public sealed partial class GpuTriangleRenderer
             System.Numerics.Matrix4x4 matrix = FieldLightingMath.ShadowViewProjection(light);
             effect.Parameters["FieldShadowMatrix"].SetValue(new Matrix(matrix.M11, matrix.M12, matrix.M13, matrix.M14, matrix.M21, matrix.M22, matrix.M23, matrix.M24, matrix.M31, matrix.M32, matrix.M33, matrix.M34, matrix.M41, matrix.M42, matrix.M43, matrix.M44));
             effect.Parameters["FieldShadowTexture"].SetValue((Texture2D?)null);
-            device.Textures[1] = null;
+            device.Textures[FieldShadowTextureSlot] = null;
             device.SetRenderTarget(fieldShadowTarget);
             device.Clear(ClearOptions.Target | ClearOptions.DepthBuffer, new Color(0f, 0, 0, 1), 1, 0);
             device.RasterizerState = RasterizerState.CullNone;

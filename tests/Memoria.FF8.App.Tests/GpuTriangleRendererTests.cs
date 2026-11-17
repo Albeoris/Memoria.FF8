@@ -73,7 +73,7 @@ public sealed class GpuTriangleRendererTests
         Assert.All(capture, pixel => Assert.Equal(0xFF804000u, pixel));
         Assert.Equal(1, renderer.TriangleBatchMetrics.VertexUploads);
         Assert.Equal(2, renderer.TriangleBatchMetrics.Draws);
-        Assert.Equal(1, renderer.TriangleBatchMetrics.TextureChanges);
+        Assert.Equal(1, renderer.TriangleBatchMetrics.MaterialChanges);
         Assert.Equal(1, renderer.TriangleBatchMetrics.Capture);
 
         Quad(renderer, new(null, TriangleBlend.Add), new Vector4(0, 0, 32f / 255, 1));
@@ -83,6 +83,234 @@ public sealed class GpuTriangleRendererTests
         Assert.Equal(3, renderer.TriangleBatchMetrics.Draws);
         Assert.Equal(1, renderer.TriangleBatchMetrics.End);
         Assert.Equal(1, renderer.PresentationVersion);
+    }
+
+    [Theory]
+    [InlineData(8, 1)]
+    [InlineData(9, 2)]
+    public void Ordered_static_texture_slots_share_a_draw_until_the_ninth_image(int count, int expectedDraws)
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device) { ObserveTriangleBatches = true };
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        for (int index = 0; index < count; index++)
+        {
+            PixelImage image = new(1, 1, [new Rgba32((byte)(20 * index), 0, 0)]);
+            Quad(renderer, new(image), Vector4.One);
+        }
+        renderer.End();
+        Assert.Equal(expectedDraws, renderer.FrameDrawCalls);
+        Assert.Equal(count == 9 ? 1 : 0, renderer.TriangleBatchMetrics.TextureCapacity);
+        Assert.Equal(1, renderer.TriangleBatchMetrics.VertexUploads);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(new Color(20 * (count - 1), 0, 0, 255), pixel));
+    }
+
+    [Theory]
+    [InlineData(TriangleSampler.PointWrap)]
+    [InlineData(TriangleSampler.CutoutLinearClamp)]
+    public void Mixed_texture_dimensions_and_sampling_match_ordered_single_binding_submissions(TriangleSampler sampler)
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer batched = new(device.Device);
+        using GpuTriangleRenderer separate = new(device.Device);
+        PixelImage[] images = Enumerable.Range(0, 8).Select(index =>
+        {
+            int width = 1 << (index % 3);
+            int height = 1 << (index % 2);
+            return new PixelImage(width, height, Enumerable.Range(0, width * height).Select(pixel => new Rgba32((byte)(16 * index), (byte)(32 * pixel), (byte)(255 - 16 * index), pixel % 3 == 0 ? (byte)0 : (byte)255)).ToArray());
+        }).ToArray();
+        Render(batched, false);
+        Render(separate, true);
+        Assert.Equal(1, batched.FrameDrawCalls);
+        Assert.Equal(8, separate.FrameDrawCalls);
+        Assert.Equal(GpuTestDevice.Read(separate.Target), GpuTestDevice.Read(batched.Target));
+
+        void Render(GpuTriangleRenderer renderer, bool capture)
+        {
+            renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+            for (int index = 0; index < images.Length; index++)
+            {
+                TriangleMaterial material = new(images[index]) { Sampler = sampler };
+                float left = index * 2;
+                TriangleVertex a = new(new(left, 0), 0.5f, 1, new(-0.25f, 0), Vector4.One);
+                TriangleVertex b = new(new(left + 2, 0), 0.5f, 1, new(1.25f, 0), Vector4.One);
+                TriangleVertex c = new(new(left, 16), 0.5f, 1, new(-0.25f, 1), Vector4.One);
+                TriangleVertex d = new(new(left + 2, 16), 0.5f, 1, new(1.25f, 1), Vector4.One);
+                renderer.Draw(a, b, c, material);
+                renderer.Draw(b, d, c, material);
+                if (capture)
+                {
+                    Assert.True(renderer.TryCaptureArgb(out _));
+                }
+            }
+            renderer.End();
+        }
+    }
+
+    [Fact]
+    public void Eight_overlapping_partial_alpha_textures_match_forced_single_binding_order()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer batched = new(device.Device);
+        using GpuTriangleRenderer separate = new(device.Device);
+        PixelImage[] images = Enumerable.Range(0, 8)
+            .Select(index => new PixelImage(1, 1, [new Rgba32((byte)(80 + index * 20), (byte)(240 - index * 20), (byte)(index % 2 == 0 ? 100 : 200), 32)]))
+            .ToArray();
+        Render(batched, false);
+        Render(separate, true);
+        Color[] actual = GpuTestDevice.Read(batched.Target);
+        Assert.Equal(GpuTestDevice.Read(separate.Target), actual);
+        Assert.Equal(1, batched.FrameDrawCalls);
+        Assert.Equal(8, separate.FrameDrawCalls);
+
+        Vector3 expected = new(17, 29, 43);
+        foreach (PixelImage image in images)
+        {
+            Rgba32 pixel = image.Pixels[0];
+            expected = Vector3.Lerp(expected, new(pixel.R, pixel.G, pixel.B), pixel.A / 255f);
+            expected = new(MathF.Round(expected.X), MathF.Round(expected.Y), MathF.Round(expected.Z));
+        }
+        Assert.All(actual, pixel =>
+        {
+            Assert.InRange(pixel.R, (int)expected.X - 2, (int)expected.X + 2);
+            Assert.InRange(pixel.G, (int)expected.Y - 2, (int)expected.Y + 2);
+            Assert.InRange(pixel.B, (int)expected.Z - 2, (int)expected.Z + 2);
+            Assert.Equal(255, pixel.A);
+        });
+
+        void Render(GpuTriangleRenderer renderer, bool capture)
+        {
+            renderer.Begin(16, 16, new Vector4(17 / 255f, 29 / 255f, 43 / 255f, 1));
+            foreach (PixelImage image in images)
+            {
+                Quad(renderer, new(image, TriangleBlend.Alpha, DepthWrite: false), Vector4.One);
+                if (capture)
+                {
+                    Assert.True(renderer.TryCaptureArgb(out _));
+                }
+            }
+            renderer.End();
+        }
+    }
+
+    [Theory]
+    [InlineData(1, 1024)]
+    [InlineData(8, 4)]
+    [InlineData(8, 1)]
+    public void Texture_binding_capacity_respects_cache_limits_and_transient_images(int entries, long bytes)
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device, entries, bytes);
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        for (int index = 0; index < 3; index++)
+        {
+            Quad(renderer, new(new PixelImage(1, 1, [new Rgba32((byte)(index * 100), 0, 0)])), Vector4.One);
+        }
+        renderer.End();
+        Assert.Equal(3, renderer.FrameDrawCalls);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(new Color(200, 0, 0, 255), pixel));
+        for (int slot = 0; slot < 8; slot++)
+        {
+            Assert.Null(device.Device.Textures[slot]);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Texture_stream_abort_releases_pending_images_and_restores_all_nine_caller_bindings(bool submit)
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        using Texture2D existing = new(device.Device, 1, 1);
+        for (int slot = 0; slot < 9; slot++)
+        {
+            device.Device.Textures[slot] = existing;
+            device.Device.SamplerStates[slot] = SamplerState.PointClamp;
+        }
+        renderer.Begin(16, 16, Vector4.Zero);
+        for (int index = 0; index < 8; index++)
+        {
+            Quad(renderer, new(new PixelImage(1, 1)), Vector4.One);
+        }
+        if (submit)
+        {
+            Assert.True(renderer.TryCaptureArgb(out _));
+        }
+        renderer.Abort();
+        for (int slot = 0; slot < 9; slot++)
+        {
+            Assert.Same(existing, device.Device.Textures[slot]);
+            Assert.Same(SamplerState.PointClamp, device.Device.SamplerStates[slot]);
+        }
+        Array retained = (Array)typeof(GpuTriangleRenderer).GetField("bindings", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
+        Assert.All(retained.Cast<object?>(), image => Assert.Null(image));
+    }
+
+    [Fact]
+    public void Texture_batching_keeps_every_other_material_field_as_a_boundary()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        TriangleMaterial basis = new(new PixelImage(1, 1, [new Rgba32(255, 255, 255)]));
+        TriangleMaterial[] variants =
+        [
+            basis with { Blend = TriangleBlend.Add },
+            basis with { DepthComparison = TriangleDepthComparison.Always },
+            basis with { DepthWrite = false },
+            basis with { MinimumAlpha = 0 },
+            basis with { Sampler = TriangleSampler.PointClamp },
+            basis with { DynamicTexture = true },
+            basis with { TextureSelectsAlpha = false },
+            basis with { MaximumAlpha = 0.75f },
+            basis with { AlphaMultiplier = 0.5f },
+            basis with { ActorOpacity = 0.5f },
+            basis with { ActorOpacityReplacesAlpha = true },
+            basis with { ColorWrite = false },
+            basis with { PreserveTargetAlpha = false },
+            basis with { PerspectiveDepth = true },
+            basis with { CentroidTextureSampling = true },
+            basis with { ClipRectangle = new Vector4(0, 0, 8, 16) },
+            basis with { DepthMapping = TriangleDepthMapping.Positive },
+            basis with { DepthScale = 0.5f },
+            basis with { FogColor = Vector3.One },
+            basis with { FogStart = 1 },
+            basis with { FogEnd = 10 },
+            basis with { MinimumReciprocalW = 0.5f },
+            basis with { FieldLighting = FieldLightingPass.Model }
+        ];
+        foreach (TriangleMaterial variant in variants)
+        {
+            renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+            Quad(renderer, basis, Vector4.One);
+            Quad(renderer, variant, Vector4.One);
+            Quad(renderer, basis, Vector4.One);
+            renderer.End();
+            Assert.Equal(3, renderer.FrameDrawCalls);
+        }
+    }
+
+    [Fact]
+    public void Multi_texture_batches_keep_line_capture_and_invalidation_boundaries()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device) { ObserveTriangleBatches = true };
+        PixelImage red = new(1, 1, [new Rgba32(255, 0, 0)]);
+        PixelImage green = new(1, 1, [new Rgba32(0, 255, 0)]);
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        Quad(renderer, new(red), Vector4.One);
+        Quad(renderer, new(green), Vector4.One);
+        TriangleVertex a = new(new(0, 0), 0.1f, 1, Vector2.Zero, Vector4.One);
+        renderer.DrawLine(a, a with { Position = new(16, 16) }, new(red));
+        Assert.True(renderer.TryCaptureArgb(out _));
+        Assert.Equal(2, renderer.FrameDrawCalls);
+        Assert.Equal(1, renderer.TriangleBatchMetrics.PrimitiveKindChanges);
+        green.Pixels[0] = new(0, 0, 255);
+        renderer.InvalidateTexture(green);
+        Quad(renderer, new(green), Vector4.One, 0);
+        renderer.End();
+        Assert.Equal(3, renderer.FrameDrawCalls);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Blue, pixel));
     }
 
     [Fact]
