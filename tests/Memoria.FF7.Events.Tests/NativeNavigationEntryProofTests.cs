@@ -52,6 +52,29 @@ internal static class NativeNavigationEntryProofTests
         circular.Machine.Variables.WriteByte(FieldBank.Persistent0Byte, 11, 1);
         Check(Prove(circular.Machine).HasNoEffect, "A closed mutually inductive guard set was rejected.");
         Check(!Prove(circular.Machine, [new(FieldBank.Persistent0Byte, 11, false)]).HasNoEffect, "An external clobber escaped circular guard refinement.");
+        var boundedGuard = Create([0x81, 0x20, 10, 0x1A, 2, 0x16, 0x20, 10, 0, 0x13, 5, 4, 5, 0x80, 0x10, 0, 1, 0]);
+        boundedGuard.Machine.Variables.WriteWord(FieldBank.Persistent0Word, 10, 535);
+        string boundedBefore = JsonSerializer.Serialize(boundedGuard.Machine.Capture());
+        Check(Prove(boundedGuard.Machine).HasNoEffect, "Known writes preserving an auxiliary threshold invalidated the predicate.");
+        Check(JsonSerializer.Serialize(boundedGuard.Machine.Capture()) == boundedBefore && boundedGuard.Host.Calls == 0, "Bounded-value proof changed native state or dispatched a host.");
+        var crossingGuard = Create([0x81, 0x20, 10, 0x14, 5, 0x16, 0x20, 10, 0, 0x13, 5, 4, 5, 0x80, 0x10, 0, 1, 0]);
+        crossingGuard.Machine.Variables.WriteWord(FieldBank.Persistent0Word, 10, 535);
+        Check(!Prove(crossingGuard.Machine).HasNoEffect, "A known write crossing the threshold hid a reachable predicate writer.");
+        foreach (byte[] write in new byte[][] { [0x80, 0x10, 11, 5], [0x99, 0x01, 11] })
+        {
+            var uncertainGuard = Create(write.Concat(new byte[] { 0x16, 0x20, 10, 0, 0x13, 5, 4, 5, 0x80, 0x10, 0, 1, 0 }).ToArray());
+            uncertainGuard.Machine.Variables.WriteWord(FieldBank.Persistent0Word, 10, 535);
+            Check(!Prove(uncertainGuard.Machine).HasNoEffect, "A high-byte alias or random result retained an unsafe word threshold.");
+        }
+        var inputGuard = Create([0x30, 0x20, 0, 6, 0x81, 0x20, 10, 0x14, 5, 0x16, 0x20, 10, 0, 0x13, 5, 4, 5, 0x80, 0x10, 0, 1, 0]);
+        inputGuard.Machine.Variables.WriteWord(FieldBank.Persistent0Word, 10, 535);
+        Check(!Prove(inputGuard.Machine).HasNoEffect, "A sampled input branch hid a threshold-changing write.");
+        foreach (byte opcode in new byte[] { 0x16, 0x18 })
+        {
+            var signedGuard = Create([0x81, 0x20, 10, 0, 0x80, opcode, 0x20, 10, 0, 0, 0, 3, 5, 0x80, 0x10, 0, 1, 0]);
+            signedGuard.Machine.Variables.WriteWord(FieldBank.Persistent0Word, 10, short.MaxValue);
+            Check(Prove(signedGuard.Machine).HasNoEffect == (opcode == 0x18), "Bounded word comparisons lost native signed/unsigned wrap semantics.");
+        }
         var request = Create([0x01, 2, 0x21, 0, 0x80, 0x10, 0, 1, 0], childOffset: 4);
         Check(!Prove(request.Machine).HasNoEffect, "A requested child writer escaped the native producer closure.");
         var saved = Create([0x80, 0x10, 0, 1, 0], activeProducer: false);

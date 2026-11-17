@@ -56,9 +56,9 @@ public sealed partial class FieldMachine
 
     private InstructionInspection? inspection;
 
-    private sealed class NavigationInvariantInspection(IReadOnlySet<FieldVariableRead> immutableBytes, IReadOnlySet<FieldNavigationEntryPoint> coveredEntries)
+    private sealed class NavigationInvariantInspection(NavigationByteDomains domains, IReadOnlySet<FieldNavigationEntryPoint> coveredEntries)
     {
-        public IReadOnlySet<FieldVariableRead> ImmutableBytes { get; } = immutableBytes;
+        public NavigationByteDomains Domains { get; } = domains;
         public HashSet<FieldVariableRead> Writes { get; } = [];
         public HashSet<FieldVariableRead> AssumedReads { get; } = [];
         public Dictionary<FieldVariableRead, (int Entity, int ProgramCounter)> WriteOrigins { get; } = [];
@@ -273,7 +273,7 @@ public sealed partial class FieldMachine
                     reads.Add(new(right, word ? Word(4) : Byte(3), word));
                     FieldVariableRead leftRead = new(left, word ? Word(2) : Byte(2), word);
                     FieldVariableRead rightRead = new(right, word ? Word(4) : Byte(3), word);
-                    if (navigationInvariant is not null && Variables.SpatialSourceBytes(leftRead).Concat(Variables.SpatialSourceBytes(rightRead)).All(navigationInvariant.ImmutableBytes.Contains))
+                    if (navigationInvariant is not null && navigationInvariant.Domains.Compare(leftRead, rightRead, Byte(word ? 6 : 4), opcode >= 0x18) is bool matched)
                     {
                         if (leftRead.Bank != FieldBank.Immediate)
                         {
@@ -283,10 +283,7 @@ public sealed partial class FieldMachine
                         {
                             navigationInvariant.AssumedReads.Add(rightRead);
                         }
-                        FieldMachine predicate = new(program, new FieldVariables(persistent, map));
-                        predicate.entities[owner].Pc = pc;
-                        FieldConditional condition = predicate.ReadConditional(owner, opcode);
-                        Enqueue(predicate.Compare(condition.Left, condition.Right, condition.Operation) ? condition.MatchedPc : condition.UnmatchedPc);
+                        Enqueue(matched ? pc + branch + (wide ? 2 : 1) : pc + branch + (wide ? unchecked((short)Word(branch)) : Byte(branch)));
                         continue;
                     }
                     Enqueue(pc + branch + (wide ? 2 : 1));
@@ -322,7 +319,7 @@ public sealed partial class FieldMachine
                 variables.ReadObserved = read =>
                 {
                     instructionReads.Add(read);
-                    if (navigationInvariant is not null && Variables.SpatialSourceBytes(read).Any(source => source.Bank == FieldBank.Persistent1Byte && source.Operand is >= 9 and <= 11 && !navigationInvariant.ImmutableBytes.Contains(source)))
+                    if (navigationInvariant is not null && Variables.SpatialSourceBytes(read).Any(source => source.Bank == FieldBank.Persistent1Byte && source.Operand is >= 9 and <= 11 && !navigationInvariant.Domains.IsSingleton(source)))
                     {
                         throw new NotSupportedException("A producer requires a mutable native script-party query selector.");
                     }
@@ -357,6 +354,15 @@ public sealed partial class FieldMachine
                 detached.entities[owner].Priority = 1;
                 detached.Input = Input;
                 detached.Execute(owner);
+                if (navigationInvariant is not null)
+                {
+                    bool known = detached.inspection.Commands.Count == 0 && instructionReads.All(navigationInvariant.Domains.IsSingleton);
+                    variables.ReadObserved = null;
+                    foreach (FieldVariableRead write in instructionWrites.SelectMany(Variables.SpatialSourceBytes))
+                    {
+                        navigationInvariant.Domains.Join(write, known ? variables.ReadByte(write.Bank, (byte)write.Operand) : null);
+                    }
+                }
                 // A straight-line own-store consumes its old value only to update itself.
                 // Predicates and child requests were handled above; reads from other instructions remain independent.
                 bool ownStore = detached.inspection.Commands.Count == 0 && instructionWrites.Count == 1;
@@ -399,6 +405,10 @@ public sealed partial class FieldMachine
                     };
                     if (read is not null)
                     {
+                        if (navigationInvariant is not null && instructionReads.Any(source => !navigationInvariant.Domains.IsSingleton(source)))
+                        {
+                            throw new NotSupportedException("A producer requires a mutable native host-query selector.");
+                        }
                         hostReads.Add(read);
                         if (read.Kind == FieldHostReadKind.Random && navigationInvariant is null)
                         {

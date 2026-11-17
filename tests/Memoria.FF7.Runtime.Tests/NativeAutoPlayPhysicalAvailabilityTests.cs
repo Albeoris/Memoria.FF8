@@ -110,6 +110,8 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
 
     private static void CheckTalkProducerEntries()
     {
+        string byteOnly = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("byte-only|automatic-triangle-boundaries:1:|approach-admission:2|native-navigation-modes:run-walk:5|navigation-invariant-write-set:4|gateway-segment-contacts:2|forward-admission-blockers:1")));
+        Check(Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("byte-only", new HashSet<int>()) != byteOnly, "Bounded predicate support retained obsolete byte-only physical refusals.");
         Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, Direction = 0 };
         Ff7Actor selected = new() { Slot = 1, Entity = 7, Model = 1 };
         Ff7Line eligible = new(0, 3, 0, 0, 0, 1, 0, 0, OnLine: true, ProximityAngle: 0);

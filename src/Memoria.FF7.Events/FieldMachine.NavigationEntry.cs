@@ -5,6 +5,106 @@ public sealed record FieldNavigationEntryProof(bool Complete, bool HasNoEffect, 
 
 public sealed partial class FieldMachine
 {
+    // Domains expand monotonically from native snapshot bytes; no bank or sampled host result is trusted as constant.
+    private sealed class NavigationByteDomains
+    {
+        private readonly FieldVariables variables;
+        private readonly Func<int, int, int, bool> compare;
+        private readonly Dictionary<FieldVariableRead, (int Minimum, int Maximum)> bytes = [];
+        public int Revision { get; private set; }
+
+        public NavigationByteDomains(FieldVariables variables, IReadOnlyList<FieldVariableRead> externalWrites, Func<int, int, int, bool> compare)
+        {
+            this.variables = variables;
+            this.compare = compare;
+            FieldBank[] banks = [FieldBank.Persistent0Byte, FieldBank.Persistent1Byte, FieldBank.Persistent2Byte, FieldBank.Persistent3Byte, FieldBank.Persistent4Byte, FieldBank.MapByte];
+            foreach (FieldBank bank in banks)
+            {
+                for (int address = 0; address < 256; address++)
+                {
+                    byte value = variables.ReadByte(bank, (byte)address);
+                    bytes.Add(new(bank, (ushort)address, false), (value, value));
+                }
+            }
+            foreach (FieldVariableRead write in externalWrites.SelectMany(variables.SpatialSourceBytes))
+            {
+                Join(write, null);
+            }
+        }
+
+        public bool IsSingleton(FieldVariableRead read) => variables.SpatialSourceBytes(read).All(source => bytes[source].Minimum == bytes[source].Maximum);
+
+        public void Join(FieldVariableRead source, byte? value)
+        {
+            var current = bytes[source];
+            var next = (Minimum: value is byte known ? Math.Min(current.Minimum, known) : 0, Maximum: value is byte knownMaximum ? Math.Max(current.Maximum, knownMaximum) : 255);
+            if (next != current)
+            {
+                bytes[source] = next;
+                Revision++;
+            }
+        }
+
+        private (int Minimum, int Maximum) Range(FieldVariableRead read, bool unsigned)
+        {
+            FieldVariableRead[] sources = variables.SpatialSourceBytes(read).ToArray();
+            if (sources.Length == 0)
+            {
+                int value = read.Word ? unchecked((short)read.Operand) : (byte)read.Operand;
+                if (unsigned)
+                {
+                    value = (ushort)value;
+                }
+                return (value, value);
+            }
+            var low = bytes[sources[0]];
+            int minimum = low.Minimum;
+            int maximum = low.Maximum;
+            if (sources.Length == 2)
+            {
+                var high = bytes[sources[1]];
+                minimum += high.Minimum << 8;
+                maximum += high.Maximum << 8;
+                if (!unsigned)
+                {
+                    if (minimum >= 32768)
+                    {
+                        return (minimum - 65536, maximum - 65536);
+                    }
+                    if (maximum >= 32768)
+                    {
+                        return (short.MinValue, short.MaxValue);
+                    }
+                }
+            }
+            return (minimum, maximum);
+        }
+
+        public bool? Compare(FieldVariableRead leftRead, FieldVariableRead rightRead, int operation, bool unsigned)
+        {
+            var left = Range(leftRead, unsigned);
+            var right = Range(rightRead, unsigned);
+            if (left.Minimum == left.Maximum && right.Minimum == right.Maximum)
+            {
+                return compare(left.Minimum, right.Minimum, operation);
+            }
+            return operation switch
+            {
+                0 when left.Maximum < right.Minimum || right.Maximum < left.Minimum => false,
+                1 when left.Maximum < right.Minimum || right.Maximum < left.Minimum => true,
+                2 when left.Minimum > right.Maximum => true,
+                2 when left.Maximum <= right.Minimum => false,
+                3 when left.Maximum < right.Minimum => true,
+                3 when left.Minimum >= right.Maximum => false,
+                4 when left.Minimum >= right.Maximum => true,
+                4 when left.Maximum < right.Minimum => false,
+                5 when left.Maximum <= right.Minimum => true,
+                5 when left.Minimum > right.Maximum => false,
+                _ => null
+            };
+        }
+    }
+
     /// <summary>Proves a read-only entry returns within one native handler quantum. The caller must supply every possible external variable publication and competing external script entry before dispatch; this method includes all captured owners, saved continuations and native child requests.</summary>
     public FieldNavigationEntryProof ProveNavigationEntryHasNoEffect(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192)
     {
@@ -101,15 +201,12 @@ public sealed partial class FieldMachine
                 }
                 roots.Add((entry.Entity, program.Entry(entry.Entity, entry.Script)));
             }
-            // Candidate bytes are hypothetical snapshot constants, not trusted bank properties.
-            // Removing every reachable write and repeating the full closure finds an inductive fixed point.
-            FieldBank[] byteBanks = [FieldBank.Persistent0Byte, FieldBank.Persistent1Byte, FieldBank.Persistent2Byte, FieldBank.Persistent3Byte, FieldBank.Persistent4Byte, FieldBank.MapByte];
-            HashSet<FieldVariableRead> candidates = byteBanks.SelectMany(bank => Enumerable.Range(0, 256).Select(address => new FieldVariableRead(bank, (ushort)address, false))).ToHashSet();
-            candidates.ExceptWith(externalWrites.SelectMany(Variables.SpatialSourceBytes));
+            NavigationByteDomains domains = new(Variables, externalWrites, Compare);
             int remaining = instructionBudget;
             while (true)
             {
-                NavigationInvariantInspection invariant = new(candidates, possibleExternalEntries.ToHashSet());
+                int revision = domains.Revision;
+                NavigationInvariantInspection invariant = new(domains, possibleExternalEntries.ToHashSet());
                 foreach (var root in roots)
                 {
                     if (remaining < 1)
@@ -130,9 +227,7 @@ public sealed partial class FieldMachine
                     }
                     remaining -= invariant.Instructions - before;
                 }
-                int count = candidates.Count;
-                candidates.ExceptWith(invariant.Writes);
-                if (candidates.Count == count)
+                if (domains.Revision == revision)
                 {
                     reads.UnionWith(invariant.AssumedReads);
                     break;
