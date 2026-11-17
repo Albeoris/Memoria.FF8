@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--field-destination-goal-only", StringComparer.Ordinal))
+{
+    AutoPlayFieldDestinationGoalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--field-destination-original-selection-only", StringComparer.Ordinal))
+{
+    AutoPlayFieldDestinationGoalTests.RunOriginalSelection();
+    return 0;
+}
+
 if (args.Contains("--stochastic-presentation-only", StringComparer.Ordinal))
 {
     AutoPlayStochasticPresentationTests.Run();
@@ -932,6 +944,7 @@ var tests = new (string Name, Action Run)[]
     ("native world vehicle-to-rider route", AutoPlayWorldModeNavigationTests.Run),
     ("native world post-exit goal", AutoPlayWorldModeFootTests.Run),
     ("native autoplay destination novelty", NativeAutoPlayDestinationPreferenceTests.Run),
+    ("native autoplay field destination goals", AutoPlayFieldDestinationGoalTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),
     ("native autoplay world navigation", AutoPlayWorldNavigationTests.Run),
