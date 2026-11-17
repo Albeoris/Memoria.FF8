@@ -59,7 +59,7 @@ public sealed class NativeBattleResolvedCommandListTests
         NativeBattleResolvedCommandList values = [new(Command(12), new(0x66) { TexturePixelSnapshot = 4 }, 2), new(Command(13), new(null), 0)];
         string array = JsonSerializer.Serialize(values.ToArray());
         NativeBattlePrimitiveFrame frame = NativeBattlePrimitiveFrame.Clear() with { LastCommands = values };
-        using JsonDocument primitiveJson = JsonDocument.Parse(JsonSerializer.Serialize(frame));
+        using JsonDocument primitiveJson = JsonDocument.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
         using JsonDocument preparedJson = JsonDocument.Parse(JsonSerializer.Serialize(NativeBattlePreparedPrimitiveFrame.From(frame)));
         Assert.Equal(array, primitiveJson.RootElement.GetProperty("LastCommands").GetRawText());
         Assert.Equal(array, preparedJson.RootElement.GetProperty("LastCommands").GetRawText());

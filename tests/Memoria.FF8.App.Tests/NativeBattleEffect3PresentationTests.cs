@@ -145,7 +145,7 @@ public sealed class NativeBattleEffect3PresentationTests
                 {
                     int offset = Assert.IsType<int>(draw.NativeEffectArenaOffset);
                     //Original B7CFB0 is NULL; B7D3B0 is461340, so command2A draws in the second render pass.
-                    NativeBattleLogicalResolvedCommand command = Assert.Single(frame.LastCommands.Where(command => command.Pass == 2 && command.Command.ModuleDraw == index));
+                    NativeBattleLogicalResolvedCommand command = Assert.Single(frame.LastCommands, command => command.Pass == 2 && command.Command.ModuleDraw == index);
                     Assert.Equal("20DFAB8", command.Command.Packet.Bank);
                     Assert.Equal(offset, command.Command.Packet.ByteOffset);
                     Assert.Equal(5, battle.Presentation!.Memory.Arena!.Read(offset + 3, 1)[0]);

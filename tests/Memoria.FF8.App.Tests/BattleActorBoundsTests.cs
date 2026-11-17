@@ -86,7 +86,7 @@ public sealed class BattleActorBoundsTests
 
     private static NativeBattlePrimitiveFrame Frame(params NativeBattleLogicalCommand[] commands)
     {
-        return new(NativeBattleLogicalOrdering.Clear(), commands.Select(command => new NativeBattleLogicalResolvedCommand(command, new(0), 1)).ToImmutableArray(), [])
+        return new(NativeBattleLogicalOrdering.Clear(), NativeBattleResolvedCommandList.From(commands.Select(command => new NativeBattleLogicalResolvedCommand(command, new(0), 1))), [])
         {
             LastDescriptorPerspective = false,
             LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(),
