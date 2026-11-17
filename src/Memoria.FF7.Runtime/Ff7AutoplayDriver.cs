@@ -176,7 +176,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII gateway has no reachable native floor contact.");
         }
-        var selected = contacts.OrderBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).First();
+        var selected = ChooseFloorContact(contacts, player);
         return Approach(selected.Point, selected.Triangle, run);
     }
 

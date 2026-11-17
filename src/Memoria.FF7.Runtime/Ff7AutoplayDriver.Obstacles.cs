@@ -23,6 +23,37 @@ public sealed partial class Ff7AutoplayDriver
     private sealed record EscapeStep(Ff7AutoplayInput Input, int X4096, int Y4096, int Z4096, int Triangle);
     private sealed record SearchNode(Ff7Actor Actor, SearchNode? Parent, Ff7AutoplayInput Input, float Cost);
 
+    private (Vector3 Point, int Triangle) ChooseFloorContact(IReadOnlyList<(Vector3 Point, int Triangle)> contacts, Ff7Actor player)
+    {
+        (Vector3 Point, int Triangle)? retained = null;
+        if (obstacleGeneration == session.FieldGeneration && obstacleTarget is Vector3 target && obstacleEscape.TryPeek(out EscapeStep? next))
+        {
+            if (MatchesEscapeSource(player, next))
+            {
+                retained = (target, waypointDestination);
+            }
+            else
+            {
+                obstacleEscape.Clear();
+            }
+        }
+        return SelectFloorContact(contacts, Position3D(player), retained);
+    }
+
+    internal static (Vector3 Point, int Triangle) SelectFloorContact(IReadOnlyList<(Vector3 Point, int Triangle)> contacts, Vector3 position, (Vector3 Point, int Triangle)? retained)
+    {
+        if (retained is { } selected && contacts.Contains(selected))
+        {
+            return selected;
+        }
+        return contacts.OrderBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).First();
+    }
+
+    private static bool MatchesEscapeSource(Ff7Actor player, EscapeStep step)
+    {
+        return player.X4096 == step.X4096 && player.Y4096 == step.Y4096 && player.Z4096 == step.Z4096 && player.Triangle == step.Triangle;
+    }
+
     private void ResetObstacleEscape()
     {
         obstacleHistory.Clear();
@@ -95,7 +126,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             return false;
         }
-        if (player.X4096 != next.X4096 || player.Y4096 != next.Y4096 || player.Z4096 != next.Z4096 || player.Triangle != next.Triangle)
+        if (!MatchesEscapeSource(player, next))
         {
             obstacleEscape.Clear();
             return false;

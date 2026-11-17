@@ -53,7 +53,7 @@ public sealed partial class Ff7AutoplayDriver
             }
             return Approach(opposite[0].Point, opposite[0].Triangle, run);
         }
-        var goal = contacts.OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).First();
+        var goal = ChooseFloorContact(contacts, player);
         return Approach(goal.Point, goal.Triangle, run);
     }
 

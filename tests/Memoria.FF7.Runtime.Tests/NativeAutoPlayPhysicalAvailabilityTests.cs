@@ -75,6 +75,8 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         CheckBlockedPortalSearch();
         CheckProtectedStripSearch();
         CheckTalkProducerEntries();
+        CheckRetainedFloorContact();
+        CheckOriginalQueuedContact();
         CheckOriginalForwardAdmission();
         CheckGatewayAdmission();
         CheckOriginalTargetBoundary();
@@ -106,6 +108,48 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { AnalysisComplete = false }, [exit])), "An incomplete handler analysis authorized a coupled native exit.");
         Ff7AutoPlayTarget explicitGate = line with { GatewayIndex = 1, ChangesField = true, DestinationField = exit.DestinationField };
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(explicitGate, [exit, selected])), "Unique-destination coupling overrode an explicitly selected gateway index.");
+    }
+
+    private static void CheckRetainedFloorContact()
+    {
+        string previous = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("physical-floor|automatic-triangle-boundaries:1:|approach-admission:2|native-navigation-modes:run-walk:5|navigation-invariant-write-set:4|gateway-segment-contacts:2|forward-admission-blockers:1|navigation-predicate-ranges:1")));
+        Check(Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("physical-floor", new HashSet<int>()) != previous, "Retained floor-contact support kept obsolete physical refusal fingerprints.");
+        (Vector3 Point, int Triangle) original = (new(20, 0, 0), 3);
+        (Vector3 Point, int Triangle) closer = (new(1, 0, 0), 4);
+        Check(Ff7AutoplayDriver.SelectFloorContact([original, closer], Vector3.Zero, original) == original, "A nearer contact discarded an executing native escape prefix.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([closer, original], Vector3.Zero, original) == original, "Contact catalog ordering changed the retained native escape owner.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([closer], Vector3.Zero, original) == closer, "An invalidated contact remained an advisory escape target.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([original, closer], Vector3.Zero, null) == closer, "A consumed or invalid native prefix prevented fresh contact selection.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([(original.Point, 7), closer], Vector3.Zero, original) == closer, "A contact on another floor inherited an old prefix solely by position.");
+    }
+
+    private static void CheckOriginalQueuedContact()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_QUEUED_CONTACT_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original queued contact: configure original resources and MEMORIA_FF7_QUEUED_CONTACT_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
+        int sourceMap = session.MapId;
+        bool accepted = false;
+        session.InteractionScriptRequested += (entity, script, admitted) => accepted |= entity == 8 && script == 1 && admitted;
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The queued-contact fixture reached an unexpected choice checkpoint."));
+        policy.State.FrontierIdleSteps = 0;
+        policy.State.FrontierProgressKey = null;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        for (int callback = 0; callback < 256 && controller.Running && session.MapId == sourceMap && !accepted; callback++)
+        {
+            controller.Advance(1);
+        }
+        Check(controller.Error is null && accepted, $"The normal native queued-contact route did not admit its selected LINE talk after {controller.Steps} callbacks: {controller.Error}; {policy.Status}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The queued-contact continuation changed its standalone source.");
+        Console.WriteLine($"PASS original retained contact and native LINE talk after {controller.Steps} callbacks; source unchanged.");
     }
 
     private static void CheckTalkProducerEntries()
