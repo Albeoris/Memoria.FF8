@@ -79,7 +79,7 @@ public static partial class ModelExchange
             List<int> indices = [];
             foreach (ModelFace face in group)
             {
-                AddFace(vertices, indices, face.Vertices.Take(face.Quad ? 4 : 3).Select((index, corner) => Vertex(model.Vertices[index].Position, model.Vertices[index].Bone, face.TextureCoordinates[corner] / ResourceTextureList.LogicalSize(model.Textures, face.Texture), face.VertexColors?[corner] ?? Vector4.One, bind)).ToArray());
+                AddFace(vertices, indices, face.Vertices.Take(face.Quad ? 4 : 3).Select((index, corner) => Vertex(model.Vertices[index].Position, model.Vertices[index].Bone, face.TextureCoordinates[corner] / ResourceTextureList.LogicalSize(model.Textures, face.Texture), face.VertexColors?[corner] ?? Vector4.One, bind)).ToArray(), reverseWinding: true);
             }
             // Native opaque field polygons discard zero texels without enabling primitive transparency.
             meshes.Add(new EditableMesh($"mesh_{meshes.Count}", vertices, indices, group.Key.Texture, Matrix4x4.Identity) { Skinned = bones.Length != 0, Transparent = group.Key.Transparent, AlphaCutoff = group.Key.Transparent ? null : 1f / 255 });
@@ -156,7 +156,8 @@ public static partial class ModelExchange
             vertices.AddRange(mesh.Vertices.Select(vertex => new ModelVertex(Vector3.Transform(vertex.Position, GltfToNative), 0)));
             for (int index = 0; index < mesh.Indices.Count; index += 3)
             {
-                int[] triangle = [mesh.Indices[index], mesh.Indices[index + 1], mesh.Indices[index + 2]];
+                // Convert glTF's counterclockwise fronts to the native field renderer's clockwise faces.
+                int[] triangle = [mesh.Indices[index], mesh.Indices[index + 2], mesh.Indices[index + 1]];
                 faces.Add(new ModelFace(triangle.Select(value => value + offset).ToArray(), triangle.Select(value => mesh.Vertices[value].Uv * ResourceTextureList.LogicalSize(edited.Textures, mesh.Texture)).ToArray(), mesh.Texture, false) { SemiTransparent = mesh.Transparent, VertexColors = triangle.Select(value => mesh.Vertices[value].Color).ToArray() });
             }
         }
@@ -403,20 +404,33 @@ public static partial class ModelExchange
         return new EditableVertex(bone < 0 ? converted : Vector3.Transform(converted, bind[bone]), Vector3.Zero, uv, new Vector4(Math.Max(0, bone), 0, 0, 0), bone < 0 ? Vector4.Zero : new Vector4(1, 0, 0, 0), color);
     }
 
-    private static void AddFace(List<EditableVertex> vertices, List<int> indices, EditableVertex[] corners, bool battle = false)
+    private static void AddFace(List<EditableVertex> vertices, List<int> indices, EditableVertex[] corners, bool battle = false, bool reverseWinding = false)
     {
         if (corners.Length is not (3 or 4))
         {
             throw new InvalidDataException("Only triangular and quadrilateral native faces are supported.");
         }
         int offset = vertices.Count;
+        int firstIndex = indices.Count;
         Vector3 normal = Vector3.Cross(corners[1].Position - corners[0].Position, corners[2].Position - corners[0].Position);
+        if (reverseWinding)
+        {
+            // Native field faces are clockwise; glTF front faces and their exported normals are counterclockwise.
+            normal = -normal;
+        }
         normal = normal.LengthSquared() > 0 ? Vector3.Normalize(normal) : Vector3.UnitY;
         vertices.AddRange(corners.Select(vertex => vertex with { Normal = normal }));
         indices.AddRange([offset, offset + 1, offset + (battle && corners.Length == 4 ? 3 : 2)]);
         if (corners.Length == 4)
         {
             indices.AddRange(battle ? [offset + 3, offset + 2, offset] : [offset + 2, offset + 1, offset + 3]);
+        }
+        if (reverseWinding)
+        {
+            for (int index = firstIndex; index < indices.Count; index += 3)
+            {
+                (indices[index + 1], indices[index + 2]) = (indices[index + 2], indices[index + 1]);
+            }
         }
     }
 

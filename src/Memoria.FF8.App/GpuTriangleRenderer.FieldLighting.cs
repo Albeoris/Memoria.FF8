@@ -17,7 +17,7 @@ public sealed partial class GpuTriangleRenderer
     private bool fieldShadowPass;
     private int fieldPrimaryIndex = -1;
 
-    public bool FieldLightingSupported => effect.Parameters["FieldLightCount"] is not null && effect.Techniques["FieldShadowTechnique"] is not null;
+    public bool FieldLightingSupported => effect.Parameters["FieldLightCount"] is not null && effect.Parameters["FieldShadowMatrix"] is not null && effect.Techniques["FieldLightingTechnique"] is not null && effect.Techniques["FieldShadowTechnique"] is not null;
     public string? FieldLightingUnavailableReason => FieldLightingSupported ? null : "This graphics effect has no field spotlight shader.";
 
     public void SetFieldLighting(FieldLightingScene? scene)
@@ -90,19 +90,21 @@ public sealed partial class GpuTriangleRenderer
                 fieldShadowTarget = new RenderTarget2D(device, FieldShadowMapSize, FieldShadowMapSize, false, SurfaceFormat.Vector2, DepthFormat.Depth24, 0, RenderTargetUsage.PreserveContents);
             }
             System.Numerics.Matrix4x4 matrix = FieldLightingMath.ShadowViewProjection(light);
-            effect.Parameters["FieldShadowViewProjection"].SetValue(new Matrix(matrix.M11, matrix.M12, matrix.M13, matrix.M14, matrix.M21, matrix.M22, matrix.M23, matrix.M24, matrix.M31, matrix.M32, matrix.M33, matrix.M34, matrix.M41, matrix.M42, matrix.M43, matrix.M44));
+            effect.Parameters["FieldShadowMatrix"].SetValue(new Matrix(matrix.M11, matrix.M12, matrix.M13, matrix.M14, matrix.M21, matrix.M22, matrix.M23, matrix.M24, matrix.M31, matrix.M32, matrix.M33, matrix.M34, matrix.M41, matrix.M42, matrix.M43, matrix.M44));
             effect.Parameters["FieldShadowTexture"].SetValue((Texture2D?)null);
             device.Textures[1] = null;
             device.SetRenderTarget(fieldShadowTarget);
-            device.Clear(ClearOptions.Target | ClearOptions.DepthBuffer, new Color(1f, 0, 0, 1), 1, 0);
+            device.Clear(ClearOptions.Target | ClearOptions.DepthBuffer, new Color(0f, 0, 0, 1), 1, 0);
             device.RasterizerState = RasterizerState.CullNone;
             fieldShadowPass = true;
             foreach (FieldShadowTriangle caster in casters)
             {
-                Draw(caster.A, caster.B, caster.C, caster.Material);
+                // The floating-point depth/level target contains no scene alpha and requires an opaque write, without blending.
+                TriangleMaterial material = caster.Material with { Blend = TriangleBlend.Replace, PreserveTargetAlpha = false, DepthWrite = true, ColorWrite = true, DepthComparison = TriangleDepthComparison.LessEqual };
+                Draw(caster.A, caster.B, caster.C, material);
             }
             Flush();
-            effect.Parameters["FieldShadowParameters"].SetValue(new Vector4(1, fieldLightingScene.GroundShadow.Opacity, fieldLightingScene.GroundShadow.Softness / FieldShadowMapSize, 0.0003f));
+            effect.Parameters["FieldShadowParameters"].SetValue(new Vector4(1, fieldLightingScene.GroundShadow.Opacity, fieldLightingScene.GroundShadow.Softness / FieldShadowMapSize, 1f / FieldShadowMapSize));
         }
         catch (Exception exception) when (exception is NotSupportedException or InvalidOperationException)
         {

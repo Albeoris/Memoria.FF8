@@ -98,6 +98,10 @@ public sealed partial class FieldRenderer
         effectiveLighting = string.Equals(ActiveLighting.FieldName, field.Name, StringComparison.OrdinalIgnoreCase) ? ActiveLighting : FieldLightingScene.Empty(field.Name);
         backend.SetFieldLighting(effectiveLighting);
         FieldSpotLight? primary = effectiveLighting.Lights.FirstOrDefault(light => light.Id == effectiveLighting.PrimaryLightId);
+        foreach (ActorVisual actor in actors)
+        {
+            lightingShadowStates[actor.ObjectId] = FieldActorShadowState.IntentionalNone;
+        }
         foreach (ActorVisual actor in actors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count))
         {
             FieldModel model = field.Models[actor.ModelId];
@@ -198,6 +202,11 @@ public sealed partial class FieldRenderer
                 continue;
             }
             WalkmeshTriangle triangle = field.Walkmesh.Triangles[id];
+            if (Math.Abs(Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A).Z) < 0.01f)
+            {
+                // Match the walkmesh support query's rejection of vertical or degenerate ground.
+                continue;
+            }
             Vector3 minimum = Vector3.Min(triangle.A, Vector3.Min(triangle.B, triangle.C));
             Vector3 maximum = Vector3.Max(triangle.A, Vector3.Max(triangle.B, triangle.C));
             if (Vector3.DistanceSquared(Vector3.Clamp(light.Position, minimum, maximum), light.Position) >= light.Range * light.Range)

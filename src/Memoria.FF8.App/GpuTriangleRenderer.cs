@@ -315,7 +315,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             return;
         }
         UnbindTerrain();
-        effect.CurrentTechnique = effect.Techniques[fieldShadowPass ? "FieldShadowTechnique" : "TriangleTechnique"];
+        effect.CurrentTechnique = effect.Techniques[fieldShadowPass ? "FieldShadowTechnique" : pendingMaterial.FieldLighting != FieldLightingPass.None ? "FieldLightingTechnique" : "TriangleTechnique"];
         try
         {
             SamplerState sampler = ApplyMaterial(pendingMaterial);

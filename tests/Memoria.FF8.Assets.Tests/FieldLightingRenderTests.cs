@@ -29,10 +29,34 @@ public sealed class FieldLightingRenderTests
         FieldModel model = new("fixture", [new(-1, 0)], positions.Select(position => new ModelVertex(position, 0)).ToArray(), [new([0, 1, 2], new Vector2[3], 0, false), new([3, 4, 5], new Vector2[3], 0, false)], [], []);
         FieldModelNormals topology = new(model, positions);
         Vector3[][] normals = topology.Pose(positions);
-        Assert.Equal(Vector3.UnitZ, normals[0][0]);
-        Assert.Equal(Vector3.UnitX, normals[1][0]);
+        Assert.Equal(-Vector3.UnitZ, normals[0][0]);
+        Assert.Equal(-Vector3.UnitX, normals[1][0]);
         Vector3[] authored = Enumerable.Repeat(Vector3.UnitY, positions.Length).ToArray();
         Assert.Equal(Vector3.UnitY, topology.Pose(positions, authored)[0][0]);
+    }
+
+    [Fact]
+    public void Clockwise_native_field_faces_produce_outward_normals_and_counterclockwise_gltf()
+    {
+        Vector3[] positions = [Vector3.Zero, Vector3.UnitX, Vector3.UnitY];
+        PixelImage texture = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
+        FieldModel native = new("fixture", [], positions.Select(position => new ModelVertex(position, -1)).ToArray(), [new([0, 2, 1], new Vector2[3], 0, false)], [texture], []);
+        Assert.Equal(Vector3.UnitZ, new FieldModelNormals(native, positions).Pose(positions)[0][0]);
+        EditableModel exported = ModelExchange.FromField(native);
+        EditableMesh mesh = Assert.Single(exported.Meshes);
+        Vector3 a = mesh.Vertices[mesh.Indices[0]].Position;
+        Vector3 b = mesh.Vertices[mesh.Indices[1]].Position;
+        Vector3 c = mesh.Vertices[mesh.Indices[2]].Position;
+        Vector3 exportedNormal = Vector3.Normalize(Vector3.Cross(b - a, c - a));
+        Assert.InRange(Vector3.Distance(Vector3.UnitY, exportedNormal), 0, 0.00001f);
+        Assert.All(mesh.Vertices, vertex => Assert.InRange(Vector3.Distance(exportedNormal, vertex.Normal), 0, 0.00001f));
+        EditableModel withoutNormals = exported with { Meshes = [mesh with { Vertices = mesh.Vertices.Select(vertex => vertex with { Normal = Vector3.Zero }).ToArray() }] };
+        FieldModel imported = ModelExchange.ToField(withoutNormals, native);
+        Vector3[] importedPositions = imported.Vertices.Select(vertex => vertex.Position).ToArray();
+        Vector3 fallback = new FieldModelNormals(imported, importedPositions).Pose(importedPositions, new Vector3[importedPositions.Length])[0][0];
+        Assert.InRange(Vector3.Distance(Vector3.UnitZ, fallback), 0, 0.00001f);
+        Vector3[] authored = Enumerable.Repeat(Vector3.UnitX, importedPositions.Length).ToArray();
+        Assert.Equal(Vector3.UnitX, new FieldModelNormals(imported, importedPositions).Pose(importedPositions, authored)[0][0]);
     }
 
     [Fact]

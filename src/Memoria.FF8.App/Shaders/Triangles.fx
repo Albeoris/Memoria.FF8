@@ -182,8 +182,9 @@ float4 FieldLightPositionRange[8];
 float4 FieldLightDirectionIntensity[8];
 float4 FieldLightColor[8];
 float4 FieldLightCone[8];
-float4x4 FieldShadowViewProjection;
-float4 FieldShadowParameters; // available, ground opacity, PCF radius in UV units, depth bias
+// TODO(TD-032): Keep this uniform name short until the pinned DX12 compiler accepts adjacent reflection separators.
+float4x4 FieldShadowMatrix;
+float4 FieldShadowParameters; // available, ground opacity, PCF radius in UV units, texel size
 #if VULKAN || DIRECTX12
 Texture2D FieldShadowTexture : register(t1);
 sampler FieldShadowSampler : register(s1) = sampler_state
@@ -218,13 +219,20 @@ float2 FieldShadowCoverage(float3 world)
     {
         return 0;
     }
-    float4 projection = mul(float4(world, 1), FieldShadowViewProjection);
+    float4 projection = mul(float4(world, 1), FieldShadowMatrix);
     if (projection.w <= 0)
     {
         return 0;
     }
     float3 projectedPoint = projection.xyz / projection.w;
     float2 uv = float2(projectedPoint.x * 0.5 + 0.5, 0.5 - projectedPoint.y * 0.5);
+    // Reciprocal light depth is affine over a projected plane. Compare each tap at its actual texel centre,
+    // rather than comparing neighboring plane depths to one centre depth and shadowing the plane itself.
+    float receiverDepth = FieldLightPositionRange[FieldPrimaryIndex].w / dot(world - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz);
+    float3 gradientX = ddx(float3(uv, receiverDepth));
+    float3 gradientY = ddy(float3(uv, receiverDepth));
+    float determinant = gradientX.x * gradientY.y - gradientX.y * gradientY.x;
+    float2 depthGradient = determinant != 0 ? float2(gradientY.y * gradientX.z - gradientX.y * gradientY.z, gradientX.x * gradientY.z - gradientY.x * gradientX.z) / determinant : 0;
     if (any(uv < 0) || any(uv > 1) || projectedPoint.z < 0 || projectedPoint.z > 1)
     {
         return 0;
@@ -236,8 +244,11 @@ float2 FieldShadowCoverage(float3 world)
         {
             float2 sampleUv = uv + float2(x, y) * FieldShadowParameters.z;
             float2 stored = SAMPLE_TEXTURE(FieldShadowTexture, FieldShadowSampler, sampleUv).rg;
-            float receiverDepth = dot(world - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz) / FieldLightPositionRange[FieldPrimaryIndex].w;
-            float covered = receiverDepth - FieldShadowParameters.w > stored.x && all(sampleUv >= 0) && all(sampleUv <= 1) ? 1 : 0;
+            float2 texelCentre = (floor(sampleUv / FieldShadowParameters.w) + 0.5) * FieldShadowParameters.w;
+            float comparisonDepth = receiverDepth + dot(depthGradient, texelCentre - uv);
+            // Sixteen float ULPs at unit scale cover arithmetic roundoff without a world-space shadow offset.
+            float roundoff = abs(comparisonDepth) * 0.0000019073486328125;
+            float covered = comparisonDepth + roundoff < stored.x && all(sampleUv >= 0) && all(sampleUv <= 1) ? 1 : 0;
             result += float2(covered, covered * stored.y);
         }
     }
@@ -247,30 +258,41 @@ float4 FieldShade(float4 albedo, VSOutput input)
 {
     float3 world = input.WorldPosition / input.Uv.z;
     float2 shadow = FieldShadowCoverage(world);
+    float4 result = 0;
     if (FieldLightingPass > 1.5)
     {
-        if (FieldPrimaryIndex < 0)
+        if (FieldPrimaryIndex >= 0)
         {
-            return 0;
+            float3 incoming = 0;
+            float influence = FieldInfluence(FieldPrimaryIndex, world, incoming);
+            float3 rgb = FieldLightColor[FieldPrimaryIndex].rgb;
+            float strength = saturate(influence * max(rgb.r, max(rgb.g, rgb.b)));
+            result = float4(0, 0, 0, shadow.y * strength * FieldShadowParameters.y);
         }
-        float3 incoming = 0;
-        float influence = FieldInfluence(FieldPrimaryIndex, world, incoming);
-        float3 rgb = FieldLightColor[FieldPrimaryIndex].rgb;
-        float strength = saturate(influence * max(rgb.r, max(rgb.g, rgb.b)));
-        return float4(0, 0, 0, shadow.y * strength * FieldShadowParameters.y);
     }
-    float3 normal = input.WorldNormal / input.Uv.z;
-    normal = dot(normal, normal) > 0.000001 ? normalize(normal) : 0;
-    float3 illumination = 0;
-    [loop] for (int index = 0; index < FieldLightCount; index++)
+    else
     {
-        float3 incoming = 0;
-        float influence = FieldInfluence(index, world, incoming);
-        float visibility = index == FieldPrimaryIndex ? 1 - shadow.x : 1;
-        illumination += FieldLightColor[index].rgb * (influence * max(0, dot(normal, incoming)) * visibility);
+        float3 normal = input.WorldNormal / input.Uv.z;
+        normal = dot(normal, normal) > 0.000001 ? normalize(normal) : 0;
+        float3 illumination = 0;
+        [loop] for (int index = 0; index < FieldLightCount; index++)
+        {
+            float3 incoming = 0;
+            float influence = FieldInfluence(index, world, incoming);
+            float visibility = index == FieldPrimaryIndex ? 1 - shadow.x : 1;
+            illumination += FieldLightColor[index].rgb * (influence * max(0, dot(normal, incoming)) * visibility);
+        }
+        result = float4(FieldSrgb(FieldLinear(max(albedo.rgb, 0)) * illumination), albedo.a);
     }
-    return float4(FieldSrgb(FieldLinear(max(albedo.rgb, 0)) * illumination), albedo.a);
+    return result;
 }
+// TODO(TD-032): The pinned DX12 input parser omits unused fields still present in the DXIL signature.
+struct FieldShadowInput
+{
+    float3 WorldPosition : TEXCOORD5;
+    float4 Color : COLOR0;
+    float3 Uv : TEXCOORD0;
+};
 struct FieldShadowOutput
 {
     float4 Position : SV_POSITION;
@@ -278,10 +300,10 @@ struct FieldShadowOutput
     float Level : TEXCOORD1;
     float Depth : TEXCOORD2;
 };
-FieldShadowOutput FieldShadowVertex(VSInput input)
+FieldShadowOutput FieldShadowVertex(FieldShadowInput input)
 {
     FieldShadowOutput output;
-    output.Position = mul(float4(input.WorldPosition, 1), FieldShadowViewProjection);
+    output.Position = mul(float4(input.WorldPosition, 1), FieldShadowMatrix);
     output.Uv = input.Uv.xy;
     output.Level = input.Color.a;
     output.Depth = dot(input.WorldPosition - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz) / FieldLightPositionRange[FieldPrimaryIndex].w;
@@ -291,11 +313,11 @@ float4 FieldShadowPixel(FieldShadowOutput input) : SV_TARGET0
 {
     float4 texel = SAMPLE_TEXTURE(SourceTexture, TextureSampler, input.Uv);
     clip(texel.a - AlphaParameters.x);
-    return float4(input.Depth, input.Level, 0, 1);
+    return float4(1 / input.Depth, input.Level, 0, 1);
 }
 
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };
-PSOutput PixelMain(VSOutput input)
+PSOutput PixelMainCore(VSOutput input, bool fieldLighting)
 {
     clip(input.Position.x - ClipRectangle.x);
     clip(input.Position.y - ClipRectangle.y);
@@ -345,7 +367,7 @@ PSOutput PixelMain(VSOutput input)
         clip(color.a - AlphaParameters.x);
         clip(AlphaParameters.y - color.a);
     }
-    if (FieldLightingPass > 0.5)
+    if (fieldLighting)
     {
         color = FieldShade(color, input);
     }
@@ -375,12 +397,29 @@ PSOutput PixelMain(VSOutput input)
     }
     return output;
 }
+PSOutput PixelMain(VSOutput input)
+{
+    return PixelMainCore(input, false);
+}
+PSOutput FieldPixelMain(VSOutput input)
+{
+    return PixelMainCore(input, true);
+}
 technique TriangleTechnique
 {
     pass P0
     {
         VertexShader = compile VS_PROFILE VertexMain();
         PixelShader = compile PS_PROFILE PixelMain();
+    }
+}
+
+technique FieldLightingTechnique
+{
+    pass P0
+    {
+        VertexShader = compile VS_PROFILE VertexMain();
+        PixelShader = compile PS_PROFILE FieldPixelMain();
     }
 }
 

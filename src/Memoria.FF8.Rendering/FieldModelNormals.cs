@@ -51,7 +51,8 @@ public sealed class FieldModelNormals
     {
         return model.Faces.Select(face =>
         {
-            Vector3 normal = Vector3.Cross(positions[face.Vertices[1]] - positions[face.Vertices[0]], positions[face.Vertices[2]] - positions[face.Vertices[0]]);
+            // FieldModel faces use native clockwise outward winding, including converted editable geometry.
+            Vector3 normal = Vector3.Cross(positions[face.Vertices[2]] - positions[face.Vertices[0]], positions[face.Vertices[1]] - positions[face.Vertices[0]]);
             return normal.LengthSquared() > 0.000001f ? Vector3.Normalize(normal) : Vector3.Zero;
         }).ToArray();
     }

@@ -83,9 +83,50 @@ public sealed class FieldLightingGpuTests
         Assert.Equal(once, twice);
         Assert.Equal(Color.White, once[4 * 64 + 4]);
         Assert.Equal(Color.White, Render(false, true)[32 * 64 + 32]);
+        scene = scene with { Lights = [lamp with { Position = new Vector3(0, 0, -10), Direction = Vector3.UnitZ }] };
+        Assert.Equal(Color.White, Render(false, false)[32 * 64 + 32]);
+        scene = scene with { Lights = [lamp with { Position = new Vector3(4, 0, 10) }] };
+        Color[] moved = Render(false, false);
+        Assert.Equal(Color.White, moved[32 * 64 + 32]);
+        Assert.True(moved[32 * 64 + 16].R < 255);
     }
 
     private static FieldSpotLight Lamp() => new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.8f)]
+    public void Primary_does_not_occlude_its_own_lamp_facing_surface(float slope)
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        PixelImage white = new(1, 1, [new Rgba32(255, 255, 255, 255)]);
+        FieldSpotLight lamp = Lamp();
+        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp], PrimaryLightId = lamp.Id };
+        Vector3 normal = Vector3.Normalize(new Vector3(-slope, 0, 1));
+        TriangleVertex Vertex(float x, float y) => new(new Vector2(x * 4 + 32, y * 4 + 32), 0.5f, 1, Vector2.Zero, Vector4.One) { WorldPosition = new(x, y, 5 + slope * x), WorldNormal = normal };
+        TriangleVertex a = Vertex(-4, -4);
+        TriangleVertex b = Vertex(4, -4);
+        TriangleVertex c = Vertex(-4, 4);
+        TriangleVertex d = Vertex(4, 4);
+        Color Render(bool shadow)
+        {
+            renderer.Begin(64, 64, Vector4.One);
+            renderer.SetFieldLighting(scene);
+            if (shadow)
+            {
+                Assert.True(renderer.PrepareFieldShadow([new(a, b, c, new(white)), new(b, d, c, new(white))], out string? reason), reason);
+            }
+            TriangleMaterial material = new(null) { FieldLighting = FieldLightingPass.Model };
+            renderer.Draw(a, b, c, material);
+            renderer.Draw(b, d, c, material);
+            renderer.End();
+            return GpuTestDevice.Read(renderer.Target)[32 * 64 + 32];
+        }
+        Color unshadowed = Render(false);
+        Color shadowed = Render(true);
+        Assert.InRange((int)shadowed.R, unshadowed.R - 3, unshadowed.R + 3);
+    }
 
     [Fact]
     public void Per_pixel_world_position_and_normal_use_perspective_interpolation()

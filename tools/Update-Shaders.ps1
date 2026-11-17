@@ -44,6 +44,17 @@ function Assert-EffectProfile([string]$RelativePath, [int]$ProfileId)
     {
         throw "Unexpected MGFX format or backend profile in $RelativePath."
     }
+    if ($RelativePath.StartsWith('src/Memoria.FF8.App/Shaders/Triangles.', [StringComparison]::Ordinal))
+    {
+        $artifactText = [Text.Encoding]::ASCII.GetString($bytes)
+        foreach ($parameter in @('FieldLightCount', 'FieldLightPositionRange', 'FieldLightDirectionIntensity', 'FieldLightColor', 'FieldLightCone', 'FieldPrimaryIndex', 'FieldShadowMatrix', 'FieldShadowParameters', 'FieldShadowTexture', 'FieldLightingTechnique', 'FieldShadowTechnique'))
+        {
+            if ($artifactText.IndexOf($parameter, [StringComparison]::Ordinal) -lt 0)
+            {
+                throw "Compiled triangle effect lost its required field-lighting interface: $parameter in $RelativePath."
+            }
+        }
+    }
 }
 
 $toolManifest = Get-Content -LiteralPath (Join-Path $productRoot '.config/dotnet-tools.json') -Raw | ConvertFrom-Json

@@ -1,11 +1,13 @@
 using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Mods;
+using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
+    private static readonly IReadOnlyDictionary<int, FieldActorShadowState> EmptyLightingShadowStates = new Dictionary<int, FieldActorShadowState>();
     private FieldPresentationFrame? lastLightingPresentationFrame;
     private FieldPresentationSample? lastLightingPresentationSample;
     private FieldAssets? lastLightingPresentationField;
@@ -15,6 +17,7 @@ internal sealed partial class GameWorld
     internal FieldLightingScene? ActiveLighting { get; set; }
     internal string? LightingUnavailableReason => renderer?.LightingUnavailableReason;
     internal string? LightingShadowDiagnostic => renderer?.LightingShadowDiagnostic;
+    internal IReadOnlyDictionary<int, FieldActorShadowState> LightingShadowStates => renderer?.LightingShadowStates ?? EmptyLightingShadowStates;
     internal string LightingStatus => LightingUnavailableReason ?? LightingShadowDiagnostic ?? (ActiveLighting is null ? "Legacy field rendering" : "Spotlight shading active");
     internal Vector2? ProjectLightingPoint(Vector3 world) => renderer?.ProjectWorldPoint(world);
     internal bool TryPickLightingGround(Vector2 screen, out Vector3 point)
