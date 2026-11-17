@@ -8,6 +8,9 @@ namespace Memoria.Launcher;
 
 internal sealed partial class LauncherWindow
 {
+    private readonly Button headerUpdate = new() { IsVisible = false, MinHeight = 40, Padding = new Thickness(16, 5), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, Background = LauncherSurface };
+    private readonly TextBlock headerUpdateTitle = new() { Foreground = LauncherText, FontWeight = FontWeight.SemiBold, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+    private readonly TextBlock headerUpdateDate = new() { FontSize = 11, Foreground = LauncherSuccess, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
     private readonly Button releaseUpdate = new() { Content = "Latest release", MinWidth = 180, MinHeight = 32, Margin = new Thickness(0, 0, 10, 0) };
     private readonly CheckBox selectOtherRelease = new() { Content = "Choose another release", Margin = new Thickness(0, 8, 0, 0) };
     private readonly ComboBox releaseChoices = new() { MinWidth = 260, MaxWidth = 520, IsVisible = false, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Thickness(0, 6, 0, 0) };
@@ -54,6 +57,7 @@ internal sealed partial class LauncherWindow
             updateStatus.Text = LauncherCapabilities.UpdateStatus;
             return;
         }
+        headerUpdate.IsVisible = false;
         updateStatus.Foreground = LauncherMuted;
         checkingUpdates = true;
         releaseUpdate.IsEnabled = false;
@@ -70,8 +74,15 @@ internal sealed partial class LauncherWindow
             PackageManifest? installed = await inventory;
             string current = installed is null ? "Development build" : $"Installed: {installed.Version} ({installed.BuildId[..Math.Min(8, installed.BuildId.Length)]})";
             string description = release is null ? "Latest release: no build published." : $"Latest release: {release.Tag} | {release.UpdatedAt.ToLocalTime():g}" + (installed is not null && release.BuildId == installed.BuildId ? " | installed" : " | available");
+            bool available = release is not null && (installed is null || release.BuildId != installed.BuildId);
+            if (available && release is not null)
+            {
+                headerUpdateTitle.Text = $"Update to {release.Tag}";
+                headerUpdateDate.Text = release.UpdatedAt.ToLocalTime().ToString("yyyy.MM.dd HH:mm");
+            }
+            headerUpdate.IsVisible = available;
             updateStatus.Text = current + Environment.NewLine + description;
-            updateStatus.Foreground = release is not null && (installed is null || release.BuildId != installed.BuildId) ? LauncherSuccess : LauncherMuted;
+            updateStatus.Foreground = available ? LauncherSuccess : LauncherMuted;
         }
         catch (Exception exception) when (!updateLifetime.IsCancellationRequested)
         {

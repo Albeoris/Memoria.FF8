@@ -19,6 +19,7 @@ internal sealed partial class LauncherWindow
     private static readonly SolidColorBrush LauncherAccent = new(Color.Parse("#214D78"));
     private static readonly SolidColorBrush LauncherSuccess = new(Color.Parse("#74D5A5"));
     private static readonly SolidColorBrush LauncherProblem = new(Color.Parse("#EF8EA8"));
+    private readonly Grid launcherHeader = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), Margin = new Thickness(24, 14), ColumnSpacing = 12 };
     private readonly ComboBox selectedGame = new() { MinHeight = 36, Width = 270 };
     private readonly TabControl launcherPages = new()
     {
@@ -104,7 +105,6 @@ internal sealed partial class LauncherWindow
         selectedGame.SelectedIndex = 0;
         ToolTip.SetTip(selectedGame, "Choose the game to launch. Both resource installations are kept.");
 
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(24, 14), ColumnSpacing = 12 };
         StackPanel brand = new() { Orientation = Orientation.Horizontal, Spacing = 9, VerticalAlignment = VerticalAlignment.Center };
         using (Stream? crestStream = typeof(LauncherWindow).Assembly.GetManifestResourceStream("Memoria.Launcher.Crest.png"))
         {
@@ -117,12 +117,12 @@ internal sealed partial class LauncherWindow
         }
         brand.Children.Add(new TextBlock { Text = "MEMORIA", FontSize = 17, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         brand.Children.Add(new TextBlock { Text = "ENGINE", FontSize = 11, Foreground = LauncherMuted, VerticalAlignment = VerticalAlignment.Center });
-        header.Children.Add(brand);
+        launcherHeader.Children.Add(brand);
         Grid.SetColumn(selectedGame, 1);
-        header.Children.Add(selectedGame);
+        launcherHeader.Children.Add(selectedGame);
         Control launchActions = CreateHeaderLaunchActions();
         Grid.SetColumn(launchActions, 2);
-        header.Children.Add(launchActions);
+        launcherHeader.Children.Add(launchActions);
 
         ff8Home = CreateFf8Home();
         ff7Home = CreateFf7Selection();
@@ -134,12 +134,13 @@ internal sealed partial class LauncherWindow
             CreateLauncherTab("Play", home),
             CreateLauncherTab("Mods", CreateModsPage(), scroll: false),
             CreateLauncherTab("Settings", CreateSettingsPage()),
-            CreateLauncherTab("Updates", CreateUpdatesPage())
+            CreateLauncherTab("Updates", CreateUpdatesPage()),
+            CreateLauncherTab("Tools", CreateToolsPage())
         };
         launcherPages.Margin = new Thickness(12, 8, 0, 0);
 
         Grid shell = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        Add(shell, new Border { Background = LauncherBackground, BorderBrush = LauncherBorder, BorderThickness = new Thickness(0, 0, 0, 1), Child = header }, 0);
+        Add(shell, new Border { Background = LauncherBackground, BorderBrush = LauncherBorder, BorderThickness = new Thickness(0, 0, 0, 1), Child = launcherHeader }, 0);
         Add(shell, launcherPages, 1);
         Content = shell;
 
@@ -196,28 +197,7 @@ internal sealed partial class LauncherWindow
         installationContent.Children.Add(cancel);
         content.Children.Add(LauncherCard("Game installation", "English Steam (2013) or Remastered. Remastered support is partial.", installationContent));
 
-        StackPanel shortcuts = new() { Spacing = 12 };
-        TextBlock modSummary = LauncherDescription(string.Empty);
-        modSummary.Bind(TextBlock.TextProperty, officialModStatus.GetObservable(TextBlock.TextProperty));
-        TextBlock releaseSummary = LauncherDescription(string.Empty);
-        releaseSummary.Bind(TextBlock.TextProperty, updateStatus.GetObservable(TextBlock.TextProperty));
-        releaseSummary.Bind(TextBlock.ForegroundProperty, updateStatus.GetObservable(TextBlock.ForegroundProperty));
-        Button mods = new() { Content = LauncherShortcutContent("Make it your adventure", modSummary), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(18, 12), Background = LauncherSurface };
-        Button updates = new() { Content = LauncherShortcutContent("Engine updates", releaseSummary), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(18, 12), Background = LauncherSurface };
-        mods.Click += (_, _) => launcherPages.SelectedIndex = 1;
-        updates.Click += (_, _) => launcherPages.SelectedIndex = 3;
-        shortcuts.Children.Add(mods);
-        shortcuts.Children.Add(updates);
-        content.Children.Add(shortcuts);
         return content;
-    }
-
-    private static Control LauncherShortcutContent(string title, TextBlock summary)
-    {
-        StackPanel panel = new() { Spacing = 5 };
-        panel.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, Foreground = LauncherText });
-        panel.Children.Add(summary);
-        return panel;
     }
 
     private Border CreateGameHero(string title, string subtitle, string eyebrow)
@@ -286,8 +266,13 @@ internal sealed partial class LauncherWindow
         page.Children.Add(LauncherCard("Launcher", null, preferences));
         page.Children.Add(LauncherCard("Appearance", "Follow your system or choose a launcher theme.", CreateAppearanceSelection()));
 
-        StackPanel advanced = new() { Spacing = 18 };
-        advanced.Children.Add(LauncherCard("Model resources", null, CreateModelSourceSelection()));
+        return page;
+    }
+
+    private Control CreateToolsPage()
+    {
+        StackPanel page = LauncherPage("Tools", "Manage engine resources and mod authoring tools.");
+        page.Children.Add(LauncherCard("Model resources", null, CreateModelSourceSelection()));
 
         StackPanel media = new() { Spacing = 12 };
         mediaStatus.TextWrapping = TextWrapping.Wrap;
@@ -301,12 +286,11 @@ internal sealed partial class LauncherWindow
         mediaProgressPanel.Children.Add(mediaProgressText);
         mediaProgressPanel.Children.Add(cancelMediaSetup);
         media.Children.Add(mediaProgressPanel);
-        advanced.Children.Add(LauncherCard("Video and audio", "FFmpeg is used for movie and replacement audio playback.", media));
+        page.Children.Add(LauncherCard("Video and audio", "FFmpeg is used for movie and replacement audio playback.", media));
 
         Button encodingEditor = new() { Content = "Open Encoding Editor…", HorizontalAlignment = HorizontalAlignment.Left };
         encodingEditor.Click += (_, _) => new EncodingProfiles.EncodingEditorWindow().Show(this);
-        advanced.Children.Add(LauncherCard("Mod authoring", "Edit font encodings and language resources.", encodingEditor));
-        page.Children.Add(new Expander { Header = "Advanced resources & tools", HorizontalAlignment = HorizontalAlignment.Stretch, Content = advanced });
+        page.Children.Add(LauncherCard("Mod authoring", "Edit font encodings and language resources.", encodingEditor));
         return page;
     }
 
@@ -320,7 +304,13 @@ internal sealed partial class LauncherWindow
 
     private Control CreateHeaderLaunchActions()
     {
-        Grid actions = new() { VerticalAlignment = VerticalAlignment.Center };
+        Grid actions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto"), ColumnSpacing = 12, VerticalAlignment = VerticalAlignment.Center };
+        StackPanel updateContent = new() { Spacing = 2 };
+        updateContent.Children.Add(headerUpdateTitle);
+        updateContent.Children.Add(headerUpdateDate);
+        headerUpdate.Content = updateContent;
+        headerUpdate.Click += (_, _) => launcherPages.SelectedIndex = 3;
+        actions.Children.Add(headerUpdate);
         foreach (Button button in new[] { play, startFf7 })
         {
             button.IsDefault = false;
@@ -330,6 +320,7 @@ internal sealed partial class LauncherWindow
             button.Padding = new Thickness(20, 8);
             button.HorizontalContentAlignment = HorizontalAlignment.Center;
             button.FontWeight = FontWeight.SemiBold;
+            Grid.SetColumn(button, 1);
             actions.Children.Add(button);
         }
         return actions;
@@ -351,6 +342,12 @@ internal sealed partial class LauncherWindow
     private void UpdateNavigationWidth()
     {
         bool compact = Bounds.Width > 0 && Bounds.Width < 840 || Bounds.Height > 0 && Bounds.Height < 580;
+        bool narrowHeader = Bounds.Width > 0 && Bounds.Width < 840;
+        Grid.SetRow(selectedGame, narrowHeader ? 1 : 0);
+        Grid.SetColumn(selectedGame, narrowHeader ? 0 : 1);
+        Grid.SetColumnSpan(selectedGame, narrowHeader ? 3 : 1);
+        selectedGame.HorizontalAlignment = HorizontalAlignment.Right;
+        launcherHeader.RowSpacing = narrowHeader ? 8 : 0;
         foreach (TabItem tab in launcherPages.Items.OfType<TabItem>())
         {
             tab.Width = Bounds.Width > 0 && Bounds.Width < 840 ? 108 : 142;
