@@ -102,16 +102,18 @@ public sealed partial class Ff7AutoplayDriver
         NavigationModeState? detourState = null;
         Ff7AutoPlayNavigationUnavailableException? failure = null;
         bool rejected = false;
+        NavigationModeState initialState = CaptureNavigationMode();
         try
         {
             foreach (bool run in new[] { true, false })
             {
+                RestoreNavigationMode(initialState);
                 if (navigationRunMode != run)
                 {
                     waypointGeneration = -1;
                     committedWaypoint = null;
                     finalApproach = false;
-                    ResetObstacleEscape();
+                    obstacleEscape.Clear();
                     navigationRunMode = run;
                 }
                 navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);

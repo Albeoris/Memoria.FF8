@@ -43,7 +43,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static string ReadSpatialBoundaryFingerprint(string fingerprint, IReadOnlySet<int> boundaryTriangles)
     {
-        string facts = $"{fingerprint}|automatic-triangle-boundaries:1:{string.Join(',', boundaryTriangles.Order())}|approach-admission:2|native-navigation-modes:run-walk:4";
+        string facts = $"{fingerprint}|automatic-triangle-boundaries:1:{string.Join(',', boundaryTriangles.Order())}|approach-admission:2|native-navigation-modes:run-walk:5";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
     }
 }

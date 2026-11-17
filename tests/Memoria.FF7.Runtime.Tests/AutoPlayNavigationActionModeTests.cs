@@ -49,6 +49,7 @@ internal static class AutoPlayNavigationActionModeTests
         Check(before == JsonSerializer.Serialize(machine.Capture()), "Mode and skip planning must preserve authoritative VM, input and variables.");
         OriginalPlannedWalk();
         OriginalReadOnlyNavigationEntry();
+        OriginalAlternatingModeEscape();
     }
 
     private static void CheckProgressRankedModes()
@@ -181,6 +182,31 @@ internal static class AutoPlayNavigationActionModeTests
         Check(action.Horizontal != 0 || action.Vertical != 0, "The proved no-effect owner must admit the native gateway approach without clearing its line or skipping its script.");
         Check(JsonSerializer.Serialize(session.Capture()) == before && File.ReadAllBytes(path).SequenceEqual(bytes), "Read-only native entry and route planning must preserve the fixture, VM, RNG and progress.");
         Console.WriteLine($"PASS original conditional-return producer proof ({proofTime.ElapsedMilliseconds}ms) and admitted gateway approach; native source unchanged.");
+    }
+
+    private static void OriginalAlternatingModeEscape()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NAVIGATION_CYCLE_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original alternating-mode escape: configure original resources and MEMORIA_FF7_NAVIGATION_CYCLE_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
+        Check(session.World is null, "The alternating-mode fixture must start before the native World exit.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded movement fixture unexpectedly requested a choice."));
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        for (int step = 0; step < 256 && controller.Running && session.World is null && session.Battle is null; step++)
+        {
+            controller.Advance(1);
+        }
+        Check(controller.Error is null && session.World is not null, $"Alternating native modes exhausted the frontier instead of retaining the bounded physical escape: {controller.Error}");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded native escape changed its external standalone source.");
+        Console.WriteLine($"PASS original alternating run/walk history and native World exit after {controller.Steps} normal callbacks; source unchanged.");
     }
 
     private static void Check(bool condition, string message)

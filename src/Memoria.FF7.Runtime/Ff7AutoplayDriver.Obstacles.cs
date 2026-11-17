@@ -33,11 +33,15 @@ public sealed partial class Ff7AutoplayDriver
     private bool TryObstacleEscape(Ff7Actor player, Vector3 target, Vector3 waypoint, int destination, int nextTriangle, int[] routeDistance, bool blockedForward, IReadOnlyList<int> blockingEntities, Ff7NativeMovement movement, out Ff7AutoplayInput input)
     {
         input = default;
-        if (obstacleGeneration != session.FieldGeneration || obstacleTarget != target || obstacleSpeed != player.MoveSpeed)
+        if (obstacleGeneration != session.FieldGeneration || obstacleTarget != target)
         {
             ResetObstacleEscape();
             obstacleGeneration = session.FieldGeneration;
             obstacleTarget = target;
+        }
+        if (obstacleSpeed != player.MoveSpeed)
+        {
+            obstacleEscape.Clear();
             obstacleSpeed = player.MoveSpeed;
         }
         if (TakeEscapeStep(player, movement, out input))
