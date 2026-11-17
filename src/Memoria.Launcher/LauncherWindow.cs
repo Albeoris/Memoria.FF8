@@ -725,7 +725,9 @@ internal sealed partial class LauncherWindow : Window
         {
             message += Environment.NewLine + "Could not preserve report evidence: " + exception.Message;
         }
-        await new ErrorReportDialog(message, incident).ShowDialog(this);
+        IReadOnlyList<ErrorIncident> saved = await Task.Run(() => ErrorIncident.DiscoverAll());
+        ErrorIncident[] incidents = saved.Where(entry => entry.Id != incident.Id).Prepend(incident).OrderByDescending(entry => entry.Timestamp).ToArray();
+        await new ErrorReportDialog(message, incidents, incident.Id) { RequestedThemeVariant = ActualThemeVariant }.ShowDialog(this);
     }
 
     private async Task DiscoverErrorReportAsync()
@@ -735,7 +737,8 @@ internal sealed partial class LauncherWindow : Window
             ErrorIncident? incident = await Task.Run(() => ErrorIncident.DiscoverLatest(pendingOnly: true));
             if (incident is not null && IsVisible)
             {
-                await new ErrorReportDialog("An error report from a previous game session is available. You can prepare it for GitHub, delete the local incident or close this window.", incident).ShowDialog(this);
+                IReadOnlyList<ErrorIncident> incidents = await Task.Run(() => ErrorIncident.DiscoverAll());
+                await new ErrorReportDialog("Saved error reports are available. Select an incident to review its details or prepare a report for GitHub.", incidents, incident.Id) { RequestedThemeVariant = ActualThemeVariant }.ShowDialog(this);
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)

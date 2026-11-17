@@ -7,7 +7,16 @@ namespace Memoria.Launcher;
 
 internal static class LauncherDialogs
 {
-    public static Task<bool> ConfirmAsync(Window owner, string title, string message) => Create(title, message, true).ShowDialog<bool>(owner);
+    public static Task<bool> ConfirmAsync(Window owner, string title, string message)
+    {
+        Window dialog = Create(title, message, true);
+        if (owner is ErrorReportDialog)
+        {
+            dialog.RequestedThemeVariant = owner.ActualThemeVariant;
+            LauncherWindow.StyleIncidentDialog(dialog);
+        }
+        return dialog.ShowDialog<bool>(owner);
+    }
 
     public static async Task ShowAsync(Window owner, string title, string message)
     {

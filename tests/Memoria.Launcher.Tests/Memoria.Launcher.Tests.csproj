@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../Memoria.FF8.App.Tests/MediaToolsInstallationTests.cs" Link="MediaToolsInstallationTests.cs" />
     <Using Include="Xunit" />
+    <PackageReference Include="Avalonia.Headless" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/Memoria.Launcher/Memoria.Launcher.csproj" />

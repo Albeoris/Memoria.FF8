@@ -9,6 +9,7 @@
     <PackageVersion Include="SDL3-CS.Linux" Version="[3.4.18]" />
     <PackageVersion Include="SDL3-CS.macOS" Version="[3.4.18]" />
     <PackageVersion Include="Avalonia" Version="[11.3.9]" />
+    <PackageVersion Include="Avalonia.Headless" Version="[11.3.9]" />
     <PackageVersion Include="Avalonia.Desktop" Version="[11.3.9]" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="[11.3.9]" />
     <PackageVersion Include="SkiaSharp" Version="[3.119.4]" />

@@ -127,7 +127,7 @@ internal sealed class LauncherApplication : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Navigation = new ControllerNavigation(desktop);
-            desktop.MainWindow = Program.StartupError is string error ? Program.StartupIncident is { } incident ? new ErrorReportDialog(error, incident) : LauncherDialogs.Create("Memoria", error, false) : new LauncherWindow(Program.Resume);
+            desktop.MainWindow = Program.StartupError is string error ? Program.StartupIncident is { } incident ? new ErrorReportDialog(error, [incident]) : LauncherDialogs.Create("Memoria", error, false) : new LauncherWindow(Program.Resume);
         }
         base.OnFrameworkInitializationCompleted();
     }

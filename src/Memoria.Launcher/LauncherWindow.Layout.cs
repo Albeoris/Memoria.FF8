@@ -31,6 +31,29 @@ internal sealed partial class LauncherWindow
     private Control? ff8Home;
     private Control? ff7Home;
 
+    internal static Border IncidentCard(Control content)
+    {
+        return new Border { Background = LauncherSurface, BorderBrush = LauncherBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Child = content };
+    }
+
+    internal static void StyleIncidentDialog(Window dialog)
+    {
+        dialog.FontSize = 14;
+        dialog.Background = LauncherBackground;
+        dialog.Foreground = LauncherText;
+        dialog.Resources["SystemControlHighlightAccentBrush"] = LauncherAccent;
+        dialog.Styles.Add(new Style(selector => selector.OfType<Button>())
+        {
+            Setters =
+            {
+                new Setter(BackgroundProperty, LauncherAccent),
+                new Setter(ForegroundProperty, Brushes.White),
+                new Setter(BorderBrushProperty, LauncherBorder),
+                new Setter(CornerRadiusProperty, new CornerRadius(7))
+            }
+        });
+    }
+
     private void CreateLauncherLayout()
     {
         Width = 960;

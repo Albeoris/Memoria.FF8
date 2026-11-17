@@ -295,13 +295,19 @@ public sealed class ErrorIncident
 
     public static ErrorIncident? DiscoverLatest(string? reportsDirectory = null, string? launchId = null, bool pendingOnly = false)
     {
+        return DiscoverAll(reportsDirectory, launchId, pendingOnly).FirstOrDefault();
+    }
+
+    public static IReadOnlyList<ErrorIncident> DiscoverAll(string? reportsDirectory = null, string? launchId = null, bool pendingOnly = false)
+    {
+        Dictionary<string, ErrorIncident> incidents = new(StringComparer.Ordinal);
         string root = reportsDirectory ?? ApplicationPaths.Current.Reports;
         string pendingRoot = PendingRoot(root);
         IEnumerable<string> pending = Directory.Exists(pendingRoot) ? Directory.EnumerateFiles(pendingRoot, "incident.json", SearchOption.AllDirectories) : [];
         IEnumerable<string> completed = Directory.Exists(root) ? Directory.EnumerateFiles(root, "*.zip", SearchOption.AllDirectories) : [];
         // Also accept previously persisted incidents until they are packaged by this version.
         IEnumerable<string> legacy = Directory.Exists(root) ? Directory.EnumerateFiles(root, "incident.json", SearchOption.AllDirectories) : [];
-        foreach (string file in pending.Concat(completed).Concat(legacy).OrderByDescending(File.GetLastWriteTimeUtc))
+        foreach (string file in pending.Concat(completed).Concat(legacy).Distinct(StringComparer.Ordinal).OrderByDescending(File.GetLastWriteTimeUtc))
         {
             try
             {
@@ -347,14 +353,18 @@ public sealed class ErrorIncident
                     }
                 }
                 ReportSave? save = saveBytes is null ? null : new(saveBytes, saveData.GetProperty("Kind").GetString()!, saveData.GetProperty("CapturedUtc").GetDateTimeOffset(), saveData.GetProperty("Validation").GetString()!, extension);
-                return new(id, capturedLaunch, data.GetProperty("Timestamp").GetDateTimeOffset(), data.GetProperty("Subsystem").GetString()!, data.GetProperty("Exception").Deserialize<ErrorException>()!, data.GetProperty("Runtime").Clone(), data.GetProperty("Environment").Clone(), save, data.GetProperty("SaveUnavailableReason").GetString()!, data.GetProperty("Events").Deserialize<ErrorBreadcrumb[]>()!, data.GetProperty("CollectionErrors").Deserialize<string[]>()!, data.GetProperty("LogPaths").Deserialize<string[]>()!);
+                ErrorIncident incident = new(id, capturedLaunch, data.GetProperty("Timestamp").GetDateTimeOffset(), data.GetProperty("Subsystem").GetString()!, data.GetProperty("Exception").Deserialize<ErrorException>()!, data.GetProperty("Runtime").Clone(), data.GetProperty("Environment").Clone(), save, data.GetProperty("SaveUnavailableReason").GetString()!, data.GetProperty("Events").Deserialize<ErrorBreadcrumb[]>()!, data.GetProperty("CollectionErrors").Deserialize<string[]>()!, data.GetProperty("LogPaths").Deserialize<string[]>()!);
+                if (!incidents.TryGetValue(id, out ErrorIncident? existing) || existing.Save is null && incident.Save is not null)
+                {
+                    incidents[id] = incident;
+                }
             }
             catch (Exception failure) when (failure is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
             {
                 // Incomplete or damaged evidence must not hide another complete incident.
             }
         }
-        return null;
+        return Array.AsReadOnly(incidents.Values.OrderByDescending(incident => incident.Timestamp).ThenBy(incident => incident.Id, StringComparer.Ordinal).ToArray());
     }
 
     internal static void AtomicWrite(string path, byte[] bytes)
