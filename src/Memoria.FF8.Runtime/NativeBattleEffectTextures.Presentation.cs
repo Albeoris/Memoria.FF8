@@ -53,6 +53,18 @@ public sealed partial record NativeBattleEffectTextureState
         return this with { PresentationTextures = banks.SetItem(actorId, bank) };
     }
 
+    // The executor has validated the complete input state. A cache replacement preserves each VRAM leaf and allocation.
+    internal NativeBattleEffectTextureState WithPresentationTextureCache(string actorId, NativeBattlePcTextureWindowCache cache)
+    {
+        RequireWorking();
+        if (PresentationTextures is not { } banks || !banks.TryGetValue(actorId, out NativeBattlePresentationTextureBank? current))
+        {
+            throw new InvalidDataException("The actor has no bound presentation texture bank.");
+        }
+        cache.Validate();
+        return this with { PresentationTextures = banks.SetItem(actorId, current with { Cache = cache }) };
+    }
+
     internal NativeBattleEffectTextureState ClonePresentationEnemyTexture(string sourceId, string destinationId, int allocation)
     {
         RequireWorking();

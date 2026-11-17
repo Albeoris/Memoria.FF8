@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -283,6 +284,53 @@ public sealed class NativeBattleHostedModelPacketsTests
             Assert.Equal(originalPackets, ordering.Packets.ToArray());
             Assert.Equal(originalProxies, ordering.Proxies.ToArray());
             Assert.Equal(originalRoots, ordering.Table.ToArray());
+        }
+    }
+
+    [Fact]
+    public void Prepared_raw_batch_rolls_back_a_late_ordering_failure_and_keeps_prior_bytes_and_holes()
+    {
+        NativeBattleHostedModelPackets packets = new();
+        NativeBattlePrimitiveProcess process = Process();
+        NativeBattleGeometryPrimitive original = Triangle(0x80);
+        NativeBattleGeometryPrimitive changed = Triangle(0x81);
+        packets.Append(process, NativeBattleLogicalOrdering.Clear(), Raw(original, original));
+        packets.ResetFrame();
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        string originalOrdering = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering));
+        NativeBattleHostedModelPackets.Snapshot before = packets.Capture();
+        string originalPackets = JsonSerializer.Serialize(before);
+        NativeBattlePrimitiveReference body = new("hosted-model-070", 0, 0);
+        byte[] bytes = packets.Read(body, 30);
+        Assert.Throws<NotSupportedException>(() => packets.Read(body with { ByteOffset = 30 }, 2));
+
+        NativeBattleModelPrimitiveBatch rejected = Raw(changed, changed with { Bucket = int.MaxValue });
+        Assert.Throws<InvalidDataException>(() => packets.Append(process, ordering, rejected));
+        Assert.Equal(originalOrdering, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)));
+        Assert.Equal(originalPackets, JsonSerializer.Serialize(packets.Capture()));
+        Assert.Equal(bytes, packets.Read(body, 30));
+        Assert.Throws<NotSupportedException>(() => packets.Read(body with { ByteOffset = 30 }, 2));
+
+        NativeBattleLogicalOrdering repair = packets.Append(process, ordering, Raw(changed, changed));
+        Assert.Equal(2, repair.ProxyCursor);
+        Assert.False(bytes.AsSpan().SequenceEqual(packets.Read(body, 30)));
+        Assert.Throws<NotSupportedException>(() => packets.Read(body with { ByteOffset = 30 }, 2));
+        NativeBattleHostedModelPackets fork = NativeBattleHostedModelPackets.Restore(packets.Capture());
+        Assert.Equal(packets.Read(body, 30), fork.Read(body, 30));
+        Assert.Throws<NotSupportedException>(() => fork.Read(body with { ByteOffset = 30 }, 2));
+
+        static NativeBattleModelPrimitiveBatch Raw(NativeBattleGeometryPrimitive first, NativeBattleGeometryPrimitive second)
+        {
+            NativeBattleModelPrimitiveBatch.Builder builder = new();
+            int emission = builder.BeginEmission(new("extended-actor", null, null, default, false, false));
+            Append(first);
+            Append(second);
+            return builder.Freeze();
+
+            void Append(NativeBattleGeometryPrimitive value)
+            {
+                builder.AddRaw(value.Bucket, value.Words.AsSpan(), value.VertexPayload4.AsSpan(), value.ProjectedCoordinates!.Value.AsSpan(), value.PhysicalWriteMask!.Value, default, emission);
+            }
         }
     }
 

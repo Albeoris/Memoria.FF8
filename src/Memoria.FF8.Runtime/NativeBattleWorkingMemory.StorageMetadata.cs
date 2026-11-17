@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -15,11 +15,11 @@ internal sealed partial class NativeBattleWorkingMemory
         UnknownCoverage.Reserve(additional);
     }
 
-    private void PrepareStorageReceipts(int unknownRanges = 1)
+    private void PrepareStorageReceipts(int unknownRanges = 1, int writeRuns = 1)
     {
         NativeBattleTaskOperation.EnlistRetained(this);
-        DataFootprint.Reserve(1, checkpoint);
-        ExplicitCoverage.Reserve(1, checkpoint);
+        DataFootprint.Reserve(writeRuns, checkpoint);
+        ExplicitCoverage.Reserve(writeRuns, checkpoint);
         UnknownCoverage.Reserve(Math.Max(1, unknownRanges), checkpoint);
         if (checkpoint)
         {

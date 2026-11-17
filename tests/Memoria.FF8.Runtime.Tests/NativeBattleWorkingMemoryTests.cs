@@ -449,6 +449,86 @@ public sealed class NativeBattleWorkingMemoryTests
     }
 
     [Fact]
+    public void Prepared_known_runs_reserve_no_physical_bytes_and_respect_the_actual_journal_limit()
+    {
+        using NativeBattleWorkingMemory memory = new(64, initialKnownZero: false, maxJournalEntries: 1);
+        memory.Write(0, [1, 2, 3, 4]);
+        string before = JsonSerializer.Serialize(memory.Capture());
+        long version = memory.Version;
+        memory.BeginCheckpoint();
+        var prepared = memory.PrepareKnownWrites(0, 24, writeRuns: 3);
+        Assert.True(prepared.IsPrepared);
+        Assert.Equal(version, memory.Version);
+        Assert.Equal(4, memory.StoredLength);
+        Assert.Equal(0, memory.JournalEntryCount);
+        Assert.Throws<NotSupportedException>(() => memory.ReadByte(10));
+
+        // The first four bytes are unchanged, even though this run exceeds the remaining journal budget.
+        prepared.Write(0, [1, 2, 3, 4]);
+        prepared.Write(8, [7]);
+        Assert.Equal(version + 2, memory.Version);
+        Assert.Equal(1, memory.JournalEntryCount);
+        Assert.Equal(9, memory.StoredLength);
+        Assert.Equal((byte)7, memory.ReadByte(8));
+        Assert.Throws<NotSupportedException>(() => memory.ReadByte(6));
+        try
+        {
+            prepared.Write(12, [99]);
+            Assert.Fail("A newly known byte must exceed the now-full undo journal.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.Contains("bounded checkpoint journal", exception.Message);
+        }
+        Assert.Equal(9, memory.StoredLength);
+        Assert.Throws<NotSupportedException>(() => memory.ReadByte(12));
+        memory.RollbackCheckpoint();
+        Assert.Equal(before, JsonSerializer.Serialize(memory.Capture()));
+
+        memory.BeginCheckpoint();
+        try
+        {
+            prepared.Write(12, [99]);
+            Assert.Fail("The prepared interval must belong to its original checkpoint.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.Contains("original checkpoint", exception.Message);
+        }
+        memory.RollbackCheckpoint();
+    }
+
+    [Fact]
+    public void Prepared_known_runs_require_plain_unborrowed_working_bytes()
+    {
+        using NativeBattleWorkingMemory memory = new(64);
+        memory.BeginCheckpoint();
+        var prepared = memory.PrepareKnownWrites(0, 16, writeRuns: 1);
+        Assert.True(prepared.IsPrepared);
+        using (NativeBattleReadWindow window = memory.OpenReadWindow(0, 16))
+        {
+            try
+            {
+                prepared.Write(0, [99]);
+                Assert.Fail("A newly borrowed window disqualifies a prepared write.");
+            }
+            catch (InvalidOperationException exception)
+            {
+                Assert.Contains("original checkpoint", exception.Message);
+            }
+        }
+        memory.CommitCheckpoint();
+        Assert.Equal((byte)0, memory.ReadByte(0));
+
+        using NativeBattleWorkingMemory pointed = new(64);
+        pointed.SetResourcePointer(0, new(null, 0x10203040u));
+        pointed.BeginCheckpoint();
+        Assert.False(pointed.PrepareKnownWrites(0, 4, writeRuns: 1).IsPrepared);
+        pointed.RollbackCheckpoint();
+        Assert.Equal(0x10203040u, pointed.ReadUInt32(0));
+    }
+
+    [Fact]
     public void Captured_extent_tracks_physical_stores_not_reserved_capacity_and_rollback_restores_it()
     {
         using NativeBattleWorkingMemory memory = new(1024, initialCapacity: 512);

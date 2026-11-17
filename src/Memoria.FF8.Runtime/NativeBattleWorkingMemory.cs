@@ -44,6 +44,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     private long captureBytes;
     private int storedLength;
     private int checkpointStoredLength;
+    private long checkpointGeneration;
 
     public NativeBattleWorkingMemory(int logicalLength, bool initialKnownZero = true, int initialCapacity = 0, int maxJournalEntries = 1_048_576)
     {
@@ -179,6 +180,11 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         }
         PrepareStorageReceipts();
         PrepareMutation(offset, source.Length, source, false, 0);
+        WriteKnownCore(offset, source);
+    }
+
+    private void WriteKnownCore(int offset, ReadOnlySpan<byte> source)
+    {
         SaveBytes(offset, source.Length, source, false);
         InvalidatePointers();
         source.CopyTo(data.AsSpan(offset));
@@ -451,6 +457,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         pointerUndo!.Clear();
         ParticipantFrame(0).Clear();
         checkpointStoredLength = storedLength;
+        checkpointGeneration++;
         checkpoint = true;
     }
 

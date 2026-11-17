@@ -18,6 +18,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     private readonly Dictionary<NativeBattleSceneCapture, (NativeBattleEffectTextureState Owner, NativeBattleSceneCaptureSample Sample)> sceneCaptureSamples = [];
     private readonly Dictionary<(ushort Clut, int Length), (NativeBattleEffectTextureState Owner, ImmutableArray<ushort> Palette)> sceneCapturePalettes = [];
     private readonly Dictionary<ImmutableArray<ushort>, ImmutableArray<ushort>> scenePaletteContents = new(ScenePaletteContentComparer.Instance);
+    private (ImmutableDictionary<string, NativeBattlePresentationTextureBank>? Banks, string? ActorId, NativeBattlePresentationTextureBank? Bank) lastModelTexture;
+    private NativeBattlePcTextureWindowCache? validatedGlobalCache;
 
     private const int MaximumRetainedModelModes = 256;
     private Dictionary<RetainedModelMode, NativeBattlePrimitiveDrawMode>? retainedModelModes;
@@ -36,6 +38,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public NativeBattleSoftwarePrimitiveExecution(NativeBattleSoftwarePrimitiveState state, NativeBattleEffectTextureState textures, NativeSoftwarePrimitiveTable table, bool hardwareEnabled, NativeBattlePcTextureWindowCache cache)
     {
+        textures.Validate();
+        cache.Validate();
         State = state;
         Textures = textures;
         SoftwareTable = table;
@@ -53,7 +57,12 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
     public uint LiveDebug => State.Environment.Debug ?? throw new NotSupportedException("Native primitive debug delivery requires its retained debug DWORD.");
     public uint LiveDispatchFlags => State.DispatchFlags1CA8880 ?? throw new NotSupportedException("Native normal dispatch requires its retained texture-dispatch flags.");
 
-    public void BeginOrdering() => State = State with { DispatchFlags1CA8880 = 0 };
+    public void BeginOrdering()
+    {
+        lastModelTexture = default;
+        validatedGlobalCache = null;
+        State = State with { DispatchFlags1CA8880 = 0 };
+    }
 
     public void FlushSoftwareImage() => PublishImage();
 
@@ -65,14 +74,19 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             {
                 throw new NotSupportedException("A model texture command cannot also sample the global screen capture.");
             }
-            RequireModelTexture(owner);
-            RequireGlobalCache().Validate();
+            RequireModelTexture(owner.RequireActorId());
+            NativeBattlePcTextureWindowCache global = RequireGlobalCache();
+            if (!ReferenceEquals(global, validatedGlobalCache))
+            {
+                global.Validate();
+                validatedGlobalCache = global;
+            }
         }
     }
 
     public NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommandReference command)
     {
-        return command.ModelTextureOwner is { } owner ? WithCacheControls(RequireModelTexture(owner).Cache, RequireGlobalCache()) : Cache;
+        return command.ModelTextureOwner is { } owner ? WithCacheControls(RequireModelTexture(owner.RequireActorId()).Cache, RequireGlobalCache()) : Cache;
     }
 
     public void SetTextureCache(NativeBattleLogicalCommandReference command, NativeBattlePcTextureWindowCache? cache)
@@ -82,12 +96,13 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             Cache = cache;
             return;
         }
-        NativeBattlePresentationTextureBank bank = RequireModelTexture(owner);
+        string actorId = owner.RequireActorId();
+        NativeBattlePresentationTextureBank bank = RequireModelTexture(actorId);
         NativeBattlePcTextureWindowCache actorCache = cache ?? throw new InvalidDataException("A model texture command requires its selected actor cache.");
         NativeBattlePcTextureWindowCache global = WithCacheControls(RequireGlobalCache(), actorCache);
         if (!ReferenceEquals(bank.Cache, actorCache))
         {
-            Textures = Textures.WithPresentationTexture(owner.RequireActorId(), bank with { Cache = actorCache });
+            Textures = Textures.WithPresentationTextureCache(actorId, actorCache);
         }
         Cache = global;
     }
@@ -120,12 +135,22 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             NativeBattlePcTextureWindowCache cache = update(bank.Cache);
             if (!ReferenceEquals(cache, bank.Cache))
             {
-                Textures = Textures.WithPresentationTexture(actorId, bank with { Cache = cache });
+                Textures = Textures.WithPresentationTextureCache(actorId, cache);
             }
         }
     }
 
-    private NativeBattlePresentationTextureBank RequireModelTexture(NativeBattleModelTextureOwner owner) => Textures.RequirePresentationTexture(owner.RequireActorId());
+    private NativeBattlePresentationTextureBank RequireModelTexture(string actorId)
+    {
+        ImmutableDictionary<string, NativeBattlePresentationTextureBank>? banks = Textures.PresentationTextures;
+        if (ReferenceEquals(banks, lastModelTexture.Banks) && StringComparer.Ordinal.Equals(actorId, lastModelTexture.ActorId) && lastModelTexture.Bank is { } cached)
+        {
+            return cached;
+        }
+        NativeBattlePresentationTextureBank bank = Textures.RequirePresentationTexture(actorId);
+        lastModelTexture = (banks, actorId, bank);
+        return bank;
+    }
 
     private NativeBattlePcTextureWindowCache RequireGlobalCache() => Cache ?? throw new NotSupportedException("Native model texture commands require the retained global PC cache controls.");
 
@@ -191,7 +216,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         image ??= Textures.ReadVram();
         if (command.ModelTextureOwner is { } owner && (command.Opcode & 0xE4) == 0x24)
         {
-            NativeBattleEffectTextureState textureSource = RequireModelTexture(owner).Textures;
+            NativeBattleEffectTextureState textureSource = RequireModelTexture(owner.RequireActorId()).Textures;
             object publication = textureSource.VramPublicationIdentity;
             if (!modelTextureImages.TryGetValue(publication, out byte[]? textureImage))
             {
@@ -317,7 +342,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
 
         PublishImage();
-        NativeBattlePresentationTextureBank? bank = command.ModelTextureOwner is { } owner ? RequireModelTexture(owner) : null;
+        NativeBattlePresentationTextureBank? bank = command.ModelTextureOwner is { } owner ? RequireModelTexture(owner.RequireActorId()) : null;
         NativeBattlePcTextureWindowCache global = RequireGlobalCache();
         NativeBattlePcTextureWindowCache cache = bank?.Cache ?? global;
         NativeBattleEffectTextureState textureSource = bank?.Textures ?? Textures;
@@ -486,6 +511,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void EndBatch()
     {
+        lastModelTexture = default;
+        validatedGlobalCache = null;
         PublishImage();
         State = State with { Environment = NativeSoftwareDrawingEnvironment.EndBatch45D080(State.Environment), SceneCapture = null };
     }

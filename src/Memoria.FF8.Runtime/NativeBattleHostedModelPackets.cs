@@ -73,14 +73,28 @@ internal sealed class NativeBattleHostedModelPackets
         ValidateProxyCapacity(ordering, primitives.Count);
         int end = start;
         int largestPacket = 0;
+        bool prepareKnownWrites = primitives.UsesRawRows;
+        int knownWriteRuns = 0;
+        int knownWriteEnd = start;
         ImmutableArray<NativeBattlePrimitiveReference>.Builder? placements = primitives.UsesRawRows && !primitives.IsEmpty ? ImmutableArray.CreateBuilder<NativeBattlePrimitiveReference>(primitives.Count) : null;
         for (int index = 0; index < primitives.Count; index++)
         {
-            int length = ValidatePrimitive(primitives.ReadWords(index), primitives.ReadPhysicalWriteMask(index));
+            ImmutableArray<NativeBattleGfPacketByteState>? mask = primitives.ReadPhysicalWriteMask(index);
+            int length = ValidatePrimitive(primitives.ReadWords(index), mask);
             ValidateRange(end, length);
             placements?.Add(Reference(bank, end));
             end = checked(end + length);
             largestPacket = Math.Max(largestPacket, length);
+            if (prepareKnownWrites)
+            {
+                bool quad = length == 40;
+                prepareKnownWrites = (quad || length == 32) && mask == NativeBattleGeometryPackets.RawPhysicalWriteMask(quad);
+                if (prepareKnownWrites)
+                {
+                    knownWriteRuns += quad ? 2 : 1;
+                    knownWriteEnd = end - sizeof(ushort);
+                }
+            }
         }
         using NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (primitives.IsEmpty)
@@ -97,6 +111,9 @@ internal sealed class NativeBattleHostedModelPackets
         memory.BeginCheckpoint();
         try
         {
+            NativeBattleWorkingMemory.NativeBattlePreparedKnownWrites prepared = prepareKnownWrites
+                ? memory.PrepareKnownWrites(start, knownWriteEnd - start, knownWriteRuns)
+                : default;
             int cursor = start;
             for (int index = 0; index < primitives.Count; index++)
             {
@@ -109,7 +126,7 @@ internal sealed class NativeBattleHostedModelPackets
                 {
                     links.PrependModel(Reference(bank, cursor), primitives, index, primitives.ReadVertexPayload4(index).IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
                 }
-                WriteLinkedPrimitive(memory, cursor, words, primitives.ReadPhysicalWriteMask(index), links.LastHeaderLink, scratch);
+                WriteLinkedPrimitive(memory, ref prepared, cursor, words, primitives.ReadPhysicalWriteMask(index), links.LastHeaderLink, scratch);
                 cursor += words.Length * sizeof(uint);
             }
             return Commit(bank, end, links, memory);
@@ -121,7 +138,7 @@ internal sealed class NativeBattleHostedModelPackets
         }
     }
 
-    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, int address, NativeBattleImmutableSlice<uint> words, ImmutableArray<NativeBattleGfPacketByteState>? physicalWriteMask, uint headerLink, Span<byte> scratch)
+    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, scoped ref NativeBattleWorkingMemory.NativeBattlePreparedKnownWrites prepared, int address, NativeBattleImmutableSlice<uint> words, ImmutableArray<NativeBattleGfPacketByteState>? physicalWriteMask, uint headerLink, scoped Span<byte> scratch)
     {
         if (physicalWriteMask is not { } mask)
         {
@@ -142,12 +159,31 @@ internal sealed class NativeBattleHostedModelPackets
         {
             linkEnd++;
         }
-        memory.Write(address, scratch[..linkEnd]);
+        WriteKnownRun(memory, ref prepared, address, scratch[..linkEnd]);
         for (int offset = linkEnd; offset < mask.Length;)
         {
             int end = MaskRunEnd(mask, offset);
-            ApplyMaskedRun(memory, address + offset, scratch[offset..end], mask[offset]);
+            if (mask[offset] == NativeBattleGfPacketByteState.Known)
+            {
+                WriteKnownRun(memory, ref prepared, address + offset, scratch[offset..end]);
+            }
+            else
+            {
+                ApplyMaskedRun(memory, address + offset, scratch[offset..end], mask[offset]);
+            }
             offset = end;
+        }
+    }
+
+    private static void WriteKnownRun(NativeBattleWorkingMemory memory, scoped ref NativeBattleWorkingMemory.NativeBattlePreparedKnownWrites prepared, int offset, scoped ReadOnlySpan<byte> bytes)
+    {
+        if (prepared.IsPrepared)
+        {
+            prepared.Write(offset, bytes);
+        }
+        else
+        {
+            memory.Write(offset, bytes);
         }
     }
 
