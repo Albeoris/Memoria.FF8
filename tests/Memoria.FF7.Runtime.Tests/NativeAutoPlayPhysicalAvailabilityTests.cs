@@ -73,6 +73,8 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.DiscoverLineContacts(stacked, [0], lowerPlayer, lowerLine with { Enabled = 0 }).Count == 0, "A disabled LINE was advertised as a native contact candidate.");
         CheckNativeGoalPreview();
         CheckBlockedPortalSearch();
+        CheckProtectedStripSearch();
+        CheckOriginalForwardAdmission();
         CheckGatewayAdmission();
         CheckOriginalTargetBoundary();
         CheckNativeOcclusionPredicate();
@@ -103,6 +105,68 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { AnalysisComplete = false }, [exit])), "An incomplete handler analysis authorized a coupled native exit.");
         Ff7AutoPlayTarget explicitGate = line with { GatewayIndex = 1, ChangesField = true, DestinationField = exit.DestinationField };
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(explicitGate, [exit, selected])), "Unique-destination coupling overrode an explicitly selected gateway index.");
+    }
+
+    private static void CheckProtectedStripSearch()
+    {
+        Ff7Actor source = new() { Slot = 0, Entity = 0, Model = 0, MoveSpeed = 256, Triangle = 0 };
+        Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput action)
+        {
+            int x = actor.X4096 + action.Horizontal * 4096;
+            int y = actor.Y4096 + action.Vertical * 4096;
+            if (Math.Abs(x) > 4 * 4096 || y < -2 * 4096 || y > 2 * 4096)
+            {
+                return new(actor, false, false, []);
+            }
+            return new(actor with { X4096 = x, Y4096 = y, Triangle = y > 0 ? 1 : 0 }, false, true, []);
+        }
+        bool AllowsGap(Ff7Actor from, Ff7NativeMoveResult step) => step.Actor.Y4096 <= 0 || Math.Abs(from.X4096) >= 3 * 4096;
+        var gap = Ff7AutoplayDriver.SearchPhysicalEscape(source, new(0, 2, 0), triangle => triangle == 0 ? 1 : 0, Preview, AllowsGap);
+        Check(gap.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && gap.Inputs.Length > 1, "A protected strip's real endpoint bypass was replaced with geometric blockage.");
+        var sealedStrip = Ff7AutoplayDriver.SearchPhysicalEscape(source, new(0, 2, 0), triangle => triangle == 0 ? 1 : 0, Preview, (_, step) => step.Actor.Y4096 <= 0);
+        Check(sealedStrip is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Inputs.Length: 0 }, "A sealed admission strip emitted a nonadvancing detour.");
+    }
+
+    private static void CheckOriginalForwardAdmission()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_FORWARD_ADMISSION_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original forward admission: configure original resources and MEMORIA_FF7_FORWARD_ADMISSION_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
+        int sourceMap = session.MapId;
+        short story = session.Machine.Variables.ReadWord(Memoria.FF7.Events.FieldBank.Persistent0Word, 0);
+        bool connectorRequested = false;
+        bool conversationRequested = false;
+        session.InteractionScriptRequested += (entity, script, accepted) =>
+        {
+            connectorRequested |= entity == 3 && script == 4 && accepted;
+            conversationRequested |= entity == 7 && script == 1 && accepted;
+        };
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded admission fixture reached a new choice checkpoint."));
+        policy.State.FrontierIdleSteps = 0;
+        policy.State.FrontierProgressKey = null;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        for (int callback = 0; callback < 1024 && controller.Running && session.MapId == sourceMap && !conversationRequested && session.Machine.Variables.ReadWord(Memoria.FF7.Events.FieldBank.Persistent0Word, 0) == story; callback++)
+        {
+            controller.Advance(1);
+        }
+        bool nextBoundary = connectorRequested && controller.Failure is NotSupportedException && controller.Error?.Contains("No reachable unconsumed native event", StringComparison.Ordinal) == true;
+        bool progressed = controller.Error is null && (conversationRequested || session.MapId != sourceMap || session.Machine.Variables.ReadWord(Memoria.FF7.Events.FieldBank.Persistent0Word, 0) != story);
+        Check(progressed || nextBoundary, $"The bounded native admission continuation did not leave its detour loop after {controller.Steps} callbacks: {controller.Error}; {policy.Status}; connector={connectorRequested}");
+        if (nextBoundary)
+        {
+            var actor = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key.StartsWith($"ff7:{sourceMap}:", StringComparison.Ordinal)).Events.Single(item => item.Event.Id == "actor:7:script:1");
+            Check(actor.UnavailableAttempts.Any(attempt => policy.State.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.MovementFailure is not null), "A failed owned-boundary search became an unscoped physical absence.");
+        }
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded admission continuation changed its standalone source.");
+        Console.WriteLine($"PASS original native admission continuation after {controller.Steps} callbacks; connector={connectorRequested}, conversation={conversationRequested}, nextBoundary={nextBoundary}, map={session.MapId}; source unchanged.");
     }
 
     private static void CheckBlockedPortalSearch()

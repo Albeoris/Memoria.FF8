@@ -311,6 +311,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         bool resultAdvances = false;
         List<(Ff7AutoplayInput Input, int[] Entities)> blockedInputs = [];
         bool advancing = false;
+        bool admissionBlockedForward = false;
         bool LocalProgress(Ff7Actor actor)
         {
             return HasPhysicalRouteProgress(controlled, actor, waypoint, triangle => routeDistance[triangle]) || routeDistance[actor.Triangle] == routeDistance[controlled.Triangle] && Vector3.DistanceSquared(Position3D(actor), waypoint) < Vector3.DistanceSquared(Position3D(controlled), waypoint);
@@ -321,6 +322,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             Ff7NativeMoveResult probe = movement.StepDirection(controlled, nativeDirection, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
             if (!AllowsPlannedMove(controlled, probe))
             {
+                admissionBlockedForward |= probe.Moved && LocalProgress(probe.Actor);
                 continue;
             }
             if (!probe.Moved)
@@ -343,7 +345,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
                 resultAdvances = LocalProgress(probe.Actor);
             }
         }
-        bool blockedForward = blockedInputs.Count > 0 && !advancing;
+        bool blockedForward = (blockedInputs.Count > 0 || admissionBlockedForward) && !advancing;
         HashSet<int> blockers = [];
         if (blockedForward)
         {
