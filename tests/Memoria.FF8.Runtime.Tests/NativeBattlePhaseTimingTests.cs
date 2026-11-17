@@ -104,7 +104,7 @@ public sealed class NativeBattlePhaseTimingTests
         DetailSink inner = new(true);
         using (NativeBattlePhaseTiming.Observe(outer))
         {
-            Assert.Throws<InvalidOperationException>(() =>
+            Assert.Throws<InvalidOperationException>((Action)(() =>
             {
                 using NativeBattlePhaseTiming.DetailScope submission = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelSubmission);
                 using (NativeBattlePhaseTiming.Observe(inner))
@@ -112,7 +112,7 @@ public sealed class NativeBattlePhaseTimingTests
                     using NativeBattlePhaseTiming.DetailScope placement = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelPacketPlacement);
                     throw new InvalidOperationException("Diagnostic failure");
                 }
-            });
+            }));
             using NativeBattlePhaseTiming.DetailScope sequence = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelSequence);
         }
 
