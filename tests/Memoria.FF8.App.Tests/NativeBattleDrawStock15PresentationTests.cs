@@ -103,11 +103,11 @@ public sealed class NativeBattleDrawStock15PresentationTests
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
             battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
             BattleScenePresentation scene = new(assets, definition);
-            prior = battle.Capture();
+            prior = battle.CaptureForContinuation();
             CheckNext("before-entry", prior);
             for (int callback = 0; callback < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
             {
-                prior = battle.Capture();
+                prior = battle.CaptureForContinuation();
                 battle.Tick();
             }
             Assert.True(battle.NativeEntryReady);
@@ -124,16 +124,16 @@ public sealed class NativeBattleDrawStock15PresentationTests
             string initialCamera = JsonSerializer.Serialize(battle.CaptureForContinuation().ReadFixturePresentation().NativeCamera);
             if (output is not null)
             {
-                File.WriteAllText(Path.Combine(output, "fixture-selection.json"), JsonSerializer.Serialize(new { Scenario = "Fresh ordinary Draw Stock; module15 is executable-owned command6, not item32 Friendship", Formation = formation.Id, formation.StageId, EnemyModel = 61, EnemyLevel = enemy.Level, sourceSlot, Spell = spell.Id, spell.DrawResist, CasterLevel = caster.Level, caster.Magic, InitialInventory = initialInventory, InitialKnownMagic = battle.Capture().NativeKnownMagic }));
+                File.WriteAllText(Path.Combine(output, "fixture-selection.json"), JsonSerializer.Serialize(new { Scenario = "Fresh ordinary Draw Stock; module15 is executable-owned command6, not item32 Friendship", Formation = formation.Id, formation.StageId, EnemyModel = 61, EnemyLevel = enemy.Level, sourceSlot, Spell = spell.Id, spell.DrawResist, CasterLevel = caster.Level, caster.Magic, InitialInventory = initialInventory, InitialKnownMagic = battle.CaptureForContinuation().NativeKnownMagic }));
             }
-            CheckNext("before-command", battle.Capture());
+            CheckNext("before-command", battle.CaptureForContinuation());
             battle.QueueAction("party", "enemy", BattleAbility.Draw, selectedSpell);
-            CheckNext("queued", battle.Capture());
+            CheckNext("queued", battle.CaptureForContinuation());
             // This bound detects a stalled command; only its actual producer and native task release establish completion.
             for (; callbacks < 4096; callbacks++)
             {
                 boundary = "native-callback";
-                prior = battle.Capture();
+                prior = battle.CaptureForContinuation();
                 NativeBattleRandomState candidateRandom = prior.Random ?? throw new InvalidDataException("Ordinary Draw requires its actual battle RNG.");
                 candidateRandom = candidateRandom.Draw(out byte roll);
                 int candidateQuantity = Math.Clamp(((((caster.Level - enemy.Level + 10) >> 1) - spell.DrawResist + (roll & 31) + 1 + caster.Magic) / 5) - sourceSlot.Resistance, 0, 9);
@@ -205,7 +205,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                         NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet))) } } });
-                        byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                        byte[] plain = new BattleScenePresentation(assets, definition).Render(NativeBattleTypedFixture.RestoreBattle(without), 320, 224).ToArray();
                         peakChangedRgb = CountRgbChanges(pixels, plain);
                         if (peakChangedRgb > 0)
                         {
@@ -256,7 +256,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 boundary = "checkpoint-" + name;
                 BattleSnapshot? previous = prior;
                 prior = snapshot;
-                BattleSession restored = BattleSession.Restore(snapshot);
+                BattleSession restored = NativeBattleTypedFixture.RestoreBattle(snapshot);
                 restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
                 Assert.Equal(snapshot.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().ToArray(), restored.Presentation!.NativeActionPackets.PublishedHeaders().ToArray());
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
@@ -264,7 +264,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 Assert.Equal(scene.Render(battle!, 320, 224).ToArray(), checkpointPixels);
                 NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, checkpointPixels);
                 restored.Tick();
-                BattleSession independent = BattleSession.Restore(snapshot);
+                BattleSession independent = NativeBattleTypedFixture.RestoreBattle(snapshot);
                 independent.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
                 independent.Tick();
                 Assert.Equal(JsonSerializer.Serialize(independent.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -283,7 +283,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
             }
             if (battle is not null)
             {
-                NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
+                NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.CaptureForContinuation(), null);
             }
             if (output is not null)
             {

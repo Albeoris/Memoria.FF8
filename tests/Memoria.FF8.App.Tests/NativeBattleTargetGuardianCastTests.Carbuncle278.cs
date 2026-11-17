@@ -14,7 +14,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, 6, 278, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 6, 278, out NativeBattleGraphicsDefinition graphicsResources);
         BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int tick = 0; tick < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); tick++)
         {

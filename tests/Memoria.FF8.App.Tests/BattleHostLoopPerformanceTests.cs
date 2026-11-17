@@ -11,15 +11,15 @@ public sealed class BattleHostLoopPerformanceTests
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
-    public void Named_standalone_advances_inside_the_complete_graphics_host_loop(int speed)
+    public void Pending_encounter_advances_inside_the_complete_graphics_host_loop(int speed)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_SNAPSHOT");
-        Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_HOST_PERFORMANCE") == "1" && source is not null && File.Exists(source), "An optional battle fixture and interactive graphics diagnostic opt-in are required.");
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_HOST_PERFORMANCE") == "1" && source is not null && File.Exists(source), "A pre-battle encounter save and interactive graphics diagnostic opt-in are required.");
         string? selectedSpeed = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_SPEED");
         Assert.SkipUnless(selectedSpeed is null || selectedSpeed == speed.ToString(System.Globalization.CultureInfo.InvariantCulture), "A different optional diagnostic speed was selected.");
         GameSession session = new(GameSession.Load(source!));
         GameWorld world = RestorePerformanceWorld(session);
-        BattleSession battle = world.Battle!;
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         long initialFrame = battle.Frame;
         long initialCallback = battle.Presentation!.Graphics.Callback;
         string directory = TestResources.ArtifactFile("battle-host-loop");
@@ -66,13 +66,20 @@ public sealed class BattleHostLoopPerformanceTests
 
     internal static GameWorld RestorePerformanceWorld(GameSession session)
     {
-        if (session.State.FieldId == 999)
+        Assert.Null(session.State.Battle);
+        Assert.True(session.State.Scene is SceneKind.Field or SceneKind.WorldMap);
+        GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, TestResources.GameDirectory);
+        try
         {
-            return NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, TestResources.GameDirectory);
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 4));
+            ExpandedBattleInstalledEntry.WaitForEntry(world, Assert.IsType<BattleSession>(world.Battle));
+            return world;
         }
-        GameWorld world = new(session, TestResources.GameDirectory);
-        world.EnsureField();
-        return world;
+        catch
+        {
+            world.Dispose();
+            throw;
+        }
     }
 
     private static T Get<T>(RecreateGame game, string name) => (T)typeof(RecreateGame).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(game)!;

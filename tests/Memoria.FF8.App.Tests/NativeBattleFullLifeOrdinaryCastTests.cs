@@ -89,7 +89,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.True(battle.NativeEntryReady);
             Assert.True(battle.Combatants.Single(actor => actor.Id == "party").IsReady);
             Assert.Equal(2, Assert.Single(battle.Combatants.Single(actor => actor.Id == "party").MagicStocks).Count);
-            Assert.Equal((ushort)0, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints);
+            Assert.Equal((ushort)0, battle.CaptureForContinuation().ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints);
             Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "target").CurrentHp);
             Assert.False(battle.Combatants.Single(actor => actor.Id == "target").IsAlive);
             Assert.Equal(1, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Saved & 1);
@@ -152,7 +152,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
-                    BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } })));
+                    BattleSession background = NativeBattleTypedFixture.RestoreBattle(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     changedRgbPixels = CountRgbChanges(visible, plain);
                     if (changedRgbPixels > 0)
@@ -219,7 +219,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             BattleSnapshot snapshot = battle.Capture();
             byte[] pixels = scene.Render(battle, 320, 224).ToArray();
             Publish(name, snapshot, pixels);
-            BattleSession restored = BattleSession.Restore(snapshot);
+            BattleSession restored = battle.ForkForContinuation();
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
             Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(restored, 320, 224).ToArray());
             return restored;

@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleRoughDivide163CastTests
 {
     [Fact]
-    public void Installed_Rough_Divide_completes_the_original_FFFE_route_and_independent_standalones()
+    public void Installed_Rough_Divide_completes_the_original_FFFE_route_and_independent_forks()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
@@ -27,7 +27,7 @@ public sealed class NativeBattleRoughDivide163CastTests
         NativeCharacterVital character = vitals.Records[0];
         BattleNativeCharacterGrowth growth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray());
         BattleNativePlayerStatistics statistics = rules.Project(character.MagicInventory, growth);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, 163, out _);
+        BattleDefinition source = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 0, 163, out _);
         BattleCombatantDefinition actor = source.Combatants[0] with { Name = "Squall", WeaponId = weapon, NativePlayerStatRules = rules, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), NativeGrowth = growth, Attack = statistics.Strength, Defense = statistics.Vitality, Magic = statistics.Magic, Spirit = statistics.Spirit, Speed = statistics.Speed, Luck = statistics.Luck, Hit = statistics.Hit, Evasion = statistics.Evasion };
         BattleCombatantDefinition[] actors = [actor, source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) }];
         NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
@@ -57,7 +57,7 @@ public sealed class NativeBattleRoughDivide163CastTests
                 candidate = candidate.Draw(out byte resource).Draw(out byte finish).Draw(out byte selection);
                 return actors[1].NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == 160 && NativeBattleRenzokukenRules.HasFinisher(crisis, finish) && NativeBattleRenzokukenRules.Finisher(rules.WeaponRecord[2], selection) == finisherIndex;
             });
-            battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", crisis)], Random = random });
+            battle = NativeBattleTypedFixture.RestoreBattle(battle.CaptureForContinuation() with { NativeLimits = [new("party", crisis)], Random = random });
             Publish("before-command");
             battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
             CompareNext("queued");
@@ -88,7 +88,7 @@ public sealed class NativeBattleRoughDivide163CastTests
                         NativeBattleGraphicsState frozenGraphics = captured.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame frozenFrame = frozenGraphics.PrimitiveFrame!;
                         NativeBattlePrimitiveFrame withoutEffect = frozenFrame with { LastCommands = NativeBattleResolvedCommandList.From(frozenFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
-                        BattleSession background = BattleSession.Restore(captured.WithFixturePresentation(facts => facts with { NativeGraphics = frozenGraphics with { PrimitiveFrame = withoutEffect } }));
+                        BattleSession background = NativeBattleTypedFixture.RestoreBattle(captured.WithFixturePresentation(facts => facts with { NativeGraphics = frozenGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -130,7 +130,7 @@ public sealed class NativeBattleRoughDivide163CastTests
         void CompareNext(string name)
         {
             Publish(name);
-            BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!);
+            BattleSession clone = battle.ForkForContinuation();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             before = battle.Capture();
             battle.Tick();

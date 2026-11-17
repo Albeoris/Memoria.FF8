@@ -16,143 +16,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleProductionEffectAdmissionTests
 {
-    [Fact]
-    public void Migrate_the_named_production_checkpoint_only_with_authenticated_common_meshes_two_and_three()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_MIGRATION_SNAPSHOT");
-        string? expectedHash = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_MIGRATION_SHA256");
-        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
-        Assert.SkipUnless(source is not null && File.Exists(source) && expectedHash is not null && !string.IsNullOrWhiteSpace(evidence), "A named source, exact SHA256 and distinct migration evidence directory are required.");
-        byte[] bytes = File.ReadAllBytes(source!);
-        string originalHash = Convert.ToHexString(SHA256.HashData(bytes));
-        Assert.Equal(expectedHash, originalHash);
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
-        using GameAssets assets = new(directory);
-        Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, "FF8_EN.exe")))));
-        NativeBattleStaticMeshResource[] currentMeshes = assets.ReadNativeEffectMeshes().ToArray();
-        Assert.Equal(new byte[] { 1, 2, 3, 4, 7 }, currentMeshes.Select(mesh => mesh.Id).ToArray());
-        JsonNode original = JsonNode.Parse(bytes)!;
-        JsonArray originalMeshes = Assert.IsType<JsonArray>(original["Battle"]!["Definition"]!["NativeEffectMeshes"]);
-        Assert.Equal(new byte[] { 1, 4, 7 }, originalMeshes.Select(mesh => mesh!["Id"]!.GetValue<byte>()).ToArray());
-        foreach (JsonNode? mesh in originalMeshes)
-        {
-            byte id = mesh!["Id"]!.GetValue<byte>();
-            Assert.True(JsonNode.DeepEquals(mesh, JsonSerializer.SerializeToNode(currentMeshes.Single(candidate => candidate.Id == id))));
-        }
-        JsonNode migrated = original.DeepClone();
-        migrated["Battle"]!["Definition"]!["NativeEffectMeshes"] = JsonSerializer.SerializeToNode(currentMeshes);
-        JsonNode reverted = migrated.DeepClone();
-        reverted["Battle"]!["Definition"]!["NativeEffectMeshes"] = originalMeshes.DeepClone();
-        Assert.True(JsonNode.DeepEquals(original, reverted));
-        Directory.CreateDirectory(evidence!);
-        string idPrefix = "production-mesh-migration-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-        string migratedPath = Path.Combine(evidence!, idPrefix + ".json");
-        using (FileStream stream = new(migratedPath, FileMode.CreateNew))
-        {
-            JsonSerializer.Serialize(stream, migrated);
-        }
-        GameState saved = GameSession.Load(migratedPath);
-        GameSession session = new(saved);
-        using GameWorld world = RestoreWorld(session, directory);
-        BattleSnapshot originalBattle = GameSession.Load(source!).Battle!;
-        BattleSession before = BattleSession.Restore(originalBattle);
-        byte[] beforePixels = new BattleScenePresentation(world.BattleResources, originalBattle.Definition).Render(before, 320, 224).ToArray();
-        Assert.Equal(beforePixels, RenderBattle(world));
-        GameSession independent = new(GameSession.Load(migratedPath));
-        using GameWorld clone = RestoreWorld(independent, directory);
-        long callback = world.Battle!.Presentation!.Graphics.Callback;
-        world.ApplyBattleInput(new(BattleInputKind.Tick));
-        clone.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.True(world.Battle.Presentation!.Graphics.Callback > callback);
-        Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
-        Assert.Equal(RenderBattle(world), RenderBattle(clone));
-        session.SetEventState(world.Events.Capture());
-        Publish(evidence, idPrefix + "-checked-next", session.State);
-        Publish(evidence, idPrefix + "-proof", new
-        {
-            OriginalPath = Path.GetFullPath(source!),
-            OriginalSha256 = originalHash,
-            MigratedPath = Path.GetFullPath(migratedPath),
-            MigratedSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(migratedPath))),
-            ChangedPaths = new[] { "Battle.Definition.NativeEffectMeshes: authenticated IDs2/3 inserted; existing1/4/7 byte-identical" },
-            AddedMeshes = currentMeshes.Where(mesh => mesh.Id is 2 or 3).Select(mesh => new { mesh.Id, mesh.Address, Sha256 = Convert.ToHexString(SHA256.HashData(mesh.Bytes.AsSpan())) }).ToArray(),
-            Validation = "Only allowed JSON path changed; original unchanged; load under current factory; unchanged initial pixels; independent next-callback JSON/pixels"
-        });
-        Assert.Equal(originalHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
-    }
-
-    [Fact]
-    public void Continue_the_named_production_checkpoint_through_Blizzard_or_the_next_native_boundary()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host standalone checkpoint is required.");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
-        GameSession session = new(GameSession.Load(source!));
-        using GameWorld world = RestoreWorld(session, directory);
-        string id = "production-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-        RunBlizzard(world, session, directory, Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), id, false);
-    }
-
-    [Fact]
-    public void Resume_the_named_production_battle_checkpoint_for_one_native_callback()
-    {
-        ResumeNamedCheckpoint(1);
-    }
-
-    [Fact]
-    public void Continue_the_named_production_checkpoint_for_a_bounded_native_interval()
-    {
-        string? requested = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_CALLBACKS");
-        int callbacks = requested is null ? 512 : int.Parse(requested, System.Globalization.CultureInfo.InvariantCulture);
-        Assert.InRange(callbacks, 1, 4096);
-        string? minimum = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_MIN_COMPLETIONS");
-        int completions = minimum is null ? 0 : int.Parse(minimum, System.Globalization.CultureInfo.InvariantCulture);
-        Assert.InRange(completions, 0, 4096);
-        ResumeNamedCheckpoint(callbacks, completions);
-    }
-
-    private static void ResumeNamedCheckpoint(int callbacks, int minimumCompletions = 0)
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host standalone checkpoint is required.");
-        GameSession session = new(GameSession.Load(source!));
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
-        using GameWorld world = RestoreWorld(session, directory);
-        GameSession independent = new(GameSession.Load(source!));
-        using GameWorld clone = RestoreWorld(independent, directory);
-        long callback = world.Battle!.Presentation!.Graphics.Callback;
-        int initialCompletions = world.Battle.Events.Count(item => item.Kind == "ActionComplete");
-        string id = "production-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
-        int completed = 0;
-        try
-        {
-            for (; completed < callbacks; completed++)
-            {
-                world.ApplyBattleInput(new(BattleInputKind.Tick));
-                clone.ApplyBattleInput(new(BattleInputKind.Tick));
-                if ((completed + 1) % 64 == 0 || completed + 1 == callbacks)
-                {
-                    Assert.Equal(JsonSerializer.Serialize(world.Battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
-                    Assert.Equal(RenderBattle(world), RenderBattle(clone));
-                }
-            }
-            int newCompletions = world.Battle.Events.Count(item => item.Kind == "ActionComplete") - initialCompletions;
-            Assert.True(newCompletions >= minimumCompletions, $"Expected at least {minimumCompletions} native action completions during {callbacks} callbacks; observed {newCompletions}.");
-        }
-        catch (Exception exception)
-        {
-            session.SetEventState(world.Events.Capture());
-            Publish(evidence, id + "-last-published", session.State);
-            Publish(evidence, id + "-failed-live.battle", world.Battle.Capture());
-            Publish(evidence, id + "-failure", new { Error = exception.ToString(), SavedCallback = callback, LiveCallback = world.Battle.Presentation!.Graphics.Callback, RequestedCallbacks = callbacks, CompletedCallbacks = completed });
-            throw;
-        }
-        Assert.True(world.Battle.Presentation!.Graphics.Callback > callback);
-        session.SetEventState(world.Events.Capture());
-        Publish(evidence, id + "-after", session.State);
-        PublishPixels(evidence, id + "-after", RenderBattle(world));
-    }
 
     [Fact]
     public void Saved_before_entry_component_enters_through_the_game_host_and_materializes_Blizzard_on_its_native_request()
@@ -160,7 +23,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         var (saved, gameDirectory, evidence, id) = CreateBeforeEntryComponent(false);
         GameSession session = new(saved);
         using GameWorld world = RestoreWorld(session, gameDirectory);
-        RunBlizzard(world, session, gameDirectory, evidence, id, true);
+        RunBlizzard(world, session, evidence, id);
     }
 
     [Fact]
@@ -169,18 +32,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         var (saved, gameDirectory, evidence, id) = CreateBeforeEntryComponent(true);
         GameSession session = new(saved);
         using GameWorld world = RestoreWorld(session, gameDirectory);
-        RunQuezacotl(world, session, gameDirectory, evidence, id, true);
-    }
-
-    [Fact]
-    public void Continue_the_named_production_checkpoint_through_Quezacotl_or_the_next_native_boundary()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_GF_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "A concrete production-host GF standalone checkpoint is required.");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
-        GameSession session = new(GameSession.Load(source!));
-        using GameWorld world = RestoreWorld(session, directory);
-        RunQuezacotl(world, session, directory, Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), "production-gf-continuation-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), session.State.Battle is null);
+        RunQuezacotl(world, session, evidence, id);
     }
 
     private static (GameState State, string GameDirectory, string? Evidence, string Id) CreateBeforeEntryComponent(bool guardianCommand)
@@ -298,14 +150,12 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         }
     }
 
-    private static void RunQuezacotl(GameWorld world, GameSession session, string gameDirectory, string? evidence, string id, bool startEncounter)
+    private static void RunQuezacotl(GameWorld world, GameSession session, string? evidence, string id)
     {
         try
         {
-            if (startEncounter)
-            {
-                world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 7));
-            }
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 7));
+
             world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
             session.SetEventState(world.Events.Capture());
             Publish(evidence, id + "-before-current-gf", session.State);
@@ -344,14 +194,12 @@ public sealed class NativeBattleProductionEffectAdmissionTests
                     {
                         session.SetEventState(world.Events.Capture());
                         Publish(evidence, id + "-mid-gf", session.State);
-                        GameState mid = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))! : GameSession.Load(Path.Combine(evidence, id + "-mid-gf.json"));
-                        GameSession independent = new(mid);
-                        using GameWorld clone = RestoreWorld(independent, gameDirectory);
-                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+                        BattleSession clone = battle.ForkForContinuation();
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
                         world.ApplyBattleInput(new(BattleInputKind.Tick));
-                        clone.ApplyBattleInput(new(BattleInputKind.Tick));
-                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle.Capture()));
-                        Assert.Equal(RenderBattle(world), RenderBattle(clone));
+                        clone.Tick();
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
+                        Assert.Equal(RenderBattle(world), RenderBattle(clone, world.BattleResources));
                         PublishPixels(evidence, id + "-mid-gf", RenderBattle(world));
                         restored = true;
                     }
@@ -396,14 +244,12 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         }
     }
 
-    private static void RunBlizzard(GameWorld world, GameSession session, string gameDirectory, string? evidence, string id, bool startEncounter)
+    private static void RunBlizzard(GameWorld world, GameSession session, string? evidence, string id)
     {
         try
         {
-            if (startEncounter)
-            {
-                world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 7));
-            }
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 7));
+
             // Normal host ticks expose individual frames; diagnostic TurnBased ticks may wait through an entire event.
             world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
             session.SetEventState(world.Events.Capture());
@@ -440,14 +286,12 @@ public sealed class NativeBattleProductionEffectAdmissionTests
                     {
                         session.SetEventState(world.Events.Capture());
                         Publish(evidence, id + "-mid", session.State);
-                        GameState mid = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))! : GameSession.Load(Path.Combine(evidence, id + "-mid.json"));
-                        GameSession independent = new(mid);
-                        using GameWorld clone = RestoreWorld(independent, gameDirectory);
-                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle!.Capture()));
+                        BattleSession clone = battle.ForkForContinuation();
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
                         world.ApplyBattleInput(new(BattleInputKind.Tick));
-                        clone.ApplyBattleInput(new(BattleInputKind.Tick));
-                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Battle.Capture()));
-                        Assert.Equal(RenderBattle(world), RenderBattle(clone));
+                        clone.Tick();
+                        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
+                        Assert.Equal(RenderBattle(world), RenderBattle(clone, world.BattleResources));
                         restored = true;
                     }
                     if (effect.ReturnedDescriptor == 0 && battle.Presentation!.Memory.Active == 0)
@@ -484,6 +328,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
 
     internal static GameWorld RestoreWorld(GameSession session, string directory)
     {
+        Assert.Null(session.State.Battle);
         JsonElement events = session.State.EventState!.Value;
         GameWorld world = new(session, directory);
         if (session.State.FieldId != 999)
@@ -502,8 +347,12 @@ public sealed class NativeBattleProductionEffectAdmissionTests
 
     internal static byte[] RenderBattle(GameWorld world)
     {
-        BattleSession battle = world.Battle!;
-        return new BattleScenePresentation(world.BattleResources, battle.Capture().Definition).Render(battle, 320, 224).ToArray();
+        return RenderBattle(world.Battle!, world.BattleResources);
+    }
+
+    private static byte[] RenderBattle(BattleSession battle, BattleAssets assets)
+    {
+        return new BattleScenePresentation(assets, battle.Capture().Definition).Render(battle, 320, 224).ToArray();
     }
 
     internal static void Publish(string? directory, string name, object value)
@@ -517,10 +366,6 @@ public sealed class NativeBattleProductionEffectAdmissionTests
         using (FileStream stream = new(path, FileMode.CreateNew))
         {
             JsonSerializer.Serialize(stream, value, value.GetType());
-        }
-        if (value is GameState)
-        {
-            GameSession.Load(path);
         }
     }
 

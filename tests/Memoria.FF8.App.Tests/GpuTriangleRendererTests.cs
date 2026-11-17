@@ -229,13 +229,15 @@ public sealed class GpuTriangleRendererTests
     }
 
     [Fact]
-    public void Standalone_native_battle_renders_on_hardware_without_changing_its_next_callback()
+    public void Admitted_native_battle_renders_on_hardware_without_changing_its_next_callback()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone battle fixture is required.");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional pre-battle encounter save is required.");
         GameSession session = new(GameSession.Load(source!));
-        using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, TestResources.GameDirectory);
-        BattleSession battle = world.Battle!;
+        using GameWorld world = BattleHostLoopPerformanceTests.RestorePerformanceWorld(session);
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleSession control = battle.ForkForContinuation();
+        NativeBattlePreparedPresentation prepared = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
         string before = JsonSerializer.Serialize(battle.Capture());
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
@@ -261,6 +263,7 @@ public sealed class GpuTriangleRendererTests
         Assert.Equal(presentedVersion + 4, gpu.PresentationVersion);
         Assert.Equal(hardware, GpuTestDevice.Read(gpu.Target));
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        Assert.Same(prepared, battle.PreparedPresentation);
         Assert.Equal(software, scene.Render(battle, 960, 720));
         long error = 0;
         int largeDifferences = 0;
@@ -290,13 +293,11 @@ public sealed class GpuTriangleRendererTests
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, "gpu-render-comparison", new { Adapter = device.Device.Adapter.Description, Width = 960, Height = 720, MeanMaximumChannelError = error / (double)hardware.Length, LargeDifferencePixels = largeDifferences, Pixels = hardware.Length, SubmissionMilliseconds = submissionMilliseconds, battle.Frame, NativeCallback = battle.Presentation?.Graphics?.Callback });
         Assert.InRange(error / (double)hardware.Length, 0, 2);
         Assert.InRange(largeDifferences / (double)hardware.Length, 0, 0.02);
-        using GameWorld restored = NativeBattleProductionEffectAdmissionTests.RestoreWorld(new GameSession(session.State), TestResources.GameDirectory);
-        TimeSpan callback = TimeSpan.FromSeconds(1d / 30);
-        battle.AdvanceNativeGraphicsPresentation(callback);
-        restored.Battle!.AdvanceNativeGraphicsPresentation(callback);
         world.ApplyBattleInput(new(BattleInputKind.Tick));
-        restored.ApplyBattleInput(new(BattleInputKind.Tick));
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Battle.Capture()));
+        control.Tick();
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(control.Capture()));
+        Assert.Equal(battle.Presentation!.Graphics.Callback, control.Presentation!.Graphics.Callback);
+        Assert.Equal(scene.Render(battle, 960, 720), new BattleScenePresentation(world.BattleResources, control.ReadDefinition()).Render(control, 960, 720));
         session.SetLiveBattle(battle);
         session.SetEventState(world.Events.Capture());
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, "gpu-battle-next-callback", session.State);

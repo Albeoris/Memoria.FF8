@@ -17,7 +17,7 @@ public sealed class NativeBattleWaterRepeatAbortTests
         Assert.SkipUnless(Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 5, 222, out _);
+        BattleDefinition original = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 5, 222, out _);
         BattleCombatantDefinition[] actors =
         [
             original.Combatants[0],
@@ -33,11 +33,11 @@ public sealed class NativeBattleWaterRepeatAbortTests
         }
         Assert.True(battle.CanChoosePlayerCommand("party"));
         BattleNativeSlotsRoll roll = new(10, checked((byte)repetitions));
-        battle = Restore(battle.Capture() with { NativeLimits = [new("party", 4) { Slots = cards ? null : roll }] });
+        battle = Restore(battle.CaptureForContinuation() with { NativeLimits = [new("party", 4) { Slots = cards ? null : roll }] });
         if (cards)
         {
             BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal("party");
-            battle = Restore(battle.Capture() with { PendingSlotsDeal = deal with { Candidates = deal.Candidates.SetItem(0, roll) } });
+            battle = Restore(battle.CaptureForContinuation() with { PendingSlotsDeal = deal with { Candidates = deal.Candidates.SetItem(0, roll) } });
             Assert.True(battle.SelectNativeSlotsCard(deal.Id, 0));
             Assert.True(battle.SubmitNativeSlotsCard(deal.Id));
         }
@@ -109,7 +109,7 @@ public sealed class NativeBattleWaterRepeatAbortTests
 
         BattleSession Restore(BattleSnapshot snapshot)
         {
-            BattleSession restored = BattleSession.Restore(snapshot);
+            BattleSession restored = NativeBattleTypedFixture.RestoreBattle(snapshot);
             Attach(restored);
             return restored;
         }
@@ -126,14 +126,14 @@ public sealed class NativeBattleWaterRepeatAbortTests
         {
             Save(name, snapshot);
             BattleSession direct = Restore(snapshot);
-            BattleSession cold = Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+            BattleSession independent = direct.ForkForContinuation();
             direct.Tick();
-            cold.Tick();
-            Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            independent.Tick();
+            Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(independent.Capture()));
             BattleScenePresentation scene = new(assets, definition);
             byte[] pixels = scene.Render(direct, 320, 224).ToArray();
-            Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(cold, 320, 224).ToArray());
-            Save(name + "-next", cold.Capture());
+            Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(independent, 320, 224).ToArray());
+            Save(name + "-next", independent.Capture());
             if (output is not null)
             {
                 using var bitmap = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 320, 224);

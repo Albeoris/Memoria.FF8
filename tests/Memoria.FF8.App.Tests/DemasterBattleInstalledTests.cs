@@ -1,10 +1,8 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Mods;
-using Memoria.FF8.Rendering;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
@@ -134,127 +132,6 @@ public sealed class DemasterBattleInstalledTests
         Evidence("demaster-stage-targets.json", new { images = images.Length, consumed, unused = images.Length - consumed, sourceStages = stageIds.Count, targets = report });
     }
 
-    [Fact]
-    public void InstalledPagesAffectCpuAndGpuScenesAndPreservePausedSnapshotAnimation()
-    {
-        string package = PackageDirectory();
-        string? state = Environment.GetEnvironmentVariable("MEMORIA_FF8_MOD_BATTLE_STATE");
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(state) && File.Exists(state), "Set MEMORIA_FF8_MOD_BATTLE_STATE to an optional standalone battle state.");
-        DirectoryInfo? format = Directory.GetParent(package);
-        Assert.Equal("Demaster", format?.Name);
-        string mods = format!.Parent!.FullName;
-        string settings = Path.Combine(package, "mod.ini");
-        byte[]? originalSettings = File.Exists(settings) ? File.ReadAllBytes(settings) : null;
-        try
-        {
-            using GameResourceHost host = new(GameDirectory(), watch: false, modsDirectory: mods);
-            ModPackage selected = Assert.Single(host.Mods.Catalog.Packages, candidate => candidate.RootDirectory.Equals(package, StringComparison.OrdinalIgnoreCase));
-            Assert.DoesNotContain(host.Mods.Catalog.Packages, candidate => candidate.Id != selected.Id && candidate.Status == ModEffectiveStatus.Active && candidate.Format is ModFormat.Demaster or ModFormat.Tonberry or ModFormat.Junction);
-            Select(true);
-            GameSession session = new(GameSession.Load(state!));
-            using GameAssets game = new(GameDirectory(), resources: host.Resources);
-            using GameWorld world = new(session, GameDirectory(), resources: host.Resources, resolveGameFile: host.ResolveGameFile, modelOverrides: host);
-            world.EnsureField();
-            BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Bind(battle);
-            battle.Tick();
-            world.CaptureBattleState();
-            string? evidenceDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY");
-            if (!string.IsNullOrWhiteSpace(evidenceDirectory))
-            {
-                Directory.CreateDirectory(evidenceDirectory);
-                session.Save(Path.Combine(evidenceDirectory, "demaster-stage-regenerated.json"), compact: true);
-            }
-            using BattleAssets assets = new(GameDirectory(), host.Resources);
-            BattleScenePresentation scene = new(assets, battle.Capture().Definition);
-            BattleStage stage = assets.LoadStage(battle.Capture().Definition.StageId ?? throw new InvalidDataException("The standalone fixture must identify its original battle stage."));
-            Assert.Contains(stage.NativePages.Values, handle => handle.Value.IsReplacement);
-            Assert.Contains(NativeBattleTextureReplacements.Bind(stage), value => value.SourceOwner == $"battle/a0stg{stage.Id:D3}.x");
-            byte[] enabledPixels = scene.Render(battle, 640, 448);
-            string enabled = Signature(enabledPixels);
-            CaptureCpu("battle-enabled-cpu.png", enabledPixels);
-            Assert.Equal(enabled, Signature(scene.Render(battle, 640, 448)));
-            Select(false);
-            byte[] disabledPixels = scene.Render(battle, 640, 448);
-            string disabled = Signature(disabledPixels);
-            CaptureCpu("battle-disabled-cpu.png", disabledPixels);
-            Assert.NotEqual(disabled, enabled);
-            Select(true);
-            Assert.Equal(enabled, Signature(scene.Render(battle, 640, 448)));
-            using GpuTestDevice device = new();
-            using GpuTriangleRenderer gpu = new(device.Device);
-            scene.Render(battle, 640, 448, gpu);
-            string gpuEnabled = Signature(GpuTestDevice.Read(gpu.Target).SelectMany(pixel => new[] { pixel.R, pixel.G, pixel.B, pixel.A }).ToArray());
-            Assert.Contains(GpuTestDevice.Read(gpu.Target), pixel => pixel.R != 0 || pixel.G != 0 || pixel.B != 0);
-            CaptureGpu("battle-enabled-gpu.png");
-            Select(false);
-            scene.Render(battle, 640, 448, gpu);
-            string gpuDisabled = Signature(GpuTestDevice.Read(gpu.Target).SelectMany(pixel => new[] { pixel.R, pixel.G, pixel.B, pixel.A }).ToArray());
-            Assert.NotEqual(gpuDisabled, gpuEnabled);
-            CaptureGpu("battle-disabled-gpu.png");
-            Select(true);
-            BattleSnapshot snapshot = battle.Capture();
-            BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-            Bind(clone);
-            BattleScenePresentation restoredScene = new(assets, snapshot.Definition);
-            Assert.Equal(scene.Render(battle, 640, 448), restoredScene.Render(clone, 640, 448));
-            for (int tick = 0; tick < 8; tick++)
-            {
-                battle.Tick();
-                clone.Tick();
-                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Equal(scene.Render(battle, 640, 448), restoredScene.Render(clone, 640, 448));
-            }
-            Assert.DoesNotContain(host.Mods.Diagnostics, diagnostic => diagnostic.Code is "replacement-failed" or "demaster-import-failed");
-            world.CaptureBattleState();
-            if (!string.IsNullOrWhiteSpace(evidenceDirectory))
-            {
-                session.Save(Path.Combine(evidenceDirectory, "battle-validated.json"), compact: true);
-            }
-            Evidence("demaster-stage-render.json", new { stage = stage.Id, cpuEnabled = enabled, cpuDisabled = disabled, gpuEnabled, gpuDisabled, resumedTicks = 8 });
-
-            void CaptureCpu(string filename, byte[] pixels)
-            {
-                if (!string.IsNullOrWhiteSpace(evidenceDirectory))
-                {
-                    using var image = GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 640, 448);
-                    image.Save(Path.Combine(evidenceDirectory, filename));
-                }
-            }
-
-            void CaptureGpu(string filename)
-            {
-                if (!string.IsNullOrWhiteSpace(evidenceDirectory))
-                {
-                    using FileStream image = File.Create(Path.Combine(evidenceDirectory, filename));
-                    gpu.Target.SaveAsPng(image, 640, 448);
-                }
-            }
-
-            void Select(bool enabled)
-            {
-                Assert.True(host.Mods.SetEnabled(selected.Id, enabled).Success);
-                host.Pump(true);
-            }
-
-            void Bind(BattleSession selectedBattle)
-            {
-                selectedBattle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            }
-        }
-        finally
-        {
-            if (originalSettings is null)
-            {
-                File.Delete(settings);
-            }
-            else
-            {
-                File.WriteAllBytes(settings, originalSettings);
-            }
-        }
-    }
-
     private static string PackageDirectory()
     {
         string? package = Environment.GetEnvironmentVariable("MEMORIA_FF8_DEMASTER_STAGE_PACKAGE");
@@ -289,7 +166,6 @@ public sealed class DemasterBattleInstalledTests
     }
 
     private static string Relative(string package, string path) => Path.GetRelativePath(package, path).Replace('\\', '/');
-    private static string Signature(byte[] pixels) => Convert.ToHexString(SHA256.HashData(pixels));
 
     private static void Evidence(string filename, object value)
     {

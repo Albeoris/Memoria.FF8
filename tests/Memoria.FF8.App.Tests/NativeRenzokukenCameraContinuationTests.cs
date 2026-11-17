@@ -8,20 +8,24 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeRenzokukenCameraContinuationTests
 {
     [Fact]
-    public void Named_standalone_Renzokuken_moves_camera_and_preserves_midpoint_continuation()
+    public void Renzokuken_from_a_pending_encounter_moves_camera_and_preserves_private_midpoint_continuation()
     {
         string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_RENZOKUKEN_SNAPSHOT");
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_RENZOKUKEN_EVIDENCE");
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
-        Assert.SkipUnless(input is not null && File.Exists(input) && !string.IsNullOrWhiteSpace(evidence) && directory is not null && Directory.Exists(directory), "Select a standalone Renzokuken save, installed resources and a distinct evidence directory.");
+        Assert.SkipUnless(input is not null && File.Exists(input) && !string.IsNullOrWhiteSpace(evidence) && directory is not null && Directory.Exists(directory), "Select a pre-battle encounter save, installed resources and a distinct evidence directory.");
         GameState source = GameSession.Load(input!);
-        using GameAssets game = new(directory!);
+        Assert.SkipUnless(source.Battle is null && source.Scene is (SceneKind.Field or SceneKind.WorldMap), "Select a pre-battle field or world save with a pending encounter and an eligible Renzokuken command.");
         GameSession hostSession = new(source);
-        using GameWorld? world = source.Scene == SceneKind.Field ? new(hostSession, directory!) : null;
-        world?.EnsureField();
-        BattleSession battle = world is null ? BattleSession.Restore(Assert.IsType<BattleSnapshot>(source.Battle)) : Assert.IsType<BattleSession>(world.Battle);
-        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        Assert.Equal(JsonSerializer.Serialize(source.Battle!.Definition), JsonSerializer.Serialize(battle.Capture().Definition));
+        using GameWorld world = new(hostSession, directory!);
+        world.EnsureField();
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party-0"); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.CanChoosePlayerCommand("party-0"));
         using BattleAssets assets = new(directory!);
         BattleScenePresentation scene = new(assets, battle.Capture().Definition);
         string output = Path.Combine(evidence!, "renzokuken-camera-" + Guid.NewGuid().ToString("N"));
@@ -58,21 +62,17 @@ public sealed class NativeRenzokukenCameraContinuationTests
                 if (!midpoint && battle.Presentation?.Graphics?.TriggerWidget?.Input.ContactIndex > 0)
                 {
                     Publish("midpoint");
-                    BattleSnapshot saved = battle.Capture();
-                    BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
-                    clone.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+                    BattleSession clone = battle.ForkForContinuation();
                     battle.Tick();
                     clone.Tick();
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, saved.Definition).Render(clone, 320, 224).ToArray());
+                    Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, clone.ReadDefinition()).Render(clone, 320, 224).ToArray());
                     midpoint = true;
                     Log("midpoint-next");
                 }
                 if (started && battle.GetNativeRenzokuken("party-0") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
                     Publish("completed");
-                    File.WriteAllText(Path.Combine(evidence!, "renzokuken-completed-snapshot.txt"), Path.Combine(output, "completed.json"));
-                    Console.WriteLine("Completed Renzokuken standalone: " + Path.Combine(output, "completed.json"));
                     completed = true;
                     break;
                 }
@@ -96,18 +96,6 @@ public sealed class NativeRenzokukenCameraContinuationTests
         {
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, scene.Render(battle, 320, 224).ToArray());
-            if (world is not null)
-            {
-                world.CaptureBattleState();
-                hostSession.SetEventState(world.Events.Capture());
-                hostSession.Save(Path.Combine(output, name + ".json"), compact: true);
-            }
-            else
-            {
-                GameSession session = new(source);
-                session.SetLiveBattle(battle);
-                session.Save(Path.Combine(output, name + ".json"), compact: true);
-            }
         }
 
         void Log(string phase)

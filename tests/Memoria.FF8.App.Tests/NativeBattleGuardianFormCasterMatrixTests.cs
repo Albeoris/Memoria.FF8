@@ -88,7 +88,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
         Assert.Contains(character, assets.PlayerCharacterIds);
-        BattleDefinition basis = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with
+        BattleDefinition basis = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 2, 201, out _) with
         {
             GuardianFormsEnabled = true,
             GuardianFormResources = [assets.ReadIfritGuardianFormResources()],
@@ -161,7 +161,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             int beforeFinisher = DamageCount();
             battle.QueueGuardianFormAction("party", "enemy", BattleGuardianFormAction.HellFire);
             WaitFor(() => battle.Presentation!.Graphics.GuardianFormPresentation is { Phase: 5, Mode: GuardianFormInvocationMode.FinisherWithoutEntry });
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            BattleSession restored = battle.ForkForContinuation();
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));

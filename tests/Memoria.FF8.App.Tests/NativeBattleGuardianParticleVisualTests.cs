@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -13,31 +14,28 @@ public sealed class NativeBattleGuardianParticleVisualTests
         string? beforePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_PARTICLE_VISUAL_BEFORE");
         string? afterPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_PARTICLE_VISUAL_AFTER");
         Assert.SkipUnless(beforePath is not null && afterPath is not null, "Concrete standalone snapshots before and after the first particle callback are required.");
-        BattleSnapshot before = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(beforePath!))!;
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(afterPath!))!;
-        Assert.Equal((ushort)116, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.Equal(before.Frame + 1, snapshot.Frame);
-        Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback + 1, snapshot.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.DoesNotContain(before.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands, IsParticle);
-        NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
+        (JsonElement before, long beforeCallback, NativeBattlePrimitiveFrame beforeFrame) = NativeBattleFixtureInspection.ReadArchivedEffectFrame(beforePath!, 116);
+        (JsonElement source, long callback, NativeBattlePrimitiveFrame frame) = NativeBattleFixtureInspection.ReadArchivedEffectFrame(afterPath!, 116);
+        Assert.Equal(before.GetProperty("Frame").GetInt64() + 1, source.GetProperty("Frame").GetInt64());
+        Assert.Equal(beforeCallback + 1, callback);
+        Assert.DoesNotContain(beforeFrame.LastCommands, IsParticle);
         int particleCommands = frame.LastCommands.Count(IsParticle);
         Assert.True(particleCommands > 0);
-        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !IsParticle(command))) } } });
-        BattleSession original = BattleSession.Restore(snapshot);
-        BattleSession control = BattleSession.Restore(without);
+        NativeBattlePrimitiveFrame without = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !IsParticle(command))) };
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition);
-        byte[] full = scene.Render(original, 320, 224).ToArray();
-        byte[] removed = scene.Render(control, 320, 224).ToArray();
+        NativeBattleGraphicsDefinition definition = Assert.IsType<NativeBattleGraphicsDefinition>(NativeBattleFixtureState.ReadArchived<NativeBattleGraphicsDefinition>(source.GetProperty("Definition"), "NativeGraphics"));
+        NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(NativeBattleFixtureState.ReadArchived<NativeBattleEffectMemory>(source, "NativeEffectMemory"));
+        BattleRenderer renderer = new(320, 224, ViewportLayout.Fit(320, 240, 320, 224));
+        byte[] full = Render(frame);
+        byte[] removed = Render(without);
         int changed = Enumerable.Range(0, 320 * 224).Count(index => !full.AsSpan(4 * index, 3).SequenceEqual(removed.AsSpan(4 * index, 3)));
-        BattleSnapshot onlyParticles = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(IsParticle)) } } });
-        byte[] isolated = scene.Render(BattleSession.Restore(onlyParticles), 320, 224);
+        byte[] isolated = Render(frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(IsParticle)) });
         int isolatedPixels = Enumerable.Range(0, 320 * 224).Count(index => isolated[4 * index] != 0 || isolated[4 * index + 1] != 0 || isolated[4 * index + 2] != 0);
         Console.WriteLine($"Private trail diagnostic: commands{particleCommands}, isolatedRGBpixels{isolatedPixels}, full-frameRGBdifference{changed}.");
         Assert.True(changed > 0, "Actual6C84C0 private packets must contribute visible pixels independently of common ribbons and GF skin.");
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(original.Capture()));
-        Assert.Equal(JsonSerializer.Serialize(without), JsonSerializer.Serialize(control.Capture()));
-        Console.WriteLine($"Native particle visual control at frame{snapshot.Frame}/callback{snapshot.ReadFixturePresentation().NativeGraphics!.Callback}: before signature0, removed{particleCommands} private trail draws, changed{changed}RGB pixels; neither simulation advanced.");
+        Console.WriteLine($"Native particle visual control at frame{source.GetProperty("Frame").GetInt64()}/callback{callback}: before signature0, removed{particleCommands} private trail draws, changed{changed}RGB pixels.");
+
+        byte[] Render(NativeBattlePrimitiveFrame value) => renderer.RenderNativePrimitiveFrame(value, memory.Textures, capabilities: definition.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess?.TextureWindowCache, effectTextureSource: assets.EffectTextureSource).ToArray();
     }
 
     private static bool IsParticle(NativeBattleLogicalResolvedCommand command)

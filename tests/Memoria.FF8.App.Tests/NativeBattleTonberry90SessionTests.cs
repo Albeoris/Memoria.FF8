@@ -14,7 +14,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, 14, 90, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 14, 90, out NativeBattleGraphicsDefinition graphicsResources);
         BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_EVIDENCE") ?? Path.GetTempPath(), "tonberry-entry-" + Guid.NewGuid().ToString("N"));

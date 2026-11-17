@@ -111,7 +111,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
         Directory.CreateDirectory(output!);
         BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
-        BattleSnapshot prior = battle.Capture();
+        BattleSnapshot prior = battle.CaptureForContinuation();
         bool selected = false;
         bool restoredLive = false;
         bool contact = false;
@@ -134,26 +134,26 @@ public sealed class NativeBattleRemainingItemPresentationTests
             battle = VerifyContinuation("before-entry", prior);
             for (int callback = 0; callback < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
             {
-                prior = battle.Capture();
+                prior = battle.CaptureForContinuation();
                 battle.Tick();
             }
             Assert.True(battle.NativeEntryReady);
             Assert.True(battle.Combatants.Single(actor => actor.Id == "party").IsReady);
             Assert.Equal(2, Assert.Single(battle.Items, stock => stock.Id == itemId).Count);
-            battle = VerifyContinuation("before-command", battle.Capture());
+            battle = VerifyContinuation("before-command", battle.CaptureForContinuation());
             if (statusCure)
             {
-                NativeBattleStatusSnapshot beforeStatus = battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!;
+                NativeBattleStatusSnapshot beforeStatus = battle.CaptureForContinuation().Combatants.Single(actor => actor.Id == "target").NativeStatus!;
                 Assert.Equal(initialSavedStatus, beforeStatus.Saved & initialSavedStatus);
                 Assert.Equal(initialBattleStatus, beforeStatus.Battle & initialBattleStatus);
             }
             battle.QueueAction("party", "target", BattleAbility.Item, itemId);
             Assert.Equal(1, Assert.Single(battle.Items, stock => stock.Id == itemId).Count);
-            battle = VerifyContinuation("queued", battle.Capture());
+            battle = VerifyContinuation("queued", battle.CaptureForContinuation());
             // This bound detects a stalled command; only native task release establishes completion.
             for (; callbacks < 4096; callbacks++)
             {
-                prior = battle.Capture();
+                prior = battle.CaptureForContinuation();
                 battle.Tick();
                 BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
@@ -187,7 +187,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                     BattleSnapshot withoutEffect = current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutFrame } });
-                    byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(withoutEffect), 320, 224).ToArray();
+                    byte[] plain = new BattleScenePresentation(assets, definition).Render(NativeBattleTypedFixture.RestoreBattle(withoutEffect), 320, 224).ToArray();
                     int changedRgb = CountRgbChanges(rendered, plain);
                     visibleSamples++;
                     if (changedRgb > peakChangedRgb)
@@ -239,7 +239,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             }
             BattleSnapshot completed = battle.CaptureForContinuation();
             Assert.True(selected, "The actual item command never selected its original effect.");
-            Assert.True(restoredLive, "No live effect task with primitive commands reached disk restoration.");
+            Assert.True(restoredLive, "No live effect task with primitive commands reached the fork boundary.");
             if (native.MagicId is 7 or 50 or 51 or 52 || statusCure)
             {
                 Assert.True(peakChangedRgb > 0, "The original item effect arena packets changed no RGB pixels.");
@@ -277,7 +277,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
         {
             PublishPeak();
             Publish("before-boundary", prior, false);
-            Publish("failed-live", battle.Capture(), false);
+            Publish("failed-live", battle.CaptureForContinuation(), false);
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", itemId, native.MagicId, callbacks, selected, restoredLive, contact, transitions, statusTransitions, initialSavedStatus, initialBattleStatus, peakChangedRgb, visibleSamples, Error = error.ToString() }));
             throw;
         }
@@ -293,13 +293,12 @@ public sealed class NativeBattleRemainingItemPresentationTests
 
         void Publish(string name, BattleSnapshot snapshot, bool render)
         {
-            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, render ? new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(snapshot), 320, 224).ToArray() : null);
+            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, render ? new BattleScenePresentation(assets, definition).Render(NativeBattleTypedFixture.RestoreBattle(snapshot), 320, 224).ToArray() : null);
         }
 
-        BattleSession Load(string name)
+        BattleSession Restore(BattleSnapshot loaded)
         {
-            BattleSnapshot loaded = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, name + ".battle.json")))!;
-            BattleSession restored = BattleSession.Restore(loaded);
+            BattleSession restored = NativeBattleTypedFixture.RestoreBattle(loaded);
             Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(restored.Capture()));
             restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             return restored;
@@ -311,14 +310,14 @@ public sealed class NativeBattleRemainingItemPresentationTests
             {
                 Publish(name, snapshot, true);
             }
-            BattleSession first = Load(name);
-            BattleSession second = Load(name);
+            BattleSession first = Restore(snapshot);
+            BattleSession second = Restore(snapshot);
             first.Tick();
             second.Tick();
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(second, 320, 224).ToArray());
-            Publish(name + "-next", first.Capture(), true);
-            return Load(name);
+            Publish(name + "-next", first.CaptureForContinuation(), true);
+            return Restore(snapshot);
         }
     }
 

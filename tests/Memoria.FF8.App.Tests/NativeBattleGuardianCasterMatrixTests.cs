@@ -256,8 +256,7 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
 
         void RoundTripNext()
         {
-            BattleSnapshot checkpoint = NativeBattleStorageSnapshots.Capture(battle.Capture());
-            BattleSession restored = BattleSession.Restore(checkpoint);
+            BattleSession restored = battle.ForkForContinuation();
             battle.Tick();
             restored.Tick();
 
@@ -311,7 +310,7 @@ public sealed class NativeBattleGuardianCasterMatrixAssets : IDisposable
     {
         if (!definitions.TryGetValue(guardian, out BattleDefinition? result))
         {
-            result = NativeBattleTargetGuardianCastTests.CreateDefinition(Game, Battle, guardian, effect, out _);
+            result = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(Game, Battle, guardian, effect, out _);
             definitions.Add(guardian, result);
         }
         return result;

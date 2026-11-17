@@ -48,13 +48,13 @@ public sealed class NativeBattleRenzokukenCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId, out _);
+        BattleDefinition source = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 0, effectId, out _);
         BattleCombatantDefinition ifrit = source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) };
         BattleDefinition definition = source with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeCommandNames = assets.ReadNativeCommandNames(), Combatants = [source.Combatants[0], ifrit] };
         if (effectId == 160)
         {
-            BattleCombatantDefinition zell = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effectId, out _).Combatants[0] with { Id = "party-1", InitialAtb = 0 };
-            BattleCombatantDefinition irvine = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, effectId, out _).Combatants[0] with { Id = "party-2", InitialAtb = 0 };
+            BattleCombatantDefinition zell = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 1, effectId, out _).Combatants[0] with { Id = "party-1", InitialAtb = 0 };
+            BattleCombatantDefinition irvine = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 2, effectId, out _).Combatants[0] with { Id = "party-2", InitialAtb = 0 };
             BattleCombatantDefinition[] actors = [definition.Combatants[0], zell, irvine, ifrit];
             definition = definition with { Combatants = actors };
         }
@@ -88,7 +88,7 @@ public sealed class NativeBattleRenzokukenCastTests
         });
         BattleSnapshot ready = battle.CaptureForContinuation();
         const uint transitionColor = 0x00312617;
-        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage!.ModelColors! with { Color40 = transitionColor } } })));
+        battle = NativeBattleTypedFixture.RestoreBattle((ready with { NativeLimits = [new("party", crisis)], Random = random }).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage!.ModelColors! with { Color40 = transitionColor } } }));
         const int actorIndex = 0;
         uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
         Assert.NotNull(shadowColor);
@@ -107,7 +107,7 @@ public sealed class NativeBattleRenzokukenCastTests
             Assert.Equal(shadowColor, ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44);
             interpolatedCurrentStageColor |= ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color40 == interpolatedColor;
             selected |= battle.Presentation!.Graphics.OriginalEffect?.Binding.Effect == effectId;
-            if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+            if (effectId is 141 or 160 or 259 or 332 or 333 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.CaptureForContinuation(), effectId) > 0)
             {
                 capturedFrames++;
             }
@@ -146,16 +146,15 @@ public sealed class NativeBattleRenzokukenCastTests
 
         void CompareNext()
         {
-            BattleSnapshot snapshot = battle.Capture();
-            BattleSession clone = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot));
+            BattleSession clone = battle.ForkForContinuation();
             CompareState(battle, clone);
             battle.Tick();
             clone.Tick();
-            if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+            if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.CaptureForContinuation(), effectId) > 0)
             {
                 capturedFrames++;
             }
-            _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.CaptureForContinuation(), effectId);
             CompareState(battle, clone);
             Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, definition).Render(clone, 320, 224));
         }

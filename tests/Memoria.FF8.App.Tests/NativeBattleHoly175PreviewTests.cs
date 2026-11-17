@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleHoly175PreviewTests
 {
     [Fact]
-    public void Installed_Holy_renders_whole_ability_and_continues_a_serialized_live_frame()
+    public void Installed_Holy_renders_whole_ability_and_continues_a_private_fork()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select original resources for Holy presentation.");
@@ -49,7 +49,7 @@ public sealed class NativeBattleHoly175PreviewTests
             bool flare = snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x5D43B0) == true;
             if (!captureRestored && capturing || !flareRestored && flare)
             {
-                BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+                BattleSession cold = active.ForkForContinuation();
                 cold.AdvanceNativeGraphicsPresentation(callback);
                 active.AdvanceNativeGraphicsPresentation(callback);
                 BattleSnapshot continued = active.CaptureForContinuation();

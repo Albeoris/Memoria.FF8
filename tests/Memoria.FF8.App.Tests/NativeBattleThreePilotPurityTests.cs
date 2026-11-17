@@ -136,7 +136,7 @@ public sealed class NativeBattleThreePilotPurityTests
         }).ToArray();
         BattleSnapshot frozen = battle.Capture();
         string frozenJson = JsonSerializer.Serialize(frozen);
-        BattleSession control = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozenJson)!);
+        BattleSession control = battle.ForkForContinuation();
         string restoredJson = JsonSerializer.Serialize(control.Capture());
         if (restoredJson != frozenJson && Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_ARTIFACTS") is string artifacts)
         {

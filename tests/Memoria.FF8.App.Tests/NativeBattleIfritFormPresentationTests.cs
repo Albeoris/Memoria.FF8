@@ -38,7 +38,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
         if (retainedMemory is not null)
         {
             definition = definition with { NativeRetainedMemory = retainedMemory };
@@ -73,7 +73,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 NativeBattleGraphicsState graphics = active.ReadFixturePresentation().NativeGraphics!;
                 NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
                 Assert.Equal((byte)1, model.SequenceState!.Default2);
-                battle = BattleSession.Restore(active.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 0), model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } }));
+                battle = NativeBattleTypedFixture.RestoreBattle(active.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 0), model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } }));
             }
             AssertVisibility();
             AssertCommonTexture();
@@ -246,7 +246,7 @@ public sealed class NativeBattleIfritFormPresentationTests
 
         void RoundTripNext()
         {
-            BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
+            BattleSession restored = battle.ForkForContinuation();
             if (skip)
             {
                 TimeSpan elapsed = TimeSpan.FromTicks((2 * TimeSpan.TicksPerSecond + 30) / 31);
@@ -341,7 +341,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
         NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
         BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
@@ -351,7 +351,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         }
         Assert.True(battle.CanRequestGuardianForm("party", 2));
         BattleSnapshot uninvoked = battle.CaptureForContinuation();
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(uninvoked.WithFixturePresentation(facts => facts with { NativeGraphics = uninvoked.ReadFixturePresentation().NativeGraphics! with { GuardianFormHumanFocalToRestore = 512 } })));
+        Assert.Throws<InvalidDataException>(() => NativeBattleTypedFixture.RestoreBattle(uninvoked.WithFixturePresentation(facts => facts with { NativeGraphics = uninvoked.ReadFixturePresentation().NativeGraphics! with { GuardianFormHumanFocalToRestore = 512 } })));
         battle.RequestGuardianForm("party", 2);
         bool restoredEmergence = false;
         int emergenceCallbacks = 0;
@@ -361,7 +361,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             if (!restoredEmergence && battle.Presentation?.Graphics?.GuardianFormPresentation is { Phase: 1 } && ++emergenceCallbacks == 30)
             {
                 BattleSnapshot emerging = battle.Capture();
-                BattleSession emergingRestored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(emerging));
+                BattleSession emergingRestored = NativeBattleTypedFixture.RestoreBattle(emerging);
                 battle.Tick();
                 emergingRestored.Tick();
                 BattleSnapshot originalNext = battle.Capture();
@@ -375,7 +375,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         }
         Assert.True(restoredEmergence);
         BattleSnapshot landed = battle.CaptureForContinuation();
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(landed.WithFixturePresentation(facts => facts with { NativeGraphics = landed.ReadFixturePresentation().NativeGraphics! with { GuardianFormPresentation = landed.ReadFixturePresentation().NativeGraphics!.GuardianFormPresentation! with { HumanFocalLength = 0 } } })));
+        Assert.Throws<InvalidDataException>(() => NativeBattleTypedFixture.RestoreBattle(landed.WithFixturePresentation(facts => facts with { NativeGraphics = landed.ReadFixturePresentation().NativeGraphics! with { GuardianFormPresentation = landed.ReadFixturePresentation().NativeGraphics!.GuardianFormPresentation! with { HumanFocalLength = 0 } } })));
         Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm("party")?.Phase);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
@@ -383,7 +383,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.Equal("party", ReadOriginalModelActorId(battle.Presentation!.Graphics, 0));
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         NativeBattleRestorationPresentationTests.Publish(output, "landed", landed, output is null ? null : scene.Render(battle, 320, 224).ToArray());
-        BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(landed));
+        BattleSession restored = NativeBattleTypedFixture.RestoreBattle(landed);
         battle.Tick();
         restored.Tick();
         AssertSameContinuation(battle.Capture(), restored.Capture());
@@ -412,7 +412,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _);
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 2, 201, out _);
         NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
         BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);

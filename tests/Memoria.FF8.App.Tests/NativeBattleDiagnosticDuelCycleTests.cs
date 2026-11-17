@@ -14,12 +14,12 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_DUEL_CYCLE_NATIVE") == "1" && directory is not null, "Select installed resources and opt in to the genuine ordinary Duel cycle regression.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, 274, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleDefinition source = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 1, 274, out NativeBattleGraphicsDefinition graphicsResources);
         BattleCombatantDefinition actor = source.Combatants[0];
         BattleNativeLimitDefinition rules = actor.NativeLimit!;
         int hp = Enumerable.Range(1, actor.MaximumHp).MaxBy(value => Enumerable.Range(0, 256).Count(random => NativeBattleLimitRules.CrisisLevel(rules, value, actor.MaximumHp, 0, 0, 0, (byte)random) == 1));
         source = source with { Combatants = [actor with { CurrentHp = hp }, source.Combatants[1]], LimitProgress = source.LimitProgress! with { DuelFlags = (ushort)(source.LimitProgress.DuelFlags | 0x3F), Options978 = (ushort)(source.LimitProgress.Options978!.Value & ~2) } };
-        BattleSession battle = BattleSession.Restore(NativeBattleTypedFixture.CreateBattle(source, BattleAtbMode.TurnBased, graphicsResources).Capture());
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(source, BattleAtbMode.TurnBased, graphicsResources);
         Attach(battle);
         battle.ConfigureDiagnosticScheduling(true);
         DiagnosticDuelCycleDriver? cycle = null;
@@ -73,7 +73,7 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
                 if (!coldChecked && cycle.Receipt.Inputs.Length > 0)
                 {
                     BattleSnapshot actual = battle.Capture();
-                    BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(actual))!);
+                    BattleSession cold = battle.ForkForContinuation();
                     Attach(cold);
                     Assert.NotNull(cold.GetNativeDuel("party"));
                     battle.Tick();

@@ -16,7 +16,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, guardian, effectId, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, guardian, effectId, out NativeBattleGraphicsDefinition graphicsResources);
         BattleSession sliced = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 400 && (!sliced.NativeEntryReady || !sliced.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
         {
@@ -34,7 +34,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         byte[] visible = scene.Render(sliced, 320, 224).ToArray();
         Assert.True(sliced.SkipGuardianFormFinisher());
         Assert.True(sliced.GuardianAnimationSkipPending);
-        BattleSession synchronous = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(sliced.Capture()))!);
+        BattleSession synchronous = sliced.ForkForContinuation();
         synchronous.Tick();
         Assert.False(synchronous.GuardianAnimationSkipPending);
 
@@ -48,7 +48,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         Assert.True(blank.Where((value, index) => index % 4 != 3).All(value => value == 0));
         Assert.True(blank.Where((value, index) => index % 4 == 3).All(value => value == 255));
 
-        sliced = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(sliced.Capture()))!);
+        sliced = sliced.ForkForContinuation();
         Assert.True(sliced.GuardianAnimationSkipPending);
 
         int slices = 1;

@@ -12,7 +12,7 @@ public sealed class NativeBattleMoogle96PresentationTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 96, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleDefinition original = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 2, 96, out NativeBattleGraphicsDefinition graphicsResources);
         byte[] pocket = game.ReadNewGamePocketStation().Raw.ToArray();
         pocket[0] = 0x0D;
         pocket[1] = 20;

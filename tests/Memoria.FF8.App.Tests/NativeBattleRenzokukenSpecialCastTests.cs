@@ -9,67 +9,67 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleRenzokukenSpecialCastTests
 {
     [Fact]
-    public void Installed_spider_Renzokuken_completes_target_animation_camera_and_standalones()
+    public void Installed_spider_Renzokuken_completes_target_animation_camera_and_forks()
     {
-        Installed_special_target_Renzokuken_completes_target_animation_camera_and_standalones(159, 92);
+        Installed_special_target_Renzokuken_completes_target_animation_camera_and_forks(159, 92);
     }
 
     [Fact]
-    public void Installed_original161_model91_completes_authored_contacts_and_standalones()
+    public void Installed_original161_model91_completes_authored_contacts_and_forks()
     {
         RunSpecial(161, 91, false);
     }
 
     [Fact]
-    public void Installed_original334_model67_completes_authored_contacts_and_standalones()
+    public void Installed_original334_model67_completes_authored_contacts_and_forks()
     {
         RunSpecial(334, 67, false);
     }
 
     [Fact]
-    public void Installed_original335_model77_completes_authored_contacts_and_standalones()
+    public void Installed_original335_model77_completes_authored_contacts_and_forks()
     {
         RunSpecial(335, 77, false);
     }
 
     [Fact]
-    public void Installed_original336_model90_completes_authored_contacts_and_standalones()
+    public void Installed_original336_model90_completes_authored_contacts_and_forks()
     {
         RunSpecial(336, 90, false);
     }
 
     [Fact]
-    public void Installed_original337_model117_completes_authored_contacts_and_standalones()
+    public void Installed_original337_model117_completes_authored_contacts_and_forks()
     {
         RunSpecial(337, 117, false);
     }
 
     [Fact]
-    public void Installed_original339_model112_completes_authored_contacts_and_standalones()
+    public void Installed_original339_model112_completes_authored_contacts_and_forks()
     {
         RunSpecial(339, 112, false);
     }
 
     [Fact]
-    public void Installed_original340_model126_completes_authored_contacts_and_standalones()
+    public void Installed_original340_model126_completes_authored_contacts_and_forks()
     {
         RunSpecial(340, 126, false);
     }
 
     [Fact]
-    public void Installed_original341_model84_completes_authored_contacts_and_standalones()
+    public void Installed_original341_model84_completes_authored_contacts_and_forks()
     {
         RunSpecial(341, 84, false);
     }
 
     [Fact]
-    public void Installed_original342_model124_completes_authored_contacts_and_standalones()
+    public void Installed_original342_model124_completes_authored_contacts_and_forks()
     {
         RunSpecial(342, 124, false);
     }
 
     [Fact]
-    public void Installed_original343_model122_completes_authored_contacts_and_standalones()
+    public void Installed_original343_model122_completes_authored_contacts_and_forks()
     {
         RunSpecial(343, 122, false);
     }
@@ -86,7 +86,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
     [InlineData((ushort)341, 84)]
     [InlineData((ushort)342, 124)]
     [InlineData((ushort)343, 122)]
-    public void Installed_special_target_Renzokuken_completes_target_animation_camera_and_standalones(ushort effectId, int model)
+    public void Installed_special_target_Renzokuken_completes_target_animation_camera_and_forks(ushort effectId, int model)
     {
         RunSpecial(effectId, model, false);
     }
@@ -159,7 +159,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             });
             BattleSnapshot ready = battle.CaptureForContinuation();
             const uint transitionColor = 0x00312617;
-            battle = BattleSession.Restore((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage!.ModelColors! with { Color40 = transitionColor } } }));
+            battle = NativeBattleTypedFixture.RestoreBattle((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage!.ModelColors! with { Color40 = transitionColor } } }));
             Bind(battle);
             const int actorIndex = 0;
             uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
@@ -261,7 +261,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         void CompareNext(string name)
         {
             Publish(name);
-            BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!);
+            BattleSession clone = battle.ForkForContinuation();
             Bind(clone);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             before = battle.Capture();
@@ -282,7 +282,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
     }
     internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, ushort effectId, int model, out NativeBattleGraphicsDefinition graphicsResources)
     {
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId, out _);
+        BattleDefinition source = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 0, effectId, out _);
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).FirstOrDefault(candidate => candidate.Enemies.Any(enemy => enemy.ModelId == model)) ?? assets.LoadEncounter(94);
         if (!formation.Enemies.Any(enemy => enemy.ModelId == model))
         {

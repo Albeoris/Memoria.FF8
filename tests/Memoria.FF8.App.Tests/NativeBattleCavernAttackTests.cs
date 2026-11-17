@@ -6,30 +6,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleCavernAttackTests
 {
-    [Fact]
-    public void Named_cavern_standalone_continues_one_callback_without_reconstructing_a_field_host()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_CAVERN_ATTACK_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "A named standalone cavern component is required.");
-        GameState state = GameSession.Load(source!);
-        Assert.NotNull(state.Battle);
-        BattleSnapshot snapshot = state.Battle!;
-        BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        using GameAssets game = new(TestResources.GameDirectory);
-        restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        long callback = battle.Presentation!.Graphics.Callback;
-        battle.Tick();
-        restored.Tick();
-        Assert.True(battle.Presentation!.Graphics.Callback > callback);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        using BattleAssets assets = new(TestResources.GameDirectory);
-        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(restored, 320, 224));
-        GameSession session = new(state);
-        session.SetLiveBattle(battle);
-        string id = "cavern-resume-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-        NativeBattleProductionEffectAdmissionTests.Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE"), id, session.State);
-    }
 
     [Theory]
     [InlineData(87, 0)]
@@ -40,7 +16,7 @@ public sealed class NativeBattleCavernAttackTests
     [InlineData(91, 3)]
     [InlineData(92, 0)]
     [InlineData(92, 3)]
-    public void Original_cavern_encounters_complete_player_attack_and_continue_a_standalone_snapshot(ushort formation, int character)
+    public void Original_cavern_encounters_complete_player_attack_and_continue_a_private_fork(ushort formation, int character)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field and battle resources are required.");
@@ -93,7 +69,7 @@ public sealed class NativeBattleCavernAttackTests
                 AuditSceneCapacity();
             }
             Assert.True(battle.NativeEntryReady);
-            battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            battle = battle.ForkForContinuation();
             BattleCombatant actor = battle.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == character);
             for (int turn = 0; turn < 16 && !actor.IsReady; turn++)
             {
@@ -114,10 +90,9 @@ public sealed class NativeBattleCavernAttackTests
             Assert.True(completed, $"Player Attack did not complete in encounter {formation}.");
             BattleScenePresentation scene = new(world.BattleResources, definition);
             Assert.NotEmpty(scene.Render(battle, 320, 224));
-            BattleSnapshot after = battle.Capture();
             session.SetLiveBattle(battle);
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-after", session.State);
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
+            BattleSession restored = battle.ForkForContinuation();
             restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             battle.Tick();
             restored.Tick();

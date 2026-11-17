@@ -148,7 +148,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, native.MagicId, game);
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
-                    BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = NativeBattleResolvedCommandList.From(primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet))) } } }));
+                    BattleSession background = NativeBattleTypedFixture.RestoreBattle(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = NativeBattleResolvedCommandList.From(primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet))) } } }));
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     int changed = 0;
                     for (int offset = 0; offset < rendered.Length; offset += 4)
@@ -306,7 +306,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             BattleCombatantDefinition third = new() { Id = "party-2", Name = thirdCharacter == 5 ? "Selphie" : "Irvine", IsPlayer = true, ModelId = thirdCharacter, WeaponId = vitals.Records[thirdCharacter].Weapon, MaximumHp = 30000, CurrentHp = 30000, NativeCharacterFlag100 = assets.ReadCharacterNativeConditionFlag100(thirdCharacter), NativeStatusResistances = assets.ReadPlayerNativeStatusData(vitals, thirdCharacter).Resistances.ToArray(), NativeDeathCount = 0 };
             actors = [actors[0], zell, third, .. actors.Skip(1)];
         }
-        BattleDefinition baseline = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116, out _);
+        BattleDefinition baseline = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, assets, 0, 116, out _);
         string? stackProfile = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_STACK_PROFILE");
         if (stackProfile is not null)
         {

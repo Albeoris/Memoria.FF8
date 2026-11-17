@@ -63,6 +63,7 @@ public sealed class NativeBattleDrawCastCameraTests
         bool fire = false;
         bool draw = false;
         BattleSession? restored = null;
+        BattleScenePresentation? restoredPresentation = null;
         BattleScenePresentation presentation = new(resources, battle.Capture().Definition);
         try
         {
@@ -81,8 +82,10 @@ public sealed class NativeBattleDrawCastCameraTests
                         Assert.Equal(new BattleEnemyActorModel(new(target.Id)), Assert.Single(checkpoint.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(header)).Primary.Recipient);
                         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-mid-draw", checkpoint, null);
                         restored = battle.ForkForContinuation();
-                        Assert.Equal(JsonSerializer.Serialize(checkpoint), JsonSerializer.Serialize(restored.Capture()));
-                        Assert.Equal(presentation.Render(battle, 320, 224).ToArray(), presentation.Render(restored, 320, 224).ToArray());
+                        restoredPresentation = new(resources, restored.ReadDefinition());
+                        Assert.Equal(JsonSerializer.Serialize(checkpoint), JsonSerializer.Serialize(restored.CaptureForContinuation()));
+                        Assert.Equal(battle.Presentation!.Graphics.Callback, restored.Presentation!.Graphics.Callback);
+                        Assert.Equal(presentation.Render(battle, 320, 224), restoredPresentation.Render(restored, 320, 224));
                     }
                 }
                 if (restored is not null && callback % 8 == 0)
@@ -102,7 +105,7 @@ public sealed class NativeBattleDrawCastCameraTests
             Assert.Equal(stocks, JsonSerializer.Serialize(caster.MagicStocks));
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
             byte[] pixels = presentation.Render(battle, 320, 224).ToArray();
-            Assert.Equal(pixels, presentation.Render(restored, 320, 224).ToArray());
+            Assert.Equal(pixels, restoredPresentation!.Render(restored, 320, 224));
             NativeBattleRestorationPresentationTests.Publish(evidence, id + "-after", battle.Capture(), pixels);
         }
         catch

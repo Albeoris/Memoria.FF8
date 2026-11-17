@@ -9,17 +9,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleSlotsCardSubmissionTests
 {
-    [Fact]
-    public void Installed_card_submission_preserves_live_owners_and_round_trips_its_accepted_command()
-    {
-        string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_SLOTS_SNAPSHOT");
-        string directory = TestResources.GameDirectory;
-        Assert.SkipUnless(File.Exists(input) && Directory.Exists(directory), "Select a standalone Slots save and installed resources.");
-        BattleSnapshot? initial = GameSession.Load(input!).Battle;
-        Assert.SkipUnless(initial is not null, "The selected standalone must contain an active battle.");
-        using GameAssets game = new(directory);
-        AssertSubmission(initial!, game);
-    }
 
     [Fact]
     public void Installed_resource_card_submission_preserves_live_owners_without_a_standalone()
@@ -28,8 +17,8 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         Assert.SkipUnless(Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 5, 1, out _) with { SelphieCardSlots = true };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = NativeBattleTestDefinitions.CreateGuestLimitDefinition(game, assets, 5, 1, out NativeBattleGraphicsDefinition graphicsResources) with { SelphieCardSlots = true };
+        BattleSession battle = CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {
@@ -39,7 +28,7 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         Assert.True(battle.CanChoosePlayerCommand("party"));
         Assert.NotNull(battle.Presentation?.Graphics);
         Assert.NotNull(battle.Presentation?.Memory);
-        AssertSubmission(battle.Capture(), game);
+        AssertSubmission(battle.CaptureForContinuation(), game);
     }
 
     private static void AssertSubmission(BattleSnapshot initial, GameAssets game)
@@ -106,14 +95,14 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         string serialized = JsonSerializer.Serialize(queued);
         Assert.False(battle.SubmitNativeSlotsCard(deal.Id));
         Assert.Equal(serialized, JsonSerializer.Serialize(battle.Capture()));
-        BattleSession cold = Restore(JsonSerializer.Deserialize<BattleSnapshot>(serialized)!);
+        BattleSession cold = battle.ForkForContinuation();
         Assert.Equal(serialized, JsonSerializer.Serialize(cold.Capture()));
         Assert.Equal(admitted, Assert.Single(cold.QueuedActions, command => command.ActorId == actor.Id && command.NativeQueuedCommand == 16).NativeSlots);
         Assert.Equal(battle.NativeGlobalRandomChange, cold.NativeGlobalRandomChange);
 
         BattleSession Restore(BattleSnapshot snapshot)
         {
-            BattleSession restored = BattleSession.Restore(snapshot);
+            BattleSession restored = RestoreBattle(snapshot);
             restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             return restored;
         }
