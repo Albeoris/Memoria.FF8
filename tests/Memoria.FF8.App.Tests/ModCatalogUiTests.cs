@@ -256,7 +256,7 @@ public sealed class ModCatalogUiTests
         Assert.Equal("Delete download", delete.Text);
         delete.Key(UiKey.Confirm);
         UiButton uninstall = Assert.IsType<UiButton>(Element(Arrange(menu), "library-secondary"));
-        Assert.Equal("Uninstall on restart", uninstall.Text);
+        Assert.Equal("Uninstall when available", uninstall.Text);
         uninstall.Key(UiKey.Confirm);
         Assert.Equal(["delete:" + id, "uninstall:" + entry.Name], service.Commands);
     }

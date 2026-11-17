@@ -38,6 +38,9 @@ public sealed class ModPackageInstallerTests : IDisposable
         Assert.True(pending.RestartRequired);
         Assert.False(Directory.Exists(plan.Destination));
         Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
+        Assert.True(Installer().GetStatus(Entry())!.Installed);
+        Assert.False(Installer().GetStatus(Entry())!.RestartRequired);
+        Assert.Single(Directory.GetFiles(Path.Combine(State, "journals"), "*.json"));
         Assert.Equal("alternate", File.ReadAllText(Path.Combine(plan.Destination, "second/data/a.bin")));
         Assert.Contains("enabled=0", File.ReadAllText(Path.Combine(plan.Destination, "mod.ini")));
         Assert.True(Assert.Single(Installer().CompleteStartupApplications([plan.PackageId])).Installed);
@@ -324,14 +327,19 @@ public sealed class ModPackageInstallerTests : IDisposable
         Assert.False(Directory.Exists(State));
     }
 
-    [Fact]
-    public async Task RemovedManagedInstallationIsReportedWithoutReinstallation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RemovedManagedInstallationIsReportedWithoutReinstallation(bool validated)
     {
         ModPackageInstaller installer = Installer();
         ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest()), ("a.bin", "old")), Entry(), cancellationToken: TestContext.Current.CancellationToken);
         await installer.RequestInstallAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
         installer.RecoverAndApply();
-        installer.CompleteStartupApplications([plan.PackageId]);
+        if (validated)
+        {
+            installer.CompleteStartupApplications([plan.PackageId]);
+        }
         Directory.Delete(plan.Destination, true);
         Assert.False(installer.GetStatus(Entry())!.Installed);
         Assert.Contains("removed", installer.GetStatus(Entry())!.Error!);

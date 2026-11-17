@@ -75,7 +75,7 @@ public sealed partial class MenuController
             });
             Button("library-primary", PrimaryLabel(), Primary);
             controls["library-primary"].Enabled = CanPrimary();
-            Button("library-secondary", Job?.CanOpenDownloadPage == true ? "Open download page" : Job?.CanPause == true ? "Pause" : Job?.CanResume == true ? "Resume" : CanUninstall ? "Uninstall on restart" : "More details", Secondary);
+            Button("library-secondary", Job?.CanOpenDownloadPage == true ? "Open download page" : Job?.CanPause == true ? "Pause" : Job?.CanResume == true ? "Resume" : CanUninstall ? "Uninstall when available" : "More details", Secondary);
             Button("library-cancel", Job?.CanDeleteDownload == true ? "Delete download" : "Cancel job", () =>
             {
                 if (Job is { CanDeleteDownload: true } download)

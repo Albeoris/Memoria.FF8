@@ -179,7 +179,18 @@ public sealed partial class ModPackageInstaller
         if (journal is not null)
         {
             ValidateJournal(journal, JournalPath(key));
-            return Result(journal.Next, true, false) with { PendingEnable = ShouldEnable(journal) };
+            // Applied files can await game resource validation without requiring another file application.
+            bool applied = journal.Phase is "AwaitingValidation" or "Committed";
+            if (applied)
+            {
+                string appliedDestination = Destination(journal.Next.SourceId, journal.Next.DestinationName);
+                EnsureNoLinks(appliedDestination);
+                if (!Exists(appliedDestination))
+                {
+                    return Result(journal.Next, false, false, "The managed installation was removed outside the mod manager.");
+                }
+            }
+            return Result(journal.Next, !applied, applied) with { PendingEnable = ShouldEnable(journal) };
         }
         Receipt? receipt = Read<Receipt>(ReceiptPath(key));
         if (receipt is null)

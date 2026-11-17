@@ -23,7 +23,7 @@ internal sealed partial class RecreateGame
             {
                 bool changed = !modNotificationPhases.TryGetValue(job.Id, out string? phase) || phase != job.Phase;
                 modNotificationPhases[job.Id] = job.Phase;
-                if (!first && changed && (job.CanInstall || job.CanRetry || job.Phase == "Restart required"))
+                if (!first && changed && (job.CanInstall || job.CanRetry || job.Phase == "Waiting to apply"))
                 {
                     pendingModNotification = $"Mods · {job.Entry.Name}: {job.Phase}. Open Downloads for details.";
                 }

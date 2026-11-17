@@ -56,6 +56,11 @@ public sealed partial class ModRuntime
         return package.Descriptor is not null || package.Official is not null || package.IsBundled && MemoriaComponents.Any(component => package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
     }
 
+    public static string? SettingsGroupId(ModPackage package)
+    {
+        return IsMemoriaComponent(package) ? ComponentGroupId(ComponentGroup(package)) : null;
+    }
+
     private static string ComponentGroup(ModPackage package)
     {
         string? group = package.Descriptor?.Group;

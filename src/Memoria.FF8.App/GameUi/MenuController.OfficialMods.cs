@@ -122,8 +122,8 @@ public sealed partial class MenuController
         foreach (RemoteModEntry entry in OfficialEntries.Where(entry => ManagedMod(entry) is { CanUninstall: true, Pending: false } or { PendingRemoval: true }))
         {
             bool pending = ManagedMod(entry)!.PendingRemoval;
-            string state = pending ? "Uninstall pending | Restart required" : "Uninstall on restart";
-            rows.Add(new(new("official-uninstall-" + entry.Official!.Id, entry.Name + " ? " + state, "Removes this managed download on the next launch. Current game resources remain available until you exit.", Action: new("official-setting", CatalogIdentity(entry), Value: "uninstall"), Enabled: !pending)));
+            string state = pending ? "Uninstall pending | Waiting to apply" : "Uninstall when available";
+            rows.Add(new(new("official-uninstall-" + entry.Official!.Id, entry.Name + " \u00b7 " + state, "Removes this managed download when its resource directory is available. Current game resources remain available until you exit.", Action: new("official-setting", CatalogIdentity(entry), Value: "uninstall"), Enabled: !pending)));
         }
         AddBatchRow(rows, false);
         AddBatchRow(rows, true);

@@ -4,6 +4,31 @@ namespace Memoria.Launcher.Tests;
 
 public sealed class LauncherModFilterTests
 {
+    [Fact]
+    public void MemoriaPackageIsFirstAndExpandsWithoutLosingOtherMods()
+    {
+        RemoteModEntry entry = new(OfficialModCatalog.SourceId, OfficialModCatalog.GirlNextDoor.CatalogId, "Girl Next Door", "1") { Official = OfficialModCatalog.GirlNextDoor };
+        LauncherWindow.LauncherModRow external = new("external", "A mod", "", "Gameplay", null, null);
+        LauncherWindow.LauncherModRow official = new("official", entry.Name, "", "Memoria", null, entry);
+        LauncherWindow.LauncherModRow[] rows = [external, official];
+        Assert.Equal(["Memoria", "A mod"], LauncherWindow.GroupLauncherModRows(rows, false).Select(row => row.Name));
+        Assert.Equal(["Memoria", "Girl Next Door", "A mod"], LauncherWindow.GroupLauncherModRows(rows, true).Select(row => row.Name));
+        Assert.Same(official, LauncherWindow.GroupLauncherModRows(rows, true)[1]);
+        Assert.Equal([external], LauncherWindow.GroupLauncherModRows([external], false));
+        Assert.Empty(LauncherWindow.GroupLauncherModRows([], false));
+    }
+
+    [Fact]
+    public void InstalledBundledComponentsUseTheRuntimeGroupIdentity()
+    {
+        ModPackage package = new(ModRuntime.Ff7EnemyIntegrationPackageId, "FF7 Enemy Integration", ModFormat.Memoria, null, true, ModEffectiveStatus.Active, "") { IsBundled = true };
+        ModPackageView installed = new(package, ModEffectiveStatus.Active, "Active", null, false, true);
+        LauncherWindow.LauncherModRow row = new("installed", package.Name, "", "Memoria", installed, null);
+        Assert.Equal(ModRuntime.MemoriaPackageId, ModRuntime.SettingsGroupId(package));
+        Assert.Equal(["Memoria"], LauncherWindow.GroupLauncherModRows([row], false).Select(item => item.Name));
+        Assert.False((row with { Installed = installed with { Package = package with { Id = "Memoria/unrelated", IsBundled = false } } }).IsMemoria);
+    }
+
     [Theory]
     [InlineData("audio", "All categories", true)]
     [InlineData("voices", "Audio", true)]

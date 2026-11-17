@@ -78,7 +78,7 @@ public sealed class ModLibraryServiceTests
         await Until(() => Directory.GetDirectories(Path.Combine(root, "state", "prepared")).Length == 1);
         File.Delete(blockedTransactions);
         library.Install(job.Id);
-        await Until(() => library.View.Jobs.Single().Phase == "Restart required");
+        await Until(() => library.View.Jobs.Single().Phase == "Waiting to apply");
         Assert.Null(library.View.Jobs.Single().Error);
         Assert.False(Directory.Exists(Path.Combine(root, "Mods", "Junction")));
         Assert.Empty(mods.Catalog.Packages);
@@ -94,7 +94,7 @@ public sealed class ModLibraryServiceTests
         await Until(() => library.View.Jobs.Single().CanInstall);
         Assert.Null(library.View.Jobs.Single().Error);
         library.Install(job.Id);
-        await Until(() => library.View.Jobs.Single().Phase == "Restart required");
+        await Until(() => library.View.Jobs.Single().Phase == "Waiting to apply");
         Assert.Equal(2, requests);
         // The service cancels without waiting on network or package workers. Temporary data is outside discovery.
     }
@@ -149,11 +149,42 @@ public sealed class ModLibraryServiceTests
         }
         string pendingCache = Path.Combine(root, "pending-cache");
         await WriteRecovered(pendingCache);
-        using (ModLibraryService pending = new(pendingCache, installer, mods, "test", true, client))
+        bool directoryAvailable = false;
+        bool failFirstApplication = true;
+        int applyAttempts = 0;
+        using (ModLibraryService pending = new(pendingCache, installer, mods, "test", true, client, applyPendingChanges: _ =>
         {
-            await Until(() => pending.View.Jobs.FirstOrDefault()?.Phase == "Restart required");
+            Interlocked.Increment(ref applyAttempts);
+            if (!Volatile.Read(ref directoryAvailable))
+            {
+                return Task.FromResult(false);
+            }
+            if (failFirstApplication)
+            {
+                failFirstApplication = false;
+                throw new IOException("Temporary application failure.");
+            }
+            using ModDirectoryResourceLease lease = ModDirectoryResourceLease.Acquire(Path.Combine(root, "Mods"), true);
+            if (!lease.IsWriter)
+            {
+                return Task.FromResult(false);
+            }
+            installer.RecoverAndApply();
+            return Task.FromResult(true);
+        }))
+        {
+            await Until(() => pending.View.Jobs.FirstOrDefault()?.Phase == "Waiting to apply");
             Assert.False(pending.View.Jobs.Single().CanResume);
             Assert.False(pending.View.Jobs.Single().CanCancel);
+            await Until(() => Volatile.Read(ref applyAttempts) > 0);
+            Assert.False(Directory.Exists(plan.Destination));
+            Volatile.Write(ref directoryAvailable, true);
+            await Until(() => pending.View.Error is not null);
+            await Until(() => pending.View.Jobs.Single().Phase == "Installed" && pending.View.Installations.Single().Pending == false);
+            Assert.Null(pending.View.Error);
+            Assert.False(installer.GetStatus(entry)!.RestartRequired);
+            Assert.True(Directory.Exists(plan.Destination));
+            Assert.Single(Directory.GetFiles(Path.Combine(root, "state", "journals"), "*.json"));
         }
         installer.RecoverAndApply();
         installer.CompleteStartupApplications([plan.PackageId]);

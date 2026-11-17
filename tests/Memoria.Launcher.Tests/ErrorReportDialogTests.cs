@@ -13,67 +13,69 @@ using Memoria.FF8.Platform;
 namespace Memoria.Launcher.Tests;
 
 [CollectionDefinition("Incident dialog UI", DisableParallelization = true)]
-public sealed class IncidentDialogCollection;
+public sealed class IncidentDialogCollection : ICollectionFixture<LauncherHeadlessFixture>;
 
 [Collection("Incident dialog UI")]
-public sealed class ErrorReportDialogTests
+public sealed class ErrorReportDialogTests(LauncherHeadlessFixture fixture)
 {
     [Fact]
-    public void BrowserUpdatesDetailsAndBulkSelectionAndHandlesEmptyStorage()
+    public async Task BrowserUpdatesDetailsAndBulkSelectionAndHandlesEmptyStorage()
     {
-        AppBuilder.Configure<Application>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
-        Application.Current!.Styles.Add(new FluentTheme());
-        ErrorIncident first = ErrorIncident.Capture(new InvalidOperationException("First incident detail"), "First subsystem");
-        ErrorIncident second = ErrorIncident.Capture(new IOException("Second incident detail"), "Second subsystem");
-        ErrorReportDialog dialog = new("Saved incidents", [first, second], second.Id);
-        try
+        await fixture.Session.Dispatch(() =>
         {
-            ListBox list = Assert.Single(dialog.GetLogicalDescendants().OfType<ListBox>());
-            ListBoxItem[] rows = list.Items.Cast<ListBoxItem>().ToArray();
-            Assert.Equal(2, rows.Length);
-            Assert.Same(rows[1], list.SelectedItem);
-            Assert.Contains(rows[0].GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == first.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
-            Assert.Contains(rows[1].GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == second.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
-            AssertDetails(dialog, "Second incident detail", "First incident detail");
-            list.SelectedIndex = 0;
-            AssertDetails(dialog, "First incident detail", "Second incident detail");
-            CheckBox all = Assert.Single(dialog.GetLogicalDescendants().OfType<CheckBox>(), check => Equals(check.Content, "Select all"));
-            CheckBox[] checks = rows.Select(row => Assert.Single(row.GetLogicalDescendants().OfType<CheckBox>())).ToArray();
-            Button deleteSelected = Assert.Single(dialog.GetLogicalDescendants().OfType<Button>(), button => button.Content?.ToString()?.StartsWith("Delete selected", StringComparison.Ordinal) == true);
-            Assert.False(deleteSelected.IsEnabled);
-            checks[0].IsChecked = true;
-            Assert.Null(all.IsChecked);
-            Assert.True(deleteSelected.IsEnabled);
-            Assert.Equal("Delete selected (1)", deleteSelected.Content);
-            Toggle(all);
-            Assert.All(checks, check => Assert.True(check.IsChecked));
-            Assert.Equal("Delete selected (2)", deleteSelected.Content);
-            Toggle(all);
-            Assert.All(checks, check => Assert.False(check.IsChecked));
-            Assert.False(deleteSelected.IsEnabled);
-            Assert.Equal("Delete selected", deleteSelected.Content);
-        }
-        finally
-        {
-            dialog.Close();
-        }
-        ErrorReportDialog empty = new("Saved incidents", []);
-        try
-        {
-            Assert.Empty(Assert.Single(empty.GetLogicalDescendants().OfType<ListBox>()).Items);
-            Assert.Contains(empty.GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == "No saved incidents.");
-            Assert.All(empty.GetLogicalDescendants().OfType<CheckBox>(), check => Assert.False(check.IsEnabled));
-            Assert.All(empty.GetLogicalDescendants().OfType<Button>().Where(button => button.Content?.ToString() is "Report error" or "Delete incident" or "Delete selected"), button => Assert.False(button.IsEnabled));
-        }
-        finally
-        {
-            empty.Close();
-        }
-        foreach (int selectedIndex in new[] { 0, 1, 2 })
-        {
-            VerifyDeletion(selectedIndex, false);
-        }
-        VerifyDeletion(0, true);
+            Application.Current!.Styles.Add(new FluentTheme());
+            ErrorIncident first = ErrorIncident.Capture(new InvalidOperationException("First incident detail"), "First subsystem");
+            ErrorIncident second = ErrorIncident.Capture(new IOException("Second incident detail"), "Second subsystem");
+            ErrorReportDialog dialog = new("Saved incidents", [first, second], second.Id);
+            try
+            {
+                ListBox list = Assert.Single(dialog.GetLogicalDescendants().OfType<ListBox>());
+                ListBoxItem[] rows = list.Items.Cast<ListBoxItem>().ToArray();
+                Assert.Equal(2, rows.Length);
+                Assert.Same(rows[1], list.SelectedItem);
+                Assert.Contains(rows[0].GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == first.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+                Assert.Contains(rows[1].GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == second.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+                AssertDetails(dialog, "Second incident detail", "First incident detail");
+                list.SelectedIndex = 0;
+                AssertDetails(dialog, "First incident detail", "Second incident detail");
+                CheckBox all = Assert.Single(dialog.GetLogicalDescendants().OfType<CheckBox>(), check => Equals(check.Content, "Select all"));
+                CheckBox[] checks = rows.Select(row => Assert.Single(row.GetLogicalDescendants().OfType<CheckBox>())).ToArray();
+                Button deleteSelected = Assert.Single(dialog.GetLogicalDescendants().OfType<Button>(), button => button.Content?.ToString()?.StartsWith("Delete selected", StringComparison.Ordinal) == true);
+                Assert.False(deleteSelected.IsEnabled);
+                checks[0].IsChecked = true;
+                Assert.Null(all.IsChecked);
+                Assert.True(deleteSelected.IsEnabled);
+                Assert.Equal("Delete selected (1)", deleteSelected.Content);
+                Toggle(all);
+                Assert.All(checks, check => Assert.True(check.IsChecked));
+                Assert.Equal("Delete selected (2)", deleteSelected.Content);
+                Toggle(all);
+                Assert.All(checks, check => Assert.False(check.IsChecked));
+                Assert.False(deleteSelected.IsEnabled);
+                Assert.Equal("Delete selected", deleteSelected.Content);
+            }
+            finally
+            {
+                dialog.Close();
+            }
+            ErrorReportDialog empty = new("Saved incidents", []);
+            try
+            {
+                Assert.Empty(Assert.Single(empty.GetLogicalDescendants().OfType<ListBox>()).Items);
+                Assert.Contains(empty.GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == "No saved incidents.");
+                Assert.All(empty.GetLogicalDescendants().OfType<CheckBox>(), check => Assert.False(check.IsEnabled));
+                Assert.All(empty.GetLogicalDescendants().OfType<Button>().Where(button => button.Content?.ToString() is "Report error" or "Delete incident" or "Delete selected"), button => Assert.False(button.IsEnabled));
+            }
+            finally
+            {
+                empty.Close();
+            }
+            foreach (int selectedIndex in new[] { 0, 1, 2 })
+            {
+                VerifyDeletion(selectedIndex, false);
+            }
+            VerifyDeletion(0, true);
+        }, TestContext.Current.CancellationToken);
     }
 
     private static void Toggle(CheckBox check)

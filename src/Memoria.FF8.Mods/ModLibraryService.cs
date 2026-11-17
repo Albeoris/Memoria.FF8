@@ -26,6 +26,8 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private readonly string? officialCacheDirectory;
     private readonly bool officialSupported;
     private readonly HttpClient? client;
+    private readonly Func<CancellationToken, Task<bool>>? applyPendingChanges;
+    private DateTimeOffset nextApplyAttempt;
     private OfficialCatalogSnapshot? official;
     private RemoteCatalogSnapshot? lastJunctionCatalog;
     private RemoteCatalogSnapshot? mergedCatalog;
@@ -40,6 +42,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private Task? refresh;
     private ModLibrarySnapshot view;
     private string? error;
+    private string? applyError;
     private bool initialized;
     private bool downloadsAvailable;
     private bool officialDownloadsAvailable;
@@ -48,7 +51,8 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private IReadOnlyList<ModPackage>? reconciledPackages;
     private int disposed;
 
-    public ModLibraryService(string cacheDirectory, ModPackageInstaller installer, IModService mods, string targetProfile, bool targetSupported, HttpClient? client = null, string? unavailableReason = null, Action<Uri>? openDownloadPage = null, string? officialCacheDirectory = null, bool officialSupported = false)
+    /// <param name="applyPendingChanges">Optional owner callback that applies staged files only while holding an exclusive resource-directory lease. Return false while readers prevent application; full runtime validation remains the game host's responsibility.</param>
+    public ModLibraryService(string cacheDirectory, ModPackageInstaller installer, IModService mods, string targetProfile, bool targetSupported, HttpClient? client = null, string? unavailableReason = null, Action<Uri>? openDownloadPage = null, string? officialCacheDirectory = null, bool officialSupported = false, Func<CancellationToken, Task<bool>>? applyPendingChanges = null)
     {
         this.installer = installer;
         this.mods = mods;
@@ -61,6 +65,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         this.officialCacheDirectory = officialCacheDirectory;
         this.officialSupported = officialSupported;
         this.client = client;
+        this.applyPendingChanges = applyPendingChanges;
         catalog = new RemoteModCatalogCoordinator(Path.Combine(cacheDirectory, "catalog"), client);
         downloads = new ModDownloadCoordinator(Path.Combine(cacheDirectory, "downloads"), client);
         if (officialSupported && officialCacheDirectory is not null)
@@ -105,7 +110,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         ModPackageInstallResult? status = installer.GetStatus(entry);
         if (status?.PendingRemoval == true)
         {
-            throw new InvalidOperationException("This mod is waiting to be uninstalled. Restart before downloading it again.");
+            throw new InvalidOperationException("This mod is waiting to be uninstalled. Wait for removal before downloading it again.");
         }
         if (mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id))
         {
@@ -177,7 +182,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     {
         if (inspections.TryGetValue(id, out Inspection? state) && state.Result is { RestartRequired: true, PendingRemoval: false })
         {
-            throw new InvalidOperationException("The installation is already staged for startup. Its transaction must finish or recover before removal.");
+            throw new InvalidOperationException("The installation is already staged. Its transaction must finish or recover before removal.");
         }
         if (state?.Installation is not null)
         {
@@ -511,6 +516,34 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                         state.Installation = null;
                     }
                 }
+                if (applyPendingChanges is not null && DateTimeOffset.UtcNow >= nextApplyAttempt && (installations.Any(item => item.Pending) || inspections.Values.Any(state => state.Result?.RestartRequired == true)))
+                {
+                    nextApplyAttempt = DateTimeOffset.UtcNow.AddSeconds(1);
+                    try
+                    {
+                        if (await applyPendingChanges(lifetime.Token).ConfigureAwait(false))
+                        {
+                            applyError = null;
+                            reconciledCatalog = null;
+                            foreach (DownloadJobSnapshot job in jobs)
+                            {
+                                if (inspections.TryGetValue(job.JobId, out Inspection? state) && state.Result is not null)
+                                {
+                                    state.Result = installer.GetStatus(job.Entry);
+                                    state.Error = state.Result?.Error;
+                                    if (state.Result is null)
+                                    {
+                                        inspections.Remove(job.JobId);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        applyError = SafeError(exception);
+                    }
+                }
                 Publish(jobs);
                 await Task.Delay(125, lifetime.Token).ConfigureAwait(false);
             }
@@ -548,7 +581,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         ModLibraryJob[] projected = jobs.Select(Project).ToArray();
         RemoteCatalogSnapshot current = CurrentCatalog();
         ModLibrarySnapshot previous = View;
-        string? message = error ?? (!initialized ? "Preparing saved downloads…" : null);
+        string? message = error ?? applyError ?? (!initialized ? "Preparing saved downloads…" : null);
         if (!ReferenceEquals(previous.Catalog, current) || !previous.Jobs.SequenceEqual(projected) || !previous.Installations.SequenceEqual(installations) || previous.Error != message)
         {
             Volatile.Write(ref view, new(previous.Revision + 1, current, Array.AsReadOnly(projected), targetProfile, supported, message) { Installations = installations, TargetLabel = targetLabel, OfficialSupported = officialSupported && (officialDownloads is null || officialDownloadsAvailable) });
@@ -563,7 +596,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         bool installedCache = state?.Error is null && (job.Phase is ModDownloadPhase.Paused or ModDownloadPhase.ReadyToInstall) && installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Available && !item.Pending && job.Entry.CompareVersion(item.Version) == 0);
         string phase = job.Phase switch
         {
-            ModDownloadPhase.ReadyToInstall => state?.Error is not null ? "Needs attention" : state?.Result?.Installed == true ? "Installed" : state?.Result?.RestartRequired == true ? "Restart required" : state?.Installation is not null ? "Preparing installation" : state?.Plan is not null ? "Ready to install" : "Inspecting package",
+            ModDownloadPhase.ReadyToInstall => state?.Error is not null ? "Needs attention" : state?.Result?.Installed == true ? "Installed" : state?.Result?.RestartRequired == true ? "Waiting to apply" : state?.Installation is not null ? "Preparing installation" : state?.Plan is not null ? "Ready to install" : "Inspecting package",
             ModDownloadPhase.Verifying => "Checking download",
             ModDownloadPhase.WaitingToRetry => "Waiting to retry",
             ModDownloadPhase.NeedsUserAction => "Provider action required",
@@ -575,21 +608,21 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         }
         if (pendingInstall)
         {
-            phase = "Restart required";
+            phase = "Waiting to apply";
         }
-        string? details = state?.Plan is { } plan ? $"Version {plan.Version} · {plan.PackageId}. Installation is applied before resource loading on the next launch. {(mods.AutoEnableNewMods ? "New installations will be enabled." : "New installations will remain disabled.")} Existing choices are preserved. Integrity: {(job.Entry.Official is null ? "local SHA-256" : "verified publisher SHA-256")}." : job.Details ?? job.Message;
+        string? details = state?.Plan is { } plan ? $"Version {plan.Version} · {plan.PackageId}. Installation is applied when its resource directory is available. {(mods.AutoEnableNewMods ? "New installations will be enabled." : "New installations will remain disabled.")} Existing choices are preserved. Integrity: {(job.Entry.Official is null ? "local SHA-256" : "verified publisher SHA-256")}." : job.Details ?? job.Message;
         if (installedCache)
         {
             details = "The package is installed on disk. Removing this cached download reclaims download space and leaves the installed mod intact. Activation is shown in Installed.";
         }
         if (pendingInstall)
         {
-            details = "The checked installation is already staged. Close all game instances and start the game again to apply it before resource loading. No network action is required.";
+            details = "The checked installation is staged and waiting for its resource directory to become available. The launcher applies it while no game is using that directory. No network action is required.";
         }
         if (pendingRemoval)
         {
             phase = "Uninstall pending";
-            details = "This managed mod will be removed before resources are loaded on the next launch. The current game keeps its existing resources until then.";
+            details = "This managed mod will be removed when no game is using its resource directory. Current game resources remain available until then.";
         }
         bool transferring = job.Phase is ModDownloadPhase.Queued or ModDownloadPhase.Resolving or ModDownloadPhase.Downloading or ModDownloadPhase.WaitingToRetry;
         string? failure = state?.Error ?? (job.Phase is ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction ? job.Message : null);

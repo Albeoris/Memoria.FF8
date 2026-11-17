@@ -80,7 +80,7 @@ public sealed partial class MenuController
     {
         if (ManagedMod(entry)?.PendingRemoval == true)
         {
-            return "Uninstall pending | Restart required";
+            return "Uninstall pending | Waiting to apply";
         }
         if (entry.Official is null)
         {
@@ -94,7 +94,7 @@ public sealed partial class MenuController
         {
             if (local.Pending)
             {
-                return SystemText("mods.official.restart", "Restart required");
+                return SystemText("mods.official.waiting", "Waiting to apply");
             }
             if (!local.Available)
             {
@@ -106,7 +106,7 @@ public sealed partial class MenuController
         return entry.CompatibilityError ?? SystemText("mods.official.new", "New · Download required");
     }
 
-    private string LegacyCatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply · restart required" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
+    private string LegacyCatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
     private string[] CatalogCategories => ["All categories", .. (modLibrarySnapshot?.Catalog.Entries ?? []).Select(entry => entry.Category).Where(category => category.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.OrdinalIgnoreCase)];
     private RemoteModEntry[] FilteredCatalog() => (modLibrarySnapshot?.Catalog.Entries ?? []).Select(PresentCatalogEntry).Where(entry =>
         (catalogSearch.Length == 0 || (entry.Name + " " + entry.Author + " " + entry.Category + " " + entry.Description).Contains(catalogSearch, StringComparison.OrdinalIgnoreCase)) &&
@@ -174,7 +174,7 @@ public sealed partial class MenuController
         }
         if (ManagedMod(entry) is { } receipt)
         {
-            details.Add("Managed version: " + receipt.Version + (receipt.Pending ? " · Waiting to apply; restart required" : ""));
+            details.Add("Managed version: " + receipt.Version + (receipt.Pending ? " · Waiting to apply" : ""));
             if (!receipt.Available)
             {
                 details.Add("The managed package is missing. Download and check a repair before installing.");
