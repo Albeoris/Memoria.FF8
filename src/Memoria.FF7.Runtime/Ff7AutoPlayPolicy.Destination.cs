@@ -21,7 +21,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return null;
         }
-        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.PossibleDestinationFields.Contains(destination) || target.SpatialDestinations?.Contains(destination) == true) && canSelect?.Invoke(target) != false).ToArray();
+        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.PossibleDestinationFields.Contains(destination) || target.SpatialDestinations?.Contains(destination) == true) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false).ToArray();
         Ff7AutoPlayTarget? selected = candidates.FirstOrDefault(target => state.NavigationGoal is { } retained && retained.NavigationKey == observation.NavigationKey && retained.EventId == target.Id)
             ?? candidates.FirstOrDefault(target => target.DestinationField == destination)
             ?? candidates.FirstOrDefault();
@@ -55,7 +55,7 @@ public sealed partial class Ff7AutoPlayPolicy
         Queue<(ushort Field, Ff7AutoPlayTarget First)> pending = new();
         int current = ReadVisitField(observation.VisitId);
         HashSet<ushort> visited = current > 64 && current < short.MaxValue ? [(ushort)current] : [];
-        foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && canSelect?.Invoke(target) != false))
+        foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false))
         {
             foreach (int field in TargetDestinations(target).Where(field => field > 64 && field < short.MaxValue && field != current))
             {
@@ -90,6 +90,17 @@ public sealed partial class Ff7AutoPlayPolicy
     private static IEnumerable<int> TargetDestinations(Ff7AutoPlayTarget target)
     {
         return (target.DestinationField is int field ? new[] { field } : []).Concat(target.PossibleDestinationFields).Concat(target.SpatialDestinations ?? []).Distinct();
+    }
+
+    private static bool CanRequestFieldTravel(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
+    {
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
+        if (coverage is not { Completed: true } || coverage.Conditions?.HasExecutedEntry(target.ConditionFingerprint) != true)
+        {
+            return true;
+        }
+        // Possible branches are advice; repeat travel requires an actual transfer under this same entry condition.
+        return coverage.Routes.Any(route => route.ConditionSignature == target.ConditionFingerprint && ReadVisitField(route.DestinationVisitKey) > 64 && ReadVisitField(route.DestinationVisitKey) != ReadVisitField(observation.VisitId));
     }
 
     private static int ReadVisitField(string visit)

@@ -64,9 +64,39 @@ internal static class AutoPlayFieldDestinationGoalTests
         Ff7AutoPlayPolicy.RetainDestinationGoal(state, next, observation.NavigationKey, entrance.ConditionFingerprint);
         Check(state.NavigationGoal is null, "Ordinary exploration must retain its existing local-step goal clearing behavior.");
         CheckConsumedEntranceIntent(observation, entrance, optional);
+        CheckConsumedNoOpIntent();
         CheckPossibleDestinationGoals(observation, entrance, optional);
         CheckRemoteDestinationAdvice();
         Console.WriteLine("PASS generic field destination resolution, priority, retention, restoration, native guards and unchanged consumption history");
+    }
+
+    private static void CheckConsumedNoOpIntent()
+    {
+        foreach (bool selfReturn in new[] { false, true })
+        {
+            Ff7AutoPlayTarget target = new("guarded-exit", 2, 2, Ff7AutoPlayTargetKind.LinePush, "current", false, Vector3.Zero, DestinationField: 300, ChangesField: true);
+            Ff7AutoPlayObservation observation = new("ff7:100:native", "native", 1, [target], true, true) { NavigationKey = "source-component" };
+            Ff7AutoPlayState state = new() { DestinationField = 300 };
+            AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+            AutoPlayEvent native = new(target.Id, AutoPlayEventKind.Transition, ConditionSignature: "previous");
+            planner.Observe(new(observation.VisitId, "native"), [native]);
+            planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [native]);
+            planner.Observe(new("ff7:300:native", "native"), []);
+            planner.Completed(observation.VisitId, target.Id, "ff7:300:native", observedStoryChanged: false, entrySignature: "previous", entrySignatureAuthoritative: true);
+            native = native with { ConditionSignature = target.ConditionFingerprint };
+            planner.Observe(new(observation.VisitId, "native"), [native]);
+            planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [native]);
+            planner.Completed(observation.VisitId, target.Id, selfReturn ? observation.VisitId : null, observedStoryChanged: false, entrySignature: target.ConditionFingerprint, entrySignatureAuthoritative: true);
+            state.NavigationGoal = new(observation.NavigationKey, target.Id, target.ConditionFingerprint);
+            string before = JsonSerializer.Serialize(state.Coverage);
+            Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, _ => []) is not null && state.NavigationGoal is null, "An unchanged consumed no-op must not become explicit travel merely because a previous condition transferred or its analysis declares a possible destination.");
+            Check(JsonSerializer.Serialize(state.Coverage) == before, "Rejecting consumed no-op intent must preserve all completion, condition, route and component evidence.");
+            Ff7AutoPlayTarget changed = target with { ConditionFingerprint = "changed" };
+            native = native with { ConditionSignature = changed.ConditionFingerprint };
+            planner.Observe(new(observation.VisitId, "native"), [native]);
+            planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [native]);
+            Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [changed] }, _ => []) is null && state.NavigationGoal?.Conditions == changed.ConditionFingerprint, "A genuinely unconsumed changed native guard must remain eligible without requiring an earlier successful transfer.");
+        }
     }
 
     private static void CheckRemoteDestinationAdvice()
@@ -163,9 +193,9 @@ internal static class AutoPlayFieldDestinationGoalTests
         AutoPlayEvent other = new(optional.Id, AutoPlayEventKind.Transition, ConditionSignature: optional.ConditionFingerprint);
         planner.Observe(new(observation.VisitId, "native"), [native, other]);
         planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [native, other]);
-        planner.Observe(new("destination", "native"), []);
-        planner.ObserveNavigation("destination", "destination-component", []);
-        planner.Completed(observation.VisitId, native.Id, "destination", observedStoryChanged: false, entrySignature: native.ConditionSignature, entrySignatureAuthoritative: true);
+        planner.Observe(new("ff7:300:native", "native"), []);
+        planner.ObserveNavigation("ff7:300:native", "destination-component", []);
+        planner.Completed(observation.VisitId, native.Id, "ff7:300:native", observedStoryChanged: false, entrySignature: native.ConditionSignature, entrySignatureAuthoritative: true);
         AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == native.Id);
         planner.RecordNavigationRoute(observation.NavigationKey, "destination-component", native.Id, coverage.Routes.Single());
         string consumed = JsonSerializer.Serialize(coverage.Conditions);
@@ -175,6 +205,8 @@ internal static class AutoPlayFieldDestinationGoalTests
         Check(planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal)?.Event.Id == entrance.Id, "An explicit field destination must allow repeat travel through a consumed native entrance with confirmed connectivity.");
         Check(coverage.Completed && JsonSerializer.Serialize(coverage.Conditions) == consumed && JsonSerializer.Serialize(state.Coverage.NavigationRoutes) == routes && JsonSerializer.Serialize(state.Coverage.NavigationVisits) == receipts, "Rearming explicit route intent must preserve completion, consumed conditions, native route history and component confirmation receipts.");
         Check(planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == entrance.Id, [], "blocked"))?.Event.Id == optional.Id, "A consumed requested entrance must still honor physical unavailability.");
+        Ff7AutoPlayObservation transit = observation with { Events = [entrance with { DestinationField = 250 }] };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, transit, field => field == 250 ? [300] : []) is null && state.NavigationGoal?.EventId == entrance.Id, "A same-condition actual field transfer must remain authentic when native initialization passes through a declared intermediate field before reaching its recorded destination.");
     }
 
     internal static void RunOriginalSelection()
