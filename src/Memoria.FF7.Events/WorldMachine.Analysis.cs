@@ -46,15 +46,19 @@ public sealed partial class WorldMachine
         public Dictionary<WorldHostDependency, int?> HostValues { get; } = [];
         public Func<WorldHostDependency, int?>? ReadHost { get; set; }
         public bool Unresolved { get; set; }
+        public bool InstructionUnresolved { get; private set; }
+        public bool IsolateTransitionDependencies { get; set; }
+        public bool StackUnresolved { get; set; }
         public string? Reason { get; set; }
 
         public WorldInspection Fork()
         {
-            return new() { Unresolved = Unresolved, Reason = Reason, ReadHost = ReadHost };
+            return new() { Unresolved = Unresolved, Reason = Reason, ReadHost = ReadHost, IsolateTransitionDependencies = IsolateTransitionDependencies, StackUnresolved = StackUnresolved };
         }
 
         public void BeginInstruction()
         {
+            InstructionUnresolved = false;
             Reads.Clear();
             Writes.Clear();
             HostReads.Clear();
@@ -73,6 +77,7 @@ public sealed partial class WorldMachine
                 return value;
             }
             Unresolved = true;
+            InstructionUnresolved = true;
             Reason ??= $"Native world host dependency {dependency.Kind}/{dependency.Selector} requires a read-only snapshot projection.";
             return 0;
         }
@@ -105,8 +110,8 @@ public sealed partial class WorldMachine
 
     private WorldInspection? inspection;
 
-    /// <summary>Inspects potential native mesh-script paths using detached execution of the same single-instruction decoder. No live host, VM, persistent byte or RNG is advanced.</summary>
-    public WorldScriptAnalysis AnalyzeMeshDispatch(int chunkX, int chunkZ, int terrainScript, int instructionBudget = 2048, Func<WorldHostDependency, int?>? readHost = null, bool currentEntryOnly = false)
+    /// <summary>Inspects potential native mesh-script paths using detached execution of the same single-instruction decoder. No live host, VM, persistent byte or RNG is advanced. Isolated transition dependencies expose only possible constant selectors, without projecting host or bank values or establishing current admission.</summary>
+    public WorldScriptAnalysis AnalyzeMeshDispatch(int chunkX, int chunkZ, int terrainScript, int instructionBudget = 2048, Func<WorldHostDependency, int?>? readHost = null, bool currentEntryOnly = false, bool isolateTransitionDependencies = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(terrainScript, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(terrainScript, 7);
@@ -119,7 +124,9 @@ public sealed partial class WorldMachine
             return new(true, null, header, 0, [], [], [], []) { IsInert = true };
         }
         WorldMachine initial = ForkInspection();
-        initial.inspection!.ReadHost = readHost;
+        initial.inspection!.ReadHost = isolateTransitionDependencies ? null : readHost;
+        initial.inspection.IsolateTransitionDependencies = isolateTransitionDependencies;
+        initial.inspection.StackUnresolved = isolateTransitionDependencies && initial.stack.Count != 0;
         initial.system.Pc = entry;
         initial.system.Priority = 3;
         initial.system.MoveCounter = 0;
@@ -212,8 +219,19 @@ public sealed partial class WorldMachine
                     continue;
                 }
                 WorldInspection observation = machine.inspection!;
+                bool unresolvedStack = observation.StackUnresolved;
                 observation.BeginInstruction();
                 bool yielded = machine.ExecuteInstruction(owner);
+                bool unresolvedOperands = unresolvedStack || observation.InstructionUnresolved || observation.Reads.Count != 0;
+                if (observation.IsolateTransitionDependencies)
+                {
+                    // The existing decoder owns stack effects and typed reads. A whole-stack dependency is conservative until consumed or explicitly cleared.
+                    observation.StackUnresolved = instruction.Opcode != 0x100 && machine.stack.Count != 0 && unresolvedOperands;
+                    if (observation.Reads.Count != 0)
+                    {
+                        reason ??= "Potential world topology does not project native bank values.";
+                    }
+                }
                 hasSideEffects |= observation.Commands.Any(command => command.Command.Operation != WorldOperation.FieldTransition);
                 hasDialogue |= observation.Commands.Any(command => command.Command.Operation is WorldOperation.Text or WorldOperation.Choice);
                 reads.UnionWith(observation.Reads);
@@ -234,7 +252,8 @@ public sealed partial class WorldMachine
                     int[] values = command.Command.Arguments;
                     int selector = command.Command.Operation == WorldOperation.FieldTransition ? values[0] << 8 | values[1] : values[0];
                     int minimum = command.Command.Operation == WorldOperation.FieldTransition ? short.MinValue : 0;
-                    ushort? represented = observation.Unresolved || selector < minimum || selector > ushort.MaxValue ? null : unchecked((ushort)selector);
+                    bool unresolvedSelector = observation.IsolateTransitionDependencies ? unresolvedOperands : observation.Unresolved;
+                    ushort? represented = unresolvedSelector || selector < minimum || selector > ushort.MaxValue ? null : unchecked((ushort)selector);
                     transitions.Add(new(command.ProgramCounter, command.Command.Operation, represented));
                     if (represented is null)
                     {
@@ -363,7 +382,7 @@ public sealed partial class WorldMachine
     private string InspectionIdentity()
     {
         WorldSnapshot state = Capture() with { Tick = 0, NextRequestId = 1 };
-        byte[] facts = JsonSerializer.SerializeToUtf8Bytes(new { State = state, Persistent = persistent, Active = active.Model, Executing = executing.Model, Moved = moved, Unresolved = inspection!.Unresolved });
+        byte[] facts = JsonSerializer.SerializeToUtf8Bytes(new { State = state, Persistent = persistent, Active = active.Model, Executing = executing.Model, Moved = moved, Unresolved = inspection!.Unresolved, inspection.IsolateTransitionDependencies, inspection.StackUnresolved });
         return Convert.ToHexString(SHA256.HashData(facts));
     }
 }

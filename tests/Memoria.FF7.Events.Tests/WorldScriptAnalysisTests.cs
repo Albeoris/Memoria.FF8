@@ -9,6 +9,7 @@ internal static class WorldScriptAnalysisTests
         BranchesAndTypedGuards();
         RequestsReuseNativeExecution();
         HostDependenciesRemainIncomplete();
+        PotentialTransitionDependencies();
         BlockingAcknowledgementsDoNotReadAValue();
         ObservableWorldEffectsExcludeTemporaryBookkeeping();
         CurrentEntryPreservesConcreteGuards();
@@ -78,6 +79,42 @@ internal static class WorldScriptAnalysisTests
         WorldMachine distance = Machine([0, 0x110, 2, 0x18, 0x201, 7, 0x203, 0x110, 1, 0x110, 0, 0x318, 0x203], new byte[1280], host);
         WorldScriptAnalysis zone = distance.AnalyzeMeshDispatch(0, 0, 3);
         Check(!zone.Complete && zone.HostReads.Any(read => read.Kind == WorldHostDependencyKind.ZoneDistance) && host.Calls == 0, "A zone-distance dependency must remain explicit instead of changing native selected-light state.");
+    }
+
+    private static void PotentialTransitionDependencies()
+    {
+        // The native entrance shape consumes a model guard before clearing the stack and constructing a literal handoff.
+        ushort[] guarded = [0, 0x113, 8, 0x201, 12, 0x100, 0x110, 8, 0x110, 0, 0x318, 0x203, 0x100, 0x110, 9, 0x110, 0, 0x318, 0x203];
+        RejectHost host = new();
+        byte[] persistent = new byte[1280];
+        WorldMachine machine = Machine(guarded, persistent, host);
+        string before = JsonSerializer.Serialize(machine.Capture());
+        WorldScriptAnalysis ordinary = machine.AnalyzeMeshDispatch(0, 0, 3);
+        WorldScriptAnalysis topology = machine.AnalyzeMeshDispatch(0, 0, 3, isolateTransitionDependencies: true);
+        Check(!ordinary.Complete && ordinary.Transitions.All(transition => transition.Selector is null), "Default native admission lost its unresolved host guard.");
+        Check(!topology.Complete && !topology.IsPureFieldTransfer && topology.Transitions.Select(transition => transition.Selector).Order().SequenceEqual(new ushort?[] { 0x800, 0x900 }), "Consumed unknown guards hid possible literal handoffs or fabricated admission completeness.");
+        Check(topology.HostReads.Contains(new(WorldHostDependencyKind.Special, -1, 8)), "Topology advice discarded its unknown native control dependency.");
+        WorldScriptAnalysis projected = machine.AnalyzeMeshDispatch(0, 0, 3, readHost: _ => 0, currentEntryOnly: true);
+        Check(projected.Complete && projected.Transitions.Single().Selector == 0x900, "Default current-entry analysis stopped honoring a genuine read-only host projection.");
+        foreach (ushort[] code in new ushort[][]
+        {
+            [0, 0x110, 8, 0x113, 16, 0x318, 0x203],
+            [0, 0x110, 8, 0x113, 16, 0x110, 1, 0x40, 0x318, 0x203],
+            [0, 0x118, 8, 0x113, 16, 0xE0, 0x100, 0x110, 8, 0x118, 8, 0x318, 0x203],
+            [0, 0x110, 8, 0x118, 8, 0x318, 0x203],
+            [0, 0x110, 8, 0x119, 8, 0x318, 0x203],
+            [0, 0x113, 16, 0x110, 1, 0x40, 0x110, 8, 0x110, 0, 0x318, 0x203]
+        })
+        {
+            WorldMachine unknown = Machine(code, persistent, host);
+            WorldScriptAnalysis analysis = unknown.AnalyzeMeshDispatch(0, 0, 3, isolateTransitionDependencies: true);
+            Check(!analysis.Complete && analysis.Transitions.Single().Selector is null, "An unknown direct, arithmetic, bank, local or still-live stack operand fabricated a constant topology selector.");
+        }
+        WorldMachine consumed = Machine([0, 0x113, 8, 0x201, 5, 0x110, 8, 0x110, 0, 0x318, 0x203], persistent, host);
+        Check(consumed.AnalyzeMeshDispatch(0, 0, 3, isolateTransitionDependencies: true).Transitions.Single().Selector == 0x800, "A completely consumed control guard contaminated a fresh constant operand stack.");
+        WorldMachine cleared = Machine([0, 0x113, 16, 0x110, 1, 0x40, 0x100, 0x110, 8, 0x110, 0, 0x318, 0x203], persistent, host);
+        Check(cleared.AnalyzeMeshDispatch(0, 0, 3, isolateTransitionDependencies: true).Transitions.Single().Selector == 0x800, "Native stack clear did not retire a discarded arithmetic dependency.");
+        Check(before == JsonSerializer.Serialize(machine.Capture()) && persistent.All(value => value == 0) && host.Calls == 0, "Potential topology analysis changed the live VM, canonical bytes or native host.");
     }
 
     private static void BlockingAcknowledgementsDoNotReadAValue()
