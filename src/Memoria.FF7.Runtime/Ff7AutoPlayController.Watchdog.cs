@@ -20,13 +20,26 @@ public sealed partial class Ff7AutoPlayController
         }
     }
 
+    internal static string FieldProgress(Ff7SessionSave state)
+    {
+        return $"field:{state.FieldName}:{state.Vm.ProgramIdentity}:{state.Progress.CompletedBattles.Length}:{state.Process.Movie?.PreparedId}:{state.Process.Movie?.Frame}:{state.Process.CameraScroll?.Step}:{state.Process.CameraViewOffset?.Step}:"
+            + string.Join(";", state.Vm.Entities.Select(entity => $"{entity.ProgramCounter},{entity.Priority},{entity.WaitCounter}"))
+            + string.Join(";", state.Process.Actors.Select(actor => $"{actor.X4096},{actor.Y4096},{actor.Z4096},{actor.Triangle},{actor.Ladder?.Step},{actor.Jump?.Step}"))
+            + ":dialogues:" + string.Join(";", state.Process.Dialogues.Select(DialogueProgress));
+    }
+
+    private static string DialogueProgress(Ff7Dialogue dialogue)
+    {
+        return $"{dialogue.Window},{dialogue.Text},{dialogue.Page},{dialogue.FirstChoice},{dialogue.LastChoice},{dialogue.Selected},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed},{dialogue.AwaitingInput}";
+    }
+
     internal static string WorldProgress(Ff7WorldProcess world)
     {
-        return $"world:{world.WorldId}:{world.MovementEnabled}:{world.ControlLock}:{world.ControlledModel}:{world.MainState}:{world.FadeAlpha}:{world.FadeDisplayedAlpha}:"
+        return $"world:{world.WorldId}:{world.Vm.ProgramIdentity}:{world.MovementEnabled}:{world.ControlLock}:{world.ControlledModel}:{world.MainState}:{world.FadeAlpha}:{world.FadeDisplayedAlpha}:"
             + string.Join(";", world.Entities.Select(entity => $"{entity.Model},{entity.X},{entity.Y},{entity.Z},{entity.TerrainResolved}"))
             + ":scripts:" + WorldScriptProgress(world.Vm.System)
             + string.Join(";", world.Vm.Models.Select(WorldScriptProgress))
-            + ":dialogues:" + string.Join(";", world.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
+            + ":dialogues:" + string.Join(";", world.Dialogues.Select(DialogueProgress));
     }
 
     private static string WorldScriptProgress(WorldEntitySnapshot entity)

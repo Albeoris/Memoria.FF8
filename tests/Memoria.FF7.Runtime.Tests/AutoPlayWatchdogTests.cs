@@ -6,6 +6,7 @@ internal static class AutoPlayWatchdogTests
 {
     public static void Run()
     {
+        FieldAllocationsDoNotRenewSemanticProgress();
         FrontierProgressSurvivesLifecycleRestores();
         ReexecutingConsumedEventsDoesNotRenewFrontierBudget();
         OriginalCompletedChoiceLeavesRepeatedFrontier();
@@ -46,11 +47,45 @@ internal static class AutoPlayWatchdogTests
         Check(baseline != Ff7AutoPlayController.WorldProgress(world with { Vm = world.Vm with { System = world.Vm.System with { Calls = [new(3, 1, 1)] } } }), "A native world call continuation was omitted from semantic progress.");
         Ff7Dialogue dialogue = new(1, 0, 0, null, null, 0);
         Ff7WorldProcess speaking = world with { Dialogue = dialogue };
+        Check(Ff7AutoPlayController.WorldProgress(speaking) == Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { RequestId = 1000 } }), "Reallocating the same native world dialogue invented progress.");
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { TokenPosition = 1 } }), "Native dialogue reveal was omitted from semantic progress.");
         Check(Ff7AutoPlayController.WorldProgress(speaking) != Ff7AutoPlayController.WorldProgress(speaking with { Dialogue = dialogue with { WaitTicks = 1 } }), "Native dialogue waiting was omitted from semantic progress.");
         Console.WriteLine("PASS autoplay semantic watchdog, repeated cycles and bounded host batches.");
     }
 
+    private static void FieldAllocationsDoNotRenewSemanticProgress()
+    {
+        FieldVmSnapshot vm = new(1, "profile", "program", 0, true, [], [], [new(4, 0, 0, [], [], [])]);
+        Ff7SessionSave field = new()
+        {
+            ResourceProfile = "profile",
+            Language = "en",
+            FieldName = "field-a",
+            FieldGeneration = 1,
+            Vm = vm,
+            Progress = new() { InitialKernelData = [], Characters = [], Party = [], Inventory = [], Materia = [] },
+            Process = new() { Dialogues = [new(1, 0, 5, null, null, 0)] }
+        };
+        string original = Ff7AutoPlayController.FieldProgress(field);
+        Check(original == Ff7AutoPlayController.FieldProgress(field with { FieldGeneration = 900, Vm = vm with { Tick = 500, NextRequestId = 700 }, Process = field.Process with { Tick = 600, Dialogues = [field.Process.Dialogues[0] with { RequestId = 800 }] } }), "Reallocating an identical field or dialogue invented semantic progress.");
+        Ff7AutoPlayProgressWatchdog cycle = new();
+        cycle.Observe(original);
+        string other = Ff7AutoPlayController.FieldProgress(field with { FieldName = "field-b" });
+        cycle.Observe(other);
+        for (int step = 1; step < Ff7AutoPlayProgressWatchdog.IdleStepLimit; step++)
+        {
+            field = field with { FieldGeneration = step + 1000, FieldName = step % 2 == 0 ? "field-a" : "field-b" };
+            Check(!cycle.Observe(Ff7AutoPlayController.FieldProgress(field)), "A repeated native field return renewed the semantic no-progress budget.");
+        }
+        ExpectTimeout(() => cycle.Observe(Ff7AutoPlayController.FieldProgress(field)));
+        Check(original != Ff7AutoPlayController.FieldProgress(field with { FieldName = "field-a", Vm = vm with { Entities = [vm.Entities[0] with { WaitCounter = 1 }] } }), "An advancing finite native wait lost its semantic progress.");
+        Check(original != Ff7AutoPlayController.FieldProgress(field with { FieldName = "field-a", Progress = field.Progress with { CompletedBattles = [new(1, 1, 1, new(0, 0, 0, []))] } }), "A completed native battle lost its semantic progress.");
+        Ff7AutoPlayProgressWatchdog movie = new();
+        for (int frame = 0; frame < Ff7AutoPlayProgressWatchdog.IdleStepLimit * 2; frame++)
+        {
+            Check(movie.Observe(Ff7AutoPlayController.FieldProgress(field with { Process = field.Process with { Movie = new(1, true, frame, false, 1) } })), "An advancing native movie timed out under stable field identity.");
+        }
+    }
     private static void FrontierProgressSurvivesLifecycleRestores()
     {
         Ff7AutoPlayState state = new();

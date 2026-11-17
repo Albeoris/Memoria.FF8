@@ -139,14 +139,7 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                 }
                 transitions.Observe(session);
                 Ff7SessionSave observed = session.Capture();
-                string progress = $"{session.FieldGeneration}:{session.Progress.CompletedBattles.Length}:{session.Host.Process.Movie?.Frame}:{session.Host.Process.CameraScroll?.Step}:{session.Host.Process.CameraViewOffset?.Step}:"
-                    + string.Join(";", observed.Vm.Entities.Select(entity => $"{entity.ProgramCounter},{entity.Priority},{entity.WaitCounter}"))
-                    + string.Join(";", observed.Process.Actors.Select(actor => $"{actor.X4096},{actor.Y4096},{actor.Z4096},{actor.Triangle},{actor.Ladder?.Step},{actor.Jump?.Step}"))
-                    + string.Join(";", observed.Process.Dialogues.Select(dialogue => $"{dialogue.RequestId},{dialogue.TokenPosition},{dialogue.WaitTicks},{dialogue.Completed}"));
-                if (observed.World is { } world)
-                {
-                    progress = $"{session.FieldGeneration}:{WorldProgress(world)}";
-                }
+                string progress = observed.World is { } world ? $"battles:{observed.Progress.CompletedBattles.Length}:{WorldProgress(world)}" : FieldProgress(observed);
                 ObserveProgress(progress);
                 driver.BeginPlanningStep();
                 Ff7AutoplayInput input = continuingTick ? default : chooseInput(driver);
