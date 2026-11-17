@@ -193,7 +193,7 @@ public sealed partial class Ff7WorldRuntime
         {
             PlayPrioritizedWorldSound(0x1EC);
         }
-        if (model == 3 || model == 5 && vehicle?.TinyBroncoFlightEnabled == true)
+        if (StartsFlightWhenBoarding(model))
         {
             BeginHighwindFlight(1);
             if (model == 3)
@@ -201,6 +201,11 @@ public sealed partial class Ff7WorldRuntime
                 EmitHighwindTakeoffEffect();
             }
         }
+    }
+
+    private bool StartsFlightWhenBoarding(int model)
+    {
+        return model == 3 || model == 5 && vehicle?.TinyBroncoFlightEnabled == true;
     }
 
     private void AdvanceSurfaceVehicleTransport(bool autoPlayPreview = false)

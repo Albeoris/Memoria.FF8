@@ -4,16 +4,25 @@ using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
+internal sealed record Ff7AutoPlayWorldEntranceSource(int ChunkX, int ChunkZ, int Script, ushort Selector, ushort Destination)
+{
+    public string EventId => $"mesh:{ChunkX}:{ChunkZ}:script:{Script}";
+}
+
 public sealed partial class Ff7Session
 {
     private readonly Dictionary<ushort, int[]> autoPlayFieldConnections = [];
     private readonly Dictionary<ushort, (string Identity, PcFieldGateway[] Gateways)> autoPlayGatewayDescriptors = [];
-    private readonly Dictionary<int, int[]> autoPlayWorldConnections = [];
+    private readonly Dictionary<int, Ff7AutoPlayWorldEntranceSource[]> autoPlayWorldEntrances = [];
 
     internal int[] ReadAutoPlayWorldConnections(int entrySelector)
     {
-        int world = Ff7WorldRuntime.ResolveWorldId(entrySelector);
-        if (autoPlayWorldConnections.TryGetValue(world, out int[]? known))
+        return ReadAutoPlayWorldEntranceSources(Ff7WorldRuntime.ResolveWorldId(entrySelector)).Select(source => (int)source.Destination).Distinct().Order().ToArray();
+    }
+
+    internal Ff7AutoPlayWorldEntranceSource[] ReadAutoPlayWorldEntranceSources(int world)
+    {
+        if (autoPlayWorldEntrances.TryGetValue(world, out Ff7AutoPlayWorldEntranceSource[]? known))
         {
             return known;
         }
@@ -21,28 +30,28 @@ public sealed partial class Ff7Session
         PcWorldEvents events = resources.ReadEvents();
         PcWorldFieldTable table = resources.ReadFieldTable();
         WorldMachine inspection = new(new WorldProgram(events), Machine.Variables.CopyPersistent(), new AutoPlayDestinationWorldHost());
-        HashSet<int> destinations = [];
-        HashSet<ushort> entries = [];
+        HashSet<Ff7AutoPlayWorldEntranceSource> sources = [];
+        Dictionary<ushort, WorldScriptAnalysis> entries = [];
         foreach (PcWorldFunction function in events.Functions.Where(function => function.Kind == 2 && function.Event <= 4))
         {
-            if (!entries.Add(function.Offset))
+            if (!entries.TryGetValue(function.Offset, out WorldScriptAnalysis? analysis))
             {
-                continue;
+                // Unknown source guards never authenticate current admission. Only
+                // constant handoffs independent of foreign VM banks become advice.
+                analysis = inspection.AnalyzeMeshDispatch(function.Mesh % 36, function.Mesh / 36, function.Event + 3, isolateTransitionDependencies: true);
+                entries.Add(function.Offset, analysis);
             }
-            // Only possible constant handoffs are advice. Unknown guards and foreign
-            // VM banks never establish current admission or a computed selector.
-            WorldScriptAnalysis analysis = inspection.AnalyzeMeshDispatch(function.Mesh % 36, function.Mesh / 36, function.Event + 3, isolateTransitionDependencies: true);
             foreach (WorldTransitionObservation transition in analysis.Transitions.Where(transition => transition.Operation == WorldOperation.FieldTransition && transition.Selector is not null))
             {
                 ushort field = table.Select(transition.Selector!.Value).Field;
                 if (IsKnownAutoPlayDestination(field))
                 {
-                    destinations.Add(field);
+                    sources.Add(new(function.Mesh % 36, function.Mesh / 36, function.Event + 3, transition.Selector.Value, field));
                 }
             }
         }
-        int[] result = destinations.Order().ToArray();
-        autoPlayWorldConnections[world] = result;
+        Ff7AutoPlayWorldEntranceSource[] result = sources.OrderBy(source => source.ChunkZ).ThenBy(source => source.ChunkX).ThenBy(source => source.Script).ThenBy(source => source.Selector).ToArray();
+        autoPlayWorldEntrances[world] = result;
         return result;
     }
 

@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-destination-goal-only", StringComparer.Ordinal))
+{
+    WorldDestinationGoalTests.Run();
+    return 0;
+}
+
+if (args.Contains("--world-destination-original-only", StringComparer.Ordinal))
+{
+    WorldDestinationGoalTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--field-destination-goal-only", StringComparer.Ordinal))
 {
     AutoPlayFieldDestinationGoalTests.Run();
