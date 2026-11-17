@@ -20,7 +20,7 @@ public sealed class Ff7AutoPlayTransitionGuard
         {
             return;
         }
-        if (Observe(session.Field.Name, session.FieldGeneration, session.CaptureEventProgressWitness()))
+        if (Observe(session.Field.Name, session.FieldGeneration, session.CaptureTransitionProgressWitness()))
         {
             short story = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0);
             throw new InvalidOperationException($"FFVII autoplay repeated the same two-field route three times without a change in recorded native progress: {session.Field.Name}, story {story}.");
