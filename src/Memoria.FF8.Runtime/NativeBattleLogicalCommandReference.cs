@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -51,6 +51,16 @@ public readonly record struct NativeBattleLogicalCommandReference
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates => ProjectedCoordinateSlice?.ToImmutableArray();
     public ReadOnlySpan<BattleSceneScreenPoint> ProjectedCoordinateSpan => ProjectedCoordinateSlice is { } slice ? slice.AsSpan() : default;
     public bool HasProjectedCoordinates => ProjectedCoordinateSlice.HasValue;
+
+    public NativeBattleLogicalCommandView Resolve()
+    {
+        return owner switch
+        {
+            NativeBattlePlacedModelPrimitives placement => new(placement, row, bucket),
+            NativeBattleLogicalCommand command => new(command),
+            _ => throw new InvalidOperationException("Native command reference has no authored backing.")
+        };
+    }
 
     private NativeBattleImmutableSlice<uint> ReadModelCommandWords(NativeBattlePlacedModelPrimitives model)
     {

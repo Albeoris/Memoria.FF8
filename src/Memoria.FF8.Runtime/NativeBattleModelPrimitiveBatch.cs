@@ -113,8 +113,9 @@ internal sealed class NativeBattleModelPrimitiveBatch
         }
     }
 
-    private ref readonly NativeBattleModelPrimitiveRow ReadRow(int index) => ref pages[index / PageSize][index % PageSize];
-    private ref readonly NativeBattleModelEmission ReadEmission(int index) => ref emissions!.Read(ReadRow(index).Emission);
+    internal ref readonly NativeBattleModelPrimitiveRow ReadRow(int index) => ref pages[index / PageSize][index % PageSize];
+    internal ref readonly NativeBattleModelEmission ReadRawEmission(int emission) => ref emissions!.Read(emission);
+    private ref readonly NativeBattleModelEmission ReadEmission(int index) => ref ReadRawEmission(ReadRow(index).Emission);
 
     internal int ReadBucket(int index) => UsesRawRows ? ReadRow(index).Bucket : objects[index].Bucket;
     internal NativeBattleImmutableSlice<uint> ReadWords(int index) => UsesRawRows ? ReadRow(index).Words : (NativeBattleImmutableSlice<uint>)objects[index].Words;

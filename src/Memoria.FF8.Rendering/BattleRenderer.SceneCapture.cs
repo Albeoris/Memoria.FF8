@@ -23,11 +23,11 @@ public sealed partial class BattleRenderer
     private readonly LinkedList<SceneCaptureImage> recentSceneCaptureImages = [];
     private long sceneCaptureRetainedBytes;
 
-    private PixelImage ResolveSceneCaptureTexture(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand command, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors)
+    private PixelImage ResolveSceneCaptureTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattlePrimitiveDrawMode drawMode, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors)
     {
-        NativeBattleSceneCaptureSample sample = command.DrawMode.SceneCaptureSample ?? throw new InvalidDataException("Scene sampling requires its retained source pixels.");
+        NativeBattleSceneCaptureSample sample = drawMode.SceneCaptureSample ?? throw new InvalidDataException("Scene sampling requires its retained source pixels.");
         sample.Capture.Validate();
-        ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its native texture page.");
+        ushort page = drawMode.TexturePage ?? throw new InvalidDataException("Scene sampling requires its native texture page.");
         int depth = page >> 7 & 3;
         int pixelsPerWord = depth == 0 ? 4 : depth == 1 ? 2 : depth == 2 ? 1 : throw new NotSupportedException("Scene sampling requires a supported native texture depth.");
         int paletteLength = depth == 0 ? 16 : depth == 1 ? 256 : 0;
@@ -36,7 +36,7 @@ public sealed partial class BattleRenderer
         {
             throw new InvalidDataException("Scene sampling requires every source page and its native palette.");
         }
-        SceneCaptureImageKey key = new(snapshots, sample, depth, command.DrawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift, colors.SubtractUsesNormalizedColor);
+        SceneCaptureImageKey key = new(snapshots, sample, depth, drawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift, colors.SubtractUsesNormalizedColor);
         if (sceneCaptureImages.TryGetValue(key, out LinkedListNode<SceneCaptureImage>? cached))
         {
             recentSceneCaptureImages.Remove(cached);
@@ -47,7 +47,7 @@ public sealed partial class BattleRenderer
         for (int index = 0; index < palette.Length; index++)
         {
             uint argb;
-            if (command.DrawMode.BlendMode == 2)
+            if (drawMode.BlendMode == 2)
             {
                 if (colors.SubtractUsesNormalizedColor)
                 {

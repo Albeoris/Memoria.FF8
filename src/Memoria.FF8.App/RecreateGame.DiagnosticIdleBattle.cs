@@ -164,7 +164,12 @@ internal sealed class DiagnosticIdleBattleProbe
             geometryOwners.Clear();
             foreach (ref readonly NativeBattleLogicalResolvedCommand command in prepared.Primitives.LastCommands)
             {
-                if (command.Pass != 0 && !command.Command.Pilot.IsEmpty && command.Command.Pilot.Identity.Bank == 0x502D40 && command.Command.PresentationActorId is { } actorId && prepared.Primitives.ActorOpacity(actorId) > 0)
+                if (command.Pass == 0)
+                {
+                    continue;
+                }
+                NativeBattlePilotGeometryReference pilot = command.Command.Pilot;
+                if (!pilot.IsEmpty && pilot.Identity.Bank == 0x502D40 && command.Command.PresentationActorId is { } actorId && prepared.Primitives.ActorOpacity(actorId) > 0)
                 {
                     geometryOwners.Add(actorId);
                 }

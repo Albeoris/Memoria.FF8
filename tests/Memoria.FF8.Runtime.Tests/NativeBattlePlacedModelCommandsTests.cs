@@ -184,4 +184,3 @@ public sealed class NativeBattlePlacedModelCommandsTests
         return new(Lengths, new byte[256].ToImmutableArray(), empty, polygon, polygon);
     }
 }
-

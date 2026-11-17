@@ -66,6 +66,8 @@ public sealed record NativeBattleLogicalCommand(NativeBattlePrimitiveReference P
         init => depthBacking = value;
     }
 
+    internal NativeBattleImmutableSlice<int> VertexPayloadSlice => depthBacking;
+
     [JsonIgnore]
     public ReadOnlySpan<int> VertexPayloadSpan => depthBacking.IsDefault ? throw new InvalidDataException("Native command has no original proxy depth fields.") : depthBacking.AsSpan();
 

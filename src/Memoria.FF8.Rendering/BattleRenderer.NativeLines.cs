@@ -5,11 +5,8 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
-    private void DrawNativePrimitiveLine(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand resolved)
+    private void DrawNativePrimitiveLine(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalCommandView command, NativeBattlePrimitiveDrawMode drawMode, byte pass)
     {
-        NativeBattleLogicalCommandReference command = resolved.Command;
-        NativeBattlePrimitiveDrawMode drawMode = resolved.DrawMode;
-        byte pass = resolved.Pass;
         bool semi = (command.Opcode & 2) != 0;
         bool gouraud = (command.Opcode & 16) != 0;
         if (pass == 1 && semi || pass == 2 && !semi)
@@ -27,8 +24,8 @@ public sealed partial class BattleRenderer
         depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, depths, projected);
         int blendMode = drawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
         NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.");
-        PrimitiveVertex a = Vertex(0, projected[0]);
-        PrimitiveVertex b = Vertex(1, projected[1]);
+        PrimitiveVertex a = Vertex(command, 0, projected[0]);
+        PrimitiveVertex b = Vertex(command, 1, projected[1]);
         int blend = semi ? blendMode : -1;
         if (TriangleRenderer is { } renderer)
         {
@@ -47,13 +44,13 @@ public sealed partial class BattleRenderer
             TriangleMaterial material = new(null, equation, TriangleDepthComparison.LessEqual, pass == 1, 0, TriangleSampler.PointWrap);
             material = WithNativeActorOpacity(material, blend, frame.ActorOpacity(command.PresentationActorId));
             lines.DrawLine(Convert(a), Convert(b), material);
-            ObserveLine();
+            ObserveLine(command);
             return;
         }
         nativeTriangles.Add(new(a, b, default, null, blend, pass, 0, 0, Width - 1, 0, Height - 1, true, frame.ActorOpacity(command.PresentationActorId)));
-        ObserveLine();
+        ObserveLine(command);
 
-        PrimitiveVertex Vertex(int corner, NativeBattlePrimitiveDepthVertex depth)
+        PrimitiveVertex Vertex(in NativeBattleLogicalCommandView command, int corner, NativeBattlePrimitiveDepthVertex depth)
         {
             int colorIndex = gouraud ? corner * 2 : 0;
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
@@ -67,7 +64,7 @@ public sealed partial class BattleRenderer
             return new(position.X, position.Y, depth.Depth, depth.ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
         }
 
-        void ObserveLine()
+        void ObserveLine(in NativeBattleLogicalCommandView command)
         {
             if (!PilotDiagnosticsEnabled || command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
             {

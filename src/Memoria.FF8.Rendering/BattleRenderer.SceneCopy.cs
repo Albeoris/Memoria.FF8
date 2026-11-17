@@ -115,10 +115,10 @@ public sealed partial class BattleRenderer
         sceneReplayContext.Memo = sceneReplayMemo;
     }
 
-    private PixelImage ApplySceneCopyTexture(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand command, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors, PixelImage image)
+    private PixelImage ApplySceneCopyTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattlePrimitiveDrawMode drawMode, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors, PixelImage image)
     {
-        NativeBattlePcTextureWindowSelection window = command.DrawMode.TextureSelection ?? throw new InvalidDataException("Scene texture sampling requires its selected native window.");
-        NativeBattlePcTextureWindowPixels? retained = command.DrawMode.TexturePixelSnapshot is int index
+        NativeBattlePcTextureWindowSelection window = drawMode.TextureSelection ?? throw new InvalidDataException("Scene texture sampling requires its selected native window.");
+        NativeBattlePcTextureWindowPixels? retained = drawMode.TexturePixelSnapshot is int index
             ? (frame.LastTextureSnapshots ?? throw new InvalidDataException("Scene texture sampling requires its ordered pixels."))[index]
             : null;
         ImmutableArray<NativeBattleSceneCopyRegion>? regions = retained?.SceneCopies ?? (retained is null ? textures?.SceneCopies : null);
@@ -126,13 +126,13 @@ public sealed partial class BattleRenderer
         {
             return image;
         }
-        ushort page = command.DrawMode.TexturePage ?? throw new InvalidDataException("Scene texture sampling requires its texture page.");
+        ushort page = drawMode.TexturePage ?? throw new InvalidDataException("Scene texture sampling requires its texture page.");
         int depth = page >> 7 & 3;
         int pixelsPerWord = depth == 0 ? 4 : depth == 1 ? 2 : depth == 2 ? 1 : throw new NotSupportedException("Scene texture sampling requires a supported pixel depth.");
         int bits = 16 / pixelsPerWord;
         int mask = (1 << bits) - 1;
-        ImmutableArray<ushort> palette = command.DrawMode.SceneCopyPalette ?? throw new InvalidDataException("Scene texture sampling requires its ordered native palette receipt.");
-        SceneCopyTextureKey key = new(image, regions.Value, window, page, palette, command.DrawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift);
+        ImmutableArray<ushort> palette = drawMode.SceneCopyPalette ?? throw new InvalidDataException("Scene texture sampling requires its ordered native palette receipt.");
+        SceneCopyTextureKey key = new(image, regions.Value, window, page, palette, drawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift);
         if (sceneCopyImages.TryGetValue(key, out PixelImage? cached))
         {
             return cached;
@@ -185,7 +185,7 @@ public sealed partial class BattleRenderer
                 {
                     argb = NativeBattlePcDirectTexture.DecodeArgb(color, capabilities?.DirectTextureFormat ?? throw new NotSupportedException("Scene texture sampling requires its direct device format."));
                 }
-                else if (command.DrawMode.BlendMode == 2)
+                else if (drawMode.BlendMode == 2)
                 {
                     if (colors.SubtractUsesNormalizedColor)
                     {

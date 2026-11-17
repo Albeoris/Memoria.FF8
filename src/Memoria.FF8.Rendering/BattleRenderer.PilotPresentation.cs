@@ -29,17 +29,16 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private void ObservePilotSubmittedTriangle(in NativeBattleLogicalResolvedCommand resolved, PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, int cornerA, int cornerB, int cornerC)
+    private void ObservePilotSubmittedTriangle(in NativeBattleLogicalCommandView command, NativeBattlePrimitiveDrawMode drawMode, byte pass, PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, int cornerA, int cornerB, int cornerC)
     {
-        NativeBattleLogicalCommandReference command = resolved.Command;
         if (command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
             return;
         }
         ulong material = PilotHash(pilotSubmission.MaterialSignature, command.Opcode);
-        material = PilotHash(material, resolved.Pass);
-        material = PilotHash(material, resolved.DrawMode.TexturePage ?? 0);
-        material = PilotHash(material, resolved.DrawMode.TextureWindowBits ?? 0);
+        material = PilotHash(material, pass);
+        material = PilotHash(material, drawMode.TexturePage ?? 0);
+        material = PilotHash(material, drawMode.TextureWindowBits ?? 0);
         if ((command.Opcode & 4) != 0)
         {
             material = PilotHash(material, command.WordSpan[2] >> 16);
@@ -50,7 +49,7 @@ public sealed partial class BattleRenderer
         ObservePilotSubmittedCorner(command, cornerC, new(c.X, c.Y), new(c.Z, c.ReciprocalW), c.Uv, c.Color, c.Alpha);
     }
 
-    private void ObservePilotSubmittedCorner(in NativeBattleLogicalCommandReference command, int corner, Vector2 position, NativeBattlePrimitiveDepthVertex depth, Vector2 uv, Vector3 color, float alpha)
+    private void ObservePilotSubmittedCorner(in NativeBattleLogicalCommandView command, int corner, Vector2 position, NativeBattlePrimitiveDepthVertex depth, Vector2 uv, Vector3 color, float alpha)
     {
         if (!PilotDiagnosticsEnabled || command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
@@ -123,15 +122,20 @@ public sealed partial class BattleRenderer
         {
             foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
             {
-                NativeBattleLogicalCommandReference command = resolved.Command;
-                if (resolved.Pass == 0 || command.Opcode is >= 0xE1 and <= 0xE6 or 0x02 or 0x80)
+                if (resolved.Pass == 0)
                 {
                     continue;
                 }
-                bool polygon = (command.Opcode & 0xE0) == 0x20;
-                bool tile = (command.Opcode & 0xFC) is 0x60 or 0x68;
-                bool line = (command.Opcode & 0xF8) is 0x40 or 0x50;
-                int corners = line ? 2 : tile || (command.Opcode & 8) != 0 ? 4 : 3;
+                NativeBattleLogicalCommandReference command = resolved.Command;
+                byte opcode = command.Opcode;
+                if (opcode is >= 0xE1 and <= 0xE6 or 0x02 or 0x80)
+                {
+                    continue;
+                }
+                bool polygon = (opcode & 0xE0) == 0x20;
+                bool tile = (opcode & 0xFC) is 0x60 or 0x68;
+                bool line = (opcode & 0xF8) is 0x40 or 0x50;
+                int corners = line ? 2 : tile || (opcode & 8) != 0 ? 4 : 3;
                 if ((polygon || tile || line) && command.Pilot is { IsEmpty: false } geometry && geometry.CornerCount == corners)
                 {
                     continue;
@@ -182,7 +186,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private bool TrySamplePilotVertex(in NativeBattleLogicalCommandReference command, int corner, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
+    private bool TrySamplePilotVertex(in NativeBattleLogicalCommandView command, int corner, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
     {
         position = default;
         depthVertex = default;
