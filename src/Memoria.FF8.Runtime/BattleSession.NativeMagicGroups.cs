@@ -117,6 +117,19 @@ public sealed partial class BattleSession
 
     private void ResolveMagicGroupInvocations(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, Func<BattleMagicCastInvocation, int, bool> publish)
     {
+        if (command.NativeSlots is not null)
+        {
+            //485610 reads the admitted command16 target WORDs without command2's status or stock gates.
+            for (int index = 0; index < command.MagicCasts.Length; index++)
+            {
+                if (!publish(command.MagicCasts[index], index))
+                {
+                    break;
+                }
+            }
+            return;
+        }
+
         uint statuses = EncounterMulticastStatusBits(actor);
         int mode = command.NativeMagicCastMode == 0 ? command.MagicCasts.Length : command.NativeMagicCastMode;
         int count = mode >= 3 && (statuses & 0x40000) != 0 ? command.MagicCasts.Length : command.MagicCasts.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
@@ -191,7 +204,8 @@ public sealed partial class BattleSession
 
     private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
-        BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
+        bool slots = command.NativeSlots is not null;
+        BattleActionDefinition action = slots ? ExpandedLimitDefinition(actor, command.NativeAction!) : FindAction(BattleAbility.Magic, command.ActionId);
         bool producedContacts = false;
         int firstOperation = expandedOperationCursor.Operations.Length;
         List<NativeMagicReflectionReceipt>? reflections = actor.IsPlayer ? [] : null;
@@ -206,6 +220,21 @@ public sealed partial class BattleSession
         {
             ResolveMagicGroupInvocations(actor, command, action, (invocation, _) =>
             {
+                if (slots)
+                {
+                    if ((NativeSavedStatusBits(actor) & 1) != 0)
+                    {
+                        return false;
+                    }
+                    BattleTargetRequest selectedTargets = SelectSlotsTargets(action.NativeAction!, invocation);
+                    BattleCombatant admittedTarget = GetActor(invocation.FallbackAnchor.ActorId);
+                    BattleCombatant selectedTarget = selectedTargets.Selection is BattleTargetSelection.Explicit { Actors: [var selectedReference] }
+                        ? FindTargetActor(selectedReference) ?? admittedTarget : admittedTarget;
+                    BattleActionPresentation selectedCast = MagicGroupInvocation(command, action, invocation, selectedTarget) with { TargetRequest = selectedTargets };
+                    (bool slotsContacts, bool slotsCompleted) = PublishExpandedMagicGroupInvocation(actor, selectedCast, action, reflections);
+                    producedContacts |= slotsContacts;
+                    return slotsCompleted;
+                }
                 if (!CanNativeBattleActorAct(actor) || (NativeSavedStatusBits(actor) & 0x10) != 0)
                 {
                     return false;
@@ -225,7 +254,7 @@ public sealed partial class BattleSession
                 producedContacts |= hasContacts;
                 return completed;
             });
-            if (producedContacts && (actor.IsPlayer || HasEncounterPolicy(actor)) && !TryGroupNativeMagicCasts(firstOperation, action.NativeAction!))
+            if (producedContacts && (actor.IsPlayer || HasEncounterPolicy(actor)) && !TryGroupNativeMagicCasts(firstOperation, action.NativeAction!, command: slots ? (byte)16 : (byte)2))
             {
                 throw new InvalidDataException("The repeated native spell requires contiguous action headers.");
             }
@@ -303,6 +332,14 @@ public sealed partial class BattleSession
     private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, List<NativeMagicReflectionReceipt>? reflections)
     {
         BattleNativeAction native = action.NativeAction!;
+        if (cast.NativeSlots is not null)
+        {
+            PrepareNativeLimitCommand(new(cast.ActorId, cast.TargetId, cast.TargetRequest, cast.Ability, cast.ActionId)
+            {
+                NativeQueuedCommand = 16,
+                NativeAction = native
+            });
+        }
         var hitPlan = PlanNativeHits(actor, cast, native);
         if (hitPlan.Length == 0 || hitPlan[0].Targets.Length == 0)
         {
@@ -319,7 +356,7 @@ public sealed partial class BattleSession
         }
 
         resolvingNativeAction = cast;
-        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = native.Command, Action = native.ActionId };
         NativeBattleActionHeaderPreparation hostedHeader = BuildExpandedActionHeaderPreparation(cast, native);
         int operationStart = expandedOperationCursor.Operations.Length;
         ReserveExpandedAiInvocation(cast, hostedHeader);
@@ -366,8 +403,13 @@ public sealed partial class BattleSession
         return available.FirstOrDefault(candidate => candidate.Slot?.Position > position) ?? available.LastOrDefault();
     }
 
-    private void ValidateExpandedMagicTargets(string actorId, string targetId, BattleAbility ability, int actionId, ImmutableArray<BattleMagicCastInvocation> casts, int mode)
+    private void ValidateExpandedMagicTargets(string actorId, string targetId, BattleAbility ability, int actionId, ImmutableArray<BattleMagicCastInvocation> casts, int mode, BattleNativeAction? native, BattleNativeSlotsRoll? slots)
     {
+        if (slots is not null)
+        {
+            ValidateSlotsGroup(GetActor(actorId), targetId, ability, actionId, casts, mode, native, slots);
+            return;
+        }
         ValidateNativeMagicTargets(ability, actionId, casts, mode);
         if (casts.IsEmpty)
         {

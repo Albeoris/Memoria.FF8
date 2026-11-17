@@ -276,15 +276,15 @@ public static partial class LiveEvidenceValidation
                     bool invocationMatches;
                     if (duelCycles.Length != 0)
                     {
-                        invocationMatches = duelCycles[index - 1].Dispatches.Any(observed => observed == typed);
+                        invocationMatches = duelCycles[index - 1].Dispatches.Any(observed => DiagnosticEffectDispatchEvidence.Matches(observed, typed));
                     }
                     else if (shotCycle is not null)
                     {
-                        invocationMatches = shotCycles[index - 1].Dispatches.Any(observed => observed == typed);
+                        invocationMatches = shotCycles[index - 1].Dispatches.Any(observed => DiagnosticEffectDispatchEvidence.Matches(observed, typed));
                     }
                     else if (counterCycle is not null)
                     {
-                        invocationMatches = focal ? typed == counterCycles[index - 1].Attempts[^1].Dispatch : sameActor ? supportingEffects.Contains(Number(dispatch, "requested_effect")) : HasSupportingInvocation(execution, dispatch, supportingInvocations);
+                        invocationMatches = focal ? DiagnosticEffectDispatchEvidence.Matches(typed, counterCycles[index - 1].Attempts[^1].Dispatch) : sameActor ? supportingEffects.Contains(Number(dispatch, "requested_effect")) : HasSupportingInvocation(execution, dispatch, supportingInvocations);
                     }
                     else if (typed.Reflection is { } reflection)
                     {
@@ -632,12 +632,12 @@ public static partial class LiveEvidenceValidation
                     {
                         errors.Add("TERMINAL_HOLD_TIMING_OR_REPAIR_INVALID");
                     }
-                    if (item.Party.Any(actor => !before.TryGetValue(actor.Id, out JsonElement state) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), state) || (actor.Statuses0 & 5) != 0))
+                    if (item.Party.Any(actor => !before.TryGetValue(actor.Id, out JsonElement state) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, Json), state) || (actor.Statuses0 & 5) != 0))
                     {
                         errors.Add("TERMINAL_HOLD_REARM_LINEAGE_INVALID");
                     }
                 }
-                else if (item.Callback < Number(executions[1], "end_callback") || item.Party.Any(actor => !after.TryGetValue(actor.Id, out JsonElement state) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), state)))
+                else if (item.Callback < Number(executions[1], "end_callback") || item.Party.Any(actor => !after.TryGetValue(actor.Id, out JsonElement state) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, Json), state)))
                 {
                     errors.Add("TERMINAL_HOLD_RELEASE_LINEAGE_INVALID");
                 }

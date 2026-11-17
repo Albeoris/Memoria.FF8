@@ -57,7 +57,7 @@ public sealed class ExpandedBattleGuardianTests
         Assert.True(action.AllTargets);
         Assert.False(action.Allies);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
-        BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer).ToArray();
+        BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && actor.Slot is not null).ToArray();
         Assert.Equal(5, enemies.Length);
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == CasterId);
         BattleModelOwner casterOwner = battle.ReadPresentationModelOwner(CasterId);

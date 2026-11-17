@@ -10,9 +10,9 @@ public sealed partial class BattleSession
         }
         NativeBattleRetainedMemory retained = new(process.NativeActionPackets.ExportRetained(), nativeScriptState.AllocationControl, nativePartyStatusMirrors, nativeActionScratch, null, coldExecutableSha256)
         {
-            PresentationStatusMemory = nativePresentationStatusMemory.State,
+            PresentationStatusMemory = nativePresentationStatusMemory,
             ElementAttack = nativeElementAttack,
-            ActionMemory = nativeActionMemory.State
+            ActionMemory = nativeActionMemory
         };
         return process.CaptureRetainedMemory(retained, Outcome);
     }

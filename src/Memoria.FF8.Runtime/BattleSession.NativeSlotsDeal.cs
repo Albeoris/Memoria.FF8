@@ -33,7 +33,7 @@ public sealed partial class BattleSession
 
     public bool CanCastNativeSlotsCard(BattleNativeSlotsRoll roll)
     {
-        return CanCastExpandedSlots(FindInstalledNativeAction(16, roll.MagicId), roll);
+        return CanCastSlots(FindInstalledNativeAction(16, roll.MagicId), roll);
     }
 
     public BattleNativeSlotsDeal BeginNativeSlotsDeal(string actorId)
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                 BattleNativeSlotsRoll roll = GenerateNativeSlotsRoll(rules, actor.Level, crisis);
                 BattleNativeAction action = FindInstalledNativeAction(16, roll.MagicId);
                 ValidateNativeActionContract(action);
-                if (roll.Repetitions is < 1 or > 3 || action.TargetFlags is null || (action.TargetFlags.Value & 0x30) == 0x30)
+                if (roll.Repetitions is < 1 or > NativeBattleSlotsRules.MaxQueuedRepetitions || action.TargetFlags is null || (action.TargetFlags.Value & 0x30) == 0x30)
                 {
                     throw new NotSupportedException("Card Slots requires supported native repetitions, targeting and saved special magic ownership.");
                 }
@@ -109,28 +109,15 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        NativeBattleRandomState before = random;
-        try
-        {
-            RequireNativeEntryReady();
-            RequireNormalGuardianFormCommands(deal.ActorId);
-            BattleCombatant actor = GetActor(deal.ActorId);
-            BattleNativeSlotsRoll roll = deal.Candidates[selected];
-            BattleNativeAction action = FindNativeCommandAction(actor, 16, roll.MagicId, deal.CrisisLevel);
-                QueueExpandedSlots(actor, action, 0, roll);
-                pendingSlotsDeal = null;
-                CloseNativeActionMenu();
-                return true;
-        }
-        catch
-        {
-            random = before;
-            pendingSlotsDeal = null;
-            nativeLimitLevels.Remove(deal.ActorId);
-            nativeSlotsRolls.Remove(deal.ActorId);
-            CloseNativeActionMenu();
-            throw;
-        }
+        RequireNativeEntryReady();
+        RequireNormalGuardianFormCommands(deal.ActorId);
+        BattleCombatant actor = GetActor(deal.ActorId);
+        BattleNativeSlotsRoll roll = deal.Candidates[selected];
+        BattleNativeAction action = FindNativeCommandAction(actor, 16, roll.MagicId, deal.CrisisLevel);
+        QueueSlots(actor, action, 0, roll);
+        pendingSlotsDeal = null;
+        CloseNativeActionMenu();
+        return true;
     }
 
     private bool NativeSlotsDealOwnerValid(BattleNativeSlotsDeal deal)
@@ -160,7 +147,7 @@ public sealed partial class BattleSession
         }
         foreach (BattleNativeSlotsRoll roll in deal.Candidates)
         {
-            if (roll is null || roll.Repetitions is < 1 or > 3)
+            if (roll is null || roll.Repetitions is < 1 or > NativeBattleSlotsRules.MaxQueuedRepetitions)
             {
                 throw new InvalidDataException("Saved Slots candidate has invalid native repetitions.");
             }

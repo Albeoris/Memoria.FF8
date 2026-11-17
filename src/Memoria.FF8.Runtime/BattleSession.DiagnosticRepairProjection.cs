@@ -5,8 +5,7 @@ namespace Memoria.FF8.Runtime;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BattleDiagnosticRepairProjection([property: JsonRequired] Guid LifecycleId, [property: JsonRequired] long Frame, [property: JsonRequired] long Callback, [property: JsonRequired] BattleDiagnosticCombatRepair Request, [property: JsonRequired] byte? RecipientIndex)
 {
-    [JsonRequired]
-    public BattleRosterSlot RecipientSlot { get; init; }
+    public BattleRosterSlot? RecipientSlot { get; init; }
 }
 
 public sealed partial class BattleSession

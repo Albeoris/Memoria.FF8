@@ -41,6 +41,24 @@ public sealed class DiagnosticSlotsAdmissionTests
     }
 
     [Theory]
+    [InlineData(51)]
+    [InlineData(52)]
+    public void Full_cure_and_wall_receipts_roundtrip_an_allied_group_without_original_aliases(byte magic)
+    {
+        var fixture = Fixture(rolledMagic: magic, declaredMagic: magic, addedSelphie: true);
+        DiagnosticSlotsAdmission admission = new(fixture.Source, fixture.Empty);
+        admission.Rolled(fixture.Roll);
+        admission.Did(fixture.Do);
+        DiagnosticSlotsAdmissionReceipt restored = JsonSerializer.Deserialize<DiagnosticSlotsAdmissionReceipt>(JsonSerializer.Serialize(admission.Receipt))!;
+        DiagnosticSlotsAdmissionValidation.ValidateReceipt(restored, fixture.Source, fixture.Empty.Start, fixture.Empty.Selection, fixture.Empty.Policy, fixture.Empty.Input);
+        Assert.Equal(BattleRosterSlot.Ally(4), restored.Do!.TargetSlot);
+        Assert.Null(restored.Do.TargetIndex);
+        Assert.Null(restored.Do.TargetMask);
+        Assert.Equal(BattleTargetSide.Allies, restored.Do.TargetSide);
+        Assert.Throws<InvalidDataException>(() => DiagnosticSlotsAdmissionValidation.ValidateReceipt(restored with { Do = restored.Do with { TargetSide = BattleTargetSide.Enemies } }, fixture.Source, fixture.Empty.Start, fixture.Empty.Selection, fixture.Empty.Policy, fixture.Empty.Input));
+    }
+
+    [Theory]
     [InlineData("owner")]
     [InlineData("model")]
     [InlineData("physical")]
@@ -458,7 +476,14 @@ public sealed class DiagnosticSlotsAdmissionTests
         Assert.Equal(12, rolls.Count);
         Assert.Equal(5, transitions.Count);
         Assert.Equal(36, selections);
-        DiagnosticSlotsDoReceipt accepted = new(current, current with { Seconds = current.Seconds + 0.001, OwnedRoll = null, Crisis = 0, RetainedCrisis = null, Ready = false }, source.ActorId, source.ActorId, source.ActorIndex, 16, source.MagicAction, 280, 0x8007, rolls[^1].Result);
+        DiagnosticSlotsDoReceipt accepted = new(current, current with { Seconds = current.Seconds + 0.001, OwnedRoll = null, Crisis = 0, RetainedCrisis = null, Ready = false }, source.ActorId, source.ActorId, source.ActorIndex, 16, source.MagicAction, 280, 0x8007, rolls[^1].Result)
+        {
+            TargetSlot = source.ActorSlot,
+            TargetSide = BattleTargetSide.Allies,
+            Eligibility = BattleTargetEligibility.SavedStatus,
+            AllowsKnockedOutAllies = false,
+            Replacement = BattleTargetReplacement.UseCurrentBattlePolicy
+        };
         DiagnosticSlotsAdmissionReceipt receipt = original.Empty with { SourceFingerprint = source.Fingerprint, Declaration = original.Empty.Declaration with { Reselection = DiagnosticSlotsDeclaration.ReadySelfBatch2 }, Start = start, Policy = policy, Selection = selection, Rolls = rolls.ToArray(), Reselections = transitions.ToArray(), Do = accepted };
         return (source, receipt, transitions.Select(value => value.Selection).ToArray());
     }
@@ -484,7 +509,7 @@ public sealed class DiagnosticSlotsAdmissionTests
 
     private static BattleInput Input(byte action) => new(BattleInputKind.Action, ActorId: "selphie", TargetId: "selphie", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | action);
 
-    private static (DiagnosticSlotsSource Source, DiagnosticSlotsAdmissionReceipt Empty, DiagnosticSlotsRollReceipt Roll, DiagnosticSlotsDoReceipt Do) Fixture(byte rolledMagic = 51)
+    private static (DiagnosticSlotsSource Source, DiagnosticSlotsAdmissionReceipt Empty, DiagnosticSlotsRollReceipt Roll, DiagnosticSlotsDoReceipt Do) Fixture(byte rolledMagic = 51, byte declaredMagic = 51, bool addedSelphie = false)
     {
         byte[] character = new byte[36];
         character[2] = 100;
@@ -498,18 +523,22 @@ public sealed class DiagnosticSlotsAdmissionTests
         }
         byte[] timers = new byte[60];
         byte[] action = new byte[60];
-        action[4] = 24;
-        action[5] = 1;
+        DiagnosticSlotsDeclaration declaration = new(declaredMagic, 256, 5);
+        ushort effect = declaration.Effect;
+        action[4] = unchecked((byte)effect);
+        action[5] = (byte)(effect >> 8);
         action[10] = 8;
         BattleNativeLimitDefinition rules = new(5, 16, 0, 100, new byte[32].ToImmutableArray()) { SlotsSelectionBytes = selection.Concat(spells).ToImmutableArray(), SlotsSpellBytes = spells.ToImmutableArray() };
         Guid battle = Guid.NewGuid();
         Guid lifecycle = Guid.NewGuid();
-        DiagnosticSlotsSource source = new(battle, lifecycle, "selphie", 1, 51, 0, rules, character.ToImmutableArray(), selection.ToImmutableArray(), spells.ToImmutableArray(), timers.ToImmutableArray(), action.ToImmutableArray(), "");
+        BattleRosterSlot slot = BattleRosterSlot.Ally(addedSelphie ? 4 : 1);
+        byte? original = addedSelphie ? null : (byte)1;
+        DiagnosticSlotsSource source = new(battle, lifecycle, "selphie", original, declaredMagic, 0, rules, character.ToImmutableArray(), selection.ToImmutableArray(), spells.ToImmutableArray(), timers.ToImmutableArray(), action.ToImmutableArray(), "") { ActorSlot = slot };
         source = source with { Fingerprint = source.ComputeFingerprint() };
         NativeBattleRandomState random = NativeBattleRandomState.Initialize(17);
-        DiagnosticSlotsObservation start = new(battle, lifecycle, 0, 0, 10, 10, 100, "selphie", 1, 5, 5, 16, 8, 1, 1000, 0, 0, 0, 0, 0, false, true, 4, true, true, false, false, random, null);
+        DiagnosticSlotsObservation start = new(battle, lifecycle, 0, 0, 10, 10, 100, "selphie", original, 5, 5, 16, 8, 1, 1000, 0, 0, 0, 0, 0, false, true, 4, true, true, false, false, random, null) { ActorSlot = slot };
         BattleDiagnosticLimitSelectionReceipt selected = new("selphie", 5, 16, true, [4], random, random);
-        DiagnosticSlotsAdmissionReceipt empty = new(1, source.Fingerprint, new(51, 256, 5), Input(51), start, new(4, 4, 256), selected);
+        DiagnosticSlotsAdmissionReceipt empty = new(1, source.Fingerprint, declaration, Input(declaredMagic), start, new(4, 4, 256), selected);
         DiagnosticSlotsObservation before = start with { Seconds = 100.01, Crisis = 4 };
         NativeBattleRandomState afterRandom = random.Draw(out byte level).Draw(out byte bucket).Draw(out byte spell).Draw(out byte repetitions);
         BattleNativeSlotsRoll result = NativeBattleSlotsRules.Roll(rules, 8, 4, level, bucket, spell, repetitions);
@@ -517,7 +546,14 @@ public sealed class DiagnosticSlotsAdmissionTests
         DiagnosticSlotsRollReceipt roll = new(1, before, after, result);
         DiagnosticSlotsObservation beforeDo = after with { Seconds = 100.03 };
         DiagnosticSlotsObservation afterDo = beforeDo with { Seconds = 100.04, OwnedRoll = null, Crisis = 0, RetainedCrisis = null, Ready = false };
-        DiagnosticSlotsDoReceipt accepted = new(beforeDo, afterDo, "selphie", "selphie", 1, 16, 51, 280, 0x8007, result);
+        DiagnosticSlotsDoReceipt accepted = new(beforeDo, afterDo, "selphie", "selphie", original, 16, declaredMagic, effect, addedSelphie ? null : (ushort)0x8007, result)
+        {
+            TargetSlot = slot,
+            TargetSide = BattleTargetSide.Allies,
+            Eligibility = BattleTargetEligibility.SavedStatus,
+            AllowsKnockedOutAllies = false,
+            Replacement = BattleTargetReplacement.UseCurrentBattlePolicy
+        };
         return (source, empty, roll, accepted);
     }
 }

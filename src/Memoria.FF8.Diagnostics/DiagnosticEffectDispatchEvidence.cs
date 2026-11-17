@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -12,8 +11,8 @@ public static class DiagnosticEffectDispatchEvidence
             JsonElement.DeepEquals(JsonSerializer.SerializeToElement(left), JsonSerializer.SerializeToElement(right));
     }
 
-    internal static bool Matches(ImmutableArray<BattleDiagnosticEffectDispatch> recorded, BattleDiagnosticEffectDispatch[] observed)
+    internal static bool Matches(IReadOnlyList<BattleDiagnosticEffectDispatch> recorded, IReadOnlyList<BattleDiagnosticEffectDispatch> observed)
     {
-        return !recorded.IsDefault && recorded.Length == observed.Length && recorded.Zip(observed).All(pair => Matches(pair.First, pair.Second));
+        return recorded.Count == observed.Count && recorded.Zip(observed).All(pair => Matches(pair.First, pair.Second));
     }
 }

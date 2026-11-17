@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 
@@ -57,10 +58,10 @@ public sealed class DiagnosticCombatRepairTests
         long callback = session.NativeHostCallbacks!.Value;
         ApplyOwnerStep(session, new("party", 900));
         Assert.Equal(900, session.Combatants[0].CurrentHp);
-        Assert.Equal(900, Presentation(session).Rows[0]!.HitPoints);
+        Assert.Equal(900, Presentation(session)["party"].HitPoints);
         ApplyOwnerStep(session, new("party", 100));
         Assert.Equal(100, session.Combatants[0].CurrentHp);
-        Assert.Equal(100, Presentation(session).Rows[0]!.HitPoints);
+        Assert.Equal(100, Presentation(session)["party"].HitPoints);
         Assert.Equal(randomBefore, Field("random").GetValue(session));
         Assert.Equal(callback, session.NativeHostCallbacks);
         Assert.Equal(0, session.DiagnosticRestoreCount);
@@ -78,7 +79,7 @@ public sealed class DiagnosticCombatRepairTests
         ApplyOwnerStep(session, new("party", 250, Revive: true));
         Assert.True(session.Combatants[0].IsAlive);
         Assert.Equal(250, session.Combatants[0].CurrentHp);
-        Assert.Equal(250, Presentation(session).Rows[0]!.HitPoints);
+        Assert.Equal(250, Presentation(session)["party"].HitPoints);
         Assert.Equal(BattleOutcome.Active, session.Outcome);
     }
 
@@ -124,7 +125,7 @@ public sealed class DiagnosticCombatRepairTests
         Assert.All(timers, timer => Assert.Equal((short)-1111, timer));
         Assert.Equal(400, actor.CurrentHp);
         Assert.Equal(1000, actor.MaximumHp);
-        Assert.Equal(400, Presentation(session).Rows[0]!.HitPoints);
+        Assert.Equal(400, Presentation(session)["party"].HitPoints);
         Assert.Equal(flags, actor.NativeCombatantFlags);
         Assert.Equal(index, observed.NativeIndex);
         Assert.Equal(callback, session.NativeHostCallbacks);
@@ -154,7 +155,7 @@ public sealed class DiagnosticCombatRepairTests
         Assert.IsType<NotSupportedException>(exception.InnerException);
         Assert.Equal(before, JsonSerializer.Serialize(session.ObserveDiagnosticCombatants()));
         Assert.Equal(timersBefore, timers);
-        Assert.Equal(400, Presentation(session).Rows[0]!.HitPoints);
+        Assert.Equal(400, Presentation(session)["party"].HitPoints);
     }
 
     [Fact]
@@ -208,7 +209,7 @@ public sealed class DiagnosticCombatRepairTests
         BattleCombatant enemy = session.Combatants[1];
         object random = Field("random").GetValue(session)!;
         long? callback = session.NativeHostCallbacks;
-        NativeBattlePartyPresentation presentation = Presentation(session);
+        ImmutableDictionary<string, NativeBattlePartyPresentedVital> presentation = Presentation(session);
         ApplyOwnerStep(session, new("enemy", enemy.CurrentHp, RemoveStatuses1: 128));
         BattleDiagnosticCombatant observed = session.ObserveDiagnosticCombatants()[1];
         Assert.Equal(400, observed.CurrentHp);
@@ -293,16 +294,14 @@ public sealed class DiagnosticCombatRepairTests
                 new() { Id = "enemy", Name = "Enemy" }
             ]
         }, BattleAtbMode.TurnBased);
-        Field("nativePartyPresentation").SetValue(session, new NativeBattlePartyPresentation([new((ushort)hp, 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
-        BattlePartyActorModel owner = new(new("party"));
-        BattleModelRoster roster = new([owner]);
-        NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), owner)]);
+        var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new NativeBattleGraphicsModel(0), BattleContactTaskStorageContract.OriginalArena);
-        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(session, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        Method("InitializeExpandedPartyPresentation").Invoke(session, []);
         return session;
     }
 
-    private static NativeBattlePartyPresentation Presentation(BattleSession session) => (NativeBattlePartyPresentation)Field("nativePartyPresentation").GetValue(session)!;
+    private static ImmutableDictionary<string, NativeBattlePartyPresentedVital> Presentation(BattleSession session) => (ImmutableDictionary<string, NativeBattlePartyPresentedVital>)Field("expandedPartyPresentation").GetValue(session)!;
     private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static MethodInfo Method(string name) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic)!;
     private static PropertyInfo Property(string name) => typeof(BattleSession).GetProperty(name)!;

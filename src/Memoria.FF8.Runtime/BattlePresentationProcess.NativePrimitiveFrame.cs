@@ -192,7 +192,7 @@ public sealed partial class BattlePresentationProcess
         return new(0, bank, slot, 0, primitive);
     }
 
-    private void PublishNativeBodyProjectionScratch(IReadOnlyList<NativeBattleProjectedVertex> vertices)
+    private void PublishNativeBodyProjectionScratch(ReadOnlySpan<NativeBattleProjectedVertex> vertices)
     {
         ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native body projection requires its loaded scratch allocation maximum.");
         NativeFileStaging = NativeBattleBodyProjectionScratch.Publish(NativeFileStaging ?? throw new NotSupportedException("Native body projection requires its canonical shared byte owner."), maximum, vertices);

@@ -16,19 +16,5 @@ public sealed record NativeBattleStatusMirror([property: JsonRequired] ushort? S
 
 public sealed partial class BattleCombatant
 {
-    private NativeBattleStatusMirror nativePresentationStatus = new(null, null);
-    internal NativeBattlePresentationStatusMemoryOwner? NativePresentationStatusOwner { get; set; }
-    internal NativeBattleStatusMirror NativePresentationStatus
-    {
-        get => NativePresentationStatusOwner is { } owner && NativeActorIndex is int index ? owner.State.Rows[index] : nativePresentationStatus;
-        set
-        {
-            value.Validate();
-            nativePresentationStatus = value;
-            if (NativePresentationStatusOwner is { } owner && NativeActorIndex is int index)
-            {
-                owner.State = owner.State.Observe(index, value);
-            }
-        }
-    }
+    internal NativeBattleStatusMirror NativePresentationStatus { get; set; } = new(null, null);
 }

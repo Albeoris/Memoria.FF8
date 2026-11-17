@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -35,78 +37,135 @@ public sealed partial class BattleSession
         return roll;
     }
 
-    private static bool SupportsExpandedSlotsAction(BattleNativeAction? action)
+    private static bool SupportsSlotsAction(BattleNativeAction action)
     {
-        return action is { Command: 16, KernelSection: 1, AttackType: 2, Power: 0, HitCount: 1, TargetFlags: 0x48, AttackFlags: 0x23 } &&
-            action is { Statuses0: 0, Statuses1: 0x10000, StatusAttack: 254 } or { Statuses0: 1, Statuses1: 0, StatusAttack: 255 };
+        return action is { Command: 16, KernelSection: 1, HitCount: > 0, TargetFlags: byte flags, PresentationOnly: false, CrisisLevel: null } &&
+            (flags & 0x30) != 0x30;
     }
 
-    private bool CanCastExpandedSlots(BattleNativeAction action, BattleNativeSlotsRoll roll)
+    private bool CanCastSlots(BattleNativeAction action, BattleNativeSlotsRoll roll)
     {
-        return SupportsExpandedSlotsAction(action) && roll is { Repetitions: 1 } && roll.MagicId == action.ActionId && definition.LimitProgress?.SpecialMagicFlags is not null;
+        return SupportsSlotsAction(action) && roll.Repetitions is >= 1 and <= NativeBattleSlotsRules.MaxQueuedRepetitions && roll.MagicId == action.ActionId &&
+            (NativeBattleLimitLearningRules.SlotsMask(action) == 0 || definition.LimitProgress?.SpecialMagicFlags is not null);
     }
 
-    private void QueueExpandedSlots(BattleCombatant actor, BattleNativeAction action, byte sequence, BattleNativeSlotsRoll roll)
+    private void QueueSlots(BattleCombatant actor, BattleNativeAction action, byte sequence, BattleNativeSlotsRoll roll)
     {
-        if (!CanCastExpandedSlots(action, roll))
+        if (!CanCastSlots(action, roll) || roll.PreflightSelection is not null)
         {
-            throw new NotSupportedException("This Slots result is unavailable in expanded battles.");
+            throw new NotSupportedException("Slots requires its installed spell, supported repetition count and any applicable saved learning flags.");
         }
-        BattleCombatant target = enemies.FirstOrDefault(enemy => enemy.IsAlive && !enemy.Untargetable) ?? throw new InvalidOperationException("Slots requires a living targetable enemy.");
         ValidateNativeActionContract(action);
         byte nativeSequence = NativeBattleActionGraphics.ResolvePlayerSequence(16, sequence, action.ActionId, definition.NativeCommandSequences);
+        byte flags = action.TargetFlags!.Value;
+        BattleSide side = (flags & 0x40) == 0 ? BattleSide.Allies : BattleSide.Enemies;
+        BattleTargetSide sideGroup = (flags & 0x30) == 0x20 ? BattleTargetSide.Both :
+            side == BattleSide.Allies ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
+        BattleTargetRequest group = new(new BattleTargetSelection.SideGroup(sideGroup), BattleTargetEligibility.SavedStatus, (flags & 1) != 0, BattleTargetReplacement.UseCurrentBattlePolicy);
+        BattleCombatant anchor = ResolveBattleTargets(group, sampleRandom: false).FirstOrDefault() ??
+            throw new InvalidOperationException("Slots has no eligible occupied target on its installed side.");
+        bool single = (flags & 0x30) == 0x10;
+        ImmutableArray<BattleMagicCastInvocation>.Builder casts = ImmutableArray.CreateBuilder<BattleMagicCastInvocation>(roll.Repetitions);
+        NativeBattleRandomState before = random;
+        try
+        {
+            for (int index = 0; index < roll.Repetitions; index++)
+            {
+                BattleCombatant selected = single ? ReadNativeRandomActionTarget(side) ?? anchor : anchor;
+                BattleActorReference reference = TargetActorReference(selected);
+                BattleTargetSelection preflight = new BattleTargetSelection.Explicit([reference]);
+                BattleTargetRequest targets = single ? new(preflight, group.Eligibility, group.AllowsKnockedOutAllies, group.Replacement) : group;
+                if ((flags & 2) != 0)
+                {
+                    BattleSide randomSide = sideGroup == BattleTargetSide.Both ? BattleSide.Enemies : side;
+                    targets = new(new BattleTargetSelection.RandomOnSide(randomSide, samplesOriginalSlots: true), group.Eligibility, group.AllowsKnockedOutAllies, group.Replacement);
+                }
+                casts.Add(new(targets, preflight, reference));
+            }
+        }
+        catch
+        {
+            random = before;
+            throw;
+        }
+
+        ImmutableArray<BattleMagicCastInvocation> invocations = casts.MoveToImmutable();
+        BattleMagicCastInvocation first = invocations[0];
         OnNativePlayerCommandSubmitted(actor, 16);
-        BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
-        actions.Enqueue(new(actor.Id, target.Id, request, BattleAbility.LimitBreak, 16 << 16 | action.ActionId)
+        actions.Enqueue(new(actor.Id, first.FallbackAnchor.ActorId, first.Targets, BattleAbility.LimitBreak, 16 << 16 | action.ActionId)
         {
             NativeQueuedCommand = 16,
             NativeAction = action,
-            NativeSlots = roll,
-            NativeSequence = nativeSequence
+            NativeSlots = roll with { PreflightSelection = single ? first.PreflightSelection : null },
+            NativeSequence = nativeSequence,
+            MagicCasts = invocations
         });
         actor.Atb = 0;
         actor.IsBusy = true;
         nativeLimitLevels.Remove(actor.Id);
         nativeSlotsRolls.Remove(actor.Id);
-        Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: {action.Name} queued.");
+        Log("Queued", actor.Id, first.FallbackAnchor.ActorId, 0, $"{actor.Name}: {action.Name} queued.");
     }
 
-    private void ValidateNativeSlotsPreflight(BattleNativeSlotsRoll roll, BattleNativeAction action)
+    private void ValidateSlotsGroup(BattleCombatant actor, string targetId, BattleAbility ability, int actionId, ImmutableArray<BattleMagicCastInvocation> casts, int mode, BattleNativeAction? action, BattleNativeSlotsRoll roll)
     {
-        bool needsPreflight = false;
-        if (needsPreflight != (roll.PreflightSelection is NativeBattleTargetRequestAdapter.DeferredOperands) ||
-            !needsPreflight && roll.PreflightSelection is not null)
+        if (ability != BattleAbility.LimitBreak || actor.NativeLimit?.Command != 16 || action is null || !CanCastSlots(action, roll) ||
+            actionId != (16 << 16 | action.ActionId) || casts.IsDefault || casts.Length != roll.Repetitions || mode != 0 || casts[0]?.FallbackAnchor.ActorId != targetId)
         {
-            throw new InvalidDataException("Accepted Slots requires its original single-target preflight selection.");
+            throw new InvalidDataException("Saved Slots lacks its accepted installed spell and repeated target requests.");
+        }
+        byte flags = action.TargetFlags!.Value;
+        bool single = (flags & 0x30) == 0x10;
+        BattleSide side = (flags & 0x40) == 0 ? BattleSide.Allies : BattleSide.Enemies;
+        BattleTargetSide sideGroup = (flags & 0x30) == 0x20 ? BattleTargetSide.Both :
+            side == BattleSide.Allies ? BattleTargetSide.Allies : BattleTargetSide.Enemies;
+        BattleSide randomSide = sideGroup == BattleTargetSide.Both ? BattleSide.Enemies : side;
+        if (single ? roll.PreflightSelection is not BattleTargetSelection.Explicit { Actors: [var first] } || first != casts[0].FallbackAnchor : roll.PreflightSelection is not null)
+        {
+            throw new InvalidDataException("Saved Slots contradicts its first admitted target selection.");
+        }
+        foreach (BattleMagicCastInvocation cast in casts)
+        {
+            if (cast is null || cast.PreflightSelection is not BattleTargetSelection.Explicit { Actors: [var selected] } || selected != cast.FallbackAnchor ||
+                FindTargetActor(selected) is not { } target || sideGroup != BattleTargetSide.Both && target.Side != side ||
+                cast.Targets.Eligibility != BattleTargetEligibility.SavedStatus || cast.Targets.AllowsKnockedOutAllies != ((flags & 1) != 0) ||
+                cast.Targets.Replacement != BattleTargetReplacement.UseCurrentBattlePolicy || cast.Targets.DeathCallbackSelf is not null)
+            {
+                throw new InvalidDataException("Saved Slots cast contradicts its installed targeting contract.");
+            }
+            bool valid = (flags & 2) != 0 ? cast.Targets.Selection is BattleTargetSelection.RandomOnSide { SamplesOriginalSlots: true } randomTarget && randomTarget.Side == randomSide :
+                single ? cast.Targets.Selection is BattleTargetSelection.Explicit { Actors: [var exact] } && exact == selected :
+                cast.Targets.Selection is BattleTargetSelection.SideGroup group && group.Side == sideGroup;
+            if (!valid)
+            {
+                throw new InvalidDataException("Saved Slots cast changed its installed target mode.");
+            }
         }
     }
 
-    private BattleTargetRequest SelectNativeSlotsTargets(BattleNativeAction action, BattleTargetRequest original, BattleTargetSelection? preflight)
+    private BattleTargetRequest SelectSlotsTargets(BattleNativeAction action, BattleMagicCastInvocation invocation)
     {
-        byte flags = action.TargetFlags!.Value;
-        if ((flags & 0x30) != 0x10)
+        BattleTargetRequest original = invocation.Targets;
+        if (original.Selection is not BattleTargetSelection.Explicit || FindTargetActor(invocation.FallbackAnchor) is not { } preferred)
         {
             return original;
         }
-        bool players = (flags & 0x40) == 0;
+        bool players = preferred.IsPlayer;
         bool healing = players && action.AttackType is 3 or 4 or 21 or 25 or 32;
         bool statuses = action.AttackType is not (3 or 4 or 5 or 6 or 13 or 16 or 21 or 25 or 32) && (action.Statuses0 != 0 || action.Statuses1 != 0);
         bool damaging = !players && action.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
-        if (!healing && !statuses && !damaging)
+        if (!healing && !statuses && !damaging || nativeScriptState.DisableAutomaticTargetReplacement && !IsBattleTargetEligible(preferred, original))
         {
             return original;
         }
-        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.NativeActorIndex is >= 0 and < 7 && (candidate.NativeActorIndex is < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
-        NativeBattleTargetRequestAdapter.DeferredOperands selected = preflight as NativeBattleTargetRequestAdapter.DeferredOperands ?? throw new InvalidDataException("Accepted Slots has no original target preference.");
-        BattleCombatant? preferred = ReadOriginalSelectedActor(selected, activeOnly: true);
-        BattleCombatant? target = candidates.OrderBy(candidate => damaging && ModifyNativeElement(candidate, action, 100, false) < 0 ? 1 : 0)
+        BattleCombatant? target = Roster(preferred.Side).Where(candidate => candidate.Slot is not null && IsBattleTargetEligible(candidate, original))
+            .OrderBy(candidate => damaging && ModifyNativeElement(candidate, action, 100, false) < 0 ? 1 : 0)
             .ThenBy(candidate => statuses ? NativeSlotsStatusPriority(candidate, action, !players) : 0)
             .ThenBy(candidate => healing ? candidate.CurrentHp : 0)
             .ThenBy(candidate => candidate == preferred ? 0 : 1)
-            .ThenBy(candidate => candidate.NativeActorIndex)
+            .ThenBy(candidate => candidate.Slot!.Value.Position)
             .FirstOrDefault();
-        // A selected target must not retain the random-target modifier, which would replace it again.
-        return target is null ? original : new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(target.RequireNativeActorIndex())), original.Eligibility, original.AllowsKnockedOutAllies, original.Replacement);
+        return target is null ? original : new(new BattleTargetSelection.Explicit([TargetActorReference(target)]), original.Eligibility, original.AllowsKnockedOutAllies, original.Replacement);
     }
 
     private static int NativeSlotsStatusPriority(BattleCombatant candidate, BattleNativeAction action, bool considerImmunity)

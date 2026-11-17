@@ -67,10 +67,20 @@ internal sealed partial class RecreateGame
                     {
                         throw new InvalidDataException("Slots Do did not publish the initialized native command action.");
                     }
-                    byte targetIndex = checked((byte)(active.ObserveDiagnosticCombatants().Single(candidate => candidate.Id == command.TargetId).NativeIndex ?? throw new InvalidDataException("Slots target lost its physical index.")));
-                    accepted = new(beforeDo, afterDo, command.ActorId, command.TargetId, targetIndex, command.NativeQueuedCommand!.Value, native.ActionId, native.MagicId, null, command.NativeSlots ?? throw new InvalidDataException("Slots Do lost its consumed owned result."))
+                    BattleNativeSlotsRoll used = command.NativeSlots ?? throw new InvalidDataException("Slots Do lost its consumed owned result.");
+                    if (command.TargetRequest.Selection is not BattleTargetSelection.SideGroup group || command.MagicCasts.Length != used.Repetitions ||
+                        command.MagicCasts.Any(cast => cast.Targets != command.TargetRequest || cast.FallbackAnchor.ActorId != command.TargetId))
                     {
-                        ExpandedTargets = command.TargetRequest
+                        throw new InvalidDataException("Slots diagnostic cast does not match its queued side group and repeat owners.");
+                    }
+                    BattleCombatant target = active.Combatants.Single(candidate => candidate.Id == command.TargetId);
+                    accepted = new(beforeDo, afterDo, command.ActorId, command.TargetId, checked((byte?)target.NativeActorIndex), command.NativeQueuedCommand!.Value, native.ActionId, native.MagicId, null, used)
+                    {
+                        TargetSlot = target.Slot,
+                        TargetSide = group.Side,
+                        Eligibility = command.TargetRequest.Eligibility,
+                        AllowsKnockedOutAllies = command.TargetRequest.AllowsKnockedOutAllies,
+                        Replacement = command.TargetRequest.Replacement
                     };
                     admission.Did(accepted);
                     return;

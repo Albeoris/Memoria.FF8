@@ -8,45 +8,44 @@ namespace Memoria.FF8.Tests;
 public sealed class DiagnosticInvocationReleaseTests
 {
     [Theory]
-    [InlineData("observed-nine-logical", true)]
-    [InlineData("full-eleven-logical", true)]
-    [InlineData("ninth-enemy-placeholder", false)]
-    [InlineData("fourth-party-placeholder", false)]
+    [InlineData("unaliased-enemies", true)]
+    [InlineData("maximum-occupied-roster", true)]
+    [InlineData("duplicate-occupied-slot", false)]
+    [InlineData("incorrect-occupied-side", false)]
     [InlineData("eighth-physical-slot", false)]
     [InlineData("duplicate-physical-slot", false)]
-    public void Natural_victory_bounds_logical_formation_separately_from_physical_allocations(string shape, bool accepted)
+    public void Natural_victory_checks_occupied_slots_and_optional_original_operands(string shape, bool accepted)
     {
         BattleDiagnosticInvocationRelease release = ProspectiveTerminalTextureReceipt();
         BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures!;
         BattleDiagnosticNaturalVictory victory = proof.NaturalVictory!;
         ImmutableArray<BattleDiagnosticVictoryCombatant>.Builder actors = victory.Combatants.ToBuilder();
-        for (int index = 1; index < 8; index++)
+        for (int index = 1; index < 14; index++)
         {
-            actors.Add(new("enemy-" + index, -1, false, 0, 0, 0, 0));
+            actors.Add(new("enemy-" + index, null, false, 0, 1, 0, 0) { Slot = BattleRosterSlot.Enemy(index), BattleCapable = false });
         }
-        if (shape == "full-eleven-logical")
+        if (shape == "maximum-occupied-roster")
         {
-            actors.Add(new("party-1", 1, true, 1, 0, 0, 100));
-            actors.Add(new("party-2", 2, true, 1, 0, 0, 100));
-        }
-        else if (shape == "ninth-enemy-placeholder")
-        {
-            actors.Add(new("enemy-8", -1, false, 0, 0, 0, 0));
-        }
-        else if (shape == "fourth-party-placeholder")
-        {
-            for (int index = 1; index < 4; index++)
+            for (int index = 1; index < 11; index++)
             {
-                actors.Add(new("party-" + index, -1, true, 0, 0, 0, 0));
+                actors.Add(new("party-" + index, index < 3 ? index : null, true, 1, 0, 0, 100) { Slot = BattleRosterSlot.Ally(index), BattleCapable = true });
             }
+        }
+        else if (shape == "duplicate-occupied-slot")
+        {
+            actors[2] = actors[2] with { Slot = BattleRosterSlot.Enemy(0) };
+        }
+        else if (shape == "incorrect-occupied-side")
+        {
+            actors[2] = actors[2] with { Slot = BattleRosterSlot.Ally(1) };
         }
         else if (shape == "eighth-physical-slot")
         {
-            actors[2] = actors[2] with { NativeIndex = 7, SavedStatus = 1 };
+            actors[2] = actors[2] with { NativeIndex = 7 };
         }
         else if (shape == "duplicate-physical-slot")
         {
-            actors[2] = actors[2] with { NativeIndex = 3, SavedStatus = 1 };
+            actors[2] = actors[2] with { NativeIndex = 3 };
         }
         release = release with { TerminalTextures = proof with { NaturalVictory = victory with { Combatants = actors.ToImmutable() } } };
         Assert.Equal(accepted, release.TerminalTextures.NaturalVictory!.IsNaturalVictory);
@@ -98,7 +97,10 @@ public sealed class DiagnosticInvocationReleaseTests
         BattleDiagnosticInvocationRelease main = TerminalTextureReceipt();
         BattleDiagnosticTerminalTextureRelease proof = main.TerminalTextures!;
         BattleDiagnosticTerminalHoldState armed = proof.Hold with { Phase = BattleDiagnosticTerminalHoldPhase.Armed, Sequence = 0, HeldCallback = null, HeldFrame = null, Receipts = [] };
-        BattleDiagnosticNaturalVictory witness = new(main.LifecycleId, main.Callback, main.SimulationFrame, BattleOutcome.Victory, true, false, false, [new(main.Dispatch.ActorId!, 0, true, 1, 0, 0, 100), new("enemy-0", 3, false, 1, 1, 65536, 0)]);
+        BattleDiagnosticNaturalVictory witness = new(main.LifecycleId, main.Callback, main.SimulationFrame, BattleOutcome.Victory, true, false, false, [
+            new(main.Dispatch.ActorId!, 0, true, 1, 0, 0, 100) { Slot = BattleRosterSlot.Ally(0), BattleCapable = true },
+            new("enemy-0", 3, false, 1, 1, 65536, 0) { Slot = BattleRosterSlot.Enemy(0), BattleCapable = false }
+        ]);
         return main with { TerminalTextures = proof with { Hold = armed, NaturalVictory = witness } };
     }
 
@@ -147,7 +149,8 @@ public sealed class DiagnosticInvocationReleaseTests
     {
         BattleDiagnosticInvocationRelease basis = PostFrameReceipt();
         BattleDiagnosticEffectDispatch focal = basis.Dispatch with { Ability = BattleAbility.LimitBreak, NativeCommand = 16, ActionId = 53, RequestedEffect = 288, ExecutedEffect = 288 };
-        NativeBattleRetainedActionHeaderSlot header = basis.Header with { Payload = basis.Header.Payload.SetItem(1, 16).SetItem(4, 53).SetItem(6, 32).SetItem(7, 1) };
+        NativeBattleRetainedActionHeaderSlot originalHeader = Assert.IsType<NativeBattleRetainedActionHeaderSlot>(basis.Header);
+        NativeBattleRetainedActionHeaderSlot header = originalHeader with { Payload = originalHeader.Payload.SetItem(1, 16).SetItem(4, 53).SetItem(6, 32).SetItem(7, 1) };
         BattleDiagnosticInvocationRelease certificate = basis.ExecutingCompletion! with { Dispatch = focal, Header = header, Owners = basis.ExecutingCompletion.Owners with { AuxiliaryHead = true }, Blockers = ["effect-or-auxiliary-task"] };
         BattleDiagnosticCombatant caster = new(focal.ActorId!, 100, 100, 0, 0, []) { NativeIndex = focal.NativeActorIndex, ModelId = 5 };
         BattleDiagnosticTerminalHoldDeclaration declaration = new("Single-use native victory texture cleanup", [focal.ActorId!], 100) { Candidate = BattleOutcome.Victory };
@@ -211,7 +214,7 @@ public sealed class DiagnosticInvocationReleaseTests
             "packet-unknown" => baseline with { CompletionPacket = baseline.CompletionPacket! with { UnknownByteMask = 1 } },
             "packet-already-free" => baseline with { CompletionPacket = baseline.CompletionPacket! with { Bytes = baseline.CompletionPacket!.Bytes.SetItem(1, 0) } },
             "packet-bytes" => baseline with { CompletionPacket = baseline.CompletionPacket! with { Bytes = baseline.CompletionPacket!.Bytes.SetItem(2, 104) } },
-            "header-bytes" => baseline with { Header = baseline.Header with { Payload = baseline.Header.Payload.SetItem(4, 3) } },
+            "header-bytes" => baseline with { Header = baseline.Header! with { Payload = baseline.Header!.Payload.SetItem(4, 3) } },
             "task" => baseline with { Owners = baseline.Owners with { NonPumpDescriptorTasks = 1 } },
             "contact" => baseline with { Owners = baseline.Owners with { PendingContacts = 1 } },
             "pointer" => baseline with { Owners = baseline.Owners with { ReturnedTaskPointer = 1 } },
@@ -365,9 +368,9 @@ public sealed class DiagnosticInvocationReleaseTests
             "certificate-foreign-dispatch" => baseline with { ExecutingCompletion = certificate with { Dispatch = certificate.Dispatch with { Serial = 2 } } },
             "certificate-wrong-slot" => baseline with { ExecutingCompletion = certificate with { CompletionPacketSlot = 1 } },
             "certificate-wrong-serial" => baseline with { ExecutingCompletion = certificate with { CompletionPacketSerial = 8 } },
-            "certificate-header-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header with { Payload = certificate.Header.Payload.SetItem(2, 11) } } },
-            "certificate-contact-index-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header with { FirstContactIndex = 1 } } },
-            "certificate-header-data-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header with { Data = new(1, 2, "changed") } } },
+            "certificate-header-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header! with { Payload = certificate.Header!.Payload.SetItem(2, 11) } } },
+            "certificate-contact-index-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header! with { FirstContactIndex = 1 } } },
+            "certificate-header-data-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header! with { Data = new(1, 2, "changed") } } },
             "certificate-packet-unread-byte-changed" => baseline with { ExecutingCompletion = certificate with { CompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(11, 1) } } },
             "certificate-packet-knownness-changed" => baseline with { ExecutingCompletion = certificate with { CompletionPacket = certificate.CompletionPacket! with { UnknownByteMask = 0x100 } } },
             "certificate-packet-already-free" => baseline with { ExecutingCompletion = certificate with { CompletionPacket = baseline.RemovedCompletionPacket } },

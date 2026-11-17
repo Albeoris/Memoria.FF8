@@ -35,7 +35,7 @@ public sealed class DiagnosticEffectPreviewOwnersTests
         Assert.Equal(0, module.GetProperty("HeaderIndex").GetInt32());
         Assert.Equal(1, module.GetProperty("HeaderCount").GetInt32());
         Assert.Equal(255, module.GetProperty("Pause35").GetInt32());
-        Assert.True(json.GetProperty("ScriptPassPaused").GetBoolean());
+        Assert.Equal(1u, json.GetProperty("Graphics").GetProperty("Flags").GetUInt32());
         Assert.Equal(JsonValueKind.Null, module.GetProperty("CurrentNodeBreakup").ValueKind);
         Assert.Equal(JsonValueKind.Null, json.GetProperty("Effect101").ValueKind);
         string before = JsonSerializer.Serialize(observation);

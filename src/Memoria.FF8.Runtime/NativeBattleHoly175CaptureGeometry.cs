@@ -7,7 +7,7 @@ public sealed record NativeBattleHoly175CaptureStage(NativeBattleStageState Stag
 
 public static class NativeBattleHoly175CaptureGeometry
 {
-    public static NativeBattleHoly175CaptureStage Draw5D29E0(NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> directory, NativeBattleActionMatrix currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short captureOffsetY = 116, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null)
+    public static NativeBattleHoly175CaptureStage Draw5D29E0(NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> directory, NativeBattleActionMatrix currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short captureOffsetY = 116, NativeBattleProjectedScratchWriter? publishProjectedScratch = null)
     {
         stage.Validate();
         currentView.Validate();

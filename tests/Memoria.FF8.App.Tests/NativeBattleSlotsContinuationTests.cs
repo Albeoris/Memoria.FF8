@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -7,119 +6,117 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleSlotsContinuationTests
 {
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public void Installed_magic_group_queues_one_graphical_invocation_for_its_factual_headers(int casts)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Installed_Fire_Slots_preserves_each_preflight_and_one_repeated_action(bool addedCaster)
     {
-        string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_SLOTS_SNAPSHOT");
-        Assert.SkipUnless(File.Exists(input), "Select a standalone battle save with a ready caster and Fire stock.");
-        BattleSnapshot initial = Assert.IsType<BattleSnapshot>(GameSession.Load(input!).Battle);
-        string actorId = initial.Definition.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == 5).Id;
-        //Controlled component: grant Double/Triple and use raw personal stock rather than shared encounter reservations.
-        BattleCombatantSnapshot[] actors = initial.Combatants.Select(actor => actor.Id == actorId ? actor with { NativeStatus = actor.NativeStatus! with { Battle = actor.NativeStatus.Battle | 0x60000 } } : actor).ToArray();
-        BattleSession battle = BattleSession.Restore(initial with { Combatants = actors, MagicVitals = null, Definition = initial.Definition with { MagicVitals = null } });
-        string target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive).Id;
-        battle.QueueAction(actorId, target, BattleAbility.Magic, 1, magicTargets: Enumerable.Repeat(target, casts).ToArray());
-        battle.Tick();
-        BattleSnapshot produced = battle.CaptureForContinuation();
-        Assert.Equal(casts, produced.ReadFixturePresentation().NativeActionPackets!.ActionCount);
-        Assert.Equal(casts - 1, produced.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
-        NativeBattleDescriptorState descriptors = produced.ReadFixturePresentation().NativeGraphics!.Descriptors;
-        Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
-        Assert.Equal(JsonSerializer.Serialize(produced), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(produced))!).Capture()));
-    }
-
-    [Fact]
-    public void Selected_standalone_executes_only_its_accepted_slots_casts_and_completes()
-    {
-        string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_SLOTS_SNAPSHOT");
-        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_SLOTS_EVIDENCE");
         string directory = TestResources.GameDirectory;
-        Assert.SkipUnless(File.Exists(input) && !string.IsNullOrWhiteSpace(evidence) && Directory.Exists(directory), "Select a standalone Slots save, installed resources and evidence directory.");
-        GameState source = GameSession.Load(input!);
-        BattleSnapshot initial = Assert.IsType<BattleSnapshot>(source.Battle);
-        using GameAssets game = new(directory);
+        Assert.SkipUnless(Directory.Exists(directory), "Select the installed original game resources.");
         using BattleAssets assets = new(directory);
-        BattleScenePresentation scene = new(assets, initial.Definition);
-        BattleSession battle = Restore(initial);
-        Directory.CreateDirectory(evidence!);
-        Console.WriteLine($"Slots source field {source.FieldId}, battle frame {initial.Frame}");
-        BattleCombatant actor = battle.Combatants.Single(combatant => combatant.IsPlayer && combatant.ModelId == 5);
-        BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal(actor.Id);
-        Console.WriteLine(JsonSerializer.Serialize(deal));
-        int selection = Enumerable.Range(0, deal.Candidates.Length).First(index => deal.Candidates[index] == new BattleNativeSlotsRoll(1, 3));
-        Assert.True(battle.SelectNativeSlotsCard(deal.Id, selection));
-        Assert.True(battle.SubmitNativeSlotsCard(deal.Id));
-        File.WriteAllBytes(Path.Combine(evidence!, "accepted.battle.json"), JsonSerializer.SerializeToUtf8Bytes(battle.Capture()));
-        using StreamWriter trace = new(Path.Combine(evidence!, "callbacks.jsonl")) { AutoFlush = true };
-        TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
-        BattleSnapshot before = battle.Capture();
-        bool restoredMidpoint = false;
-        bool produced = false;
-        try
+        BattleNativeAction fire = Assert.Single(assets.NativeActions, row => row is { KernelSection: 1, Command: 16, ActionId: 1 });
+        GameState field = ExpandedBattleEffectMatrixTests.PrepareField(directory);
+        using GameWorld world = ExpandedBattleEffectMatrixTests.StartBattle(directory, field, 22, requireMaximumParty: addedCaster,
+            limit: fire with { CharacterId = 5 }, nativeSeed: 7,
+            prepareVitals: addedCaster ? null : vitals => vitals.WithBattleParty([5, 4, 6], 3));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.ModelId == 5);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        Assert.Equal(addedCaster, caster.NativeActorIndex is null);
+
+        BattleNativeSlotsRoll? selected = null;
+        for (int turn = 0; turn < 24 && selected is null; turn++)
         {
-            for (int count = 0; count < 2048; count++)
+            if (battle.NativeEntryReady && battle.CanChoosePlayerCommand(caster.Id) && battle.ActiveAction is null &&
+                battle.RefreshNativeLimit(caster.Id) != 0)
             {
-                before = battle.Capture();
-                battle.AdvanceNativeGraphicsPresentation(callback);
-                BattleSnapshot current = battle.CaptureForContinuation();
-                if (!produced && current.ReadFixturePresentation().NativeActionPackets!.ActionCount != 0)
+                for (int reroll = 0; reroll < 256; reroll++)
                 {
-                    Assert.Equal(3, current.ReadFixturePresentation().NativeActionPackets!.ActionCount);
-                    Assert.Equal(2, current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
-                    NativeBattleDescriptorState descriptors = current.ReadFixturePresentation().NativeGraphics!.Descriptors;
-                    Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
-                    produced = true;
+                    if (battle.RollNativeSlots(caster.Id) is { MagicId: 1, Repetitions: 3 } roll)
+                    {
+                        selected = roll;
+                        break;
+                    }
                 }
-                if (current.ReadFixturePresentation().NativeGraphics?.ActionGraphics is { } context && current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal)).Command == 16)
+                break;
+            }
+            world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
+            world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 30));
+        }
+        Assert.NotNull(selected);
+        Assert.True(Assert.Single(battle.GetNativePlayerActionChoices(caster.Id, limits: true)).Available);
+
+        NativeBattleRandomState expectedRandom = Assert.IsType<NativeBattleRandomState>(battle.Capture().Random);
+        string[] stock = caster.MagicStocks.Select(item => $"{item.Id}/{item.Count}").ToArray();
+        BattleCombatant[] allocated = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && actor.Slot is not null).ToArray();
+        BattleCombatant[] additional = allocated.Where(actor => actor.NativeActorIndex is null).OrderBy(actor => actor.Slot!.Value.Position).ToArray();
+        BattleCombatant?[] sampledSlots = new BattleCombatant?[4 + additional.Length];
+        foreach (BattleCombatant enemy in allocated.Where(enemy => (enemy.NativeStatus0 & 1) == 0))
+        {
+            int position = enemy.NativeActorIndex is int original ? original - 3 : 4 + Array.IndexOf(additional, enemy);
+            sampledSlots[position] = enemy;
+        }
+        string[] selectedTargets = new string[3];
+        for (int cast = 0; cast < selectedTargets.Length; cast++)
+        {
+            byte sample;
+            do
+            {
+                expectedRandom = expectedRandom.Draw(out sample);
+            }
+            while (sampledSlots[sample % sampledSlots.Length] is null);
+            selectedTargets[cast] = sampledSlots[sample % sampledSlots.Length]!.Id;
+        }
+
+        int start = battle.Events.Count;
+        battle.QueueNativePlayerCommand(caster.Id, allocated[0].Id, 16, fire.ActionId);
+        BattleAttackCommand command = Assert.Single(battle.QueuedActions, item => item.ActorId == caster.Id);
+        Assert.Equal(selectedTargets, command.MagicCasts.Select(cast => cast.FallbackAnchor.ActorId));
+        Assert.Equal(selectedTargets[0], Assert.Single(Assert.IsType<BattleTargetSelection.Explicit>(command.NativeSlots!.PreflightSelection).Actors).ActorId);
+        Assert.Equal(expectedRandom.Indexes.ToArray(), Assert.IsType<NativeBattleRandomState>(battle.Capture().Random).Indexes.ToArray());
+
+        BattleSession queuedFork = battle.ForkForContinuation();
+        BattleSession? publishedFork = null;
+        BattleModelOwner casterOwner = battle.ReadPresentationModelOwner(caster.Id);
+        int headerCount = 0;
+        for (int callback = 0; callback < 1600 && caster.IsBusy; callback++)
+        {
+            battle.Tick();
+            queuedFork.Tick();
+            publishedFork?.Tick();
+            if (publishedFork is null)
+            {
+                NativeBattleActionHeaderSlot[] headers = process.ActionPackets.PublishedHeaders().Select(entry => entry.Slot)
+                    .Where(slot => slot.Source == casterOwner && slot.Command == 16).ToArray();
+                if (headers.Length > 0)
                 {
-                    Assert.Equal(0, context.Header.Ordinal);
-                }
-                if (count % 8 == 0)
-                {
-                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.ReadFixturePresentation().NativeActionPackets!?.ActionCount, DescriptorQueue = current.ReadFixturePresentation().NativeGraphics?.Descriptors.Queue.Select(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command).ToArray() }));
-                }
-                if (!restoredMidpoint && current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.Header.Ordinal: 0 })
-                {
-                    string midpoint = Path.Combine(evidence!, "midpoint.battle.json");
-                    File.WriteAllBytes(midpoint, JsonSerializer.SerializeToUtf8Bytes(current));
-                    BattleSession cold = Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(midpoint))!);
-                    BattleSession direct = Restore(current);
-                    cold.AdvanceNativeGraphicsPresentation(callback);
-                    direct.AdvanceNativeGraphicsPresentation(callback);
-                    Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(scene.Render(direct, 320, 224).ToArray(), scene.Render(cold, 320, 224).ToArray());
-                    battle = cold;
-                    restoredMidpoint = true;
-                }
-                if (battle.Outcome != BattleOutcome.Active)
-                {
-                    current = battle.Capture();
-                    File.WriteAllBytes(Path.Combine(evidence!, "completed.battle.json"), JsonSerializer.SerializeToUtf8Bytes(current));
-                    Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-                    Assert.True(produced);
-                    Assert.True(restoredMidpoint);
-                    using var bitmap = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(scene.Render(battle, 640, 448).ToArray(), 640, 448);
-                    bitmap.Save(Path.Combine(evidence!, "completed.png"));
-                    Console.WriteLine($"Completed battle frame {current.Frame}, callback {current.ReadFixturePresentation().NativeGraphics?.Callback}");
-                    return;
+                    headerCount = headers.Length;
+                    Assert.Equal(3, headerCount);
+                    Assert.Equal((byte)2, headers[0].ReadRepeatModeMinusOne());
+                    Assert.All(headers, header => Assert.Equal(fire.MagicId, header.Effect));
+                    NativeBattleDescriptorState descriptors = process.Graphics!.Descriptors;
+                    Assert.InRange(descriptors.Queue.Count(index => descriptors.Packets[index].Command == 104), 0, 1);
+                    publishedFork = battle.ForkForContinuation();
                 }
             }
-            Assert.Fail("Slots did not complete within its bounded continuation.");
-        }
-        catch
-        {
-            File.WriteAllBytes(Path.Combine(evidence!, "before-boundary.battle.json"), JsonSerializer.SerializeToUtf8Bytes(before));
-            File.WriteAllBytes(Path.Combine(evidence!, "failed-live.battle.json"), JsonSerializer.SerializeToUtf8Bytes(battle.Capture()));
-            throw;
         }
 
-        BattleSession Restore(BattleSnapshot snapshot)
+        Assert.False(caster.IsBusy);
+        Assert.Equal(3, headerCount);
+        Assert.NotNull(publishedFork);
+        Assert.Equal(stock, caster.MagicStocks.Select(item => $"{item.Id}/{item.Count}"));
+        Assert.Single(battle.Events.Skip(start), entry => entry.Kind == "ActionComplete" && entry.ActorId == caster.Id);
+        Assert.Equal(3, battle.Events.Skip(start).Count(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.Ability == BattleAbility.LimitBreak));
+        Assert.Equal(battle.Events.ToArray(), queuedFork.Events.ToArray());
+        Assert.Equal(battle.Events.ToArray(), publishedFork.Events.ToArray());
+        Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), publishedFork.Capture().Random!.Indexes.ToArray());
+        foreach (BattleCombatant target in allocated.Where(actor => actor.LastAttackerId == caster.Id))
         {
-            BattleSession restored = BattleSession.Restore(snapshot);
-            restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            return restored;
+            Assert.Null(target.LastNativeAction?.AttackerIndex);
+            if (target.NativeActorIndex is int original)
+            {
+                Assert.Equal(caster.NativeActorIndex, battle.NativeActionMemory.Action(original)?.AttackerIndex);
+                Assert.Equal(target.NativePresentationStatus, battle.NativePresentationStatusMemory.Rows[original]);
+            }
         }
     }
 }

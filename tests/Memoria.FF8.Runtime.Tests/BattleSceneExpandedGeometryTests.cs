@@ -132,6 +132,36 @@ public sealed class BattleSceneExpandedGeometryTests
     }
 
     [Fact]
+    public void Retained_model_packets_and_pilot_corners_own_values_after_projection_workspace_reuse()
+    {
+        using IDisposable scope = BattleSceneVisibleArea.Begin(new(-32768, -32768, 32760, 32760));
+        NativeBattleRawMesh one = Mesh(0, 0);
+        NativeBattleRawMesh two = Mesh(200, 0);
+        two = two with { Vertices = two.Vertices.AddRange(Enumerable.Repeat(two.Vertices[0], 128)) };
+        NativeBattleModelPrimitiveBatch retained = EmitModels(one, two);
+        Assert.Equal(2, retained.Count);
+        uint[][] words = [retained[0].Words.AsSpan().ToArray(), retained[1].Words.AsSpan().ToArray()];
+        BattleSceneScreenPoint[][] coordinates = [retained[0].ProjectedCoordinates!.Value.AsSpan().ToArray(), retained[1].ProjectedCoordinates!.Value.AsSpan().ToArray()];
+        NativeBattlePilotVisualGeometry first = Assert.IsType<NativeBattlePilotVisualGeometry>(retained[0].PilotGeometry);
+        NativeBattlePilotVisualGeometry second = Assert.IsType<NativeBattlePilotVisualGeometry>(retained[1].PilotGeometry);
+        Assert.NotEqual(first.A, second.A);
+
+        _ = EmitModels(two, one);
+        _ = EmitModels(Mesh(100, 10), two);
+        Assert.Equal(words[0], retained[0].Words.AsSpan().ToArray());
+        Assert.Equal(words[1], retained[1].Words.AsSpan().ToArray());
+        Assert.Equal(coordinates[0], retained[0].ProjectedCoordinates!.Value.AsSpan().ToArray());
+        Assert.Equal(coordinates[1], retained[1].ProjectedCoordinates!.Value.AsSpan().ToArray());
+        Assert.Equal(first, retained[0].PilotGeometry);
+        Assert.Equal(second, retained[1].PilotGeometry);
+
+        static NativeBattleModelPrimitiveBatch EmitModels(NativeBattleRawMesh first, NativeBattleRawMesh second)
+        {
+            return NativeBattleRawGeometryPackets.EmitModel5099D0([first, second], [Identity], Projection with { View = Identity }, 0x808080, 3, null, 17, 4, null, viewport: ExpandedViewport, pilotIdentity: new(0, 0x502D40, 0, 0, 0));
+        }
+    }
+
+    [Fact]
     public void Expanded_scene_preserves_native_rejection_when_all_corners_cross_opposite_axis_edges()
     {
         Assert.Empty(Emit(Triangle(new(-5000, -10, 1000), new(5000, -10, 1000), new(-5000, 10, 1000)), ExpandedViewport));
@@ -166,7 +196,7 @@ public sealed class BattleSceneExpandedGeometryTests
         return new([new(a, 0), new(b, 0), new(c, 0)], [new(false, polygon.ToImmutableArray())]);
     }
 
-    private static ImmutableArray<NativeBattleGeometryPrimitive> Emit(NativeBattleRawMesh mesh, NativeBattleGeometryViewport? viewport = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publish = null)
+    private static ImmutableArray<NativeBattleGeometryPrimitive> Emit(NativeBattleRawMesh mesh, NativeBattleGeometryViewport? viewport = null, NativeBattleProjectedScratchWriter? publish = null)
     {
         using IDisposable? scope = viewport is null ? null : BattleSceneVisibleArea.Begin(new(-32768, -32768, 32760, 32760));
         return NativeBattleRawGeometryPackets.Emit5099D0([mesh], [Identity], Projection, 0x808080, 1, null, 17, 4, null, publishProjectedScratch: publish, viewport: viewport);

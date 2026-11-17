@@ -1,6 +1,5 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -16,10 +15,6 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         return OriginalGraphics(Enumerable.Range(0, 7).Select(slot => (slot, OriginalOwner(slot), new NativeBattleGraphicsModel(3) { ResourceFlags44 = 10, Sequence = 11 }))) with { Auxiliary = auxiliary };
     }
 
-    private static BattleDiagnosticTextureQuiescence Capture(NativeBattleGraphicsState graphics)
-    {
-        return (BattleDiagnosticTextureQuiescence)typeof(BattleSession).GetMethod("CaptureDiagnosticTextureQuiescence", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [graphics])!;
-    }
 
     [Theory]
     [InlineData(1)]
@@ -29,7 +24,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
     {
         NativeBattleGraphicsState graphics = Fixture(count);
         string before = NativeBattleTestSnapshots.Json(graphics);
-        BattleDiagnosticTextureQuiescence observation = Capture(graphics);
+        BattleDiagnosticTextureQuiescence observation = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(graphics);
         Assert.True(observation.IsTerminalQuiescent);
         Assert.True(observation.Complete);
         Assert.Equal(16, observation.Capacity);
@@ -59,7 +54,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
     }
 
     [Theory]
-    [InlineData("pointer-unknown")]
+    [InlineData("pointer-and-owner-unknown")]
     [InlineData("sequence-unknown")]
     [InlineData("pointer-invalid")]
     [InlineData("short-payload")]
@@ -87,7 +82,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[0];
         task = fault switch
         {
-            "pointer-unknown" => task with { UnknownByteMask = task.UnknownByteMask | 1 },
+            "pointer-and-owner-unknown" => task with { UnknownByteMask = task.UnknownByteMask | 1, ModelOwner = null },
             "sequence-unknown" => task with { UnknownByteMask = task.UnknownByteMask | 0x200 },
             "model-owner-contradiction" => task with { ModelOwner = OriginalOwner(1) },
             "pointer-invalid" => task with { Payload = task.Payload.SetItem(0, 0).SetItem(1, 0).SetItem(2, 0).SetItem(3, 0) },
@@ -123,14 +118,16 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
             _ => graphics
         };
         string before = NativeBattleTestSnapshots.Json(graphics);
-        BattleDiagnosticTextureQuiescence observation = Capture(graphics);
+        BattleDiagnosticTextureQuiescence observation = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(graphics);
         Assert.False(observation.IsTerminalQuiescent);
         Assert.Equal(before, NativeBattleTestSnapshots.Json(graphics));
-        if (fault is "pointer-unknown" or "sequence-unknown" or "foreign-kind")
+        if (fault is "pointer-and-owner-unknown" or "foreign-kind")
         {
-            BattleDiagnosticTextureTask row = Assert.Single(observation.Tasks);
-            Assert.Null(row.ModelPointer);
-            Assert.Null(row.CapturedSequence);
+            Assert.Null(Assert.Single(observation.Tasks).ModelPointer);
+        }
+        if (fault is "sequence-unknown" or "foreign-kind")
+        {
+            Assert.Null(Assert.Single(observation.Tasks).CapturedSequence);
         }
         if (fault is "cycle" or "orphan-active" or "free-linked" or "wrong-tail" or "missing-head" or "wrong-capacity")
         {
@@ -139,9 +136,25 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
     }
 
     [Fact]
+    public void Live_typed_model_owner_preserves_quiescence_with_an_unknown_original_pointer()
+    {
+        NativeBattleGraphicsState graphics = Fixture();
+        NativeBattleAuxiliaryTask original = graphics.Auxiliary.Slots[0];
+        NativeBattleAuxiliaryTask typed = original with { UnknownByteMask = original.UnknownByteMask | 0xFu };
+        graphics = graphics with { Auxiliary = graphics.Auxiliary with { Slots = graphics.Auxiliary.Slots.SetItem(0, typed) } };
+        BattleDiagnosticTextureQuiescence observation = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(graphics);
+        Assert.True(observation.IsTerminalQuiescent);
+        BattleDiagnosticTextureTask task = Assert.Single(observation.Tasks);
+        Assert.Null(task.ModelPointer);
+        Assert.Null(task.ModelIndex);
+        Assert.False(string.IsNullOrWhiteSpace(task.ModelActorId));
+        Assert.Equal((byte)11, task.CapturedSequence);
+    }
+
+    [Fact]
     public void Empty_native_bank_is_not_a_nonempty_terminal_owner_certificate()
     {
-        BattleDiagnosticTextureQuiescence observation = Capture(Fixture() with { Auxiliary = NativeBattleAuxiliaryState.Clear() });
+        BattleDiagnosticTextureQuiescence observation = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(Fixture() with { Auxiliary = NativeBattleAuxiliaryState.Clear() });
         Assert.True(observation.Complete);
         Assert.Empty(observation.Tasks);
         Assert.False(observation.IsTerminalQuiescent);
@@ -156,7 +169,7 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
     [InlineData("claimed-complete")]
     public void Copied_certificate_cannot_lose_actual_chain_coverage(string fault)
     {
-        BattleDiagnosticTextureQuiescence original = Capture(Fixture(3));
+        BattleDiagnosticTextureQuiescence original = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(Fixture(3));
         Assert.True(original.IsTerminalQuiescent);
         BattleDiagnosticTextureQuiescence invalid = fault switch
         {

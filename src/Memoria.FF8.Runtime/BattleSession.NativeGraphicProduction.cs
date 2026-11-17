@@ -41,7 +41,7 @@ public sealed partial class BattleSession
     private NativeBattleContactPacket PrepareNativeEntranceContact(BattleCombatant target, BattleModelOwner targetOwner, byte sequence)
     {
         target.NativeCombatantFlags &= ~0x4000u;
-        target.LastNativeHealing = 1;
+        StoreNativeHealing(target, 1);
         StoreNativeAttackClass(target, 3);
         RefreshNativePresentationStatus(target);
         (ushort saved, uint battle) = NativeContactStatusMirror(target);

@@ -7,6 +7,9 @@ public sealed record BattleNativeSlotsRoll(byte MagicId, byte Repetitions)
 
 public static class NativeBattleSlotsRules
 {
+    //4847F0 packs at most three consecutive command16 target WORDs into one invocation.
+    internal const int MaxQueuedRepetitions = 3;
+
     /// <summary>Native48CBB0 consumes exactly four48F020 bytes, including the final repetition draw.</summary>
     public static BattleNativeSlotsRoll Roll(BattleNativeLimitDefinition rules, int level, byte crisis, byte levelRoll, byte bucketRoll, byte spellRoll, byte repeatRoll)
     {

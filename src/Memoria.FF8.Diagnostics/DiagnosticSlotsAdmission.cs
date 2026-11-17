@@ -36,8 +36,10 @@ public sealed record DiagnosticSlotsDeclaration([property: JsonRequired] byte Ma
 
 /// <summary>Original resource bytes observed once at battle initialization, separate from admission results.</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticSlotsSource([property: JsonRequired] Guid BattleInstanceId, [property: JsonRequired] Guid LifecycleId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] byte MagicAction, [property: JsonRequired] byte InitialLearnedFlags, [property: JsonRequired] BattleNativeLimitDefinition Rules, [property: JsonRequired] ImmutableArray<byte> CharacterRecord, [property: JsonRequired] ImmutableArray<byte> SelectionTable, [property: JsonRequired] ImmutableArray<byte> SpellTable, [property: JsonRequired] ImmutableArray<byte> TimerRecord, [property: JsonRequired] ImmutableArray<byte> ActionRecord, [property: JsonRequired] string Fingerprint)
+public sealed record DiagnosticSlotsSource([property: JsonRequired] Guid BattleInstanceId, [property: JsonRequired] Guid LifecycleId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] byte MagicAction, [property: JsonRequired] byte InitialLearnedFlags, [property: JsonRequired] BattleNativeLimitDefinition Rules, [property: JsonRequired] ImmutableArray<byte> CharacterRecord, [property: JsonRequired] ImmutableArray<byte> SelectionTable, [property: JsonRequired] ImmutableArray<byte> SpellTable, [property: JsonRequired] ImmutableArray<byte> TimerRecord, [property: JsonRequired] ImmutableArray<byte> ActionRecord, [property: JsonRequired] string Fingerprint)
 {
+    public BattleRosterSlot? ActorSlot { get; init; }
+
     public string ComputeFingerprint()
     {
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -51,9 +53,9 @@ public sealed record DiagnosticSlotsSource([property: JsonRequired] Guid BattleI
 
     public void Validate()
     {
-        if (BattleInstanceId == Guid.Empty || LifecycleId == Guid.Empty || string.IsNullOrWhiteSpace(ActorId) || ActorIndex > 2 || CharacterRecord.IsDefault || CharacterRecord.Length != 36 || SelectionTable.IsDefault || SelectionTable.Length != 60 || SpellTable.IsDefault || SpellTable.Length != 256 || TimerRecord.IsDefault || TimerRecord.Length != 60 || ActionRecord.IsDefault || ActionRecord.Length != 60 || Rules is null || Fingerprint != ComputeFingerprint())
+        if (BattleInstanceId == Guid.Empty || LifecycleId == Guid.Empty || string.IsNullOrWhiteSpace(ActorId) || !MatchesPlacement(ActorSlot, ActorIndex, BattleSide.Allies) || CharacterRecord.IsDefault || CharacterRecord.Length != 36 || SelectionTable.IsDefault || SelectionTable.Length != 60 || SpellTable.IsDefault || SpellTable.Length != 256 || TimerRecord.IsDefault || TimerRecord.Length != 60 || ActionRecord.IsDefault || ActionRecord.Length != 60 || Rules is null || Fingerprint != ComputeFingerprint())
         {
-            throw new InvalidDataException("Slots source lost its initialized resource or physical owner fingerprint.");
+            throw new InvalidDataException("Slots source lost its initialized resource or occupied actor fingerprint.");
         }
         Rules.Validate();
         ushort effect = new DiagnosticSlotsDeclaration(MagicAction, 1, 1).Effect;
@@ -62,10 +64,25 @@ public sealed record DiagnosticSlotsSource([property: JsonRequired] Guid BattleI
             throw new InvalidDataException("Slots rules differ from the initialized original character, tables or selected action row.");
         }
     }
+
+    internal static bool MatchesPlacement(BattleRosterSlot? slot, byte? original, BattleSide side)
+    {
+        bool originalMatches = original is null || (side == BattleSide.Allies ? original < 3 : original is >= 3 and < 7);
+        if (!originalMatches)
+        {
+            return false;
+        }
+        return slot is { } occupied && occupied.Side == side && occupied.Position < (side == BattleSide.Allies ? ExpandedBattleFormation.MaximumAllies : ExpandedBattleFormation.MaximumEnemies) &&
+            (original is null || occupied.Position == original - (side == BattleSide.Allies ? 0 : 3));
+    }
+
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticSlotsObservation([property: JsonRequired] Guid BattleInstanceId, [property: JsonRequired] Guid LifecycleId, [property: JsonRequired] long RestoreCount, [property: JsonRequired] long ResetCount, [property: JsonRequired] long Callback, [property: JsonRequired] long SimulationFrame, [property: JsonRequired] double Seconds, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int CommandOwner, [property: JsonRequired] byte Command, [property: JsonRequired] int Level, [property: JsonRequired] int HitPoints, [property: JsonRequired] int MaximumHitPoints, [property: JsonRequired] ushort Statuses0, [property: JsonRequired] uint Statuses1, [property: JsonRequired] byte Crisis, [property: JsonRequired] byte LearnedFlags, [property: JsonRequired] int DeadParty, [property: JsonRequired] bool LimitsDisabled, [property: JsonRequired] bool LimitOncePerTurn, [property: JsonRequired] byte? RetainedCrisis, [property: JsonRequired] bool Ready, [property: JsonRequired] bool Active, [property: JsonRequired] bool CardSlots, [property: JsonRequired] bool PendingDeal, [property: JsonRequired] NativeBattleRandomState Random, [property: JsonRequired] BattleNativeSlotsRoll? OwnedRoll);
+public sealed record DiagnosticSlotsObservation([property: JsonRequired] Guid BattleInstanceId, [property: JsonRequired] Guid LifecycleId, [property: JsonRequired] long RestoreCount, [property: JsonRequired] long ResetCount, [property: JsonRequired] long Callback, [property: JsonRequired] long SimulationFrame, [property: JsonRequired] double Seconds, [property: JsonRequired] string ActorId, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int CommandOwner, [property: JsonRequired] byte Command, [property: JsonRequired] int Level, [property: JsonRequired] int HitPoints, [property: JsonRequired] int MaximumHitPoints, [property: JsonRequired] ushort Statuses0, [property: JsonRequired] uint Statuses1, [property: JsonRequired] byte Crisis, [property: JsonRequired] byte LearnedFlags, [property: JsonRequired] int DeadParty, [property: JsonRequired] bool LimitsDisabled, [property: JsonRequired] bool LimitOncePerTurn, [property: JsonRequired] byte? RetainedCrisis, [property: JsonRequired] bool Ready, [property: JsonRequired] bool Active, [property: JsonRequired] bool CardSlots, [property: JsonRequired] bool PendingDeal, [property: JsonRequired] NativeBattleRandomState Random, [property: JsonRequired] BattleNativeSlotsRoll? OwnedRoll)
+{
+    public BattleRosterSlot? ActorSlot { get; init; }
+}
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticSlotsRollReceipt([property: JsonRequired] int Index, [property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] BattleNativeSlotsRoll Result);
@@ -74,10 +91,13 @@ public sealed record DiagnosticSlotsRollReceipt([property: JsonRequired] int Ind
 public sealed record DiagnosticSlotsReselectionReceipt([property: JsonRequired] int AfterRollIndex, [property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] BattleDiagnosticLimitSelectionReceipt Selection, [property: JsonRequired] DiagnosticSlotsObservation After);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticSlotsDoReceipt([property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] string ActorId, [property: JsonRequired] string TargetId, [property: JsonRequired] byte TargetIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, [property: JsonRequired] ushort? TargetMask, [property: JsonRequired] BattleNativeSlotsRoll UsedRoll)
+public sealed record DiagnosticSlotsDoReceipt([property: JsonRequired] DiagnosticSlotsObservation Before, [property: JsonRequired] DiagnosticSlotsObservation After, [property: JsonRequired] string ActorId, [property: JsonRequired] string TargetId, [property: JsonRequired] byte? TargetIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort Action, [property: JsonRequired] ushort Effect, [property: JsonRequired] ushort? TargetMask, [property: JsonRequired] BattleNativeSlotsRoll UsedRoll)
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BattleTargetRequest? ExpandedTargets { get; init; }
+    public BattleRosterSlot? TargetSlot { get; init; }
+    public BattleTargetSide? TargetSide { get; init; }
+    public BattleTargetEligibility? Eligibility { get; init; }
+    public bool? AllowsKnockedOutAllies { get; init; }
+    public BattleTargetReplacement? Replacement { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -222,12 +242,18 @@ public sealed class DiagnosticSlotsAdmission
 
     public void Did(DiagnosticSlotsDoReceipt accepted)
     {
-        bool hostile = source.MagicAction is 53 or 56;
-        bool targetVerified = accepted.ExpandedTargets is null
-            ? accepted.TargetMask is ushort mask && mask == (hostile ? 0x80F8 : 0x8007) && (mask & (1 << accepted.TargetIndex)) != 0
-            : hostile && accepted.TargetIndex is >= 3 and <= 6 && accepted.TargetMask is null && accepted.ExpandedTargets is
-                { Selection: BattleTargetSelection.SideGroup { Side: BattleTargetSide.Enemies }, Eligibility: BattleTargetEligibility.Living, AllowsKnockedOutAllies: false, Replacement: BattleTargetReplacement.None };
-        if (Receipt.Do is not null || !Matched || accepted.UsedRoll != Receipt.Rolls[^1].Result || accepted.ActorId != source.ActorId || string.IsNullOrWhiteSpace(accepted.TargetId) || accepted.TargetIndex > 6 || !targetVerified || accepted.Command != 16 || accepted.Action != source.MagicAction || accepted.Effect != Receipt.Declaration.Effect)
+        byte flags = source.ActionRecord[10];
+        bool hostile = (flags & 0x40) != 0;
+        BattleSide side = hostile ? BattleSide.Enemies : BattleSide.Allies;
+        BattleTargetSide group = hostile ? BattleTargetSide.Enemies : BattleTargetSide.Allies;
+        bool originalMaskMatches = accepted.TargetMask is not ushort mask || accepted.TargetIndex is byte operand &&
+            mask == (hostile ? 0x80F8 : 0x8007) && (mask & (1 << operand)) != 0;
+        bool typedGroupMatches = accepted.TargetSlot is { Side: var selectedSide } && selectedSide == side &&
+            accepted.TargetSide == group && accepted.Eligibility == BattleTargetEligibility.SavedStatus &&
+            accepted.AllowsKnockedOutAllies == ((flags & 1) != 0) && accepted.Replacement == BattleTargetReplacement.UseCurrentBattlePolicy;
+        if (Receipt.Do is not null || !Matched || accepted.UsedRoll != Receipt.Rolls[^1].Result || accepted.ActorId != source.ActorId || string.IsNullOrWhiteSpace(accepted.TargetId) ||
+            !DiagnosticSlotsSource.MatchesPlacement(accepted.TargetSlot, accepted.TargetIndex, side) || !originalMaskMatches ||
+            !typedGroupMatches || accepted.Command != 16 || accepted.Action != source.MagicAction || accepted.Effect != Receipt.Declaration.Effect)
         {
             throw new InvalidDataException("Slots Do did not accept exactly its latched original result and command.");
         }
@@ -243,7 +269,7 @@ public sealed class DiagnosticSlotsAdmission
 
     private void ValidatePoint(DiagnosticSlotsObservation point, bool selected)
     {
-        if (point is null || point.Random is null || point.BattleInstanceId != source.BattleInstanceId || point.LifecycleId != source.LifecycleId || point.RestoreCount != 0 || point.ResetCount != 0 || point.ActorId != source.ActorId || point.ActorIndex != source.ActorIndex || point.ModelId != 5 || point.CommandOwner != 5 || point.Command != 16 || point.Level is < 1 or > 100 || point.DeadParty is < 0 or > 3 || point.RetainedCrisis > 4 || point.Crisis > 4 || point.HitPoints <= 0 || point.MaximumHitPoints < point.HitPoints || !point.Active || point.CardSlots || point.PendingDeal || selected && (!point.Ready || point.Crisis is < 1 or > 4) || point.Callback < 0 || point.SimulationFrame < 0 || !double.IsFinite(point.Seconds) || point.Seconds < Receipt.Start.Seconds || point.Seconds - Receipt.Start.Seconds > Receipt.Declaration.MaximumSeconds)
+        if (point is null || point.Random is null || point.BattleInstanceId != source.BattleInstanceId || point.LifecycleId != source.LifecycleId || point.RestoreCount != 0 || point.ResetCount != 0 || point.ActorId != source.ActorId || point.ActorIndex != source.ActorIndex || point.ActorSlot != source.ActorSlot || point.ModelId != 5 || point.CommandOwner != 5 || point.Command != 16 || point.Level is < 1 or > 100 || point.DeadParty is < 0 or > ExpandedBattleFormation.MaximumAllies || point.RetainedCrisis > 4 || point.Crisis > 4 || point.HitPoints <= 0 || point.MaximumHitPoints < point.HitPoints || !point.Active || point.CardSlots || point.PendingDeal || selected && (!point.Ready || point.Crisis is < 1 or > 4) || point.Callback < 0 || point.SimulationFrame < 0 || !double.IsFinite(point.Seconds) || point.Seconds < Receipt.Start.Seconds || point.Seconds - Receipt.Start.Seconds > Receipt.Declaration.MaximumSeconds)
         {
             throw new InvalidDataException("Slots observation lost native lifecycle, living Selphie owner or admission deadline.");
         }

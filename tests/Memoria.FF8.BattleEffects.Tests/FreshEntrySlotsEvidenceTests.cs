@@ -99,7 +99,7 @@ public sealed class FreshEntrySlotsEvidenceTests
         action[5] = 1;
         action[10] = 8;
         BattleNativeLimitDefinition rules = new(5, 16, 0, 100, new byte[32].ToImmutableArray()) { SlotsSelectionBytes = selection.Concat(spells).ToImmutableArray(), SlotsSpellBytes = spells.ToImmutableArray() };
-        DiagnosticSlotsSource source = new(battle, lifecycle, "selphie", 1, 51, 0, rules, character.ToImmutableArray(), selection.ToImmutableArray(), spells.ToImmutableArray(), new byte[60].ToImmutableArray(), action.ToImmutableArray(), "");
+        DiagnosticSlotsSource source = new(battle, lifecycle, "selphie", 1, 51, 0, rules, character.ToImmutableArray(), selection.ToImmutableArray(), spells.ToImmutableArray(), new byte[60].ToImmutableArray(), action.ToImmutableArray(), "") { ActorSlot = BattleRosterSlot.Ally(1) };
         source = source with { Fingerprint = source.ComputeFingerprint() };
         BattleInput input = new(BattleInputKind.Action, ActorId: "selphie", TargetId: "selphie", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | 51);
         DiagnosticSlotsDeclaration declaration = new(51, 256, 5);
@@ -112,7 +112,7 @@ public sealed class FreshEntrySlotsEvidenceTests
         {
             long callback = 10 + index * 10;
             byte learned = index == 0 ? (byte)0 : (byte)1;
-            DiagnosticSlotsObservation start = new(battle, lifecycle, 0, 0, callback, callback, 100 + index * 10, "selphie", 1, 5, 5, 16, 8, 1, 1000, 0, 0, 0, learned, 0, false, true, 4, true, true, false, false, random, null);
+            DiagnosticSlotsObservation start = new(battle, lifecycle, 0, 0, callback, callback, 100 + index * 10, "selphie", 1, 5, 5, 16, 8, 1, 1000, 0, 0, 0, learned, 0, false, true, 4, true, true, false, false, random, null) { ActorSlot = BattleRosterSlot.Ally(1) };
             BattleDiagnosticLimitSelectionReceipt selected = new("selphie", 5, 16, true, [4], random, random);
             DiagnosticSlotsAdmission admission = new(source, new(index + 1, source.Fingerprint, declaration, input, start, policy, selected));
             DiagnosticSlotsObservation before = start with { Crisis = 4, Seconds = start.Seconds + 0.01 };
@@ -121,12 +121,19 @@ public sealed class FreshEntrySlotsEvidenceTests
             DiagnosticSlotsObservation after = before with { Seconds = start.Seconds + 0.02, Random = random, OwnedRoll = result };
             admission.Rolled(new(1, before, after, result));
             DiagnosticSlotsObservation afterDo = after with { Seconds = start.Seconds + 0.03, Ready = false, Crisis = 0, RetainedCrisis = null, OwnedRoll = null };
-            admission.Did(new(after, afterDo, "selphie", "selphie", 1, 16, 51, 280, 0x8007, result));
+            admission.Did(new(after, afterDo, "selphie", "selphie", 1, 16, 51, 280, 0x8007, result)
+            {
+                TargetSlot = BattleRosterSlot.Ally(1),
+                TargetSide = BattleTargetSide.Allies,
+                Eligibility = BattleTargetEligibility.SavedStatus,
+                AllowsKnockedOutAllies = false,
+                Replacement = BattleTargetReplacement.UseCurrentBattlePolicy
+            });
             receipts.Add(admission.Receipt);
             selections.Add(selected);
-            BattleDiagnosticEffectDispatch dispatch = new(index + 1, callback + 1, "selphie", BattleAbility.LimitBreak, 51, 280, 280, 16) { NativeActorIndex = 1, NativeTargetMask = 2, NativeHeaderIndex = 0, NativeHeaderGeneration = index + 1 };
+            BattleDiagnosticEffectDispatch dispatch = new(index + 1, callback + 1, "selphie", BattleAbility.LimitBreak, 51, 280, 280, 16) { NativeActorIndex = 1, ActorSlot = BattleRosterSlot.Ally(1), HeaderReference = new(0), ContactActorIds = ["selphie"], NativeTargetMask = 2, NativeHeaderIndex = 0, NativeHeaderGeneration = index + 1 };
             TelemetryOwnerState owners = new(battle.ToString(), 1, lifecycle.ToString(), "renderer", 1, 0, 0, callback, callback);
-            BattleDiagnosticCombatant actor = new("selphie", 1, 1000, 0, 0, []) { NativeIndex = 1, ModelId = 5 };
+            BattleDiagnosticCombatant actor = new("selphie", 1, 1000, 0, 0, []) { NativeIndex = 1, Slot = BattleRosterSlot.Ally(1), ModelId = 5 };
             executions.Add(new JsonObject { ["slots_start"] = Node(start), ["slots_end"] = Node(afterDo with { Callback = callback + 5, SimulationFrame = callback + 5, Seconds = start.Seconds + 1, LearnedFlags = 1 }), ["start_callback"] = callback, ["end_callback"] = callback + 5, ["start_owners"] = Node(owners), ["before"] = Node(new[] { actor }), ["dispatches"] = Node(new[] { dispatch }) });
         }
         JsonObject driver = new() { ["input"] = Node(input), ["expected_effect"] = 280, ["expected_native_action"] = 51, ["expected_native_command"] = 16, ["limit_selection"] = Node(policy), ["slots_admission"] = Node(declaration) };

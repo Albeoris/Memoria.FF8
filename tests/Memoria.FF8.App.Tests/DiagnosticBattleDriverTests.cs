@@ -104,7 +104,7 @@ public sealed class DiagnosticBattleDriverTests
         BattleComponentHeldScreenBlendTask task = new(0, 1, 0, null, NativeBattleAuxiliaryKind.ScreenBlend501E80, 0, false,
             [2, 0, 2, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         string[] blockers = ["effect-or-auxiliary-task"];
-        BattleComponentHeldScreenBlendObservation first = new(211, 2, 0, 0, owners, true, 1, 0, 0, task, task.Fingerprint, [..blockers]);
+        BattleComponentHeldScreenBlendObservation first = new(211, 2, 0, 0, owners, 1, 0, 0, task, task.Fingerprint, [..blockers]);
         EffectComponentHeldScreenBlendTracker tracker = new();
         Assert.False(tracker.Observe(first, 2, 20));
         Assert.False(tracker.Observe(first with { GraphicsCallback = 3 }, 3, 30));

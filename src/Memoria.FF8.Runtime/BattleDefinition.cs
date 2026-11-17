@@ -449,6 +449,9 @@ public sealed record BattleSnapshot
     public BattleStock[] ScriptedRewards { get; init; } = [];
     public BattleStock[]? NativeRewardItems { get; init; }
     [JsonIgnore]
+    internal byte? LastNativeHealing { get; set; }
+    internal bool NativeAllocationPendingStatistics { get; set; }
+    internal NativeBattleLastAction? LastNativeAction { get; set; }
     internal BattlePreviousTarget? NativeLastAllocatedTarget { get; init; }
     public NativeBattleScriptState NativeScriptState { get; init; } = new();
     public BattleNativeLimitState[] NativeLimits { get; init; } = [];
@@ -551,40 +554,6 @@ public sealed partial class BattleCombatant
     internal Dictionary<int, string> AiActorReferences { get; } = [];
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
-    internal NativeBattleActionMemoryOwner? NativeActionMemoryOwner { get; set; }
-    private byte? logicalLastHealing;
-    private NativeBattleLastAction? logicalLastAction;
-    internal byte? LastNativeHealing
-    {
-        get => NativeActionMemoryOwner is { } owner && NativeActorIndex is int index ? owner.State.Healing(index) : logicalLastHealing;
-        set
-        {
-            if (NativeActionMemoryOwner is { } owner && NativeActorIndex is int index)
-            {
-                owner.State = owner.State.WithHealing(index, value);
-            }
-            else
-            {
-                logicalLastHealing = value;
-            }
-        }
-    }
-    internal bool NativeAllocationPendingStatistics { get; set; }
-    internal NativeBattleLastAction? LastNativeAction
-    {
-        get => NativeActionMemoryOwner is { } owner && NativeActorIndex is int index ? owner.State.Action(index) : logicalLastAction;
-        set
-        {
-            if (NativeActionMemoryOwner is { } owner && NativeActorIndex is int index)
-            {
-                owner.State = owner.State.WithAction(index, value);
-            }
-            else
-            {
-                logicalLastAction = value;
-            }
-        }
-    }
     internal BattlePreviousTarget? PreviousAiTarget { get; set; }
     internal byte? NativeDrawnSpell { get; set; }
     internal BattleAbility? LastAttackerAbility { get; set; }
@@ -599,7 +568,6 @@ public sealed partial class BattleCombatant
         {
             throw new InvalidDataException("The battle slot belongs to a different side.");
         }
-        nativePresentationStatus = NativePresentationStatus;
         Slot = slot;
         NativeActorIndex = bindNative && slot is { } candidate ? NativeBattleSlots.TryEncode(candidate) : null;
     }

@@ -167,6 +167,10 @@ public sealed partial class BattleSession
         try
         {
             CommitExpandedAction(command);
+            if (producingExpandedAiInvocation is { } admitted && IsStagedExpandedAiInvocation(admitted))
+            {
+                PrepareNativeAiReturnDamage(GetActor(packet.ActorId), packet);
+            }
         }
         finally
         {

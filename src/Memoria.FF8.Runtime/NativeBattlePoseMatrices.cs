@@ -236,8 +236,17 @@ public static partial class NativeBattlePoseMatrices
 
     private static (int X, int Y, int Z) ApplyRounded(Matrix matrix, int x, int y, int z)
     {
-        int Row(int row) => ConvertRounded(matrix.Rotation[row * 3 + 2] * (z / 4096d) + matrix.Rotation[row * 3 + 1] * (y / 4096d) + matrix.Rotation[row * 3] * (x / 4096d));
-        return (Row(0), Row(1), Row(2));
+        return ApplyRoundedRotation(matrix.Rotation, x, y, z);
+    }
+
+    private static (int X, int Y, int Z) ApplyRoundedRotation(ReadOnlySpan<short> rotation, int x, int y, int z)
+    {
+        return (Row(rotation, 0, x, y, z), Row(rotation, 3, x, y, z), Row(rotation, 6, x, y, z));
+
+        static int Row(ReadOnlySpan<short> coefficients, int offset, int x, int y, int z)
+        {
+            return ConvertRounded(coefficients[offset + 2] * (z / 4096d) + coefficients[offset + 1] * (y / 4096d) + coefficients[offset] * (x / 4096d));
+        }
     }
 
     private static int ConvertRounded(double value) => unchecked((int)((uint)BitConverter.DoubleToInt64Bits(value + 4503601774854144d) + 0x80000000u));

@@ -113,7 +113,7 @@ public sealed partial class BattleSession
                         firstReflector ??= recipient;
                         collectReflection?.Invoke(recipient);
                         recipient.NativeCombatantFlags |= 0x4000;
-                        recipient.LastNativeHealing = 1;
+                        StoreNativeHealing(recipient, 1);
                         RecordNativeActionMemory(actor, recipient, command);
                         DispatchNativeActionCounter(recipient);
                         contacts.Add(CreateNativeReflectedContact(recipient, native));

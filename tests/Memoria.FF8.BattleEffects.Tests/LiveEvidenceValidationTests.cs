@@ -151,8 +151,8 @@ public sealed class LiveEvidenceValidationTests
     }
 
     [Theory]
-    [InlineData("available")]
-    [InlineData("result")]
+    [InlineData("side")]
+    [InlineData("actor_join")]
     [InlineData("contact")]
     [InlineData("generation")]
     [InlineData("producer")]
@@ -164,11 +164,11 @@ public sealed class LiveEvidenceValidationTests
         JsonNode provenance = reflection["target_provenance"]!;
         switch (corruption)
         {
-            case "available":
-                provenance["resolutions"]![0]!["available_mask"] = 1;
+            case "side":
+                provenance["contact_slots"]![0] = JsonSerializer.SerializeToNode(BattleRosterSlot.Ally(0), RecordJson.Options);
                 break;
-            case "result":
-                provenance["resolutions"]![0]!["result_mask"] = 16;
+            case "actor_join":
+                provenance["contact_actor_ids"]![0] = "another-enemy";
                 break;
             case "contact":
                 provenance["contact_recipients"]![0] = 4;
@@ -177,7 +177,7 @@ public sealed class LiveEvidenceValidationTests
                 provenance["header_generation"] = 4;
                 break;
             case "producer":
-                provenance["producer_address"] = 0;
+                reflection["producer_address"] = 0;
                 break;
             case "missing":
                 reflection.AsObject().Remove("target_provenance");
@@ -290,6 +290,9 @@ public sealed class LiveEvidenceValidationTests
             source["native_header_index"] = 0;
             source["native_header_generation"] = index + 1;
             source["native_target_mask"] = 1;
+            source["actor_slot"] = JsonSerializer.SerializeToNode(BattleRosterSlot.Ally(0), RecordJson.Options);
+            source["header_reference"] = JsonSerializer.SerializeToNode(new BattleActionHeaderReference(0), RecordJson.Options);
+            source["contact_actor_ids"] = new JsonArray("party0");
             foreach (string boundary in new[] { "before", "after" })
             {
                 execution[boundary]![0]!["magic_stocks"]![0]!["magic_id"] = 31;
@@ -305,7 +308,15 @@ public sealed class LiveEvidenceValidationTests
         child["native_header_index"] = 1;
         child["native_header_generation"] = 3;
         child["native_target_mask"] = 8;
-        BattleDiagnosticReflection proof = new(0x487DF0, 2, 0, 2, 1, 3, "party0", 0, "party0", 0, 0x80, "enemy0", 3, 2, 31, 106, 8, 0x10, 31, 106, 0, 8);
+        child["header_reference"] = JsonSerializer.SerializeToNode(new BattleActionHeaderReference(1), RecordJson.Options);
+        child["contact_actor_ids"] = new JsonArray("enemy0");
+        BattleDiagnosticReflection proof = new(0x487DF0, 2, 0, 2, 1, 3, "party0", 0, "party0", 0, 0x80, "enemy0", 3, 2, 31, 106, 8, 0x10, 31, 106, 0, 8)
+        {
+            ActorSlot = BattleRosterSlot.Ally(0),
+            ReflectorSlot = BattleRosterSlot.Ally(0),
+            RecipientSlot = BattleRosterSlot.Enemy(0),
+            TargetProvenance = new(1, 3, 0, [3]) { ContactActorIds = ["enemy0"], ContactSlots = [BattleRosterSlot.Enemy(0)] }
+        };
         if (normalized)
         {
             proof = proof with
@@ -313,7 +324,7 @@ public sealed class LiveEvidenceValidationTests
                 RecipientId = "enemy6",
                 RecipientIndex = 6,
                 ReflectedTargetMask = 64,
-                TargetProvenance = new(1, 3, 0, [3])
+                RecipientSlot = BattleRosterSlot.Enemy(3)
             };
         }
         child["reflection"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);
@@ -1178,6 +1189,13 @@ public sealed class LiveEvidenceValidationTests
             dispatch["ability"] = "GuardianForce";
             dispatch["action_id"] = 78;
             dispatch["native_command"] = 254;
+            dispatch["native_actor_index"] = 0;
+            dispatch["native_header_index"] = 0;
+            dispatch["native_header_generation"] = index + 1;
+            BattleActionHeaderReference reference = new(0);
+            dispatch["header_reference"] = JsonSerializer.SerializeToNode(reference, RecordJson.Options);
+            BattleRosterSlot casterSlot = BattleRosterSlot.Ally(0);
+            BattleRosterSlot recipientSlot = BattleRosterSlot.Enemy(1);
             JsonNode recipientBefore = execution["before"]![0]!.DeepClone();
             JsonNode recipientAfter = execution["after"]![0]!.DeepClone();
             recipientBefore["id"] = "recipient";
@@ -1186,6 +1204,10 @@ public sealed class LiveEvidenceValidationTests
             recipientAfter["native_index"] = 4;
             execution["before"]![0]!["native_index"] = 0;
             execution["after"]![0]!["native_index"] = 0;
+            recipientBefore["slot"] = JsonSerializer.SerializeToNode(recipientSlot, RecordJson.Options);
+            recipientAfter["slot"] = JsonSerializer.SerializeToNode(recipientSlot, RecordJson.Options);
+            execution["before"]![0]!["slot"] = JsonSerializer.SerializeToNode(casterSlot, RecordJson.Options);
+            execution["after"]![0]!["slot"] = JsonSerializer.SerializeToNode(casterSlot, RecordJson.Options);
             execution["after"]![0]!["current_hp"] = execution["before"]![0]!["current_hp"]!.DeepClone();
             execution["before"]!.AsArray().Add(recipientBefore);
             execution["after"]!.AsArray().Add(recipientAfter);
@@ -1198,7 +1220,16 @@ public sealed class LiveEvidenceValidationTests
             header[16] = 1;
             BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), NativeBattleContactAddress.EncodeOriginal(new BattleContactOccurrence(0)));
             NativeBattleRawContactPacket packet = new(new(4, 0, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0));
-            BattleDiagnosticNativeContact proof = new(0x4850A0, index + 1, "party0", "party0", 0, "recipient", 4, 0, [.. header], 0, 0, 0, [.. NativeBattleContactPacketCodec.Encode(packet)]);
+            BattleDiagnosticNativeContact proof = new(0x4850A0, index + 1, "party0", "party0", 0, "recipient", 4, 0, [.. header], 0, 0, 0, [.. NativeBattleContactPacketCodec.Encode(packet)])
+            {
+                ActorSlot = casterSlot,
+                RecipientSlot = recipientSlot,
+                HeaderReference = reference,
+                HeaderGeneration = index + 1,
+                Occurrence = new(0),
+                FirstContactOrdinal = 0,
+                ContactCount = 1
+            };
             resolution["native_contact"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);
         }
         return report;

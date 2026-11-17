@@ -13,9 +13,52 @@ public sealed partial class BattleSession
     //487DF0's current synchronous callback owner; queued copies retain factual provenance only.
     private byte? nativeAiCallbackStage;
 
-    private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant? source, int magnitude)
+    private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant source, int magnitude)
     {
+        if (!recipient.IsPlayer || recipient.Slot is null || source.IsPlayer || magnitude == 0 ||
+            recipient.NativePlayerStatRules is not { NativeStatusPassiveFlags: uint flags } || (flags & 8) == 0)
+        {
             return;
+        }
+        ushort before = recipient.NativeReturnDamage ?? throw new NotSupportedException("Return Damage requires the retained participant WORD1D27BDC.");
+        recipient.NativeReturnDamage = unchecked((ushort)(before + magnitude));
+    }
+
+    private void PrepareNativeAiReturnDamage(BattleCombatant actor, BattleAttackCommand command)
+    {
+        if (actor.IsPlayer || command.NativeAiCallbackStage is not byte stage || command.NativeQueuedCommand == 247 ||
+            command.NativeGraphic is not null || command.NativeAction?.PresentationOnly == true || IsNativeReturnDamageAction(command.NativeAction) ||
+            (NativeSavedStatusBits(actor) & 1) != 0)
+        {
+            return;
+        }
+
+        //487DF0 calls 483EF0 after each admitted common command, before the interpreter resumes.
+        //Its three original participant words generalize to the actual occupied allied rows.
+        BattleCombatant[] party = allies.Where(member => member.Slot is not null).OrderBy(member => member.Slot!.Value.Position).ToArray();
+        ushort total = 0;
+        foreach (BattleCombatant member in party)
+        {
+            ushort word = member.NativeReturnDamage ?? throw new NotSupportedException("Native483EF0 requires the retained Return Damage WORD for every occupied party row.");
+            total = unchecked((ushort)(total + word));
+        }
+        actor.NativeReturnDamage = total;
+        foreach (BattleCombatant member in party)
+        {
+            member.NativeReturnDamage = 0;
+        }
+        if (stage == 3 || total == 0)
+        {
+            return;
+        }
+        BattleNativeAction native = NativeReturnDamageAction();
+        ProduceExpandedAiCallbackCommand(new(actor.Id, actor.Id, SelectBattleTarget(actor, eligibility: BattleTargetEligibility.SavedStatus), BattleAbility.EnemyAbility, native.ActionId)
+        {
+            NativeQueuedCommand = native.Command,
+            NativeAction = native,
+            NativeSequence = 0,
+            NativeAiCallbackStage = stage
+        });
     }
 
     private static bool IsNativeReturnDamageAction(BattleNativeAction? action)

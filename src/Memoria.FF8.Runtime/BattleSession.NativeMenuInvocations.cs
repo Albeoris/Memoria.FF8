@@ -9,7 +9,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native Duel invocation contradicts its selected character, crisis or control header.");
         }
         if (slots is not null && (actor.NativeLimit?.Command != 16 || native is not { Command: 16 } || native.ActionId != slots.MagicId ||
-            actionId != (16 << 16 | slots.MagicId) || slots.Repetitions is < 1 or > 3))
+            actionId != (16 << 16 | slots.MagicId) || slots.Repetitions is < 1 or > NativeBattleSlotsRules.MaxQueuedRepetitions))
         {
             throw new InvalidDataException("Native Slots group contradicts its accepted roll or physical target WORDs.");
         }

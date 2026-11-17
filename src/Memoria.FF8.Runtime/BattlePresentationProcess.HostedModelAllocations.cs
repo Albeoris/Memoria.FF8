@@ -71,6 +71,50 @@ public sealed partial class BattlePresentationProcess
         return owner with { Cpu = cpu, Rows = rows };
     }
 
+    internal bool TryCompleteEncounterModelRetirement(BattleEnemyActorModel owner, NativeBattleModelSlot? originalSlot)
+    {
+        RequireIdle();
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        if (HasPendingModelLoad || graphics.ModelLoadCount != 0 ||
+            graphics.ActorModels.TryGet(owner, out NativeBattleGraphicsModel? model) && (model.Flags0 & 3) != 0 ||
+            FindFutureHostedModelWork(graphics, -1, owner) is not null || HasRunningHostedModelWork(graphics, owner) ||
+            graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && OwnsModel(task.ModelSubject)))
+        {
+            return false;
+        }
+        if (originalSlot.HasValue)
+        {
+            // Keep the dead native cell available as retained memory until its next 102 binding.
+            return true;
+        }
+        if (hostedModelRegistry is not { } registry || !registry.Loads.TryGetValue(owner, out HostedModelLoadAdmission? load) ||
+            load.Load is not HostedDispatchControl.LoadEnemy { OriginalSlot: null } || graphics.NativeBindings.CaptureAliases(graphics.ActorModels).TryEncodeExact(owner, out _))
+        {
+            throw new InvalidDataException("Encounter retirement lost its unaliased admitted model generation.");
+        }
+        BattleActorModels models = graphics.ActorModels.Contains(owner) ? graphics.ActorModels.Remove(owner) : graphics.ActorModels;
+        BattleModelRoster roster = new(registry.Roster.Owners.Where(current => current != owner));
+        NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(models, roster);
+        NativeBattleActionPacketsState packets = nativeActionPackets.WithRoster(roster, aliases);
+        NativeBattleModelCpuResources cpu = PrepareHostedAllocationCpu(registry.Roster, roster, [owner], aliases);
+        NativeBattleModelTextureCache cache = NativeModelTextureCache!.RebindPresentationRoster(registry.Roster, roster, [owner]);
+        NativeBattleEffectMemory memory = NativeEffectMemory!;
+        NativeBattleEffectTextureState textures = memory.Textures!;
+        memory = memory with { Textures = textures with { PresentationTextures = textures.PresentationTextures!.Remove(ReadGraphicsPresentationId(owner)) } };
+        PreparedHostedModelRegistry prepared = new(registry, new(roster, registry.Loads.Remove(owner)), cpu, cache, memory);
+        long epoch = checked(hostedPreparationEpoch + 1);
+
+        PublishHostedModelRegistry(prepared);
+        nativeActionPackets = packets;
+        NativeGraphics = graphics with { ActorModels = models };
+        hostedPreparationEpoch = epoch;
+        return true;
+
+        bool OwnsModel(NativeBattleDescriptorModelSubject? subject) => subject is NativeBattleDescriptorModelSubject.ExplicitModel model && model.Owner == owner ||
+            subject is NativeBattleDescriptorModelSubject.PlannedLoad plan && plan.Owner == owner ||
+            subject is NativeBattleDescriptorModelSubject.AuthoredOriginalSlot authored && authored.Slot == originalSlot;
+    }
+
     private bool TryRebindHostedAllocationModel(NativeBattleGraphicsState graphics, NativeBattleDescriptorModelSubject.PlannedLoad plan, int descriptorSlot, out NativeBattleGraphicsState rebound)
     {
         HostedModelRegistry registry = hostedModelRegistry ?? throw new InvalidOperationException("Hosted model load requires its planned roster.");

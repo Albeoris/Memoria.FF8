@@ -18,7 +18,7 @@ public sealed class HeldScreenBlendCompletionValidationTests
         payload[2] = 60;
         payload[5] = 255;
         BattleComponentHeldScreenBlendTask task = new(0, 1, 0, null, NativeBattleAuxiliaryKind.ScreenBlend501E80, 0, false, payload.ToImmutableArray());
-        BattleComponentHeldScreenBlendObservation first = new(77, 10, 0, 0, owners, true, 1, 0, 0, task, task.Fingerprint, ["effect-or-auxiliary-task"]);
+        BattleComponentHeldScreenBlendObservation first = new(77, 10, 0, 0, owners, 1, 0, 0, task, task.Fingerprint, ["effect-or-auxiliary-task"]);
         BattleDiagnosticEffectDispatch dispatch = new(1, 5, "enemy", BattleAbility.EnemyAbility, 1, 77, 77, 8);
         return new("held-native-screen-blend", true, false, true, true, 77, SourceHash, dispatch, null, first, first with { GraphicsCallback = 11 }, 100, 102, 2, 1);
     }
@@ -141,7 +141,7 @@ public sealed class HeldScreenBlendCompletionValidationTests
                 certificate["last"]!["screen_blend"]!["has_program"] = true;
                 break;
             case "extra_resident":
-                certificate["last"]!["physical_resident_count"] = 2;
+                certificate["last"]!["auxiliary_resident_count"] = 2;
                 break;
             case "different_kind":
                 certificate["last"]!["screen_blend"]!["kind"] = "TextureAnimation5057D0";

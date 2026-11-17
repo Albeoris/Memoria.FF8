@@ -37,15 +37,10 @@ public sealed record NativeBattlePresentationStatusMemory([property: JsonRequire
     }
 }
 
-internal sealed class NativeBattlePresentationStatusMemoryOwner
-{
-    public NativeBattlePresentationStatusMemory State { get; set; } = NativeBattlePresentationStatusMemory.Unknown();
-}
-
 public sealed partial class BattleSession
 {
-    private readonly NativeBattlePresentationStatusMemoryOwner nativePresentationStatusMemory = new();
-    public NativeBattlePresentationStatusMemory NativePresentationStatusMemory => nativePresentationStatusMemory.State;
+    private NativeBattlePresentationStatusMemory nativePresentationStatusMemory = NativeBattlePresentationStatusMemory.Unknown();
+    public NativeBattlePresentationStatusMemory NativePresentationStatusMemory => nativePresentationStatusMemory;
 
     private void RestoreNativePresentationStatusMemory(NativeBattlePresentationStatusMemory? memory)
     {
@@ -53,6 +48,6 @@ public sealed partial class BattleSession
         // actor projections below; the definition's initial bank is not current history.
         NativeBattlePresentationStatusMemory observed = memory ?? NativeBattlePresentationStatusMemory.Unknown();
         observed.Validate();
-        nativePresentationStatusMemory.State = observed;
+        nativePresentationStatusMemory = observed;
     }
 }

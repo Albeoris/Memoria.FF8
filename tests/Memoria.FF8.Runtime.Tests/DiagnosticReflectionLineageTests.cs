@@ -4,15 +4,40 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class DiagnosticReflectionLineageTests
 {
-    private static BattleDiagnosticEffectDispatch Source => new(1, 10, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 2) { NativeActorIndex = 3, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = 1 };
-    private static BattleDiagnosticEffectDispatch Child => new(2, 11, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 247) { NativeActorIndex = 3, NativeTargetMask = 1, NativeHeaderIndex = 1, NativeHeaderGeneration = 2, Reflection = new(0x487DF0, 1, 0, 1, 1, 2, "enemy", 3, "enemy", 3, 0x80, "party", 0, 2, 31, 106, 8, 0x10, 31, 106, 0, 1) };
+    private static BattleDiagnosticEffectDispatch Source => new(1, 10, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 2)
+    {
+        NativeActorIndex = 3,
+        ActorSlot = BattleRosterSlot.Enemy(0),
+        HeaderReference = new(0),
+        NativeTargetMask = 8,
+        NativeHeaderIndex = 0,
+        NativeHeaderGeneration = 1,
+        ContactActorIds = ["enemy"]
+    };
+    private static BattleDiagnosticEffectDispatch Child => new(2, 11, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 247)
+    {
+        NativeActorIndex = 3,
+        ActorSlot = BattleRosterSlot.Enemy(0),
+        HeaderReference = new(1),
+        NativeTargetMask = 1,
+        NativeHeaderIndex = 1,
+        NativeHeaderGeneration = 2,
+        ContactActorIds = ["party"],
+        Reflection = new(0x487DF0, 1, 0, 1, 1, 2, "enemy", 3, "enemy", 3, 0x80, "party", 0, 2, 31, 106, 8, 0x10, 31, 106, 0, 1)
+        {
+            ActorSlot = BattleRosterSlot.Enemy(0),
+            ReflectorSlot = BattleRosterSlot.Enemy(0),
+            RecipientSlot = BattleRosterSlot.Ally(0),
+            TargetProvenance = new(1, 2, 11, [0]) { ContactActorIds = ["party"], ContactSlots = [BattleRosterSlot.Ally(0)] }
+        }
+    };
 
     [Fact]
     public void Reflection_retains_the_caster_and_changes_only_the_proved_recipient()
     {
         Assert.True(BattleDiagnosticReflectionLineage.Matches(Child, Source));
         BattleDiagnosticEffectDispatch restored = JsonSerializer.Deserialize<BattleDiagnosticEffectDispatch>(JsonSerializer.Serialize(Child))!;
-        Assert.Equal(Child, restored);
+        Assert.Equal(JsonSerializer.Serialize(Child), JsonSerializer.Serialize(restored));
         Assert.True(BattleDiagnosticReflectionLineage.Matches(restored, Source));
     }
 
@@ -48,9 +73,25 @@ public sealed class DiagnosticReflectionLineageTests
     [Fact]
     public void A_player_Draw_source_produces_a_Magic_child_with_native_target_modifiers()
     {
-        BattleDiagnosticEffectDispatch source = Source with { ActorId = "party", Ability = BattleAbility.Draw, NativeActorIndex = 0, NativeTargetMask = 8 };
-        BattleDiagnosticEffectDispatch child = Child with { ActorId = "party", Ability = BattleAbility.Magic, NativeActorIndex = 0, NativeTargetMask = 1, Reflection = Child.Reflection! with { ActorId = "party", ActorIndex = 0, ReflectedTargetFlags = 3, ReflectedTargetMask = 0x6001 } };
+        BattleDiagnosticEffectDispatch source = Source with { ActorId = "party", Ability = BattleAbility.Draw, NativeActorIndex = 0, ActorSlot = BattleRosterSlot.Ally(0), NativeTargetMask = 8 };
+        BattleDiagnosticEffectDispatch child = Child with { ActorId = "party", Ability = BattleAbility.Magic, NativeActorIndex = 0, ActorSlot = BattleRosterSlot.Ally(0), NativeTargetMask = 1, Reflection = Child.Reflection! with { ActorId = "party", ActorIndex = 0, ActorSlot = BattleRosterSlot.Ally(0), ReflectedTargetFlags = 3, ReflectedTargetMask = 0x6001 } };
         Assert.True(BattleDiagnosticReflectionLineage.Matches(child, source));
+    }
+
+    [Fact]
+    public void An_unaliased_child_recipient_is_joined_by_the_current_contact_slot()
+    {
+        BattleRosterSlot added = BattleRosterSlot.Ally(3);
+        BattleDiagnosticReflection proof = Child.Reflection! with
+        {
+            RecipientIndex = null,
+            RecipientSlot = added,
+            ReflectedTargetMask = null,
+            TargetProvenance = Child.Reflection!.TargetProvenance! with { ContactRecipients = [null], ContactSlots = [added] }
+        };
+        BattleDiagnosticEffectDispatch child = Child with { Reflection = proof, NativeTargetMask = null };
+        Assert.True(BattleDiagnosticReflectionLineage.Matches(child, Source));
+        Assert.False(BattleDiagnosticReflectionLineage.Matches(child with { NativeTargetMask = 1 }, Source));
     }
 
     [Theory]
@@ -58,7 +99,7 @@ public sealed class DiagnosticReflectionLineageTests
     [InlineData(true)]
     public void Contact_proof_requires_the_current_child_header_generation(bool stale)
     {
-        BattleDiagnosticReflection proof = Child.Reflection! with { TargetProvenance = new(1, stale ? 3 : 2, 11, [0]) };
+        BattleDiagnosticReflection proof = Child.Reflection! with { TargetProvenance = Child.Reflection!.TargetProvenance! with { HeaderGeneration = stale ? 3 : 2 } };
         BattleDiagnosticEffectDispatch current = Child with { Reflection = proof };
         Assert.Equal(!stale, BattleDiagnosticReflectionLineage.Matches(current, Source));
     }

@@ -13,11 +13,12 @@ public sealed class CounterRepairProjectionTests
         BattleDiagnosticRepairRandomState random = new(NativeBattleRandomState.Initialize(0), null, null, null);
         BattleDiagnosticCombatRepair request = new("party0", requestedHp, true);
         ushort Status(int hp) => hp < 250 ? (ushort)0x300 : hp < 500 ? (ushort)0x200 : (ushort)0;
-        BattleDiagnosticCombatant before = new("party0", beforeHp, 1000, Status(beforeHp), 0, []) { NativeIndex = 0, ModelId = 0 };
+        BattleRosterSlot slot = BattleRosterSlot.Ally(0);
+        BattleDiagnosticCombatant before = new("party0", beforeHp, 1000, Status(beforeHp), 0, []) { NativeIndex = 0, Slot = slot, ModelId = 0 };
         BattleDiagnosticCombatant after = before with { CurrentHp = requestedHp, Statuses0 = Status(requestedHp) };
         BattleDiagnosticRepairReceipt repair = new(new Guid("32120000-0000-0000-0000-000000000001"), 15, 15, 15, random, random, 0, 0, [], [], [new(request, before, after)], "Component completed declared preparation.");
         int amount = Math.Abs(requestedHp - beforeHp);
-        BattleDiagnosticResolution projection = new(15, 15, requestedHp >= beforeHp ? "healing" : "diagnostic_repair_hp", null, "party0", "party0", amount, amount, beforeHp, requestedHp, "character") { DiagnosticRepair = new(repair.LifecycleId, 15, 15, request, 0) };
+        BattleDiagnosticResolution projection = new(15, 15, requestedHp >= beforeHp ? "healing" : "diagnostic_repair_hp", null, "party0", "party0", amount, amount, beforeHp, requestedHp, "character") { DiagnosticRepair = new(repair.LifecycleId, 15, 15, request, 0) { RecipientSlot = slot } };
         return (repair, projection);
     }
 
@@ -39,6 +40,7 @@ public sealed class CounterRepairProjectionTests
     [InlineData("frame")]
     [InlineData("lifecycle")]
     [InlineData("recipient")]
+    [InlineData("recipient_slot")]
     [InlineData("request")]
     [InlineData("before")]
     [InlineData("after")]
@@ -60,6 +62,7 @@ public sealed class CounterRepairProjectionTests
             "frame" => resolution with { DiagnosticRepair = resolution.DiagnosticRepair! with { Frame = 16 } },
             "lifecycle" => resolution with { DiagnosticRepair = resolution.DiagnosticRepair! with { LifecycleId = Guid.NewGuid() } },
             "recipient" => resolution with { DiagnosticRepair = resolution.DiagnosticRepair! with { RecipientIndex = 1 } },
+            "recipient_slot" => resolution with { DiagnosticRepair = resolution.DiagnosticRepair! with { RecipientSlot = BattleRosterSlot.Ally(3) } },
             "request" => resolution with { DiagnosticRepair = resolution.DiagnosticRepair! with { Request = repair.Changes[0].Request with { HitPoints = 487 } } },
             "before" => resolution with { BeforeHp = 485 },
             "after" => resolution with { AfterHp = 487 },

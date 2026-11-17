@@ -6,8 +6,38 @@ public sealed class DiagnosticReflectionDriverTests
 {
     private static DiagnosticBattleDriverRecipe Recipe => new(new(BattleInputKind.Action, ActorId: "enemy", TargetId: "enemy", Ability: BattleAbility.EnemyAbility, ActionId: 31), 106) { ExpectedNativeCommand = 2, ExpectedNativeAction = 31, BaselineSeconds = 0 };
     private static DiagnosticDriverObservation Observation(double seconds, long frame, bool drained = true) => new(seconds, frame, frame, true, drained, false, drained ? [] : ["action-or-command"]);
-    private static BattleDiagnosticEffectDispatch Source(int serial, long generation) => new(serial, serial, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 2) { NativeActorIndex = 3, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = generation };
-    private static BattleDiagnosticEffectDispatch Child(BattleDiagnosticEffectDispatch source) => new(source.Serial + 1, source.Callback + 1, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 247) { NativeActorIndex = 3, NativeTargetMask = 1, NativeHeaderIndex = 1, NativeHeaderGeneration = source.NativeHeaderGeneration + 1, Reflection = new(0x487DF0, source.Serial, 0, source.NativeHeaderGeneration!.Value, 1, source.NativeHeaderGeneration.Value + 1, "enemy", 3, "enemy", 3, 0x80, "party", 0, 2, 31, 106, 8, 0x10, 31, 106, 0, 1) };
+    private static BattleDiagnosticEffectDispatch Source(int serial, long generation) => new(serial, serial, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 2)
+    {
+        NativeActorIndex = 3,
+        ActorSlot = BattleRosterSlot.Enemy(0),
+        HeaderReference = new(0),
+        NativeTargetMask = 8,
+        NativeHeaderIndex = 0,
+        NativeHeaderGeneration = generation,
+        ContactActorIds = ["enemy"]
+    };
+
+    private static BattleDiagnosticEffectDispatch Child(BattleDiagnosticEffectDispatch source)
+    {
+        long sourceGeneration = source.NativeHeaderGeneration!.Value;
+        return new(source.Serial + 1, source.Callback + 1, "enemy", BattleAbility.EnemyAbility, 31, 106, 106, 247)
+        {
+            NativeActorIndex = 3,
+            ActorSlot = BattleRosterSlot.Enemy(0),
+            HeaderReference = new(1),
+            NativeTargetMask = 1,
+            NativeHeaderIndex = 1,
+            NativeHeaderGeneration = sourceGeneration + 1,
+            ContactActorIds = ["party"],
+            Reflection = new(0x487DF0, source.Serial, 0, sourceGeneration, 1, sourceGeneration + 1, "enemy", 3, "enemy", 3, 0x80, "party", 0, 2, 31, 106, 8, 0x10, 31, 106, 0, 1)
+            {
+                ActorSlot = BattleRosterSlot.Enemy(0),
+                ReflectorSlot = BattleRosterSlot.Enemy(0),
+                RecipientSlot = BattleRosterSlot.Ally(0),
+                TargetProvenance = new(1, sourceGeneration + 1, 0, [0]) { ContactActorIds = ["party"], ContactSlots = [BattleRosterSlot.Ally(0)] }
+            }
+        };
+    }
 
     [Fact]
     public void Second_Reflect_cast_keeps_one_focal_dispatch_and_drains_its_reflected_child()

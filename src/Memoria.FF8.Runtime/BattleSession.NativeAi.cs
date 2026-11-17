@@ -631,7 +631,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native last healing flag must retain the original494410 BYTE boolean.");
         }
         actor.NativeAllocationPendingStatistics = saved.AllocationPendingStatistics;
-        ValidateNativeActionMemoryProjection(actor, saved);
+        RestoreNativeActorActionFacts(actor, saved);
         actor.NativeKillCount = saved.KillCount ?? actor.SourceDefinition.NativeKillCount;
         if (actor.SourceDefinition.NativeDeathCount is not null && saved.DeathCount is null)
         {

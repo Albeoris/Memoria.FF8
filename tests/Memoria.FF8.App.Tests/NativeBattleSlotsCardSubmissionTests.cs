@@ -95,8 +95,10 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         Assert.Null(battle.PendingSlotsDeal);
         Assert.Equal(queuedBefore + 1, battle.QueuedActions.Count);
         BattleAttackCommand accepted = Assert.Single(battle.QueuedActions, command => command.ActorId == actor.Id && command.NativeQueuedCommand == 16);
-        Assert.Equal(selected, accepted.NativeSlots);
-        Assert.Equal(selected.MagicId, accepted.ActionId);
+        BattleNativeSlotsRoll admitted = Assert.IsType<BattleNativeSlotsRoll>(accepted.NativeSlots);
+        Assert.Equal(selected, admitted with { PreflightSelection = null });
+        Assert.Equal(selected.Repetitions, accepted.MagicCasts.Length);
+        Assert.Equal(16 << 16 | selected.MagicId, accepted.ActionId);
         Assert.Null(battle.GetNativeSlotsRoll(actor.Id));
         Assert.False(battle.SelectNativeSlotsCard(deal.Id, 0));
 
@@ -106,7 +108,7 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         Assert.Equal(serialized, JsonSerializer.Serialize(battle.Capture()));
         BattleSession cold = Restore(JsonSerializer.Deserialize<BattleSnapshot>(serialized)!);
         Assert.Equal(serialized, JsonSerializer.Serialize(cold.Capture()));
-        Assert.Equal(selected, Assert.Single(cold.QueuedActions, command => command.ActorId == actor.Id && command.NativeQueuedCommand == 16).NativeSlots);
+        Assert.Equal(admitted, Assert.Single(cold.QueuedActions, command => command.ActorId == actor.Id && command.NativeQueuedCommand == 16).NativeSlots);
         Assert.Equal(battle.NativeGlobalRandomChange, cold.NativeGlobalRandomChange);
 
         BattleSession Restore(BattleSnapshot snapshot)

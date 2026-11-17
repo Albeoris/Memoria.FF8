@@ -124,8 +124,8 @@ public sealed class FreshEntryPairValidationTests
             "unknown-files" => baseline with { Owners = baseline.Owners with { Files = null } },
             "foreign-certificate-dispatch" => baseline with { ExecutingCompletion = certificate with { Dispatch = certificate.Dispatch with { Serial = certificate.Dispatch.Serial + 1 } } },
             "foreign-header-generation" => baseline with { Dispatch = baseline.Dispatch with { NativeHeaderGeneration = 2 } },
-            "header-payload" => baseline with { Header = baseline.Header with { Payload = baseline.Header.Payload.SetItem(4, 22) } },
-            "header-data" => baseline with { Header = baseline.Header with { Data = new NativeBattleActionDataReference(1, 2) } },
+            "header-payload" => baseline with { Header = baseline.Header! with { Payload = baseline.Header!.Payload.SetItem(4, 22) } },
+            "header-data" => baseline with { Header = baseline.Header! with { Data = new NativeBattleActionDataReference(1, 2) } },
             _ => throw new ArgumentOutOfRangeException(nameof(fault))
         };
         Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, baseline.Dispatch, baseline.LifecycleId));

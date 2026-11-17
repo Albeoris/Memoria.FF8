@@ -141,11 +141,7 @@ public sealed partial class BattleSession
     private BattleCombatant CreateCombatant(BattleCombatantDefinition source)
     {
         ExpandedEnemyLevelProfile? enemyLevels = source.IsPlayer ? null : definition.ExpandedEnemyLevels?.GetValueOrDefault(source.ModelId);
-        BattleCombatant actor = new(source, enemyLevels)
-        {
-            NativeActionMemoryOwner = null,
-            NativePresentationStatusOwner = null
-        };
+        BattleCombatant actor = new(source, enemyLevels);
         InitializeNativeAtb(actor);
         return actor;
     }
@@ -390,8 +386,8 @@ public sealed partial class BattleSession
             NativeVibrationProcess = NativeVibrationProcess,
             NativeGlobalSoundProcess = NativeGlobalSoundProcess,
             NativeMusicProcess = NativeMusicProcess,
-            NativeActionMemory = nativeActionMemory.State,
-            NativePresentationStatusMemory = nativePresentationStatusMemory.State,
+            NativeActionMemory = nativeActionMemory,
+            NativePresentationStatusMemory = nativePresentationStatusMemory,
             NativeActionScratch = nativeActionScratch,
             NativeElementAttack = nativeElementAttack,
             ChocoboRewards = chocoboRewards,
@@ -676,7 +672,7 @@ public sealed partial class BattleSession
         }
         if (nativeContactWorking?.CommittingSecondary != true)
         {
-            target.LastNativeHealing = amount == 0 ? (byte)1 : (byte)0;
+            StoreNativeHealing(target, amount == 0 ? (byte)1 : (byte)0);
         }
         NoteNativeContactCommit(target);
         if (target.CurrentHp == 0 && target.AiDeathHandled && target == nativeContactWorking?.Actor &&
@@ -691,8 +687,11 @@ public sealed partial class BattleSession
         //48FE20 passes its original action actor as494410.a5 for both halves.
         //Return Damage consumes formula magnitude before HP/KO clamping.
         BattleCombatant? nativeSource = nativeContactWorking?.Actor ?? actor;
-        int nativeMagnitude = nativeContactWorking is { CommittingSecondary: false } contact ? contact.Magnitude : amount;
-        AccumulateNativeReturnDamage(target, nativeSource, nativeMagnitude);
+        if (nativeContactWorking is { } contact)
+        {
+            int magnitude = contact.CommittingSecondary ? amount : contact.Magnitude;
+            AccumulateNativeReturnDamage(target, contact.Actor, magnitude);
+        }
         if (ApplyGuardianFormDamage(actor, target, amount, source, counterEligible, publishDamage))
         {
             return;
@@ -765,7 +764,7 @@ public sealed partial class BattleSession
         }
         if (nativeContactWorking?.CommittingSecondary != true)
         {
-            actor.LastNativeHealing = 1;
+            StoreNativeHealing(actor, 1);
         }
         if (!actor.IsAlive)
         {
@@ -1255,6 +1254,11 @@ public sealed partial class BattleSession
         ValidateRestoredRoster(snapshot);
         RestoreNativeElementAttack(snapshot.NativeElementAttack);
         (snapshot.NativeScriptState ?? throw new InvalidDataException("Native battle script state is missing.")).Validate();
+        NativeBattleScriptTasks savedTasks = snapshot.NativeScriptState.Tasks;
+        if (Enumerable.Range(0, savedTasks.Slots.Length).Any(index => savedTasks.Allocated(index) && savedTasks.Slots[index].ReadDword(0) == 0x48E620))
+        {
+            throw new NotSupportedException("Saved native GF task requires scoped migration to its canonical guardian charge.");
+        }
         RestoreGuardianForces(snapshot);
         RestoreGuardianForms(snapshot.GuardianForms, snapshot.Outcome);
         RestoreNativeSupport(snapshot.NativeSupport);
@@ -1283,7 +1287,7 @@ public sealed partial class BattleSession
             }
             ValidateGuardianFormCommand(command);
             ValidateNativeAiCommandStage(GetActor(command.ActorId), command.Ability, command.NativeAiCallbackStage);
-            ValidateExpandedMagicTargets(command.ActorId, command.TargetId, command.Ability, command.ActionId, command.MagicCasts, command.NativeMagicCastMode);
+            ValidateExpandedMagicTargets(command.ActorId, command.TargetId, command.Ability, command.ActionId, command.MagicCasts, command.NativeMagicCastMode, command.NativeAction, command.NativeSlots);
             ValidateNativeDrawPacket(command.Ability, command.ActionId, command.DrawCast, command.DrawCastTargetId, command.NativeDraw, false, command.NativeAction, command.TargetRequest);
             if (command.IndependentGuardian is not null)
             {
@@ -1305,7 +1309,7 @@ public sealed partial class BattleSession
         {
             ValidateGuardianFormPresentation(action);
             ValidateNativeAiCommandStage(GetActor(action.ActorId), action.Ability, action.NativeAiCallbackStage);
-            ValidateExpandedMagicTargets(action.ActorId, action.TargetId, action.Ability, action.ActionId, action.MagicCasts, action.NativeMagicCastMode);
+            ValidateExpandedMagicTargets(action.ActorId, action.TargetId, action.Ability, action.ActionId, action.MagicCasts, action.NativeMagicCastMode, action.NativeAction, action.NativeSlots);
             ValidateNativeDrawPacket(action.Ability, action.ActionId, action.DrawCast, action.DrawCastTargetId, action.NativeDraw, action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.TargetRequest);
             ValidateNativeActionInventory(byId[action.ActorId], action.Ability, action.NativeAction, action.ReservedNativeItemSlot, action.FreeNativeMagic);
             if (!Enum.IsDefined(action.Phase))
@@ -1459,10 +1463,6 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Saved expanded Angelo lacks its installed actor, action, or logical target.");
         }
         ValidateNativeMenuInvocation(actor, ability, actionId, nativeAction, duel, slots);
-        if (slots is not null && nativeAction is not null)
-        {
-            ValidateNativeSlotsPreflight(slots, nativeAction);
-        }
         if (renzokuken is not null && (nativeAction is not null || graphic is not null || ability != BattleAbility.LimitBreak || actionId != 5 << 16 || actor.NativeLimit?.Command != 5 || renzokuken.CrisisLevel is < 1 or > 4))
         {
             throw new InvalidDataException("Native Renzokuken control packet contradicts its character or original command.");
@@ -1485,7 +1485,7 @@ public sealed partial class BattleSession
             }
         }
         bool expandedShot = IsShotCallback(limitCallback) && IsExpandedShotAction(nativeAction) && actor.NativeLimit?.Command == 14;
-        bool expandedSlots = nativeAction is not null && slots is not null && CanCastExpandedSlots(nativeAction, slots) && actor.NativeLimit?.Command == 16;
+        bool expandedSlots = nativeAction is not null && slots is not null && CanCastSlots(nativeAction, slots) && actor.NativeLimit?.Command == 16;
         bool expandedRenzokuken = renzokuken is not null && nativeQueuedCommand == 5 && actor.IsPlayer && !target.IsPlayer;
         bool expandedDuel = actor is { IsPlayer: true, NativeLimit.Command: 11 } && !target.IsPlayer &&
             (duel is not null && nativeAction is null && nativeQueuedCommand == 11 || IsDuelCallback(limitCallback) && IsExpandedDuelMove(nativeAction) && nativeQueuedCommand == nativeAction!.Command && actionId == (nativeAction.Command << 16 | nativeAction.ActionId));
@@ -1603,8 +1603,8 @@ public sealed partial class BattleSession
         pendingPartyReplacements = candidate.pendingPartyReplacements;
         expandedPartyPresentation = candidate.expandedPartyPresentation ?? expandedPartyPresentation;
         expandedPartyReadyStatusMirrors = candidate.expandedPartyReadyStatusMirrors ?? expandedPartyReadyStatusMirrors;
-        nativeActionMemory.State = candidate.nativeActionMemory.State;
-        nativePresentationStatusMemory.State = candidate.nativePresentationStatusMemory.State;
+        nativeActionMemory = candidate.nativeActionMemory;
+        nativePresentationStatusMemory = candidate.nativePresentationStatusMemory;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))
         {
             CreateNativeAllocation(allocation);

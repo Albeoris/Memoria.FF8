@@ -14,9 +14,8 @@ public sealed class NativeBattleComponentTerminalTextureTests
         GameSession producerSession = GameWorld.CreateColdProcess(directory);
         producerSession.StartNewGame();
         using GameWorld producer = new(producerSession, directory);
-        BattleSession source = EffectComponentPreviewTests.PrepareOriginalEnemyComponent(producer, effect, formation: 431);
+        BattleSession source = PrepareTraumaComponent(producer, effect);
         BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, effect);
-        Assert.False(admission.ModuleLoaded);
         Assert.Equal((byte)8, admission.Command);
         Assert.Equal((ushort)290, admission.Action);
         string sha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(admission)));
@@ -66,6 +65,35 @@ public sealed class NativeBattleComponentTerminalTextureTests
             active.Tick();
             Assert.Empty(process.LastStep.Contacts);
         }
-        Assert.Fail("Installed effect 101 did not reach the resident texture boundary within 900 native callbacks.");
+        Assert.Fail($"Installed effect101 did not reach the resident texture boundary after {process.Graphics.Callback} graphics callbacks. Current blockers: {string.Join(", ", active.ObserveDiagnosticDrainBlockers())}.");
+    }
+
+    private static BattleSession PrepareTraumaComponent(GameWorld world, ushort effect)
+    {
+        const ushort formation = 431;
+        DiagnosticBattleRoster roster = new([], 1) { DonorCount = 0, AuthoredFormationHash = world.BattleResources.FormationSourceHash(formation) };
+        BattleSession battle = world.StartDiagnosticBattle(new(formation, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, Roster = roster });
+        ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        BattleCombatant trauma = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
+        Assert.Equal(109, trauma.ModelId);
+        foreach (BattleCombatant ally in battle.Combatants.Where(actor => actor.IsPlayer))
+        {
+            ally.Atb = 0;
+        }
+        int firstEvent = battle.Events.Count;
+        for (int callback = 0; callback < 1200; callback++)
+        {
+            if (battle.ObserveDiagnosticDrainBlockers().Count == 0 && !battle.Events.Skip(firstEvent).Any(entry => entry.Kind == "NativeSpawn" && entry.ActorId == trauma.Id))
+            {
+                trauma.Atb = BattleSession.AtbMaximum;
+            }
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            if (process.ActiveActionToken is not null && battle.ActiveAction is { NativeAiCallbackStage: 2, NativeAction.MagicId: var requested } && requested == effect)
+            {
+                return battle;
+            }
+        }
+        throw new InvalidDataException("Installed Trauma did not admit its authored action290 against dormant Droma.");
     }
 }

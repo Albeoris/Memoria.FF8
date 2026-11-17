@@ -97,6 +97,15 @@ public sealed partial class BattleSession
         {
             return;
         }
+        if (diagnosticRetiredCompletion is not null)
+        {
+            throw new InvalidDataException("Diagnostic completion observed more than one matching descriptor retirement in the same frame.");
+        }
+        diagnosticRetiredCompletion = (slot, original, state.Packets[slot]);
+    }
+
+    private void ObserveDiagnosticHostedCompletionBeforeAck(BattlePresentationProcess process, NativeBattlePresentationCompletionRequested receipt)
+    {
         if (diagnosticRetiredCompletion is not { } retired ||
             diagnosticInvocationDispatch is not { HeaderReference: { } reference, NativeHeaderGeneration: > 0, ActorSlot: { } slot } dispatch ||
             receipt.ActorId != dispatch.ActorId || retired.Original.Argument != receipt.Callback || process.ActionPackets.ActionCount <= reference.Ordinal)

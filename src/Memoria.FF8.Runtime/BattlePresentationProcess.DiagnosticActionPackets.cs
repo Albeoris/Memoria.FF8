@@ -102,7 +102,7 @@ public sealed partial class BattlePresentationProcess
     {
         ArgumentNullException.ThrowIfNull(dispatch);
         _ = RequireDiagnosticActionPacketOwner(dispatch);
-        if (diagnosticPacketReadEffect?.Parameters?.Targets is not { Count: 1 } targets || targets.Enumerate().Single() is not BattlePartyActorModel party)
+        if (diagnosticPacketReadEffect?.Parameters?.TargetActors is not { Count: 1 } targets || targets.Enumerate().Single() is not BattlePartyActorModel party)
         {
             throw new InvalidDataException("Counter retaliation requires its actual single party recipient.");
         }

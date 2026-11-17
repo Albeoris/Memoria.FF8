@@ -74,15 +74,36 @@ public sealed partial class BattleSession
             //494410 never writes B99, including its a9=1 secondary death path.
             attackType = recipient.LastNativeAction?.AttackType;
         }
-        recipient.LastNativeAction = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), null);
+        NativeBattleLastAction current = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), null);
+        recipient.LastNativeAction = current;
+        if (recipient.NativeActorIndex is int recipientIndex)
+        {
+            byte? originalAttacker = actor.NativeActorIndex is int attackerIndex ? checked((byte)attackerIndex) : null;
+            byte? originalClass = nativeContactWorking is null ? attackType : nativeActionMemory.Action(recipientIndex)?.AttackType;
+            nativeActionMemory = nativeActionMemory.WithAction(recipientIndex, current with { AttackerIndex = originalAttacker, AttackType = originalClass });
+        }
         recipient.LastAttackerId = actor.Id;
         recipient.LastAttackerAbility = ability;
     }
 
-    private static void StoreNativeAttackClass(BattleCombatant recipient, byte attackClass)
+    private void StoreNativeAttackClass(BattleCombatant recipient, byte attackClass)
     {
         //48FE20 writes B99 before the independently gated494410 B98/B9B/B9C/B9D/B9F memory writes.
         NativeBattleLastAction previous = recipient.LastNativeAction ?? new(null, null, null, null, null, null);
         recipient.LastNativeAction = previous with { AttackType = attackClass };
+        if (recipient.NativeActorIndex is int index)
+        {
+            NativeBattleLastAction retained = nativeActionMemory.Action(index) ?? new(null, null, null, null, null, null);
+            nativeActionMemory = nativeActionMemory.WithAction(index, retained with { AttackType = attackClass });
+        }
+    }
+
+    private void StoreNativeHealing(BattleCombatant recipient, byte healing)
+    {
+        recipient.LastNativeHealing = healing;
+        if (recipient.NativeActorIndex is int index)
+        {
+            nativeActionMemory = nativeActionMemory.WithHealing(index, healing);
+        }
     }
 }

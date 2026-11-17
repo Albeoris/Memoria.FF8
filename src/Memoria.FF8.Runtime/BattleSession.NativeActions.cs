@@ -244,7 +244,7 @@ public sealed partial class BattleSession
                 int revived = native.AttackType == 6 ? recipient.MaximumHp : Math.Max(1, recipient.MaximumHp / divisor);
                 SetNativeContactDamage(-revived);
                 FinalizeNativeContactPresentation();
-                recipient.LastNativeHealing = 1;
+                StoreNativeHealing(recipient, 1);
                 int diagnosticBeforeHp = recipient.CurrentHp;
                 recipient.CurrentHp = revived;
                 ObserveDiagnosticResolution("healing", actor, recipient, revived, diagnosticBeforeHp, recipient.CurrentHp);

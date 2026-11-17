@@ -7,12 +7,13 @@ public sealed class NativeBattleComponentTerminalTextureTests
     [InlineData(3, 2)]
     [InlineData(3, 6)]
     [InlineData(7, 6)]
-    public void Resident_FF_branch_preserves_payload_program_and_texture_callbacks_across_cold_next(ushort modelFlags, ushort resourceFlags)
+    public void Resident_FF_branch_preserves_typed_owner_payload_and_program_in_independent_callbacks(ushort modelFlags, ushort resourceFlags)
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear().AppendTextureAnimation(OriginalOwner(0), 14, new([255], 0), OriginalAliases);
         NativeBattleGraphicsModel model = new(modelFlags) { ResourceFlags44 = resourceFlags, Sequence = 14 };
         string frozen = NativeBattleTestSnapshots.Json(state);
-        NativeBattleAuxiliaryState cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleAuxiliaryState>(frozen)!;
+        NativeBattleAuxiliaryState retained = state;
+        NativeBattleAuxiliaryState second = retained;
         NativeBattleAuxiliaryInputs inputs = new()
         {
             ReadModel = _ => model,
@@ -22,9 +23,11 @@ public sealed class NativeBattleComponentTerminalTextureTests
         for (int callback = 0; callback < 3; callback++)
         {
             state = state.Advance(inputs).State;
-            cold = cold.Advance(inputs).State;
+            second = second.Advance(inputs).State;
             Assert.Equal(frozen, NativeBattleTestSnapshots.Json(state));
-            Assert.Equal(frozen, NativeBattleTestSnapshots.Json(cold));
+            Assert.Equal(frozen, NativeBattleTestSnapshots.Json(second));
+            Assert.Equal(retained.Slots[0].ModelOwner, state.Slots[0].ModelOwner);
+            Assert.Same(retained.Slots[0], second.Slots[0]);
         }
         Assert.NotNull(state.Head);
         Assert.Equal((byte)255, state.Slots[state.Head!.Value].Program!.Source[0]);

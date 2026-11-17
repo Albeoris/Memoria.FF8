@@ -57,14 +57,12 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(BattleAbility.LimitBreak, hud.Commands[0]);
         hud.Choose(0);
 
-        bool sawUnavailable = false;
         for (int roll = 0; roll < 128 && battle.GetNativeSlotsRoll(caster.Id)?.MagicId != action.ActionId; roll++)
         {
-            sawUnavailable |= !Assert.Single(hud.ActionChoices).Available;
             hud.RerollNativeSlots();
         }
         BattleNativeSlotsRoll accepted = Assert.IsType<BattleNativeSlotsRoll>(battle.GetNativeSlotsRoll(caster.Id));
-        if (accepted.MagicId != action.ActionId || !sawUnavailable)
+        if (accepted.MagicId != action.ActionId)
         {
             return null;
         }

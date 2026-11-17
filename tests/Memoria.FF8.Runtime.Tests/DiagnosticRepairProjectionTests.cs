@@ -43,6 +43,7 @@ public sealed class DiagnosticRepairProjectionTests
         Assert.Equal(resolution.Callback, source.Callback);
         Assert.Equal(request, source.Request);
         Assert.Equal((byte)0, source.RecipientIndex);
+        Assert.Equal(BattleRosterSlot.Ally(0), source.RecipientSlot);
         Assert.Equal(400, resolution.BeforeHp);
         Assert.Equal(requested, resolution.AfterHp);
         Assert.Equal(Math.Abs(requested - 400), resolution.ActualAmount);

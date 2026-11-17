@@ -71,51 +71,6 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool PollNativeGuardianScriptTask(NativeBattleScriptTask task)
-    {
-        byte index = task.ReadByte(12);
-        byte nativeId = task.ReadByte(14);
-        BattleCombatant actor = FindAllocatedNativeActor(index) ?? throw new InvalidDataException("Native48E620 requires its retained character allocation.");
-        BattleGuardianForceCast cast = guardianForceCasts.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native48E620 lacks its character-owned GF charge record.");
-        if (nativeId != cast.Command.ActionId + 64 || task.ReadByte(13) != 254)
-        {
-            throw new InvalidDataException("Native48E620 task differs from its character GF charge owner.");
-        }
-        if ((actor.NativeCombatantFlags & 0x400) != 0)
-        {
-            return false;
-        }
-        bool summoning = (actor.NativeStatus1 & 0x80000000) != 0;
-        if (summoning && cast.RemainingTicks != 0)
-        {
-            return false;
-        }
-        if (summoning && cast.Command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly } && (ActiveAction is not null || nativeTimedAction is not null))
-        {
-            return false;
-        }
-        if (summoning)
-        {
-            if (BeginCompletedGuardianFormCharge(actor, cast))
-            {
-                guardianForceCasts.Remove(actor.Id);
-                actor.NativeStatus1 &= 0x7FFFFFFF;
-                actor.NativeCombatantFlags &= ~0x400u;
-                return true;
-            }
-            byte targetFlags = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native48F2C0 GF completion requires its original target flags BYTE.");
-            BattleTargetRequest request = CreateAutomaticTargetRequest(targetFlags);
-            actions.Enqueue(cast.Command with { TargetRequest = request });
-            Log("GuardianForceReady", actor.Id, cast.Command.TargetId, cast.Command.ActionId, "GF charge completed.");
-        }
-        else
-        {
-            CancelGuardianForceCharge(actor, cast);
-        }
-        ReleaseGuardianForceCharge(actor);
-        return true;
-    }
-
     private void CancelGuardianForceCharge(BattleCombatant actor, BattleGuardianForceCast cast)
     {
         if ((actor.NativeStatus0 & 1) == 0)

@@ -98,14 +98,15 @@ public static class SlotsLiveEvidenceValidation
                 throw new InvalidDataException("Slots Do exceeds its scored execution.");
             }
             BattleDiagnosticEffectDispatch[] dispatches = execution.GetProperty("dispatches").Deserialize<BattleDiagnosticEffectDispatch[]>(Json) ?? throw new InvalidDataException("Slots dispatches are absent.");
-            if (dispatches.Length != 1 || dispatches[0] is not { Reflection: null } dispatch || dispatch.ActorId != source.ActorId || dispatch.NativeActorIndex != source.ActorIndex || dispatch.Ability != BattleAbility.LimitBreak || dispatch.NativeCommand != 16 || dispatch.ActionId != declaration.MagicAction || dispatch.RequestedEffect != effect || dispatch.ExecutedEffect != effect || dispatch.Callback < accepted.After.Callback || dispatch.NativeHeaderIndex is null || dispatch.NativeHeaderGeneration is not > 0)
+            if (dispatches.Length != 1 || dispatches[0] is not { Reflection: null } dispatch || dispatch.ActorId != source.ActorId || dispatch.ActorSlot != source.ActorSlot || dispatch.NativeActorIndex != source.ActorIndex || dispatch.Ability != BattleAbility.LimitBreak || dispatch.NativeCommand != 16 || dispatch.ActionId != declaration.MagicAction || dispatch.RequestedEffect != effect || dispatch.ExecutedEffect != effect || dispatch.Callback < accepted.After.Callback || dispatch.HeaderReference is null || dispatch.NativeHeaderGeneration is not > 0)
             {
                 throw new InvalidDataException("Slots Do is not linked to its actual native command16 dispatch.");
             }
             BattleDiagnosticCombatant target = actors.Single(candidate => candidate.Id == accepted.TargetId);
-            if (target.NativeIndex != accepted.TargetIndex)
+            if (target.Slot != accepted.TargetSlot || target.NativeIndex != accepted.TargetIndex || !dispatch.ContactActorIds.Contains(target.Id) ||
+                dispatch.ContactActorIds.Any(recipient => !actors.Any(actor => actor.Id == recipient && actor.Slot?.Side == accepted.TargetSlot?.Side)))
             {
-                throw new InvalidDataException("Slots automatic target was replaced by another physical owner.");
+                throw new InvalidDataException("Slots dispatch contacts do not match the issued group and occupied target.");
             }
         }
     }

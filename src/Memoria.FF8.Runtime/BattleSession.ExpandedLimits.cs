@@ -28,7 +28,7 @@ public sealed partial class BattleSession
             byte flags = (native.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
             return CreateNativePlayerActionChoice(BattleAbility.LimitBreak, native, flags, native.Name);
         }
-        if (actor.NativeLimit?.Command != native.Command || !SupportsExpandedLimit(native) && !SupportsExpandedSlotsAction(native))
+        if (actor.NativeLimit?.Command != native.Command || !SupportsExpandedLimit(native) && !SupportsSlotsAction(native))
         {
             throw new NotSupportedException("The expanded battle cannot execute this Limit's native invocation or contact contract.");
         }

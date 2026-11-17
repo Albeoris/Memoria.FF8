@@ -90,7 +90,7 @@ public sealed partial class BattleSession
             {
                 return choices.Select(action => CreateNativePlayerActionChoice(ability, action, action.TargetFlags!.Value, action.Name) with
                 {
-                    Available = CanCastExpandedSlots(action, expandedRoll),
+                    Available = CanCastSlots(action, expandedRoll),
                     DisplayName = $"{action.Name} ×{expandedRoll.Repetitions}"
                 }).ToArray();
             }
@@ -229,7 +229,7 @@ public sealed partial class BattleSession
             BattleNativeAction native = FindNativeCommandAction(actor, command, actionId, crisis);
             if (limit && command == 16)
             {
-                QueueExpandedSlots(actor, native, sequence, nativeSlotsRolls[actorId]);
+                QueueSlots(actor, native, sequence, nativeSlotsRolls[actorId]);
                 return;
             }
             if (limit && command == 14 && IsExpandedShotAction(native))

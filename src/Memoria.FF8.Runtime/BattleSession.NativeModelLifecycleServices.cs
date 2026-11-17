@@ -59,11 +59,11 @@ public sealed partial class BattleSession
             });
         }
         HostedNativeAllocationFrame? allocation = null;
-        if (nativeScriptState.AllocationControl is { SceneSlot: byte scene } control && (control.ActionGate || control.PauseGate))
+        if (nativeLastAllocatedTarget is not null && nativeScriptState.AllocationControl is { SceneSlot: byte scene } control && (control.ActionGate || control.PauseGate))
         {
             BattleCombatant actor = ResolveLastNativeAllocation();
             if (CreatePresentationModelOwner(actor) is not BattleEnemyActorModel owner ||
-                registry?.Loads.TryGetValue(owner, out HostedModelLoadAdmission? admission) != true || admission.Load != ReadHostedEncounterAllocationLoad(actor) ||
+                registry is null || !registry.Loads.TryGetValue(owner, out HostedModelLoadAdmission? admission) || admission.Load != ReadHostedEncounterAllocationLoad(actor) ||
                 ReadNativeAllocationSourceScene(actor) != scene)
             {
                 throw new InvalidDataException("Hosted frame allocation globals lack their registered generation and scene.");

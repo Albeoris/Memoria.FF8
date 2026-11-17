@@ -14,7 +14,7 @@ public sealed class ComponentCompletionValidationTests
         BattleDiagnosticInvocationOwners owners = new(0, 0, 0, 0, false, true, 0, false, 0, 0, false, 0, false, false, false, false) { ObservedOriginalEffect = true, SelectedReturnedDescriptor = 0, OriginalPools = [], ActionHeaders = 1, ContactRows = 1, RetainedActiveHeader = 0, RetainedActiveContact = 0 };
         BattleDiagnosticTextureTask task = new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0, 32, 0x1D972C0, 2, 0, 1, 255, 0, 2, 0, 2);
         BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [task]);
-        BattleComponentTextureQuiescenceObservation first = new(101, 10, 0, 0, owners, true, textures, new string('a', 64), ["effect-or-auxiliary-task"]);
+        BattleComponentTextureQuiescenceObservation first = new(101, 10, 0, 0, owners, textures, new string('a', 64), ["effect-or-auxiliary-task"]);
         BattleDiagnosticEffectDispatch dispatch = new(1, 5, "party", BattleAbility.Magic, 1, 101, 101, 2);
         return new("terminal-texture-quiescence", true, false, true, 101, SourceHash, dispatch, null, first, first with { GraphicsCallback = 11 }, 100, 102, 2, 1);
     }

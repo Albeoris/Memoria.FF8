@@ -83,7 +83,7 @@ public static class VictoryTerminalHoldValidation
             }
             foreach (BattleDiagnosticCombatant actor in receipt.Party)
             {
-                if (!LiveEvidenceValidation.IsObservedPartyPlacement(actor) || actor.CurrentHp <= 0 || actor.CurrentHp > actor.MaximumHp || (actor.Statuses0 & 5) != 0 || (actor.Statuses1 & 0x80010000) != 0 || !LiveEvidenceValidation.HasObservedBattleIdentity(before, actor.Id, actor.Slot, actor.NativeIndex) || !LiveEvidenceValidation.HasObservedBattleIdentity(after, actor.Id, actor.Slot, actor.NativeIndex) || receipt.Kind == "released" && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), after[actor.Id]))
+                if (!LiveEvidenceValidation.IsObservedPartyPlacement(actor) || actor.CurrentHp <= 0 || actor.CurrentHp > actor.MaximumHp || (actor.Statuses0 & 5) != 0 || (actor.Statuses1 & 0x80010000) != 0 || !LiveEvidenceValidation.HasObservedBattleIdentity(before, actor.Id, actor.Slot, actor.NativeIndex) || !LiveEvidenceValidation.HasObservedBattleIdentity(after, actor.Id, actor.Slot, actor.NativeIndex) || receipt.Kind == "released" && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, Json), after[actor.Id]))
                 {
                     throw new InvalidDataException("Victory hold changed its living party owner or release state.");
                 }

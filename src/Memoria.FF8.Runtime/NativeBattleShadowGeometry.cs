@@ -50,18 +50,20 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new InvalidDataException("Native5086F0 requires the actual current body bone matrices.");
         }
-        Matrix[] matrices = current.Select(matrix => new Matrix(matrix.Rotation.ToArray(), matrix.X, matrix.Y, matrix.Z)).ToArray();
-        short minX = unchecked((short)(matrices[0].X - 500));
-        short maxX = unchecked((short)(matrices[0].X + 500));
-        short minY = unchecked((short)matrices[0].Y);
+        NativeBattleActionMatrix root = current[0];
+        root.Validate();
+        short minX = unchecked((short)(root.X - 500));
+        short maxX = unchecked((short)(root.X + 500));
+        short minY = unchecked((short)root.Y);
         short maxY = minY;
-        short minZ = unchecked((short)(matrices[0].Z - 500));
-        short maxZ = unchecked((short)(matrices[0].Z + 500));
-        for (int bone = 1; bone < matrices.Length; bone++)
+        short minZ = unchecked((short)(root.Z - 500));
+        short maxZ = unchecked((short)(root.Z + 500));
+        for (int bone = 1; bone < current.Length; bone++)
         {
-            Matrix matrix = matrices[bone];
+            NativeBattleActionMatrix matrix = current[bone];
+            matrix.Validate();
             short length = ReadWord(source.Skeleton, 18 + 48 * bone);
-            (int x, int y, int z) = ApplyRounded(matrix, 0, 0, length);
+            (int x, int y, int z) = ApplyRoundedRotation(matrix.Rotation.AsSpan(), 0, 0, length);
             Include(unchecked(x + matrix.X), ref minX, ref maxX);
             Include(unchecked(y + matrix.Y), ref minY, ref maxY);
             Include(unchecked(z + matrix.Z), ref minZ, ref maxZ);

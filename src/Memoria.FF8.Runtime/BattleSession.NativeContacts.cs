@@ -134,7 +134,7 @@ public sealed partial class BattleSession
         return (actor.NativePresentationStatus.Saved ?? throw new NotSupportedException("Native contact requires its47E2D0 WORD B92 mirror."), actor.NativePresentationStatus.Battle ?? throw new NotSupportedException("Native contact requires its47E2D0 DWORD B1C mirror."));
     }
 
-    private static void RefreshNativePresentationStatus(BattleCombatant actor)
+    private void RefreshNativePresentationStatus(BattleCombatant actor)
     {
         ushort saved = NativeSavedStatusBits(actor);
         uint battle = NativeBattleStatusBits(actor);
@@ -145,6 +145,10 @@ public sealed partial class BattleSession
             battle &= ~(allocation.Battle & 0x2000);
         }
         actor.NativePresentationStatus = new(saved, battle);
+        if (actor.NativeActorIndex is int index)
+        {
+            nativePresentationStatusMemory = nativePresentationStatusMemory.Observe(index, actor.NativePresentationStatus);
+        }
     }
 
     private void MarkNativeContactFlags(byte flags, byte hitFlags)

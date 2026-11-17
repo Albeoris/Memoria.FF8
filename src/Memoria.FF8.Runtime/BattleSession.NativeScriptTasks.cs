@@ -3,19 +3,9 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
 
-    private int EnqueueNativeGuardianScriptTask(BattleCombatant actor, BattleTargetRequest request, byte gfId)
-    {
-        ushort originalWord = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native GF charge requires its original task target WORD.");
-        (NativeBattleScriptTasks tasks, int slot) = nativeScriptState.Tasks.Allocate(0x48E620);
-        NativeBattleScriptTask task = tasks.Slots[slot].WriteByte(12, checked((byte)actor.RequireNativeActorIndex())).WriteByte(13, 254).WriteByte(14, gfId).WriteWord(10, originalWord);
-        nativeScriptState = nativeScriptState with { Tasks = tasks with { Slots = tasks.Slots.SetItem(slot, task) } };
-        return slot;
-    }
-
-
     private void DispatchNativeScriptTasks()
     {
-            DispatchExpandedGuardianForceCharges();
+        DispatchExpandedGuardianForceCharges();
         NativeBattleScriptTasks tasks = nativeScriptState.Tasks.Advance(Dispatch, _ => ObserveNativeUnknownStackCallback(0x482C30, "script task release"));
         nativeScriptState = nativeScriptState with { Tasks = tasks };
 
@@ -48,9 +38,6 @@ public sealed partial class BattleSession
                         task = task.WriteByte(15, 1);
                     }
                     task = task.WriteWord(8, unchecked((ushort)(delay - 1)));
-                    break;
-                case 0x48E620:
-                    task = PollNativeGuardianScriptTask(task) ? task.WriteByte(15, 1) : task;
                     break;
                 default:
                     throw new NotSupportedException($"Native script task callback{task.ReadDword(0):X} requires its original producer/consumer.");

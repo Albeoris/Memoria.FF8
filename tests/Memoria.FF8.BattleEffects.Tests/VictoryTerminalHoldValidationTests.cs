@@ -36,7 +36,10 @@ public sealed class VictoryTerminalHoldValidationTests
         BattleDiagnosticInvocationRelease certificate = new(held.LifecycleId, 9, 9, 90, dispatch, new(header.ToImmutableArray(), 0, 0, null), new(packet.ToImmutableArray()), 0x47DDA0, 0, 0, 7, 0x47DDA0, true, true, true, true, owners, ["effect-or-auxiliary-task"]) { GraphicsCallback = 20 };
         BattleDiagnosticTerminalHoldState armed = new(declaration, held.HoldId, BattleDiagnosticTerminalHoldPhase.Armed, 0, 0, null, null, []);
         BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0, 32, 0x1D972C0, 21, 0, 1, 255, 0, 3, 10, 21)]);
-        BattleDiagnosticNaturalVictory victory = new(held.LifecycleId, 9, 9, BattleOutcome.Victory, true, false, false, [new("party", 0, true, 1, 0, 0, 100), new("enemy", 3, false, 1, 1, 65536, 0)]);
+        BattleDiagnosticNaturalVictory victory = new(held.LifecycleId, 9, 9, BattleOutcome.Victory, true, false, false, [
+            new("party", 0, true, 1, 0, 0, 100) { Slot = BattleRosterSlot.Ally(0), BattleCapable = true },
+            new("enemy", 3, false, 1, 1, 65536, 0) { Slot = BattleRosterSlot.Enemy(0), BattleCapable = false }
+        ]);
         BattleDiagnosticInvocationRelease main = certificate with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, PacketRemoved = true, GraphicsCallback = 21, Owners = owners with { DescriptorPackets = 0 }, ExecutingCompletion = certificate, RemovedCompletionPacket = new(packet.ToImmutableArray().SetItem(1, 0)), TerminalTextures = new(textures, armed) { NaturalVictory = fault == "missing-natural-victory" ? null : victory } };
         execution["end_callback"] = 9;
         execution["invocation_release"] = JsonSerializer.SerializeToNode(main, Json);
@@ -116,8 +119,8 @@ public sealed class VictoryTerminalHoldValidationTests
     {
         Guid lifecycle = Guid.NewGuid();
         Guid holdId = Guid.NewGuid();
-        BattleDiagnosticCombatant party = new("party", 100, 100, 0, 0, []) { NativeIndex = 0, ModelId = 5 };
-        BattleDiagnosticCombatant enemy = new("enemy", 100, 100, 0, 0, []) { NativeIndex = 3, ModelId = 4 };
+        BattleDiagnosticCombatant party = new("party", 100, 100, 0, 0, []) { NativeIndex = 0, Slot = BattleRosterSlot.Ally(0), ModelId = 5 };
+        BattleDiagnosticCombatant enemy = new("enemy", 100, 100, 0, 0, []) { NativeIndex = 3, Slot = BattleRosterSlot.Enemy(0), ModelId = 4 };
         BattleDiagnosticRepairRandomState random = new(NativeBattleRandomState.Initialize(0), null, null, null);
         BattleDiagnosticTerminalHoldDeclaration declaration = new("Single-use native victory cleanup", ["party"], 100) { Candidate = BattleOutcome.Victory };
         DiagnosticFreshEntryDeclaration fresh = new(DiagnosticFreshEntryDeclaration.SingleUse, [new("FF8_EN.exe", new string('a', 64))]);

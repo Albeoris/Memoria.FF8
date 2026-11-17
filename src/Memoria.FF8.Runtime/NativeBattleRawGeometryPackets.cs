@@ -1,93 +1,137 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+public delegate void NativeBattleProjectedScratchWriter(ReadOnlySpan<NativeBattleProjectedVertex> vertices);
+
 public static class NativeBattleRawGeometryPackets
 {
-    public static ImmutableArray<NativeBattleGeometryPrimitive> Emit5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+    public static ImmutableArray<NativeBattleGeometryPrimitive> Emit5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, NativeBattleProjectedScratchWriter? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
     {
         return EmitCore5099D0(meshes, matrices, projection, colorFlags28, objectMask32, colorDepth36, tableBaseBucket, depthShift, textureBinding, colorRules, publishProjectedScratch, viewport, pilotIdentity, pilotScreenSpace, pilotContinuous, actorId, material, null);
     }
 
-    internal static NativeBattleModelPrimitiveBatch EmitModel5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+    internal static NativeBattleModelPrimitiveBatch EmitModel5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, NativeBattleProjectedScratchWriter? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
     {
         NativeBattleModelPrimitiveBatch.Builder result = new();
         AppendModel5099D0(result, meshes, matrices, projection, colorFlags28, objectMask32, colorDepth36, tableBaseBucket, depthShift, textureBinding, colorRules, publishProjectedScratch, viewport, pilotIdentity, pilotScreenSpace, pilotContinuous, actorId, material);
         return result.Freeze();
     }
 
-    internal static void AppendModel5099D0(NativeBattleModelPrimitiveBatch.Builder result, ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
+    internal static void AppendModel5099D0(NativeBattleModelPrimitiveBatch.Builder result, ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, NativeBattleProjectedScratchWriter? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null)
     {
         EmitCore5099D0(meshes, matrices, projection, colorFlags28, objectMask32, colorDepth36, tableBaseBucket, depthShift, textureBinding, colorRules, publishProjectedScratch, viewport, pilotIdentity, pilotScreenSpace, pilotContinuous, actorId, material, result);
     }
 
-    private static ImmutableArray<NativeBattleGeometryPrimitive> EmitCore5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null, NativeBattleModelPrimitiveBatch.Builder? modelResult = null)
+    private static ImmutableArray<NativeBattleGeometryPrimitive> EmitCore5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, NativeBattleProjectedScratchWriter? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true, string? actorId = null, NativeBattleModelTextureOwner? material = null, NativeBattleModelPrimitiveBatch.Builder? modelResult = null)
     {
         if (meshes.IsDefault)
         {
             throw new NotSupportedException("Native5099D0 requires its original immutable geometry owner.");
         }
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder? result = modelResult is null ? ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>() : null;
-        for (int index = 0; index < meshes.Length; index++)
+        NativeBattleProjectedVertex[]? projectionBuffer = null;
+        NativeBattleProjectedVertex[]? scratchBuffer = null;
+        BattleSceneScreenPoint[]? coordinateBuffer = null;
+        System.Numerics.Vector3?[]? worldBuffer = null;
+        try
         {
-            if ((objectMask32 & (1u << (index & 31))) == 0)
+            for (int index = 0; index < meshes.Length; index++)
             {
-                continue;
-            }
-            NativeBattleRawMesh mesh = meshes[index];
-            mesh.Validate();
-            BattleSceneScreenPoint[]? coordinates = null;
-            NativeBattleProjectedVertex[]? scratch = null;
-            NativeBattleProjectedVertex[] projected;
-            if (viewport is { } expanded)
-            {
-                coordinates = new BattleSceneScreenPoint[mesh.Vertices.Length];
-                projected = new NativeBattleProjectedVertex[mesh.Vertices.Length];
-                if (publishProjectedScratch is not null)
+                if ((objectMask32 & (1u << (index & 31))) == 0)
                 {
-                    scratch = new NativeBattleProjectedVertex[mesh.Vertices.Length];
+                    continue;
                 }
-                for (int vertexIndex = 0; vertexIndex < mesh.Vertices.Length; vertexIndex++)
+                NativeBattleRawMesh mesh = meshes[index];
+                mesh.Validate();
+                int count = mesh.Vertices.Length;
+                projectionBuffer = EnsureScratchSpace(projectionBuffer, count);
+                IReadOnlyList<BattleSceneScreenPoint>? coordinates = null;
+                if (viewport is { } expanded)
                 {
-                    NativeBattleRawVertex vertex = mesh.Vertices[vertexIndex];
-                    var unpacked = NativeBattleGeometryProjection.ProjectUnpacked50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, expanded);
-                    coordinates[vertexIndex] = unpacked.Position;
-                    projected[vertexIndex] = new(unchecked((ushort)unpacked.Position.X) | unchecked((uint)unpacked.Position.Y << 16), unpacked.DepthAndClip);
-                    if (scratch is not null)
+                    coordinateBuffer = EnsureScratchSpace(coordinateBuffer, count);
+                    coordinates = new ArraySegment<BattleSceneScreenPoint>(coordinateBuffer, 0, count);
+                    if (publishProjectedScratch is not null)
                     {
-                        scratch[vertexIndex] = NativeBattleGeometryProjection.ReclipNativeScratch50F900(unpacked.Position, projected[vertexIndex]);
+                        scratchBuffer = EnsureScratchSpace(scratchBuffer, count);
+                    }
+                    for (int vertexIndex = 0; vertexIndex < count; vertexIndex++)
+                    {
+                        NativeBattleRawVertex vertex = mesh.Vertices[vertexIndex];
+                        var unpacked = NativeBattleGeometryProjection.ProjectUnpacked50F900(ReadMatrix(vertex), vertex.Position, projection, expanded);
+                        coordinateBuffer[vertexIndex] = unpacked.Position;
+                        NativeBattleProjectedVertex projected = new(unchecked((ushort)unpacked.Position.X) | unchecked((uint)unpacked.Position.Y << 16), unpacked.DepthAndClip);
+                        projectionBuffer[vertexIndex] = projected;
+                        if (scratchBuffer is not null)
+                        {
+                            scratchBuffer[vertexIndex] = NativeBattleGeometryProjection.ReclipNativeScratch50F900(unpacked.Position, projected);
+                        }
                     }
                 }
-            }
-            else
-            {
-                projected = Project(new(0, 0, 320, 216));
-            }
-            publishProjectedScratch?.Invoke(scratch ?? projected);
-            IReadOnlyList<System.Numerics.Vector3>? world = null;
-            NativeBattlePilotVisualIdentity? meshIdentity = null;
-            if (pilotIdentity is { } identity)
-            {
-                meshIdentity = identity with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(mesh), Primitive = unchecked(identity.Primitive * 257 + index) };
-                if (!pilotScreenSpace)
+                else
                 {
-                    world = new CapturedWorldVertices(mesh.Vertices, matrices, projection);
+                    for (int vertexIndex = 0; vertexIndex < count; vertexIndex++)
+                    {
+                        NativeBattleRawVertex vertex = mesh.Vertices[vertexIndex];
+                        projectionBuffer[vertexIndex] = NativeBattleGeometryProjection.Project50F900(ReadMatrix(vertex), vertex.Position, projection, new(0, 0, 320, 216));
+                    }
                 }
+                publishProjectedScratch?.Invoke((scratchBuffer ?? projectionBuffer).AsSpan(0, count));
+                IReadOnlyList<System.Numerics.Vector3>? world = null;
+                NativeBattlePilotVisualIdentity? meshIdentity = null;
+                if (pilotIdentity is { } identity)
+                {
+                    meshIdentity = identity with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(mesh), Primitive = unchecked(identity.Primitive * 257 + index) };
+                    if (!pilotScreenSpace)
+                    {
+                        worldBuffer = EnsureScratchSpace(worldBuffer, count);
+                        worldBuffer.AsSpan(0, count).Clear();
+                        world = new CapturedWorldVertices(mesh.Vertices, matrices, projection, worldBuffer);
+                    }
+                }
+                // Packet and pilot builders copy their published values before the next mesh reuses this storage.
+                var projectedVertices = new ArraySegment<NativeBattleProjectedVertex>(projectionBuffer, 0, count);
+                AppendProjected5099D0(result, mesh.Polygons, projectedVertices, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous, actorId, material, modelResult);
             }
-            AppendProjected5099D0(result, mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity, pilotScreenSpace, pilotContinuous, actorId, material, modelResult);
-
-            NativeBattleProjectedVertex[] Project(NativeBattleGeometryViewport bounds)
-            {
-                return mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.Project50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, bounds)).ToArray();
-            }
+            return result?.ToImmutable() ?? [];
         }
-        return result?.ToImmutable() ?? [];
+        finally
+        {
+            ReturnScratchSpace(projectionBuffer);
+            ReturnScratchSpace(scratchBuffer);
+            ReturnScratchSpace(coordinateBuffer);
+            ReturnScratchSpace(worldBuffer);
+        }
+
+        NativeBattleActionMatrix ReadMatrix(NativeBattleRawVertex vertex)
+        {
+            return vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix.");
+        }
     }
 
-    private sealed class CapturedWorldVertices(ImmutableArray<NativeBattleRawVertex> vertices, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection) : IReadOnlyList<System.Numerics.Vector3>
+    private static T[] EnsureScratchSpace<T>(T[]? buffer, int count)
     {
-        private readonly System.Numerics.Vector3?[] values = new System.Numerics.Vector3?[vertices.Length];
+        if (buffer is not null && buffer.Length >= count)
+        {
+            return buffer;
+        }
+        T[] next = ArrayPool<T>.Shared.Rent(count);
+        ReturnScratchSpace(buffer);
+        return next;
+    }
+
+    private static void ReturnScratchSpace<T>(T[]? buffer)
+    {
+        if (buffer is not null)
+        {
+            ArrayPool<T>.Shared.Return(buffer);
+        }
+    }
+
+    private sealed class CapturedWorldVertices(ImmutableArray<NativeBattleRawVertex> vertices, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, System.Numerics.Vector3?[] values) : IReadOnlyList<System.Numerics.Vector3>
+    {
         public int Count => vertices.Length;
         public System.Numerics.Vector3 this[int index]
         {

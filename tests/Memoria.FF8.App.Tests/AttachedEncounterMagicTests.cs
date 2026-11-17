@@ -231,6 +231,8 @@ public sealed partial class AttachedEncounterMagicTests
         string defeatedId = battle.EncounterAllocation.ActorIds[0];
         string livingId = battle.EncounterAllocation.ActorIds[1];
         BattleCombatant defeated = battle.Combatants.Single(actor => actor.Id == defeatedId);
+        BattleRosterSlot defeatedSlot = defeated.Slot!.Value;
+        int defeatedAlias = defeated.NativeActorIndex!.Value;
         BattleModelOwner defeatedOwner = battle.ReadPresentationModelOwner(defeatedId);
         BattleModelOwner livingOwner = battle.ReadPresentationModelOwner(livingId);
         int defeatedRow = ReadGraphics().ActorModels.Get(defeatedOwner).TextureResourceIndex!.Value;
@@ -253,6 +255,8 @@ public sealed partial class AttachedEncounterMagicTests
         });
         Assert.True(sawRemoval);
         Assert.False(defeated.IsActive);
+        Assert.Null(defeated.Slot);
+        Assert.Null(defeated.NativeActorIndex);
         Assert.True(battle.Combatants.Single(actor => actor.Id == livingId).IsActive);
         Assert.Equal(0, ReadGraphics().ActorModels.Get(defeatedOwner).Flags0 & 3);
         NativeBattleModelTextureCache cache = battle.Presentation!.ModelTextureCache;
@@ -266,10 +270,14 @@ public sealed partial class AttachedEncounterMagicTests
         NativeBattleEnemyAllocation defeatedAllocation = battle.Capture().NativeAllocations.Single(allocation => allocation.Id == defeatedId);
         BattleEncounterAllocationState replacement = battle.BeginEncounterAllocation("fixture.reallocation", caster.Id, defeatedAllocation.EncounterRole!);
         NativeBattleEnemyAllocation latest = battle.CaptureForContinuation().NativeAllocations.Single(allocation => allocation.Id == replacement.ActorIds[0]);
+        Assert.Equal(defeatedAlias, defeatedAllocation.Retirement!.OriginalIndex);
         Assert.NotEqual(defeatedAllocation.TemplateSource!.Group, latest.TemplateSource!.Group);
         Assert.Equal(defeatedAllocation.TemplateSource.OriginalEnemyOrdinal, latest.TemplateSource.OriginalEnemyOrdinal);
         BattleSession reallocatedFork = battle.ForkForContinuation();
         Assert.Equal(latest.TemplateSource, reallocatedFork.CaptureForContinuation().NativeAllocations.Single(allocation => allocation.Id == latest.Id).TemplateSource);
+        Assert.Equal(defeatedSlot, reallocatedFork.Combatants.Single(actor => actor.Id == latest.Id).Slot);
+        Assert.Equal(defeatedAlias, reallocatedFork.Combatants.Single(actor => actor.Id == latest.Id).NativeActorIndex);
+        Assert.Null(reallocatedFork.Combatants.Single(actor => actor.Id == defeatedId).NativeActorIndex);
 
         NativeBattleGraphicsState ReadGraphics() => battle.Presentation!.Graphics;
         NativeBattleModelCpuResources ReadCpu() => battle.Presentation!.ModelCpuResources;
@@ -290,6 +298,7 @@ public sealed partial class AttachedEncounterMagicTests
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattlePresentationProcess process = battle.Presentation!;
         TickUntil(world, () => battle.ActiveAction is null && !process.HasActiveAction && battle.QueuedActions.Count == 0);
+        int entryOwners = process.PlannedModelRoster.Count;
         var sources = battle.ReadDefinition().AddedEnemySources!;
         BattleCombatant donor = battle.Combatants.First(actor => actor.IsAlive && !actor.IsPlayer && actor.SceneSlot is int scene && sources.TryGetValue(scene, out BattleEnemyRosterSource? admitted) &&
             admitted.OriginalEnemyOrdinal is int ordinal && NativeBattleSequenceDependencies.Read(assets.ReadEnemyNativeGraphicsResource(actor.ModelId)).All(reference =>
@@ -327,22 +336,43 @@ public sealed partial class AttachedEncounterMagicTests
         BattleCombatant party = battle.Combatants.First(actor => actor.IsPlayer);
         BattleCombatant copy = battle.Combatants.Single(actor => actor.Id == firstId);
         BattleRosterSlot firstSlot = copy.Slot!.Value;
-        copy.CurrentHp = 1;
-        party.Atb = BattleSession.AtbMaximum;
-        TickUntil(world, () => battle.CanChoosePlayerCommand(party.Id));
-        world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: party.Id, TargetId: firstId) { ForcePhysical = true });
-        TickUntil(world, () => battle.Capture().NativeAllocations.Single(allocation => allocation.Id == firstId).Retirement is { ResourcesReleased: true });
-        Assert.Null(copy.Slot);
+        Retire(firstId);
         Assert.Equal(firstSlot, completed.Combatants.Single(actor => actor.Id == firstId).Slot);
-        TickUntil(world, () => battle.ActiveAction is null && !process.HasActiveAction && battle.QueuedActions.Count == 0);
-        BattleEncounterAllocationState replacement = battle.BeginEncounterAllocation("fixture.replacement-donor-copy", donor.Id, "donor-copy");
-        string replacementId = Assert.Single(replacement.ActorIds);
-        BattleSession replacementFork = battle.ForkForContinuation();
-        FinishBoth(replacementFork);
-        BattleSourcePlacementBinding replacementBinding = CheckPlacement(replacementFork, replacementId, active: true);
-        Assert.Equal(firstSlot, replacementFork.Combatants.Single(actor => actor.Id == replacementId).Slot);
-        Assert.NotEqual(first.Group, replacementBinding.Group);
-        Assert.Equal(second, CheckPlacement(replacementFork, nestedId, active: true));
+        string retiredId = firstId;
+        BattleSourceGroupId retiredGroup = first.Group;
+        for (int generation = 1; generation <= 2; generation++)
+        {
+            BattleEncounterAllocationState replacement = battle.BeginEncounterAllocation($"fixture.replacement-donor-copy-{generation}", donor.Id, "donor-copy");
+            string replacementId = Assert.Single(replacement.ActorIds);
+            BattleSession replacementFork = battle.ForkForContinuation();
+            FinishBoth(replacementFork);
+            BattleSourcePlacementBinding replacementBinding = CheckPlacement(replacementFork, replacementId, active: true);
+            Assert.Equal(firstSlot, replacementFork.Combatants.Single(actor => actor.Id == replacementId).Slot);
+            Assert.Null(replacementFork.Combatants.Single(actor => actor.Id == retiredId).Slot);
+            Assert.NotEqual(retiredGroup, replacementBinding.Group);
+            Assert.Equal(second, CheckPlacement(replacementFork, nestedId, active: true));
+            Assert.Equal(entryOwners + 2, replacementFork.Presentation!.PlannedModelRoster.Count);
+            Retire(replacementId);
+            Assert.Equal(firstSlot, replacementFork.Combatants.Single(actor => actor.Id == replacementId).Slot);
+            retiredId = replacementId;
+            retiredGroup = replacementBinding.Group;
+        }
+
+        void Retire(string id)
+        {
+            BattleCombatant retiring = battle.Combatants.Single(actor => actor.Id == id);
+            BattleModelOwner model = battle.ReadPresentationModelOwner(id);
+            retiring.CurrentHp = 1;
+            party.Atb = BattleSession.AtbMaximum;
+            TickUntil(world, () => battle.CanChoosePlayerCommand(party.Id));
+            world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: party.Id, TargetId: id) { ForcePhysical = true });
+            TickUntil(world, () => battle.Capture().NativeAllocations.Single(allocation => allocation.Id == id).Retirement is { ResourcesReleased: true });
+            Assert.Null(retiring.Slot);
+            Assert.False(process.Graphics.ActorModels.Contains(model));
+            Assert.False(process.PlannedModelRoster.Contains(model));
+            Assert.Equal(entryOwners + 1, process.PlannedModelRoster.Count);
+            TickUntil(world, () => battle.ActiveAction is null && !process.HasActiveAction && battle.QueuedActions.Count == 0);
+        }
 
         BattleSourcePlacementBinding CheckPlacement(BattleSession owner, string id, bool active)
         {

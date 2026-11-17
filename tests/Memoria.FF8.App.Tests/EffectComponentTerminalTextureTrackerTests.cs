@@ -46,7 +46,7 @@ public sealed class EffectComponentTerminalTextureTrackerTests
         Assert.Equal((byte)1, current.Owners.ActionHeaders);
         Assert.Equal((byte)1, current.Owners.ContactRows);
         Assert.False((current with { RawBlockers = default }).IsEligible);
-        Assert.False((current with { PhysicalCommandBanksEmpty = false }).IsEligible);
+        Assert.False((current with { Owners = current.Owners with { ActionOrCommand = true } }).IsEligible);
         Assert.False((current with { Owners = current.Owners with { RetainedActiveHeader = NativeBattleRetainedActionPackets.HeaderCapacity } }).IsEligible);
         Assert.False((current with { Owners = current.Owners with { RetainedActiveContact = NativeBattleRetainedActionPackets.ContactCapacity + 1 } }).IsEligible);
         Assert.False((current with { Owners = current.Owners with { Files = null } }).IsEligible);
@@ -66,6 +66,6 @@ public sealed class EffectComponentTerminalTextureTrackerTests
         };
         BattleDiagnosticTextureTask task = new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0xF0, 32, 0x1D972C0, 14, 844, 1552, 255, 0, 3, 2, 14);
         BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [task]);
-        return new(101, callback, 0, 0, owners, true, textures, new('a', 64), ["effect-or-auxiliary-task"]);
+        return new(101, callback, 0, 0, owners, textures, new('a', 64), ["effect-or-auxiliary-task"]);
     }
 }

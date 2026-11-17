@@ -273,8 +273,8 @@ public sealed partial class BattleSession
         actor.NativeCombatantFlags = (actor.SourceDefinition.NativeCombatantFlags & ~0xE3u) | 0xC2;
         if (actor.NativeActorIndex is int original)
         {
-            nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(original);
-            nativePresentationStatusMemory.State = nativePresentationStatusMemory.State.Observe(original, new(0, 0));
+            nativeActionMemory = nativeActionMemory.InitializeStatistics(original);
+            nativePresentationStatusMemory = nativePresentationStatusMemory.Observe(original, new(0, 0));
         }
         actor.NativePendingReaction = new(0, 0);
         actor.NativeReturnDamage = 0;

@@ -194,16 +194,6 @@ public sealed partial class BattleSession
             };
     }
 
-    private int NativeConditionLastAttackerIndex(BattleCombatant actor)
-    {
-        return actor.LastNativeAction?.AttackerIndex ?? throw new NotSupportedException("Native last attacker requires its retained B98 owner.");
-    }
-
-    private int NativeConditionActorIndex(int model)
-    {
-        return combatants.Where(HasNativeRosterSlot).OrderBy(candidate => candidate.NativeActorIndex).FirstOrDefault(candidate => NativeModelId(candidate) == model)?.NativeActorIndex ?? 255;
-    }
-
     private IEnumerable<BattleCombatant> NativeConditionModelActors(int model)
     {
         IEnumerable<BattleCombatant> population = ExpandedAiModelQueryPopulation(model);

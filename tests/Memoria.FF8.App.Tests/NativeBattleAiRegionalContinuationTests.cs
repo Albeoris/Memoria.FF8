@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -7,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleAiRegionalContinuationTests
 {
     [Fact]
-    public void OriginalRegionalEncountersInitializeRunAnEnemyTurnAndContinueAfterRestore()
+    public void OriginalRegionalEncountersInitializeRunAnEnemyTurnAndContinueAfterFork()
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original regional encounter and battle resources are required.");
@@ -24,15 +23,26 @@ public sealed class NativeBattleAiRegionalContinuationTests
             Assert.Equal(session.State.CharacterVitals!.CombatParty.Where(row => row != 255).Select(row => (int)row), definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId!.Value));
             NativeBattleMusicEntryPreparation entry = NativeBattleMusicEntry.Prepare52CE30(formation, definition.NativeFlags, new(1, null, null, null, 0, null), 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
             BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { NativeMusicProcess = entry.MusicProcess, NativeGlobalSoundProcess = entry.SoundProcess }, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, world.BattleResources);
-            for (int callback = 0; callback < 2500 && !HasEnemyTurn(battle); callback++)
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+            for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
             {
                 battle.Tick();
             }
-            Assert.True(HasEnemyTurn(battle), $"Original formation{formation} did not publish a bounded enemy turn.");
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            Assert.True(process.EntryReady, $"Original formation{formation} did not complete native entry.");
+            BattleCombatant enemy = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.NativeAi is not null);
+            enemy.Atb = BattleSession.AtbMaximum;
+            for (int callback = 0; callback < 600 && !HasEnemyTurn(battle); callback++)
+            {
+                battle.Tick();
+            }
+            Assert.True(HasEnemyTurn(battle), $"Original formation{formation} did not publish a bounded enemy turn for {enemy.Id} ({enemy.Atb} ATB at callback {process.Graphics.Callback}).");
+            BattleSession restored = battle.ForkForContinuation();
+            Assert.NotSame(battle.Presentation, restored.Presentation);
             battle.Tick();
             restored.Tick();
             Assert.Equal(battle.Outcome, restored.Outcome);
+            Assert.Equal(battle.Presentation!.Graphics.Callback, restored.Presentation!.Graphics.Callback);
+            Assert.Equal(battle.Capture().NativeCrtRandom, restored.Capture().NativeCrtRandom);
             Assert.Equal(battle.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.Atb, actor.PersistentStatus)), restored.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.Atb, actor.PersistentStatus)));
             Assert.Equal(battle.QueuedActions.Select(action => (action.ActorId, action.TargetId, action.Ability, action.ActionId)), restored.QueuedActions.Select(action => (action.ActorId, action.TargetId, action.Ability, action.ActionId)));
             Assert.Equal(battle.ActiveAction is { } activeAction ? (activeAction.ActorId, activeAction.TargetId, activeAction.Ability, activeAction.ActionId, activeAction.Phase) : default, restored.ActiveAction is { } continued ? (continued.ActorId, continued.TargetId, continued.Ability, continued.ActionId, continued.Phase) : default);

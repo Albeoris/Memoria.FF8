@@ -36,7 +36,9 @@ public sealed partial class BattleSession
             }
             BattleActionPresentation command = receipt.Source with
             {
+                Ability = BattleAbility.Magic,
                 ActionId = reflected.ActionId,
+                NativeSlots = null,
                 TargetId = redirected.Id,
                 TargetRequest = request,
                 NativeSequence = 0,

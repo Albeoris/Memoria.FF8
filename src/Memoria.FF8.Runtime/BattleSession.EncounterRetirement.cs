@@ -99,9 +99,16 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Encounter retirement requires its reserved logical position.");
         }
-        bool resourcesReleased = Presentation is { Graphics: { } graphics } &&
-            (!graphics.ActorModels.TryGet(CreatePresentationModelOwner(actor), out NativeBattleGraphicsModel? model) || (model.Flags0 & 3) == 0);
-        nativeAllocations[index] = allocation with { Retirement = new(slot, actor.NativeActorIndex, ResourcesReleased: resourcesReleased) };
+        EncounterAllocationRetirement retirement = new(slot, actor.NativeActorIndex);
+        if (Presentation is { } process && (!process.Graphics.ActorModels.TryGet(CreatePresentationModelOwner(actor), out NativeBattleGraphicsModel? model) || (model.Flags0 & 3) == 0))
+        {
+            if (TryFinishEncounterAllocationRetirement(index, allocation, retirement, process))
+            {
+                return;
+            }
+            retirement = retirement with { RemovalQueued = true };
+        }
+        nativeAllocations[index] = allocation with { Retirement = retirement };
     }
 
     private NativeBattleGraphicsState AdvanceEncounterAllocationRetirements(NativeBattleGraphicsState graphics, BattlePresentationProcess process)
@@ -126,16 +133,18 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Encounter retirement lost its allocation generation before native resource release.");
                 }
-                if (!pendingRemoval)
+                if (!pendingRemoval && TryFinishEncounterAllocationRetirement(index, allocation, retirement, process))
                 {
-                    // Native102 can bind another generation only after the previous loaded bit has cleared.
-                    nativeAllocations[index] = allocation with { Retirement = retirement with { ResourcesReleased = true } };
+                    graphics = process.Graphics;
                 }
                 continue;
             }
             if ((model.Flags0 & 3) == 0 && !pendingRemoval)
             {
-                nativeAllocations[index] = allocation with { Retirement = retirement with { ResourcesReleased = true } };
+                if (TryFinishEncounterAllocationRetirement(index, allocation, retirement, process))
+                {
+                    graphics = process.Graphics;
+                }
                 continue;
             }
             if (retirement.RemovalQueued || pendingRemoval)
@@ -170,6 +179,24 @@ public sealed partial class BattleSession
         return graphics;
     }
 
+    private bool TryFinishEncounterAllocationRetirement(int index, NativeBattleEnemyAllocation allocation, EncounterAllocationRetirement retirement, BattlePresentationProcess process)
+    {
+        if (retirement.HasAcceptedConsumers(allocation.Id, process.ActionPackets, process.Graphics, ActiveAction, process.Memory.DetachedReturnedTask))
+        {
+            return false;
+        }
+        BattleEnemyActorModel owner = new(new(allocation.Id));
+        NativeBattleModelSlot? original = retirement.OriginalIndex is int alias ? NativeBattleModelSlot.Decode(checked((byte)alias)) : null;
+        NativeBattleEnemyAllocation completed = allocation with { Retirement = retirement with { ResourcesReleased = true } };
+        if (!process.TryCompleteEncounterModelRetirement(owner, original))
+        {
+            return false;
+        }
+        GetActor(allocation.Id).BindRosterSlot(null);
+        nativeAllocations[index] = completed;
+        return true;
+    }
+
     private void ValidateEncounterRetirements()
     {
         foreach (NativeBattleEnemyAllocation allocation in nativeAllocations.Where(allocation => allocation.Retirement is not null))
@@ -178,8 +205,9 @@ public sealed partial class BattleSession
             BattleCombatant actor = GetActor(allocation.Id);
             bool slotValid = retirement.Slot.Side == BattleSide.Enemies && retirement.Slot.Position < ExpandedBattleFormation.MaximumEnemies &&
                 (retirement.OriginalIndex is not int original || original == NativeBattleSlots.TryEncode(retirement.Slot));
-            if (actor.IsActive || !slotValid || !retirement.ResourcesReleased &&
-                (actor.Slot != retirement.Slot || actor.NativeActorIndex != retirement.OriginalIndex))
+            if (actor.IsActive || !slotValid || (retirement.ResourcesReleased
+                ? actor.Slot is not null || actor.NativeActorIndex is not null
+                : actor.Slot != retirement.Slot || actor.NativeActorIndex != retirement.OriginalIndex))
             {
                 throw new InvalidDataException("Encounter retirement snapshot disagrees with its inactive allocation and resource generation.");
             }

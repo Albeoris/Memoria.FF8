@@ -70,9 +70,3 @@ public sealed record NativeBattleActionMemory([property: JsonRequired] Immutable
         }
     }
 }
-
-/// <summary>One mutable reference to the immutable physical bank, shared by the combatant projections.</summary>
-internal sealed class NativeBattleActionMemoryOwner
-{
-    public NativeBattleActionMemory State { get; set; } = NativeBattleActionMemory.Unknown();
-}

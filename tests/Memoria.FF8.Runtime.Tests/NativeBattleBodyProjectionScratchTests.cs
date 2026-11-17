@@ -16,7 +16,7 @@ public sealed class NativeBattleBodyProjectionScratchTests
         List<int> writes = [];
         ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0([first, second, hidden], [identity], new(identity, 512, 160, 108), 0, 3, null, 17, 4, null, publishProjectedScratch: vertices =>
         {
-            writes.Add(vertices.Count);
+            writes.Add(vertices.Length);
             staging = NativeBattleBodyProjectionScratch.Publish(staging, 3, vertices);
         });
         Assert.Empty(packets);
@@ -31,6 +31,24 @@ public sealed class NativeBattleBodyProjectionScratchTests
         NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!;
         Assert.Equal(bytes, restored.Read(address, 16));
         Assert.Throws<NotSupportedException>(() => restored.Read(address + 16, 8));
+    }
+
+    [Fact]
+    public void Pooled_scratch_bytes_do_not_alias_a_retained_staging_fork()
+    {
+        const ushort capacity = 256;
+        const uint address = 0x196B018 - 8u * capacity;
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleProjectedVertex[] vertices = Enumerable.Range(0, capacity).Select(index => new NativeBattleProjectedVertex((uint)index, (uint)(1024 + index))).ToArray();
+        NativeBattleBodyProjectionScratch.Publish(staging, capacity, vertices);
+        NativeBattleFileStaging fork = NativeBattleStorageSnapshots.Fork(staging);
+        byte[] before = fork.Read(address, 8 * capacity);
+
+        Array.Fill(vertices, new NativeBattleProjectedVertex(0xABCDEF01, 0x1234));
+        NativeBattleBodyProjectionScratch.Publish(staging, capacity, vertices);
+        Assert.Equal(0xABCDEF01u, staging.ReadUInt32(address));
+        Assert.Equal(before, fork.Read(address, 8 * capacity));
+        Assert.Equal((uint)(capacity - 1), fork.ReadUInt32(address + 8u * (capacity - 1)));
     }
 
     [Fact]
