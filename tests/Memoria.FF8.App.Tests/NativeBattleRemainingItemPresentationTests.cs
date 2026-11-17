@@ -185,7 +185,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 if ((native.MagicId is 7 or 50 or 51 or 52 || statusCure) && graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && (native.MagicId == 7 && effect.Recovery is not null || native.MagicId == 50 && effect.Cure is not null || native.MagicId == 51 && effect.Cura is not null || native.MagicId == 52 && effect.Curaga is not null || statusCure && effect.StatusCureItem is not null) && effect.RequestedEffect == native.MagicId && graphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
-                    NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                    NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                     BattleSnapshot withoutEffect = current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutFrame } });
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(withoutEffect), 320, 224).ToArray();
                     int changedRgb = CountRgbChanges(rendered, plain);

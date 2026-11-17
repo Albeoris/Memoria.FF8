@@ -452,7 +452,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, size, size), state);
         NativeBattleLogicalResolvedCommand[] commands = Enumerable.Range(0, materials).Select(index => RawCacheQuad(clut: checked((ushort)index), size: size)).ToArray();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture(), PilotDiagnosticsEnabled = true };
-        renderer.RenderNativePrimitiveFrame(Frame(commands.ToImmutableArray()) with { LastTextureSnapshots = [held] }, state);
+        renderer.RenderNativePrimitiveFrame(Frame(NativeBattleResolvedCommandList.From(commands)) with { LastTextureSnapshots = [held] }, state);
         Assert.Equal(expectedCandidates, RawCacheCount(renderer, "nativeRawTexturePages"));
         Assert.Equal(0, renderer.TextureDecoding!.Value.RawBudgetSkips);
         Assert.Equal(materials - expectedCandidates, renderer.TextureDecoding!.Value.RawEvictions);
@@ -570,7 +570,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
         NativeBattleLogicalResolvedCommand[] commands = Enumerable.Range(0, 256).Select(index => RawCacheQuad(clut: checked((ushort)index))).ToArray();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture(), PilotDiagnosticsEnabled = true };
-        renderer.RenderNativePrimitiveFrame(Frame(commands.ToImmutableArray()) with { LastTextureSnapshots = [held] }, state);
+        renderer.RenderNativePrimitiveFrame(Frame(NativeBattleResolvedCommandList.From(commands)) with { LastTextureSnapshots = [held] }, state);
         renderer.RenderNativePrimitiveFrame(Frame([RawCacheQuad(clut: 0)]) with { LastTextureSnapshots = [held] }, state);
         Assert.Equal(1, renderer.TextureDecoding!.Value.RawPromotions);
         renderer.RenderNativePrimitiveFrame(Frame([RawCacheQuad(clut: 256)]) with { LastTextureSnapshots = [held] }, state);
@@ -783,7 +783,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         renderer.RenderNativePrimitiveFrame(prepared, first);
         Assert.Equal(originalPixel, capture.Texture![0, 0]);
         Assert.Null(typeof(NativeBattlePreparedPrimitiveFrame).GetProperty("Pending"));
-        Assert.Equal(source.LastCommands, prepared.LastCommands);
+        Assert.Equal<NativeBattleLogicalResolvedCommand>(source.LastCommands, prepared.LastCommands);
     }
 
     [Theory]
@@ -1185,7 +1185,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal(new byte[] { 0, maximumGreen, 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 20), 4).ToArray());
     }
 
-    private static NativeBattlePrimitiveFrame Frame(ImmutableArray<NativeBattleLogicalResolvedCommand> commands) => new(NativeBattleLogicalOrdering.Clear(), commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
+    private static NativeBattlePrimitiveFrame Frame(NativeBattleResolvedCommandList commands) => new(NativeBattleLogicalOrdering.Clear(), commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
 
     [Theory]
     [InlineData(0x41310u, 255, 1, 159, 65)]

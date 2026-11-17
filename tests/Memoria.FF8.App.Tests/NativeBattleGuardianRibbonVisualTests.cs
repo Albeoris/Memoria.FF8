@@ -19,7 +19,7 @@ public sealed class NativeBattleGuardianRibbonVisualTests
         int ribbonCommands = frame.LastCommands.Count(command => command.Pass > 0 && Ribbon(command));
         Assert.True(ribbonCommands > 0);
         BattleSession original = BattleSession.Restore(snapshot);
-        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !Ribbon(command)).ToImmutableArray() } } });
+        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !Ribbon(command))) } } });
         BattleSession control = BattleSession.Restore(without);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, snapshot.Definition);

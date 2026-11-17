@@ -163,7 +163,7 @@ public sealed class NativeBattleEffect3PresentationTests
                     PublishEvidence(evidence, evidenceId + "-first-effect-packets", snapshot, visible);
                     exportedFirstEffectFrame = true;
                 }
-                NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.ModuleDraw is not int index || !effectDraws.Contains(index)).ToImmutableArray() };
+                NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.ModuleDraw is not int index || !effectDraws.Contains(index))) };
                 BattleSession plain = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } }));
                 byte[] background = scene.Render(plain, 320, 224);
                 int changedPixels = DifferentRgbPixels(visible, background);

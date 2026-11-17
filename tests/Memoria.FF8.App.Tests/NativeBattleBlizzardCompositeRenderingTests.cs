@@ -41,7 +41,7 @@ public sealed class NativeBattleBlizzardCompositeRenderingTests
         NativeBattleEffectTextureState textures = Texture();
         BattleRenderer renderer = new(320, 216);
         byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, textures, textureWindowCache: selectedCache).ToArray();
-        NativeBattlePrimitiveFrame primaryOnly = frame with { LastCommands = commands.Where(command => command.Command.Packet.ByteOffset != 32).ToImmutableArray() };
+        NativeBattlePrimitiveFrame primaryOnly = frame with { LastCommands = NativeBattleResolvedCommandList.From(commands.Where(command => command.Command.Packet.ByteOffset != 32)) };
         byte[] withoutPartner = renderer.RenderNativePrimitiveFrame(primaryOnly, textures, textureWindowCache: selectedCache).ToArray();
         Assert.Contains(Enumerable.Range(0, 320 * 216), pixel => pixels[pixel * 4 + 1] > 0);
         Assert.All(Enumerable.Range(0, 320 * 216), pixel => Assert.Equal((byte)0, withoutPartner[pixel * 4 + 1]));

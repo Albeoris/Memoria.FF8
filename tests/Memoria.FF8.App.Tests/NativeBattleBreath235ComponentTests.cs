@@ -73,7 +73,7 @@ public sealed class NativeBattleBreath235ComponentTests
                     if (references.Count != 0)
                     {
                         byte[] rendered = scene.Render(battle, 320, 224).ToArray();
-                        BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } }));
+                        BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !references.Contains(command.Command.Packet))) } } }));
                         byte[] plain = new BattleScenePresentation(assets, component.Definition).Render(background, 320, 224).ToArray();
                         int changed = 0;
                         for (int offset = 0; offset < rendered.Length; offset += 4)

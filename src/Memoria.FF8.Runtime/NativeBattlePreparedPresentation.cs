@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Completed command payload. Pending ordering and physical packet storage are deliberately absent.</summary>
-public sealed record NativeBattlePreparedPrimitiveFrame(ImmutableArray<NativeBattleLogicalResolvedCommand> LastCommands, ImmutableArray<int?> LastModuleBlendModes)
+public sealed record NativeBattlePreparedPrimitiveFrame(NativeBattleResolvedCommandList LastCommands, ImmutableArray<int?> LastModuleBlendModes)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableDictionary<long, NativeBattleSceneReplaySource>? SceneReplaySources { get; init; }

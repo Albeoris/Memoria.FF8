@@ -52,7 +52,7 @@ public sealed class NativeBattlePointRenderingTests
     }
 
     private static uint Point(int x, int y) => unchecked((ushort)x | (uint)y << 16);
-    private static NativeBattlePrimitiveFrame Frame(params NativeBattleLogicalResolvedCommand[] commands) => new(NativeBattleLogicalOrdering.Clear(), commands.ToImmutableArray(), []) { LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess(), LastDescriptorPerspective = false };
+    private static NativeBattlePrimitiveFrame Frame(params NativeBattleLogicalResolvedCommand[] commands) => new(NativeBattleLogicalOrdering.Clear(), NativeBattleResolvedCommandList.Create(commands), []) { LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess(), LastDescriptorPerspective = false };
 
     private sealed class Capture : ITriangleRenderer
     {

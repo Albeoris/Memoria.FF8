@@ -143,7 +143,7 @@ public sealed class NativeBattleCuraPresentationTests
                     PublishEvidence(evidence, evidenceId + "-first-effect-packets", snapshot, visible);
                     exportedFirstEffectFrame = true;
                 }
-                NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                 BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } })));
                 byte[] background = scene.Render(plain, 320, 224);
                 int changedPixels = DifferentRgbPixels(visible, background);

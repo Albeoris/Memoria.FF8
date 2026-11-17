@@ -49,7 +49,7 @@ public sealed partial record NativeBattleEffectMemory
     public byte? ActionPhaseDEA { get; init; }
 }
 
-public sealed record NativeBattlePrimitiveFrame(NativeBattleLogicalOrdering Pending, ImmutableArray<NativeBattleLogicalResolvedCommand> LastCommands, ImmutableArray<int?> LastModuleBlendModes)
+public sealed record NativeBattlePrimitiveFrame(NativeBattleLogicalOrdering Pending, NativeBattleResolvedCommandList LastCommands, ImmutableArray<int?> LastModuleBlendModes)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<long?>? SceneSources { get; init; }

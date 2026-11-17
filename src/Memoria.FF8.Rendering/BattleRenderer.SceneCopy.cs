@@ -52,9 +52,16 @@ public sealed partial class BattleRenderer
 
     private void ConfigureSceneReplaySampling(NativeBattlePreparedPrimitiveFrame frame)
     {
-        if (!isSceneReplay || frame.LastPcRenderTail is not null || frame.LastCommands.Any(HasUnprovedReplayMaterial))
+        if (!isSceneReplay || frame.LastPcRenderTail is not null)
         {
             return;
+        }
+        foreach (NativeBattleLogicalResolvedCommand command in frame.LastCommands)
+        {
+            if (HasUnprovedReplayMaterial(command))
+            {
+                return;
+            }
         }
         sceneReplaySampleColumns = new bool[Width];
         sceneReplaySampleRows = new bool[Height];

@@ -87,7 +87,7 @@ public sealed class NativeBattleRoughDivide163CastTests
                         BattleSnapshot captured = battle.CaptureForContinuation();
                         NativeBattleGraphicsState frozenGraphics = captured.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame frozenFrame = frozenGraphics.PrimitiveFrame!;
-                        NativeBattlePrimitiveFrame withoutEffect = frozenFrame with { LastCommands = frozenFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                        NativeBattlePrimitiveFrame withoutEffect = frozenFrame with { LastCommands = NativeBattleResolvedCommandList.From(frozenFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                         BattleSession background = BattleSession.Restore(captured.WithFixturePresentation(facts => facts with { NativeGraphics = frozenGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));

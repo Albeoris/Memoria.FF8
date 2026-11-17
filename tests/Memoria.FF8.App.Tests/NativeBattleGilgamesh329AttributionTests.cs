@@ -44,7 +44,7 @@ public sealed class NativeBattleGilgamesh329AttributionTests
         BattleRenderer renderer = new(320, 224, ViewportLayout.Fit(320, 224, 320, 224));
         NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(NativeBattleFixtureState.ReadArchived<NativeBattleEffectMemory>(current, "NativeEffectMemory"));
         byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: definition.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache, effectTextureSource: assets.EffectTextureSource);
-        NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() };
+        NativeBattlePrimitiveFrame without = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet))) };
         byte[] plain = renderer.RenderNativePrimitiveFrame(without, memory.Textures, capabilities: definition.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess.TextureWindowCache, effectTextureSource: assets.EffectTextureSource);
         int changed = 0;
         Assert.Equal(pixels.Length, plain.Length);

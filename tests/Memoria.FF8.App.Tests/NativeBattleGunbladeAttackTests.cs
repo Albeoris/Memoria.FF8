@@ -147,7 +147,7 @@ public sealed class NativeBattleGunbladeAttackTests
             graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
             frame = graphics.PrimitiveFrame!;
             byte[] pixels = scene.Render(battle, 320, 224);
-            NativeBattlePrimitiveFrame withoutParticle = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.ModuleDraw is not int index || !draws.Contains(index)).ToImmutableArray() };
+            NativeBattlePrimitiveFrame withoutParticle = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.ModuleDraw is not int index || !draws.Contains(index))) };
             BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutParticle } })));
             byte[] background = new BattleScenePresentation(assets, definition).Render(plain, 320, 224);
             int changed = 0;

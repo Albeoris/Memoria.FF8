@@ -45,7 +45,7 @@ public sealed class BattleExpandedSceneContinuationTests
             if (output is not null && !packedDifference)
             {
                 NativeBattlePrimitiveFrame frame = battle.Presentation!.Graphics.PrimitiveFrame!;
-                NativeBattlePrimitiveFrame packed = frame with { LastCommands = frame.LastCommands.Select(item => item with { Command = item.Command with { ProjectedCoordinates = null } }).ToImmutableArray() };
+                NativeBattlePrimitiveFrame packed = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Select(item => item with { Command = item.Command with { ProjectedCoordinates = null } })) };
                 BattleRenderer raster = new(640, 360, ViewportLayout.Fit(320, 240, 640, 360));
                 var memory = battle.Presentation!.Memory;
                 byte[] fullPixels = raster.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache).ToArray();

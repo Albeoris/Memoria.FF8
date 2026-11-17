@@ -32,7 +32,7 @@ public sealed class BattleSceneReplaySmokeTests
             ScreenCoverage = new(0, 0, 0.1f, 1)
         };
         NativeBattlePreparedPrimitiveFrame sourceFrame = Frame(new(red, new(0), 1));
-        sourceFrame = sourceFrame with { LastCommands = sourceFrame.LastCommands.Add(new(edge, new(0), 1)) };
+        sourceFrame = sourceFrame with { LastCommands = [.. sourceFrame.LastCommands, new(edge, new(0), 1)] };
         NativeBattleSceneReplaySource source = new(sourceFrame, NativeBattleEffectTextureState.FromColdProcess(), area) { Callback = 1, Buffer = 0 };
         NativeBattleSceneCapture copy = new(area, NativeBattleSceneCaptureKind.Copy)
         {

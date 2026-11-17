@@ -258,6 +258,11 @@ internal abstract class NativeBattleStorageContext
                 NativeBattlePilotVisualGeometry? mapped = original is null ? null : (NativeBattlePilotVisualGeometry?)MapObject(original);
                 result = ReferenceEquals(original, mapped) ? value : new NativeBattlePilotGeometryReference(mapped);
             }
+            else if (value is NativeBattleResolvedCommandList commands)
+            {
+                NativeBattleResolvedCommandList mapped = commands.MapPayloads(command => (NativeBattleLogicalCommand)MapObject(command)!, mode => (NativeBattlePrimitiveDrawMode)MapObject(mode)!);
+                result = mapped == commands ? value : mapped;
+            }
             else if (value is INativeBattleStorageNode node)
             {
                 result = MapStorage(node);

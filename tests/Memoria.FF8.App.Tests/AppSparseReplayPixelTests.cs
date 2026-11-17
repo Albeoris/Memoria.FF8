@@ -166,7 +166,7 @@ public sealed class AppSparseReplayPixelTests
                 pixels[offset + 1] = (byte)(word >> 8);
             }
         }
-        return Frame(commands.ToImmutableArray()) with { LastDescriptorPerspective = true, LastTextureSnapshots = [new(0, 0, 256, 256, pixels.ToImmutableArray())], ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("faded", 0.55f) };
+        return Frame(NativeBattleResolvedCommandList.From(commands)) with { LastDescriptorPerspective = true, LastTextureSnapshots = [new(0, 0, 256, 256, pixels.ToImmutableArray())], ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("faded", 0.55f) };
     }
 
     private static NativeBattleLogicalResolvedCommand Quad(uint color, int left, int top, int right, int bottom, int bucket)
@@ -187,7 +187,7 @@ public sealed class AppSparseReplayPixelTests
 
     private static NativeBattleLogicalResolvedCommand State(byte opcode) => new(new(new("state", 0, 0), 1, opcode, [(uint)opcode << 24], 1, [], null), new(null), 1);
 
-    private static NativeBattlePreparedPrimitiveFrame Frame(ImmutableArray<NativeBattleLogicalResolvedCommand> commands) => new(commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
+    private static NativeBattlePreparedPrimitiveFrame Frame(NativeBattleResolvedCommandList commands) => new(commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
 
     private static NativeBattlePcUiFrame Ui()
     {

@@ -165,7 +165,7 @@ public sealed class NativeBattleBlizzardPresentationTests
                     composite = true;
                 }
                 byte[] visible = scene.Render(battle, 320, 224).ToArray();
-                NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                NativeBattlePrimitiveFrame without = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                 BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = without } }));
                 int rgb = DifferentRgb(visible, scene.Render(plain, 320, 224));
                 if (rgb > peakRgb)

@@ -22,7 +22,7 @@ public sealed class NativeBattleGuardianParticleVisualTests
         NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
         int particleCommands = frame.LastCommands.Count(IsParticle);
         Assert.True(particleCommands > 0);
-        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !IsParticle(command)).ToImmutableArray() } } });
+        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => !IsParticle(command))) } } });
         BattleSession original = BattleSession.Restore(snapshot);
         BattleSession control = BattleSession.Restore(without);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
@@ -30,7 +30,7 @@ public sealed class NativeBattleGuardianParticleVisualTests
         byte[] full = scene.Render(original, 320, 224).ToArray();
         byte[] removed = scene.Render(control, 320, 224).ToArray();
         int changed = Enumerable.Range(0, 320 * 224).Count(index => !full.AsSpan(4 * index, 3).SequenceEqual(removed.AsSpan(4 * index, 3)));
-        BattleSnapshot onlyParticles = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(IsParticle).ToImmutableArray() } } });
+        BattleSnapshot onlyParticles = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(IsParticle)) } } });
         byte[] isolated = scene.Render(BattleSession.Restore(onlyParticles), 320, 224);
         int isolatedPixels = Enumerable.Range(0, 320 * 224).Count(index => isolated[4 * index] != 0 || isolated[4 * index + 1] != 0 || isolated[4 * index + 2] != 0);
         Console.WriteLine($"Private trail diagnostic: commands{particleCommands}, isolatedRGBpixels{isolatedPixels}, full-frameRGBdifference{changed}.");

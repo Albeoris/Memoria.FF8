@@ -85,7 +85,7 @@ public sealed class NativeBattleModelMaterialRenderingTests
         AssertPixel(pixels, 20, 0, 0, 255);
     }
 
-    private static NativeBattlePrimitiveFrame Frame(ImmutableArray<NativeBattleLogicalResolvedCommand> commands)
+    private static NativeBattlePrimitiveFrame Frame(NativeBattleResolvedCommandList commands)
     {
         return new(NativeBattleLogicalOrdering.Clear(), commands, [])
         {

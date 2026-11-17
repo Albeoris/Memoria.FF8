@@ -20,6 +20,33 @@ public sealed class NativeBattleLogicalDynamicPassTests
     }
 
     [Fact]
+    public void Three_native_passes_cross_page_boundaries_without_changing_command_order_or_mode()
+    {
+        const int commandsPerPass = 257;
+        NativeBattleLogicalOrdering ordering = Ordering(Enumerable.Repeat((byte)0x20, commandsPerPass).ToArray());
+        NativeBattlePrimitiveTables tables = Tables();
+        NativeBattlePrimitiveDrawMode initial = new(0x65) { TextureWindowBits = 0x120 };
+        var expected = ordering.Traverse(tables.WordLengths);
+        var result = NativeBattleLogicalPasses.Execute(ordering, tables, initial, 1);
+
+        Assert.Equal(commandsPerPass * 3, result.Commands.Count);
+        int index = 0;
+        foreach (ref readonly NativeBattleLogicalResolvedCommand delivery in result.Commands)
+        {
+            byte pass = checked((byte)(index / commandsPerPass));
+            int ordinal = index % commandsPerPass;
+            Assert.Equal(pass, delivery.Pass);
+            Assert.Equal(expected[ordinal].Packet, delivery.Command.Packet);
+            Assert.True(expected[ordinal].WordSpan.SequenceEqual(delivery.Command.WordSpan));
+            Assert.Same(initial, delivery.DrawMode);
+            Assert.Same(result.Commands[ordinal].Command, delivery.Command);
+            index++;
+        }
+        Assert.Equal(result.Commands.Count, index);
+        Assert.Same(initial, result.Final);
+    }
+
+    [Fact]
     public void Hardware_disabled_keeps_pass0_software_and_state_but_skips_both_later_traversals()
     {
         Context context = new() { LiveMode = 3, HardwareEnabled = false };

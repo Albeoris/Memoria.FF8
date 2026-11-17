@@ -39,7 +39,7 @@ public sealed class NativeBattleTextureWindowCheckpointMigrationTests
         NativeBattlePcTextureWindowCache reset = NativeBattlePcTextureWindowCache.Reset4647A0(process.TextureWindowCache);
         Assert.Null(reset.ScaleU);
         Assert.Null(reset.ScaleV);
-        var selected = NativeBattleLogicalPasses.SelectTextures(frame.LastCommands.Select(command => command with { DrawMode = command.DrawMode with { TextureWindowBits = 0 } }).ToImmutableArray(), reset);
+        var selected = NativeBattleLogicalPasses.SelectTextures(NativeBattleResolvedCommandList.From(frame.LastCommands.Select(command => command with { DrawMode = command.DrawMode with { TextureWindowBits = 0 } })), reset);
         BattleSnapshot migrated = original.WithFixturePresentation(facts => facts with { NativeEffectMemory = memory with { PrimitiveProcess = process with { TextureWindowBits = 0, TextureWindowCache = selected.Cache } }, NativeGraphics = graphics with { PrimitiveFrame = frame with { LastCommands = selected.Commands } } });
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));

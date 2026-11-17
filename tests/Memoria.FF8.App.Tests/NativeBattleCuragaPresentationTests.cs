@@ -63,7 +63,7 @@ public sealed class NativeBattleCuragaPresentationTests
                 continue;
             }
             byte[] visible = scene.Render(battle, 320, 224).ToArray();
-            NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+            NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
             BattleSession plain = BattleSession.Restore(after.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
             int changedPixels = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
             peakChangedPixels = Math.Max(peakChangedPixels, changedPixels);
@@ -237,7 +237,7 @@ public sealed class NativeBattleCuragaPresentationTests
                     PublishEvidence(evidence, evidenceId + "-first-effect-packets", snapshot, visible);
                     exportedFirstEffectFrame = true;
                 }
-                NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                 BattleSession plain = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } }));
                 byte[] background = scene.Render(plain, 320, 224);
                 int changedPixels = DifferentRgbPixels(visible, background);

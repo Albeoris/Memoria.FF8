@@ -220,7 +220,7 @@ public sealed class NativeBattleSceneReplayMemoTests
     {
         return frames[0] with
         {
-            LastCommands = frames.Select((frame, index) => frame.LastCommands[0] with { DrawMode = frame.LastCommands[0].DrawMode with { TexturePixelSnapshot = index } }).ToImmutableArray(),
+            LastCommands = NativeBattleResolvedCommandList.From(frames.Select((frame, index) => frame.LastCommands[0] with { DrawMode = frame.LastCommands[0].DrawMode with { TexturePixelSnapshot = index } })),
             LastTextureSnapshots = frames.Select(frame => frame.LastTextureSnapshots!.Value[0]).ToImmutableArray()
         };
     }

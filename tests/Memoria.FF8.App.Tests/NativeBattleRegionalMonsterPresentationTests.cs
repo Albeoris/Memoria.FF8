@@ -148,7 +148,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, native.MagicId, game);
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
-                    BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } }));
+                    BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = NativeBattleResolvedCommandList.From(primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet))) } } }));
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     int changed = 0;
                     for (int offset = 0; offset < rendered.Length; offset += 4)

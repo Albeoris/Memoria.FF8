@@ -65,7 +65,7 @@ public sealed class NativeBattleNoMercy200CastTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         BattleSnapshot renderSource = battle.CaptureForContinuation();
                         NativeBattleGraphicsState renderGraphics = renderSource.ReadFixturePresentation().NativeGraphics!;
-                        NativeBattlePrimitiveFrame withoutEffect = renderGraphics.PrimitiveFrame! with { LastCommands = renderGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                        NativeBattlePrimitiveFrame withoutEffect = renderGraphics.PrimitiveFrame! with { LastCommands = NativeBattleResolvedCommandList.From(renderGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                         BattleSession background = BattleSession.Restore(renderSource.WithFixturePresentation(facts => facts with { NativeGraphics = renderGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));

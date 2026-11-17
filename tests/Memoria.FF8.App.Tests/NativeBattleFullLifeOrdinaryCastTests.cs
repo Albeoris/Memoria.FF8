@@ -151,7 +151,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 if (!visibleChecked && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
-                    NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                    NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                     BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } })));
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     changedRgbPixels = CountRgbChanges(visible, plain);

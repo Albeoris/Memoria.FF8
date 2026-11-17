@@ -260,7 +260,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattlePrimitiveDepthState? depth = process.Depth;
         NativeBattlePrimitiveColorState? color = process.Color;
         NativeBattleLogicalOrdering pending = frame.Pending.SelectTable(buffer);
-        ImmutableArray<NativeBattleLogicalResolvedCommand> commands = [];
+        NativeBattleResolvedCommandList commands = [];
         ImmutableArray<NativeBattlePcTextureWindowPixels>? textureSnapshots = null;
         bool drew = (graphics.Flags & 4) != 0;
         bool clearRoots = process.DisableTableReset != true;
@@ -310,9 +310,19 @@ public sealed partial class BattlePresentationProcess
         NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("A completed scene source requires its retained drawing environments.");
         int drawnBuffer = buffer ^ 1;
         ImmutableArray<byte> environment = drawnBuffer == 0 ? environments.Buffer0 : environments.Buffer1;
-        NativeBattlePreparedPrimitiveFrame completed = PrepareNativePrimitiveFrame(frame) with { SceneReplaySources = null, LastCommands = frame.LastCommands.Where(command => command.Command.Opcode != 0x80).ToImmutableArray() };
+        NativeBattlePreparedPrimitiveFrame completed = PrepareNativePrimitiveFrame(frame) with { SceneReplaySources = null, LastCommands = ExcludeSceneCopyCommands(frame.LastCommands) };
         NativeBattleEffectTextureState sourceTextures = memory.Textures ?? throw new NotSupportedException("A completed scene source requires its retained texture image.");
-        bool orderedTextures = completed.LastCommands.Where(command => command.Pass > 0 && ((command.Command.Opcode & 0xE4) == 0x24 || command.Command.Opcode is 0x64 or 0x66)).All(command => command.DrawMode.TexturePixelSnapshot is int index && completed.LastTextureSnapshots is { } snapshots && (uint)index < snapshots.Length);
+        bool orderedTextures = true;
+        foreach (ref readonly NativeBattleLogicalResolvedCommand command in completed.LastCommands)
+        {
+            byte opcode = command.Command.Opcode;
+            if (command.Pass > 0 && ((opcode & 0xE4) == 0x24 || opcode is 0x64 or 0x66) &&
+                (command.DrawMode.TexturePixelSnapshot is not int index || completed.LastTextureSnapshots is not { } snapshots || (uint)index >= snapshots.Length))
+            {
+                orderedTextures = false;
+                break;
+            }
+        }
         if (orderedTextures)
         {
             sourceTextures = sourceTextures with { SceneCopies = null };
@@ -344,6 +354,33 @@ public sealed partial class BattlePresentationProcess
         NativeBattlePrimitiveFrame retained = frame with { SceneSources = sources, SceneReplaySources = pool, NextSceneReplaySourceId = nextSourceId };
         retained = retained with { SceneReplaySources = NativeBattleSceneCopyProvenance.PruneSources(retained, memory.Textures!, process.TextureWindowCache) };
         return graphics with { PrimitiveFrame = retained };
+    }
+
+    internal static NativeBattleResolvedCommandList ExcludeSceneCopyCommands(NativeBattleResolvedCommandList commands)
+    {
+        for (int index = 0; index < commands.Length; index++)
+        {
+            if (commands[index].Command.Opcode != 0x80)
+            {
+                continue;
+            }
+
+            NativeBattleResolvedCommandList.Builder filtered = new();
+            for (int earlier = 0; earlier < index; earlier++)
+            {
+                filtered.Add(commands[earlier]);
+            }
+            for (int later = index + 1; later < commands.Length; later++)
+            {
+                ref readonly NativeBattleLogicalResolvedCommand command = ref commands[later];
+                if (command.Command.Opcode != 0x80)
+                {
+                    filtered.Add(command);
+                }
+            }
+            return filtered.Freeze();
+        }
+        return commands;
     }
 
     private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)

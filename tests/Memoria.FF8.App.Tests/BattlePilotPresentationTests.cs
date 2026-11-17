@@ -105,7 +105,7 @@ public sealed class BattlePilotPresentationTests
         NativeBattleLogicalCommand flash = new(new("screen", 0, 0), 1, 0x28, [0x28000000, 0, 320, 216u << 16, 320 | 216u << 16], 1, [0, 0, 0, 0], null) { OrderingBucket = 0, ScreenCoverage = NativeBattleScreenCoverage.Full };
         NativeBattleLogicalCommand state = new(new("screen", 0, 20), 1, 0xE1, [0xE1000000], 0, [], null);
         NativeBattlePreparedPresentation first = Frame(1, 0);
-        first = first with { Primitives = first.Primitives with { LastCommands = first.Primitives.LastCommands.Add(new(flash, new(0), 1)).Add(new(state, new(0), 0)) } };
+        first = first with { Primitives = first.Primitives with { LastCommands = [.. first.Primitives.LastCommands, new(flash, new(0), 1), new(state, new(0), 0)] } };
         BattleRenderer renderer = new(320, 216);
         Assert.True(renderer.CanSampleNativePilotInterval(first, Frame(2, 10)));
         Assert.Null(renderer.LastPilotFallbackReason);
@@ -163,7 +163,7 @@ public sealed class BattlePilotPresentationTests
         scene = scene with { Command = scene.Command with { PilotGeometry = scene.Command.PilotGeometry! with { Identity = scene.Command.PilotGeometry!.Identity with { Effect = 0 } } } };
         renderer.RenderNativePrimitiveFrame(first.Primitives, null);
         NativeBattlePilotSubmission withoutScene = renderer.PilotSubmission;
-        renderer.RenderNativePrimitiveFrame(first.Primitives with { LastCommands = first.Primitives.LastCommands.Add(scene) }, null);
+        renderer.RenderNativePrimitiveFrame(first.Primitives with { LastCommands = [.. first.Primitives.LastCommands, scene] }, null);
         Assert.Equal(withoutScene.WorldSignature, renderer.PilotSubmission.WorldSignature);
         Assert.Equal(withoutScene.ProjectedSignature, renderer.PilotSubmission.ProjectedSignature);
         Assert.Equal(withoutScene.MaterialSignature, renderer.PilotSubmission.MaterialSignature);

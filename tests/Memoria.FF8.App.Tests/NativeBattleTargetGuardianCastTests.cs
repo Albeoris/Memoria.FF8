@@ -132,7 +132,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     if (!visible && effectPackets.Count > 0)
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        NativeBattlePrimitiveFrame withoutPrivate = primitive with { LastCommands = primitive.LastCommands.Where(command => !effectPackets.Contains(command.Command.Packet)).ToImmutableArray() };
+                        NativeBattlePrimitiveFrame withoutPrivate = primitive with { LastCommands = NativeBattleResolvedCommandList.From(primitive.LastCommands.Where(command => !effectPackets.Contains(command.Command.Packet))) };
                         BattleSession background = NativeBattleTypedFixture.RestoreBattle(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutPrivate } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         visibleRgbChanges = CountRgbChanges(pixels, backgroundPixels);

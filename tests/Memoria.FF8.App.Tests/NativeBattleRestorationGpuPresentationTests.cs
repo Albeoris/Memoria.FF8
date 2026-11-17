@@ -46,8 +46,8 @@ public sealed class NativeBattleRestorationGpuPresentationTests
         byte[] restoredPixels = restoredRenderer.RenderNativePrimitiveFrame(second, null).ToArray();
         Assert.True(renderer.DrawnTriangles > 0);
         Assert.Equal(pixels, restoredPixels);
-        NativeBattlePrimitiveFrame gouraud = first with { LastCommands = first.LastCommands.Where(command => command.Pass == 2 && command.Command.Opcode == 0x3A).ToImmutableArray() };
-        NativeBattlePrimitiveFrame flat = first with { LastCommands = first.LastCommands.Where(command => command.Pass == 2 && command.Command.Opcode == 0x2A).ToImmutableArray() };
+        NativeBattlePrimitiveFrame gouraud = first with { LastCommands = NativeBattleResolvedCommandList.From(first.LastCommands.Where(command => command.Pass == 2 && command.Command.Opcode == 0x3A)) };
+        NativeBattlePrimitiveFrame flat = first with { LastCommands = NativeBattleResolvedCommandList.From(first.LastCommands.Where(command => command.Pass == 2 && command.Command.Opcode == 0x2A)) };
         Assert.Single(gouraud.LastCommands);
         Assert.Single(flat.LastCommands);
         byte[] gradient = renderer.RenderNativePrimitiveFrame(gouraud, null).ToArray();

@@ -123,7 +123,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame!;
                     if (rgbChanges == 0 && primitive.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
-                        NativeBattlePrimitiveFrame plain = primitive with { LastCommands = primitive.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                        NativeBattlePrimitiveFrame plain = primitive with { LastCommands = NativeBattleResolvedCommandList.From(primitive.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                         BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = plain } }));
                         rgbChanges = RgbChanges(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(background, 320, 224));
                         if (rgbChanges > 0)

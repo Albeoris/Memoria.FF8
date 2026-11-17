@@ -39,7 +39,7 @@ public sealed class NativeBattleVictoryFadeRenderingTests
                 continue;
             }
             byte[] faded = Render(battle, frame, hardware, width, height);
-            byte[] unfaded = Render(battle, frame with { LastCommands = frame.LastCommands.Where(command => command != fade).ToImmutableArray() }, hardware, width, height);
+            byte[] unfaded = Render(battle, frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Where(command => command != fade)) }, hardware, width, height);
             int distantChannels = 0;
             for (int pixel = 0; pixel < width * height; pixel++)
             {

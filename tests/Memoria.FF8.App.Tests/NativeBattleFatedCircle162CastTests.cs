@@ -86,7 +86,7 @@ public sealed class NativeBattleFatedCircle162CastTests
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         BattleSnapshot backgroundSnapshot = battle.CaptureForContinuation();
                         NativeBattleGraphicsState backgroundGraphics = backgroundSnapshot.ReadFixturePresentation().NativeGraphics!;
-                        NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame!.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                        NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = NativeBattleResolvedCommandList.From(backgroundGraphics.PrimitiveFrame!.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8")) };
                         BattleSession background = BattleSession.Restore(backgroundSnapshot.WithFixturePresentation(facts => facts with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));

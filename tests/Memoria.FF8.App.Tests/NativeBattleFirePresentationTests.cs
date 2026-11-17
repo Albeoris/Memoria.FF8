@@ -159,7 +159,7 @@ public sealed class NativeBattleFirePresentationTests
             NativeBattleGraphicsState currentGraphics = snapshot.ReadFixturePresentation().NativeGraphics!;
             NativeBattlePrimitiveFrame currentFrame = currentGraphics.PrimitiveFrame ?? throw new InvalidDataException("Native Fire pixel comparison requires its actual executed primitive frame.");
             HashSet<int> spriteDraws = currentGraphics.ModuleDraws.Select((draw, index) => (draw, index)).Where(pair => pair.draw.Kind == NativeBattleModuleDrawKind.Sprite).Select(pair => pair.index).ToHashSet();
-            NativeBattlePrimitiveFrame withoutSpritePackets = currentFrame with { LastCommands = currentFrame.LastCommands.Where(command => command.Command.ModuleDraw is not int drawIndex || !spriteDraws.Contains(drawIndex)).ToImmutableArray() };
+            NativeBattlePrimitiveFrame withoutSpritePackets = currentFrame with { LastCommands = NativeBattleResolvedCommandList.From(currentFrame.LastCommands.Where(command => command.Command.ModuleDraw is not int drawIndex || !spriteDraws.Contains(drawIndex))) };
             BattleSession withoutSprites = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutSpritePackets } }));
             byte[] plain = scene.Render(withoutSprites, 320, 224).ToArray();
             int changedPixels = DifferentPixels(visible, plain);

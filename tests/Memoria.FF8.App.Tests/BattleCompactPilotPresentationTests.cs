@@ -88,7 +88,7 @@ public sealed class BattleCompactPilotPresentationTests
             OrderingBucket = 50,
             Pilot = pilot
         };
-        NativeBattlePreparedPrimitiveFrame primitives = new(Enumerable.Repeat(new NativeBattleLogicalResolvedCommand(command, new(0), 1), 64).ToImmutableArray(), [])
+        NativeBattlePreparedPrimitiveFrame primitives = new(NativeBattleResolvedCommandList.From(Enumerable.Repeat(new NativeBattleLogicalResolvedCommand(command, new(0), 1), 64)), [])
         {
             LastDescriptorPerspective = true,
             LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(),

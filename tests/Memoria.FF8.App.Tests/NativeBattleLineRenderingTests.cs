@@ -131,7 +131,7 @@ public sealed class NativeBattleLineRenderingTests
         NativeBattleLogicalCommand command = new(new("polygon", 0, 0), 1, 0x20, [0x20000000 | color, Point(10, 10), Point(40, 10), Point(10, 40)], 1, [0, 0, 0, 0], null) { OrderingBucket = 50 };
         return new(command, new(0), 1);
     }
-    private static NativeBattlePrimitiveFrame Frame(params NativeBattleLogicalResolvedCommand[] commands) => new(NativeBattleLogicalOrdering.Clear(), commands.ToImmutableArray(), []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
+    private static NativeBattlePrimitiveFrame Frame(params NativeBattleLogicalResolvedCommand[] commands) => new(NativeBattleLogicalOrdering.Clear(), NativeBattleResolvedCommandList.Create(commands), []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
 
     private class TriangleOnly : ITriangleRenderer
     {
