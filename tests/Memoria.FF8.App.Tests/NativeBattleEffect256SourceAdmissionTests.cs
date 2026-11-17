@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;

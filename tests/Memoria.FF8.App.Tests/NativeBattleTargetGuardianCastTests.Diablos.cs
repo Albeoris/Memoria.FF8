@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Tests;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -13,8 +14,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, 5, 325);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = CreateDefinition(game, assets, 5, 325, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int tick = 0; tick < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); tick++)
         {
             battle.Tick();
@@ -56,11 +57,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.NotEqual(0u, source.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.ModelBuffer5208);
         BattleScenePresentation scene = new(assets, definition);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
-        BattleSession first = BattleSession.Restore(source);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
+        BattleSession first = NativeBattleTypedFixture.RestoreBattle(source);
+        BattleSession second = battle.ForkForContinuation();
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
-        while (Counter(first.Capture()) < 248)
+        while (Counter(first.CaptureForContinuation()) < 248)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);

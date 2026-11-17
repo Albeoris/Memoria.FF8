@@ -22,6 +22,7 @@ public sealed class NativeBattleEffect308SourceAdmissionTests
         BattleEncounter formation = assets.LoadEncounter(794);
         Assert.Equal(65, formation.StageId);
         Assert.Equal(3, formation.Enemies.Count);
+        NativeBattleEffect308Resources resources = game.ReadNativeEffect308Resources();
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([308])[307];
         Assert.Same(resources, binding.Effect308Resources);
         Assert.Equal(Entry, binding.Entry);

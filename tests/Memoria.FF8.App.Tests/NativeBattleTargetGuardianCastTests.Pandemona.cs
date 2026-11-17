@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Tests;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -13,8 +14,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, 8, 291);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = CreateDefinition(game, assets, 8, 291, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int tick = 0; tick < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); tick++)
         {
             battle.Tick();
@@ -55,11 +56,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.InRange(Counter(source), (ushort)0, (ushort)1);
         Assert.Equal(0x20DFAB8u, source.ReadFixturePresentation().NativeEffectMemory!.Pandemona291!.ModelBuffer25562F4);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
-        BattleSession live = BattleSession.Restore(source);
-        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, "entry.battle.json")))!);
+        BattleSession live = NativeBattleTypedFixture.RestoreBattle(source);
+        BattleSession independent = battle.ForkForContinuation();
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(independent.Capture()));
         TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
-        while (Counter(live.Capture()) < 2)
+        while (Counter(live.CaptureForContinuation()) < 2)
         {
             live.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             independent.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -75,7 +76,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(independent.Capture()));
             Assert.Equal(scene.Render(live, 320, 224).ToArray(), scene.Render(independent, 320, 224).ToArray());
         }
-        boundary = live.Capture();
+        boundary = live.CaptureForContinuation();
         Assert.Equal((ushort)40, boundary.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
         NativeBattleRestorationPresentationTests.Publish(output, "before-next-scene", boundary, scene.Render(live, 320, 224).ToArray());
         File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-constructor-opening-surface-and-disk-restore-validated", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = "before-vortex" }));

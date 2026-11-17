@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -16,6 +17,7 @@ public sealed class NativeBattleEffect320SourceAdmissionTests
         Assert.Equal(483, definition.GetProperty("EncounterId").GetInt32());
         Assert.Equal(139, definition.GetProperty("StageId").GetInt32());
         using GameAssets game = new(directory!);
+        NativeBattleEffect320Resources resources = game.ReadNativeEffect320Resources();
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([320])[319];
         Assert.Same(resources, binding.Effect320Resources);
         Assert.Equal(NativeBattleEffect320Profile.Entry, binding.Entry);

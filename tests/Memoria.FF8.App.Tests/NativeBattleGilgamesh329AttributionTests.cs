@@ -19,7 +19,7 @@ public sealed class NativeBattleGilgamesh329AttributionTests
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
-        using GameAssets assets = new(directory);
+        using BattleAssets assets = new(directory);
         var (prior, priorCallback, _) = NativeBattleFixtureInspection.ReadArchivedEffectFrame(priorPath!, 329);
         var (current, currentCallback, frame) = NativeBattleFixtureInspection.ReadArchivedEffectFrame(currentPath!, 329);
         Assert.Equal(priorCallback + 1, currentCallback);
