@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--stochastic-presentation-only", StringComparer.Ordinal))
+{
+    StochasticPresentationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--previous-map-only", StringComparer.Ordinal))
 {
     ExtendedTests.PreviousMapOperandsAndContinuation();

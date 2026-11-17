@@ -180,10 +180,14 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             {
                 return;
             }
-            if (!analyses.TryGetValue((entity, script), out FieldScriptAnalysis? analysis) || analysis.Fingerprint != session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads))
+            if (!analyses.TryGetValue((entity, script), out FieldScriptAnalysis? analysis) || analysis.Fingerprint != session.Machine.ReadScriptAnalysisFingerprint(entity, script, analysis.Reads) || (analysis.StochasticPresentation is { } stochastic && stochastic.DomainFingerprint != session.ReadSpatialRandomDomain().Fingerprint))
             {
                 entryInputs.Remove((entity, script));
                 analysis = session.Machine.AnalyzeScript(entity, script);
+                if (!analysis.Complete && analysis.HostReads.Any(read => read.Kind == FieldHostReadKind.Random))
+                {
+                    analysis = session.Machine.AnalyzeStochasticPresentation(entity, script, session.ReadSpatialRandomDomain());
+                }
                 if (analysis.Complete)
                 {
                     analyses[(entity, script)] = analysis;
@@ -198,6 +202,10 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
             }
             Ff7AutoPlayHostConditions external = ReadHostConditions(dependencies.HostReads, session.Progress, session.Host.Process, session.Host.ReadNativeMusicPlaying);
             fingerprint = CombineConditionFingerprints(fingerprint, external.Fingerprint);
+            if (analysis.StochasticPresentation is { } presentation)
+            {
+                fingerprint = CombineConditionFingerprints(fingerprint, presentation.Fingerprint);
+            }
             if (!entryInputs.TryGetValue((entity, script), out FieldScriptInputDemand? entryInput))
             {
                 entryInput = session.Machine.ReadEntryInputDemand(entity, script);

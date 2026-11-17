@@ -9,6 +9,7 @@ public sealed class FieldSpatialRandomDomain
     private readonly byte stride;
     internal byte[] Phases { get; }
     public string Fingerprint { get; }
+    public byte Stride => stride;
 
     public FieldSpatialRandomDomain(IReadOnlyList<byte> table, byte stride, byte initialIndex)
     {

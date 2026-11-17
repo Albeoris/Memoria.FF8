@@ -23,6 +23,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
 {
     public FieldHostRead[] HostReads { get; init; } = [];
     public bool MayChangeNavigation { get; init; }
+    public FieldStochasticPresentation? StochasticPresentation { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
 }
 
@@ -131,7 +132,7 @@ public sealed partial class FieldMachine
         return result with { Fingerprint = fingerprint };
     }
 
-    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null)
+    private FieldScriptAnalysis AnalyzeScriptCore(int entity, int script, int entry, int instructionBudget, IReadOnlySet<int>? exitBoundaries, byte initialOwnership, NavigationInvariantInspection? navigationInvariant = null, StochasticInspection? stochastic = null)
     {
         byte[] persistent = Variables.CopyPersistent();
         byte[] map = Variables.CopyMap();
@@ -208,7 +209,12 @@ public sealed partial class FieldMachine
                 }
                 byte Byte(int offset) => program.Read(pc + offset);
                 ushort Word(int offset) => (ushort)(Byte(offset) | Byte(offset + 1) << 8);
-                void Enqueue(int offset) => pending.Enqueue((owner, unchecked((ushort)offset), controls, physicalValid));
+                StochasticNode? stochasticNode = stochastic?.Node(pc, opcode);
+                void Enqueue(int offset)
+                {
+                    stochasticNode?.Successors.Add(unchecked((ushort)offset));
+                    pending.Enqueue((owner, unchecked((ushort)offset), controls, physicalValid));
+                }
                 if (opcode == 0)
                 {
                     if (owner == entity)
@@ -219,6 +225,10 @@ public sealed partial class FieldMachine
                 }
                 if (opcode is >= 1 and <= 6)
                 {
+                    if (stochastic is not null)
+                    {
+                        throw new NotSupportedException("Stochastic presentation does not admit script requests.");
+                    }
                     int target = Byte(1);
                     if (opcode >= 4)
                     {
@@ -273,6 +283,7 @@ public sealed partial class FieldMachine
                     reads.Add(new(right, word ? Word(4) : Byte(3), word));
                     FieldVariableRead leftRead = new(left, word ? Word(2) : Byte(2), word);
                     FieldVariableRead rightRead = new(right, word ? Word(4) : Byte(3), word);
+                    stochasticNode?.Reads.UnionWith([leftRead, rightRead]);
                     if (navigationInvariant is not null && navigationInvariant.Domains.Compare(leftRead, rightRead, Byte(word ? 6 : 4), opcode >= 0x18) is bool matched)
                     {
                         if (leftRead.Bank != FieldBank.Immediate)
@@ -354,6 +365,12 @@ public sealed partial class FieldMachine
                 detached.entities[owner].Priority = 1;
                 detached.Input = Input;
                 detached.Execute(owner);
+                if (stochasticNode is not null)
+                {
+                    stochasticNode.Reads.UnionWith(instructionReads);
+                    stochasticNode.Writes.UnionWith(instructionWrites);
+                    stochasticNode.Commands.AddRange(detached.inspection.Commands);
+                }
                 if (navigationInvariant is not null)
                 {
                     bool known = detached.inspection.Commands.Count == 0 && instructionReads.All(navigationInvariant.Domains.IsSingleton);
@@ -410,7 +427,7 @@ public sealed partial class FieldMachine
                             throw new NotSupportedException("A producer requires a mutable native host-query selector.");
                         }
                         hostReads.Add(read);
-                        if (read.Kind == FieldHostReadKind.Random && navigationInvariant is null)
+                        if (read.Kind == FieldHostReadKind.Random && navigationInvariant is null && stochastic is null)
                         {
                             throw new NotSupportedException("A random-result dependency requires an explicit stochastic event coverage contract.");
                         }

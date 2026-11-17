@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--stochastic-presentation-only", StringComparer.Ordinal))
+{
+    AutoPlayStochasticPresentationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-mode-foot-only", StringComparer.Ordinal))
 {
     AutoPlayWorldModeFootTests.Run();
