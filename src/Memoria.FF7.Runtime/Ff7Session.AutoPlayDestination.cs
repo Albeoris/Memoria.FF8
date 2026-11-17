@@ -1,5 +1,6 @@
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
+using Memoria.FF7.Resources;
 
 namespace Memoria.FF7.Runtime;
 
@@ -7,6 +8,56 @@ public sealed partial class Ff7Session
 {
     private readonly Dictionary<ushort, int[]> autoPlayFieldConnections = [];
     private readonly Dictionary<ushort, (string Identity, PcFieldGateway[] Gateways)> autoPlayGatewayDescriptors = [];
+    private readonly Dictionary<int, int[]> autoPlayWorldConnections = [];
+
+    internal int[] ReadAutoPlayWorldConnections(int entrySelector)
+    {
+        int world = Ff7WorldRuntime.ResolveWorldId(entrySelector);
+        if (autoPlayWorldConnections.TryGetValue(world, out int[]? known))
+        {
+            return known;
+        }
+        using Ff7WorldResources resources = Ff7WorldResources.Load(installation, world);
+        PcWorldEvents events = resources.ReadEvents();
+        PcWorldFieldTable table = resources.ReadFieldTable();
+        WorldMachine inspection = new(new WorldProgram(events), Machine.Variables.CopyPersistent(), new AutoPlayDestinationWorldHost());
+        HashSet<int> destinations = [];
+        HashSet<ushort> entries = [];
+        foreach (PcWorldFunction function in events.Functions.Where(function => function.Kind == 2 && function.Event <= 4))
+        {
+            if (!entries.Add(function.Offset))
+            {
+                continue;
+            }
+            // Only possible constant handoffs are advice. Unknown guards and foreign
+            // VM banks never establish current admission or a computed selector.
+            WorldScriptAnalysis analysis = inspection.AnalyzeMeshDispatch(function.Mesh % 36, function.Mesh / 36, function.Event + 3, isolateTransitionDependencies: true);
+            foreach (WorldTransitionObservation transition in analysis.Transitions.Where(transition => transition.Operation == WorldOperation.FieldTransition && transition.Selector is not null))
+            {
+                ushort field = table.Select(transition.Selector!.Value).Field;
+                if (IsKnownAutoPlayDestination(field))
+                {
+                    destinations.Add(field);
+                }
+            }
+        }
+        int[] result = destinations.Order().ToArray();
+        autoPlayWorldConnections[world] = result;
+        return result;
+    }
+
+    private sealed class AutoPlayDestinationWorldHost : IWorldHost
+    {
+        public WorldHostReply Execute(WorldHostRequest request)
+        {
+            throw new InvalidOperationException("Native destination advice cannot execute a world host operation.");
+        }
+
+        public int ReadSpecial(int selector, int activeModel)
+        {
+            throw new InvalidOperationException("Native destination advice cannot query a live world host.");
+        }
+    }
 
     internal bool MatchesAutoPlayGateway(ushort field, string visitId, string eventId, string condition, int destination)
     {
@@ -44,7 +95,7 @@ public sealed partial class Ff7Session
         PcFieldFile file = PcFieldFile.ReadCompressed(fields.ReadEntry(fields.Find(mapList[field]).Single()));
         PcFieldScripts scripts = PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span);
         PcFieldTriggers triggers = PcFieldTriggers.Read(file.GetSection(PcFieldSectionKind.TriggersAndGateways).Span);
-        HashSet<int> destinations = triggers.Gateways.Select(gateway => (int)gateway.DestinationField).Where(destination => destination > 64 && destination < mapList.Count).ToHashSet();
+        HashSet<int> destinations = triggers.Gateways.Select(gateway => (int)gateway.DestinationField).Where(destination => destination > 0 && destination < mapList.Count).ToHashSet();
         FieldProgram program = FieldProgram.FromPcScripts(scripts);
         autoPlayGatewayDescriptors[field] = (program.Identity, triggers.Gateways.ToArray());
         FieldMachine inspection = new(program);
@@ -61,7 +112,7 @@ public sealed partial class Ff7Session
                 FieldScriptAnalysis analysis = inspection.AnalyzeScript(entity, script);
                 if (analysis.Complete)
                 {
-                    destinations.UnionWith(analysis.DestinationFields.Where(destination => destination > 64 && destination < mapList.Count));
+                    destinations.UnionWith(analysis.DestinationFields.Where(destination => destination > 0 && destination < mapList.Count));
                 }
             }
         }

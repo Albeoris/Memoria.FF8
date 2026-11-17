@@ -16,7 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null)
     {
         if (state.DestinationField is not ushort destination)
         {
@@ -42,7 +42,7 @@ public sealed partial class Ff7AutoPlayPolicy
                     resourceLimit = true;
                     return [];
                 }
-                int[] result = readConnections(field);
+                int[] result = field is >= 1 and <= 64 ? readWorldConnections?.Invoke(field) ?? [] : readConnections(field);
                 connections[field] = result;
                 return result;
             }
@@ -123,7 +123,7 @@ public sealed partial class Ff7AutoPlayPolicy
         HashSet<ushort> visited = current > 64 && current < short.MaxValue ? [(ushort)current] : [];
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false))
         {
-            foreach (int field in TargetDestinations(target).Where(field => field > 64 && field < short.MaxValue && field != current))
+            foreach (int field in TargetDestinations(target).Where(field => field > 0 && field < short.MaxValue && field != current))
             {
                 pending.Enqueue(((ushort)field, target));
             }
@@ -140,7 +140,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 return (step.First, false);
             }
             IEnumerable<int> recorded = state.Coverage.Visits.Where(visit => ReadVisitField(visit.Visit.Key) == step.Field).SelectMany(visit => visit.Events).SelectMany(item => item.Routes).Select(route => ReadVisitField(route.DestinationVisitKey));
-            foreach (int field in readConnections(step.Field).Concat(recorded).Where(field => field > 64 && field < short.MaxValue).Distinct())
+            foreach (int field in readConnections(step.Field).Concat(recorded).Where(field => field > 0 && field < short.MaxValue).Distinct())
             {
                 pending.Enqueue(((ushort)field, step.First));
             }
@@ -166,7 +166,7 @@ public sealed partial class Ff7AutoPlayPolicy
             return true;
         }
         // Possible branches are advice; repeat travel requires an actual transfer under this same entry condition.
-        return coverage.Routes.Any(route => route.ConditionSignature == target.ConditionFingerprint && ReadVisitField(route.DestinationVisitKey) > 64 && ReadVisitField(route.DestinationVisitKey) != ReadVisitField(observation.VisitId));
+        return coverage.Routes.Any(route => route.ConditionSignature == target.ConditionFingerprint && (ReadVisitField(route.DestinationVisitKey) > 64 && ReadVisitField(route.DestinationVisitKey) != ReadVisitField(observation.VisitId) || TargetDestinations(target).Any(selector => selector is >= 1 and <= 64 && route.DestinationVisitKey.StartsWith($"ff7-world:{Ff7WorldRuntime.ResolveWorldId(selector)}:", StringComparison.Ordinal))));
     }
 
     private static int ReadVisitField(string visit)

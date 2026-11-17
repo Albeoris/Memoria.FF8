@@ -9,6 +9,7 @@ internal static class AutoPlayFieldDestinationGoalTests
 {
     internal static void Run()
     {
+        RunWorldBridge();
         Ff7AutoPlayTarget entrance = new("entrance", 1, 3, Ff7AutoPlayTargetKind.LineCross, "current", false, Vector3.Zero, DestinationField: 300, ChangesField: true);
         Ff7AutoPlayTarget optional = entrance with { Id = "optional", Entity = 2, DestinationField = 200 };
         Ff7AutoPlayObservation observation = new("source", "native", 1, [optional, entrance], true, true) { NavigationKey = "component" };
@@ -274,6 +275,38 @@ internal static class AutoPlayFieldDestinationGoalTests
         Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, transit, field => field == 250 ? [300] : []) is null && state.NavigationGoal?.EventId == entrance.Id, "A same-condition actual field transfer must remain authentic when native initialization passes through a declared intermediate field before reaching its recorded destination.");
     }
 
+    private static void RunWorldBridge()
+    {
+        Ff7AutoPlayTarget exit = new("world-exit", -1, -1, Ff7AutoPlayTargetKind.Gateway, "native-exit", false, Vector3.Zero, DestinationField: 15, ChangesField: true);
+        Ff7AutoPlayTarget incompatible = exit with { Id = "other-world", DestinationField = 30 };
+        Ff7AutoPlayObservation observation = new("ff7:100:native", "native", 1, [incompatible, exit], true, true) { NavigationKey = "component" };
+        Ff7AutoPlayState state = new() { DestinationField = 300 };
+        int[] World(int selector) => Ff7WorldRuntime.ResolveWorldId(selector) == 0 ? [300] : [];
+        string? Resolve(Func<Ff7AutoPlayTarget, bool>? admit = null) => Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, _ => [], admit, readWorldConnections: World);
+        Check(Resolve() is null && state.NavigationGoal?.EventId == exit.Id && state.DestinationField == 300, "A native compatible world entrance must bridge the retained field goal without selecting an incompatible world allocation.");
+        Check(Resolve(target => target.Id != exit.Id) is not null && state.NavigationGoal is null, "World advice must not bypass current physical admission of its required field exit.");
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        planner.Observe(new(observation.VisitId, "native"), [new(exit.Id, AutoPlayEventKind.Transition, ConditionSignature: exit.ConditionFingerprint)]);
+        planner.Completed(observation.VisitId, exit.Id, "ff7-world:0:world-program", observedStoryChanged: false, entrySignature: exit.ConditionFingerprint, entrySignatureAuthoritative: true);
+        string consumed = JsonSerializer.Serialize(state.Coverage.Visits.Single().Events.Single().Conditions);
+        Check(Resolve() is null && state.NavigationGoal?.EventId == exit.Id && JsonSerializer.Serialize(state.Coverage.Visits.Single().Events.Single().Conditions) == consumed, "An actual same-entry native world transfer must authenticate repeat travel without erasing consumption.");
+        Ff7AutoPlayState cold = state.Clone();
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(cold, observation, _ => [], readWorldConnections: World) is null && cold.DestinationField == 300 && cold.NavigationGoal == state.NavigationGoal, "Cold restoration lost the final field destination or its authenticated world hop.");
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single().Events.Single();
+        AutoPlayEventRoute receipt = coverage.Routes.Single();
+        coverage.Routes[0] = receipt with { DestinationVisitKey = "ff7-world:2:other-program" };
+        Check(Resolve() is not null, "A receipt for a different native world allocation authenticated an unchanged consumed exit.");
+        coverage.Routes[0] = receipt with { ConditionSignature = "other-native-entry" };
+        Check(Resolve() is not null, "A different entry condition authenticated repeat world travel.");
+        state.Coverage.Visits.Single().Events.Single().Routes.Clear();
+        Check(Resolve() is not null && state.NavigationGoal is null, "A consumed native no-op must not be replayed merely because its analysis mentions a world entrance.");
+        Ff7AutoPlayState fresh = new() { DestinationField = 300 };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(fresh, observation with { Events = [exit with { AnalysisComplete = false }] }, _ => [], readWorldConnections: World) is not null, "Incomplete field analysis must not authenticate a native world exit.");
+        Ff7AutoPlayTarget corridor = exit with { Id = "corridor", DestinationField = 200 };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(fresh, observation with { Events = [corridor] }, field => field == 200 ? [15] : [], readWorldConnections: World) is null && fresh.NavigationGoal?.EventId == corridor.Id, "Bounded ordinary field advice must retain a future native world hop rather than stop at its encoded selector.");
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(fresh, observation, _ => [], readWorldConnections: _ => []) is not null && fresh.NavigationGoal is null, "An absent native world entrance must remain an explicit planning boundary.");
+    }
+
     internal static void RunOriginalSelection()
     {
         string root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Select original field resources.");
@@ -295,7 +328,9 @@ internal static class AutoPlayFieldDestinationGoalTests
         }
         Ff7AutoPlayActiveEvent active = policy.State.Active ?? throw new InvalidOperationException($"No native destination was selected: {controller.Error ?? policy.Status}");
         Ff7AutoPlayTarget selected = new Ff7AutoPlayDiscovery(session).FindTarget(active.EventId) ?? throw new InvalidOperationException("The selected native entrance was absent from discovery.");
-        Check(controller.Error is null && selected.AnalysisComplete && (selected.DestinationField == destination || selected.PossibleDestinationFields.Contains(destination) || selected.SpatialDestinations?.Contains(destination) == true), "The native planner must select an entrance whose complete native analysis includes the requested field.");
+        bool worldBridge = selected.DestinationField is int selector && selector is >= 1 and <= 64 && session.ReadAutoPlayWorldConnections(selector).Contains(destination);
+        Check(controller.Error is null && selected.AnalysisComplete && (selected.DestinationField == destination || selected.PossibleDestinationFields.Contains(destination) || selected.SpatialDestinations?.Contains(destination) == true || worldBridge), "The native planner must select an entrance whose complete native analysis includes the requested field or a compatible native world handoff.");
+        Check(policy.State.DestinationField == destination, "A native world bridge replaced the final requested field destination with its intermediate selector.");
         Check(active.SpatialDestinations is null || selected.SpatialDestinations is not null, "Ordinary goal metadata must not create spatial transition ownership or completion evidence.");
         if (selected.Entity >= 0 && selected.Script >= 0)
         {

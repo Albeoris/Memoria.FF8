@@ -201,7 +201,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 AutoPlayEvent native = currentNavigation.Events.Single(item => item.Id == target.Id);
                 return ReadNavigationAvailability(currentNavigation, native, observation, driver, componentGuards)?.Unavailable != true;
             }
-            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway);
+            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway, session.ReadAutoPlayWorldConnections);
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
             next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
             if (!IsDestinationPlan(State, next, observation.NavigationKey))
