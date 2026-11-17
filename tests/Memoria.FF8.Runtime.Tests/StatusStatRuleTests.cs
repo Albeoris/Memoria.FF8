@@ -76,8 +76,8 @@ public sealed class StatusStatRuleTests
         BattleCombatant target = battle.Combatants[1];
         Assert.Equal(battle.ReadEffectiveStat("enemy", BattleStatId.Vitality), (int)selector.Invoke(battle, [target, 1])!);
         Assert.Equal(battle.ReadEffectiveStat("enemy", BattleStatId.Spirit), (int)selector.Invoke(battle, [target, 3])!);
-        MethodInfo scan = typeof(BattleSession).GetMethod("ReadNativeScanDescriptor208", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        NativeBattleScanByteOwner descriptor = (NativeBattleScanByteOwner)scan.Invoke(battle, [target.NativeIndex])!;
+        MethodInfo scan = typeof(BattleSession).GetMethod("CaptureNativeScanDescriptor208", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        NativeBattleScanByteOwner descriptor = (NativeBattleScanByteOwner)scan.Invoke(battle, [target])!;
         Assert.Equal(40, descriptor.ReadByte(0xBE));
         Assert.Equal(45, descriptor.ReadByte(0xC0));
     }
@@ -184,9 +184,9 @@ public sealed class StatusStatRuleTests
     {
         BattleCombatant actor = battle.Combatants[0];
         BattleCombatant target = battle.Combatants[1];
-        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
+        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.Attack, 0, "Contact", BattleActionEffect.Native, 32, false) { NativeAction = native };
-        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, (byte)255, false])!;
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, null, false])!;
         return packet.Primary.Amount6;
     }
 

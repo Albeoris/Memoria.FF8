@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
 
-    private static NativeBattleScanByteOwner CaptureNativeScanDescriptor208(BattleCombatant actor)
+    private NativeBattleScanByteOwner CaptureNativeScanDescriptor208(BattleCombatant actor)
     {
         NativeBattleScanByteOwner row = new(new byte[208].ToImmutableArray(), new bool[208].ToImmutableArray());
         row = row.WriteDword(0x18, unchecked((uint)actor.CurrentHp)).WriteDword(0x1C, unchecked((uint)actor.MaximumHp)).WriteDword(0x7C, actor.NativeCombatantFlags).WriteByte(0xBB, checked((byte)NativeModelId(actor))).WriteByte(0xBC, checked((byte)actor.Level));

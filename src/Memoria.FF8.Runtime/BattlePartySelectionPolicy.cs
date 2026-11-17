@@ -34,7 +34,7 @@ public static class BattlePartySelectionPolicy
             return BattlePartySelectionRestriction.CastleSplit;
         }
 
-        // NG-091: The Missile Base and Garden emergency use authored squads.
+        // NG-097: The Missile Base and Garden emergency use authored squads.
         bool missileBaseSquads = storyProgress is >= 450 and < 750;
         // NG-092: The Garden battle uses authored squads through the reunion.
         bool gardenBattleSquads = storyProgress is >= 850 and < 894;

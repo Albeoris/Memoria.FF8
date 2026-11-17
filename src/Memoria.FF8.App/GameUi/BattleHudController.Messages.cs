@@ -80,7 +80,7 @@ public sealed partial class BattleHudController
 
     public string? BattleMessage => BattleMessageDocument?.Text;
 
-    internal bool BattleMessageIsActionTitle => activeBattleMessage is { NativeMessageMode: 1 } message && (!message.IsEnemyActionTitle || ShowEnemySpellNames) && battleMessageFrames >= message.NativeMessageDelayFrames;
+    internal bool BattleMessageIsActionTitle => activeBattleMessage is { NativeMessageMode: 1 } message && CanPresentBattleMessage(message) && battleMessageElapsed >= BattlePresentationTiming.ElapsedForCallbacks(message.NativeMessageDelayFrames);
 
     internal double BattlePresentationSeconds => battlePresentationSeconds;
 
