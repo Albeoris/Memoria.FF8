@@ -78,7 +78,47 @@ internal static class NativeReactionSoundGainTests
         Check(immediate.ChannelGainDuration == 0, "Historical immediate gain receipts must keep zero duration.");
         original.Host.ApplyBattleSoundGain(immediate);
         Check(original.Host.Process.SoundChannelVolumes[0] == 0 && original.Host.Process.SoundChannelVolumeFades[0] is null, "Zero-duration A3 must immediately publish silence and replace a pending fade.");
-        Console.WriteLine("PASS original A3 reaction, channel1 fade, idle transfer and cold callback equality.");
+        CheckResetReaction();
+
+        void CheckResetReaction()
+        {
+            const int resetSlot = 6;
+            string resetPrefix = Ff7BattleAnimationResources.ModelPrefix(formation.Enemies[resetSlot - 4].EnemyId, true);
+            BattleActionBank resetBank = BattleActionBank.Read(Read(resetPrefix + "ab"));
+            BattleModelData resetModel = BattleModelData.Read(Read(resetPrefix + "aa"), Read(resetPrefix + "da"));
+            IReadOnlyList<BattleActionInstruction> resetInstructions = BattleActionInstructions.ReadUntilIdle(resetBank.Scripts[3], resetModel.BodyClips.Count);
+            BattleActionInstruction resetInstruction = resetInstructions.Single(instruction => instruction.Opcode == 0x9C);
+            Check(resetInstruction.Offset == 2 && resetInstruction.Operands.IsEmpty, "Original gain-reset reaction must read9C at2 without operands.");
+            Console.WriteLine($"Original reset reaction {resetPrefix}ab/3: {Convert.ToHexString(resetBank.Scripts[3].Span)}");
+            Ff7BattleSnapshot resetSource = initial.Capture();
+            resetSource = resetSource with { Intro = null, ActorModels = resetSource.ActorModels.Select(actor => actor.Slot == resetSlot ? actor with { Action = 3, Pose = null, Reaction = true, Ready = false, LinkedAction = true, PendingSince = -1 } : actor).ToArray() };
+            Ff7BattleSession resetBattle = Restore(resetSource);
+            int resets = 0;
+            for (int callback = 0; callback < 2000; callback++)
+            {
+                Ff7BattleSession resetCold = Restore(JsonSerializer.Deserialize<Ff7BattleSnapshot>(JsonSerializer.Serialize(resetBattle.Capture()))!);
+                Step(resetBattle, resetSlot);
+                Step(resetCold, resetSlot);
+                Check(JsonSerializer.Serialize(resetBattle.Capture()) == JsonSerializer.Serialize(resetCold.Capture()), "9C next callback diverged after JSON restore.");
+                Ff7BattleSoundReceipt[] resetReceipts = resetBattle.DrainSoundRequests();
+                Check(JsonSerializer.Serialize(resetReceipts) == JsonSerializer.Serialize(resetCold.DrainSoundRequests()), "9C sound receipts diverged after JSON restore.");
+                foreach (Ff7BattleSoundReceipt reset in resetReceipts.Where(receipt => receipt.ChannelGain is not null))
+                {
+                    Check(reset is { Channel: 1, ChannelGain: 127, ChannelGainDuration: 0, Sound: 0 }, "9C must immediately restore channel1 gain127 without playing a sample.");
+                    original.Host.ApplyBattleSoundGain(Ff7NativeBattleSound.SetChannelGain(Ff7BattleSoundState.Empty, 1, 0, 120).Sounds.Single());
+                    original.Host.ApplyBattleSoundGain(reset);
+                    Check(original.Host.Process.SoundChannelVolumes[0] == 127 && original.Host.Process.SoundChannelVolumeFades[0] is null, "9C must cancel the prior fade and immediately publish127.");
+                    resets++;
+                }
+                if (!resetBattle.Capture().ActorModels.Single(actor => actor.Slot == resetSlot).Reaction)
+                {
+                    break;
+                }
+            }
+            Check(resets == 1 && !resetBattle.Capture().ActorModels.Single(actor => actor.Slot == resetSlot).Reaction, "Original reset reaction must consume9C exactly once and reach idle.");
+            Check(JsonSerializer.Serialize(resetSource.Actors) == JsonSerializer.Serialize(resetBattle.Capture().Actors), "9C changed battle actor vitals or conditions.");
+        }
+        Console.WriteLine("PASS original A3/9C reactions, channel1 fade/reset, idle transfer and cold callback equality.");
 
         byte[] Read(string name) => models.ReadEntry(models.Find(name).Single());
         Ff7BattleSession Restore(Ff7BattleSnapshot snapshot) => new(formation, progress, kernel, materia, 1, snapshot: snapshot, animations: animations);
