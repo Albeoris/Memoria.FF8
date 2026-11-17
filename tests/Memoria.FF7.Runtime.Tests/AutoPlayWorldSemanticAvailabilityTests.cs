@@ -64,12 +64,17 @@ internal static class AutoPlayWorldSemanticAvailabilityTests
         legacy.ObservedConditionSignature = "older-native-context";
         Check(Ff7AutoPlayPolicy.ReadWorldSemanticAvailability(legacy, entry, new(false, [], "position")).Fingerprint == entry.ConditionSignature, "A recorded change in a legacy native context was hidden.");
         CheckStaleSelection(state, coverage, entry, route);
+        CheckChangedConditionConnectionProbe();
     }
 
     private static void CheckStaleSelection(Ff7AutoPlayState state, AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage, AutoPlayEvent entry, AutoPlayEventRoute route)
     {
-        Ff7AutoPlayActiveEvent active = new("world", entry.Id, entry.ConditionSignature!, 1, -1, 7, Ff7AutoPlayTargetKind.WorldMesh, null, 1, "native-witness", NavigationKey: "world-nav");
+        Ff7AutoPlayActiveEvent active = new("world", entry.Id, entry.ConditionSignature!, 1, -1, 7, Ff7AutoPlayTargetKind.WorldMesh, null, 1, "native-witness", NavigationKey: "world-nav", EntryAvailabilityFingerprint: "legacy-pose");
         string before = JsonSerializer.Serialize(state.Coverage);
+        state.Active = active with { EntryAvailabilityFingerprint = null };
+        Check(!Ff7AutoPlayPolicy.RetireConsumedWorldFrontier(state), "A current semantic topology probe was canceled after entry completion.");
+        state.Active = active with { EntryAvailabilityFingerprint = entry.ConditionSignature };
+        Check(!Ff7AutoPlayPolicy.RetireConsumedWorldFrontier(state), "A current semantic selection was canceled after entry completion.");
         state.Active = active with { Accepted = true };
         Check(!Ff7AutoPlayPolicy.RetireConsumedWorldFrontier(state), "An accepted native dispatch was canceled as a stale local frontier.");
         state.Active = active with { TravelRoute = route };
@@ -88,6 +93,32 @@ internal static class AutoPlayWorldSemanticAvailabilityTests
         Check(JsonSerializer.Serialize(state.Coverage) == before, "Retiring disposable selection bookkeeping erased native execution history.");
         Ff7AutoPlayState cold = state.Clone();
         Check(cold.Coverage.Visits.Single(visit => visit.Visit.Key == "world").Events.Single().CompletedAvailabilityFingerprints.Contains("legacy-pose"), "Cold compatibility discarded existing completion evidence.");
+    }
+
+    private static void CheckChangedConditionConnectionProbe()
+    {
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent old = new("mesh:entry", AutoPlayEventKind.Transition, ConditionSignature: "old-native-condition");
+        planner.Observe(new("world", "resource"), [old]);
+        planner.ObserveNavigation("world", "world-nav", [old]);
+        planner.Observe(new("field", "field-resource"), []);
+        planner.ObserveNavigation("field", "field-nav", []);
+        planner.Completed("world", old.Id, "field", observedStoryChanged: false, entrySignature: old.ConditionSignature, entrySignatureAuthoritative: true);
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == "world").Events.Single();
+        planner.RecordNavigationRoute("world-nav", "field-nav", old.Id, coverage.Routes.Single());
+        AutoPlayEvent current = old with { ConditionSignature = "current-native-condition" };
+        planner.Observe(new("world", "resource"), [current]);
+        planner.ObserveNavigation("world", "world-nav", [current]);
+        planner.Completed("world", current.Id, entrySignature: current.ConditionSignature, entrySignatureAuthoritative: true);
+        AutoPlayEventAvailability? Read(AutoPlayNavigationVisit navigation, AutoPlayEvent observed)
+        {
+            return navigation.VisitKey == "world" ? Ff7AutoPlayPolicy.ReadWorldSemanticAvailability(coverage, observed, new(false, [], "physical-pose")) : null;
+        }
+        AutoPlayPlanStep? probe = planner.PlanNavigation("world-nav", readAvailability: Read);
+        Check(probe is { IsTravel: false, Route: null } && probe.Event.Id == current.Id, "A consumed changed condition lost the required native connection probe.");
+        state.Active = new("world", current.Id, current.ConditionSignature!, 1, -1, 7, Ff7AutoPlayTargetKind.WorldMesh, null, 1, "witness", NavigationKey: "world-nav");
+        Check(!Ff7AutoPlayPolicy.RetireConsumedWorldFrontier(state), "A native connection probe was retired and would be immediately reselected every callback.");
     }
 
     private static void Check(bool condition, string message)

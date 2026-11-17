@@ -30,6 +30,12 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
+        // Current semantic selections can be required topology probes even after entry
+        // completion. Only the obsolete physical completion token needs retirement.
+        if (active.EntryAvailabilityFingerprint is not string legacyAvailability || legacyAvailability == active.ConditionFingerprint)
+        {
+            return false;
+        }
         AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == active.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == active.EventId);
         if (coverage is null || coverage.Event.ConditionSignature != active.ConditionFingerprint || coverage.RouteNeedsRediscovery || coverage.GlobalRouteRediscovery || !HasConsumedWorldEntry(coverage, active.ConditionFingerprint))
         {
