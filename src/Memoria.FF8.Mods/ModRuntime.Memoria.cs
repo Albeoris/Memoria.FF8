@@ -135,11 +135,17 @@ public sealed partial class ModRuntime
     private static bool? MemoriaComponentPreference(MemoriaSettings settings, string packageId, OfficialModComponent? official, NativeModDescriptor? descriptor)
     {
         string? key = MemoriaComponentSettingsKey(packageId, official, descriptor);
-        if (key is not null && settings.Components.TryGetValue(key, out bool enabled))
+        if (key is not null)
         {
-            return enabled;
+            foreach (string candidate in OfficialModCatalog.PreferenceKeys(key))
+            {
+                if (settings.Components.TryGetValue(candidate, out bool enabled))
+                {
+                    return enabled;
+                }
+            }
         }
-        return key == OfficialModCatalog.GirlNextDoor.SettingsKey && settings.Components.TryGetValue(OfficialModCatalog.LegacyGirlNextDoorSettingsKey, out bool legacyEnabled) ? legacyEnabled : null;
+        return null;
     }
 
     private IReadOnlyList<BehaviorModSetting> ReadMemoriaComponentSettings(string groupId, MemoriaSettings settings, bool applyLocks)

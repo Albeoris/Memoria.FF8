@@ -232,7 +232,7 @@ public sealed partial class ModPackageInstaller
     private static bool CanUseInstalledDestination(OfficialModComponent component, Receipt previous)
     {
         return ValidNativeReceipt(previous) && previous.Official is { } installed && component.CatalogId == installed.CatalogId
-            && (component.RuntimePackageId == installed.RuntimePackageId || OfficialModCatalog.HasLegacyGirlNextDoorIdentity(installed) && component.Id == OfficialModCatalog.GirlNextDoor.Id);
+            && (component.RuntimePackageId == installed.RuntimePackageId || OfficialModCatalog.CanUpgradeIdentity(installed, component));
     }
 
     public string? CompatibilityError(RemoteModEntry entry)
@@ -260,7 +260,8 @@ public sealed partial class ModPackageInstaller
         return receipt.Official is { } component && receipt.Schema == 1 && receipt.SourceId == OfficialModCatalog.SourceId && receipt.ModId == component.CatalogId
             && receipt.Folder && OfficialModCatalog.IsRuntimeId(component.RuntimePackageId)
             && (receipt.DestinationName == component.RuntimePackageId["Memoria/".Length..]
-                || component.Id == OfficialModCatalog.GirlNextDoor.Id && receipt.DestinationName == OfficialModCatalog.LegacyGirlNextDoorSettingsKey)
+                || OfficialModCatalog.SameComponent(component.Id, OfficialModCatalog.GirlNextDoor.Id)
+                    && receipt.DestinationName is OfficialModCatalog.LegacyGirlNextDoorSettingsKey or OfficialModCatalog.PreviousGirlNextDoorId)
             && receipt.Files is { Count: > 0 } && (receipt.EngineVersionRange is not null || receipt.Migrated);
     }
 
@@ -308,7 +309,18 @@ public sealed partial class ModPackageInstaller
             : new();
     }
 
-    private bool? ReadCentralPreference(string key) => ReadCentralSettings()["components"]?[key]?.GetValue<bool>();
+    private bool? ReadCentralPreference(string key)
+    {
+        var components = ReadCentralSettings()["components"];
+        foreach (string candidate in OfficialModCatalog.PreferenceKeys(key))
+        {
+            if (components?[candidate] is { } value)
+            {
+                return value.GetValue<bool>();
+            }
+        }
+        return null;
+    }
 
     private bool ShouldEnable(Journal journal)
     {

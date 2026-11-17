@@ -43,14 +43,16 @@ public static class OfficialModCatalog
     private sealed record Document(int SchemaVersion, string SourceId, long Revision, DateTimeOffset PublishedAt, IReadOnlyList<OfficialModComponent> Components, IReadOnlyList<string>? RequiredCapabilities = null);
     private const int MaximumBytes = 2 * 1024 * 1024;
     public const string SourceId = "memoria-official";
+    private const string GirlNextDoorId = "memoria-girl-next-door";
+    internal const string PreviousGirlNextDoorId = "girl-next-door";
     public const string LegacyGirlNextDoorRuntimePackageId = "Memoria/Girl Next Door";
     public const string LegacyGirlNextDoorSettingsKey = "Girl Next Door";
     public static Uri Feed { get; } = new("https://raw.githubusercontent.com/Albeoris/Memoria.Mods/catalog/catalog-v1.json");
     public static string DefaultCacheDirectory => Path.Combine(ApplicationPaths.Current.Cache, "mod-library", "official-catalog");
     internal static JsonSerializerOptions Json { get; } = new(JsonSerializerDefaults.Web);
     internal static IReadOnlyList<OfficialModComponent> SeedComponents { get; } = ReadSeed();
-    public static OfficialModComponent GirlNextDoor { get; } = SeedComponents.Single(component => component.Id == "girl-next-door");
-    internal static OfficialModComponent LegacyGirlNextDoor { get; } = GirlNextDoor with { RuntimePackageId = LegacyGirlNextDoorRuntimePackageId, SettingsKey = LegacyGirlNextDoorSettingsKey };
+    public static OfficialModComponent GirlNextDoor { get; } = SeedComponents.Single(component => component.Id == GirlNextDoorId);
+    internal static OfficialModComponent LegacyGirlNextDoor { get; } = GirlNextDoor with { Id = PreviousGirlNextDoorId, RuntimePackageId = LegacyGirlNextDoorRuntimePackageId, SettingsKey = LegacyGirlNextDoorSettingsKey };
 
     internal static bool HasDescriptorIdentity(OfficialModComponent component)
     {
@@ -59,7 +61,33 @@ public static class OfficialModCatalog
 
     internal static bool HasLegacyGirlNextDoorIdentity(OfficialModComponent component)
     {
-        return component.Id == GirlNextDoor.Id && component.RuntimePackageId == LegacyGirlNextDoorRuntimePackageId && component.SettingsKey == LegacyGirlNextDoorSettingsKey;
+        return component.Id == PreviousGirlNextDoorId && component.RuntimePackageId == LegacyGirlNextDoorRuntimePackageId && component.SettingsKey == LegacyGirlNextDoorSettingsKey;
+    }
+
+    public static bool SameComponent(string? left, string? right)
+    {
+        return left is not null && right is not null && (left == PreviousGirlNextDoorId ? GirlNextDoorId : left) == (right == PreviousGirlNextDoorId ? GirlNextDoorId : right);
+    }
+
+    internal static bool CanUpgradeIdentity(OfficialModComponent previous, OfficialModComponent next)
+    {
+        return SameComponent(previous.Id, next.Id) && HasDescriptorIdentity(next)
+            && (HasLegacyGirlNextDoorIdentity(previous)
+                || previous.Id == PreviousGirlNextDoorId && HasDescriptorIdentity(previous) && next.Id == GirlNextDoor.Id);
+    }
+
+    internal static IEnumerable<string> PreferenceKeys(string key)
+    {
+        yield return key;
+        if (key == GirlNextDoor.SettingsKey)
+        {
+            yield return PreviousGirlNextDoorId;
+            yield return LegacyGirlNextDoorSettingsKey;
+        }
+        else if (key == PreviousGirlNextDoorId)
+        {
+            yield return LegacyGirlNextDoorSettingsKey;
+        }
     }
 
     private static IReadOnlyList<OfficialModComponent> ReadSeed()
@@ -73,7 +101,12 @@ public static class OfficialModCatalog
         Target = component.Target with { Editions = Array.AsReadOnly(component.Target.Editions.ToArray()), Languages = Array.AsReadOnly(component.Target.Languages.ToArray()) }
     };
 
-    public static Guid CatalogId(string componentId) => new(SHA256.HashData(Encoding.UTF8.GetBytes(SourceId + "\0" + componentId)).AsSpan(0, 16));
+    public static Guid CatalogId(string componentId)
+    {
+        // Preserve the installed receipt and download identity across the official ID correction.
+        string storageId = componentId == GirlNextDoorId ? PreviousGirlNextDoorId : componentId;
+        return new(SHA256.HashData(Encoding.UTF8.GetBytes(SourceId + "\0" + storageId)).AsSpan(0, 16));
+    }
 
     public static string? CompatibilityError(OfficialModComponent component, string? engineVersion, string edition, string language)
     {
@@ -139,12 +172,13 @@ public static class OfficialModCatalog
             throw new InvalidDataException("The official catalog requires a supported schema and revision.");
         }
         HashSet<string> ids = new(StringComparer.Ordinal);
+        HashSet<Guid> componentIds = [];
         HashSet<string> runtimeIds = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> settingsKeys = new(StringComparer.OrdinalIgnoreCase);
         List<OfficialModComponent> entries = [];
         foreach (OfficialModComponent component in document.Components)
         {
-            if (component is null || !NativeModDescriptor.IsId(component.Id) || !ids.Add(component.Id)
+            if (component is null || !NativeModDescriptor.IsId(component.Id) || !ids.Add(component.Id) || !componentIds.Add(component.CatalogId)
                 || !IsRuntimeId(component.RuntimePackageId) || !runtimeIds.Add(component.RuntimePackageId) || component.GroupId != "Memoria" || component.Format != "memoria-native" || component.Delivery != "download" || !component.DefaultEnabled
                 || string.IsNullOrWhiteSpace(component.Name) || string.IsNullOrWhiteSpace(component.Description) || string.IsNullOrWhiteSpace(component.Category) || string.IsNullOrWhiteSpace(component.SettingsKey) || !settingsKeys.Add(component.SettingsKey))
             {
@@ -170,7 +204,7 @@ public static class OfficialModCatalog
             ParseRange(release.EngineVersionRange);
             entries.Add(FreezeComponent(component));
         }
-        if (!ids.Contains(GirlNextDoor.Id))
+        if (!componentIds.Contains(GirlNextDoor.CatalogId))
         {
             entries.Add(GirlNextDoor);
         }
@@ -244,10 +278,10 @@ public static class OfficialModCatalog
             }
             foreach (OfficialModComponent component in next.Components.Where(component => component.Latest is not null))
             {
-                OfficialModComponent? prior = saved.Components.FirstOrDefault(existing => existing.Id == component.Id);
+                OfficialModComponent? prior = saved.Components.FirstOrDefault(existing => existing.CatalogId == component.CatalogId);
                 if (prior is not null && (prior.RuntimePackageId != component.RuntimePackageId || prior.SettingsKey != component.SettingsKey)
-                    && !(HasLegacyGirlNextDoorIdentity(component) && prior.Latest is null)
-                    && !(HasLegacyGirlNextDoorIdentity(prior) && HasDescriptorIdentity(component)))
+                    && !(prior.Latest is null && SameComponent(prior.Id, component.Id))
+                    && !CanUpgradeIdentity(prior, component))
                 {
                     throw new InvalidDataException("An official component changed its runtime or settings identity.");
                 }

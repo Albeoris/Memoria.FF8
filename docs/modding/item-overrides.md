@@ -25,7 +25,7 @@ The descriptor defines the mod's stable identity, title, group and descriptions.
 }
 ```
 
-Use a lowercase slug for `id`. Keep it when renaming the mod, moving its folder, or changing its `package`. The package is the group shown in **Mods**. Its **Settings** contains a toggle for each component. The description follows the published content language, including any active localization target. Japanese accepts `ja` or `jp` as aliases for the same locale. Supply `en` as the fallback.
+Use a lowercase slug for `id`. It is globally unique among native mods; `package` only controls menu grouping and does not create an ID namespace. Official Memoria mods use the `memoria-` prefix. Keep it when renaming the mod, moving its folder, or changing its `package`. The package is the group shown in **Mods**. Its **Settings** contains a toggle for each component. The description follows the published content language, including any active localization target. Japanese accepts `ja` or `jp` as aliases for the same locale. Supply `en` as the fallback.
 
 Memoria discovers JSON documents recursively under `items/`. Each document identifies one existing inventory item by ID and declares one or both of `type` and `use`.
 

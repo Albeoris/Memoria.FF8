@@ -79,13 +79,13 @@ public sealed class OfficialModDistributionTests : IDisposable
         string settings = Path.Combine(Mods, "Memoria", "memoria-settings.json");
         File.WriteAllText(settings, """{"components":{"Girl Next Door":false},"meltdown":{}}""");
 
-        var (zip, entry) = Package("1.0.3", component: OfficialModCatalog.GirlNextDoor);
+        var (zip, entry) = Package("1.0.4", component: OfficialModCatalog.GirlNextDoor);
         ModPackageInstaller installer = Installer();
         var previous = installer.GetStatus(entry);
         Assert.True(previous is { Installed: true });
         ModPackageInstallPlan plan = await installer.InspectAsync(zip, entry, Token);
         Assert.Equal(directory, plan.Destination);
-        Assert.Equal("Memoria/girl-next-door", plan.PackageId);
+        Assert.Equal("Memoria/memoria-girl-next-door", plan.PackageId);
         Assert.True((await installer.RequestInstallAsync(plan, repair: true, cancellationToken: Token)).RestartRequired);
         Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
 
@@ -101,11 +101,75 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.Contains("\"Girl Next Door\":false", File.ReadAllText(settings));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NamespacedIdentityUpgradesPublishedDescriptorAndRetainsReceiptAndPreferences(bool legacyFolder)
+    {
+        if (legacyFolder)
+        {
+            string legacy = Path.GetFullPath(OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId, Mods);
+            Directory.CreateDirectory(legacy);
+            File.WriteAllText(Path.Combine(legacy, "GirlNextDoor.png"), "retained artwork");
+            Assert.True(ModPackageInstaller.RecordMigratedGirlNextDoor(Mods));
+        }
+        OfficialModComponent oldIdentity = OfficialModCatalog.GirlNextDoor with { Id = "girl-next-door", RuntimePackageId = "Memoria/girl-next-door", SettingsKey = "girl-next-door" };
+        var (oldZip, oldEntry) = Package("1.0.3", component: oldIdentity);
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan original = await installer.InspectAsync(oldZip, oldEntry, Token);
+        Assert.True((await installer.RequestInstallAsync(original, repair: legacyFolder, cancellationToken: Token)).RestartRequired);
+        Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
+        Assert.True(Assert.Single(Installer().CompleteStartupApplications([original.PackageId])).Installed);
+        string settings = Path.Combine(Mods, "Memoria", "memoria-settings.json");
+        File.WriteAllText(settings, """{"components":{"girl-next-door":false,"Other":false},"meltdown":{}}""");
+        File.WriteAllText(Path.Combine(original.Destination, "mod.ini"), "keep = player-value\n");
+
+        var (zip, entry) = Package("1.0.4", component: OfficialModCatalog.GirlNextDoor);
+        Assert.Equal(oldEntry.Id, entry.Id);
+        Assert.Equal("1.0.3", Installer().GetStatus(entry)?.Version);
+        ModPackageInstallPlan upgrade = await installer.InspectAsync(zip, entry, Token);
+        Assert.Equal(original.Destination, upgrade.Destination);
+        Assert.True((await installer.RequestInstallAsync(upgrade, repair: false, cancellationToken: Token)).RestartRequired);
+        Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
+        using (ModRuntime runtime = new(root, watch: false, modsDirectory: Mods))
+        {
+            Assert.True(runtime.PreparePending(force: true));
+            Assert.True(runtime.CommitPending());
+            ModPackage installed = Assert.Single(runtime.InstalledPackages);
+            Assert.Equal("Memoria/memoria-girl-next-door", installed.Id);
+            Assert.False(installed.RequestedEnabled);
+        }
+        Assert.True(Assert.Single(Installer().CompleteStartupApplications([upgrade.PackageId])).Installed);
+        Assert.Equal("1.0.4", Installer().GetStatus(entry)?.Version);
+        Assert.Equal("memoria-girl-next-door", Assert.Single(ModPackageInstaller.ReadOfficialInventory(Mods)).Value.Official?.Id);
+        Assert.Equal("keep = player-value\n", File.ReadAllText(Path.Combine(upgrade.Destination, "mod.ini")));
+        Assert.Contains("\"Other\":false", File.ReadAllText(settings));
+    }
+
+    [Fact]
+    public async Task CatalogIdentityCorrectionKeepsOneComponentAndAcceptsNewRelease()
+    {
+        string cache = Path.Combine(root, "cache");
+        OfficialModComponent oldIdentity = OfficialModCatalog.GirlNextDoor with { Id = "girl-next-door", RuntimePackageId = "Memoria/girl-next-door", SettingsKey = "girl-next-door" };
+        var (_, oldEntry) = Package("1.0.3", component: oldIdentity);
+        using HttpClient old = new(new Response(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(Catalog(4, oldEntry.Official!)) }));
+        OfficialCatalogSnapshot before = await OfficialModCatalog.RefreshAsync(cache, old, cancellationToken: Token);
+        Assert.Null(before.Error);
+        Assert.Equal("girl-next-door", Assert.Single(before.Components).Id);
+
+        var (_, newEntry) = Package("1.0.4", component: OfficialModCatalog.GirlNextDoor);
+        using HttpClient next = new(new Response(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(Catalog(5, newEntry.Official!)) }));
+        OfficialCatalogSnapshot after = await OfficialModCatalog.RefreshAsync(cache, next, force: true, cancellationToken: Token, bypassDebounce: true);
+        Assert.Null(after.Error);
+        Assert.Equal("memoria-girl-next-door", Assert.Single(after.Components).Id);
+        Assert.Equal(oldEntry.Id, newEntry.Id);
+    }
+
     [Fact]
     public async Task CatalogCacheRejectsStaleOrInvalidRevisionsAndBootstrapsOffline()
     {
         string cache = Path.Combine(root, "cache");
-        Assert.Contains(OfficialModCatalog.ReadCached(cache).Components, component => component.Id == "girl-next-door");
+        Assert.Contains(OfficialModCatalog.ReadCached(cache).Components, component => component.Id == "memoria-girl-next-door");
         var (_, entry) = Package("1.0.0");
         using HttpClient client = new(new Response(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(Catalog(2, entry.Official!)) }));
         OfficialCatalogSnapshot official = await OfficialModCatalog.RefreshAsync(cache, client, cancellationToken: Token);

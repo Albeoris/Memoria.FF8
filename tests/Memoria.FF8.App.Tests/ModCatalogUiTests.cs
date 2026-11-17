@@ -8,6 +8,38 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ModCatalogUiTests
 {
     [Fact]
+    public void NamespacedCatalogMatchesInstalledPreviousDescriptorWithoutDuplicateRow()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "mod-catalog-identity-" + Guid.NewGuid().ToString("N"));
+        string folder = Path.Combine(root, "Mods", "Memoria", "Retained Folder");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "mod.json"), """{"id":"girl-next-door","name":"Girl Next Door","package":"Memoria","description":{"en":"Read the magazine."}}""");
+        try
+        {
+            Library service = new();
+            OfficialModComponent component = OfficialModCatalog.GirlNextDoor;
+            service.UseOfficialProfile();
+            service.Publish(entries: [new(OfficialModCatalog.SourceId, component.CatalogId, component.Name, "") { Official = component }]);
+            using ModRuntime mods = new(root, watch: false);
+            Assert.True(mods.PreparePending(force: true));
+            Assert.True(mods.CommitPending());
+            MenuController menu = new();
+            menu.ConnectMods(mods);
+            menu.ConnectModLibrary(service);
+            menu.Open("mods");
+            menu.Execute(new("mod-settings-open", "Memoria"));
+            UiView view = Arrange(menu);
+            Assert.Contains(Descendants(view.Root), element => element.Id == "mod-setting-component/girl-next-door");
+            Assert.DoesNotContain(Descendants(view.Root), element => element.Id == "official-memoria-girl-next-door");
+            menu.DisconnectMods();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void OfficialSettingsRemainVisibleOfflineAndFollowStableIdentityDuringDownload()
     {
         Library service = new();
@@ -23,17 +55,17 @@ public sealed class ModCatalogUiTests
         Assert.Contains(menu.Entries, entry => entry.Id == "Memoria" && entry.Help.Contains("Not downloaded"));
         menu.Execute(new("mod-settings-open", "Memoria"));
         Assert.Equal("mod-settings", menu.ScreenId);
-        UiButton unavailable = Assert.IsType<UiButton>(Element(Arrange(menu), "official-girl-next-door"));
+        UiButton unavailable = Assert.IsType<UiButton>(Element(Arrange(menu), "official-memoria-girl-next-door"));
         Assert.False(unavailable.Enabled);
         Assert.Contains("Girl Next Door", unavailable.Text);
 
         OfficialModArtifact artifact = new("https://example.invalid/cover.zip", 1000, 1200, new('a', 64));
-        girl = girl with { Latest = new("1.0.0", "[0.8.10,)", "girl-next-door-v1.0.0", "", artifact) };
+        girl = girl with { Latest = new("1.0.0", "[0.8.10,)", "memoria-girl-next-door-v1.0.0", "", artifact) };
         RemoteModEntry available = seed with { Official = girl, Version = "1.0.0", CompatibilityError = null, Links = [artifact.Url] };
         service.Publish(entries: [available]);
         menu.RefreshModView();
         UiView ready = Arrange(menu);
-        UiButton action = Assert.IsType<UiButton>(Element(ready, "official-girl-next-door"));
+        UiButton action = Assert.IsType<UiButton>(Element(ready, "official-memoria-girl-next-door"));
         ready.Focus(action);
         Assert.Contains("Download & enable", action.Text);
         action.Key(UiKey.Confirm);
@@ -43,8 +75,8 @@ public sealed class ModCatalogUiTests
         Guid jobId = Guid.NewGuid();
         service.Publish(entries: [available with { Id = another.CatalogId, Official = another, Name = another.Name }, available], jobs: [Job(jobId, available, "Downloading", pause: true, cancel: true)]);
         menu.RefreshModView();
-        Assert.Equal("official-girl-next-door", Arrange(menu).FocusedElement?.Id);
-        Assert.Contains("Downloading", Assert.IsType<UiButton>(Element(Arrange(menu), "official-girl-next-door")).Text);
+        Assert.Equal("official-memoria-girl-next-door", Arrange(menu).FocusedElement?.Id);
+        Assert.Contains("Downloading", Assert.IsType<UiButton>(Element(Arrange(menu), "official-memoria-girl-next-door")).Text);
         menu.DisconnectMods();
     }
 

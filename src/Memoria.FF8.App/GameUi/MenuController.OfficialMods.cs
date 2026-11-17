@@ -14,7 +14,7 @@ public sealed partial class MenuController
 
     private static bool MatchesOfficialComponent(ModPackage package, OfficialModComponent component)
     {
-        return package.Official?.Id == component.Id || package.Descriptor?.Id == component.Id
+        return OfficialModCatalog.SameComponent(package.Official?.Id, component.Id) || OfficialModCatalog.SameComponent(package.Descriptor?.Id, component.Id)
             || package.IsBundled && (package.Id == component.RuntimePackageId || component.Id == OfficialModCatalog.GirlNextDoor.Id && package.Id == OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId);
     }
 
@@ -80,7 +80,7 @@ public sealed partial class MenuController
             ModLibraryInstallation? installation = ManagedMod(entry);
             ModLibraryJob? job = EntryJob(entry);
             BehaviorModSetting? toggle = modSettings.FirstOrDefault(setting => setting.Behavior == "component" && (setting.Parameter == component.SettingsKey
-                || setting.Descriptor?.Id == component.Id || component.Id == OfficialModCatalog.GirlNextDoor.Id && setting.Parameter == OfficialModCatalog.LegacyGirlNextDoorSettingsKey));
+                || OfficialModCatalog.SameComponent(setting.Descriptor?.Id, component.Id) || OfficialModCatalog.SameComponent(component.Id, OfficialModCatalog.GirlNextDoor.Id) && setting.Parameter == OfficialModCatalog.LegacyGirlNextDoorSettingsKey));
             NativeModDescriptor? installed = InstalledOfficialDescriptor(component);
             bool hasToggle = toggle is not null || installed is not null;
             if (hasToggle && installation is not { Pending: true, Available: true } && installation is not { Available: false } && installation is not { Version.Length: 0 } && !CatalogUpdateAvailable(entry))
