@@ -73,6 +73,10 @@ public sealed partial class FieldVariables
 
     public void WriteWord(FieldBank bank, byte address, short value)
     {
+        if (bank == FieldBank.Immediate)
+        {
+            return;
+        }
         WriteObserved?.Invoke(new(bank, address, true));
         var (storage, index, word) = Locate(bank, address);
         CheckWord(storage, index, word);

@@ -147,6 +147,17 @@ internal static class ExtendedTests
             Check((byte)99, vm.Variables.ReadByte(FieldBank.MapByte, 3));
             Check(25, vm.Capture().Entities[0].ProgramCounter);
         }
+        var discarded = New(Code(0, 0x6E, 0, 0, 0x80, 0x50, 3, 99, 0x5F, 0x12, 0), new RecordingHost { Complete = true, Value = 0xFEDC });
+        discarded.Initialize();
+        byte[] beforePersistent = discarded.Variables.CopyPersistent();
+        discarded.AdvanceTick();
+        Check(true, beforePersistent.SequenceEqual(discarded.Variables.CopyPersistent()));
+        Check((byte)99, discarded.Variables.ReadByte(FieldBank.MapByte, 3));
+        Check(25, discarded.Capture().Entities[0].ProgramCounter);
+        byte[] beforeMap = discarded.Variables.CopyMap();
+        discarded.Variables.WriteWord(FieldBank.Immediate, 255, unchecked((short)0xABCD));
+        Check(true, beforeMap.SequenceEqual(discarded.Variables.CopyMap()));
+        Check(true, beforePersistent.SequenceEqual(discarded.Variables.CopyPersistent()));
         var cross = New(Code(0, 0x6E, 2, 255, 0x5F, 0x12, 0), new RecordingHost { Complete = true, Value = 0x1234 });
         cross.Initialize();
         cross.AdvanceTick();

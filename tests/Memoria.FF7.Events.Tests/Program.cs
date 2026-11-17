@@ -1,6 +1,13 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--previous-map-only", StringComparer.Ordinal))
+{
+    ExtendedTests.PreviousMapOperandsAndContinuation();
+    Console.WriteLine("PASS native previous-map operands, discard destination and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--request-preemption-only", StringComparer.Ordinal))
 {
     NativeScriptDispatchTests.Run();
