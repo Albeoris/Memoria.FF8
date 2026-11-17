@@ -163,7 +163,8 @@ public sealed class GameplaySaveFieldContinuationTests
         Assert.Null(source.Events.LastFault);
         Assert.False(source.Events.IsDialogueOpen);
         GameplaySaveFieldContinuation continuation = source.Events.CaptureGameplaySaveFieldContinuation();
-        Assert.Contains(continuation.Scripts.Fibers, fiber => fiber.Wait == GameplaySaveScriptWait.Frames);
+        int waitOperation = JsmProgram.Read(Program()).Operations.Single(operation => operation.Opcode == Jsm.Opcode.WAIT).Index;
+        Assert.Contains(continuation.Scripts.Fibers, fiber => fiber.Wait == GameplaySaveScriptWait.None && fiber.Position == waitOperation && fiber.Stack is [> 0]);
         GameState prepared = sourceSession.PrepareSnapshot();
         GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(prepared, initial.Resume);
         document = document with { Progression = document.Progression!.WithFieldContinuation(continuation) };
@@ -241,7 +242,7 @@ public sealed class GameplaySaveFieldContinuationTests
     private static byte[] Program()
     {
         (Jsm.Opcode, int)[] initialize = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_L, 500), (Jsm.Opcode.RET, 8)];
-        (Jsm.Opcode, int)[] ordinary = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] ordinary = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         return GameplaySaveFieldScriptsTests.Encode([(0 << 7) | 1], [initialize, ordinary]);
     }
 

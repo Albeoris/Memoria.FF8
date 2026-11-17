@@ -12,6 +12,9 @@ public sealed partial class EventEngine
         set => playerMovementSpeedPercent = Memoria.FF8.Runtime.PlayerMovementSpeed.ValidatePercent(value);
     }
 
+    // Script-forced walking retains the native travel bound used by timed field events.
+    private int EffectivePlayerMovementSpeedPercent => Scene.RunEnabled ? PlayerMovementSpeedPercent : Math.Min(PlayerMovementSpeedPercent, Memoria.FF8.Runtime.PlayerMovementSpeed.DefaultPercent);
+
     /// <summary>Runs a decoded movie callback with the currently held movement axes.</summary>
     public void StepMovieFrame(float horizontal, float vertical)
     {

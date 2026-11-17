@@ -59,7 +59,7 @@ internal static partial class Program
         ActorState actor = live.Actors[0];
         JsonElement first = live.Capture();
         JsonElement source = first.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        Require(issued == 1 && actor.FaceTargetPoint == new Vector3(100, 0, 100) && actor.FaceDuration == 8 && actor.FaceProgress == 1 && CapturedVariables(first).GetProperty("5000").GetInt32() == 73 && source.GetProperty("Stack").GetArrayLength() == 0 && source.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && source.GetProperty("WaitReason").GetString() == "Frames", "RFACEDIR waited, consumed unrelated opaque scalar, interpreted relative angles or lost low signedXYZ/unsignedduration WORDs.");
+        Require(issued == 1 && actor.FaceTargetPoint == new Vector3(100, 0, 100) && actor.FaceDuration == 8 && actor.FaceProgress == 1 && CapturedVariables(first).GetProperty("5000").GetInt32() == 73 && source.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([1]) && source.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && source.GetProperty("WaitReason").GetString() == "None", "RFACEDIR waited, consumed unrelated opaque scalar, lost the following WAIT countdown, interpreted relative angles or lost low signedXYZ/unsignedduration WORDs.");
         EventEngine restored = Create(content);
         restored.Restore(first);
         while (actor.FaceDuration == 8 && live.Frame < 12)

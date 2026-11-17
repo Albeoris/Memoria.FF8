@@ -24,6 +24,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (NativeRuntimeProfile is { IsVerified: true } && operation.Opcode == Jsm.Opcode.WAIT)
+        {
+            return fiber.Stack.Count > 0 && fiber.Stack.PeekValue().IsExact ? null : "Native WAIT requires its exact retained DWORD countdown";
+        }
         if (operation.Opcode == Jsm.Opcode.REFRESHPARTY)
         {
             //51E5D0 has no operand or result-register access.

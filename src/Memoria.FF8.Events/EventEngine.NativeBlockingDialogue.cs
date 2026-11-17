@@ -8,7 +8,7 @@ public sealed partial class EventEngine
 
     private bool CanReceiveDialogueInput(DialogueState dialogue)
     {
-        return NativeRuntimeProfile is not { IsVerified: true } || dialogue.IsNamePrompt || dialogue.NativeWindow is { Progress: 4096, Delta: >= 0 };
+        return NativeRuntimeProfile is not { IsVerified: true } || dialogue.IsNamePrompt || dialogue.NativeWindow is { Progress: 4096, Delta: >= 0 } window && window.Text is not { Ready: false };
     }
 
     private static int NativeBlockingDialogueOperandCount(Jsm.Opcode opcode) => opcode switch

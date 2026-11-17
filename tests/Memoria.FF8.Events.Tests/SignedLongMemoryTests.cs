@@ -27,7 +27,7 @@ internal static partial class Program
             EventEngine live = Create();
             live.Step();
             live.Step();
-            Require(live.EventMemory.Read(4004, 4).RequireExact() == Math.Clamp(source, -0x800000, 0x7FFFFF) && live.EventMemory.Read(4000, 4).RequireExact() == source && live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack")[0].GetInt32() == 77, "PSHSM_L failed native signed24 saturation, changed its DWORD source or consumed the existing stack value.");
+            Require(live.EventMemory.Read(4004, 4).RequireExact() == Math.Clamp(source, -0x800000, 0x7FFFFF) && live.EventMemory.Read(4000, 4).RequireExact() == source && live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([1, 77]), "PSHSM_L failed native signed24 saturation, changed its DWORD source or lost the current WAIT countdown and existing stack value.");
             EventEngine restored = Create();
             restored.Restore(live.Capture());
             for (int callback = 0; callback < 2; callback++)

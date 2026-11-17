@@ -56,7 +56,7 @@ internal static partial class Program
             {
                 Require(live.CurrentDialogue is null && live.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted && live.CurrentDialogue?.Channel == 0, "Ordinary Wait could not reach a choice's first native focus poll.");
             }
-            while (live.Dialogues.Single().NativeWindow!.Progress < 4096)
+            while (live.Dialogues.Single().NativeWindow is { Progress: < 4096 } or { Text.Ready: false })
             {
                 live.Step();
                 Held(live, operation);

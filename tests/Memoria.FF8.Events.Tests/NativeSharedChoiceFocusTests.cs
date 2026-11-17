@@ -67,6 +67,12 @@ internal static partial class Program
             live.Step();
             copy.Step();
             Require(live.Scene.NativeDialogueFocus == 1 && JsonElement.DeepEquals(live.Capture(), copy.Capture()), "Actor-ordered choice polls did not reassert their own channel after independent restore.");
+            while (live.Dialogues.Any(dialogue => dialogue.NativeWindow is { Progress: < 4096 } or { Text.Ready: false }))
+            {
+                live.Step();
+                copy.Step();
+                Require(JsonElement.DeepEquals(live.Capture(), copy.Capture()), "Native choice reveal changed focus or ownership after restore.");
+            }
             live.ConfirmDialogue(1);
             copy.ConfirmDialogue(1);
             Require(live.Scene.NativeDialogueFocus == 1, "Choice selection restored focus before its completing VM poll.");

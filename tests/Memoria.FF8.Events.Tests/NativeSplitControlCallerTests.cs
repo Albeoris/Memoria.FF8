@@ -69,7 +69,7 @@ internal static partial class Program
         Require(committedPeerObserved, "SPLIT omitted ordered enabled-peer contact evaluation.");
         JsonElement pending = live.Capture();
         JsonElement heldCompanion = pending.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1 && !fiber.GetProperty("Initialization").GetBoolean());
-        Require(heldCompanion.GetProperty("WaitReason").GetString() == "Frames" && !CapturedVariables(pending).TryGetProperty("6101", out _), "SPLIT did not encounter its companion's live WAIT slot.");
+        Require(heldCompanion.GetProperty("WaitReason").GetString() == "None" && JsmProgram.Read(content).Operations[heldCompanion.GetProperty("Position").GetInt32()].Opcode == Jsm.Opcode.WAIT && heldCompanion.GetProperty("Stack")[0].GetInt32() > 0 && !CapturedVariables(pending).TryGetProperty("6101", out _), "SPLIT did not encounter its companion's live retained WAIT countdown.");
         Require(pending.GetProperty("PartySplit").GetProperty("CallerObjectId").GetInt32() == 4 && pending.GetProperty("PartySplit").GetProperty("Targets").EnumerateArray().Select(target => target.GetProperty("ObjectId").GetInt32()).SequenceEqual([1, 2, 3]) && live.IsUserControlEnabled, "SPLIT still required caller to be a party leader or disabled control.");
         Require(live.Actors.Skip(1).Take(3).All(actor => actor.CollisionEnabled) && live.PlayerActor is { CharacterId: 0, X: -2980 } && live.Scene.NativePlayerPosition == new FieldFixedPosition(-2980 * 4096, 0, 0), "Enabled party peers or noncaller runtime leader pose were not committed.");
         EventEngine resumed = Create();

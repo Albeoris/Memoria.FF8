@@ -22,7 +22,12 @@ public sealed class OpeningDialoguePagingTests
                 break;
             }
             PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : new(PlayerActionKind.Wait);
+            long previousFrame = world.Events.Frame;
             Assert.True(world.Apply(action).Accepted);
+            if (world.Events.Frame == previousFrame)
+            {
+                world.Events.Step();
+            }
             Assert.Null(world.Events.LastFault);
         }
         DialogueState opening = Assert.Single(world.Events.DialogueTemplates);
@@ -44,7 +49,7 @@ public sealed class OpeningDialoguePagingTests
             Assert.Same(first.Pager, displayed.Pager);
             Assert.Equal(1, displayed.Pager.PageIndex);
             Assert.False(displayed.Pager.Advance(displayed.Pages.Count));
-            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+            world.Events.Step();
         }
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
         cache.Complete(opening);

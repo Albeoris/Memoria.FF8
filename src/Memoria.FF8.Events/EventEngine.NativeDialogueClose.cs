@@ -44,6 +44,10 @@ public sealed partial class EventEngine
             for (int sample = 0; sample < samples; sample++)
             {
                 progress = Math.Clamp(progress + window.Delta, 0, 4096);
+                if (progress == 4096)
+                {
+                    StepNativeDialogueText(dialogue);
+                }
             }
             if (progress != window.Progress)
             {
@@ -75,6 +79,8 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native dialogue window has invalid progress, delta or version.");
             }
+            // Older windows have no retained reveal cursor and remain already revealed.
+            window.Text?.Validate();
         }
     }
 }

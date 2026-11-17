@@ -13,7 +13,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        GameplaySaveFieldDialogues saved = new(1, dialogues.Values.Select(dialogue => new GameplaySaveDialogue(dialogue.Channel, dialogue.MessageId, dialogue.Text, dialogue.X, dialogue.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.InitialChoice, dialogue.CancelChoice, dialogue.IsNamePrompt, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.CanConfirm, dialogue.NativeWindow is { } window ? new(window.Progress, window.Delta) : null)).ToArray(), Scene.NativeDialogueFocus, Scene.NativeAskPreviousFocus, Scene.NativeAaskPreviousFocus);
+        GameplaySaveFieldDialogues saved = new(1, dialogues.Values.Select(dialogue => new GameplaySaveDialogue(dialogue.Channel, dialogue.MessageId, dialogue.Text, dialogue.X, dialogue.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.InitialChoice, dialogue.CancelChoice, dialogue.IsNamePrompt, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.CanConfirm, dialogue.NativeWindow is { } window ? new(window.Progress, window.Delta) { Text = window.Text is { } text ? text with { } : null } : null)).ToArray(), Scene.NativeDialogueFocus, Scene.NativeAskPreviousFocus, Scene.NativeAaskPreviousFocus);
         saved.Validate();
         ValidateGameplayDialogues(saved, fibers);
         return saved;
@@ -114,7 +114,7 @@ public sealed partial class EventEngine
 
     private static DialogueState RestoreGameplayDialogue(GameplaySaveDialogue dialogue)
     {
-        return new(dialogue.Channel, dialogue.MessageId, dialogue.Text, dialogue.X, dialogue.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.InitialChoice, dialogue.CancelChoice, dialogue.IsNamePrompt, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.CanConfirm, dialogue.Window is { } window ? new(1, window.Progress, window.Delta) : null);
+        return new(dialogue.Channel, dialogue.MessageId, dialogue.Text, dialogue.X, dialogue.Y, dialogue.FirstChoice, dialogue.LastChoice, dialogue.InitialChoice, dialogue.CancelChoice, dialogue.IsNamePrompt, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.CanConfirm, dialogue.Window is { } window ? new(1, window.Progress, window.Delta) { Text = window.Text is { } text ? text with { } : null } : null);
     }
 
     private void RestoreGameplayDialogues(GameplaySaveFieldDialogues? saved)

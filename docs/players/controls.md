@@ -71,6 +71,8 @@ Instant victory and instant defeat appear at the top of Debug Room only while a 
 
 Config / Gameplay / Speed also has independent world movement, field movement and battle speed sliders from 50% to 300%, with 100% defaults. These preferences are shared across saves and multiply with F1: 150% with x4 fast-forward gives x6. Movement preferences scale player travel, including controlled world vehicles; battle speed scales the battle clock and sound effects together while preserving audio pitch. Movies keep their normal timing.
 
+When a field script disables running, movement boosts above 100% pause until running is allowed again. This preserves the forced walking pace used to sequence nearby story triggers. F1 still advances the whole scene at the selected fast-forward rate; ordinary running and manually selected walking retain the movement preference.
+
 Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load menu, Card / detail starts a transfer of the selected save between Memoria and either original-game bank. See [saves](saves.md) for bank capacities, destination selection and original save-folder discovery, and [debug room](debug-room.md) for diagnostic features.
 
 On a GF's ability screen, select learned **Move-Find**, **Enc-Half** or **Enc-None** and press **Card / detail** to toggle it. These abilities are party passives: learning one enables it automatically, and it works whenever an acquired GF that knows it is alive. It does not require a junction or an equipped character ability slot. The row shows **On** in green or **Off** in amber; a KO GF retains its preference but cannot supply the effect. Another living GF with the passive enabled can still supply it.

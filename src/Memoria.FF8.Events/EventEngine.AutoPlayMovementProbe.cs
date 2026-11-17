@@ -229,7 +229,7 @@ public sealed partial class EventEngine
             var input = ButtonInput ?? throw new NotSupportedException("Autoplay walking requires the native input sampler.");
             ushort held = services.InputConfiguration?.Map((ushort)(input.PhysicalHeld | input.PendingPulse)) ?? throw new NotSupportedException("Autoplay walking requires the native input configuration.");
             int speed = GetNativePlayerMovementSpeed(!Scene.RunEnabled || (held & 0x10) != 0);
-            return services.IsMoviePlaying ? speed : Memoria.FF8.Runtime.PlayerMovementSpeed.Scale(speed, PlayerMovementSpeedPercent);
+            return services.IsMoviePlaying ? speed : Memoria.FF8.Runtime.PlayerMovementSpeed.Scale(speed, EffectivePlayerMovementSpeedPercent);
         }
     }
 
@@ -285,7 +285,7 @@ public sealed partial class EventEngine
         }
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection + PlayerInputDirectionOffset);
         int fastSpeed = AutoPlayFastStepSpeed(player, position, speed, worldDelta.Length());
-        NativePlayerMovementQuery query = new(player.ObjectId, triangle, position.X, position.Y, position.Z, direction, (short)speed, player.PushRadius, retry, collision, PlayerMovementSpeedPercent, fastSpeed);
+        NativePlayerMovementQuery query = new(player.ObjectId, triangle, position.X, position.Y, position.Z, direction, (short)speed, player.PushRadius, retry, collision, EffectivePlayerMovementSpeedPercent, fastSpeed);
         return ResolveNativePlayerMovement!(query) ?? throw new NotSupportedException("Autoplay walking encountered an unsupported native movement probe.");
     }
 

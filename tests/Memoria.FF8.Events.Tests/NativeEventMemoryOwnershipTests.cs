@@ -69,7 +69,7 @@ internal static partial class Program
 
         // Synchronous INIT polls WAIT without a clock; only ordinary callbacks can split the retained unknown timer phase.
         using GameAssets assets = new(TestResources.GameDirectory);
-        byte[] uncertainContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.PSHM_B, 433), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        byte[] uncertainContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_B, 433), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         GameSession timerSession = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
         timerSession.SetExamTimer(NativeExamTimerState.FromReachedSet(0));
         EventEngine uncertain = new(timerSession);
@@ -78,12 +78,15 @@ internal static partial class Program
         Require(uncertain.Frame == 1 && timerSession.ExamTimer!.ClockCalls == 0 && uncertain.Scene.NativeFieldInitialization?.Stage == NativeFieldInitializationStage.Completed, "Uncertain timer fixture advanced native clocks during synchronous initialization.");
         uncertain.Step();
         JsonElement waiting = uncertain.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
-        Require(timerSession.ExamTimer!.ClockCalls == 2 && waiting.GetProperty("WaitReason").GetString() == "Frames" && !uncertain.EventMemory.Overlaps(432, 2), "Uncertain timer fixture failed to suspend before GETTIMER after its actual ordinary SET/WAIT callback.");
+        Require(timerSession.ExamTimer!.ClockCalls == 2 && waiting.GetProperty("WaitReason").GetString() == "None" && waiting.GetProperty("Position").GetInt32() == JsmProgram.Read(uncertainContent).Operations.First(operation => operation.Opcode == Jsm.Opcode.WAIT).Index + 1 && !uncertain.EventMemory.Overlaps(432, 2), "Uncertain timer fixture failed to yield after completing its exact native WAIT countdown.");
+        uncertain.Step();
+        JsonElement beforePartialRead = uncertain.Capture();
         ExpectMemoryOwnershipFailure<EventScriptException>(() => uncertain.Step(), "A partial read selected a byte from uncertain timer alternatives.");
         JsonElement refused = uncertain.Capture();
         JsonElement refusedFiber = refused.GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
-        Require(uncertain.LastFault is { Opcode: "PSHM_B", Operation: 11 } && refusedFiber.GetProperty("Position").GetInt32() == 11 && refusedFiber.GetProperty("Stack").GetArrayLength() == 1 && refusedFiber.GetProperty("Stack")[0].GetInt32() == 777 && uncertain.EventMemory.Read(432, 2).Values.SequenceEqual([599, 600]), "Uncertain partial-read refusal consumed the stack, moved PC or changed memory alternatives.");
-        JsonNode forgedSource = JsonNode.Parse(refused.GetRawText())!;
+        int partialRead = JsmProgram.Read(uncertainContent).Operations.First(operation => operation.Opcode == Jsm.Opcode.PSHM_B).Index;
+        Require(uncertain.LastFault is { Opcode: "PSHM_B" } && uncertain.LastFault.Operation == partialRead && refusedFiber.GetProperty("Position").GetInt32() == partialRead && refusedFiber.GetProperty("Stack").GetArrayLength() == 1 && refusedFiber.GetProperty("Stack")[0].GetInt32() == 777 && uncertain.EventMemory.Read(432, 2).Values.SequenceEqual([599, 600]), "Uncertain partial-read refusal consumed the stack, moved PC or changed memory alternatives.");
+        JsonNode forgedSource = JsonNode.Parse(beforePartialRead.GetRawText())!;
         forgedSource["EventMemory"]!["Cells"]!["432"]!["Value"]!["Origin"]!["Operation"] = 0;
         ExpectMemoryOwnershipFailure<InvalidDataException>(() => uncertain.Restore(JsonSerializer.SerializeToElement(forgedSource)), "A non-GETTIMER opcode supplied accepted memory provenance.");
         Require(JsonElement.DeepEquals(refused, uncertain.Capture()), "Forged provenance refusal changed PC, stack or memory.");

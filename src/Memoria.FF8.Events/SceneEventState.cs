@@ -13,6 +13,9 @@ public enum NativeParticleControlOrigin
 
 public sealed record NativeDialogueWindowState([property: JsonRequired] int Version, int Progress, int Delta)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeDialogueTextProgress? Text { get; set; }
+
     [JsonRequired]
     public int Progress { get; set; } = Progress;
     [JsonRequired]

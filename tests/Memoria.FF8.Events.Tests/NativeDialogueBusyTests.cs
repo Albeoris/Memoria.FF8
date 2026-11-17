@@ -54,6 +54,12 @@ internal static partial class Program
                 JsonElement blocked = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1 && !fiber.GetProperty("Initialization").GetBoolean());
                 Require(blocked.GetProperty("Position").GetInt32() == preservedOperation && blocked.GetProperty("Stack").GetArrayLength() == operands && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Busy-channel retries lost the held operation/operands or independent VM equality.");
             }
+            while (live.Dialogues.Single().NativeWindow is { Progress: < 4096 } or { Text.Ready: false })
+            {
+                live.Step();
+                restored.Step();
+                Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "First native message reveal changed after restore.");
+            }
             Require(live.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "First original dialogue decision was refused.");
             for (int callback = 0; callback < 8 && live.CurrentDialogue?.MessageId != 1; callback++)
             {
@@ -65,7 +71,7 @@ internal static partial class Program
             Require(opened.GetProperty("Stack").GetArrayLength() == (secondOpcode == Jsm.Opcode.AMESW ? 4 : 0) && !CapturedVariables(live.Capture()).TryGetProperty("514", out _), "Successful native dialogue opening failed its return1/return3 yield or consumed operands more than once.");
             if (secondOpcode == Jsm.Opcode.AMESW)
             {
-                while (live.Dialogues.Single().NativeWindow!.Progress < 4096)
+                while (live.Dialogues.Single().NativeWindow is { Progress: < 4096 } or { Text.Ready: false })
                 {
                     live.Step();
                     restored.Step();
@@ -99,7 +105,7 @@ internal static partial class Program
         sync.Step();
         sync.Step();
         Require(sync.CurrentDialogue is { CanConfirm: true }, "Native MESSYNC did not admit its existing persistent channel.");
-        while (sync.Dialogues.Single().NativeWindow!.Progress < 4096)
+        while (sync.Dialogues.Single().NativeWindow is { Progress: < 4096 } or { Text.Ready: false })
         {
             sync.Step();
         }

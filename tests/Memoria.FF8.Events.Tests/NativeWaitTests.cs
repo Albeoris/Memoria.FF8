@@ -91,6 +91,43 @@ internal static partial class Program
         }
         JsonElement refused = Fiber(uncertain);
         Require(refused.GetProperty("Position").GetInt32() == uncertain.LastFault!.Operation && refused.GetProperty("Stack").GetArrayLength() == 1 && refused.GetProperty("Stack")[0].ValueKind == JsonValueKind.Object, "Unsupported WAIT changed its issuing PC or consumed its uncertain scalar.");
+        EventEngine Door()
+        {
+            List<(Jsm.Opcode, int)[]> scripts = [
+                [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
+                [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]
+            ];
+            for (int label = 19; label <= 23; label++)
+            {
+                scripts.Add([(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 8)]);
+            }
+            byte[] content = SyntheticObjects([(16 << 7) | 7, 1], scripts);
+            content[1] = 1;
+            content[3] = 1;
+            EventEngine engine = new(CreateDirectedLinearTurnSession(vitals, economy));
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
+            return engine;
+        }
+        static JsonElement DoorLower(EventEngine engine) => engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 17);
+        EventEngine door = Door();
+        door.Step();
+        Require(DoorLower(door).GetProperty("Stack")[0].GetInt32() == 4, "Door default did not issue its first WAIT countdown before the actor's higher request.");
+        door.Step();
+        EventEngine doorCopy = Door();
+        doorCopy.Restore(door.Capture());
+        for (int callback = 0; callback < 8; callback++)
+        {
+            door.Step();
+            doorCopy.Step();
+            Require(DoorLower(door).GetProperty("Stack")[0].GetInt32() == 4 && JsonElement.DeepEquals(door.Capture(), doorCopy.Capture()), "Suspended door WAIT decremented beneath a higher native request or changed after restore.");
+        }
+        door.Step();
+        doorCopy.Step();
+        Require(DoorLower(door).GetProperty("Stack")[0].GetInt32() == 3 && JsonElement.DeepEquals(door.Capture(), doorCopy.Capture()), "Door RET did not resume its lower WAIT exactly once within the same remaining entity budget.");
         Console.WriteLine("Native WAIT: selected-dispatch DWORD countdown, suspended request stack, completion yield, wrapping operands, uncertain refusal and independent restore PASS.");
     }
 }

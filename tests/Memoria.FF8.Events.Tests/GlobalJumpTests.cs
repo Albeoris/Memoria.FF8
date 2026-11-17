@@ -33,7 +33,7 @@ internal static partial class Program
         live.Step();
         JsonElement saved = live.Capture();
         JsonElement fiber = saved.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-        Require(fiber.GetProperty("NativeGlobalJumps").GetArrayLength() == 2 && fiber.GetProperty("Stack").GetArrayLength() == 19, "Nested GJMP lost original return operands or LBL result frames.");
+        Require(fiber.GetProperty("NativeGlobalJumps").GetArrayLength() == 2 && fiber.GetProperty("Stack").GetArrayLength() == 20 && fiber.GetProperty("Stack")[0].GetInt32() == 1, "Nested GJMP lost original return operands, LBL result frames or its current WAIT countdown.");
         EventEngine restored = Create();
         restored.Restore(saved);
         for (int index = 0; index < 5; index++)

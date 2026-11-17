@@ -38,7 +38,8 @@ internal static partial class Program
             byte[] content = SyntheticObjects([1], [init.ToArray(), main.ToArray()]);
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(575, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-            for (int callback = 0; callback < 8 && !(session.CharacterVitals!.JunctionPartyBackup.SequenceEqual(backup) && engine.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("WaitReason").GetString() == "Frames")); callback++)
+            int beforeRefresh = JsmProgram.Read(content).Operations.First(operation => operation.Opcode == Jsm.Opcode.WAIT).Index + 1;
+            for (int callback = 0; callback < 8 && !(session.CharacterVitals!.JunctionPartyBackup.SequenceEqual(backup) && engine.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1 && fiber.GetProperty("Position").GetInt32() == beforeRefresh)); callback++)
             {
                 engine.Step();
             }

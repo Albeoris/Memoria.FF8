@@ -33,19 +33,19 @@ internal static partial class Program
             live.Step();
             opening ??= live.DialogueTemplates.Single();
             Require(ReferenceEquals(opening, live.DialogueTemplates.Single()), "Native scalar UI samples replaced the opening identity and would restart text reveal.");
-            Require(live.Dialogues.Single().NativeWindow == new NativeDialogueWindowState(1, (callback + 1) * 1024, 512), "Native window did not open through two512-unit UI samples after each VM callback.");
+            Require(live.Dialogues.Single().NativeWindow is { Version: 1, Delta: 512 } window && window.Progress == (callback + 1) * 1024, "Native window did not open through two512-unit UI samples after each VM callback.");
         }
         for (int callback = 0; callback < 12 && live.Dialogues.Single().NativeWindow!.Delta != -512; callback++)
         {
             live.Step();
         }
-        Require(live.Dialogues.Single().NativeWindow == new NativeDialogueWindowState(1, 3072, -512), "WINCLOSE did not request its native closing delta before the two post-VM UI samples.");
+        Require(live.Dialogues.Single().NativeWindow is { Version: 1, Progress: 3072, Delta: -512 }, "WINCLOSE did not request its native closing delta before the two post-VM UI samples.");
         EventEngine restored = Create();
         restored.Restore(live.Capture());
         foreach (int progress in new[] { 3072, 2048, 1024, 0 })
         {
             JsonElement held = Fiber(live);
-            Require(held.GetProperty("Position").GetInt32() == closeOperation && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([5]) && !CapturedVariables(live.Capture()).TryGetProperty("5000", out _) && live.Dialogues.Single().NativeWindow == new NativeDialogueWindowState(1, progress, -512), "Closing WINCLOSE advanced its PC, popped its original channel or ran its successor before native window progress reached zero.");
+            Require(held.GetProperty("Position").GetInt32() == closeOperation && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([5]) && !CapturedVariables(live.Capture()).TryGetProperty("5000", out _) && live.Dialogues.Single().NativeWindow is { Version: 1, Delta: -512 } window && window.Progress == progress, "Closing WINCLOSE advanced its PC, popped its original channel or ran its successor before native window progress reached zero.");
             Require(live.DialogueTemplates.Count == (progress == 0 ? 0 : 1), "A zero-progress closing window remained visible while its channel awaited WINCLOSE completion.");
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Native window close state or held VM diverged after independent restore.");
             live.Step();

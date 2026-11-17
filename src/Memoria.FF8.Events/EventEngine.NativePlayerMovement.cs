@@ -59,7 +59,7 @@ public sealed partial class EventEngine
         }
         byte earlyRetry = Scene.NativePlayerEarlyRetryState is byte known && known <= 1 ? known : throw new NotSupportedException("Native player movement requires executed retry-state provenance; the snapshot is missing required native state");
         int fastSpeed = AutoPlayFastStepSpeed(player, current, speed, autoPlayMovementDistance);
-        NativePlayerMovementQuery query = new(player.ObjectId, player.WalkmeshTriangle, current.X, current.Y, current.Z, direction, (short)speed, player.PushRadius, earlyRetry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, PlayerMovementSpeedPercent, fastSpeed);
+        NativePlayerMovementQuery query = new(player.ObjectId, player.WalkmeshTriangle, current.X, current.Y, current.Z, direction, (short)speed, player.PushRadius, earlyRetry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision, EffectivePlayerMovementSpeedPercent, fastSpeed);
         NativePlayerMovementResult movement = ResolveNativePlayerMovement(query) ?? throw new NotSupportedException("Native player movement requires a certified original retry-state result; unproved retry/contact chains preserve original state.");
         bool blocked = !movement.Accepted;
         int maximumAttempts = earlyRetry == 0 ? 16 : 2;

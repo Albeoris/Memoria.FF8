@@ -52,7 +52,7 @@ internal static partial class Program
         Require(capturedProcess.CrtRandom == sharedDraw, "Eye snapshot replaced an intervening draw from the current shared CRT owner.");
         Require(ReferenceEquals(liveBeforeCapture, live.Scene.NativeEyeProcess), "Eye checkpoint replaced its running scene owner.");
         Require(ReferenceEquals(host.Session.CurrentNativeBattleMemory, liveBeforeCapture.Memory), "Eye checkpoint replaced its running retained memory.");
-        Require(saved.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack")[0].GetInt32() == 777, "BLINKEYES consumed an unrelated retained DWORD.");
+        Require(saved.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([99, 777]), "BLINKEYES consumed an unrelated retained DWORD or the following WAIT lost its current countdown.");
         EventEngine restored = Create().Engine;
         restored.Restore(saved);
         for (int index = 0; index < 20; index++)

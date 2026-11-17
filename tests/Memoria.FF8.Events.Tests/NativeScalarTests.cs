@@ -17,17 +17,10 @@ internal static partial class Program
         engine.Step();
         Require(engine.Frame == 1 && session.ExamTimer!.ClockCalls == 0, "Scalar fixture initialization advanced its timer clock.");
         engine.Step();
-        try
-        {
-            engine.Step();
-            throw new InvalidOperationException("WAIT chose one uncertain native operand stack value.");
-        }
-        catch (EventScriptException) when (engine.LastFault?.Opcode == "WAIT")
-        {
-        }
+        engine.Step();
         JsonElement held = engine.Capture();
         JsonElement heldMain = held.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        Require(heldMain.GetProperty("Position").GetInt32() == 10 && heldMain.GetProperty("Stack")[1].GetProperty("Values").GetArrayLength() == 2, "Uncertain command refusal did not preserve its PC and typed stack.");
+        Require(heldMain.GetProperty("Position").GetInt32() == 11 && heldMain.GetProperty("Stack").GetArrayLength() == 1 && heldMain.GetProperty("Stack")[0].GetProperty("Values").GetArrayLength() == 2 && engine.LastFault is null, "WAIT did not consume only its exact countdown while preserving the unrelated typed scalar below it.");
         GameSession resumedSession = new(new GameState());
         EventEngine resumed = new(resumedSession);
         resumed.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

@@ -864,7 +864,7 @@ public sealed partial class EventEngine
                 LatestFaultContext = DescribeFault(fiber, operationIndex);
                 throw;
             }
-            if (!transitionRequested && (IsNativeSelfRequest(fiber, operation) || fiber.Complete && operation.Opcode == Jsm.Opcode.RET && IsNativeActorRequest(fiber.ObjectId)))
+            if (!transitionRequested && (IsNativeSelfRequest(fiber, operation) || fiber.Complete && operation.Opcode == Jsm.Opcode.RET && (IsNativeActorRequest(fiber.ObjectId) || IsNativeDoorRequest(fiber.ObjectId))))
             {
                 Fiber? selected = SelectScheduledFiber(fiber.ObjectId);
                 if (selected is not null && selected != fiber)
@@ -942,6 +942,7 @@ public sealed partial class EventEngine
         if (NativeRuntimeProfile is { IsVerified: true })
         {
             dialogue = dialogue with { NativeWindow = new NativeDialogueWindowState(1, 0, 512) };
+            InitializeNativeDialogueText(dialogue);
         }
         if (dialogue.MessageId >= messages.Count)
         {

@@ -155,6 +155,11 @@ internal static partial class Program
         Require(engine.Scene.NativeDialogueFocus == 0 && engine.CurrentDialogue?.Channel == 0, "MESFORCUS failed to truncate to BYTE or select the explicit window.");
         EventEngine restored = Create();
         restored.Restore(engine.Capture());
+        while (engine.Dialogues.Any(dialogue => dialogue.NativeWindow is { Progress: < 4096 } or { Text.Ready: false }))
+        {
+            engine.Step();
+            restored.Step();
+        }
         Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && engine.Dialogues.Count == 0 && engine.CurrentDialogue is null, "Global confirm did not preserve native ascending broadcast closure of ready automatic windows.");
         Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Explicit focus restore/decision diverged.");
 
@@ -169,6 +174,11 @@ internal static partial class Program
         EventEngine askRestored = new(Session());
         askRestored.LoadField(100, choices, ["Choose"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         askRestored.Restore(ask.Capture());
+        while (ask.Dialogues.Single().NativeWindow is { Progress: < 4096 } or { Text.Ready: false })
+        {
+            ask.Step();
+            askRestored.Step();
+        }
         Require(ask.Apply(new PlayerAction(PlayerActionKind.Choose, 4)).Accepted && askRestored.Apply(new PlayerAction(PlayerActionKind.Choose, 4)).Accepted, "Ordinary Choose did not accept the polled native choice.");
         Require(ask.Scene.NativeDialogueFocus == 2, "Choice selection restored focus before the VM completion poll.");
         for (int callback = 0; callback < 8 && ask.Dialogues.Count != 0; callback++)
@@ -184,6 +194,10 @@ internal static partial class Program
         mesw.Step();
         mesw.Step();
         Require(mesw.CurrentDialogue is { Channel: 3, CanConfirm: true }, "MESW failed to open its default-position blocking window.");
+        while (mesw.Dialogues.Single().NativeWindow is { Progress: < 4096 } or { Text.Ready: false })
+        {
+            mesw.Step();
+        }
         mesw.ConfirmDialogue();
         for (int callback = 0; callback < 8 && !mesw.Capture().GetProperty("Fibers")[1].GetProperty("Results").TryGetProperty("4", out _); callback++)
         {

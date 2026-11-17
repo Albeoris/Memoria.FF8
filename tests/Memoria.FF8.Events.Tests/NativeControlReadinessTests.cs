@@ -15,7 +15,7 @@ internal static partial class Program
             [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 34), (Jsm.Opcode.REQSW, 2), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)],
-            [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 35), (Jsm.Opcode.REQSW, 2), (Jsm.Opcode.RET, 8)],
+            [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 35), (Jsm.Opcode.REQSW, 2), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 34), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)],
@@ -38,12 +38,12 @@ internal static partial class Program
         live.Step();
         JsonElement afterRequest = live.Capture();
         Require(afterRequest.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 33 && !fiber.GetProperty("Started").GetBoolean()), "Native higher request failed to retain its unstarted lower default.");
-        Require(afterRequest.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 34 && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() == "Frames"), "Native requested slot did not own its real WAIT.");
+        Require(afterRequest.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 34 && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() == "None" && JsmProgram.Read(content).Operations[fiber.GetProperty("Position").GetInt32()].Opcode == Jsm.Opcode.WAIT && fiber.GetProperty("Stack")[0].GetInt32() > 0), "Native requested slot did not own its real retained WAIT countdown.");
         Require(live.PlayerActor is { ObjectId: 0, Active: true, Visible: true } && live.IsUserControlEnabled && live.NextTrigger.Kind == PlayerTriggerKind.Playable && JsonElement.DeepEquals(afterRequest, live.Capture()), "UCON input readiness depended on a pending lower default or mutated the scheduler.");
         live.Step();
         live.Step();
         JsonElement nested = live.Capture();
-        Require(nested.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 35 && fiber.GetProperty("NativeActorSlot").GetInt32() == 2 && fiber.GetProperty("WaitReason").GetString() == "Frames"), "Higher nested request did not preserve native slot2 WAIT ownership.");
+        Require(nested.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 35 && fiber.GetProperty("NativeActorSlot").GetInt32() == 2 && fiber.GetProperty("WaitReason").GetString() == "None" && JsmProgram.Read(content).Operations[fiber.GetProperty("Position").GetInt32()].Opcode == Jsm.Opcode.WAIT && fiber.GetProperty("Stack")[0].GetInt32() > 0), "Higher nested request did not preserve native slot2 retained WAIT ownership.");
         Require(nested.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 33 && !fiber.GetProperty("Started").GetBoolean()) && live.NextTrigger.Kind == PlayerTriggerKind.Playable, "Nested background preemption falsely blocked ordinary native control.");
         EventEngine restored = Create();
         restored.Restore(nested);
@@ -70,7 +70,7 @@ internal static partial class Program
         hidden.Step();
         hidden.Step();
         Require(hidden.PlayerActor is { Active: true, Visible: false } && hidden.IsUserControlEnabled && hidden.NextTrigger.Kind == PlayerTriggerKind.Waiting && !hidden.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted, "Hidden current native leader became playable or accepted ordinary movement.");
-        EventEngine inactive = Create(SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 8)]]));
+        EventEngine inactive = Create(SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]));
         inactive.Step();
         inactive.Step();
         Require(inactive.PlayerActor is { Active: false } && inactive.NextTrigger.Kind == PlayerTriggerKind.Waiting && !inactive.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted, "Inactive current native leader became playable or accepted ordinary movement.");
