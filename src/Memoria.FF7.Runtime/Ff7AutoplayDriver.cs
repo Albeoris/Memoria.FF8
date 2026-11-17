@@ -90,9 +90,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private int waypointSourceTriangle = -1;
     private Vector3? finalTarget;
     private bool finalApproach;
-    private long gatewayGeneration = -1;
-    private PcFieldGateway? gatewayTarget;
-    private Vector3? gatewayCrossingTarget;
     private IReadOnlySet<int>? admittedGateways;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
@@ -154,44 +151,40 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     private Ff7AutoplayInput ApproachGateway(PcFieldGateway gateway, bool run)
     {
-        if (gatewayGeneration != session.FieldGeneration || gatewayTarget != gateway)
-        {
-            gatewayGeneration = session.FieldGeneration;
-            gatewayTarget = gateway;
-            gatewayCrossingTarget = null;
-        }
-        if (gatewayCrossingTarget is Vector3 crossingTarget)
-        {
-            return Approach(crossingTarget, run: run);
-        }
-        Vector3 midpoint = (gateway.A + gateway.B) / 2;
-        PcWalkmeshTriangle interior = session.Field.Walkmesh[ReadGatewayInteriorTriangle(session.Field.Walkmesh, gateway)];
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-        if (player is not null && player.Triangle == interior.Index && Math.Abs(player.Z4096 / 4096f - midpoint.Z) < 32 && Vector2.DistanceSquared(new(player.X4096 / 4096f, player.Y4096 / 4096f), new(midpoint.X, midpoint.Y)) < 64 * 64)
+        if (player is null || session.Host.Process.PlayerLocked || session.Host.Process.Join is not null)
         {
-            Vector2 edge = new(gateway.B.X - gateway.A.X, gateway.B.Y - gateway.A.Y);
-            Vector2 normal = Vector2.Normalize(new(-edge.Y, edge.X));
-            if (Vector2.Dot(new Vector2(player.X4096 / 4096f - midpoint.X, player.Y4096 / 4096f - midpoint.Y), normal) > 0)
-            {
-                normal = -normal;
-            }
-            gatewayCrossingTarget = midpoint + new Vector3(normal * 96, 0);
-            return Approach(gatewayCrossingTarget.Value, interior.Index, run);
+            return default;
         }
-        return Approach(midpoint, interior.Index, run);
+        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+        foreach (var direction in Directions)
+        {
+            Ff7NativeMoveResult step = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
+            if (step.Moved && Ff7Session.CrossesGateway(gateway, controlled, step.Actor) && AllowsPlannedMove(controlled, step))
+            {
+                return new(direction.X, direction.Y, Run: run);
+            }
+        }
+        var contacts = DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, gateway);
+        if (contacts.Count == 0)
+        {
+            throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII gateway has no reachable native floor contact.");
+        }
+        Vector3 position = Position3D(player);
+        var selected = contacts.OrderBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).First();
+        return Approach(selected.Point, selected.Triangle, run);
     }
 
-    internal static int ReadGatewayInteriorTriangle(IReadOnlyList<PcWalkmeshTriangle> walkmesh, PcFieldGateway gateway)
+    internal static IReadOnlyList<(Vector3 Point, int Triangle)> DiscoverGatewayContacts(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway)
     {
-        Vector3 midpoint = (gateway.A + gateway.B) / 2;
-        return walkmesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, midpoint))!.Index;
+        return gateway.DestinationField == short.MaxValue ? [] : DiscoverFloorSegmentContacts(walkmesh, blockedTriangles, player, gateway.A, gateway.B);
     }
 
-    internal static bool HasGatewayTopologyPath(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, int sourceTriangle, PcFieldGateway gateway, out int targetTriangle)
+    internal static bool HasGatewayTopologyPath(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway, out int targetTriangle)
     {
-        targetTriangle = ReadGatewayInteriorTriangle(walkmesh, gateway);
-        var (previous, _) = ReadApproachRoutes(walkmesh, blockedTriangles, sourceTriangle, targetTriangle);
-        return previous[sourceTriangle] >= 0;
+        var contacts = DiscoverGatewayContacts(walkmesh, blockedTriangles, player, gateway);
+        targetTriangle = contacts.Count == 0 ? -1 : contacts[0].Triangle;
+        return contacts.Count > 0;
     }
     public Ff7AutoplayInput Steer(Vector3 target, bool run = true)
     {

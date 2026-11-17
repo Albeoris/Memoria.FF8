@@ -221,6 +221,14 @@ internal static class AutoPlayNavigationActionModeTests
         }
         var savedCoverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
         Check(savedCoverage.Unavailable && savedCoverage.UnavailableAttempts.All(attempt => !facts.TryGetValue(attempt.GuardKey, out string? current) || current != attempt.GuardFingerprint), "The new proof capability did not distinguish the original saved negative.");
+        AutoPlayNavigationVisit currentNavigation = state.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
+        Ff7Actor currentPlayer = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        foreach (Ff7AutoPlayTarget gatewayTarget in observation.Events.Where(candidate => candidate.Kind == Ff7AutoPlayTargetKind.Gateway))
+        {
+            bool reachable = Ff7AutoplayDriver.HasGatewayTopologyPath(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, currentPlayer, session.Field.Triggers.Gateways[gatewayTarget.GatewayIndex!.Value], out int contact);
+            AutoPlayEvent nativeGateway = currentNavigation.Events.Single(candidate => candidate.Id == gatewayTarget.Id);
+            Ff7AutoPlayPolicy.RecordGatewayTopology(state, currentNavigation, nativeGateway, currentPlayer.Triangle, contact, reachable);
+        }
         planner.RefreshUnavailable(observation.VisitId, facts);
         Check(!savedCoverage.Unavailable, "Shared guard refresh retained the obsolete random-producer refusal.");
         AutoPlayPlanStep? selected = planner.PlanNavigation(observation.NavigationKey, needsRefresh: _ => false, preferredGoal: state.NavigationGoal, readAvailability: (navigation, observed) => navigation.Key == observation.NavigationKey ? Ff7AutoPlayPolicy.ReadComponentAvailability(state, navigation, observed, facts) : Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(state, navigation, observed));

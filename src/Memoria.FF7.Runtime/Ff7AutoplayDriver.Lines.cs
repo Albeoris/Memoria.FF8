@@ -63,8 +63,11 @@ public sealed partial class Ff7AutoplayDriver
         {
             return [];
         }
-        Vector3 a = new(line.X1, line.Y1, line.Z1);
-        Vector3 b = new(line.X2, line.Y2, line.Z2);
+        return DiscoverFloorSegmentContacts(mesh, blockedTriangles, player, new(line.X1, line.Y1, line.Z1), new(line.X2, line.Y2, line.Z2));
+    }
+
+    private static IReadOnlyList<(Vector3 Point, int Triangle)> DiscoverFloorSegmentContacts(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, Ff7Actor player, Vector3 a, Vector3 b)
+    {
         Vector3 center = (a + b) / 2;
         Vector2 segment = new(b.X - a.X, b.Y - a.Y);
         Vector2 normal = segment.LengthSquared() == 0 ? Vector2.UnitX : Vector2.Normalize(new(-segment.Y, segment.X));

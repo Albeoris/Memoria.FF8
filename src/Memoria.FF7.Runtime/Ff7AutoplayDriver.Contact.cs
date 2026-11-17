@@ -49,11 +49,11 @@ public sealed partial class Ff7AutoplayDriver
     private bool? navigationActionProgress;
     private bool navigationEscapeAction;
 
-    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long GatewayGeneration, PcFieldGateway? GatewayTarget, Vector3? GatewayCrossingTarget, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction);
+    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction);
 
     private NavigationModeState CaptureNavigationMode()
     {
-        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, gatewayGeneration, gatewayTarget, gatewayCrossingTarget, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction);
+        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction);
     }
 
     private void RestoreNavigationMode(NavigationModeState state)
@@ -64,9 +64,6 @@ public sealed partial class Ff7AutoplayDriver
         waypointSourceTriangle = state.WaypointSourceTriangle;
         finalTarget = state.FinalTarget;
         finalApproach = state.FinalApproach;
-        gatewayGeneration = state.GatewayGeneration;
-        gatewayTarget = state.GatewayTarget;
-        gatewayCrossingTarget = state.GatewayCrossingTarget;
         obstacleGeneration = state.ObstacleGeneration;
         obstacleTarget = state.ObstacleTarget;
         obstacleSpeed = state.ObstacleSpeed;

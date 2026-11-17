@@ -4,7 +4,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal const int GatewayTopologyRevision = 1;
+    internal const int GatewayTopologyRevision = 2;
 
     private static string GatewayTopologyKey(AutoPlayNavigationVisit navigation, AutoPlayEvent observed)
     {
@@ -28,7 +28,8 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
-        bool reachable = Ff7AutoplayDriver.HasGatewayTopologyPath(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, sourceTriangle, session.Field.Triggers.Gateways[index], out int destination);
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled) with { Triangle = sourceTriangle };
+        bool reachable = Ff7AutoplayDriver.HasGatewayTopologyPath(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Field.Triggers.Gateways[index], out int destination);
         RecordGatewayTopology(State, navigation, observed, sourceTriangle, destination, reachable);
     }
 
