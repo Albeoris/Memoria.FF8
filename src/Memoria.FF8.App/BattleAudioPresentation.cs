@@ -52,7 +52,7 @@ internal sealed class BattleAudioPresentation(Action<int> playImpact, Action<Bat
             {
                 playModule?.Invoke(module);
             }
-            if (active.NativeGraphics is null && (!active.UsesExpandedRoster || entry.Ability == BattleAbility.Attack) && entry.Kind == "Damage" && entry.ActorId is not null)
+            if (active.NativeGraphics is null && active.ExpandedPresentationProcess is null && (!active.UsesExpandedRoster || entry.Ability == BattleAbility.Attack) && entry.Kind == "Damage" && entry.ActorId is not null)
             {
                 BattleCombatant actor = active.Combatants.Single(actor => actor.Id == entry.ActorId);
                 // Native47D970→502670 retains scene.out's enemy identity;507120 maps identity+150 to C0M(model).DAT.

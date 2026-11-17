@@ -163,6 +163,8 @@ Semantic gameplay loads and original-save imports create a fresh process using t
 | Variable | Purpose |
 | --- | --- |
 | `MEMORIA_FF8_GAME_DIR` | Supported original game installation for resource-dependent tests. |
+| `MEMORIA_FF8_AUTOMATIC_GUARDIAN_SAVE` | Optional standalone world save with Odin unlocked for `HostedBattleAudioTests`. The test admits formation 717 through the world encounter host, selects an original entry roll, and verifies committed audio, victory, return and reload. The supplied save remains unchanged. |
+| `MEMORIA_FF8_AUTOMATIC_GUARDIAN_OUTPUT` | Optional new path retaining that test's standalone world state after battle return; otherwise its output is temporary. |
 | `MEMORIA_FF8_OPENING_OUTPUT` | Optional directory for standalone 30/60 FPS opening test snapshots at the playable corridor; otherwise they are temporary test artifacts. |
 | `MEMORIA_FF8_TEST_FIXTURE_CATALOG` | External JSON object mapping test resource identifiers to local fixture paths. |
 | `MEMORIA_FF8_TEST_FIXTURES` | Base directory for relative catalog paths; otherwise they resolve against the catalog directory. |

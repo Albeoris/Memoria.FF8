@@ -7,6 +7,38 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleAnimationPresentationTests
 {
+    [Theory]
+    [InlineData(BattleAbility.EnemyAbility)]
+    [InlineData(BattleAbility.Attack)]
+    [InlineData(BattleAbility.Magic)]
+    public void Explicit_zero_sequence_keeps_the_carrier_idle_and_silent(BattleAbility ability)
+    {
+        using BattleAssets assets = InstalledAssets();
+        BattleModel model = assets.LoadPlayer(0);
+        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0 };
+        BattleSession initial = new(new BattleDefinition { Combatants = [definition, new() { Id = "enemy", Name = "Enemy", ModelId = -1 }] }, BattleAtbMode.Normal);
+        BattleSession session = BattleSession.Restore(initial.Capture() with { Events = [new(0, "Windup", "party", "enemy", 0, string.Empty, ability) { NativeSequence = 0 }] });
+        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition);
+
+        Assert.Equal(new BattleAnimationSample(0, 0, Vector3.Zero, Loop: true), animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ));
+        Assert.Empty(animation.CollectSounds(session));
+    }
+
+    [Theory]
+    [InlineData(null, 33)]
+    [InlineData(17, 31)]
+    public void Missing_sequence_uses_command_selection_and_positive_sequence_keeps_its_exact_track(int? nativeSequence, int expectedAnimation)
+    {
+        using BattleAssets assets = InstalledAssets();
+        BattleModel model = assets.LoadPlayer(0);
+        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0 };
+        BattleSession initial = new(new BattleDefinition { Combatants = [definition, new() { Id = "enemy", Name = "Enemy", ModelId = -1 }] }, BattleAtbMode.Normal);
+        BattleSession session = BattleSession.Restore(initial.Capture() with { Events = [new(0, "Windup", "party", "enemy", 0, string.Empty) { NativeSequence = (byte?)nativeSequence }] });
+        BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition);
+
+        Assert.Equal(expectedAnimation, animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ).Animation);
+    }
+
     [Fact]
     public void Native_weapon_sequences_select_real_physical_attack_hit_KO_and_victory_clips()
     {

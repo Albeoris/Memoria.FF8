@@ -73,7 +73,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             }
         }
         BattleEvent? windup = CurrentModelEvents(session).LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
-        if (windup is not null)
+        if (windup is not null && windup.NativeSequence != 0)
         {
             double age = Age(session, windup);
             const int duration = BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames;
@@ -179,8 +179,9 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
 
     public IReadOnlyList<BattleSequenceSoundCue> CollectSounds(BattleSession session)
     {
-        if (session.NativeGraphics is not null)
+        if (session.NativeGraphics is not null || session.ExpandedPresentationProcess is not null)
         {
+            // Both native hosts publish executed sounds; static sequence projection would replay or invent cues.
             //An event index is stable across restore even when gameplayFrame is frozen for many graphics callbacks.
             return session.Events.Select((item, index) => (item, index)).Where(entry => entry.item.ActorId == definition.Id && entry.item.NativeSound is not null && entry.item.NativeModuleSound is null).Select(entry => new BattleSequenceSoundCue(definition.Id, entry.item.Frame, entry.index, entry.item.NativeSound!.SoundId, entry.item.NativeSound.ActorSound, entry.item.NativeSound.Attributes)).ToArray();
         }
@@ -256,8 +257,9 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
 
     private int CommandSequence(BattleAbility ability, byte? nativeSequence = null)
     {
-        if (nativeSequence is > 0)
+        if (nativeSequence is not null)
         {
+            // Native48D200 explicitly selects zero for commands without a caster sequence.
             return nativeSequence.Value;
         }
         // Native48D200 selects these original command sequences from executable B8150C.
