@@ -69,7 +69,7 @@ internal sealed partial class Ff7Scene
         sharedInput.TextEntryEnabled = error is null && namingMenus?.IsTypingName == true;
         sharedInput.NamingNavigationEnabled = error is null && namingMenus?.IsOpen == true;
         semanticInput = sharedInput.Read(keys, pad, acceptsInput);
-        if (sharedInput.PauseRequested && !ScriptedStartPrompt && playerMenu?.IsCapturingControls != true)
+        if (sharedInput.PauseRequested && !ScriptedStartPrompt && ActivePlayerMenu?.IsCapturingControls != true)
         {
             userPaused = !userPaused;
             SetAudioPaused(userPaused);
@@ -82,7 +82,7 @@ internal sealed partial class Ff7Scene
                 movie?.Resume();
             }
         }
-        if (sharedInput.SpeedToggleRequested && namingMenus?.IsOpen != true && playerMenu?.IsCapturingControls != true)
+        if (sharedInput.SpeedToggleRequested && namingMenus?.IsOpen != true && ActivePlayerMenu?.IsCapturingControls != true)
         {
             sharedClock.ToggleSpeed();
         }

@@ -179,12 +179,12 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             noticeWindow.Advance(gameTime.ElapsedGameTime);
             PumpEnemyIntegration();
-            if (playerMenu?.IsCapturingControls != true && PlayerSaveRequested is not null && (semanticInput.Save || semanticInput.QuickLoad || semanticInput.SaveMenu || semanticInput.LoadMenu))
+            if (ActivePlayerMenu?.IsCapturingControls != true && PlayerSaveRequested is not null && (semanticInput.Save || semanticInput.QuickLoad || semanticInput.SaveMenu || semanticInput.LoadMenu))
             {
                 PlayerSaveRequested.Invoke(semanticInput);
                 return;
             }
-            if (sharedInput.DebugRoomRequested && playerMenu?.IsCapturingControls != true)
+            if (sharedInput.DebugRoomRequested && ActivePlayerMenu?.IsCapturingControls != true)
             {
                 if (IsPlayerMenuOpen)
                 {
@@ -224,7 +224,11 @@ internal sealed partial class Ff7Scene : IDisposable
             }
             if (Session is null)
             {
-                UpdateTitle();
+                UpdateTitleAudio();
+                if (!UpdateTitleConfig(keys, pad))
+                {
+                    UpdateTitle();
+                }
                 return;
             }
             if (Session.Battle is { } battle)
@@ -554,7 +558,7 @@ internal sealed partial class Ff7Scene : IDisposable
 
     private void UpdateTitle()
     {
-        int count = CanResumeMixedOrigin ? 3 : 2;
+        int count = CanResumeMixedOrigin ? 4 : 3;
         titleSelection = Math.Min(titleSelection, count - 1);
         if (semanticInput.MenuVertical != 0)
         {
@@ -569,6 +573,10 @@ internal sealed partial class Ff7Scene : IDisposable
             else if (titleSelection == 1)
             {
                 ContinueRequested?.Invoke();
+            }
+            else if (titleSelection == 2)
+            {
+                OpenTitleConfig();
             }
             else
             {
@@ -661,12 +669,14 @@ internal sealed partial class Ff7Scene : IDisposable
     {
         bounds.Y = windowBounds.Y + (int)Math.Round(windowBounds.Height * 0.725 - bounds.Height * 174d / 240d);
         DrawPlain(batch, "New Game", 122, 174, bounds);
-        DrawPlain(batch, "Continue", 122, 194, bounds);
+        int rowStep = CanResumeMixedOrigin ? 16 : 20;
+        DrawPlain(batch, "Continue", 122, 174 + rowStep, bounds);
+        DrawPlain(batch, "Config", 122, 174 + rowStep * 2, bounds);
         if (CanResumeMixedOrigin)
         {
-            DrawPlain(batch, "Return to FFVIII", 122, 214, bounds);
+            DrawPlain(batch, "Return to FFVIII", 122, 174 + rowStep * 3, bounds);
         }
-        DrawPlain(batch, ">", 108, 174 + titleSelection * 20, bounds);
+        DrawPlain(batch, ">", 108, 174 + titleSelection * rowStep, bounds);
     }
 
     private void DrawDebugMenu(SpriteBatch batch, Rectangle bounds)

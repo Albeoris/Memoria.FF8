@@ -85,19 +85,7 @@ internal sealed partial class Ff7Scene
                 {
                     throw new InvalidDataException("FFVII music state exceeds the admitted native table.");
                 }
-                string path = Path.Combine(installation.GetRequired(Ff7ResourceRole.Music).Path, audioNative.MusicNames[track].ToLowerInvariant() + ".ogg");
-                if (!File.Exists(path))
-                {
-                    throw new NotSupportedException("FFVII music playback requires the selected installation's original OGG track.");
-                }
-                musicCancellation = new CancellationTokenSource();
-                CancellationToken token = musicCancellation.Token;
-                musicDecode = Task.Run(async () =>
-                {
-                    PcmAudio pcm = await PcmAudioDecoder.ReadFileAsync(mediaToolsDirectory, path, token).ConfigureAwait(false);
-                    byte[] encoded = await File.ReadAllBytesAsync(path, token).ConfigureAwait(false);
-                    return (pcm, ExternalMusicLoop.Read(encoded, pcm), Convert.ToHexString(SHA256.HashData(encoded)));
-                }, token);
+                BeginMusicDecode(audioNative.MusicNames[track]);
                 Console.WriteLine($"ff7-music={audioNative.MusicNames[track]} nativeTrack={track}");
             }
         }
@@ -141,6 +129,23 @@ internal sealed partial class Ff7Scene
         musicPlayback?.SetGain(gain);
         soundChannels.RetireFinished(audioPaused);
         audioOutput?.ThrowIfFailed();
+    }
+
+    private void BeginMusicDecode(string name)
+    {
+        string path = Path.Combine(installation.GetRequired(Ff7ResourceRole.Music).Path, name.ToLowerInvariant() + ".ogg");
+        if (!File.Exists(path))
+        {
+            throw new NotSupportedException("FFVII music playback requires the selected installation's original OGG track.");
+        }
+        musicCancellation = new CancellationTokenSource();
+        CancellationToken token = musicCancellation.Token;
+        musicDecode = Task.Run(async () =>
+        {
+            PcmAudio pcm = await PcmAudioDecoder.ReadFileAsync(mediaToolsDirectory, path, token).ConfigureAwait(false);
+            byte[] encoded = await File.ReadAllBytesAsync(path, token).ConfigureAwait(false);
+            return (pcm, ExternalMusicLoop.Read(encoded, pcm), Convert.ToHexString(SHA256.HashData(encoded)));
+        }, token);
     }
 
     private void RefreshNativeGains()

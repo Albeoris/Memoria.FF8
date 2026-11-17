@@ -21,7 +21,7 @@ internal sealed partial class Ff7Scene
     private bool nativePlayerMenuActive;
     private static readonly IReadOnlySet<string> PlayerPreferenceKeys = new[] { "config-graphics", "config-frame-limits", "config-audio", "config-interface", "config-text", "config-speed" }.SelectMany(page => SettingsPlacement.Pages[page].Items).Where(key => !key.StartsWith("config-", StringComparison.Ordinal)).Concat(["Battle ATB mode", "Battle policy", "Random encounters"]).ToHashSet(StringComparer.Ordinal);
 
-    internal MenuController? ActivePlayerMenu => guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
+    internal MenuController? ActivePlayerMenu => titleConfigMenu?.IsOpen == true ? titleConfigMenu : guestPlayerMenu?.IsOpen == true ? guestPlayerMenu : playerMenu?.IsOpen == true ? playerMenu : null;
     internal bool IsPlayerMenuOpen => ActivePlayerMenu is not null;
     private bool CanUsePlayerMenuPhs => Session?.CanUseMenuPhs == true;
 
@@ -33,18 +33,7 @@ internal sealed partial class Ff7Scene
         }
         playerMenu = new(ReadPlayerMenuData, ApplyPlayerMenuAction) { ShowMainScreenTitle = true };
         playerMenu.ConnectPreferences(() => PresentationPreferences, ApplyPlayerMenuAction);
-        if (writeSharedControls is not null)
-        {
-            playerMenu.ConnectControls(() => sharedInput.Profile, profile =>
-            {
-                writeSharedControls(profile);
-                sharedInput.Profile = profile;
-            }, () => sharedInput.ControllerPresentation, () => sharedInput.ControllerGeneration, () => sharedInput.LastInputDevice);
-        }
-        else
-        {
-            playerMenu.ConnectReadOnlyTutorialControls(() => sharedInput.Profile, () => sharedInput.ControllerPresentation, () => sharedInput.LastInputDevice);
-        }
+        ConnectMenuControls(playerMenu);
         playerMenu.Register(new()
         {
             Id = "main",
@@ -83,6 +72,22 @@ internal sealed partial class Ff7Scene
             Entries = menu => [.. menu.ConfigEntries().Where(entry => entry.Id is "config-graphics" or "config-audio" or "config-interface" or "config-controls"), new("config-speed", "Speed", "Movement and fast-forward preferences.", "config-speed"), new("config-combat", "Combat", "Battle timing and encounter settings for the current game.", "config-combat")]
         });
         RegisterPlayerCombatSettings(playerMenu);
+    }
+
+    private void ConnectMenuControls(MenuController menu)
+    {
+        if (writeSharedControls is not null)
+        {
+            menu.ConnectControls(() => sharedInput.Profile, profile =>
+            {
+                writeSharedControls(profile);
+                sharedInput.Profile = profile;
+            }, () => sharedInput.ControllerPresentation, () => sharedInput.ControllerGeneration, () => sharedInput.LastInputDevice);
+        }
+        else
+        {
+            menu.ConnectReadOnlyTutorialControls(() => sharedInput.Profile, () => sharedInput.ControllerPresentation, () => sharedInput.LastInputDevice);
+        }
     }
 
     internal static void RegisterPlayerCombatSettings(MenuController menu)
@@ -317,6 +322,7 @@ internal sealed partial class Ff7Scene
             nativePlayerMenuActive = false;
         }
         playerMenu?.Close();
+        titleConfigMenu?.Close();
         guestPlayerMenu?.Close();
         pendingPressedKeys = 0;
         moveHorizontal = 0;
@@ -341,6 +347,8 @@ internal sealed partial class Ff7Scene
 
     private void DisposePlayerMenu()
     {
+        titleConfigMenu?.Close();
+        titleConfigMenu = null;
         nativePlayerMenuActive = false;
         playerMenu?.Close();
         playerMenu = null;
