@@ -180,6 +180,89 @@ public sealed class ExpandedAiCallbackEventTests
     }
 
     [Fact]
+    public void Reached_AI_text_opcodes_preserve_message_modes_duration_and_delayed_task_order()
+    {
+        NativeBattleAiDefinition program = Program(init: [1, 0, 24, 1, 26, 2, 34, 3, 2, 0]) with
+        {
+            Texts = ["immediate", "saved-speed", "task", "delayed-task"]
+        };
+        var (logical, process) = Fixture(program, messageSpeed: 3);
+        long frame = logical.Frame;
+        Dispatch(logical);
+
+        Assert.DoesNotContain(logical.Events, item => item.Kind == "NativeText");
+        Assert.NotNull(logical.ActiveAction);
+        Assert.Equal(new ushort[] { 8, 8, 10 }, process.Graphics.Descriptors.Queue.Select(slot => process.Graphics.Descriptors.Packets[slot].Command));
+        NativeBattleScriptTasks tasks = logical.Capture().NativeScriptState.Tasks;
+        Assert.Equal(new[] { 0x48AC60u, 0x48AC90u }, Enumerable.Range(0, tasks.Slots.Length).Where(tasks.Allocated).Select(slot => tasks.Slots[slot].ReadDword(0)));
+        Assert.Equal((ushort)2, Assert.Single(tasks.Slots.Where(task => task.Message?.Message == "delayed-task")).ReadWord(8));
+
+        NativeBattleModelLifecycleServices reached = ReachDescriptors();
+        Assert.Collection(reached.ReadOrderedReceipts(),
+            text => Assert.Equal("immediate", Assert.IsType<NativeBattlePresentationDescriptorText>(text).Message.Message),
+            text => Assert.Equal("saved-speed", Assert.IsType<NativeBattlePresentationDescriptorText>(text).Message.Message),
+            completion => Assert.IsType<NativeBattlePresentationCompletionRequested>(completion));
+        Assert.DoesNotContain(logical.Events, item => item.Kind == "NativeText");
+        Invoke(logical, "ApplyExpandedHostedFrameReceipts", reached, null);
+        Assert.Null(logical.ActiveAction);
+        Assert.Single(logical.Events, item => item.Kind == "ActionComplete");
+        AssertMessages(["immediate", "saved-speed"], [30, 32], [3, 1]);
+
+        Invoke(logical, "DispatchNativeScriptTasks");
+        Assert.Equal((ushort)8, process.Graphics.Descriptors.Packets[Assert.Single(process.Graphics.Descriptors.Queue)].Command);
+        NativeBattlePresentationDescriptorText taskText = Assert.IsType<NativeBattlePresentationDescriptorText>(Assert.Single(ReachAndCommit()));
+        Assert.Equal("task", taskText.Message.Message);
+        AssertMessages(["immediate", "saved-speed", "task"], [30, 32, 30], [3, 1, 3]);
+
+        Invoke(logical, "DispatchNativeScriptTasks");
+        Assert.Empty(process.Graphics.Descriptors.Queue);
+        AssertMessages(["immediate", "saved-speed", "task"], [30, 32, 30], [3, 1, 3]);
+
+        Invoke(logical, "DispatchNativeScriptTasks");
+        NativeBattleDescriptorPacket delayed = process.Graphics.Descriptors.Packets[Assert.Single(process.Graphics.Descriptors.Queue)];
+        Assert.Equal((ushort)8, delayed.Command);
+        Assert.Equal((byte)240, delayed.PriorityState);
+        NativeBattlePresentationDescriptorText delayedText = Assert.IsType<NativeBattlePresentationDescriptorText>(Assert.Single(ReachAndCommit()));
+        Assert.Equal("delayed-task", delayedText.Message.Message);
+        AssertMessages(["immediate", "saved-speed", "task", "delayed-task"], [30, 32, 30, 30], [3, 1, 3, 3]);
+        Assert.Equal(frame, logical.Frame);
+        Assert.Single(logical.Events, item => item.Kind == "ActionComplete");
+        Assert.Equal((byte)255, logical.Capture().NativeScriptState.Tasks.Tail);
+
+        NativeBattleModelLifecycleServices ReachDescriptors()
+        {
+            NativeBattleGraphicsState graphics = process.Graphics;
+            NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+            Field(process, "hostedFrameServices").SetValue(process, services);
+            try
+            {
+                SetGraphics(process, (NativeBattleGraphicsState)Invoke(process, "AdvanceNativeDescriptors", graphics)!);
+            }
+            finally
+            {
+                Field(process, "hostedFrameServices").SetValue(process, null);
+            }
+            return services;
+        }
+
+        ImmutableArray<NativeBattlePresentationReceipt> ReachAndCommit()
+        {
+            NativeBattleModelLifecycleServices services = ReachDescriptors();
+            Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
+            return services.ReadOrderedReceipts();
+        }
+
+        void AssertMessages(string[] messages, int[] durations, int[] modes)
+        {
+            BattleEvent[] texts = logical.Events.Where(item => item.Kind == "NativeText").ToArray();
+            Assert.Equal(messages, texts.Select(item => item.Message));
+            Assert.Equal(durations, texts.Select(item => item.Amount));
+            Assert.Equal(modes, texts.Select(item => (int)item.NativeMessageMode!.Value));
+            Assert.All(texts, item => Assert.Equal(frame, item.Frame));
+        }
+    }
+
+    [Fact]
     public void Hosted_text_receipts_keep_plain_and_composed_messages_in_order_and_omit_zero_duration()
     {
         var (logical, process) = Fixture(Program());
@@ -358,11 +441,12 @@ public sealed class ExpandedAiCallbackEventTests
         };
     }
 
-    private static (BattleSession Logical, BattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null, EncounterCompiledDefinition? encounter = null)
+    private static (BattleSession Logical, BattlePresentationProcess Process) Fixture(NativeBattleAiDefinition program, BattleCombatantDefinition[]? enemies = null, BattleNativeAction[]? actions = null, EncounterCompiledDefinition? encounter = null, byte? messageSpeed = null)
     {
         BattleDefinition definition = new()
         {
             EncounterMod = encounter,
+            NativeMessageSpeed = messageSpeed,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeFieldBattleRules = 0,
             NativeGlobalRandom = new(123),
