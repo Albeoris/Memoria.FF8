@@ -290,6 +290,7 @@ internal sealed partial class RecreateGame
             slotsInputReleasePending = false;
         }
         battleHud!.OriginalCompatibleLayout = OriginalTextLayout;
+        battleHud.ShowActorDialogue = !ReferenceEquals(diagnosticIdleBattle?.Battle, active);
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.CursorMemory = uiPreferences.CursorMemory;
         battleHud.ShowEnemySpellNames = uiPreferences.ShowEnemySpellNames;

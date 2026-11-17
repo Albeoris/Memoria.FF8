@@ -21,6 +21,20 @@ public sealed partial class BattleHudController
     private long messageOccurrenceSequence;
     private bool formattedOriginalCompatible;
     internal bool OriginalCompatibleLayout { get; set; }
+    private bool showActorDialogue = true;
+    internal bool ShowActorDialogue
+    {
+        get => showActorDialogue;
+        set
+        {
+            if (showActorDialogue == value)
+            {
+                return;
+            }
+            showActorDialogue = value;
+            PruneBattleMessages();
+        }
+    }
     private bool showEnemySpellNames;
     public bool ShowEnemySpellNames
     {
@@ -32,21 +46,34 @@ public sealed partial class BattleHudController
                 return;
             }
             showEnemySpellNames = value;
-            if (value)
-            {
-                return;
-            }
-            BattleEvent[] retained = battleMessages.Where(message => !message.IsEnemyActionTitle).ToArray();
-            battleMessages.Clear();
-            foreach (BattleEvent message in retained)
-            {
-                battleMessages.Enqueue(message);
-            }
-            if (activeBattleMessage is { IsEnemyActionTitle: true })
-            {
-                activeBattleMessage = battleMessages.TryDequeue(out BattleEvent? next) ? next : null;
-                battleMessageElapsed = TimeSpan.Zero;
-            }
+            PruneBattleMessages();
+        }
+    }
+
+    private bool CanPresentBattleMessage(BattleEvent message)
+    {
+        if (message.IsEnemyActionTitle)
+        {
+            return ShowEnemySpellNames;
+        }
+        bool actorDialogue = message.Kind == "NativeText" && message.ActorId is not null &&
+            (message.NativeTextIdentity is null || message.NativeAiHeapMessage is not null ||
+                message.NativeTextIdentity.File.EndsWith("_dialogue_battle", StringComparison.Ordinal));
+        return ShowActorDialogue || !actorDialogue;
+    }
+
+    private void PruneBattleMessages()
+    {
+        BattleEvent[] retained = battleMessages.Where(CanPresentBattleMessage).ToArray();
+        battleMessages.Clear();
+        foreach (BattleEvent message in retained)
+        {
+            battleMessages.Enqueue(message);
+        }
+        if (activeBattleMessage is { } active && !CanPresentBattleMessage(active))
+        {
+            activeBattleMessage = battleMessages.TryDequeue(out BattleEvent? next) ? next : null;
+            battleMessageElapsed = TimeSpan.Zero;
         }
     }
     internal event Action<LocalizationTextBinding, string, string, string>? DialoguePresented;
@@ -65,7 +92,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            if (activeBattleMessage is not { } message || message.IsEnemyActionTitle && !ShowEnemySpellNames || battleMessageElapsed < BattlePresentationTiming.ElapsedForCallbacks(message.NativeMessageDelayFrames))
+            if (activeBattleMessage is not { } message || !CanPresentBattleMessage(message) || battleMessageElapsed < BattlePresentationTiming.ElapsedForCallbacks(message.NativeMessageDelayFrames))
             {
                 return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
@@ -165,7 +192,7 @@ public sealed partial class BattleHudController
         for (; messageEventCursor < session.Events.Count; messageEventCursor++)
         {
             BattleEvent message = session.Events[messageEventCursor];
-            if (message.Kind == "NativeText" && (!message.IsEnemyActionTitle || ShowEnemySpellNames) && (collectedInitialMessages || message.Frame >= session.Frame))
+            if (message.Kind == "NativeText" && CanPresentBattleMessage(message) && (collectedInitialMessages || message.Frame >= session.Frame))
             {
                 battleMessages.Enqueue(message);
             }
