@@ -1,3 +1,5 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.App.Tests;
 
 public sealed class DiagnosticPresentationPacingTests
@@ -190,6 +192,135 @@ public sealed class DiagnosticPresentationPacingTests
         Assert.Equal(50, first.Models);
         Assert.Equal(60, first.Total);
         Assert.Equal(default, collector.CompleteInterval().Native);
+    }
+
+    [Fact]
+    public void Native_cpu_cycles_partition_callbacks_reset_and_report_the_aligned_paired_wall_ticks()
+    {
+        Queue<ulong> readings = new([100, 110, 145, 200, 207, 225, 300, 304, 310]);
+        DiagnosticHostPhaseTiming timing = new(true, true, Read);
+        INativeBattlePhaseTimingSink sink = timing;
+        Callback(2, 8);
+        Callback(3, 7);
+        DiagnosticHostFramePhases first = timing.CompleteInterval() with { Update = 25, BattlePresentationUpdate = 20 };
+        DiagnosticNativeCpuCycles observed = Assert.IsType<DiagnosticNativeCpuCycles>(first.NativeCpuCycles);
+        Assert.True(observed.Available);
+        Assert.Equal(0, observed.InvalidObservations);
+        Assert.Equal(42u, observed.ThreadId);
+        Assert.Equal(2, observed.Cycles!.Value.Callbacks);
+        Assert.Equal(17, observed.Cycles.Value.Setup);
+        Assert.Equal(53, observed.Cycles.Value.Models);
+        Assert.Equal(70, observed.TotalCycles);
+        Assert.Equal(first.Native, observed.PairedWallTicks);
+
+        Callback(1, 4);
+        DiagnosticHostFramePhases second = timing.CompleteInterval() with { Update = 10, BattlePresentationUpdate = 5 };
+        Assert.Equal(10, second.NativeCpuCycles!.TotalCycles);
+        Assert.Equal(1, second.NativeCpuCycles.Cycles!.Value.Callbacks);
+        Assert.Null(timing.CompleteInterval().NativeCpuCycles!.Cycles);
+        Assert.Empty(readings);
+
+        DiagnosticPresentationPacing report = new(1000, 3, 100, new(true, 0, 0, 0, 0, 60, 0));
+        report.Record(1, 150, 140, 148, new(true, 1, 0, 0, 0, 60, 0), first);
+        report.Record(2, 195, 182, 193, new(true, 2, 0, 0, 0, 60, 0), second);
+        report.Record(3, 240, 230, 238, new(true, 3, 0, 0, 0, 60, 0), second with { Update = 50 });
+        DiagnosticPacingSummary summary = report.Complete();
+        DiagnosticNativeCpuCycles aggregate = Assert.IsType<DiagnosticNativeCpuCycles>(summary.NativeCpuCycles);
+        Assert.Equal(3, aggregate.Cycles!.Value.Callbacks);
+        Assert.Equal(80, aggregate.TotalCycles);
+        Assert.Equal(25, aggregate.TotalPairedWallTicks);
+        Assert.Equal(1, aggregate.InvalidObservations);
+        Assert.Equal(observed, summary.SlowestPresents[0].NativeCpuCycles);
+        Assert.Null(summary.SlowestPresents.Single(row => row.Frame == 3).NativeCpuCycles);
+
+        bool Read(out uint thread, out ulong cycles)
+        {
+            thread = 42;
+            cycles = readings.Dequeue();
+            return true;
+        }
+
+        void Callback(long setup, long models)
+        {
+            sink.BeginCallback();
+            sink.Record(NativeBattleTimedPhase.Setup, setup);
+            sink.Record(NativeBattleTimedPhase.Models, models);
+            sink.CompleteCallback();
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Native_cpu_counter_requires_both_diagnostic_options_and_reports_unavailable(bool pacing, bool requested)
+    {
+        int reads = 0;
+        DiagnosticHostPhaseTiming timing = new(pacing, requested, Read);
+        INativeBattlePhaseTimingSink sink = timing;
+        sink.BeginCallback();
+        sink.Record(NativeBattleTimedPhase.Setup, 3);
+        sink.CompleteCallback();
+        DiagnosticNativeCpuCycles? observation = timing.CompleteInterval().NativeCpuCycles;
+        if (pacing && requested)
+        {
+            Assert.NotNull(observation);
+            Assert.Equal(1, reads);
+            Assert.False(observation.Available);
+            Assert.Equal(1, observation.InvalidObservations);
+            Assert.Null(observation.ThreadId);
+            Assert.Null(observation.TotalCycles);
+        }
+        else
+        {
+            Assert.Null(observation);
+            Assert.Equal(0, reads);
+        }
+
+        bool Read(out uint thread, out ulong cycles)
+        {
+            reads++;
+            thread = 0;
+            cycles = 0;
+            return false;
+        }
+    }
+
+    [Theory]
+    [InlineData(true, 42u, 109ul)]
+    [InlineData(true, 43u, 115ul)]
+    [InlineData(true, 42u, ulong.MaxValue)]
+    [InlineData(false, 42u, 115ul)]
+    public void Unusable_cpu_readings_discard_the_whole_callback_and_the_next_baseline_recovers(bool success, uint thread, ulong cycles)
+    {
+        Queue<(bool Success, uint Thread, ulong Cycles)> readings = new([(true, 42, 100), (true, 42, 110), (success, thread, cycles), (true, 42, 200), (true, 42, 202), (true, 42, 205)]);
+        DiagnosticHostPhaseTiming timing = new(true, true, Read);
+        INativeBattlePhaseTimingSink sink = timing;
+        for (int callback = 0; callback < 2; callback++)
+        {
+            sink.BeginCallback();
+            sink.Record(NativeBattleTimedPhase.Setup, 2);
+            sink.Record(NativeBattleTimedPhase.OrderingExecution, 8);
+            sink.CompleteCallback();
+        }
+        DiagnosticHostFramePhases window = timing.CompleteInterval();
+        DiagnosticNativeCpuCycles observation = Assert.IsType<DiagnosticNativeCpuCycles>(window.NativeCpuCycles);
+        Assert.True(observation.Available);
+        Assert.Equal(42u, observation.ThreadId);
+        Assert.Equal(1, observation.InvalidObservations);
+        Assert.Equal(1, observation.Cycles!.Value.Callbacks);
+        Assert.Equal(5, observation.TotalCycles);
+        Assert.Equal(10, observation.TotalPairedWallTicks);
+        Assert.Equal(20, window.Native.Total);
+
+        bool Read(out uint threadId, out ulong count)
+        {
+            var reading = readings.Dequeue();
+            threadId = reading.Thread;
+            count = reading.Cycles;
+            return reading.Success;
+        }
     }
 
     [Fact]

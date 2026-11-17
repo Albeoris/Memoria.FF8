@@ -28,6 +28,8 @@ public sealed class NativeBattlePhaseTimingTests
         disabled.Dispose();
         Assert.Equal(2, outer.Callbacks);
         Assert.Equal(1, inner.Callbacks);
+        Assert.Equal(new[] { "Begin", "Setup", "Models", "RenderTail", "Complete", "Begin", "Setup", "Complete" }, outer.Notifications);
+        Assert.Equal(new[] { "Begin", "Setup", "OrderingExecution", "Complete" }, inner.Notifications);
         Assert.Equal(new[] { NativeBattleTimedPhase.Setup, NativeBattleTimedPhase.Models, NativeBattleTimedPhase.RenderTail, NativeBattleTimedPhase.Setup }, outer.Phases);
         Assert.Equal(new[] { NativeBattleTimedPhase.Setup, NativeBattleTimedPhase.OrderingExecution }, inner.Phases);
         Assert.All(outer.Ticks, ticks => Assert.True(ticks >= 0));
@@ -58,6 +60,7 @@ public sealed class NativeBattlePhaseTimingTests
             }
         }
         Assert.Equal(1, sink.Callbacks);
+        Assert.Equal(new[] { "Begin", "Setup", "Complete" }, sink.Notifications);
         Assert.Equal(NativeBattleTimedPhase.Setup, Assert.Single(sink.Phases));
     }
 
@@ -65,17 +68,25 @@ public sealed class NativeBattlePhaseTimingTests
     {
         internal List<NativeBattleTimedPhase> Phases { get; } = [];
         internal List<long> Ticks { get; } = [];
+        internal List<string> Notifications { get; } = [];
         internal int Callbacks { get; private set; }
+
+        public void BeginCallback()
+        {
+            Notifications.Add("Begin");
+        }
 
         public void Record(NativeBattleTimedPhase phase, long elapsedTicks)
         {
             Phases.Add(phase);
             Ticks.Add(elapsedTicks);
+            Notifications.Add(phase.ToString());
         }
 
         public void CompleteCallback()
         {
             Callbacks++;
+            Notifications.Add("Complete");
         }
     }
 }

@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private readonly DiagnosticHostPhaseTiming diagnosticHostPhaseTiming = new(Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1");
+    private readonly DiagnosticHostPhaseTiming diagnosticHostPhaseTiming = new(Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1", Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_NATIVE_CPU_CYCLES") == "1");
     private VisualFrameRate? visualFrameRate;
     private readonly long presentationClockStarted = Stopwatch.GetTimestamp();
     private TimeSpan nextFpsLabelUpdate;

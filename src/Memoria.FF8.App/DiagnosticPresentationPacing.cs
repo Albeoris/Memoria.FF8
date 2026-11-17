@@ -30,12 +30,16 @@ internal sealed record DiagnosticSlowPresent(long Frame, long IntervalBeginTicks
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticGcPauseAnnotation? GcPauseAnnotation { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticNativeCpuCycles? NativeCpuCycles { get; init; }
 }
 internal sealed record DiagnosticHostPhaseSummary(int Samples, int ExcludedSamples, DiagnosticPacingDuration UpdateExcludingTimerWait, DiagnosticPacingDuration BattlePresentationUpdate, DiagnosticPacingDuration Draw, DiagnosticPacingDuration BattleSceneRender, DiagnosticPacingDuration PostPresent, DiagnosticPacingDuration Uninstrumented);
 internal sealed record DiagnosticPacingSummary(long TimestampFrequency, int Capacity, long Observations, long InvalidObservations, long OverflowObservations, int Samples, long PacerCalls, long TimerCalls, long ResetCalls, DiagnosticPacingLimit[] FrameLimits, DiagnosticPacingDuration Interval, DiagnosticPacingDuration TimerWait, DiagnosticPacingDuration Present, DiagnosticPacingDuration Other)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticHostPhaseSummary? HostPhases { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticNativeCpuCycles? NativeCpuCycles { get; init; }
     public DiagnosticSlowPresent[] SlowestPresents { get; init; } = [];
 }
 internal readonly record struct DiagnosticPacingProgressDuration(double TotalMilliseconds, double MaximumMilliseconds);
@@ -141,6 +145,7 @@ internal sealed class DiagnosticPresentationPacing
         return new(frequency, samples.Length, observations, invalid, overflow, included, observed.Sum(sample => sample.PacerCalls), observed.Sum(sample => sample.TimerCalls), resets, observed.GroupBy(sample => sample.FrameLimit).Select(group => new DiagnosticPacingLimit(group.Key, group.Count())).ToArray(), Summarize(observed.Select(sample => sample.IntervalTicks)), Summarize(observed.Select(sample => sample.TimerWaitTicks)), Summarize(observed.Select(sample => sample.PresentEndTicks - sample.PresentBeginTicks)), Summarize(observed.Select(sample => sample.IntervalTicks - sample.TimerWaitTicks - (sample.PresentEndTicks - sample.PresentBeginTicks))))
         {
             HostPhases = SummarizeHostPhases(observed),
+            NativeCpuCycles = SummarizeNativeCpuCycles(observed),
             SlowestPresents = observed.OrderByDescending(sample => sample.IntervalTicks).Take(10).Select(DescribeSlowPresent).ToArray()
         };
     }
@@ -163,8 +168,45 @@ internal sealed class DiagnosticPresentationPacing
         }
         return new(sample.Frame, sample.PresentedTicks - sample.IntervalTicks, sample.PresentedTicks, sample.PresentBeginTicks, sample.PresentEndTicks, sample.FrameLimit, sample.IntervalTicks * milliseconds, sample.TimerWaitTicks * milliseconds, (sample.PresentEndTicks - sample.PresentBeginTicks) * milliseconds, status, host, native)
         {
-            GcPauseAnnotation = sample.GcPause is { } gc ? new(gc.ObservationBeginTicks, gc.ObservationEndTicks, gc.PauseTimeSpanTicks / (double)TimeSpan.TicksPerMillisecond, gc.Gen2Collections) : null
+            GcPauseAnnotation = sample.GcPause is { } gc ? new(gc.ObservationBeginTicks, gc.ObservationEndTicks, gc.PauseTimeSpanTicks / (double)TimeSpan.TicksPerMillisecond, gc.Gen2Collections) : null,
+            NativeCpuCycles = host is not null && sample.HostPhases is { NativeCpuCycles: { } cycles } cycleFrame &&
+                (cycles.TotalPairedWallTicks is not long pairedTicks || pairedTicks <= cycleFrame.BattlePresentationUpdate) ? cycles : null
         };
+    }
+
+    private static DiagnosticNativeCpuCycles? SummarizeNativeCpuCycles(DiagnosticPacingSample[] observed)
+    {
+        bool requested = false;
+        bool available = false;
+        long invalid = 0;
+        uint? thread = null;
+        DiagnosticNativeFramePhases cycles = default;
+        DiagnosticNativeFramePhases wall = default;
+        foreach (DiagnosticPacingSample sample in observed)
+        {
+            if (sample.HostPhases is not { NativeCpuCycles: { } observation } phases)
+            {
+                continue;
+            }
+            requested = true;
+            available |= observation.Available;
+            invalid += observation.InvalidObservations;
+            if (observation.Cycles is not { } timed || observation.PairedWallTicks is not { } paired)
+            {
+                continue;
+            }
+            if (!phases.FitsInterval(sample.TimerWaitTicks, NonPresentTicks(sample)) || paired.Total > phases.BattlePresentationUpdate || observation.ThreadId is null ||
+                (thread is not null && thread != observation.ThreadId) ||
+                timed.Total > long.MaxValue - cycles.Total || paired.Total > long.MaxValue - wall.Total)
+            {
+                invalid += timed.Callbacks;
+                continue;
+            }
+            thread = observation.ThreadId;
+            cycles = cycles.Add(timed);
+            wall = wall.Add(paired);
+        }
+        return requested ? new(available, invalid, thread, cycles.Callbacks > 0 ? cycles : null, cycles.Callbacks > 0 ? wall : null) : null;
     }
 
     private DiagnosticHostPhaseSummary? SummarizeHostPhases(DiagnosticPacingSample[] observed)

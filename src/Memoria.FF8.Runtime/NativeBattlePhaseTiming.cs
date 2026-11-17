@@ -18,6 +18,10 @@ public enum NativeBattleTimedPhase
 
 public interface INativeBattlePhaseTimingSink
 {
+    void BeginCallback()
+    {
+    }
+
     void Record(NativeBattleTimedPhase phase, long elapsedTicks);
     void CompleteCallback();
 }
@@ -37,7 +41,12 @@ public static class NativeBattlePhaseTiming
 
     internal static CallbackScope BeginCallback()
     {
-        return current is { } sink ? new(sink, Stopwatch.GetTimestamp()) : default;
+        if (current is not { } sink)
+        {
+            return default;
+        }
+        sink.BeginCallback();
+        return new(sink, Stopwatch.GetTimestamp());
     }
 
     public readonly struct ObservationScope : IDisposable
