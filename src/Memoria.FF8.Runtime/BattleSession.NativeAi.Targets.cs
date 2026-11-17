@@ -159,7 +159,7 @@ public sealed partial class BattleSession
             request.AllowsKnockedOutAllies || allowsKnockedOutAllies || (flags & 1) != 0);
     }
 
-    private static (BattleSide? Side, Func<BattleCombatant, bool> Eligible) NativeAiTargetFilter(BattleCombatant[] actors, byte group, byte comparison, byte criterion)
+    private (BattleSide? Side, Func<BattleCombatant, bool> Eligible) NativeAiTargetFilter(BattleCombatant[] actors, byte group, byte comparison, byte criterion)
     {
         BattleCombatant[] range = actors.Where(candidate => (group == 200 ? candidate.Side == BattleSide.Allies : group != 201 || candidate.Side == BattleSide.Enemies) && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
         Func<BattleCombatant, bool> matches;

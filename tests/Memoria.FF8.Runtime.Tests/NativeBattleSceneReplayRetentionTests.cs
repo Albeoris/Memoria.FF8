@@ -90,7 +90,8 @@ public sealed class NativeBattleSceneReplayRetentionTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         };
         BattleSession logical = new(definition, BattleAtbMode.Normal);
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 4, 1);
+        var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0)) with { Flags = 4, Callback = 1 };
         BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(logical, graphics);
         process.RestoreEncounterArrivals([]);
         typeof(BattlePresentationProcess).GetMethod("InitializeNativeRetainedMemory", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(process, []);

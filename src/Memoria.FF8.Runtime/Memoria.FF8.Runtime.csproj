@@ -12,6 +12,7 @@
     <InternalsVisibleTo Include="Memoria.FF8.Runtime.Tests" />
     <InternalsVisibleTo Include="Memoria.FF8.Platform.Tests" />
     <InternalsVisibleTo Include="Memoria.FF8.Battle.Tests" />
+    <InternalsVisibleTo Include="Memoria.FF8.BattleEffects.Tests" />
     <InternalsVisibleTo Include="Memoria.FF8.Assets.Tests" />
     <InternalsVisibleTo Include="Memoria.FF8.App.Tests" />
   </ItemGroup>
