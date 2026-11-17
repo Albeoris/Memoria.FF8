@@ -43,7 +43,7 @@ The Battle section shows whether actions target a **Game battle** or **Laborator
 
 **Additional enemies** stores a value from 0 to 10, with 0 as the default. The gold marker shows the effective request for eligible random encounters. With more than three allies, the request is at least the ally count minus two. Hardcore requests at least one. The encounter, area and roster cap can reduce how many enemies are added. Changes apply to later encounters. At Title, the slider sets the new-game default.
 
-Opening the laboratory initializes its editor from the current party and a recent eligible opponent. If there is no eligible encounter, it uses the procedural practice Dummy; at the title, party defaults come from New Game data. Laboratory edits remain separate from the running game's state.
+Opening the laboratory initializes its editor from the current party and a recent eligible opponent. If there is no eligible encounter, it selects an enemy from the installed catalog. At the title, party defaults come from New Game data. Laboratory edits remain separate from the running game's state.
 
 Use Scenario, Participants and Presets to keep the editor compact. Select an actor to edit Identity, Vitals and stats, Equipment and abilities, or Status effects. Status timing fields appear for enabled effects. Preset Save and Load are explicit actions. Loading a preset updates the editor and does not start a battle. The three preset slots use `battle-presets.json`, separate from ordinary game snapshots.
 

@@ -182,9 +182,9 @@ This host advances through queue commands rather than a timed simulation loop. I
 
 ## Battle preview
 
-`--battle-preview` renders battle assets and the shared HUD to PNG without a graphics device. Supply `--scenario JSON` (a `BattlePreviewScenario`) and `--output PNG`.
+`--battle-preview` runs the shared battle presentation and renders its scene and HUD to PNG without a graphics device. Supply `--scenario JSON` (a `BattlePreviewScenario`) and `--output PNG`. The scenario must identify an installed stage and installed models for all participants.
 
-Optional arguments: `--game-dir DIRECTORY`, `--resolution WIDTHxHEIGHT` (default `960x672`, width `320..4096`, height `240..4096`), `--frames 0..30000` (default `0`), `--advance-turn` and `--select-target`. The turn advance happens before frame ticks; target selection happens before scenario HUD inputs. Output must differ from source JSON.
+Optional arguments include `--game-dir DIRECTORY`, `--resolution WIDTHxHEIGHT` (default `960x672`, width `320..4096`, height `240..4096`), `--frames 0..30000` (default `0`), `--advance-turn` and `--select-target`. The preview finishes battle entry before advancing a turn or counting 60 Hz frames. Target selection happens before scenario HUD inputs. Output must differ from source JSON.
 
 ```powershell
 ./Data/Memoria.FF8.exe --battle-preview --scenario ./input/battle-scenario.json --output ./output/battle.png --frames 1
