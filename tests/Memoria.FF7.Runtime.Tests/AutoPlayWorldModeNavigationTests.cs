@@ -33,6 +33,7 @@ internal static class AutoPlayWorldModeNavigationTests
         policy.State.FrontierIdleSteps = 0;
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
         controller.Start();
+        Ff7WorldEntity initial = world.CaptureAutoPlayMovementState().Player;
         controller.Advance(1);
         Check(controller.Error is null && policy.State.Active is { WorldModeGoal: not null, WorldControl: null }, $"The shared planner did not select the directed native vehicle/rider approach: {controller.Error}");
         Ff7AutoPlayWorldModeGoal selected = policy.State.Active!.WorldModeGoal!;
@@ -41,6 +42,12 @@ internal static class AutoPlayWorldModeNavigationTests
         Console.WriteLine($"selected={selected.TargetEventId} actual={string.Join(',', selectedEntry.Transitions.Select(transition => $"{transition.Selector}:{(transition.Selector is ushort selector ? world.ResolveFieldEntry(selector).Map : -1)}"))}");
         Check(selectedTarget.FieldEntries.Any(entry => entry.Destination is not null && target.FieldEntries.Any(expected => expected.Destination?.Field == entry.Destination.Field)), $"The native candidate ordering selected {selected.TargetEventId}, fields={string.Join(',', selectedTarget.FieldEntries.Select(entry => entry.Destination?.Field))}, before the configured nearest unseen entry.");
         Check(world.ControlledModel != guide.RiderModel && world.Process.Vehicle?.CancelHeldTicks == 0, "The planner exited before reaching the selected rider component.");
+        for (int step = 0; step < 8 && controller.Running && world.CaptureAutoPlayMovementState().Player is { } current && current.X == initial.X && current.Z == initial.Z; step++)
+        {
+            controller.Advance(1);
+        }
+        Ff7WorldEntity advanced = world.CaptureAutoPlayMovementState().Player;
+        Check(controller.Error is null && (advanced.X != initial.X || advanced.Z != initial.Z), $"The native footprint rejection did not replan to an advancing input: {controller.Error}");
         using MemoryStream captured = new();
         CombinedSessionCodec.Write(captured, envelope with { Ff7 = session.Capture() });
         captured.Position = 0;

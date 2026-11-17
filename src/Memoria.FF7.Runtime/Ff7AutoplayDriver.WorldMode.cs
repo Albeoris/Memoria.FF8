@@ -87,9 +87,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         if (!worldRoute.TryDequeue(out Ff7AutoPlayWorldRouteStep? first))
         {
-            return route.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited
-                ? new(Ff7AutoPlayWorldNavigationStatus.Unsupported, default, expanded, "The bounded native vehicle approach did not establish an advancing input; its advisory edge or landing pose requires refinement.")
-                : new(route.Status, default, expanded, route.Reason);
+            return new(route.Status, default, expanded, route.Reason);
         }
         RememberWorldInput(positionKey, first.Input);
         return new(route.Status, first.Input, expanded, route.Reason, first.Boundary, HasInput: true);

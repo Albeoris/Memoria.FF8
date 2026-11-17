@@ -9,6 +9,8 @@ public sealed partial class Ff7AutoPlayPolicy
         public Ff7AutoPlayWorldScriptObservation Target { get; } = target;
         public Ff7AutoPlayWorldModeGoal Goal { get; } = goal;
         public Ff7AutoPlayWorldModeGuide? Guide { get; set; }
+        public string? RefinementSource { get; set; }
+        public HashSet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)> UnproductiveEdges { get; } = [];
     }
 
     private readonly Dictionary<string, WorldModeCandidate> worldModeCatalog = new(StringComparer.Ordinal);
@@ -109,7 +111,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private static Ff7AutoPlayWorldModeGuide ReadWorldModeGuide(Ff7WorldRuntime world, WorldModeCandidate candidate)
     {
-        return world.ReadAutoPlaySurfaceVehicleGuide(candidate.Target, (source, predecessor) => world.PreviewAutoPlaySurfaceLandingAtFace(source, predecessor).Ground);
+        return world.ReadAutoPlaySurfaceVehicleGuide(candidate.Target, (source, predecessor) => world.PreviewAutoPlaySurfaceLandingAtFace(source, predecessor).Ground, unproductiveEdges: candidate.UnproductiveEdges);
     }
 
     private Ff7AutoplayInput AdvanceWorldModeApproach(Ff7AutoplayDriver driver, Ff7WorldRuntime world, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active)
@@ -119,6 +121,12 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new InvalidDataException("The selected native mode route has no observed target.");
         }
         TrackFrontierProgress(State, Story());
+        string refinementSource = Ff7AutoplayDriver.WorldPositionKey(world.CaptureAutoPlayMovementState()) + ":" + world.ReadAutoPlayNavigationContext();
+        if (candidate.RefinementSource != refinementSource)
+        {
+            candidate.UnproductiveEdges.Clear();
+            candidate.RefinementSource = refinementSource;
+        }
         Ff7AutoPlayWorldModeGuide? guide = candidate.Guide;
         if (guide is null || !guide.TransportGuide.Faces.Any(face => face.Source == world.Process.Input?.GroundTriangle))
         {
@@ -141,7 +149,17 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             if (result.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited)
             {
-                State.Status = "Planning the native vehicle approach to its rider's entry";
+                int index = Array.FindIndex(guide.TransportGuide.Faces, face => face.Source == world.Process.Input?.GroundTriangle);
+                if (index < 0 || index + 1 >= guide.TransportGuide.Faces.Length || !candidate.UnproductiveEdges.Add((guide.TransportGuide.Faces[index].Source, guide.TransportGuide.Faces[index + 1].Source)))
+                {
+                    throw new NotSupportedException(result.Reason ?? "The bounded native landing search has no alternate advisory edge.");
+                }
+                candidate.Guide = ReadWorldModeGuide(world, candidate);
+                if (candidate.Guide.TransportGuide.Faces.Length == 0)
+                {
+                    throw new NotSupportedException(candidate.Guide.Reason ?? "No alternate native transport advice remains for this physical source.");
+                }
+                State.Status = "Refining the native transport guide after a footprint rejection";
                 Publish();
                 return default;
             }

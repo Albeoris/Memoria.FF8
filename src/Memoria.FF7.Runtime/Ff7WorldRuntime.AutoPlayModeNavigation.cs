@@ -4,12 +4,12 @@ internal sealed record Ff7AutoPlayWorldModeGuide(Ff7AutoPlayWorldGuide Transport
 
 public sealed partial class Ff7WorldRuntime
 {
-    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, int maximumChunks = 128)
+    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(Ff7AutoPlayWorldScriptObservation target, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
     {
-        return ReadAutoPlaySurfaceVehicleGuide(target.Faces.Select(face => face.Source).ToHashSet(), readLanding, maximumNodes, maximumChunks);
+        return ReadAutoPlaySurfaceVehicleGuide(target.Faces.Select(face => face.Source).ToHashSet(), readLanding, maximumNodes, maximumChunks, unproductiveEdges);
     }
 
-    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, int maximumChunks = 128)
+    internal Ff7AutoPlayWorldModeGuide ReadAutoPlaySurfaceVehicleGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, Func<Ff7AutoPlayWorldGuideFace, Ff7AutoPlayWorldGuideFace?, Ff7WorldTerrainReference?> readLanding, int maximumNodes = 16384, int maximumChunks = 128, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges = null)
     {
         ArgumentNullException.ThrowIfNull(readLanding);
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumNodes, 1);
@@ -94,7 +94,7 @@ public sealed partial class Ff7WorldRuntime
                     return new(new(transportRoute.ToArray(), transportExpanded, false, null), rider, current, landing, new(riderRoute.ToArray(), expanded, false, null), riderReachable.ToArray(), expanded + transportExpanded, false, null);
                 }
             }
-            foreach (Ff7WorldTerrainReference next in graph.Adjacent(current, controlledModel, sourceTerrain, false))
+            foreach (Ff7WorldTerrainReference next in graph.Adjacent(current, controlledModel, sourceTerrain, false).Where(next => unproductiveEdges?.Contains((current, next)) != true))
             {
                 System.Numerics.Vector3 a = source.Center;
                 System.Numerics.Vector3 b = graph.Read(next).Center;
